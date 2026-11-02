@@ -79,6 +79,9 @@ class ResolvedSerp:
     features: tuple[FeatureOwnership, ...]
     aio_state: AioState
     has_ai_overview: bool
+    # Organic results within the depth whose address the provider hid behind a Google redirect
+    # and whose site could not be read back: any of them may be an own result.
+    unattributed: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +99,13 @@ class OwnSide:
     aio_state: AioState
     cited_in_ai_overview: bool | None
     aio_citation_position: int | None
+    unattributed: int = 0
+
+    @property
+    def inconclusive(self) -> bool:
+        """No own result was found, but results the check could not attribute lie within its
+        depth: the site may be among them, so its absence is not known."""
+        return self.organic_rank is None and self.unattributed > 0
 
 
 def resolve_serp(
@@ -122,9 +132,12 @@ def resolve_serp(
     }
     # A grouped sub-result shares its parent's rank and is not another rank; the observation
     # keeps one URL for each rank (docs/04, `all_url_ids`).
+    unattributed = 0
     for result in serp.organic:
         if result.organic_rank > depth_requested:
             continue  # beyond the depth requested: not looked for, never read
+        if "unresolved_redirect" in result.url.flags:
+            unattributed += 1
         owner = resolver.resolve_url(result.url).entity_id
         if owner is None or owner not in kept:
             continue
@@ -187,6 +200,7 @@ def resolve_serp(
         features=features,
         aio_state=_aio_state(serp, resolved),
         has_ai_overview=serp.ai_overview.state != "absent",
+        unattributed=unattributed,
     )
 
 
@@ -226,6 +240,7 @@ def own_side(resolved: ResolvedSerp, serp: NormalizedSerp) -> OwnSide:
         aio_state=resolved.aio_state,
         cited_in_ai_overview=cited,
         aio_citation_position=min(positions) if positions else None,
+        unattributed=resolved.unattributed,
     )
 
 

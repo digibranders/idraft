@@ -9,7 +9,12 @@ import pytest
 from pydantic import ValidationError
 
 from idraft.providers.contract import CanonicalRequest, Contract
-from idraft.providers.dataforseo.serp import SerpOrganicParams, task_body
+from idraft.providers.dataforseo.serp import (
+    GOOGLE_DOMAINS,
+    SerpOrganicParams,
+    google_domain,
+    task_body,
+)
 
 RUN = uuid.UUID("0192f0a1-3c44-7e10-8a51-2b7d9c0e4f11")
 TAG = "i:test:t:z:a:1:r:0192f0a13c447e108a512b7d9c0e4f11"
@@ -131,3 +136,15 @@ def test_a_request_the_provider_would_refuse_is_not_made(changes: dict[str, Any]
 @pytest.mark.parametrize("language", ["en", "pt", "zh-TW", "sr-Latn"])
 def test_documented_language_codes_are_taken(language: str) -> None:
     assert _params(language_code=language).language_code == language
+
+
+def test_a_country_searches_on_its_own_google_domain() -> None:
+    assert google_domain("IN") == "google.co.in"
+    assert google_domain("in") == "google.co.in"
+    assert google_domain("US") == "google.com"
+    assert google_domain("ZZ") is None
+    # Every domain is one the request model accepts.
+    for domain in GOOGLE_DOMAINS.values():
+        SerpOrganicParams(
+            keyword="k", location_code=1, language_code="en", depth=10, se_domain=domain
+        )

@@ -90,6 +90,20 @@ class SerpRows:
         )
 
 
+def mark_inconclusive(rows: SerpRows, unattributed: int) -> SerpRows:
+    """The rows of a check that cannot say if the site is absent, cut down to its snapshot and
+    marked with how many results it could not attribute. Its features, observations and current
+    results are left out: they would record the site as absent."""
+    extras = {**(rows.snapshot["extras"] or {}), "inconclusive": {"unattributed": unattributed}}
+    return SerpRows(
+        snapshot={**rows.snapshot, "extras": extras},
+        features=[],
+        observations=[],
+        current=[],
+        feature_codes=(),
+    )
+
+
 def snapshot_time(provider: datetime | None, fetched_at: datetime) -> datetime:
     """When the check happened: the provider's crawl time when it is believable, else the time
     the answer was fetched. Both are fixed by the stored task and payload, so ingesting twice

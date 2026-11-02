@@ -9,6 +9,7 @@ rectangles are computed, and no callback URL is sent.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from datetime import timedelta
 from decimal import Decimal
 from typing import Final, Literal, Self
@@ -29,6 +30,22 @@ LIVE_FAMILY: Final = "serp_live"
 LIVE_CALL_COST_MAX: Final = Decimal("1.00")
 # Control characters, C0 and C1: a keyword is one line of text (Labs checks the same).
 CONTROL: Final = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+# The Google domain people of a country search on. A task that names none gets `google.com`
+# for most countries, a SERP that differs from what people there see and that hides where many
+# results come from (measured for India, docs/09 section 8); one that names the country's own
+# domain gets the real local SERP.
+GOOGLE_DOMAINS: Final[Mapping[str, str]] = {
+    "US": "google.com", "IN": "google.co.in", "GB": "google.co.uk", "AU": "google.com.au",
+    "CA": "google.ca", "DE": "google.de", "FR": "google.fr", "ES": "google.es",
+    "IT": "google.it", "NL": "google.nl", "BR": "google.com.br", "MX": "google.com.mx",
+    "JP": "google.co.jp", "SG": "google.com.sg", "AE": "google.ae", "ZA": "google.co.za",
+    "NZ": "google.co.nz", "IE": "google.ie", "PL": "google.pl", "SE": "google.se",
+    "CH": "google.ch", "AT": "google.at", "BE": "google.be", "PT": "google.pt",
+    "ID": "google.co.id", "PH": "google.com.ph", "MY": "google.com.my", "TH": "google.co.th",
+    "KR": "google.co.kr", "TR": "google.com.tr", "SA": "google.com.sa", "PK": "google.com.pk",
+    "BD": "google.com.bd", "LK": "google.lk", "NG": "google.com.ng", "KE": "google.co.ke",
+    "EG": "google.com.eg", "AR": "google.com.ar", "CO": "google.com.co", "CL": "google.cl",
+}  # fmt: skip
 # The operating systems DataForSEO offers for each device.
 _SYSTEMS: Final = {"desktop": ("windows", "macos"), "mobile": ("android", "ios")}
 
@@ -60,6 +77,11 @@ class SerpOrganicParams(Contract):
         if self.os is not None and self.os not in _SYSTEMS[self.device]:
             raise ValueError(f"{self.os} is not a {self.device} system")
         return self
+
+
+def google_domain(country_iso: str) -> str | None:
+    """The Google domain of a country (ISO 3166-1 alpha-2), None where none is known."""
+    return GOOGLE_DOMAINS.get(country_iso.upper())
 
 
 def as_sent(keyword: str) -> str:

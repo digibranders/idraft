@@ -128,6 +128,90 @@ def test_serp_org_04_a_redirect_wrapper_is_unwrapped_or_kept_and_flagged() -> No
     assert parsed.warnings == ("unresolved_redirect",)
 
 
+GOTO = "https://google.com/goto?url=CAESVQHrOzAVgBDTW51JSGSz9_1jDk4e3wXMyMj8"
+# The separator of a breadcrumb: a single right-pointing angle quotation mark.
+SEP = "›"  # noqa: RUF001
+
+
+def test_serp_org_04b_a_hidden_address_is_read_from_the_breadcrumb() -> None:
+    parsed = parse_serp(
+        serp(
+            [
+                organic(
+                    1,
+                    GOTO + "1",
+                    breadcrumb=f"https://fynix.io {SEP} blog",
+                    website_name="Fynix.io",
+                ),
+                organic(2, GOTO + "2", breadcrumb="https://fynixlimited.site"),
+            ]
+        )
+    )
+
+    first, second = parsed.organic
+    assert first.url.url == "https://fynix.io/blog"
+    assert first.recovered is True
+    assert second.url.url == "https://fynixlimited.site/"
+    assert second.recovered is True
+    assert parsed.warnings == ("redirect_site_recovered", "redirect_site_recovered")
+
+
+def test_serp_org_04c_a_hidden_address_is_read_from_a_site_name_that_is_a_host() -> None:
+    parsed = parse_serp(serp([organic(1, GOTO, website_name="fynixlimited.site")]))
+
+    assert parsed.organic[0].url.host.name == "fynixlimited.site"
+    assert parsed.organic[0].recovered is True
+
+
+def test_serp_org_04d_a_truncated_or_odd_breadcrumb_gives_the_host_only() -> None:
+    parsed = parse_serp(
+        serp(
+            [
+                organic(1, GOTO + "1", breadcrumb=f"https://example.com {SEP} a {SEP} …"),
+                organic(2, GOTO + "2", breadcrumb=f"https://example.org {SEP} Our products"),
+            ]
+        )
+    )
+
+    assert [r.url.url for r in parsed.organic] == ["https://example.com/", "https://example.org/"]
+
+
+def test_serp_org_04e_an_address_that_cannot_be_read_stays_hidden_and_flagged() -> None:
+    parsed = parse_serp(
+        serp(
+            [
+                organic(
+                    1,
+                    GOTO,
+                    breadcrumb="510+ followers",
+                    website_name="LinkedIn · Fyno Digital Marketing",
+                )
+            ]
+        )
+    )
+
+    result = parsed.organic[0]
+    assert result.recovered is False
+    assert "unresolved_redirect" in result.url.flags
+    assert parsed.warnings == ("unresolved_redirect",)
+
+
+def test_serp_org_04f_two_hidden_results_of_one_site_both_keep_their_rank() -> None:
+    parsed = parse_serp(
+        serp(
+            [
+                organic(1, GOTO + "1", breadcrumb="https://example.com"),
+                organic(2, GOTO + "2", breadcrumb="https://example.com"),
+                organic(3, "https://other.com/"),
+            ]
+        )
+    )
+
+    assert [r.organic_rank for r in parsed.organic] == [1, 2, 3]
+    assert "duplicate_url" not in parsed.warnings
+    assert "rank_recomputed" not in parsed.warnings
+
+
 def test_serp_org_05_a_duplicate_canonical_url_keeps_the_first() -> None:
     parsed = parse_serp(
         serp(

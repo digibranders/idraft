@@ -390,7 +390,7 @@ async def test_a_city_is_asked_about_at_its_country_because_labs_refuses_a_city(
     async with worker_db() as db:
         requests = await WORKLOAD.build_requests(db, [city_task, country_task])
 
-    assert {request.params.location_code for request in requests.values()} == {2356}
+    assert {labs.params_of(request).location_code for request in requests.values()} == {2356}
     assert len(requests) == 2
 
 

@@ -564,6 +564,7 @@ async def test_a_request_asks_for_the_keyword_as_entered_at_the_depth_and_queue_
     assert requests[tasks[0].ref].params == SerpOrganicParams(
         keyword="Best CRM+",
         location_code=9002826,
+        se_domain="google.co.uk",
         language_code="en",
         device="mobile",
         os="ios",
@@ -590,6 +591,7 @@ async def test_a_task_of_a_live_run_is_asked_for_live(
     params = requests[task.ref].params
     assert isinstance(params, SerpOrganicParams)
     assert (params.depth, params.queue) == (20, "live")
+    assert params.se_domain == "google.com"
 
 
 # The new-keyword tick.
@@ -679,6 +681,83 @@ async def test_a_run_blocked_by_a_budget_is_not_made_again_for_a_day(
     assert await queue_new_keywords(worker_db, now=NOW + timedelta(hours=2)) == 0
     # A day later the keyword is asked for again (the quiet time counts from the run).
     assert await queue_new_keywords(worker_db, now=NOW + timedelta(hours=25)) == 1
+
+
+async def _with_state(
+    pg: PostgresServer,
+    project: Project,
+    tracked_id: Any,
+    *,
+    observed: datetime,
+    rank: int | None,
+    last_ranked: int | None,
+    beyond: int,
+) -> None:
+    await execute(
+        pg,
+        "INSERT INTO seo.tracked_keyword_state (tracked_keyword_id, workspace_id, project_id, "
+        "last_observed_at, current_rank, last_ranked_rank, consecutive_beyond, "
+        "current_depth_requested) VALUES ($1, $2, $3, $4, $5, $6, $7, 20)",
+        tracked_id,
+        project.workspace_id,
+        project.id,
+        observed,
+        rank,
+        last_ranked,
+        beyond,
+    )
+
+
+async def test_a_drop_is_asked_about_once_more_and_only_once(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    dropped = await _tracked(migrated, project, "crm dropped", profile="deep")
+    held = await _tracked(migrated, project, "crm held")
+    confirmed = await _tracked(migrated, project, "crm confirmed")
+    never_ranked = await _tracked(migrated, project, "crm never")
+    seen = NOW - timedelta(minutes=10)
+    await _with_state(migrated, project, dropped, observed=seen, rank=None, last_ranked=5, beyond=1)
+    await _with_state(migrated, project, held, observed=seen, rank=4, last_ranked=4, beyond=0)
+    await _with_state(
+        migrated, project, confirmed, observed=seen, rank=None, last_ranked=5, beyond=2
+    )
+    await _with_state(
+        migrated, project, never_ranked, observed=seen, rank=None, last_ranked=None, beyond=1
+    )
+
+    plan = await _plan(worker_db, _window(project, {"confirm": True}))
+    made = await queue_new_keywords(worker_db, now=NOW)
+    again = await queue_new_keywords(worker_db, now=NOW + timedelta(minutes=1))
+
+    assert _depths(plan) == {dropped: 100}
+    assert (made, again) == (1, 0)
+    (run,) = await _runs(migrated, project)
+    assert run["config_snapshot"] == '{"selector": {"confirm": true}}'
+
+
+async def test_a_drop_whose_confirmation_failed_is_not_asked_for_again(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    dropped = await _tracked(migrated, project, "crm dropped")
+    await _with_state(
+        migrated,
+        project,
+        dropped,
+        observed=NOW - timedelta(minutes=10),
+        rank=None,
+        last_ranked=5,
+        beyond=1,
+    )
+    assert await queue_new_keywords(worker_db, now=NOW) == 1
+    await execute(
+        migrated,
+        "UPDATE ops.collection_runs SET status = 'failed' WHERE project_id = $1",
+        project.id,
+    )
+
+    assert await queue_new_keywords(worker_db, now=NOW + timedelta(hours=3)) == 0
 
 
 async def test_paused_and_archived_projects_get_no_run(

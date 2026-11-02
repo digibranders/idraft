@@ -20,6 +20,7 @@ Text the database cannot keep (NUL, a lone surrogate) is cleaned from the whole 
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -27,7 +28,15 @@ from typing import Any, Final, Literal
 
 from idraft.extraction.urls import CanonicalUrl, UrlRejectedError, canonicalize
 
-PARSER_VERSION: Final = 1
+PARSER_VERSION: Final = 2
+# What a result shows in place of its address: the origin, then the path pieces, each after a
+# single right-pointing angle quotation mark (U+203A).
+_CRUMB_SEPARATOR: Final = "›"  # noqa: RUF001
+_CRUMB_ORIGIN: Final = re.compile(r"https?://[^\s/?#]+", re.IGNORECASE)
+_CRUMB_SEGMENT: Final = re.compile(r"[A-Za-z0-9._~%!$&'()*+,;=:@-]+")
+_HOSTNAME: Final = re.compile(
+    r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+"
+)
 # A feature's payload is kept small: it is a row of a table read for every SERP of a keyword.
 # The limit is bytes of the text PostgreSQL gives the jsonb value, which is what the table's check
 # measures: `json.dumps` with its default separators writes the same text.
@@ -111,6 +120,10 @@ class OrganicResult:
     has_sitelinks: bool
     checks: tuple[str, ...]  # 'is_image', 'is_video', 'amp', 'is_featured_snippet'
     rating: Rating | None
+    # The provider hid the address behind a Google redirect and the site was read from the
+    # result's breadcrumb or site name: the host is the result's, the path is as the breadcrumb
+    # shows it (the host alone when that was cut short).
+    recovered: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -597,14 +610,25 @@ class _Builder:
         results: list[OrganicResult] = []
         seen: set[bytes] = set()
         for item, provider_rank in zip(self._organic, given, strict=True):
-            url = _url(_strict_str(item.get("url"), "items[].url"), self.warnings)
+            url_warnings: list[str] = []
+            url = _url(_strict_str(item.get("url"), "items[].url"), url_warnings)
             if url is None:
+                self.warnings.extend(url_warnings)
                 self.warnings.append("organic_without_url")
                 continue
-            if url.url_hash in seen:
-                self.warnings.append("duplicate_url")
-                continue
-            seen.add(url.url_hash)
+            site = _hidden_site(item) if "unresolved_redirect" in url.flags else None
+            if site is not None:
+                url = site
+                self.warnings.append("redirect_site_recovered")
+            else:
+                self.warnings.extend(url_warnings)
+            # A hidden address read back is a guess at the page, so two of one site are two
+            # results, not a repeat.
+            if site is None:
+                if url.url_hash in seen:
+                    self.warnings.append("duplicate_url")
+                    continue
+                seen.add(url.url_hash)
             grouped = _distinct(
                 [
                     _url(child.get("url"), self.warnings)
@@ -631,6 +655,7 @@ class _Builder:
                     has_sitelinks=bool(links),
                     checks=_checks(item),
                     rating=_rating(item.get("rating")),
+                    recovered=site is not None,
                 )
             )
         if recomputed:
@@ -707,6 +732,37 @@ def _absolute(item: Mapping[str, Any]) -> int | None:
     if item.get("position") == "right":
         return None
     return _whole(item.get("rank_absolute"))
+
+
+def _hidden_site(item: Mapping[str, Any]) -> CanonicalUrl | None:
+    """The page behind an organic result whose address the provider replaced with a Google
+    redirect it cannot unwrap, read from what the result shows: its breadcrumb (the origin and
+    the path pieces), else a site name that is itself a host. None when neither says."""
+    candidate: str | None = None
+    crumb = _text(item.get("breadcrumb"))
+    if crumb is not None:
+        candidate = _breadcrumb_address(crumb)
+    if candidate is None:
+        name = (_text(item.get("website_name")) or "").strip().lower()
+        if _HOSTNAME.fullmatch(name):
+            candidate = f"https://{name}/"
+    if candidate is None:
+        return None
+    try:
+        return canonicalize(candidate)
+    except UrlRejectedError:
+        return None
+
+
+def _breadcrumb_address(crumb: str) -> str | None:
+    """A breadcrumb of origin `https://host` and pieces `a`, `b` as `https://host/a/b`. A path
+    that is cut short (an ellipsis) or shows words instead of path pieces is not guessed at: the
+    address is then the host's root."""
+    head, *segments = (part.strip() for part in crumb.split(_CRUMB_SEPARATOR))
+    if not _CRUMB_ORIGIN.fullmatch(head):
+        return None
+    path = "/".join(segments) if all(_CRUMB_SEGMENT.fullmatch(s) for s in segments) else ""
+    return f"{head}/{path}"
 
 
 def _host_of(url: object) -> str | None:

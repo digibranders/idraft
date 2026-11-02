@@ -370,3 +370,50 @@ def test_the_ai_overview_is_cited_not_owned() -> None:
     # The feature row still says whose sources it lists.
     (ownership,) = resolved.features
     assert ownership.owned_by_project is True
+
+
+HIDDEN = "https://google.com/goto?url=CAESVQHrOzAVgBDTW51JSGSz9_1jDk4e3wXMyMj8"
+OWN_ONLY = resolver(rule(OWN, "own", "acme.com"))
+
+
+def test_hidden_results_within_the_depth_make_an_absent_own_side_inconclusive() -> None:
+    serp = serp_of("https://other.example/1", HIDDEN + "1", HIDDEN + "2")
+    resolved = resolve_serp(serp, OWN_ONLY, ENTITIES, depth_requested=20)
+    side = own_side(resolved, serp)
+
+    assert side.organic_rank is None
+    assert side.unattributed == 2
+    assert side.inconclusive is True
+
+
+def test_a_hidden_result_beyond_the_depth_is_never_read() -> None:
+    serp = serp_of("https://other.example/1", "https://other.example/2", HIDDEN)
+    resolved = resolve_serp(serp, OWN_ONLY, ENTITIES, depth_requested=2)
+    side = own_side(resolved, serp)
+
+    assert side.unattributed == 0
+    assert side.inconclusive is False
+
+
+def test_an_own_rank_found_stays_conclusive_beside_hidden_results() -> None:
+    serp = serp_of(HIDDEN, "https://www.acme.com/pricing")
+    resolved = resolve_serp(serp, OWN_ONLY, ENTITIES, depth_requested=20)
+    side = own_side(resolved, serp)
+
+    assert side.organic_rank == 2
+    assert side.unattributed == 1
+    assert side.inconclusive is False
+
+
+def test_a_hidden_result_whose_site_was_read_back_is_attributed() -> None:
+    serp = serp_of(
+        "https://other.example/1",
+        HIDDEN,
+        more={2: {"breadcrumb": "https://www.acme.com › pricing"}},  # noqa: RUF001
+    )
+    resolved = resolve_serp(serp, OWN_ONLY, ENTITIES, depth_requested=20)
+    side = own_side(resolved, serp)
+
+    assert side.organic_rank == 2
+    assert side.unattributed == 0
+    assert side.inconclusive is False

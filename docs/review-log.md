@@ -703,3 +703,25 @@ The docs assumed one DigitalOcean droplet (`s-2vcpu-4gb`, $24 per month) used on
 | D-H2 | Edge proxy for the shared ports 80 and 443: the existing nginx or a host-level Caddy | owner and the second project's owner, before WP2b step 4 |
 | D-H3 | The second project's name and its expected resource needs, so the split (about 8 GB each) can be reviewed against measured load | owner |
 | D-H4 | Who owns host-level changes (edge proxy, firewall, systemd slices, OS updates and reboots) | owner |
+
+### Rank accuracy: hidden results, country Google domain, confirmed drops (2026-11-02)
+
+The owner reported wrong ranks in the keywords table. The live data was checked against DataForSEO the same day (about $0.8 of test calls). What was found:
+
+- On `google.com` the provider hid the address of many results behind opaque `google.com/goto` links (50 to 77 of 100 in the checks made for an India location, none on `google.co.in`). The real site is only in `breadcrumb` and `website_name`. The project's own site was found behind such a link at ranks 1, 89, 92 and 93 in different readings, and the parser stored those as domain `google.com`, so the site looked absent.
+- The same query at the same location, device and depth returned the own site at rank 1 in one reading and nowhere in the next (the standard-queue check of the brand keyword `fynix digital` on 2026-10-31 and 2026-11-01). The state followed the latest reading, so a keyword flipped to "not in top 100".
+
+Changed (backend only):
+
+- Parser version 2: the site of a wrapped result is read back from the breadcrumb or a host-like site name (`OrganicResult.recovered`, warning `redirect_site_recovered`); unreadable ones stay wrapped and flagged.
+- `se_domain` is the country's Google domain (`GOOGLE_DOMAINS`), also for check now.
+- A check with no own rank and unattributed results within its depth is `inconclusive`: snapshot kept, nothing else written.
+- The new-keyword tick also plans one confirmation check (`{"confirm": true}`) for a drop; "never checked" now means no state, not no snapshot.
+- Doc 06 sections 3.1 and 5.2, doc 09 section 4.1 (as built) updated.
+
+| Id | Item | Plan |
+|---|---|---|
+| F99 | A recovered result's path is the breadcrumb's (a guess), so `target_url_match` can be wrong for it; the state does not mark it. Show a recovered ranking URL as approximate | UI follow-up |
+| F100 | No view shows that a keyword's latest reading was inconclusive or that a drop awaits confirmation; the table shows the last rank that stood | UI follow-up |
+| F101 | Countries without an entry in `GOOGLE_DOMAINS` still send no `se_domain`; the table was written from memory and is not checked against the provider's list | check against `serp/google/locations` before adding countries |
+| F102 | Existing stored states were collected before these changes and keep their values until the next check | run a check of all keywords after deploy |
