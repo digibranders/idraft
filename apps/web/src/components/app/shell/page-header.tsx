@@ -33,12 +33,12 @@ export interface PageHeaderProps {
 export function PageHeader({ title, meta, actions, tabs, toolbar, headingId }: PageHeaderProps): ReactElement {
   const compact = toolbar !== undefined;
   return (
-    <div data-slot="page-header" className="flex flex-col gap-3">
+    <div data-slot="page-header" className="@container flex flex-col gap-3">
       <div className={cn('flex flex-wrap gap-x-4 gap-y-3', compact ? 'items-center' : 'items-start')}>
         <div
           className={cn(
             'flex min-w-0 basis-full md:basis-auto',
-            compact ? 'items-baseline gap-3' : 'flex-col gap-1 md:flex-1',
+            compact ? 'order-1 items-baseline gap-3 md:flex-1 @6xl:flex-none' : 'flex-col gap-1 md:flex-1',
           )}
         >
           <h1 id={headingId} tabIndex={-1} className="type-page-title outline-none">
@@ -46,8 +46,13 @@ export function PageHeader({ title, meta, actions, tabs, toolbar, headingId }: P
           </h1>
           {meta === undefined ? null : <p className="type-meta">{meta}</p>}
         </div>
-        {toolbar === undefined ? null : <div className="min-w-0 flex-1 basis-80">{toolbar}</div>}
-        {actions === undefined ? null : <div className="flex items-center gap-3 md:ml-auto">{actions}</div>}
+        {toolbar === undefined ? null : (
+          // Narrow: its own row under the title and actions. Wide (the header's own width, so a docked inspector counts): between them
+          <div className="order-3 min-w-0 basis-full @6xl:order-2 @6xl:flex-1 @6xl:basis-80">{toolbar}</div>
+        )}
+        {actions === undefined ? null : (
+          <div className={cn('flex items-center gap-3 md:ml-auto', compact && 'order-2 @6xl:order-3')}>{actions}</div>
+        )}
       </div>
       {tabs}
     </div>
