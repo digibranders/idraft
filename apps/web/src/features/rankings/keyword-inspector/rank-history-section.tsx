@@ -100,7 +100,7 @@ export function RankHistorySection({ scope }: RankHistorySectionProps): ReactEle
   const firstRank = rankedValues[0];
   const lastRank = rankedValues.at(-1);
 
-  const isAllFailed = model.summary.checks > 0 && model.summary.failed === model.summary.checks;
+  const isAllFailed = model.summary.checks === 0 && model.summary.failed > 0;
 
   const bandDescriptions = model.bands
     .map((b) => {

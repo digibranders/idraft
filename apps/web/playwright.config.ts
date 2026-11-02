@@ -10,7 +10,8 @@ import { defineConfig, devices } from '@playwright/test';
  * it must be a secure context (`localhost`, or https): the mock worker and the `__Host-` session cookie
  * exist only there, so `http://host.docker.internal:3100` would sign no one in.
  */
-const PORT = 3100;
+// E2E_PORT avoids colliding with dev servers on port 3100 when running Playwright locally.
+const PORT = Number(process.env.E2E_PORT) || 3100;
 /** What a screenshot must not depend on (26 section 11): the machine's time zone and language. */
 const VISUAL = { timezoneId: 'UTC', locale: 'en-US', deviceScaleFactor: 1 } as const;
 const external = process.env.E2E_BASE_URL;

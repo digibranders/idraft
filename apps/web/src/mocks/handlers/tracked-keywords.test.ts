@@ -18,7 +18,8 @@ import { KEYWORD_TABLE } from '../keyword-table';
 import { KEYWORDS_COOKIE, keywordWorld, readKeywordChanges } from '../keywords-state';
 import { mockId } from '../mock-ids';
 import { MOCK_SCHEDULE_IDS } from '../operations-fixtures';
-import { FAILED_IDS, rankStateOf, stoppedAtOf, type TrackedKeywordState } from '../rank-state';
+import { rankStateOf, stoppedAtOf, type TrackedKeywordState } from '../rank-state';
+import { FAILED_IDS } from '../serp-world';
 import { SESSION_COOKIE } from '../session';
 import { TEST_API_ORIGIN } from '@/test/api-server';
 import {

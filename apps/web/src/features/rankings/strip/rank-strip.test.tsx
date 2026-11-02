@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RankStrip } from './rank-strip';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
@@ -18,10 +18,13 @@ const TRACKED_PATH = mswPath('/api/v1/workspaces/{workspace_id}/projects/{projec
 
 describe('RankStrip', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-02T12:00:00Z'));
     document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('viewer').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     server.resetHandlers();
     server.events.removeAllListeners();
   });
@@ -39,7 +42,7 @@ describe('RankStrip', () => {
     expect(screen.getByText('Top 10')).toBeInTheDocument();
     expect(screen.getByText('12')).toBeInTheDocument();
     expect(screen.getByText('Top 20')).toBeInTheDocument();
-    expect(screen.getByText('28')).toBeInTheDocument();
+    expect(screen.getByText('26')).toBeInTheDocument();
     expect(screen.getAllByText('of 55 checked')).toHaveLength(3);
   });
 
@@ -85,7 +88,7 @@ describe('RankStrip', () => {
     expect(screen.getByText('Top 10')).toBeInTheDocument();
     expect(screen.getByText('12')).toBeInTheDocument();
     expect(screen.getByText('Top 20')).toBeInTheDocument();
-    expect(screen.getByText('28')).toBeInTheDocument();
+    expect(screen.getByText('26')).toBeInTheDocument();
     expect(screen.getByText('The summary did not load.')).toBeInTheDocument();
   });
 

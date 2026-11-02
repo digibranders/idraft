@@ -4,7 +4,7 @@ import type { EntityWorld } from '../entities-state';
 import { MOCK_INVITED_USER, MOCK_USERS } from '../fixtures';
 import { fixtureReading, fixtureReadingsOf, METRICS_FETCHED_AT, type FixtureReading } from '../keyword-fixtures';
 import { keywordMetrics, metricsHistory } from '../keyword-metrics';
-import { competitorRankOf, rankStateOf, sparklineOf, stoppedAtOf } from '../rank-state';
+import { competitorRanksOf, rankStateOf, sparklineOf, stoppedAtOf } from '../rank-state';
 import { normalizeKeyword } from '@/lib/keywords/keyword-text';
 import {
   currentVersion,
@@ -397,10 +397,14 @@ export function trackedKeywordRowView(
       ? sparklineOf(row.tracked_keyword_id, row.created_at, rank.now, rank.domain, stoppedAtOf(row))
       : null,
     competitor_ranks: include.has('competitor_ranks')
-      ? effectiveCompetitors(world, entities, row).flatMap((entity) => {
-          const res = competitorRankOf(row.tracked_keyword_id, row.created_at, rank.now, entity, stoppedAtOf(row));
-          return res === null ? [] : [res];
-        })
+      ? competitorRanksOf(
+          row.tracked_keyword_id,
+          row.created_at,
+          rank.now,
+          rank.domain,
+          effectiveCompetitors(world, entities, row),
+          stoppedAtOf(row),
+        )
       : null,
     features: null,
     aio: null,

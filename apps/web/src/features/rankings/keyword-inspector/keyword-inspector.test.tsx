@@ -529,7 +529,7 @@ describe('The keyword inspector', () => {
           data: {
             tracked_keyword_id: mockId('tracked', 1),
             window: { from: '2026-09-28', to: '2026-09-30', timezone: 'UTC' },
-            summary: { checks: 3, ranked_checks: 0, beyond_depth_checks: 0, failed_checks: 3, average_rank: null },
+            summary: { checks: 0, ranked_checks: 0, beyond_depth_checks: 0, failed_checks: 3, average_rank: null },
             series: [
               {
                 entity: {
@@ -545,7 +545,7 @@ describe('The keyword inspector', () => {
                     rank: null,
                     absolute_rank: null,
                     date: '2026-09-28',
-                    observed_at: '2026-09-28T12:00:00Z',
+                    observed_at: null,
                     depth_requested: null,
                     serp_snapshot_id: null,
                     url_id: null,
@@ -555,7 +555,7 @@ describe('The keyword inspector', () => {
                     rank: null,
                     absolute_rank: null,
                     date: '2026-09-29',
-                    observed_at: '2026-09-29T12:00:00Z',
+                    observed_at: null,
                     depth_requested: null,
                     serp_snapshot_id: null,
                     url_id: null,
@@ -565,7 +565,7 @@ describe('The keyword inspector', () => {
                     rank: null,
                     absolute_rank: null,
                     date: '2026-09-30',
-                    observed_at: '2026-09-30T12:00:00Z',
+                    observed_at: null,
                     depth_requested: null,
                     serp_snapshot_id: null,
                     url_id: null,
@@ -587,7 +587,7 @@ describe('The keyword inspector', () => {
     expect(historyCard).not.toBeNull();
     if (!historyCard) throw new Error('Rank history section not found');
 
-    expect(within(historyCard).getByText('Last 90 days · 3 checks, 0 ranked, 3 failed')).toBeInTheDocument();
+    expect(within(historyCard).getByText('Last 90 days · 0 checks, 0 ranked, 3 failed')).toBeInTheDocument();
     expect(within(historyCard).getByRole('img', { name: 'Rank history' })).toHaveAccessibleDescription(
       'Organic rank of Fynix (you) over the last 90 days: every check failed.',
     );

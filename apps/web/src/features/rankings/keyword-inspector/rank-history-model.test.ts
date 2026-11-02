@@ -312,4 +312,85 @@ describe('rankHistoryChart', () => {
     expect(empty.empty).toBe(true);
     expect(empty.summary.checks).toBe(0);
   });
+
+  it('sets empty true only when checks + failed_checks === 0; an all-failed history is not empty', () => {
+    const allFailed = rankHistoryChart(
+      fixture({
+        series: [
+          {
+            entity: {
+              entity_id: 'own',
+              canonical_name: 'Fynix',
+              entity_type: 'organization',
+              role: 'own',
+              color_index: null,
+            },
+            points: [
+              {
+                date: '2026-10-01',
+                rank: null,
+                depth_requested: null,
+                state: 'failed',
+                observed_at: null,
+                serp_snapshot_id: null,
+                url_id: null,
+                absolute_rank: null,
+              },
+            ],
+          },
+        ],
+        summary: { checks: 0, ranked_checks: 0, beyond_depth_checks: 0, failed_checks: 1, average_rank: null },
+      }),
+      { ownName: (name) => `${name} (you)` },
+    );
+    expect(allFailed.empty).toBe(false);
+    expect(allFailed.summary.checks).toBe(0);
+    expect(allFailed.summary.failed).toBe(1);
+  });
+
+  it('I2: exercises the null-observed_at key path (date#n) in rankHistoryChart', () => {
+    const model = rankHistoryChart(
+      fixture({
+        series: [
+          {
+            entity: {
+              entity_id: 'own',
+              canonical_name: 'Fynix',
+              entity_type: 'organization',
+              role: 'own',
+              color_index: null,
+            },
+            points: [
+              {
+                date: '2026-10-01',
+                rank: null,
+                depth_requested: null,
+                state: 'failed',
+                observed_at: null,
+                serp_snapshot_id: null,
+                url_id: null,
+                absolute_rank: null,
+              },
+              {
+                date: '2026-10-01',
+                rank: null,
+                depth_requested: null,
+                state: 'failed',
+                observed_at: null,
+                serp_snapshot_id: null,
+                url_id: null,
+                absolute_rank: null,
+              },
+            ],
+          },
+        ],
+        summary: { checks: 0, ranked_checks: 0, beyond_depth_checks: 0, failed_checks: 2, average_rank: null },
+      }),
+      { ownName: (name) => `${name} (you)` },
+    );
+
+    // 2 failed points on same date with null observed_at become 2 slots: 2026-10-01#0 and 2026-10-01#1
+    expect(model.categories).toHaveLength(2);
+    expect(model.series[0]?.values).toEqual(['failed', 'failed']);
+  });
 });

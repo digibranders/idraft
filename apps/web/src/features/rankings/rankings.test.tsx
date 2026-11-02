@@ -10,7 +10,8 @@ import type { TrackedKeywordState } from '@/lib/api/types';
 import { MOCK_ENTITY_IDS } from '@/mocks/entity-fixtures';
 import { MOCK_KEYWORDS, MOCK_TRACKED_KEYWORDS } from '@/mocks/keyword-fixtures';
 import { KEYWORD_TABLE } from '@/mocks/keyword-table';
-import { FAILED_IDS, FAILING_IDS, rankStateOf } from '@/mocks/rank-state';
+import { rankStateOf } from '@/mocks/rank-state';
+import { FAILED_IDS, FAILING_IDS } from '@/mocks/serp-world';
 import { mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { SORT_FIELDS } from './keyword-columns';
@@ -41,8 +42,15 @@ vi.mock('next/navigation', () => ({
 const TRACKED = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords';
 const ACTIVE = KEYWORD_TABLE.filter((row) => row.archived !== true);
 
-beforeEach(stubWideScreen);
-afterEach(restoreWideScreen);
+beforeEach(() => {
+  stubWideScreen();
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-02T12:00:00Z'));
+});
+afterEach(() => {
+  vi.useRealTimers();
+  restoreWideScreen();
+});
 
 /** The query strings the screen wrote, newest last. */
 function urlWrites(): { onUrlUpdate: (event: UrlUpdateEvent) => void; latest: () => URLSearchParams } {
@@ -637,7 +645,7 @@ describe('Rankings rank columns', () => {
       if (checkedCell === undefined) throw new Error('No Trend cell on checked row');
       expect(
         within(checkedCell).getByRole('img', {
-          name: 'Rank trend, last 30 checks: from 19 to 12, best 8, 1 check beyond the depth checked',
+          name: 'Rank trend, last 30 checks: from 18 to 10, best 8, 1 check beyond the depth checked',
         }),
       ).toBeInTheDocument();
 

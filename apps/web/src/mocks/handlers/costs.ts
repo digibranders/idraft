@@ -90,7 +90,7 @@ const keyOf = (event: CostEvent, key: GroupKey): string => {
 };
 
 /** Today in UTC, as the API's default dates are. */
-const today = (): string => new Date().toISOString().slice(0, 10);
+const today = (): string => new Date(Date.now()).toISOString().slice(0, 10);
 
 export const costHandlers: HttpHandler[] = [
   mock('get', `${W}/costs`, ({ request, cookies, params }) => {

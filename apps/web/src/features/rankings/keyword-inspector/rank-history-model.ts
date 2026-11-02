@@ -142,6 +142,6 @@ export function rankHistoryChart(history: RankHistory, options: RankHistoryOptio
     depthMax,
     bands,
     summary,
-    empty: history.summary.checks === 0,
+    empty: history.summary.checks + history.summary.failed_checks === 0,
   };
 }

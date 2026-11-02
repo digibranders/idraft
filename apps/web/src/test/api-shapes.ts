@@ -10,6 +10,7 @@ import type {
   Operation,
   Price,
   RankHistory,
+  HistoryColumns,
   Run,
   RunDetail,
   Schedule,
@@ -46,6 +47,7 @@ import type {
   TrackedKeywordDetail,
   TrackedKeywordRow,
   CompetitorRank,
+  HistoryEvent,
   UrlRef,
   Vocabulary,
 } from '@/lib/api/types';
@@ -772,6 +774,26 @@ export const PRICE: z.ZodType<Price> = z.object({
   verified_at: z.string(),
 });
 
+const HISTORY_EVENT: z.ZodType<HistoryEvent> = z.object({
+  entity_id: z.string(),
+  event_type: z.string(),
+  from_rank: z.number().nullable(),
+  occurred_at: z.string(),
+  rank_event_id: z.string(),
+  to_rank: z.number().nullable(),
+});
+
+const HISTORY_COLUMNS: z.ZodType<HistoryColumns> = z.object({
+  entity: ENTITY_REF,
+  t: z.array(z.string().nullable()),
+  state: z.array(z.enum(['ranked', 'beyond_depth', 'failed'])),
+  rank: z.array(z.number().nullable()),
+  absolute_rank: z.array(z.number().nullable()),
+  depth_requested: z.array(z.number().nullable()),
+  url_id: z.array(z.string().nullable()),
+  serp_snapshot_id: z.array(z.string().nullable()),
+});
+
 export const RANK_HISTORY: z.ZodType<RankHistory> = z.object({
   bands: z.array(
     z.object({
@@ -783,7 +805,7 @@ export const RANK_HISTORY: z.ZodType<RankHistory> = z.object({
       to: z.string(),
     }),
   ),
-  columns: z.null(),
+  columns: z.array(HISTORY_COLUMNS).nullable(),
   config_history: z.array(
     z.object({
       config_version: z.number(),
@@ -793,7 +815,7 @@ export const RANK_HISTORY: z.ZodType<RankHistory> = z.object({
     }),
   ),
   deep_check_weekday: z.number(),
-  events: z.null(),
+  events: z.array(HISTORY_EVENT).nullable(),
   series: z
     .array(
       z.object({
@@ -814,14 +836,14 @@ export const RANK_HISTORY: z.ZodType<RankHistory> = z.object({
     )
     .nullable(),
   summary: z.object({
-    average_rank: z.any().nullable(),
+    average_rank: METRIC_VALUE.nullable(),
     beyond_depth_checks: z.number(),
     checks: z.number(),
     failed_checks: z.number(),
     ranked_checks: z.number(),
   }),
   tracked_keyword_id: z.string(),
-  urls: z.record(z.string(), z.any()),
+  urls: z.record(z.string(), URL_REF),
   version_boundaries: z.array(z.any()),
   window: z.object({
     from: z.string(),

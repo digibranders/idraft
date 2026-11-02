@@ -76,6 +76,14 @@ export function checksOf(trackedId: string, createdAt: string, now: number): Moc
   // The keyword has a usual rank, mostly in the first pages, that the walk drifts around and is pulled back to
   const home = 1 + Math.floor(random() ** 2 * 70);
   const path = PATHS[Math.floor(random() * PATHS.length)] ?? '/';
+  const urls = seeded(`${trackedId}:url`);
+  const changes = hashOf(`${trackedId}:url:changes`) % 3 === 0;
+  const period = 17 + (hashOf(`${trackedId}:url:period`) % 13);
+  const otherPaths = PATHS.filter((p) => p !== path);
+  const alternate = otherPaths[Math.floor(urls() * otherPaths.length)] ?? '/';
+  const pathAt = (time: number): string =>
+    changes && Math.floor(time / (period * DAY_MS)) % 2 === 1 ? alternate : path;
+
   let rank = home;
   const checks = checkTimes(firstCheckAt, now).map((time): MockCheck => {
     // A step of up to 4 places a day, and now and then a jump of up to 25 that takes a keyword in or out of view
@@ -88,7 +96,7 @@ export function checksOf(trackedId: string, createdAt: string, now: number): Moc
       observedAt: new Date(time).toISOString(),
       rank: ranked ? rank : null,
       depth,
-      path: ranked ? path : null,
+      path: ranked ? pathAt(time) : null,
       urlCount: ranked ? (second ? 2 : 1) : 0,
     };
   });
