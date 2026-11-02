@@ -196,6 +196,13 @@ def test_serp_org_04e_an_address_that_cannot_be_read_stays_hidden_and_flagged() 
     assert parsed.warnings == ("unresolved_redirect",)
 
 
+def test_serp_org_04g_a_product_name_that_looks_like_a_host_is_not_a_site() -> None:
+    parsed = parse_serp(serp([organic(1, GOTO, website_name="Node.js")]))
+
+    assert parsed.organic[0].recovered is False
+    assert "unresolved_redirect" in parsed.organic[0].url.flags
+
+
 def test_serp_org_04f_two_hidden_results_of_one_site_both_keep_their_rank() -> None:
     parsed = parse_serp(
         serp(

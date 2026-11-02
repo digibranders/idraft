@@ -33,7 +33,6 @@ from idraft.db.tables import (
     collection_tasks,
     keyword_group_members,
     keywords,
-    locations,
     projects,
     provider_location_map,
     provider_price_book,
@@ -47,12 +46,7 @@ from idraft.domain.workloads import TaskWorkload
 from idraft.keywords.trees import descendants
 from idraft.providers.contract import CanonicalRequest
 from idraft.providers.dataforseo.provider import CODE as DATAFORSEO
-from idraft.providers.dataforseo.serp import (
-    SERP_ORGANIC,
-    SERP_ORGANIC_LIVE,
-    SerpOrganicParams,
-    google_domain,
-)
+from idraft.providers.dataforseo.serp import SERP_ORGANIC, SERP_ORGANIC_LIVE, SerpOrganicParams
 from idraft.ranks.depth import UNAVAILABLE, depth_for, pages
 
 WORKLOAD: Final = TaskWorkload.SEO_RANK
@@ -68,6 +62,8 @@ MANUAL_WINDOW: Final = timedelta(hours=1)
 _NOT_CHECKED: Final = ("cancelled", "failed", "dead")
 # What check now takes (docs/19 section 3.6.4): keywords at a time, and the depths offered.
 CHECK_NOW_MAX: Final = 100
+# How deep the check that confirms a drop looks.
+CONFIRM_DEPTH: Final = 100
 CHECK_NOW_DEPTHS: Final = (10, 20, 50, 100)
 _log = structlog.get_logger(__name__)
 
@@ -143,11 +139,12 @@ def _has_snapshot() -> ColumnElement[bool]:
     )
 
 
-def _drop_unconfirmed() -> ColumnElement[bool]:
-    """The keyword's last check lost a rank the one before had, looking deep enough to have found
-    it, and no task has been planned for it since. One check is one reading of a SERP that
-    moves, so a drop is asked about once more before it stands (docs/09 section 8). Only one
-    more, whatever it comes to: a task that failed is not asked for again every minute."""
+def _drop_unconfirmed(now: datetime) -> ColumnElement[bool]:
+    """The keyword's last check, in the last `NEW_KEYWORD_QUIET`, lost a rank the one before had,
+    looking deep enough to have found it (`consecutive_beyond` is 1). One check is one reading
+    of a SERP that moves, so a drop is asked about once more before it stands (docs/09 section
+    4.1). At most one confirmation a keyword in that time, whatever it comes to: a task that
+    failed, or a check too shallow to move the count, is not asked for again every minute."""
     s, t, task, run = (
         tracked_keyword_state.c,
         tracked_keywords.c,
@@ -160,6 +157,7 @@ def _drop_unconfirmed() -> ColumnElement[bool]:
         s.current_rank.is_(None),
         s.last_ranked_rank.is_not(None),
         s.consecutive_beyond == 1,
+        s.last_observed_at >= now - NEW_KEYWORD_QUIET,
         ~exists().where(
             task.workload == WORKLOAD.value,
             task.subject_type == SUBJECT_TYPE,
@@ -167,7 +165,8 @@ def _drop_unconfirmed() -> ColumnElement[bool]:
             task.workspace_id == t.workspace_id,
             run.id == task.run_id,
             run.workspace_id == task.workspace_id,
-            run.created_at > s.last_observed_at,
+            run.created_at >= now - NEW_KEYWORD_QUIET,
+            run.config_snapshot["selector"]["confirm"].as_boolean().is_(True),
         ),
     )
 
@@ -301,7 +300,7 @@ async def select_subjects(
     elif new:
         statement = statement.where(~_has_snapshot(), ~_recent_task(window.window_start))
     elif confirm:
-        statement = statement.where(_drop_unconfirmed())
+        statement = statement.where(_drop_unconfirmed(window.window_start))
     else:
         if window.schedule_id is not None:
             statement = statement.where(
@@ -321,8 +320,8 @@ async def select_subjects(
             # Check now without a depth is the daily depth, whatever the weekday is.
             depth = depth_for(row.depth_profile, deep_day=False)
         elif confirm:
-            # The most the profile ever looks at, so the check can find the rank again.
-            depth = depth_for(row.depth_profile, deep_day=True)
+            # Deep enough to find the rank again, whatever the profile's own depths are.
+            depth = max(CONFIRM_DEPTH, depth_for(row.depth_profile, deep_day=True) or 0)
         else:
             depth = depth_for(row.depth_profile, deep_day=deep_day)
         if depth is None and (new or confirm or chosen):
@@ -459,9 +458,7 @@ class SeoRankWorkload:
         rows = await _keywords(
             db, {(parsed[0], task.workspace_id) for task, parsed in wanted.values()}
         )
-        location_ids = {task.location_id for task, _ in wanted.values()}
-        codes = await _location_codes(db, location_ids)
-        domains = await _google_domains(db, location_ids)
+        codes = await _location_codes(db, {task.location_id for task, _ in wanted.values()})
         queues = await _queues(db, {task.run_id for task, _ in wanted.values()})
         requests: dict[TaskRef, CanonicalRequest] = {}
         for ref, (task, (tracked_id, depth)) in wanted.items():
@@ -472,7 +469,6 @@ class SeoRankWorkload:
                 params = SerpOrganicParams(
                     keyword=row.text,
                     location_code=codes.get(task.location_id, task.location_id),
-                    se_domain=domains.get(task.location_id),
                     language_code=row.language_code,
                     device=row.device,
                     os=row.os,
@@ -555,19 +551,6 @@ async def _location_codes(db: AsyncSession, location_ids: Collection[int | None]
     }
 
 
-async def _google_domains(db: AsyncSession, location_ids: Collection[int | None]) -> dict[int, str]:
-    """The Google domain of each location's country, where one is known: a check is made on the
-    domain people there search on."""
-    ids = [location_id for location_id in location_ids if location_id is not None]
-    if not ids:
-        return {}
-    rows = await db.execute(
-        select(locations.c.id, locations.c.country_iso).where(locations.c.id.in_(ids))
-    )
-    found = {row.id: google_domain(row.country_iso) for row in rows}
-    return {location_id: domain for location_id, domain in found.items() if domain is not None}
-
-
 async def _queues(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, str]:
     """The queue each run was planned for."""
     if not run_ids:
@@ -589,7 +572,7 @@ async def queue_new_keywords(sessions: async_sessionmaker[AsyncSession], *, now:
     `NEW_KEYWORD_QUIET`: the blocked run made no task and would otherwise be made again every
     minute. Returns how many runs were made."""
     made = await _queue_runs(sessions, now, "new", [~_has_snapshot(), ~_recent_task(now)])
-    return made + await _queue_runs(sessions, now, "confirm", [_drop_unconfirmed()])
+    return made + await _queue_runs(sessions, now, "confirm", [_drop_unconfirmed(now)])
 
 
 async def _queue_runs(

@@ -32,6 +32,14 @@ Scheme = Literal["http", "https"]
 _PSL: Final = PublicSuffixList()
 # Who runs a site is decided on ICANN suffixes only: `google.github.io` is not Google.
 _ICANN_PSL: Final = PublicSuffixList(only_icann=True)
+
+
+def has_known_suffix(host_name: str) -> bool:
+    """Whether the host ends in a suffix on the ICANN list: `nodejs.org` does, `node.js` (a
+    product's name, not a site) does not."""
+    return _ICANN_PSL.publicsuffix(host_name, accept_unknown=False) is not None
+
+
 _SCHEMES: Final[dict[str, Scheme]] = {"http": "http", "https": "https"}
 _DEFAULT_PORTS: Final[dict[Scheme, int]] = {"http": 80, "https": 443}
 # Wrappers are unwrapped until none is left, which is what makes the output a fixed point. Each

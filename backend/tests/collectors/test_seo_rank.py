@@ -564,7 +564,6 @@ async def test_a_request_asks_for_the_keyword_as_entered_at_the_depth_and_queue_
     assert requests[tasks[0].ref].params == SerpOrganicParams(
         keyword="Best CRM+",
         location_code=9002826,
-        se_domain="google.co.uk",
         language_code="en",
         device="mobile",
         os="ios",
@@ -591,7 +590,6 @@ async def test_a_task_of_a_live_run_is_asked_for_live(
     params = requests[task.ref].params
     assert isinstance(params, SerpOrganicParams)
     assert (params.depth, params.queue) == (20, "live")
-    assert params.se_domain == "google.com"
 
 
 # The new-keyword tick.
@@ -726,11 +724,17 @@ async def test_a_drop_is_asked_about_once_more_and_only_once(
         migrated, project, never_ranked, observed=seen, rank=None, last_ranked=None, beyond=1
     )
 
-    plan = await _plan(worker_db, _window(project, {"confirm": True}))
+    shallow = await _tracked(migrated, project, "crm shallow", profile="weekly_light")
+    await _with_state(
+        migrated, project, shallow, observed=seen, rank=None, last_ranked=35, beyond=1
+    )
+
+    plan = await _plan(worker_db, _window(project, {"confirm": True}, start=NOW))
     made = await queue_new_keywords(worker_db, now=NOW)
     again = await queue_new_keywords(worker_db, now=NOW + timedelta(minutes=1))
 
-    assert _depths(plan) == {dropped: 100}
+    # Deep enough to find the rank again, whatever the profile's own depths are.
+    assert _depths(plan) == {dropped: 100, shallow: 100}
     assert (made, again) == (1, 0)
     (run,) = await _runs(migrated, project)
     assert run["config_snapshot"] == '{"selector": {"confirm": true}}'
@@ -758,6 +762,38 @@ async def test_a_drop_whose_confirmation_failed_is_not_asked_for_again(
     )
 
     assert await queue_new_keywords(worker_db, now=NOW + timedelta(hours=3)) == 0
+
+
+async def test_a_confirmation_that_was_ingested_is_not_asked_for_again_within_the_day(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    dropped = await _tracked(migrated, project, "crm dropped")
+    await _with_state(
+        migrated,
+        project,
+        dropped,
+        observed=NOW - timedelta(minutes=10),
+        rank=None,
+        last_ranked=5,
+        beyond=1,
+    )
+    assert await queue_new_keywords(worker_db, now=NOW) == 1
+    await execute(
+        migrated,
+        "UPDATE ops.collection_runs SET status = 'completed' WHERE project_id = $1",
+        project.id,
+    )
+    # The confirmation was checked and ingested, and was too shallow to move the count.
+    await execute(
+        migrated,
+        "UPDATE seo.tracked_keyword_state SET last_observed_at = $1 WHERE tracked_keyword_id = $2",
+        NOW + timedelta(minutes=30),
+        dropped,
+    )
+
+    assert await queue_new_keywords(worker_db, now=NOW + timedelta(hours=1)) == 0
+    assert await queue_new_keywords(worker_db, now=NOW + timedelta(hours=23)) == 0
 
 
 async def test_paused_and_archived_projects_get_no_run(

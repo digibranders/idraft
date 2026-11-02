@@ -417,3 +417,17 @@ def test_a_hidden_result_whose_site_was_read_back_is_attributed() -> None:
     assert side.organic_rank == 2
     assert side.unattributed == 0
     assert side.inconclusive is False
+
+
+def test_a_ranking_url_read_back_from_a_hidden_result_never_matches_a_target() -> None:
+    serp = serp_of(
+        HIDDEN,
+        more={1: {"breadcrumb": "https://www.acme.com"}},
+    )
+    resolved = resolve_serp(serp, OWN_ONLY, ENTITIES, depth_requested=20)
+    side = own_side(resolved, serp)
+
+    assert side.organic_rank == 1
+    assert side.ranking_recovered is True
+    assert side.ranking_url is not None
+    assert target_url_match(side, side.ranking_url.url_hash) is None

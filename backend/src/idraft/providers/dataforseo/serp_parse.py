@@ -26,7 +26,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any, Final, Literal
 
-from idraft.extraction.urls import CanonicalUrl, UrlRejectedError, canonicalize
+from idraft.extraction.urls import CanonicalUrl, UrlRejectedError, canonicalize, has_known_suffix
 
 PARSER_VERSION: Final = 2
 # What a result shows in place of its address: the origin, then the path pieces, each after a
@@ -749,9 +749,11 @@ def _hidden_site(item: Mapping[str, Any]) -> CanonicalUrl | None:
     if candidate is None:
         return None
     try:
-        return canonicalize(candidate)
+        found = canonicalize(candidate)
     except UrlRejectedError:
         return None
+    # A product's name that looks like a host (`Node.js`) is not a site.
+    return found if has_known_suffix(found.host.name) else None
 
 
 def _breadcrumb_address(crumb: str) -> str | None:

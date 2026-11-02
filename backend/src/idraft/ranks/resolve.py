@@ -44,6 +44,8 @@ class EntityRank:
     ranking_url: CanonicalUrl | None  # the URL at that rank
     ranking_title: str | None
     ranking_snippet: str | None
+    # The address was read back from a hidden result: the host is known, the page is a guess.
+    ranking_recovered: bool
     # Every rank an organic result of the entity holds, once for each of its URLs there: a
     # grouped sub-result shares its parent's rank and is another URL at that rank.
     all_organic_ranks: tuple[int, ...]
@@ -100,6 +102,7 @@ class OwnSide:
     cited_in_ai_overview: bool | None
     aio_citation_position: int | None
     unattributed: int = 0
+    ranking_recovered: bool = False
 
     @property
     def inconclusive(self) -> bool:
@@ -127,9 +130,9 @@ def resolve_serp(
         entity.entity_id: entity for entity in entities if entity.entity_id not in set(excluded)
     }
 
-    ranks: dict[uuid.UUID, list[tuple[int, int | None, CanonicalUrl, str | None, str | None]]] = {
-        entity_id: [] for entity_id in kept
-    }
+    ranks: dict[
+        uuid.UUID, list[tuple[int, int | None, CanonicalUrl, str | None, str | None, bool]]
+    ] = {entity_id: [] for entity_id in kept}
     # A grouped sub-result shares its parent's rank and is not another rank; the observation
     # keeps one URL for each rank (docs/04, `all_url_ids`).
     unattributed = 0
@@ -142,11 +145,20 @@ def resolve_serp(
         if owner is None or owner not in kept:
             continue
         ranks[owner].append(
-            (result.organic_rank, result.absolute_rank, result.url, result.title, result.snippet)
+            (
+                result.organic_rank,
+                result.absolute_rank,
+                result.url,
+                result.title,
+                result.snippet,
+                result.recovered,
+            )
         )
         for child in result.grouped_urls:
             if resolver.resolve_url(child).entity_id == owner:
-                ranks[owner].append((result.organic_rank, result.absolute_rank, child, None, None))
+                ranks[owner].append(
+                    (result.organic_rank, result.absolute_rank, child, None, None, False)
+                )
 
     horizon = _page_one_limit(serp)
     features = tuple(
@@ -184,6 +196,7 @@ def resolve_serp(
                 ranking_url=best[2] if best else None,
                 ranking_title=best[3] if best else None,
                 ranking_snippet=best[4] if best else None,
+                ranking_recovered=best[5] if best else False,
                 all_organic_ranks=tuple(row[0] for row in held),
                 all_urls=tuple(row[2] for row in held),
                 owned_feature_types=tuple(sorted(owned_types[entity_id])),
@@ -241,13 +254,14 @@ def own_side(resolved: ResolvedSerp, serp: NormalizedSerp) -> OwnSide:
         cited_in_ai_overview=cited,
         aio_citation_position=min(positions) if positions else None,
         unattributed=resolved.unattributed,
+        ranking_recovered=best.ranking_recovered if best else False,
     )
 
 
 def target_url_match(side: OwnSide, target_hash: bytes | None) -> bool | None:
     """Whether the ranking URL is the keyword's target URL (given by its hash); unknown without a
-    target or a ranking URL."""
-    if target_hash is None or side.ranking_url is None:
+    target or a ranking URL, and for one read back from a hidden result, whose page is a guess."""
+    if target_hash is None or side.ranking_url is None or side.ranking_recovered:
         return None
     return side.ranking_url.url_hash == target_hash
 
