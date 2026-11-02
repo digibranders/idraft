@@ -140,7 +140,18 @@ MATRIX: dict[str, tuple[Access, Access]] = {
                 "deleted_at",
             ),
         ),
-        access("SELECT, INSERT", UPDATE=("is_active", "updated_at", "deleted_at", "schedule_id")),
+        # Metrics ingest files the provider's intent (migration 0014).
+        access(
+            "SELECT, INSERT",
+            UPDATE=(
+                "is_active",
+                "updated_at",
+                "deleted_at",
+                "schedule_id",
+                "intent",
+                "intent_source",
+            ),
+        ),
     ),
     "seo.tracked_keyword_config_history": (
         access("SELECT, INSERT", UPDATE=("valid_to",)),
