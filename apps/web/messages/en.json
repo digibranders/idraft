@@ -1436,7 +1436,8 @@
     "patterns": "Patterns",
     "legend": "Series in {title}",
     "noValue": "No data",
-    "failed": "Failed"
+    "failed": "Failed",
+    "tableRegion": "Table of {title}"
   },
   "inspector": {
     "resize": "Resize inspector",
@@ -2455,6 +2456,29 @@
         "stale": "Stale"
       }
     },
+    "rankHistory": {
+      "title": "Rank history",
+      "meta": "Last {days} days · {checks, plural, one {1 check} other {# checks}}, {ranked} ranked",
+      "metaWithFailed": "Last {days} days · {checks, plural, one {1 check} other {# checks}}, {ranked} ranked, {failed} failed",
+      "metaAllFailed": "Last {days} days · {failed, plural, one {1 check} other {# checks}}, all failed",
+      "you": "{name} (you)",
+      "axisName": "Rank (1 = best)",
+      "deepCheck": "Deep check",
+      "absolute": "{name} (absolute)",
+      "category": "Date",
+      "guide": "Top {rank}",
+      "band": "Not in top {depth}",
+      "bandSingle": "Not in top {depth} on {date}.",
+      "bandRange": "Not in top {depth} from {from} to {to}.",
+      "checkFailed": "Check failed",
+      "summary": "Organic rank of {name} over the last {days} days, 1 is best: from {first} to {last}, best {best}. {competitors, plural, =0 {} one {1 competitor is shown too.} other {# competitors are shown too.}}{failed, plural, =0 {} other { {failed} failed.}}",
+      "summaryUnranked": "Organic rank of {name} over the last {days} days: not ranked within the depth checked.",
+      "summaryAllFailed": "Organic rank of {name} over the last {days} days: every check failed.",
+      "deepNote": "{count, plural, one {1 deep check is not drawn.} other {# deep checks are not drawn.}}",
+      "empty": "No checks yet",
+      "emptyReason": "The rank history fills in after the first check.",
+      "failed": "The rank history did not load."
+    },
     "inspector": {
       "type": "Keyword",
       "noun": "keyword",
@@ -2519,24 +2543,6 @@
         "pendingNote": "Arrives within minutes",
         "noData": "No data",
         "noDataNote": "None at this location"
-      },
-      "rankHistory": {
-        "title": "Rank history",
-        "meta": "Last 90 days · {checks, plural, one {1 check} other {# checks}}, {ranked} ranked",
-        "metaWithFailed": "Last 90 days · {checks, plural, one {1 check} other {# checks}}, {ranked} ranked, {failed} failed",
-        "you": "{name} (you)",
-        "category": "Date",
-        "guide": "Top {rank}",
-        "band": "Not in top {depth}",
-        "bandSingle": "Not in top {depth} on {date}.",
-        "bandRange": "Not in top {depth} from {from} to {to}.",
-        "checkFailed": "Check failed",
-        "summary": "Organic rank of {name} over the last 90 days, 1 is best: from {first} to {last}, best {best}. {competitors, plural, =0 {} one {1 competitor is shown too.} other {# competitors are shown too.}}{failed, plural, =0 {} other { {failed} failed.}}",
-        "summaryUnranked": "Organic rank of {name} over the last 90 days: not ranked within the depth checked.",
-        "summaryAllFailed": "Organic rank of {name} over the last 90 days: every check failed.",
-        "empty": "No checks yet",
-        "emptyReason": "The rank history fills in after the first check.",
-        "failed": "The rank history did not load."
       },
       "demand": {
         "title": "Search volume by month",
@@ -2672,6 +2678,42 @@
       "label": "Keyword sections",
       "overview": "Overview",
       "snapshots": "SERP snapshots"
+    },
+    "noChecks": {
+      "title": "No checks yet",
+      "pending": "This keyword has not been checked yet. This fills in after the first check.",
+      "failed": "Every check of this keyword has failed, so there is nothing to show.",
+      "stale": "No check falls in this window, and the last good one is older. Choose a longer window.",
+      "archived": "This keyword is archived and no longer checked. No check falls in this window.",
+      "window": "No check falls in this window. Choose a longer window."
+    },
+    "history": {
+      "loading": "Loading the rank history",
+      "deepCheck": "deep check {weekday}",
+      "window": {
+        "label": "Window",
+        "7d": "Last 7 days",
+        "30d": "Last 30 days",
+        "90d": "Last 90 days",
+        "180d": "Last 180 days",
+        "365d": "Last 365 days"
+      },
+      "competitors": {
+        "label": "Competitors on the chart",
+        "button": "Competitors ({count})",
+        "limit": "At most 5 competitors on the chart",
+        "showing": "Showing {shown} of {total} competitors"
+      },
+      "layers": {
+        "label": "Chart layers",
+        "absolute": "Absolute",
+        "deep": "Deep checks",
+        "deepHidden": "Deep checks ({count} hidden)"
+      },
+      "statsAllFailed": "Every check in this window failed.",
+      "statsDrawn": "Best {best}, worst {worst}, median {median} over {ranked} of {checks} checks",
+      "stats": "Best {best}, worst {worst}, median {median}, average {average} over {ranked} of {checks} checks",
+      "statsUnranked": "Not ranked in any of the {checks, plural, one {1 check} other {# checks}} in this window"
     }
   },
   "filters": {

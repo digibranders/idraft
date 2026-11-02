@@ -1,11 +1,14 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { delay, http, HttpResponse } from 'msw';
+import { delay, getResponse, http, HttpResponse } from 'msw';
 import type { UrlUpdateEvent } from 'nuqs/adapters/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 import { DETAIL, TERM_ASSIGNMENTS } from './inspector-queries';
 import { mockId } from '@/mocks/mock-ids';
+import { handlers } from '@/mocks/handlers';
 import { invalidField, mswPath, problem } from '@/mocks/respond';
+import { RANK_HISTORY } from '@/test/api-shapes';
 import { axe } from '@/test/axe';
 import { readChartTokens, type ChartTokens } from '@/lib/design/read-tokens';
 import { server } from '@/test/msw';
@@ -587,7 +590,7 @@ describe('The keyword inspector', () => {
     expect(historyCard).not.toBeNull();
     if (!historyCard) throw new Error('Rank history section not found');
 
-    expect(within(historyCard).getByText('Last 90 days · 0 checks, 0 ranked, 3 failed')).toBeInTheDocument();
+    expect(within(historyCard).getByText('Last 90 days · 3 checks, all failed')).toBeInTheDocument();
     expect(within(historyCard).getByRole('img', { name: 'Rank history' })).toHaveAccessibleDescription(
       'Organic rank of Fynix (you) over the last 90 days: every check failed.',
     );
@@ -636,5 +639,69 @@ describe('The keyword inspector', () => {
     const inspector = await openFromRow(user, 'seo agency');
     expect(await within(inspector).findByText(/The rank history did not load/)).toBeInTheDocument();
     expect(within(inspector).getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  });
+
+  describe('the rank history card keeps the request and the drawing it always had', () => {
+    const HISTORY =
+      '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/rank-history';
+    const ANSWER = z.object({ data: RANK_HISTORY });
+    const AXIS = z.object({ yAxis: z.object({ max: z.number() }) });
+
+    it('reads the last 90 days once, with the API default entities and no other window', async () => {
+      const urls: URL[] = [];
+      server.events.on('request:start', ({ request }) => {
+        const url = new URL(request.url);
+        if (url.pathname.endsWith('/rank-history')) urls.push(url);
+      });
+      const { user } = renderWithProviders(as('viewer'));
+      const inspector = await openFromRow(user, 'seo agency');
+      expect(await within(inspector).findByRole('img', { name: 'Rank history' })).toBeInTheDocument();
+      expect(urls).toHaveLength(1);
+      const params = urls[0]?.searchParams;
+      expect(params?.get('window')).toBe('last_90d');
+      expect([...(params?.keys() ?? [])]).toEqual(['window']);
+      expect(within(inspector).getByText(/^Last 90 days · /)).toBeInTheDocument();
+    });
+
+    it('draws a deep check below rank 20 and extends the axis to it, without any toggle', async () => {
+      server.use(
+        http.get(mswPath(HISTORY), async ({ request }) => {
+          const real = await getResponse([...handlers], new Request(request.url, { headers: request.headers }));
+          const history = ANSWER.parse(await real?.json()).data;
+          return HttpResponse.json({
+            data: {
+              ...history,
+              series: (history.series ?? []).map((entry) =>
+                entry.entity.role === 'own'
+                  ? {
+                      ...entry,
+                      points: entry.points.map((point, index) =>
+                        index === 3
+                          ? { ...point, state: 'ranked', rank: 85, absolute_rank: 85, depth_requested: 100 }
+                          : point,
+                      ),
+                    }
+                  : entry,
+              ),
+            },
+          });
+        }),
+      );
+      const { user } = renderWithProviders(as('viewer'));
+      const inspector = await openFromRow(user, 'seo agency');
+      await within(inspector).findByRole('img', { name: 'Rank history' });
+      expect(within(inspector).queryByRole('button', { name: /^Deep checks/ })).toBeNull();
+      await waitFor(() => expect(latestRankChartOption()).toBeDefined());
+      expect(AXIS.parse(latestRankChartOption()).yAxis.max).toBeGreaterThanOrEqual(100);
+      const card = within(inspector).getByRole('heading', { level: 3, name: 'Rank history' }).closest('section');
+      if (card === null) throw new Error('The rank history card has no section');
+      await user.click(within(card).getByRole('button', { name: 'Table' }));
+      const table = within(card).getByRole('table', { name: 'Rank history' });
+      expect(
+        within(table)
+          .getAllByRole('cell')
+          .filter((cell) => cell.textContent === '85'),
+      ).toHaveLength(1);
+    });
   });
 });

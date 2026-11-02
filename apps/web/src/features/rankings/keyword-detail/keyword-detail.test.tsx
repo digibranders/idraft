@@ -18,6 +18,10 @@ import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
+// jsdom has no canvas: the rank history chart on the Overview tab draws a stand-in
+vi.mock('@/components/app/chart/echart', () => ({
+  EChart: () => <div data-testid="echart-canvas" />,
+}));
 const router = vi.hoisted(() => ({ push: vi.fn<(path: string) => void>() }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: router.push, replace: vi.fn(), refresh: vi.fn() }),
@@ -355,10 +359,18 @@ describe('The tabs of the keyword page', () => {
     expect(screen.getByRole('tabpanel', { name: 'SERP snapshots' })).toBeInTheDocument();
   });
 
-  it('keeps a panel with no content out of the tab order', async () => {
-    renderWithProviders(keywordDetailAs('viewer'));
+  it('keeps the SERP snapshots panel, which has no content yet, out of the tab order', async () => {
+    renderWithProviders(keywordDetailAs('viewer'), { searchParams: '?tab=snapshots' });
     await heading(DETAIL_KEYWORDS.ranked.text);
     expect(screen.getByRole('tabpanel')).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('puts the Overview panel, which holds the chart, in the tab order', async () => {
+    renderWithProviders(keywordDetailAs('viewer'));
+    await heading(DETAIL_KEYWORDS.ranked.text);
+    const panel = screen.getByRole('tabpanel', { name: 'Overview' });
+    expect(panel).toHaveAttribute('tabindex', '0');
+    expect(await within(panel).findByRole('heading', { level: 2, name: 'Rank history' })).toBeInTheDocument();
   });
 
   it('opens on the tab of the link', async () => {

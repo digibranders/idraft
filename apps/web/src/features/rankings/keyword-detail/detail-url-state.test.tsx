@@ -46,4 +46,71 @@ describe('useDetailUrlState', () => {
     expect(new URLSearchParams(updates[0]?.queryString).get('inspect')).toBe('keyword:k1');
     expect(new URLSearchParams(updates[0]?.queryString).get('tab')).toBe('snapshots');
   });
+
+  it('reads the window, defaulting to 90 days, and falls back for one it does not know', () => {
+    expect(setup().result.current.win).toBe('90d');
+    expect(setup('?win=30d').result.current.win).toBe('30d');
+    expect(setup('?win=365d').result.current.win).toBe('365d');
+    expect(setup('?win=14d').result.current.win).toBe('90d');
+  });
+
+  it('writes a window by replacing the history entry, and leaves the default out of the URL', async () => {
+    const { result, updates } = setup();
+    act(() => void result.current.setWin('7d'));
+    await waitFor(() => expect(updates.length).toBe(1));
+    expect(updates[0]?.queryString).toBe('?win=7d');
+    expect(updates[0]?.options.history).toBe('replace');
+    act(() => void result.current.setWin('90d'));
+    await waitFor(() => expect(updates.length).toBe(2));
+    expect(updates[1]?.queryString).toBe('');
+  });
+
+  it('reads the chosen competitors, keeps uuids only and at most five', () => {
+    const ids = [1, 2, 3, 4, 5, 6].map((n) => `0192f0a1-3c44-7e10-9b1d-1f2a3b4c5d0${String(n)}`);
+    expect(setup().result.current.comp).toBeNull();
+    expect(setup(`?comp=${ids[0] ?? ''},not-a-uuid,${ids[1] ?? ''}`).result.current.comp).toEqual([ids[0], ids[1]]);
+    expect(setup(`?comp=${ids.join(',')}`).result.current.comp).toEqual(ids.slice(0, 5));
+  });
+
+  it('tells no competitors from the default set: an empty choice is written as none', async () => {
+    expect(setup('?comp=none').result.current.comp).toEqual([]);
+    const { result, updates } = setup();
+    act(() => void result.current.setComp([]));
+    await waitFor(() => expect(updates.length).toBe(1));
+    expect(updates[0]?.queryString).toBe('?comp=none');
+    expect(updates[0]?.options.history).toBe('replace');
+    act(() => void result.current.setComp(null));
+    await waitFor(() => expect(updates.length).toBe(2));
+    expect(updates[1]?.queryString).toBe('');
+  });
+
+  it('writes at most five competitors', async () => {
+    const ids = [1, 2, 3, 4, 5, 6].map((n) => `0192f0a1-3c44-7e10-9b1d-1f2a3b4c5d0${String(n)}`);
+    const { result, updates } = setup();
+    act(() => void result.current.setComp(ids));
+    await waitFor(() => expect(updates.length).toBe(1));
+    expect(new URLSearchParams(updates[0]?.queryString).get('comp')).toBe(ids.slice(0, 5).join(','));
+  });
+
+  it('reads the chart layers, drops unknown ones, and omits an empty choice', async () => {
+    expect(setup().result.current.show).toEqual([]);
+    expect(setup('?show=absolute,bogus,deep').result.current.show).toEqual(['absolute', 'deep']);
+    expect(setup('?show=events').result.current.show).toEqual(['events']);
+    const { result, updates } = setup('?show=deep');
+    act(() => void result.current.setShow(['absolute', 'deep']));
+    await waitFor(() => expect(updates.length).toBe(1));
+    expect(updates[0]?.queryString).toBe('?show=absolute,deep');
+    expect(updates[0]?.options.history).toBe('replace');
+    act(() => void result.current.setShow([]));
+    await waitFor(() => expect(updates.length).toBe(2));
+    expect(updates[1]?.queryString).toBe('');
+  });
+
+  it('keeps an id once when the address names it twice, and counts the five after the duplicates are gone', () => {
+    const ids = [1, 2, 3, 4, 5, 6].map((n) => `0192f0a1-3c44-7e10-9b1d-1f2a3b4c5d0${String(n)}`);
+    const [a, b] = ids;
+    expect(setup(`?comp=${a ?? ''},${a ?? ''}`).result.current.comp).toEqual([a]);
+    expect(setup(`?comp=${a ?? ''},${b ?? ''},${a ?? ''}`).result.current.comp).toEqual([a, b]);
+    expect(setup(`?comp=${[...ids, ...ids].join(',')}`).result.current.comp).toEqual(ids.slice(0, 5));
+  });
 });

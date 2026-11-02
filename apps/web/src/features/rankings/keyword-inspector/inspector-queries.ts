@@ -70,9 +70,30 @@ export const detailQuery = (scope: KeywordScope): ApiQueryOptions<typeof DETAIL>
 export const configHistoryQuery = (scope: KeywordScope): ApiQueryOptions<typeof CONFIG_HISTORY> =>
   apiQuery(CONFIG_HISTORY, { params: { path: keywordPath(scope) } });
 
-/** The keyword's rank over the last 90 days, with its competitors (the API's defaults). */
-export const rankHistoryQuery = (scope: KeywordScope): ApiQueryOptions<typeof RANK_HISTORY> =>
-  apiQuery(RANK_HISTORY, { params: { path: keywordPath(scope), query: { window: 'last_90d' } } });
+export interface RankHistoryOptions {
+  window?: `last_${7 | 30 | 90 | 180 | 365}d`;
+  entityIds?: readonly string[];
+  include?: readonly ('absolute' | 'url' | 'events')[];
+}
+
+/**
+ * The keyword's rank history. Without options: the last 90 days with the API's default entities, as the
+ * inspector reads it, and the key and cache entry the inspector has always had.
+ */
+export const rankHistoryQuery = (
+  scope: KeywordScope,
+  options: RankHistoryOptions = {},
+): ApiQueryOptions<typeof RANK_HISTORY> =>
+  apiQuery(RANK_HISTORY, {
+    params: {
+      path: keywordPath(scope),
+      query: {
+        window: options.window ?? 'last_90d',
+        ...(options.entityIds === undefined ? {} : { entity_ids: [...options.entityIds] }),
+        ...(options.include === undefined ? {} : { include: [...options.include] }),
+      },
+    },
+  });
 
 /** The Labs snapshots of the keyword where it is tracked. */
 export const metricsHistoryQuery = (

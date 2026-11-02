@@ -10,6 +10,7 @@ import { useMemo, useSyncExternalStore, type ReactElement, type ReactNode } from
 import { KeywordDetailHeader } from './detail-header';
 import { useDetailUrlState, type DetailTab } from './detail-url-state';
 import { listReturnHref, tabStorage } from './list-return';
+import { RankHistoryPanel } from './rank-history-panel';
 import { useCheckNow } from '../check-now/use-check-now';
 import { detailQuery, type KeywordScope } from '../keyword-inspector/inspector-queries';
 import { SectionError } from '../keyword-inspector/section-error';
@@ -146,9 +147,16 @@ function KeywordDetailContent({
         onValueChange={(next) => void setTab(next)}
         items={items}
       >
-        {/* An empty panel is not a tab stop: Task 4 removes the tabIndex when the panel holds content */}
-        <TabsPanel<DetailTab> value="overview" tabIndex={-1} />
-        <TabsPanel<DetailTab> value="snapshots" tabIndex={-1} />
+        <TabsPanel<DetailTab> value="overview" className="pt-4">
+          {/* The evidence column is 8 of 12 from 1280 px and the full width below; the right rail joins it later */}
+          <div className="grid grid-cols-12 gap-4">
+            <div className="col-span-12 flex min-w-0 flex-col gap-4 xl:col-span-8">
+              <RankHistoryPanel scope={scope} detail={data} />
+            </div>
+          </div>
+        </TabsPanel>
+        {/* An empty panel is not a tab stop: the tabIndex goes when the panel holds content */}
+        <TabsPanel<DetailTab> value="snapshots" tabIndex={-1} className="pt-4" />
       </Tabs>
     </div>
   );

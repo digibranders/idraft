@@ -11,6 +11,7 @@ const THEME_KEY = 'idraft.theme';
 /** The ranked fixture keyword the layout tests open, and the stale and pending ones the states tests open. */
 const RANKED = { id: mockId('tracked', 1), text: 'seo agency berlin' };
 const STALE = { id: mockId('tracked', 34), text: 'fynix reviews' };
+const DEEP = { id: mockId('tracked', 2), text: 'seo agency germany' };
 const ARCHIVED = { id: mockId('tracked', 60), text: 'seo newsletter' };
 /** The widths of 19-responsive-behavior.md the plan names, with a height that fits the whole header. */
 const WIDTHS = [
@@ -48,6 +49,112 @@ const rowHeader = (page: Page, keyword: string): Locator =>
     .getByRole('rowheader')
     .filter({ hasText: new RegExp(`^\\s*${keyword}\\b`) })
     .first();
+
+/** The widths the chart is laid out at: the evidence column is 8 of 12 from 1280 px and the full width below. */
+const CHART_WIDTHS = [
+  { width: 1440, height: 900, share: 'column' },
+  { width: 1280, height: 800, share: 'column' },
+  { width: 1024, height: 768, share: 'full' },
+  { width: 390, height: 844, share: 'full' },
+] as const;
+
+/** The share of the Overview panel's width the chart card takes. */
+/** Rows of controls the toolbar may take: one from 1024 px, two at 390 px. */
+const ROWS_MAX: Record<number, number> = { 1440: 1, 1280: 1, 1024: 1, 390: 2 };
+/** The most pixels the page may spend above the chart canvas, per width (screen 1: header, tabs, the card's head). */
+const CHART_TOP_MAX: Record<number, number> = { 1440: 440, 1280: 440, 1024: 440, 390: 600 };
+const SHARE = { column: [0.6, 0.72], full: [0.99, 1.01] } as const;
+
+/** A CSS colour (a custom property too) as red, green, blue and alpha, each 0 to 255, however the browser writes it. */
+async function rgbaOf(page: Page, css: string): Promise<[number, number, number, number]> {
+  return page.evaluate((value) => {
+    const probe = document.createElement('span');
+    probe.style.color = value;
+    document.body.append(probe);
+    const resolved = getComputedStyle(probe).color;
+    probe.remove();
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (context === null) throw new Error('No 2d context');
+    context.fillStyle = resolved;
+    context.fillRect(0, 0, 1, 1);
+    const [r = 0, g = 0, b = 0, a = 0] = context.getImageData(0, 0, 1, 1).data;
+    return [r, g, b, a];
+  }, css);
+}
+
+/** The colour without its alpha: for a colour that is known to be opaque. */
+async function rgbOf(page: Page, css: string): Promise<[number, number, number]> {
+  const [r, g, b] = await rgbaOf(page, css);
+  return [r, g, b];
+}
+
+/** `top` laid over the opaque `under`, as the eye sees them. */
+function compositeOver(top: readonly number[], under: readonly number[]): number[] {
+  const alpha = (top[3] ?? 255) / 255;
+  return [0, 1, 2].map((offset) => Math.round(alpha * (top[offset] ?? 0) + (1 - alpha) * (under[offset] ?? 0)));
+}
+
+/** WCAG relative luminance contrast of two colours. */
+function contrastOf(a: readonly number[], b: readonly number[]): number {
+  const luminance = (rgb: readonly number[]): number => {
+    const [r = 0, g = 0, bl = 0] = rgb.map((channel) => {
+      const unit = channel / 255;
+      return unit <= 0.03928 ? unit / 12.92 : ((unit + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return ((light ?? 0) + 0.05) / ((dark ?? 0) + 0.05);
+}
+
+/** How many pixels of the chart's canvas, from `fromFraction` of its height down, are within 40 per channel of `colour`. */
+async function pixelsNear(panel: Locator, colour: readonly number[], fromFraction = 0): Promise<number> {
+  return panel
+    .locator('canvas')
+    .first()
+    .evaluate(
+      (canvas, [wanted, fromFraction]) => {
+        if (!(canvas instanceof HTMLCanvasElement)) return 0;
+        const context = canvas.getContext('2d');
+        if (context === null) return 0;
+        const top = Math.floor(canvas.height * fromFraction);
+        const { data } = context.getImageData(0, top, canvas.width, canvas.height - top);
+        let hits = 0;
+        for (let index = 0; index < data.length; index += 4) {
+          const near = [0, 1, 2].every((offset) => Math.abs((data[index + offset] ?? 0) - (wanted[offset] ?? 0)) <= 40);
+          if (near && (data[index + 3] ?? 0) > 200) hits += 1;
+        }
+        return hits;
+      },
+      [colour, fromFraction] as const,
+    );
+}
+
+const chartPanel = (page: Page): Locator =>
+  page.getByRole('heading', { level: 2, name: 'Rank history' }).locator('xpath=ancestor::section[1]');
+
+/** How many distinct colours the chart's canvas holds, scanned over the whole canvas. */
+async function distinctCanvasColours(panel: Locator): Promise<number> {
+  return panel
+    .locator('canvas')
+    .first()
+    .evaluate((canvas) => {
+      if (!(canvas instanceof HTMLCanvasElement)) return 0;
+      const context = canvas.getContext('2d');
+      if (context === null) return 0;
+      const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+      const colours = new Set<string>();
+      for (let index = 0; index < data.length; index += 28) {
+        colours.add(
+          `${String(data[index])},${String(data[index + 1])},${String(data[index + 2])},${String(data[index + 3])}`,
+        );
+      }
+      return colours.size;
+    });
+}
 
 test.describe('keyword detail', () => {
   test('opens from the inspector with Open page, and Back returns to the list with the inspector open', async ({
@@ -190,6 +297,57 @@ test.describe('keyword detail', () => {
     expect((await boxOf(check)).height).toBe(CONTROL);
   });
 
+  test('draws the rank history with the own site and its competitors, a table, a window and the absolute rank', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, EDITOR);
+    await page.goto(`${LIST}/${RANKED.id}`);
+    await expect(page.getByRole('heading', { level: 1, name: RANKED.text })).toBeVisible();
+    const panel = chartPanel(page);
+    await expect(panel).toBeVisible();
+    const legend = panel.getByRole('list', { name: 'Series in Rank history' }).getByRole('button');
+    const names = (await legend.allTextContents()).map((name) => name.trim());
+    expect(names[0]).toBe('Fynix (you)');
+    expect(names.length).toBeGreaterThan(1);
+    expect(names.length).toBeLessThanOrEqual(6);
+
+    // The canvas holds a drawing: a background, lines, guides and a band make several colours
+    await expect.poll(() => distinctCanvasColours(panel)).toBeGreaterThan(2);
+
+    await panel.getByRole('button', { name: 'Table' }).click();
+    const table = panel.getByRole('table', { name: 'Rank history' });
+    await expect(table).toBeVisible();
+    const longRows = await table.getByRole('rowheader').count();
+    expect(longRows).toBeGreaterThan(5);
+    expect(await table.getByRole('rowheader').first().textContent()).toMatch(/^[A-Z][a-z]{2} \d{1,2}$/);
+    await expect(table.getByRole('row').nth(1).getByRole('cell').first()).toHaveText(/^\d+$/);
+
+    await panel.getByRole('combobox', { name: 'Window' }).click();
+    await page.getByRole('option', { name: 'Last 30 days' }).click();
+    await expect(page).toHaveURL(/[?&]win=30d/);
+    await expect(panel.getByText(/^Last 30 days · /)).toBeVisible();
+    const shortRows = await table.getByRole('rowheader').count();
+    expect(shortRows).toBeGreaterThan(0);
+    expect(shortRows).toBeLessThanOrEqual(30);
+    expect(shortRows).toBeLessThanOrEqual(longRows);
+
+    await expect(legend).toHaveCount(names.length);
+    await panel.getByRole('button', { name: 'Absolute', exact: true }).click();
+    await expect(legend).toHaveCount(names.length + 1);
+    await expect(legend.filter({ hasText: 'Fynix (you) (absolute)' })).toHaveCount(1);
+  });
+
+  test('the window, competitors and layers of the address come back when the link is opened', async ({ page }) => {
+    await signIn(page, EDITOR);
+    await page.goto(`${LIST}/${RANKED.id}?win=7d&show=absolute&comp=none`);
+    const panel = chartPanel(page);
+    await expect(panel.getByText(/^Last 7 days · /)).toBeVisible();
+    await expect(panel.getByRole('button', { name: 'Absolute', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    // No competitor, so the legend holds the own site and its absolute rank only
+    await expect(panel.getByRole('list', { name: 'Series in Rank history' }).getByRole('button')).toHaveCount(2);
+  });
+
   for (const theme of ['light', 'dark'] as const) {
     test.describe(`in the ${theme} theme`, () => {
       test.beforeEach(async ({ page }) => {
@@ -253,6 +411,140 @@ test.describe('keyword detail', () => {
           await expectNoHorizontalScroll(page);
           await expectAccessible(page);
           await page.screenshot({ path: testInfo.outputPath(`keyword-detail-${String(width)}-${theme}.png`) });
+        });
+      }
+
+      for (const { width, height } of CHART_WIDTHS) {
+        test(`draws deep checks on a keyword that ranks below 20, at ${String(width)} px`, async ({
+          page,
+        }, testInfo) => {
+          await page.setViewportSize({ width, height });
+          await signIn(page, EDITOR);
+          await page.goto(`${LIST}/${DEEP.id}?show=deep`);
+          await expect(page.getByRole('heading', { level: 1, name: DEEP.text })).toBeVisible();
+          const panel = chartPanel(page);
+          await expect(panel.getByRole('button', { name: 'Deep checks', exact: true })).toHaveAttribute(
+            'aria-pressed',
+            'true',
+          );
+          // The plot is not empty: the own series is in it, and the canvas holds a drawing
+          const brand = await rgbOf(page, 'var(--chart-1)');
+          await expect.poll(() => pixelsNear(panel, brand)).toBeGreaterThan(40);
+          // Its checks are below rank 20, so the series is in the lower three quarters of the canvas
+          await expect.poll(() => pixelsNear(panel, brand, 0.25)).toBeGreaterThan(40);
+          await expect.poll(() => distinctCanvasColours(panel)).toBeGreaterThan(2);
+          await expectNoHorizontalScroll(page);
+          await expectAccessible(page);
+          await page.screenshot({ path: testInfo.outputPath(`keyword-detail-deep-${String(width)}-${theme}.png`) });
+        });
+
+        test(`keeps the Table view reachable and accessible at ${String(width)} px`, async ({ page }) => {
+          await page.setViewportSize({ width, height });
+          await signIn(page, EDITOR);
+          await page.goto(`${LIST}/${RANKED.id}`);
+          const panel = chartPanel(page);
+          await expect(panel).toBeVisible();
+          // Seven columns: the five competitors, the own site and its absolute rank
+          await panel.getByRole('button', { name: 'Absolute', exact: true }).click();
+          await panel.getByRole('button', { name: 'Table', exact: true }).click();
+          const region = panel.getByRole('region', { name: 'Table of Rank history' });
+          await expect(region).toBeVisible();
+          await region.focus();
+          await expect(region).toBeFocused();
+          // A date stays on one line, so a row keeps its 32 px however narrow the table gets
+          expect(
+            await region
+              .getByRole('rowheader')
+              .first()
+              .evaluate((cell) => getComputedStyle(cell).whiteSpace),
+          ).toBe('nowrap');
+          const dates = region.getByRole('rowheader');
+          expect(await dates.count()).toBeGreaterThan(5);
+          for (let index = 0; index < 6; index += 1) {
+            expect((await boxOf(dates.nth(index))).height).toBeLessThanOrEqual(33);
+          }
+          await expectAccessible(page);
+        });
+      }
+
+      test('shows a toggle that is on with 3:1 against the card, and the same for Table', async ({ page }) => {
+        await signIn(page, EDITOR);
+        await page.goto(`${LIST}/${RANKED.id}`);
+        const panel = chartPanel(page);
+        await expect(panel).toBeVisible();
+        const absolute = panel.getByRole('button', { name: 'Absolute', exact: true });
+        const table = panel.getByRole('button', { name: 'Table', exact: true });
+        await absolute.click();
+        await table.click();
+        const surface = await panel.evaluate((card) => getComputedStyle(card).backgroundColor);
+        const card = await rgbOf(page, surface);
+        for (const toggle of [absolute, table]) {
+          await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+          // The outline fades in over a few tenths of a second: poll until it has arrived
+          await expect
+            .poll(async () => {
+              const outline = await toggle.evaluate((button) => getComputedStyle(button).borderTopColor);
+              const [r, g, b, a] = await rgbaOf(page, outline);
+              // A transparent outline is no outline: it must be opaque, and then it is measured as it is drawn
+              return a === 255 ? contrastOf(compositeOver([r, g, b, a], card), card) : 0;
+            })
+            .toBeGreaterThanOrEqual(3);
+        }
+      });
+
+      for (const { width, height, share } of CHART_WIDTHS) {
+        test(`lays the rank history out at ${String(width)} px`, async ({ page }, testInfo) => {
+          await page.setViewportSize({ width, height });
+          await signIn(page, EDITOR);
+          await page.goto(`${LIST}/${RANKED.id}`);
+          await expect(page.getByRole('heading', { level: 1, name: RANKED.text })).toBeVisible();
+          const panel = chartPanel(page);
+          await expect(panel).toBeVisible();
+          await expect.poll(() => distinctCanvasColours(panel)).toBeGreaterThan(2);
+          // The own series is drawn in the brand colour, chart 1
+          const brand = await rgbOf(page, 'var(--chart-1)');
+          await expect.poll(() => pixelsNear(panel, brand)).toBeGreaterThan(40);
+          await waitForContent(page);
+
+          // The card clears the rule under the tabs
+          const tabs = await boxOf(page.getByRole('tablist', { name: 'Keyword sections' }));
+          const cardTop = (await boxOf(panel)).y;
+          expect(cardTop - (tabs.y + tabs.height)).toBeGreaterThanOrEqual(12);
+
+          const content = await boxOf(page.getByRole('tabpanel', { name: 'Overview' }));
+          const card = await boxOf(panel);
+          const ratio = card.width / content.width;
+          // The evidence column is 8 of 12 less its share of the gaps from 1280 px, the whole width below
+          const [least, most] = SHARE[share];
+          expect(ratio).toBeGreaterThan(least);
+          expect(ratio).toBeLessThan(most);
+          // The controls are one toolbar row from 1024 px and two at most below, inside the card
+          const toolbar = [
+            panel.getByRole('combobox', { name: 'Window' }),
+            panel.getByRole('button', { name: 'Competitors (5)' }),
+            panel.getByRole('button', { name: 'Absolute', exact: true }),
+            panel.getByRole('button', { name: 'Deep checks' }),
+            panel.getByRole('button', { name: 'Table', exact: true }),
+          ];
+          const boxes = await Promise.all(toolbar.map((control) => boxOf(control)));
+          for (const control of boxes) {
+            expect(control.x).toBeGreaterThanOrEqual(card.x);
+            expect(control.x + control.width).toBeLessThanOrEqual(card.x + card.width + 1);
+          }
+          const rows = new Set(boxes.map((control) => Math.round(control.y / 8)));
+          expect(rows.size).toBeLessThanOrEqual(ROWS_MAX[width] ?? 1);
+          const layers = await boxOf(panel.getByRole('group', { name: 'Chart layers' }));
+          expect(layers.x + layers.width).toBeLessThanOrEqual(card.x + card.width + 1);
+          // The canvas is 240 px high, as the page chart is
+          const canvas = await boxOf(panel.getByRole('img', { name: 'Rank history' }));
+          expect(canvas.height).toBe(240);
+          expect(canvas.width).toBeGreaterThan(card.width * 0.8);
+          // The chart starts above the fold with room to read: the chrome before it is bounded
+          expect(canvas.y).toBeLessThan(CHART_TOP_MAX[width] ?? 0);
+          expect(canvas.y + canvas.height).toBeLessThan(height);
+          await expectNoHorizontalScroll(page);
+          await expectAccessible(page);
+          await page.screenshot({ path: testInfo.outputPath(`keyword-detail-chart-${String(width)}-${theme}.png`) });
         });
       }
     });

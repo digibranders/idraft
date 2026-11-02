@@ -20,9 +20,10 @@ const SERIES: CategorySeries[] = [
   { id: 'previous', name: 'Previous year', role: { kind: 'reference' }, values: [7400, 7100, 8800] },
 ];
 
-function frame(kind: 'line' | 'bar' = 'line'): React.ReactElement {
+function frame(kind: 'line' | 'bar' = 'line', controls?: React.ReactNode): React.ReactElement {
   return (
     <ChartFrame
+      controls={controls}
       title="Search volume by month"
       variant="panel"
       meta="Last 3 months"
@@ -69,6 +70,36 @@ describe('ChartFrame', () => {
     ).toEqual(['Month', 'Search volume', 'Previous year']);
     expect(within(table).getByRole('row', { name: /Aug/ })).toHaveTextContent('AugNo data7,100');
     expect(screen.queryByRole('img')).toBeNull();
+  });
+
+  it('draws the controls it is given above the chart, and keeps them in the table view', async () => {
+    const { user } = renderWithProviders(frame('line', <button type="button">Last 30 days</button>));
+    const control = screen.getByRole('button', { name: 'Last 30 days' });
+    const canvas = screen.getByRole('img', { name: 'Search volume by month' });
+    expect(control.compareDocumentPosition(canvas) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Table' }));
+    expect(screen.getByRole('button', { name: 'Last 30 days' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Search volume by month' })).toBeInTheDocument();
+  });
+
+  it('puts the view toggle in the row of the controls when there are controls, and in the header when there are none', async () => {
+    const { unmount } = renderWithProviders(frame('line', <button type="button">Last 30 days</button>));
+    const control = screen.getByRole('button', { name: 'Last 30 days' });
+    const views = screen.getByRole('group', { name: 'Search volume by month view' });
+    // Siblings in one row: the controls and the views
+    expect(views.parentElement).toBe(control.parentElement);
+    unmount();
+    renderWithProviders(frame('line'));
+    const header = screen.getByRole('heading', { level: 2 }).closest('div[class*="flex-wrap"]');
+    expect(header?.contains(screen.getByRole('group', { name: 'Search volume by month view' }))).toBe(true);
+  });
+
+  it('makes the scrolling table a named region that the keyboard can reach', async () => {
+    const { user } = renderWithProviders(frame());
+    await user.click(screen.getByRole('button', { name: 'Table' }));
+    const region = screen.getByRole('region', { name: 'Table of Search volume by month' });
+    expect(region).toHaveAttribute('tabindex', '0');
+    expect(within(region).getByRole('table', { name: 'Search volume by month' })).toBeInTheDocument();
   });
 
   it('offers patterns for bars only', () => {
