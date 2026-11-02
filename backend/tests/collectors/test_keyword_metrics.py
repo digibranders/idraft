@@ -517,6 +517,35 @@ async def test_a_later_answer_is_a_material_change_only_when_it_moves_enough(
     assert rows[-1]["is_material_change"] is False
 
 
+async def test_the_provider_intent_is_filed_on_the_keywords_rows_unless_a_person_chose_one(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    project = await make_tenant(migrated)
+    best = await _track(migrated, project, "Best CRM")
+    await _track(migrated, project, "Best CRM", device="mobile")
+    await execute(
+        migrated,
+        "UPDATE seo.tracked_keywords SET intent = 'transactional', intent_source = 'manual' "
+        "WHERE keyword_id = $1 AND device = 'mobile'",
+        best,
+    )
+    store = MemoryStore()
+    await _fetched_run(worker_db, migrated, project, fixture_bytes("keyword_overview_live"), store)
+
+    await ingest(worker_db, store)
+
+    rows = await fetch(
+        migrated,
+        "SELECT device, intent, intent_source FROM seo.tracked_keywords WHERE keyword_id = $1 "
+        "ORDER BY device",
+        best,
+    )
+    assert [(r["device"], r["intent"], r["intent_source"]) for r in rows] == [
+        ("desktop", "commercial", "provider"),
+        ("mobile", "transactional", "manual"),
+    ]
+
+
 async def _current(pg: PostgresServer, keyword_id: uuid.UUID) -> tuple[Any, ...]:
     row = await fetchrow(
         pg,
