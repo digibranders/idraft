@@ -12,6 +12,7 @@ import httpx
 import pytest
 
 from idraft.api.resources import Resources
+from idraft.providers.dataforseo.serp_parse import PARSER_VERSION
 from tests.api.auth.support import Workspace, execute, fetchrow
 from tests.api.entities.support import Caller, member
 from tests.api.keywords.support import errors, keyword_project, project_url, tracked_id
@@ -391,7 +392,7 @@ async def test_a_snapshot_detail_has_its_organic_features_and_provenance(
     assert detail["organic"][5]["title"] == "Result 6"
     assert detail["titles_source"] in ("serp_current_results", "domain_rank_observations")
     assert {f["feature_type"] for f in detail["features"]} == {"video", "ai_overview"}
-    assert detail["provenance"]["parser_version"] == 1
+    assert detail["provenance"]["parser_version"] == PARSER_VERSION
     assert detail["provenance"]["raw_payload_id"] is not None
     assert plain.json()["data"]["organic"][5]["title"] is None
     assert plain.json()["data"]["titles_source"] == "unavailable"

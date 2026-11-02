@@ -271,6 +271,56 @@ async def test_the_next_days_check_moves_the_state_and_writes_the_events(
     assert current == state["last_snapshot_id"]
 
 
+HIDDEN = "https://google.com/goto?url=CAESVQHrOzAVgBDTW51JSGSz9_1jDk4e3wXMyMj8"
+
+
+async def test_a_check_that_cannot_tell_if_the_site_is_absent_keeps_history_and_moves_nothing(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    keyword = await track(migrated, world.project)
+    store = MemoryStore()
+    await fetched_task(
+        worker_db,
+        migrated,
+        world,
+        keyword,
+        answer(results(own_at=5), when=NOW - DAY),
+        store,
+        fetched_at=NOW - DAY,
+    )
+    assert await ingest(worker_db, store) == IngestReport(ingested=1)
+    events = await _events(migrated, keyword)
+
+    hidden = [other(1), HIDDEN + "1", HIDDEN + "2", other(2)]
+    await fetched_task(worker_db, migrated, world, keyword, answer(hidden, when=NOW), store)
+    assert await ingest(worker_db, store) == IngestReport(ingested=1)
+
+    state = await _state(migrated, keyword)
+    assert (state["current_rank"], state["last_observed_at"]) == (5, NOW - DAY)
+    first, second = await _rows(migrated, "seo.serp_snapshots", keyword, "id")
+    assert json.loads(first["extras"]) is None
+    assert json.loads(second["extras"])["inconclusive"] == {"unattributed": 2}
+    observed = await _rows(migrated, "seo.domain_rank_observations", keyword, "observed_at")
+    assert {row["serp_snapshot_id"] for row in observed} == {first["id"]}
+    assert await _events(migrated, keyword) == events
+
+
+async def test_a_first_check_that_cannot_tell_leaves_the_keyword_without_a_rank(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    keyword = await track(migrated, world.project)
+    store = MemoryStore()
+    await fetched_task(
+        worker_db, migrated, world, keyword, answer([other(1), HIDDEN, other(2)]), store
+    )
+
+    assert await ingest(worker_db, store) == IngestReport(ingested=1)
+
+    assert await _rows(migrated, "seo.tracked_keyword_state", keyword, "tracked_keyword_id") == []
+    (snapshot,) = await _rows(migrated, "seo.serp_snapshots", keyword, "id")
+    assert json.loads(snapshot["extras"])["inconclusive"] == {"unattributed": 1}
+
+
 async def test_an_older_answer_ingested_late_leaves_history_and_moves_nothing(
     worker_db: Ledger, migrated: PostgresServer, world: World
 ) -> None:

@@ -36,7 +36,7 @@ from idraft.db.tables import (
     projects,
     provider_location_map,
     provider_price_book,
-    serp_snapshots,
+    tracked_keyword_state,
     tracked_keyword_terms,
     tracked_keywords,
     workspaces,
@@ -62,6 +62,8 @@ MANUAL_WINDOW: Final = timedelta(hours=1)
 _NOT_CHECKED: Final = ("cancelled", "failed", "dead")
 # What check now takes (docs/19 section 3.6.4): keywords at a time, and the depths offered.
 CHECK_NOW_MAX: Final = 100
+# How deep the check that confirms a drop looks.
+CONFIRM_DEPTH: Final = 100
 CHECK_NOW_DEPTHS: Final = (10, 20, 50, 100)
 _log = structlog.get_logger(__name__)
 
@@ -127,8 +129,46 @@ def _recent_task(now: datetime) -> ColumnElement[bool]:
 
 
 def _has_snapshot() -> ColumnElement[bool]:
-    s, t = serp_snapshots.c, tracked_keywords.c
-    return exists().where(s.tracked_keyword_id == t.id, s.workspace_id == t.workspace_id)
+    """A check that moved the keyword's state: one that could not say whether the site is absent
+    leaves a snapshot but no state, and the keyword still counts as never checked."""
+    s, t = tracked_keyword_state.c, tracked_keywords.c
+    return exists().where(
+        s.tracked_keyword_id == t.id,
+        s.workspace_id == t.workspace_id,
+        s.last_observed_at.is_not(None),
+    )
+
+
+def _drop_unconfirmed(now: datetime) -> ColumnElement[bool]:
+    """The keyword's last check, in the last `NEW_KEYWORD_QUIET`, lost a rank the one before had,
+    looking deep enough to have found it (`consecutive_beyond` is 1). One check is one reading
+    of a SERP that moves, so a drop is asked about once more before it stands (docs/09 section
+    4.1). At most one confirmation a keyword in that time, whatever it comes to: a task that
+    failed, or a check too shallow to move the count, is not asked for again every minute."""
+    s, t, task, run = (
+        tracked_keyword_state.c,
+        tracked_keywords.c,
+        collection_tasks.c,
+        collection_runs.c,
+    )
+    return exists().where(
+        s.tracked_keyword_id == t.id,
+        s.workspace_id == t.workspace_id,
+        s.current_rank.is_(None),
+        s.last_ranked_rank.is_not(None),
+        s.consecutive_beyond == 1,
+        s.last_observed_at >= now - NEW_KEYWORD_QUIET,
+        ~exists().where(
+            task.workload == WORKLOAD.value,
+            task.subject_type == SUBJECT_TYPE,
+            func.split_part(task.subject_id, ":", 1) == cast(t.id, Text),
+            task.workspace_id == t.workspace_id,
+            run.id == task.run_id,
+            run.workspace_id == task.workspace_id,
+            run.created_at >= now - NEW_KEYWORD_QUIET,
+            run.config_snapshot["selector"]["confirm"].as_boolean().is_(True),
+        ),
+    )
 
 
 def _checked_today_elsewhere(
@@ -210,6 +250,7 @@ async def select_subjects(
         )
     )
     new = bool(selector.get("new"))
+    confirm = bool(selector.get("confirm"))
     narrowed = False
     groups = selector.get("groups")
     if groups:
@@ -252,12 +293,14 @@ async def select_subjects(
         if asked_depth is not None and asked_depth not in CHECK_NOW_DEPTHS:
             raise ValueError(f"check now depth {asked_depth!r} is not one of {CHECK_NOW_DEPTHS}")
         statement = statement.where(t.id.in_(_uuids(chosen)))
-    if not (new or chosen or selector.get("all") or narrowed):
+    if not (new or confirm or chosen or selector.get("all") or narrowed):
         return []
     if chosen:
         pass
     elif new:
         statement = statement.where(~_has_snapshot(), ~_recent_task(window.window_start))
+    elif confirm:
+        statement = statement.where(_drop_unconfirmed(window.window_start))
     else:
         if window.schedule_id is not None:
             statement = statement.where(
@@ -276,9 +319,12 @@ async def select_subjects(
         elif chosen:
             # Check now without a depth is the daily depth, whatever the weekday is.
             depth = depth_for(row.depth_profile, deep_day=False)
+        elif confirm:
+            # Deep enough to find the rank again, whatever the profile's own depths are.
+            depth = max(CONFIRM_DEPTH, depth_for(row.depth_profile, deep_day=True) or 0)
         else:
             depth = depth_for(row.depth_profile, deep_day=deep_day)
-        if depth is None and (new or chosen):
+        if depth is None and (new or confirm or chosen):
             # A keyword with no check today (a weekly profile) still gets its first one now.
             depth = depth_for(row.depth_profile, deep_day=True)
         if depth is not None:
@@ -519,10 +565,24 @@ async def _queues(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, str
 
 async def queue_new_keywords(sessions: async_sessionmaker[AsyncSession], *, now: datetime) -> int:
     """A planned run for each collecting project with keywords never checked, once (plan
-    decision R1): trigger `manual`, made by the system, selector `{"new": true}`. The planner
-    plans it on the same tick. A project with a rank run still waiting gets no other, nor does
-    one whose run a budget blocked in the last `NEW_KEYWORD_QUIET`: the blocked run made no task
-    and would otherwise be made again every minute. Returns how many runs were made."""
+    decision R1): trigger `manual`, made by the system, selector `{"new": true}`; and one for
+    each with keywords whose last check lost a rank, to ask once more before the drop stands,
+    selector `{"confirm": true}`. The planner plans them on the same tick. A project with a rank
+    run still waiting gets no other, nor does one whose run a budget blocked in the last
+    `NEW_KEYWORD_QUIET`: the blocked run made no task and would otherwise be made again every
+    minute. Returns how many runs were made."""
+    made = await _queue_runs(sessions, now, "new", [~_has_snapshot(), ~_recent_task(now)])
+    return made + await _queue_runs(sessions, now, "confirm", [_drop_unconfirmed(now)])
+
+
+async def _queue_runs(
+    sessions: async_sessionmaker[AsyncSession],
+    now: datetime,
+    selector_key: str,
+    wanted: Sequence[ColumnElement[bool]],
+) -> int:
+    """A run with selector `{selector_key: true}` for each collecting project that has a
+    keyword for which every condition of `wanted` holds."""
     t, k, p, w, r = (
         tracked_keywords.c,
         keywords.c,
@@ -537,14 +597,15 @@ async def queue_new_keywords(sessions: async_sessionmaker[AsyncSession], *, now:
         or_(
             r.status == "planned",
             and_(r.status == "budget_blocked", r.created_at >= now - NEW_KEYWORD_QUIET),
-            # A new-keyword run that found nothing to check (no price, say) would be made again
-            # every minute. Only this step's own runs count: a schedule's empty window, a missed
-            # one or a cancelled manual run says nothing about whether new keywords can be checked.
+            # A run of this step that found nothing to check (no price, say) would be made
+            # again every minute. Only this step's own runs count: a schedule's empty window, a
+            # missed one or a cancelled manual run says nothing about whether keywords can be
+            # checked.
             and_(
                 r.tasks_total == 0,
                 r.created_at >= now - NEW_KEYWORD_QUIET,
                 r.schedule_id.is_(None),
-                r.config_snapshot["selector"]["new"].as_boolean().is_(True),
+                r.config_snapshot["selector"][selector_key].as_boolean().is_(True),
             ),
         ),
     )
@@ -568,8 +629,7 @@ async def queue_new_keywords(sessions: async_sessionmaker[AsyncSession], *, now:
                 p.status == "active",
                 w.status == "active",
                 func.char_length(k.text) <= KEYWORD_MAX,
-                ~_has_snapshot(),
-                ~_recent_task(now),
+                *wanted,
                 ~waiting,
             )
         )
@@ -585,7 +645,7 @@ async def queue_new_keywords(sessions: async_sessionmaker[AsyncSession], *, now:
                     window_start=now,
                     window_end=now + MANUAL_WINDOW,
                     trigger="manual",
-                    config_snapshot={"selector": {"new": True}},
+                    config_snapshot={"selector": {selector_key: True}},
                 ),
                 now=now,
             )

@@ -703,3 +703,29 @@ The docs assumed one DigitalOcean droplet (`s-2vcpu-4gb`, $24 per month) used on
 | D-H2 | Edge proxy for the shared ports 80 and 443: the existing nginx or a host-level Caddy | owner and the second project's owner, before WP2b step 4 |
 | D-H3 | The second project's name and its expected resource needs, so the split (about 8 GB each) can be reviewed against measured load | owner |
 | D-H4 | Who owns host-level changes (edge proxy, firewall, systemd slices, OS updates and reboots) | owner |
+
+### Rank accuracy: hidden results, inconclusive checks, confirmed drops (2026-11-02)
+
+The owner reported wrong ranks in the keywords table. The live data was checked against DataForSEO the same day (about $0.8 of test calls). What was found:
+
+- In live calls on `google.com` the provider hid the address of many results behind opaque `google.com/goto` links (50 to 77 of 100 in the checks made for an India location, none on `google.co.in`; none at all in standard-queue tasks). The real site is only in `breadcrumb` and `website_name`. The project's own site was found behind such a link at ranks 1, 89, 92 and 93 in different readings, and the parser stored those as domain `google.com`, so the site looked absent. Check now is live, so it is the path affected.
+- The same query at the same location, device and depth returned the own site at rank 1 in one reading and nowhere in the next (the standard-queue checks of the brand keyword `fynix digital` on 2026-10-31 and 2026-11-01, and 12 repeats on 2026-11-02). The state followed the latest reading, so a keyword flipped to "not in top 100".
+- A country Google domain (`google.co.in`) was tried as a fix and not adopted: it gave no wrapped links, but the own site appeared less often on it than on `google.com`, and which domain matches what people in Mumbai see is unknown. Switching also steps the rank history. A manual search is the ground truth (Google blocked an automated one).
+
+Changed (backend only):
+
+- Parser version 2: the site of a wrapped result is read back from the breadcrumb or a site name that is a host on the ICANN suffix list (`OrganicResult.recovered`, warning `redirect_site_recovered`); unreadable ones stay wrapped and flagged. A recovered ranking URL never gives `target_url_match`.
+- A check with no own rank and unattributed results within its depth is `inconclusive`: snapshot kept, nothing else written.
+- The new-keyword tick also plans one confirmation check (`{"confirm": true}`, depth 100 or more) for a drop, at most once a keyword in 24 hours; "never checked" now means no state, not no snapshot.
+- Doc 06 sections 3.1 and 5.2, doc 09 section 4.1 (as built) updated.
+
+Independent review (Sonnet) found, and this pass fixed: the confirmation guard re-opened after the confirmation was ingested (now a 24 hour cap by run, not by timestamps); a confirmation shallower than the last rank could not move the count (now depth 100 or more); a product name such as `Node.js` was read as a host (now needs a known suffix). It also removed the country domain from the change (history step at deploy).
+
+| Id | Item | Plan |
+|---|---|---|
+| F99 | A recovered result's path is the breadcrumb's (a guess): the ranking URL can differ between readings and raise a false `url_changed`; the state and the snapshot detail (titles are keyed by URL id, so recovered results of one site share one title) do not mark it. Show a recovered ranking URL as approximate | UI follow-up |
+| F100 | No view shows that a keyword's latest reading was inconclusive or that a drop awaits confirmation; the table shows the last rank that stood. A permanently inconclusive keyword stays "never checked" and is asked again every 24 hours in place of its scheduled check | UI follow-up |
+| F101 | The Google domain per country is an open question (doc 06 section 3.1); a table of country domains (written and removed in this pass) needs a manual ground truth and a re-baseline | owner: search `fynix digital` from Mumbai |
+| F102 | Existing stored states were collected before these changes and keep their values until the next check | run a check of all keywords after deploy |
+| F103 | Hidden results above a found own rank can hide a better own page, so that rank is an upper bound; it is not marked | with F99 |
+| F104 | Re-ingest does not repair old snapshots (a bumped parser version applies to new rows only) | none needed |

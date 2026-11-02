@@ -34,6 +34,7 @@ from idraft.collectors.seo_rank_rows import (
     UnusableCheckError,
     build_rows,
     echo_of,
+    mark_inconclusive,
     own_check,
     snapshot_time,
     urls_of,
@@ -211,6 +212,18 @@ async def _keep(db: AsyncSession, task: FetchedTask, serp: NormalizedSerp) -> No
         ),
         observed_at=observed_at,
     )
+    side = own_side(resolved, serp)
+    if side.inconclusive:
+        # The answer hides where some results come from and the site is not among the rest, so
+        # it may be among them: its absence is unknown. The answer is kept as it came; no rank,
+        # state or event follows from it, and the next check decides.
+        _log.warning(
+            "rank check cannot say if the site is absent",
+            task=task.ref.id,
+            unattributed=side.unattributed,
+        )
+        await _insert_snapshot(db, mark_inconclusive(rows, side.unattributed))
+        return
     await _ensure_feature_types(db, rows.feature_codes)
     snapshot_id = await _insert_snapshot(db, rows)
     if snapshot_id is None:
@@ -221,7 +234,6 @@ async def _keep(db: AsyncSession, task: FetchedTask, serp: NormalizedSerp) -> No
     if observation_rows:
         await db.execute(insert(domain_rank_observations), observation_rows)
 
-    side = own_side(resolved, serp)
     check = own_check(
         side,
         serp,
