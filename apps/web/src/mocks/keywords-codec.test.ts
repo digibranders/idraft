@@ -101,6 +101,9 @@ describe('the keyword changes codec', () => {
       },
       settings: { [project]: { default_device: 'both', default_depth_profile: 'deep' } },
     };
+    const encoded = JSON.stringify(encodeKeywordChanges(changes));
+    // The encoded size of the edit state built above, with every member filled. Task 2 stores nothing new, so it must not grow.
+    expect(encoded.length).toBe(495);
     expect(roundTrip(changes)).toEqual(changes);
   });
 

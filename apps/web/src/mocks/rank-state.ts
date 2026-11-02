@@ -267,7 +267,7 @@ export function rankStateOf(
     worst_rank: worst,
     first_ranked_at: ranked[0]?.observedAt ?? null,
     feature_types_present: features.map((f) => f.type),
-    owned_feature_types: features.filter((f) => f.owned).map((f) => f.type),
+    owned_feature_types: features.filter((f) => f.owned && f.type !== 'ai_overview').map((f) => f.type),
     aio,
     target_url_match: url === null || targetUrl === null ? null : url.canonical_url === targetUrl,
     url_changed_at: urlChangedAt,

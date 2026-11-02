@@ -819,7 +819,7 @@ export function bodyFilter(value: unknown, path: string): TrackedFilter | Valida
 }
 
 /** A term and every term under it. */
-function termAndBelow(caller: KeywordProjectCaller | KeywordWorkspaceCaller, termId: string): Set<string> {
+export function termAndBelow(caller: KeywordProjectCaller | KeywordWorkspaceCaller, termId: string): Set<string> {
   const found = new Set([termId]);
   let grew = true;
   while (grew) {

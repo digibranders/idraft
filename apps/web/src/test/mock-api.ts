@@ -18,6 +18,7 @@ export interface Answer {
   code: string | undefined;
   /** The `name=value` of the first cookie the answer set, if any. */
   setCookie: string | undefined;
+  headers: Headers;
 }
 
 export interface MockBrowser {
@@ -61,6 +62,7 @@ export function mockBrowser(role: Role, jar: Map<string, string> = new Map()): M
         body: parsed,
         code: typeof parsed.code === 'string' ? parsed.code : undefined,
         setCookie,
+        headers: response.headers,
       };
     },
     as: (other) => mockBrowser(other, jar),

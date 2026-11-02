@@ -122,6 +122,9 @@ export type FeatureCheck = Schemas['FeatureCheck'];
 export type FeaturePresence = Schemas['FeaturePresence'];
 export type AioHistoryItem = Schemas['AioHistoryItem'];
 export type RankEventOut = Schemas['RankEventOut'];
+export type RankEventPage = Schemas['RankEventPage'];
+export type SerpSnapshotPage = Schemas['SerpSnapshotPage'];
+export type SerpDomain = Schemas['SerpDomain'];
 export type SerpProvenance = Schemas['SerpProvenance'];
 
 /** Runtime lists from the OpenAPI enums: a form checks a slug against them before it asks the API. */

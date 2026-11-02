@@ -87,7 +87,8 @@ export interface SerpItem {
 export interface SerpContext {
   own: EntityRef;
   competitors: readonly EntityRef[];
-  ownHost: string;
+  /** The project's primary domain; null when it has none, and then no result is the project's own. */
+  ownHost: string | null;
   entityHosts?: ReadonlyMap<string, string>;
 }
 
@@ -192,8 +193,7 @@ export function featuresAt(trackedId: string, observedAt: string, ownRanked: boo
 
   const present: Array<{ type: string; owned: boolean }> = [];
   if (aioPresent) {
-    const aioOwned = ownRanked && aio.state === 'present_cited';
-    present.push({ type: 'ai_overview', owned: aioOwned });
+    present.push({ type: 'ai_overview', owned: false });
   }
 
   const checkFlips = hashOf(`${trackedId}:fcheck:${observedAt}`) % 4 === 0;
@@ -449,7 +449,7 @@ export function serpOf(check: WorldCheck, context: SerpContext): SerpItem[] {
   }
 
   // Pre-reserve own and competitor hosts if they rank in this SERP
-  if (check.rank !== null && check.rank <= check.depthReturned) {
+  if (ownHost !== null && check.rank !== null && check.rank <= check.depthReturned) {
     usedHosts.add(ownHost);
   }
   for (const comp of competitors) {
@@ -462,7 +462,7 @@ export function serpOf(check: WorldCheck, context: SerpContext): SerpItem[] {
 
   const items: SerpItem[] = [];
   for (let rank = 1; rank <= check.depthReturned; rank += 1) {
-    if (check.rank !== null && check.rank === rank) {
+    if (ownHost !== null && check.rank !== null && check.rank === rank) {
       items.push({
         rank,
         host: ownHost,

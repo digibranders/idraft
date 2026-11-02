@@ -1,22 +1,26 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
-import { keywordProjectCaller, rankContext } from './keyword-rules';
+import { keywordProjectCaller } from './keyword-rules';
 import { queryError } from './rules';
 import { entityRefView } from '../factories/entity';
 import { registrableDomain } from '../factories/domain';
 import { configHistoryView, effectiveCompetitors } from '../factories/keyword';
-import { stoppedAtOf } from '../rank-state';
-import { absoluteRankOf, OWN_ENTITY_REF, snapshotIdOf, worldChecks } from '../serp-world';
+import { worldEvents } from '../rank-events';
+import { absoluteRankOf, snapshotIdOf } from '../serp-world';
 import { invalid, mock, problem } from '../respond';
 import type { HistoryColumns, Schemas } from '@/lib/api/types';
 import { formatIsoDate } from '@/lib/format';
 import { hashOf } from '../rank-history';
-
-function shiftIsoDate(isoDate: string, days: number): string {
-  const [y, m, d] = isoDate.split('-').map(Number);
-  const date = new Date(Date.UTC(y ?? 0, (m ?? 1) - 1, (d ?? 1) + days));
-  return date.toISOString().slice(0, 10);
-}
+import {
+  findTrackedRowOrError,
+  isWithinBounds,
+  ownEntityOf,
+  projectHostOf,
+  shiftIsoDate,
+  toTimeBounds,
+  worldChecksFor,
+  worldInputFor,
+} from '../serp-views';
 
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const QUERY_PARAMS = ['from', 'to', 'window', 'entity_ids', 'include', 'format'] as const;
@@ -44,13 +48,9 @@ export const rankHistoryHandlers: readonly HttpHandler[] = [
     });
     if (caller instanceof Response) return caller;
 
-    const row = caller.keywords.tracked.find(
-      (candidate) =>
-        candidate.tracked_keyword_id === params.tracked_keyword_id &&
-        candidate.project_id === caller.project.project_id &&
-        candidate.deleted_at === null,
-    );
-    if (row === undefined) return problem(request, 'not_found');
+    const trackedCheck = findTrackedRowOrError(request, caller, params.tracked_keyword_id);
+    if ('error' in trackedCheck) return trackedCheck.error;
+    const row = trackedCheck.row;
 
     const url = new URL(request.url);
     const fromParam = url.searchParams.get('from');
@@ -101,19 +101,7 @@ export const rankHistoryHandlers: readonly HttpHandler[] = [
       }
     }
 
-    const ownRole =
-      caller.world.roles.find(
-        (r) =>
-          r.project_id === caller.project.project_id &&
-          r.role === 'own' &&
-          (r.is_primary ?? true) &&
-          (r.removed_at ?? null) === null,
-      ) ??
-      caller.world.roles.find(
-        (r) => r.project_id === caller.project.project_id && r.role === 'own' && (r.removed_at ?? null) === null,
-      );
-    const ownEntityRecord = ownRole ? caller.world.entities.find((e) => e.entity_id === ownRole.entity_id) : undefined;
-    const ownEntity: Schemas['EntityRef'] = ownEntityRecord ? entityRefView(ownEntityRecord, ownRole) : OWN_ENTITY_REF;
+    const ownEntity = ownEntityOf(caller);
 
     const effectiveComps = effectiveCompetitors(caller.keywords, caller.world, row);
 
@@ -362,18 +350,8 @@ export const rankHistoryHandlers: readonly HttpHandler[] = [
       });
     }
 
-    const rank = rankContext(caller, clock);
-
     // Call worldChecks with all effective competitors
-    const allChecks = worldChecks({
-      trackedId: row.tracked_keyword_id,
-      createdAt: row.created_at,
-      now: clock,
-      domain: rank.domain,
-      stoppedAt: stoppedAtOf(row),
-      own: ownEntity,
-      competitors: effectiveComps,
-    });
+    const allChecks = worldChecksFor(caller, row, clock);
 
     // Filter by window
     const windowChecks = allChecks.filter((c) => {
@@ -388,11 +366,8 @@ export const rankHistoryHandlers: readonly HttpHandler[] = [
       const host = domainRec ? domainRec.host : `${comp.canonical_name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
       entityHostMap.set(comp.entity_id, host);
     }
-    const projectHost =
-      caller.project.primary_domain?.host ??
-      caller.world.domains.find((d) => d.entity_id === ownEntity.entity_id)?.host ??
-      '';
-    const ownHost = (rank.domain ?? projectHost).toLowerCase();
+    // With no primary domain no check ranks, so the empty host is never put in a URL.
+    const ownHost = (projectHostOf(caller) ?? '').toLowerCase();
 
     const urls: Record<string, Schemas['UrlRef']> = {};
 
@@ -552,6 +527,32 @@ export const rankHistoryHandlers: readonly HttpHandler[] = [
           }))
         : null;
 
+    let historyEvents: Schemas['HistoryEvent'][] | null = null;
+    if (include.has('events')) {
+      const allEvents = worldEvents(worldInputFor(caller, row, clock, ownEntity));
+      const returnedEntityIds = new Set(wantedEntities.map((e) => e.entity_id));
+      const eventBounds = toTimeBounds(
+        { isInstant: false, localDate: firstDate },
+        { isInstant: false, localDate: lastDate },
+        caller.project.timezone,
+      );
+
+      historyEvents = allEvents
+        .filter((ev) => {
+          const tsMs = Date.parse(ev.occurredAt);
+          if (!isWithinBounds(tsMs, eventBounds)) return false;
+          return returnedEntityIds.has(ownEntity.entity_id);
+        })
+        .map((ev) => ({
+          rank_event_id: ev.id,
+          occurred_at: ev.occurredAt,
+          event_type: ev.eventType,
+          entity_id: ownEntity.entity_id,
+          from_rank: ev.fromRank,
+          to_rank: ev.toRank,
+        }));
+    }
+
     const data: Schemas['RankHistory'] = {
       tracked_keyword_id: row.tracked_keyword_id,
       window: windowShape,
@@ -559,7 +560,7 @@ export const rankHistoryHandlers: readonly HttpHandler[] = [
       series: format === 'columns' ? null : series,
       bands,
       columns: columnsData,
-      events: include.has('events') ? [] : null,
+      events: historyEvents,
       deep_check_weekday: 1,
       urls,
       version_boundaries: [],

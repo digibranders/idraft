@@ -3,20 +3,30 @@ import { z } from 'zod';
 
 import { ENTITIES_COOKIE, entitiesCookie } from '../entities-state';
 import { MOCK_CREATED_AT, MOCK_PROJECTS, MOCK_WORKSPACE } from '../fixtures';
+import { MOCK_TRACKED_KEYWORDS } from '../keyword-fixtures';
 import { KEYWORD_TABLE } from '../keyword-table';
 import { mockId } from '../mock-ids';
+import { worldEvents } from '../rank-events';
+import { stoppedAtOf } from '../rank-state';
+import { entityWorld } from '../entities-state';
+import { entityRefView } from '../factories/entity';
+import { effectiveCompetitors } from '../factories/keyword';
+import { keywordWorld } from '../keywords-state';
+import { shiftIsoDate } from '../serp-views';
 import {
   CHECKED_FIXTURES,
   clearManualChecks,
   FAILED_IDS,
   FAILING_IDS,
   FAILING_RUN,
+  OWN_ENTITY_REF,
   recordManualCheck,
   snapshotIdOf,
   STALE_IDS,
 } from '../serp-world';
 import { WORKSPACE_COOKIE } from '../workspace-state';
 import { RANK_HISTORY, TRACKED_KEYWORD, TRACKED_KEYWORD_ROW } from '@/test/api-shapes';
+import { formatIsoDate } from '@/lib/format';
 import { dataOf, fieldCodes, mockBrowser } from '@/test/mock-api';
 
 const W = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}`;
@@ -603,9 +613,45 @@ describe('Rank history handler', () => {
     const res = await browser.call('GET', `${P}/tracked-keywords/${id}/rank-history?include=absolute,url,events`);
     expect(res.status).toBe(200);
     const history = dataOf(res, RANK_HISTORY);
-    expect(history.events).toEqual([]);
-
     const own = history.series?.[0];
+    expect(history.events).not.toBeNull();
+
+    const row = MOCK_TRACKED_KEYWORDS.find((k) => k.tracked_keyword_id === id);
+    if (!row) throw new Error('Missing keyword');
+    const today = formatIsoDate(new Date().toISOString(), fynix.timezone);
+    const firstDate = shiftIsoDate(today, -89);
+    const ew = entityWorld({}, {});
+    const kw = keywordWorld({});
+    const comps = effectiveCompetitors(kw, ew, row);
+    const ownRole =
+      ew.roles.find(
+        (r) =>
+          r.project_id === fynix.project_id &&
+          r.role === 'own' &&
+          (r.is_primary ?? true) &&
+          (r.removed_at ?? null) === null,
+      ) ?? ew.roles.find((r) => r.project_id === fynix.project_id && r.role === 'own');
+    const ownRecord = ownRole ? ew.entities.find((e) => e.entity_id === ownRole.entity_id) : undefined;
+    const ownEntity = ownRecord && ownRole ? entityRefView(ownRecord, ownRole) : OWN_ENTITY_REF;
+
+    const expectedEvents = worldEvents({
+      trackedId: id,
+      createdAt: row.created_at,
+      now: Date.now(),
+      domain: fynix.host ?? 'fynix.digital',
+      stoppedAt: stoppedAtOf(row),
+      own: ownEntity,
+      competitors: comps,
+    }).filter((ev) => {
+      const localDate = formatIsoDate(ev.occurredAt, fynix.timezone);
+      return localDate >= firstDate && localDate <= today;
+    });
+    expect(history.events).toHaveLength(expectedEvents.length);
+    for (const ev of history.events ?? []) {
+      expect(ev.entity_id).toBe(own?.entity.entity_id);
+      expect(ev.rank_event_id).toBeTruthy();
+      expect(ev.event_type).toBeTruthy();
+    }
     const rankedPoints = own?.points.filter((p) => p.state === 'ranked') ?? [];
     expect(rankedPoints.length).toBeGreaterThan(0);
     for (const p of rankedPoints) {
@@ -1198,10 +1244,14 @@ describe('Rank history handler', () => {
     expect(failingRow.state.current.observed_at).toBe(lastGoodPoint.observed_at);
   });
 
-  it('returns 404 for an unknown keyword', async () => {
+  it('returns 404 for an unknown keyword and 422 for non-uuid in path', async () => {
     const browser = mockBrowser('viewer');
-    const res = await browser.call('GET', `${P}/tracked-keywords/unknown-id/rank-history`);
+    const unknownUuid = '00000000-0000-0000-0000-000000000000';
+    const res = await browser.call('GET', `${P}/tracked-keywords/${unknownUuid}/rank-history`);
     expect(res.status).toBe(404);
+
+    const nonUuidRes = await browser.call('GET', `${P}/tracked-keywords/unknown-id/rank-history`);
+    expect(nonUuidRes.status).toBe(422);
   });
 
   it('returns 403 for a member without data:read', async () => {
