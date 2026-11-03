@@ -1,6 +1,6 @@
 'use client';
 
-import { Clock, TriangleAlert } from 'lucide-react';
+import { CircleAlert, CircleHelp, Clock, RefreshCw, TriangleAlert } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
@@ -17,6 +17,7 @@ import {
   formatRankCell,
   webHref,
   type ChangeDisplay,
+  type CheckMark,
   type RankDisplay,
   type UrlDisplay,
 } from '@/lib/format';
@@ -54,15 +55,45 @@ function Marks({
   stale,
   failing,
   observedAt,
+  unconfirmed = false,
+  check = 'none',
 }: {
   stale: boolean;
   failing: boolean;
   observedAt?: string | null | undefined;
+  /** One check missed a rank an earlier one had; a second check confirms it. */
+  unconfirmed?: boolean;
+  /** A check is on its way, or the latest one could not say whether the site is absent. */
+  check?: CheckMark;
 }): ReactElement {
   const t = useTranslations('rankings.rank');
   const tip = observedAt ? t('lastGood', { date: observedAt }) : t('staleTooltip');
   return (
     <>
+      {check === 'pending' ? (
+        <Tooltip content={t('checkingTooltip')} purpose="label">
+          <span className="inline-flex items-center">
+            <Icon icon={RefreshCw} size="xs" className="text-foreground-tertiary" />
+            <span className="sr-only">{t('speech.checking')}</span>
+          </span>
+        </Tooltip>
+      ) : null}
+      {check === 'inconclusive' ? (
+        <Tooltip content={t('inconclusiveTooltip')} purpose="label">
+          <span className="inline-flex items-center">
+            <Icon icon={CircleAlert} size="xs" className="text-warning-text" />
+            <span className="sr-only">{t('speech.inconclusive')}</span>
+          </span>
+        </Tooltip>
+      ) : null}
+      {unconfirmed ? (
+        <Tooltip content={t('unconfirmedTooltip')} purpose="label">
+          <span className="inline-flex items-center">
+            <Icon icon={CircleHelp} size="xs" className="text-foreground-tertiary" />
+            <span className="sr-only">{t('speech.unconfirmed')}</span>
+          </span>
+        </Tooltip>
+      ) : null}
       {stale ? (
         <Tooltip content={tip} purpose="label">
           <span className="inline-flex items-center">
@@ -108,6 +139,8 @@ export function RankCellView({
         stale={display.stale}
         failing={display.kind === 'failed' ? false : display.failing}
         observedAt={observedDate}
+        unconfirmed={display.kind === 'beyond' && display.unconfirmed}
+        check={display.kind === 'failed' ? 'none' : display.check}
       />
     );
   const changeSlot = (
@@ -397,6 +430,10 @@ export function useRankTips(timeZone: string): RankTips {
               break;
             }
             const rest = [
+              display.depth < display.requested
+                ? t('partialCoverage', { returned: display.depth, requested: display.requested })
+                : undefined,
+              display.unconfirmed ? t('unconfirmedTooltip') : undefined,
               previous(previousRank),
               lastGood(display.observedAt, display.stale),
               display.failing ? t('failedTooltip') : undefined,

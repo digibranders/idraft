@@ -379,7 +379,7 @@ async def list_tracked_keywords(
                     "competitors": None
                     if row.overrides is None
                     else [_override(o) for o in row.overrides],
-                    "state": rank_views.state_view(row.state),
+                    "state": rank_views.state_view(row.state, row.check),
                     "sparkline": None
                     if row.sparkline is None
                     else rank_views.sparkline_view(row.sparkline),
@@ -534,7 +534,7 @@ async def get_tracked_keyword(
                 "groups": [_group(group) for group in detail.groups],
                 "terms": [_term(term) for term in detail.terms],
                 "competitor_overrides": [_override(o) for o in detail.overrides],
-                "state": rank_views.state_view(detail.state),
+                "state": rank_views.state_view(detail.state, detail.check),
                 "config_history_count": detail.config_versions,
                 "schedule": None
                 if schedule is None

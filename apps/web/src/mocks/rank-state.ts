@@ -122,6 +122,7 @@ function notChecked(failures: number, stale: boolean): TrackedKeywordState {
     is_stale: stale,
     last_observed_at: null,
     ranking_url_count: 0,
+    drop_unconfirmed: false,
   };
 }
 
@@ -336,5 +337,6 @@ export function rankStateOf(
     is_stale: collected && now - Date.parse(latest.observedAt) > STALE_AFTER_MS,
     last_observed_at: latest.observedAt,
     ranking_url_count: latest.urlCount,
+    drop_unconfirmed: false,
   };
 }

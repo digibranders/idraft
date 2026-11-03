@@ -742,3 +742,17 @@ Changed (backend only, no migration): parser version 4 keeps `rank_group` and le
 | F106 | The web app still prints `>depth_requested` and ignores `drop_unconfirmed` | UI session: use `depth_returned`, mark unconfirmed drops |
 | F107 | A project's `primary_domain` is not checked against its own entity's domain rules | validate on project update; find existing cases with the audit's appendix query |
 | F108 | Standalone AI answer collection (`ai_prompt`, `ai_mode_keyword`) has workload names only, no collector | build per docs/07 |
+
+### Check now through the standard queue, honest progress, the web app (2026-11-03, second pass)
+
+Live and standard-queue checks of `fynix digital` and `fynix` (about 0.025 USD, the request built by the app's own code) showed the same standard request returning different SERPs hours apart (`fynix digital` at 1, then not found; `fynix` at 21, then 19). So the earlier reading that the owner's 19 was the renumbering defect is withdrawn: the renumbering defect is real (21 stored as 19 in the 11:50 reading) but 19 was also a true provider rank later.
+
+Changed: Check now sends tasks through the standard queue (selector without `live`); `state.check` reports queued, processing, completed, inconclusive or failed for every keyword; a second check of a keyword with one pending is refused (`409 check_pending`); live answers are stored as diagnostic snapshots and never move state; the monthly quota counts manual checks; the web app shows `depth_returned`, `drop_unconfirmed` and the check marks, disables Check now for pending keywords, polls the list while a check is open, and has a "Tracked as" column; types regenerated with `pnpm gen:api`.
+
+| Id | Item | Plan |
+|---|---|---|
+| F109 | One reading can be wrong either way; only a drop is confirmed | owner: a consensus rule (better of two readings hours apart), and ask DataForSEO about the variance |
+| F110 | Three Playwright tests in `e2e/flows/rankings.spec.ts` (lines 305, 345, 664) fail on the committed code: they expect columns hidden below 1680 px, against the 2026-10-30 rule | update the tests; regenerate the visual baselines in the pinned image for the new column |
+| F111 | Five unit tests fail on the committed code (costs budgets, invite password reason, rank trend sparkline, two rank strip tests) | look at the date or clock assumption they share |
+| F112 | The list does not poll while a check is open in server mode (very large lists) | extend the poll to the server page |
+| F113 | Production configuration items of 2026-10-31 remain: operator account, DataForSEO spending cap, one real check on the server | owner |

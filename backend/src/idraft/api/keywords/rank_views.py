@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from idraft.api.keywords.check_status import CheckProgress
 from idraft.api.keywords.rank_repository import (
     CompetitorRank as CompetitorRankRecord,
 )
@@ -22,6 +23,7 @@ from idraft.api.schemas.keywords import (
     AioStateInfo,
     CompetitorRank,
     FeatureOnPage,
+    KeywordCheck,
     RankCell,
     RankChange,
     Sparkline,
@@ -83,8 +85,22 @@ def _change(
     )
 
 
-def state_view(record: StateRecord | None) -> TrackedKeywordState:
+def check_view(check: CheckProgress | None) -> KeywordCheck:
+    if check is None:
+        return KeywordCheck(status="idle")
+    return KeywordCheck(
+        status=check.status,
+        requested_at=check.requested_at,
+        finished_at=check.finished_at,
+        reason=check.reason,
+    )
+
+
+def state_view(
+    record: StateRecord | None, check: CheckProgress | None = None
+) -> TrackedKeywordState:
     """The keyword's state; a keyword with none, or never checked, is `not_checked`."""
+    progress = check_view(check)
     if record is None:
         return TrackedKeywordState(
             current=_NOT_CHECKED,
@@ -104,6 +120,7 @@ def state_view(record: StateRecord | None) -> TrackedKeywordState:
             is_stale=False,
             last_observed_at=None,
             ranking_url_count=0,
+            check=progress,
         )
     checked = record.last_observed_at is not None
     if not checked:
@@ -155,6 +172,7 @@ def state_view(record: StateRecord | None) -> TrackedKeywordState:
         is_stale=record.is_stale,
         last_observed_at=record.last_observed_at,
         ranking_url_count=record.ranking_url_count,
+        check=progress,
         drop_unconfirmed=checked
         and record.current_rank is None
         and record.last_ranked_rank is not None

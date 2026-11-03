@@ -33,6 +33,8 @@ export interface UseCheckNowArgs {
   enabled: boolean;
   archived: boolean;
   chosen: { ids: ReadonlySet<string>; allMatching: boolean };
+  /** Tracked keywords whose latest check is queued or being answered (`state.check`). */
+  pendingIds: ReadonlySet<string>;
   onDrop: (trackedIds: ReadonlySet<string>) => void;
 }
 
@@ -42,7 +44,7 @@ export interface CheckNowResult {
   progress: ReactNode;
 }
 
-export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseCheckNowArgs): CheckNowResult {
+export function useCheckNow({ scope, enabled, archived, chosen, pendingIds, onDrop }: UseCheckNowArgs): CheckNowResult {
   const t = useTranslations('rankings.checkNow');
   const queryClient = useQueryClient();
   const { user } = useMe();
@@ -119,6 +121,10 @@ export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseChe
           });
         } else if (refusal.kind === 'paused') {
           toast({ type: 'error', title: t('refused.paused') });
+        } else if (refusal.kind === 'pending') {
+          toast({ type: 'error', title: t('refused.pending', { count: refusal.count }) });
+          // Another check was started meanwhile: the rows are read again to show it
+          void refreshKeywords(queryClient, scope);
         } else if (refusal.kind === 'unknownKeyword') {
           toast({ type: 'error', title: t('refused.unknownKeyword') });
           void refreshKeywords(queryClient, scope);
@@ -134,7 +140,7 @@ export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseChe
     [scope, queryClient, refetch, t, onDrop],
   );
 
-  const target = checkNowTarget(chosen, archived);
+  const target = checkNowTarget(chosen, archived, pendingIds);
   const disabledReason = inFlight
     ? t('inProgress')
     : exhausted
@@ -160,7 +166,13 @@ export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseChe
   const inspectorAction = useCallback(
     (trackedId: string, active: boolean): ReactNode => {
       if (!enabled || !active) return null;
-      const reason = inFlight ? t('inProgress') : exhausted ? t('blocked.noneLeft') : null;
+      const reason = inFlight
+        ? t('inProgress')
+        : pendingIds.has(trackedId)
+          ? t('blocked.pending')
+          : exhausted
+            ? t('blocked.noneLeft')
+            : null;
       return (
         <Tooltip content={reason ?? ''} disabled={reason === null}>
           <Button
@@ -177,7 +189,7 @@ export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseChe
         </Tooltip>
       );
     },
-    [enabled, inFlight, exhausted, triggerCheck, t],
+    [enabled, inFlight, exhausted, pendingIds, triggerCheck, t],
   );
 
   const progress = followed.map((runId) => (

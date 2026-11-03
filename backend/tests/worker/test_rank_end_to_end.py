@@ -290,7 +290,7 @@ async def test_a_submission_whose_answer_was_lost_is_found_and_ingested_once(
     assert api.depths() == ([100, 100] if _expected_deep_day() else [20, 20])
 
 
-async def test_check_now_asks_the_provider_live_and_ingests_the_answer_once(
+async def test_check_now_goes_through_the_standard_queue_and_ingests_the_answer_once(
     settings: Settings,
     redis: Redis,
     migrated: PostgresServer,
@@ -300,8 +300,8 @@ async def test_check_now_asks_the_provider_live_and_ingests_the_answer_once(
     await empty_ledger(migrated)
     world = await make_world(migrated)
     keyword = await track(migrated, world.project, "Best CRM")
-    # What `POST .../seo/check-now` records: the worker plans and sends it.
-    selector = {"tracked_keyword_ids": [str(keyword)], "live": True, "depth": 50}
+    # What `POST .../seo/check-now` records: the worker plans it and sends it like a schedule does.
+    selector = {"tracked_keyword_ids": [str(keyword)], "depth": 50}
     await fetch(
         migrated,
         "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
@@ -319,8 +319,62 @@ async def test_check_now_asks_the_provider_live_and_ingests_the_answer_once(
 
     await _run_until(settings, api, done=ingested)
 
+    # One task posted and fetched, no live call.
+    assert api.live == []
+    assert len(api.sent) == 1
+    assert api.depths() == [50]
+    tasks = await fetch(
+        migrated,
+        "SELECT provider_endpoint, status FROM ops.collection_tasks WHERE project_id = $1",
+        world.project.id,
+    )
+    assert [(t["provider_endpoint"], t["status"]) for t in tasks] == [
+        ("serp/google/organic", "ingested")
+    ]
+    (run,) = await fetch(
+        migrated,
+        "SELECT status, tasks_succeeded, tasks_total FROM ops.collection_runs "
+        "WHERE project_id = $1 AND created_by_type = 'user'",
+        world.project.id,
+    )
+    assert (run["status"], run["tasks_succeeded"], run["tasks_total"]) == ("completed", 1, 1)
+    (state,) = await _states(migrated, world)
+    assert state["current_rank"] == 3
+    payloads = await fetch(migrated, "SELECT object_key FROM ops.raw_payloads")
+    assert await object_keys(object_server, bucket) == [row["object_key"] for row in payloads]
+    assert len(payloads) == 1
+
+
+async def test_a_live_diagnostic_check_is_kept_as_a_snapshot_and_moves_no_rank_state(
+    settings: Settings,
+    redis: Redis,
+    migrated: PostgresServer,
+    object_server: ObjectServer,
+    bucket: str,
+) -> None:
+    await empty_ledger(migrated)
+    world = await make_world(migrated)
+    keyword = await track(migrated, world.project, "Best CRM")
+    # A run that asks the live endpoint (a diagnostic; `POST .../seo/check-now` does not any more).
+    selector = {"tracked_keyword_ids": [str(keyword)], "live": True, "depth": 50}
+    await fetch(
+        migrated,
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
+        "window_end, trigger, status, created_by_type, created_by_id, config_snapshot) VALUES "
+        "($1, $2, 'seo_rank', now(), now() + interval '1 hour', 'manual', 'planned', 'user', "
+        "'00000000-0000-0000-0000-000000000001', $3::jsonb) RETURNING id",
+        world.project.workspace_id,
+        world.project.id,
+        json.dumps({"selector": selector}),
+    )
+    api = FakeSerp()
+
+    async def ingested() -> bool:
+        return len(await fetch(migrated, "SELECT 1 FROM seo.serp_snapshots")) == 1
+
+    await _run_until(settings, api, done=ingested)
+
     # One live call, with the search and nothing only `task_post` takes, and nothing to fetch.
-    # The system does not also make the first check of the keyword: this one is it.
     assert (api.posts, api.gets) == ([], [])
     (called,) = api.live
     assert called["keyword"] == "Best CRM"
@@ -352,5 +406,7 @@ async def test_check_now_asks_the_provider_live_and_ingests_the_answer_once(
     assert [(row["depth_requested"], row["cost_usd"]) for row in snapshot] == [
         (50, Decimal("0.010000"))
     ]
-    (state,) = await _states(migrated, world)
-    assert state["current_rank"] == 3
+    # The answer is a reading for comparison: no state, no observations, no current results.
+    assert await _states(migrated, world) == []
+    assert await fetch(migrated, "SELECT 1 FROM seo.domain_rank_observations") == []
+    assert await fetch(migrated, "SELECT 1 FROM seo.serp_current_results") == []

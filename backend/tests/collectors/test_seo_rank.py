@@ -379,6 +379,23 @@ async def test_check_now_plans_the_named_keywords_live_and_due_at_once(
     assert plan.estimated_cost_usd == Decimal("0.028")
 
 
+async def test_check_now_without_the_live_flag_plans_standard_queue_tasks_like_a_schedule(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    first = await _tracked(migrated, project, "crm first")
+    second = await _tracked(migrated, project, "crm second", profile="full")
+    selector = {"tracked_keyword_ids": [str(first), str(second)]}
+
+    plan = await _plan(worker_db, _window(project, selector))
+
+    assert _depths(plan) == {first: 20, second: 100}
+    assert {task.provider_endpoint for task in plan.tasks} == {SERP_ORGANIC}
+    assert {task.scheduled_for for task in plan.tasks} == {TUESDAY}
+    assert plan.config_snapshot["queue"] == "standard"
+    assert plan.estimated_cost_usd > Decimal(0)
+
+
 async def test_check_now_checks_at_the_depth_asked_for(
     worker_db: Ledger, migrated: PostgresServer, world: World
 ) -> None:

@@ -17,7 +17,7 @@ import type { FilterValues } from '@/components/app/filters/types';
 import { api, unwrap } from '@/lib/api/client';
 import { projectKey, type QueryKey } from '@/lib/api/keys';
 import type { paths } from '@/lib/api/schema';
-import type { TrackedKeywordRow } from '@/lib/api/types';
+import type { TrackedKeywordRow, TrackedKeywordState } from '@/lib/api/types';
 import type { FilterValue } from '@/lib/filters/filter-values';
 import { queryTextOf } from '@/lib/keywords/query-text';
 import { isUuid } from '@/lib/routes/paths';
@@ -209,6 +209,15 @@ interface ListArgs {
 
 type AllPages = UseInfiniteQueryResult<InfiniteData<ListPage, string | null>>;
 
+/** How often the list is read again while a keyword has a check queued or being answered (standard queue: minutes). */
+const CHECK_POLL_MS = 20_000;
+
+/** Whether a keyword's check is queued or being answered (`state.check`), so its rank is about to change. */
+export function hasPendingCheck(row: { state?: Pick<TrackedKeywordState, 'check'> | undefined }): boolean {
+  const status = row.state?.check?.status;
+  return status === 'queued' || status === 'processing';
+}
+
 /** The rows of Rankings in the mode their count calls for. */
 export function useKeywordList({ scope, filters, sort, search }: ListArgs): KeywordList {
   const all: AllPages = useInfiniteQuery({
@@ -233,6 +242,9 @@ export function useKeywordList({ scope, filters, sort, search }: ListArgs): Keyw
     // to it (the writes invalidate it), not on every focus or visit
     staleTime: ALL_STALE_MS,
     refetchOnWindowFocus: false,
+    // A check asked for by hand or by a schedule ends on the provider's time: read the list again until none is open
+    refetchInterval: (query) =>
+      query.state.data?.pages.some((page) => page.data.some(hasPendingCheck)) ? CHECK_POLL_MS : false,
     // A combination of filters nobody looks at any more is not kept: each holds up to 10,000 rows
     gcTime: ALL_GC_MS,
   });

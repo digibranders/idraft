@@ -12,7 +12,7 @@ Related: [05-provider-integrations.md](05-provider-integrations.md), [09-rank-tr
 | Rank tracking, SERP features, AI Overview | `POST /v3/serp/google/organic/task_post` | Standard queue (task) | 4 |
 | Readiness (polling only, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)) | `GET /v3/serp/google/organic/tasks_ready` | poll | 4 |
 | Result fetch | `GET /v3/serp/google/organic/task_get/advanced/{id}` | fetch | 4 |
-| On-demand single check ("check now") | `POST /v3/serp/google/organic/live/advanced` (one search a call, $0.002 a page; built in Phase 4, `providers/dataforseo/serp.py`) | Live | 4 |
+| On-demand check ("check now") | The standard queue, like a schedule (since 2026-11-03; the live endpoint, `POST /v3/serp/google/organic/live/advanced`, answered a different SERP for the same query and is a diagnostic only: its answers are kept as snapshots and never move rank state) | Standard | 4 |
 | Error reconciliation | `POST /v3/serp/google/organic/errors` (tasks errored in past 7 days) | poll, 10/min | 4 |
 | Tasks posted in a period, with their tags (resolving unknown submissions) | `POST /v3/serp/id_list` with `include_metadata` (per API; 1,000 ids a call, 10 calls/min, a month back with metadata) | reconciler, off until S-01 | 4 |
 | Webhook replay | `POST /v3/appendix/webhook_resend` (up to 100 ids, no double charge) | Not used in V1: no pingback endpoint | n/a |
@@ -120,7 +120,7 @@ Mobile costs the same as desktop per page. Tracking both devices doubles collect
 | `tasks_ready`: 20 calls/min, up to 1,000 ids per call, last 3 days | Poll every 60 s per endpoint while any task is `submitted`; no call when none are. A 30 s poll during open windows is not built: the id sweeper bounds what a slower poll could miss |
 | Results re-fetchable free for 30 days (HTML 7 days) | Fetch immediately; re-fetch within 30 days is allowed for re-ingest |
 | 10 s callback timeout, then task goes to `tasks_ready` | Not relevant: no callback URL is sent, so every task is found through `tasks_ready` or the id sweeper |
-| Live: 1 task per call | Used only for "check now" and small backfills |
+| Live: 1 task per call | A diagnostic: kept as a snapshot, never moves rank state (`seo_rank_ingest`, reason `live_diagnostic`) |
 
 At 10,000 keywords per day, submission needs 100 POSTs; fetching needs 10,000 GETs. Spread over a 6-hour window that is about 28 calls per minute, 1.4% of the account limit (under 3% of our 1,000 per minute limiter).
 

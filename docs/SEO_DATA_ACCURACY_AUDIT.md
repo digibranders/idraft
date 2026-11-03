@@ -13,12 +13,13 @@ Scope: Google organic rank tracking, keyword metrics and AI Overview data, from 
 
 **What was fixed.** Parser version 4 keeps the provider's rank and leaves a gap; results with an unreadable address make an absent own site inconclusive instead of absent; the API now says how far the answer reached (`depth_returned`) and whether a drop is still unconfirmed (`drop_unconfirmed`); checks for a project with no own entity are stored but move no state. No migration is needed.
 
-**What the live checks show about the Fynix complaint.** Two different DataForSEO paths were compared with the app's own request settings (India, desktop, depth 100).
+**What the live checks show about the Fynix complaint.** Two DataForSEO paths were compared with the app's own request settings (India, desktop, depth 100), and the standard queue was read twice, hours apart.
 
-- The **standard queue** (`task_post`, what the scheduler uses) returned `www.fynix.digital` as organic result 1 for `fynix digital`, as the owner saw in Google, with no hidden links. For `fynix` it returned the site at provider rank 21; the old parser would have stored 19, because two repeated URLs above it were dropped and the results below them renumbered. The "19" the owner saw was the renumbering defect, not a real position.
-- The **live endpoint** (what "check now" uses) hid the address of 44 to 73 results behind `google.com/goto` links and did not return `fynix.digital` among the organic results in any of five settings (India desktop and mobile, Mumbai, US, UK). The site appears there only as a source cited by the AI Overview. A rank of `>100` for `fynix digital` is what that endpoint's answer supports.
+- The **standard queue** (`task_post`, what the scheduler uses) is not stable between readings. For `fynix digital` the 11:54 UTC reading had `www.fynix.digital` as organic result 1, as the owner saw in Google, and the 13:27 UTC reading, with the same request, did not have the site anywhere in 99 results. For `fynix` the 11:50 reading had the site at provider rank 21 and the 13:24 reading at provider rank 19. Neither standard answer hid addresses behind `google.com/goto`.
+- The **live endpoint** (what "check now" used) hid the address of 44 to 73 results behind `google.com/goto` links and did not return `fynix.digital` among the organic results in any of five settings. The site appears there only as a source cited by the AI Overview.
+- The **renumbering defect is real** (B1): in the 11:50 `fynix` reading the old parser stored 19 where the provider's rank was 21. But the owner's 19 cannot be put down to it, because the provider's own rank was 19 in the later reading.
 
-So the dashboard's `>100` most likely came from live-endpoint readings; the standard-queue reading agrees with Google. Whether the live endpoint is a lower-quality SERP, or shows a different Google variant, is for DataForSEO to answer; the code cannot tell. This is the main open decision (H2).
+So the `>100` the owner saw for `fynix digital` is explained by the provider's SERP moving between readings, and possibly by live-endpoint readings; it is not a parsing or matching loss. Because the provider itself varies, a single reading is weak evidence either way, which is what the app's confirmation check (a drop stands only after a second miss) is for; the second pass now routes Check now through the standard queue and keeps live answers from moving state (section J).
 
 **What remains uncertain.** The production database could not be inspected (access refused, see H). The standard-queue path was sampled with two keywords only (see E). Serper is not integrated, so there was no second provider to compare. The separate AI visibility pipeline does not exist in the code yet.
 
@@ -104,7 +105,7 @@ Standard queue (the path the scheduler uses: `task_post`, then `task_get/advance
 | fynix digital | 1 (`www.fynix.digital`, address visible) | 1 | 1 | 96 | Agree; matches Google. AI Overview cites the site. 0 hidden links; 10 repeated URLs dropped below rank 1. |
 | fynix | 21 | 21 | 19 | 71 | Agree. The old value was two places too good. |
 
-The same keywords through the live endpoint disagree with these (above): `fynix digital` was not found, `fynix` was at 19 (with hidden links read back). Standard and live answers are different SERPs for identical settings.
+The same keywords through the live endpoint disagree with these (above): `fynix digital` was not found, `fynix` was at 19 (with hidden links read back). A second pair of standard readings, built by the app's own request code about two hours later, is in section J: they differ again.
 
 Serper: not integrated in this codebase (no references in `src`, `tests` or `docs`), so no Serper comparison was made. Google Search Console: not connected to the backend yet (the `gsc_sync` workload name exists with no collector).
 
@@ -139,10 +140,10 @@ One live Labs `keyword_overview` call (India, `en`, seven keywords, 0.0126 USD) 
 ## H. Remaining issues
 
 1. **Production database not inspected.** An SSH read of the production database (to look at the Fynix project, its entity and domain rules, tracked keyword rows, snapshots and provider task ids) was refused by the permission layer and was not retried. The read-only queries in the appendix are ready to run by the owner.
-2. **The live endpoint and the standard queue return different SERPs, and the live one disagrees with Google.** For the same keyword, location, device and depth the standard queue found `www.fynix.digital` at 1; the live endpoint hid most addresses and never returned the site in organic results. "Check now" uses the live endpoint (`collectors/seo_rank.py`, `queue_of`), so a manual check can overwrite a good standard reading with a worse one (the ingest cannot tell them apart beyond `provider_endpoint` on the snapshot). Options for the owner: send "check now" through the standard queue (slower, cheaper), keep live but never let it move state on its own (treat as a preview), or ask DataForSEO why the answers differ. Nothing was changed here because it is a product and cost decision, and the second option needs a migration-free but behavioural change to `apply_check`.
+2. **The provider's SERP moves between readings, on both paths, and the live endpoint differs from the standard queue.** The same request through the standard queue found `www.fynix.digital` at 1 at 11:54 UTC and did not have it at 13:27 UTC; `fynix` came back at 21 and then 19. The live endpoint hid most addresses and never returned the site organically. Second pass (section J): Check now now uses the standard queue and live answers never move state. What remains is the variance itself: one reading can be wrong either way, the confirmation check mitigates it for drops only, and a rise or a first find from a single reading is taken at face value. A consensus rule (for example the best of two readings a few hours apart) would need an owner decision and is not built. DataForSEO should be asked why identical standard requests differ.
 3. **Project primary domain and entity domain rules are separate.** Rank resolution uses only the own entity's domain rules (`api/projects/service.py` writes them from `own_entity.domains` at creation; changing `primary_domain` later touches only the project row). A project whose primary domain is not covered by an own rule would read as unranked. Only the no-own-entity case is guarded. The appendix has a query that finds such projects; a validation on project update is a follow-up.
 4. **Existing stored states** were written by parser versions up to 3. Where a snapshot carries the warning `rank_recomputed`, its ranks may be one or more places too good. The history is append-only and is not rewritten.
-5. **The web app** still prints `>depth_requested` and does not show `drop_unconfirmed` (see C).
+5. **The web app** shows `depth_returned`, `drop_unconfirmed` and the check state since the second pass (section J); its visual regression baselines were not regenerated (they need the pinned Playwright image).
 6. **`depth` above 200.** DataForSEO's live SERP page documents a maximum depth of 200; the request model accepts up to 700. Nothing sends more than 100 today (profiles top out at 100, check now at 100, confirmation at 100). A future profile above 200 should be checked against the provider first.
 7. **Hidden results above a found own rank** can hide a better own page; the rank is then an upper bound (review log F103, unchanged).
 8. **No Serper or GSC comparison** (see E).
@@ -158,6 +159,108 @@ An independent review (Sonnet) of the first version of the diff found: a stale `
 - **Database changes: none.** The snapshot array columns already allow NULL elements; the new API fields are computed from existing columns; `extras` is JSON.
 - **Reprocessing: not required, and not offered as an automatic backfill.** New checks write correct rows under parser version 4. To refresh stale-looking keywords safely: find affected keywords with the first appendix query (read-only), then run a normal check of just those keywords (a standard-queue task is about 0.0066 USD for depth 100 with the AI Overview). History stays as it was, so the procedure is reversible by simply not using the new rows. Do not run a project-wide refresh without the owner's go.
 - **Rollout order.** Backend first (the API fields are additive), web app afterwards.
+
+## J. Second pass: one collection path, honest progress, the web app (2026-11-03, evening)
+
+Scope: Check now through the standard queue, asynchronous states, live answers kept from moving state, the web app, regenerated types, tests, a fresh standard-queue check of `fynix digital` and `fynix`, and what stays pending in production. Nothing was committed, pushed or deployed, and production data was not touched.
+
+### J1. What changed
+
+Backend (`platform/backend`):
+
+| Change | Where |
+|---|---|
+| Check now sends tasks through the standard queue: its run's selector no longer carries `live`, so the planner picks `serp/google/organic` like a schedule does | `api/operations/runs.py` (`check_now`), unchanged planner (`collectors/seo_rank.py`, `queue_of`) |
+| Every keyword reports where its latest check stands: `state.check` = `idle`, `queued`, `processing`, `completed`, `inconclusive` or `failed`, with `requested_at`, `finished_at` and `reason`. Derived from the task ledger and the snapshot the task made, so a scheduled and a manual check read the same | new `api/keywords/check_status.py`, `api/schemas/keywords.py` (`KeywordCheck`), `api/keywords/rank_views.py`, `service.py`, `routes.py` |
+| A second paid request is refused: `409 check_pending` with the keyword ids while any named keyword is queued or being answered, checked under the project's manual-run lock. A scheduled task that is not due yet does not count | `api/operations/runs.py`, `api/problems.py` (`CheckPendingError`) |
+| The monthly quota counts manual checks (tasks of runs that name their keywords, whichever queue, plus any live task, plus keywords of runs not yet planned) | `api/operations/runs_repository.py` (`manual_serp_checks_since`) |
+| A live-endpoint answer is stored as a snapshot marked `live_diagnostic` and writes no observation, state, current results or event | `collectors/seo_rank_ingest.py` |
+| Route text and docs say standard queue, minutes not seconds | `run_routes.py`, `schemas/ranks.py`, docs 06, 19, 21 |
+
+Web app (`platform/apps/web`):
+
+| Change | Where |
+|---|---|
+| A rank not found shows how far the answer reached: `>66`, not `>100`; the tooltip says "Google returned 66 of the 100 results asked for" | `lib/format/rank-display.ts`, `features/rankings/rank-cells.tsx` |
+| `drop_unconfirmed` shows a mark and a sentence in the tooltip; a queued or processing check shows a mark ("check in progress"); an inconclusive latest check shows a mark | same files, strings in `messages/en.json` |
+| Check now is disabled for a selection that holds a keyword with a check on its way, and a `409 check_pending` shows its own message | `check-now/check-now-model.ts`, `use-check-now.tsx`, `rankings-screen.tsx` |
+| The keyword list is read again every 20 seconds while any row has a check queued or processing | `rankings-queries.ts` |
+| New column "Tracked as" (device, location, language) after the ranking URL, so look-alike rows differ | `keyword-columns.tsx` |
+| Types regenerated with the project's own `pnpm gen:api` from the regenerated `backend/openapi/v1.json` | `src/lib/api/schema.ts`, `types.ts` |
+| Mocks and test shapes carry the new fields; the quota text says manual checks | `src/mocks`, `src/test/api-shapes.ts` |
+
+### J2. Fixture tests and live validation, kept apart
+
+**Fixture tests** (no provider call; deterministic):
+
+- Backend: the planner builds standard tasks for a Check now selector; the worker end to end sends a Check now run through the standard queue (one post, one fetch, no live call, rank 3 stored, one raw payload) and keeps a live diagnostic run as a snapshot with no state; a manual and a scheduled check of the same answer give the same state, snapshot arrays and observations; a later check, a live diagnostic and an inconclusive check leave every earlier snapshot and observation byte for byte as it was; the API reports each ledger status as the right progress and refuses a second check without writing a second run.
+- Real captured answers used as fixtures (trimmed, in `backend/tests/fixtures/dataforseo/live/`): four standard-queue answers for `fynix digital` and `fynix` taken today. Ingested through the real pipeline into a test database and read through the real API.
+- Web: the cells, tooltips, check marks, the "Tracked as" column, the Check now model and the pending refusal, and the states the API returned for the Fynix readings.
+
+**Live DataForSEO validation** (real calls, standard queue, request body built by the app's own `SerpOrganicParams` and `task_body`; India, desktop, depth 100; about 0.025 USD in this pass):
+
+| Keyword | Reading (UTC) | Provider rank | Our rank | Coverage (returned of 100) | Old parser would store |
+|---|---|---|---|---|---|
+| fynix digital | 11:54 | 1 | 1 | 96 | 1 |
+| fynix digital | 13:27 | not in the results | not found | 99 | none |
+| fynix | 11:50 | 21 | 21 | 71 | 19 |
+| fynix | 13:24 | 19 | 19 | 73 | 19 |
+
+Through the API (test database, real pipeline): `fynix digital` reads `ranked` at 1 with `depth_returned` 96 and the AI Overview `present_cited`; after the 13:27 reading it reads `beyond_depth` with `depth_returned` 99, `drop_unconfirmed` true, change `lost` from 1, check `completed`, the earlier snapshot still there and unchanged. `fynix` reads 21, then 19. The snapshot detail lists results at the provider's ranks, with the repeated URLs as empty slots.
+
+What this does and does not show: the pipeline now stores and displays exactly what the provider returned, and the same request returns different SERPs hours apart (also on the standard queue). It does not show which reading matches Google at a given moment.
+
+Dashboard display: shown by web tests that render the cells from the states above (`standard-queue-display.test.tsx`), not by a live browser session against a real backend. The Playwright Rankings flow ran against the mock API: 16 of 19 passed, including the Check now and rank features flow. Three fail, and fail the same way on the committed code without these changes (their expectations of which columns hide below 1680 px predate the owner's 2026-10-30 rule that every column shows at every width). The visual regression baselines were not run or updated (they need the pinned Playwright image); the new column changes them.
+
+### J3. Historical data
+
+No migration, no backfill. The new code only inserts and updates the keyword state it always updated; a test shows an earlier snapshot, its observations and events unchanged after a later check, a live diagnostic and an inconclusive check. Rows written by parser versions up to 3 still read through the API (dense arrays with no empty slots). They are not corrected: the appendix query finds the snapshots that carry `rank_recomputed`, and a normal check of those keywords writes correct rows beside them.
+
+### J4. AI Overview, independent of organic rank
+
+Kept working and tested: on the real answers the site is cited by the AI Overview (`present_cited`) in the 11:54 reading whether or not it is among the organic results, and the 13:27 reading is `present_not_cited` with no organic rank. The AI Overview state is stored per check and shown in its own column. Standalone AI visibility tracking (AI answers from other platforms, brand mentions, visibility scores) is still not implemented and is not claimed.
+
+### J5. Production configuration still pending (nothing was changed or checked on the server)
+
+From the live setup notes of 2026-10-31 and this work:
+
+1. First operator account (`python -m idraft.cli create-operator`, typed by the person).
+2. A monthly DataForSEO spending cap (suggested 15 USD) and the workspace's `max_serp_checks_per_month` (default 200000), now a limit on manual checks.
+3. One real rank check proving the path on the server, now through the standard queue and taking minutes.
+4. Deploy order: backend and worker first (parser version 4, the new API fields, the standard-queue Check now), then the web app. The worker must be restarted to pick up the parser; the API and web build need the regenerated types.
+5. The audit's read-only queries (appendix), which were refused when attempted through SSH.
+6. Ask DataForSEO why identical standard requests return different SERPs hours apart, and whether the live endpoint is expected to differ.
+
+### J6. Still open
+
+- A single reading can be wrong in either direction. The confirmation check covers drops; a first find or a rise from one reading is taken as it comes. A rule such as "keep the better of two readings a few hours apart" needs an owner decision.
+- Search Console is not configured here (no credentials file), so no performance data was used.
+- The keyword list polls only in the mode that holds the whole list; very large lists (server mode) refresh at their usual times.
+- Five unit tests and three Playwright tests fail on the committed code too (J7), and the visual baselines are not regenerated.
+
+### J7. Test results of the second pass
+
+Backend (`platform/backend`, Colima Docker for the database tests):
+
+| Command | Result |
+|---|---|
+| `uv run pytest -q` (full suite) | 3745 passed, 1 failed, 22 min; coverage 97.72% |
+| `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports` | clean (416 files formatted, 411 source files typed, 5 import contracts kept) |
+
+The one failure, `tests/api/auth/test_sessions.py::test_sliding_extends_the_idle_lifetime_to_seven_days`, asserted that a session's idle lifetime is at most 7 days and measured 7 days and 3.4 ms: a clock race in a test unrelated to this work. It passed three times run alone, and in the two earlier full runs of this pass that included it. An earlier full run of this pass failed on a stale OpenAPI file and on the old live Check now end-to-end test; both were fixed and the suites rerun.
+
+Web (`platform/apps/web`):
+
+| Command | Result |
+|---|---|
+| `pnpm lint` | clean |
+| `pnpm typecheck` | clean |
+| `pnpm format:check` | clean |
+| `pnpm build` | succeeds |
+| `pnpm test` (vitest, whole suite) | 3038 passed, 11 failed |
+| `pnpm e2e e2e/flows/rankings.spec.ts` (mock API, after installing Playwright's Chromium, 94 MiB, into the user cache) | 16 passed, 3 failed |
+
+The 11 vitest failures: five fail on the committed code as well (costs budgets, invite password reason, rank trend sparkline, two rank strip tests), checked by running them on a stash of the web changes; six are timeouts that appear only when the whole suite runs in parallel here (add keywords, bulk actions twice, manage groups, the inspector focus test, the refresh dialog) and pass when run alone (224 tests). The 3 Playwright failures (rankings.spec.ts lines 305, 345, 664) fail identically on the committed code.
 
 ## Appendix: read-only queries for the owner
 

@@ -97,6 +97,7 @@ describe('mock rank state', () => {
         is_stale: false,
         last_observed_at: null,
         ranking_url_count: 0,
+        drop_unconfirmed: false,
       });
     }
   });

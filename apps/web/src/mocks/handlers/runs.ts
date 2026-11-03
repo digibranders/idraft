@@ -455,7 +455,7 @@ export const runHandlers: HttpHandler[] = [
 
     if (monthlyUsed + trackedIds.length > MOCK_SERP_CHECKS_PER_MONTH) {
       return problem(request, 'quota_exceeded', {
-        detail: `This workspace has used ${String(monthlyUsed)} of its ${String(MOCK_SERP_CHECKS_PER_MONTH)} live checks this month.`,
+        detail: `This workspace has used ${String(monthlyUsed)} of its ${String(MOCK_SERP_CHECKS_PER_MONTH)} manual checks this month.`,
         limit: MOCK_SERP_CHECKS_PER_MONTH,
         used: monthlyUsed,
         requested: trackedIds.length,

@@ -2120,11 +2120,13 @@
         "tooMany": "Check now takes up to 100 keywords at a time.",
         "none": "Choose keywords first.",
         "archived": "Archived keywords are not checked.",
+        "pending": "A check is already queued or under way for a chosen keyword.",
         "noneLeft": "No manual runs left today. The limit resets at 00:00 UTC."
       },
       "refused": {
         "limit": "No manual runs left today. The limit resets at 00:00 UTC.",
-        "quota": "This workspace has made {used} of its {limit} live checks this month. {requested, plural, one {1 more does} other {# more do}} not fit.",
+        "pending": "A check is already queued or under way for {count, plural, one {this keyword} other {some of these keywords}}. Wait for it to finish.",
+        "quota": "This workspace has made {used} of its {limit} manual checks this month. {requested, plural, one {1 more does} other {# more do}} not fit.",
         "paused": "The data provider is not being asked just now. Try again in a few minutes.",
         "unknownKeyword": "A keyword is no longer tracked here. The list was read again; try again.",
         "other": "The check did not start. Try again."
@@ -2196,6 +2198,9 @@
     "columns": {
       "keyword": "Keyword",
       "keywordDetail": "{location} · {device} · {engine} · {language}",
+      "tracking": "Tracked as",
+      "trackingTooltip": "The device, location and language the keyword is tracked in. The same keyword can be tracked on both devices and in several places.",
+      "trackingValue": "{device}, {location}, {language}",
       "openRankingPage": "Open the ranking page of {keyword}: {url}",
       "moreRankingPages": "{count, plural, one {(+1 more ranking page)} other {(+# more ranking pages)}}",
       "rowName": "{keyword}, {device}, {location}",
@@ -2246,6 +2251,10 @@
       "failedTooltip": "The last check failed. It will be tried again.",
       "stale": "Stale",
       "staleTooltip": "No recent successful check. The rank shown is from the last one that worked.",
+      "checkingTooltip": "A check is queued or being answered. The rank shown is from the last one that finished.",
+      "inconclusiveTooltip": "The latest check could not say whether your site is absent, so the rank was not changed.",
+      "unconfirmedTooltip": "The latest check did not find this keyword, and the one before did. A second check confirms the drop before it stands.",
+      "partialCoverage": "Google returned {returned} of the {requested} results asked for.",
       "notRanking": "Not ranking",
       "unavailable": "n/a",
       "rankTip": "Rank {rank}, {date}, depth {depth}",
@@ -2264,6 +2273,9 @@
       "speech": {
         "beyond": "not in top {depth}",
         "stale": "stale",
+        "checking": "check in progress",
+        "inconclusive": "latest check inconclusive",
+        "unconfirmed": "drop not yet confirmed",
         "lastCheckFailed": "last check failed",
         "improved": "{count, plural, one {improved # position} other {improved # positions}}",
         "declined": "{count, plural, one {declined # position} other {declined # positions}}",
