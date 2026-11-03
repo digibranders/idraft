@@ -31,6 +31,7 @@ from sqlalchemy import (
     func,
     literal,
     or_,
+    select,
 )
 from sqlalchemy.types import TypeEngine
 
@@ -40,6 +41,7 @@ from idraft.api.schemas.keywords import TrackedKeywordFilter
 from idraft.db.tables import (
     keyword_group_members,
     keywords,
+    locations,
     tracked_keyword_state,
     tracked_keyword_terms,
     tracked_keywords,
@@ -205,6 +207,17 @@ def conditions(
     for column, value in equal:
         if value is not None:
             found.append(column == value)
+    if given.country_id is not None:
+        # The country itself and every place inside it: they share its ISO code
+        country = locations.c.country_iso
+        found.append(
+            t.location_id.in_(
+                select(locations.c.id).where(
+                    country
+                    == select(country).where(locations.c.id == given.country_id).scalar_subquery()
+                )
+            )
+        )
     among: tuple[tuple[ColumnElement[Any], Sequence[str] | None], ...] = (
         (t.intent, given.intent_in),
         (t.funnel_stage, given.funnel_stage_in),

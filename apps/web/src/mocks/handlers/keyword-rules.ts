@@ -553,6 +553,13 @@ export function newKeyword(
 
 // Filters (TrackedKeywordFilter, the list's `filter[...]`)
 
+/** Whether a location is the country or a place inside it (they share the country's ISO code). */
+function inCountry(locationId: number, countryId: number): boolean {
+  const place = MOCK_LOCATIONS.find((location) => location.location_id === locationId);
+  const country = MOCK_LOCATIONS.find((location) => location.location_id === countryId);
+  return place !== undefined && country !== undefined && place.country_iso === country.country_iso;
+}
+
 export interface TrackedFilter {
   q: string | null;
   group: string | null;
@@ -560,6 +567,7 @@ export interface TrackedFilter {
   termIn: string[];
   device: 'desktop' | 'mobile' | null;
   locationId: number | null;
+  countryId: number | null;
   languageCode: string | null;
   searchEngine: 'google' | 'bing' | null;
   intentIn: Intent[];
@@ -612,6 +620,7 @@ export const FILTER_NAMES = [
   'term_in',
   'device',
   'location_id',
+  'country_id',
   'language_code',
   'search_engine',
   'intent_in',
@@ -753,6 +762,7 @@ function readFilter(source: FilterSource, defaultActive: boolean | null): Tracke
     termIn: ids('term_in'),
     device: oneOf('device', ['desktop', 'mobile'] as const),
     locationId: integer('location_id'),
+    countryId: integer('country_id'),
     languageCode: text('language_code', { min: 2, max: 2 }),
     searchEngine: oneOf('search_engine', ['google', 'bing'] as const),
     intentIn: manyOf('intent_in', INTENTS),
@@ -937,6 +947,8 @@ export function filteredRows(
     }
     if (filter.device !== null && row.device !== filter.device) return false;
     if (filter.locationId !== null && row.location_id !== filter.locationId) return false;
+    // A country covers itself and every place inside it: they share its ISO code
+    if (filter.countryId !== null && !inCountry(row.location_id, filter.countryId)) return false;
     if (filter.languageCode !== null && row.language_code !== filter.languageCode) return false;
     if (filter.searchEngine === 'bing') return false;
     if (filter.intentIn.length > 0 && !filter.intentIn.includes(row.intent)) return false;

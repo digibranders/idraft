@@ -794,7 +794,7 @@ describe('DataTable rank, change and URL columns', () => {
       cell: () => 'comp',
     });
     expect(RANKED.map((column) => column.type)).toEqual(['keyword', 'rank', 'rankDelta', 'url']);
-    expect(wide.width).toBe(112);
+    expect(wide.width).toBe(136);
     expect(narrow.width).toBe(160);
     expect(features.type).toBe('features');
     expect(features.width).toBe(120);

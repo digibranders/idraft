@@ -4095,7 +4095,7 @@ export interface components {
             depth_requested: number | null;
             /**
              * Depth Returned
-             * @description How far down the provider's answer reached. Below `depth_requested` when Google gave fewer results: `beyond_depth` then means not among those, and the cell is best read as `>depth_returned`. Null when unknown.
+             * @description How far down the provider's answer reached. Below `depth_requested` when Google gave fewer results; `beyond_depth` then means not among those. The web app still shows `>depth_requested` and keeps this for a tooltip. Null when unknown.
              */
             depth_returned?: number | null;
             /** Observed At */
@@ -5564,6 +5564,11 @@ export interface components {
          */
         TrackedKeywordFilter: {
             aio_state?: components["schemas"]["FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___"] | null;
+            /**
+             * Country Id
+             * @description A country's location id: the keywords tracked in that country or anywhere inside it (a region, a city).
+             */
+            country_id?: number | null;
             /**
              * Declined
              * @description Ranked lower than the check before.
@@ -9331,6 +9336,8 @@ export interface operations {
                 "filter[term_in]"?: string[] | null;
                 "filter[device]"?: ("desktop" | "mobile") | null;
                 "filter[location_id]"?: number | null;
+                /** @description A country's location id: tracked in it or anywhere inside it. */
+                "filter[country_id]"?: number | null;
                 "filter[language_code]"?: string | null;
                 "filter[search_engine]"?: ("google" | "bing") | null;
                 "filter[intent_in]"?: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown")[] | null;

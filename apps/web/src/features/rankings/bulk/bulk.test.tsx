@@ -571,7 +571,7 @@ describe('Bulk actions', () => {
     let bar = screen.getByRole('group', { name: /Bulk actions/ });
     await user.click(within(bar).getByRole('button', { name: 'Select all 12,000 matching' }));
     // Unticking one row means the chosen rows, not every match, and never the one unticked
-    await user.click(screen.getAllByRole('checkbox', { name: 'Select seo agency, desktop, United States' })[0] ?? bar);
+    await user.click(screen.getAllByRole('checkbox', { name: 'Select seo agency, United States' })[0] ?? bar);
     bar = screen.getByRole('group', { name: /Bulk actions/ });
     expect(within(bar).queryByText(/All 12,000 matching selected/)).toBeNull();
     await user.click(within(bar).getByRole('button', { name: 'Delete' }));
@@ -595,7 +595,7 @@ describe('Bulk actions', () => {
     await user.click(screen.getByRole('radio', { name: 'Active' }));
     await loadedGrid();
     expect(screen.queryByRole('group', { name: /Bulk actions/ })).toBeNull();
-    expect(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select seo agency, United States' })).not.toBeChecked();
   });
 
   it('returns focus to the grid once a dialog made its change', async () => {
@@ -611,6 +611,6 @@ describe('Bulk actions', () => {
   it('offers no choosing to a member who may not change keywords', async () => {
     renderWithProviders(as('viewer'));
     await loadedGrid();
-    expect(screen.queryByRole('checkbox', { name: 'Select seo agency, desktop, United States' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Select seo agency, United States' })).toBeNull();
   });
 });

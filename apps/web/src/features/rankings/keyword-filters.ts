@@ -1,6 +1,5 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
@@ -34,10 +33,11 @@ const COUNTRIES = { 'filter[location_type]': 'Country', 'filter[supports]': 'ser
 /** About 250 countries exist; the reading stops here whatever the API says. */
 const MAX_COUNTRY_PAGES = 5;
 
-type Location = ApiResponse<'get', '/api/v1/locations'>['data'][number];
+export type Country = ApiResponse<'get', '/api/v1/locations'>['data'][number];
+type Location = Country;
 
 /** Every country the API lists, page after page: a link's location must be among them to be kept. */
-async function readCountries(signal: AbortSignal): Promise<Location[]> {
+export async function readCountries(signal: AbortSignal): Promise<Location[]> {
   const found: Location[] = [];
   let cursor: string | null = null;
   for (let page = 0; page < MAX_COUNTRY_PAGES; page += 1) {
@@ -66,13 +66,6 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
   // Until every list is in, a value from a link is kept as it is; a list that failed keeps it too
   const groupsLoading = groups.isPending || groups.isError;
   const termsLoading = vocabularies.pending || vocabularies.error;
-  const locations = useQuery({
-    queryKey: ['locations', 'countries', 'all'],
-    queryFn: ({ signal }) => readCountries(signal),
-    staleTime: Number.POSITIVE_INFINITY,
-  });
-  const locationsLoading = locations.isPending || locations.isError;
-
   const groupOptions = useMemo(
     (): FilterOption[] =>
       (groups.data?.data ?? []).map((group) => ({
@@ -92,12 +85,6 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
       ),
     [t, vocabularies.loaded],
   );
-  const locationOptions = useMemo(
-    (): FilterOption[] =>
-      (locations.data ?? []).map((location) => ({ value: String(location.location_id), label: location.name })),
-    [locations.data],
-  );
-
   return useMemo((): FilterField[] => {
     const options = <T extends string>(values: readonly T[], label: (value: T) => string): FilterOption[] =>
       values.map((value) => ({ value, label: label(value) }));
@@ -157,21 +144,6 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
         options: options(TARGET_CHOICES, (value) => (value === 'match' ? targetT('match') : targetT('mismatchChoice'))),
       },
       {
-        id: 'dev',
-        kind: 'enum',
-        label: t('device'),
-        multi: false,
-        options: options(['desktop', 'mobile'] as const, (value) => t(`devices.${value}`)),
-      },
-      {
-        id: 'loc',
-        kind: 'enum',
-        label: t('location'),
-        multi: false,
-        options: locationOptions,
-        optionsLoading: locationsLoading,
-      },
-      {
         id: 'lang',
         kind: 'enum',
         label: t('language'),
@@ -227,9 +199,7 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
     depthLabel,
     groupOptions,
     termOptions,
-    locationOptions,
     groupsLoading,
     termsLoading,
-    locationsLoading,
   ]);
 }

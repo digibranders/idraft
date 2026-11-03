@@ -11,13 +11,14 @@ import { Tooltip } from '@/components/ui/tooltip';
 import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { languageName } from '@/lib/format/language';
 import { TargetMismatchMarker } from './feature-cells';
+import type { PairedRow } from './keyword-pairs';
 import { useCompetitorColumns, useRankColumns } from './rank-columns';
 import { CELL_CONTROL } from '@/lib/tables/grid-focus';
 import type { SortKey } from '@/lib/tables/table-state';
 
 /**
- * The columns of Rankings (24-page-templates.md section 9.3), in the template's order: Keyword, Rank, Change,
- * Ranking URL, Device and Location (which tell one keyword's rows apart), Volume, KD, CPC, Intent, SERP features, AI Overview, Priority, Group, Tags, Best rank (in the column chooser only),
+ * The columns of Rankings (24-page-templates.md section 9.3), in the template's order: Keyword, Desktop rank and Mobile rank (each with its Change),
+ * Ranking URL, Volume, KD, CPC, Intent, SERP features, AI Overview, Priority, Group, Tags, Best rank (in the column chooser only),
  * Updated (the last successful check) and Added. The rank, SERP feature and AI Overview columns are built in `rank-columns.tsx`.
  * Waiting for their own plans are the template's sparkline and competitor columns. The ids of
  * the sortable columns are the API's sort fields, so server mode sends them as they are.
@@ -44,20 +45,16 @@ export const rowId = (row: TrackedKeywordRow): string => row.tracked_keyword_id;
 export const keywordText = (row: TrackedKeywordRow): string => row.keyword.text;
 
 /**
- * What names a keyword's row for assistive technology ("Select seo agency, mobile, Germany"): the text, the
- * device and the location, as one keyword is tracked on both devices and in more than one place, and the
- * language when it is not the project's.
+ * What names a keyword's row for assistive technology ("Select seo agency, Germany"): the text and the
+ * location, as one keyword is tracked in more than one place, and the language when it is not the project's.
+ * The row holds both devices, so the device is not part of the name.
  */
 export function useKeywordRowName(projectLanguage: string | null): (row: TrackedKeywordRow) => string {
   const t = useTranslations('rankings.columns');
   const locale = useLocale();
   return useMemo(
     () => (row) => {
-      const parts = {
-        keyword: row.keyword.text,
-        device: t(row.device === 'mobile' ? 'mobile' : 'desktop').toLocaleLowerCase(locale),
-        location: row.location.name,
-      };
+      const parts = { keyword: row.keyword.text, location: row.location.name };
       return row.language_code === projectLanguage
         ? t('rowName', parts)
         : t('rowNameLanguage', { ...parts, language: languageName(row.language_code, locale) });
@@ -69,7 +66,7 @@ export function useKeywordRowName(projectLanguage: string | null): (row: Tracked
 export function useKeywordColumns(
   timeZone: string,
   competitors: readonly EntityRef[] = [],
-): readonly DataTableColumn<TrackedKeywordRow>[] {
+): readonly DataTableColumn<PairedRow>[] {
   const t = useTranslations('rankings.columns');
   const common = useTranslations('common');
   const targetT = useTranslations('rankings.target');
@@ -82,13 +79,12 @@ export function useKeywordColumns(
     const noData: UnknownValue = { label: t('noData'), tooltip: t('noDataTooltip') };
     const metrics = (row: TrackedKeywordRow): NonNullable<TrackedKeywordRow['metrics']> | null => row.metrics ?? null;
     const missing = (row: TrackedKeywordRow): UnknownValue => (metrics(row) === null ? pending : noData);
-    return [
+    const columns: DataTableColumn<PairedRow>[] = [
       col.keyword<TrackedKeywordRow>('keyword', keywordText, {
         header: t('keyword'),
         detail: (row) => {
           const keywordDetail = t('keywordDetail', {
             location: row.location.name,
-            device: t(row.device === 'mobile' ? 'mobile' : 'desktop'),
             engine: t('google'),
             language: languageName(row.language_code, locale),
           });
@@ -127,23 +123,9 @@ export function useKeywordColumns(
           );
         },
       }),
-      ranks.rank,
+      ranks.rankDesktop,
+      ranks.rankMobile,
       ranks.url,
-      // One keyword is tracked on both devices and in more than one place: without these two the rows look alike
-      col.text<TrackedKeywordRow>('device', (row) => t(row.device === 'mobile' ? 'mobile' : 'desktop'), {
-        header: t('device'),
-        headerTooltip: t('deviceTooltip'),
-        priority: 2,
-        width: 104,
-        sortable: false,
-      }),
-      col.text<TrackedKeywordRow>('location', (row) => row.location.name, {
-        header: t('location'),
-        headerTooltip: t('locationTooltip'),
-        priority: 2,
-        width: 160,
-        sortable: false,
-      }),
       col.volume<TrackedKeywordRow>('search_volume', (row) => metrics(row)?.search_volume.value ?? null, {
         header: t('volume'),
         headerTooltip: t('volumeTooltip'),
@@ -213,5 +195,6 @@ export function useKeywordColumns(
         secondary: true,
       }),
     ];
+    return columns;
   }, [t, targetT, common, locale, timeZone, ranks, competitorColumns]);
 }

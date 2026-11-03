@@ -2149,6 +2149,17 @@
         "budgetBlocked": "The rank check did not start: a budget for rank checks is used up this month"
       }
     },
+    "scope": {
+      "device": "Device",
+      "both": "Both",
+      "country": "Country: {country}",
+      "countrySearch": "Search countries",
+      "countryEmpty": "No countries match “{query}”",
+      "clear": "Clear",
+      "open": "Show countries",
+      "defaultCountry": "India",
+      "allCountries": "All countries"
+    },
     "caption": "Tracked keywords",
     "noun": {
       "one": "keyword",
@@ -2197,15 +2208,11 @@
     },
     "columns": {
       "keyword": "Keyword",
-      "keywordDetail": "{location} · {device} · {engine} · {language}",
-      "device": "Device",
-      "deviceTooltip": "The device the keyword is tracked on. The same keyword can be tracked on both desktop and mobile, as two rows.",
-      "location": "Location",
-      "locationTooltip": "The place the keyword is searched from. The same keyword can be tracked in several places, as separate rows.",
+      "keywordDetail": "{location} · {engine} · {language}",
       "openRankingPage": "Open the ranking page of {keyword}: {url}",
       "moreRankingPages": "{count, plural, one {(+1 more ranking page)} other {(+# more ranking pages)}}",
-      "rowName": "{keyword}, {device}, {location}",
-      "rowNameLanguage": "{keyword}, {device}, {location}, {language}",
+      "rowName": "{keyword}, {location}",
+      "rowNameLanguage": "{keyword}, {location}, {language}",
       "desktop": "Desktop",
       "mobile": "Mobile",
       "google": "Google",
@@ -2238,6 +2245,12 @@
     },
     "rank": {
       "rank": "Rank",
+      "rankDesktop": "Desktop",
+      "rankMobile": "Mobile",
+      "rankDesktopTooltip": "Organic rank on desktop at the latest check and how it moved since the previous check. A keyword not found shows >100.",
+      "rankMobileTooltip": "Organic rank on mobile at the latest check and how it moved since the previous check. A keyword not found shows >100.",
+      "notTracked": "Not tracked",
+      "notTrackedTooltip": "This keyword is not tracked on this device.",
       "rankTooltip": "Organic rank at the latest check and how it moved since the previous check. A keyword beyond the depth that was checked shows the depth, such as >20.",
       "rankingUrl": "Ranking URL",
       "openUrl": "Open {path} in a new tab",

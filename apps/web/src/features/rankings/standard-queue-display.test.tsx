@@ -72,15 +72,15 @@ describe('the Fynix keywords as the dashboard shows them', () => {
     expect(screen.queryByText(/not yet confirmed/)).toBeNull();
   });
 
-  it('shows the later reading as beyond what Google returned, with the drop marked unconfirmed, not as >100', () => {
+  it('shows the later reading as >100, with the drop marked unconfirmed, though Google returned 99 results', () => {
     show(
       state(cell({ state: 'beyond_depth', rank: null, absolute_rank: null, depth_returned: 99, url: null }), {
         drop_unconfirmed: true,
         change: { label: 'lost', value: null, previous_rank: 1, previous_observed_at: '2026-11-03T11:54:47Z' },
       }),
     );
-    expect(screen.getByText('>99')).toBeInTheDocument();
-    expect(screen.queryByText('>100')).toBeNull();
+    expect(screen.getByText('>100')).toBeInTheDocument();
+    expect(screen.queryByText('>99')).toBeNull();
     expect(screen.getByText('drop not yet confirmed')).toHaveClass('sr-only');
     expect(screen.getByText('Lost')).toBeInTheDocument();
   });

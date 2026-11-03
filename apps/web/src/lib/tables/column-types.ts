@@ -50,7 +50,7 @@ export const COLUMN_TYPES: Readonly<Record<ColumnType, ColumnTypeSpec>> = {
   badge: { width: 120, min: 88, max: 180, align: 'left', defaultDesc: false, flex: false },
   status: { width: 120, min: 96, max: 180, align: 'left', defaultDesc: false, flex: false },
   // Best (lowest) rank first, and the biggest improvement first (12-tables.md section 5)
-  rank: { width: 80, min: 80, max: 112, align: 'left', defaultDesc: false, flex: false },
+  rank: { width: 80, min: 80, max: 136, align: 'left', defaultDesc: false, flex: false },
   // 12-tables.md gave 56 / 48 / 72. The header "CHANGE" with its sort arrow needs 95 px (84 in sentence case), and
   // the width resolver shrinks a column toward its minimum when the table is tight, so the minimum is 96
   rankDelta: { width: 96, min: 96, max: 96, align: 'left', defaultDesc: true, flex: false },

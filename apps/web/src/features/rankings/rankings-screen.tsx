@@ -13,7 +13,10 @@ import { ManageGroupsDialog } from './groups/manage-groups-dialog';
 import { ImportProgress } from './import/import-progress';
 import { forgetWritingImport, useWritingImport } from './import/import-queries';
 import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns, useKeywordRowName } from './keyword-columns';
+import { RANK_COLUMN_IDS } from './rank-columns';
 import { useKeywordFilterFields } from './keyword-filters';
+import { expandIds, memberIds, memberRows, pairRows, type PairedRow } from './keyword-pairs';
+import { ALL_COUNTRIES, KeywordScopeControls, useCountries, useKeywordScope } from './keyword-scope';
 import { KeywordInspector, type InspectorEditState } from './keyword-inspector/keyword-inspector';
 import { isProjectCompetitor, projectEntitiesQuery } from './keyword-inspector/inspector-queries';
 import {
@@ -30,7 +33,7 @@ import { useMetricsRefresh } from './refresh/use-metrics-refresh';
 import { useCheckNow } from './check-now/use-check-now';
 import { RankStrip } from './strip/rank-strip';
 import { DataTable } from '@/components/app/data-table/data-table';
-import type { TableStatus } from '@/components/app/data-table/types';
+import type { RecordAction, TableStatus } from '@/components/app/data-table/types';
 import { FilterBar } from '@/components/app/filters/filter-bar';
 import { ReadOnlyFilterChips } from '@/components/app/filters/read-only-chips';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
@@ -76,6 +79,9 @@ const ImportDialog = dynamic(() => loadImportDialog().then((module) => module.Im
 const SEARCH_DELAY_MS = 250;
 /** The id of the More actions item that opens Manage groups. */
 const MANAGE_GROUPS = 'manage-groups';
+/** The list as the table shows it: one row for each keyword, with the rows of its devices behind it. */
+type PairedList = Omit<KeywordList, 'rows'> & { rows: readonly PairedRow[] };
+
 const VIEW_STATE = {
   archived: parseAsBoolean.withDefault(false),
   q: parseAsString.withDefault(''),
@@ -89,6 +95,8 @@ export interface RankingsScreenProps extends ProjectScope {
   timeZone: string;
   /** The project's location and language, which new keywords start with. */
   defaults: ProjectDefaults;
+  /** A country (or `ALL_COUNTRIES`) the table opens on instead of the project's own; the URL's `loc` wins. */
+  scopeOpensOn?: number;
   /** Whether the import dialog is open over the screen; the route says so (`/seo/rankings/import`). Default `false`. */
   importOpen?: boolean;
   /** Asks the route to open or close the import dialog. */
@@ -109,6 +117,7 @@ export function RankingsScreen({
   projectId,
   timeZone,
   defaults,
+  scopeOpensOn,
   importOpen = false,
   onImportOpenChange,
   depth,
@@ -151,6 +160,9 @@ export function RankingsScreen({
       }),
   });
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
+  // Which devices show a rank column, and the country the keywords are tracked in
+  const countries = useCountries();
+  const keywordScope = useKeywordScope(defaults.location, countries, scopeOpensOn);
   const entitiesQuery = useQuery(projectEntitiesQuery(scope));
   const competitors = useMemo((): EntityRef[] => {
     if (entitiesQuery.data) {
@@ -175,16 +187,37 @@ export function RankingsScreen({
     }
     return [];
   }, [entitiesQuery.data, view.cols]);
-  const columns = useKeywordColumns(timeZone, competitors);
+  const allColumns = useKeywordColumns(timeZone, competitors);
+  // The rank column of a device that is not chosen is left out
+  const columns = useMemo(
+    () =>
+      allColumns.filter(
+        (column) =>
+          !(keywordScope.device === 'desktop' && column.id === RANK_COLUMN_IDS.rankMobile) &&
+          !(keywordScope.device === 'mobile' && column.id === RANK_COLUMN_IDS.rank),
+      ),
+    [allColumns, keywordScope.device],
+  );
   const rowName = useKeywordRowName(defaults.languageCode);
-  const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
+  const columnIds = useMemo(() => new Set(allColumns.map((column) => column.id)), [allColumns]);
   const sort = useMemo((): readonly SortKey[] => {
     const parsed = parseSort(view.sort, SORT_FIELDS);
     return parsed.length === 0 ? DEFAULT_SORT : parsed;
   }, [view.sort]);
   const visible = useMemo(() => parseColumns(view.cols, columnIds, ['keyword']), [view.cols, columnIds]);
   const density = parseDensity(view.density);
-  const filters = useMemo(() => keywordFilters(values, view.archived), [values, view.archived]);
+  const filters = useMemo(
+    () => ({
+      ...keywordFilters(values, view.archived),
+      ...(keywordScope.countryId === ALL_COUNTRIES ? {} : { 'filter[country_id]': keywordScope.countryId }),
+    }),
+    [values, view.archived, keywordScope.countryId],
+  );
+  // The summary counts the keywords of the device chosen; with both, all of them
+  const stripFilters = useMemo(
+    () => (keywordScope.device === 'both' ? filters : { ...filters, 'filter[device]': keywordScope.device }),
+    [filters, keywordScope.device],
+  );
   const search = useDebouncedValue(view.q, SEARCH_DELAY_MS);
 
   const loadedList = useKeywordList({ scope, filters, sort, search });
@@ -196,9 +229,21 @@ export function RankingsScreen({
     mode: loadedList.mode,
     pageRequest: loadedList.pageRequest,
   });
-  const list = useMemo(
+  const rawList = useMemo(
     (): KeywordList => (rows === loadedList.rows ? loadedList : { ...loadedList, rows }),
     [loadedList, rows],
+  );
+  // A keyword is one row with a rank column for each device, however many tracked keywords stand behind it
+  const pairedRows = useMemo(() => pairRows(rawList.rows, keywordScope.device), [rawList.rows, keywordScope.device]);
+  const members = useMemo(() => memberIds(pairedRows), [pairedRows]);
+  const list = useMemo(
+    (): PairedList => ({
+      ...rawList,
+      rows: pairedRows,
+      // A list read whole knows how many keywords it shows; the API's count is of tracked keywords
+      total: rawList.mode === 'client' ? pairedRows.length : rawList.total,
+    }),
+    [rawList, pairedRows],
   );
   const tracked = useTrackedCount(scope);
   const writingNow = useWritingImport(scope, canImport).data?.import_id ?? null;
@@ -241,14 +286,20 @@ export function RankingsScreen({
   const setAllMatching = (allMatching: boolean): void => setSelection((current) => ({ ...current, allMatching }));
   const clearSelection = (): void => setSelection(emptySelection);
   // Keywords that left the list are not chosen any more
+  // The chosen keywords with their other device's tracked keyword: what an action is asked about
+  const reached = useMemo(
+    () => ({ ids: expandIds(chosen.ids, members), allMatching: chosen.allMatching }),
+    [chosen.ids, chosen.allMatching, members],
+  );
   const dropChosen = useCallback((gone: ReadonlySet<string>): void => {
     setSelection((current) => ({ ...current, ids: new Set([...current.ids].filter((id) => !gone.has(id))) }));
   }, []);
   // "Select all N matching" is offered while the table holds fewer rows than match, and not while a
   // search in memory narrows what it shows
+  // (counted in tracked keywords, which is what the API counts and an action sends)
   const matchingTotal =
-    list.total !== null && list.total > list.rows.length && (list.mode === 'server' || view.q.trim() === '')
-      ? list.total
+    rawList.total !== null && rawList.total > rawList.rows.length && (rawList.mode === 'server' || view.q.trim() === '')
+      ? rawList.total
       : null;
   // Only a list that holds every match, read to its end, can tell that the filters or the search leave a
   // keyword out of the table, and which groups the keywords a change reaches are in
@@ -259,8 +310,8 @@ export function RankingsScreen({
     filters,
     search: bulkSearch,
     archived: view.archived,
-    matchingTotal: list.total,
-    rows: list.rows,
+    matchingTotal: rawList.total,
+    rows: rawList.rows,
     rowsComplete: listComplete,
     onDone: clearSelection,
   });
@@ -269,21 +320,21 @@ export function RankingsScreen({
     scope,
     enabled: canRefresh,
     archived: view.archived,
-    list,
-    chosen,
+    list: rawList,
+    chosen: reached,
     narrowed: filtered,
     menuButton: moreButton,
     onDrop: dropChosen,
   });
   const pendingChecks = useMemo(
-    (): ReadonlySet<string> => new Set(list.rows.filter(hasPendingCheck).map((row) => row.tracked_keyword_id)),
-    [list.rows],
+    (): ReadonlySet<string> => new Set(rawList.rows.filter(hasPendingCheck).map((row) => row.tracked_keyword_id)),
+    [rawList.rows],
   );
   const checkNow = useCheckNow({
     scope,
     enabled: canRefresh,
     archived: view.archived,
-    chosen,
+    chosen: reached,
     pendingIds: pendingChecks,
     onDrop: dropChosen,
   });
@@ -294,7 +345,16 @@ export function RankingsScreen({
   const destructive = bulk.actions.slice(insertAt);
   const checkNowBar = checkNow.barAction === null ? [] : [checkNow.barAction];
   const refreshBar = refresh.barAction === null ? [] : [refresh.barAction];
-  const bulkActions = [...nonDestructive, ...checkNowBar, ...refreshBar, ...destructive];
+  // An action reaches the keyword on both devices, whichever row was chosen
+  const expandAction = (action: RecordAction<TrackedKeywordRow>): RecordAction<PairedRow> => ({
+    ...action,
+    onSelect: (chosenRows, actionScope) =>
+      action.onSelect(memberRows(chosenRows), {
+        ids: expandIds(actionScope.ids, members),
+        allMatching: actionScope.allMatching,
+      }),
+  });
+  const bulkActions = [...nonDestructive, ...checkNowBar, ...refreshBar, ...destructive].map(expandAction);
   const menuItems: MenuItemDef[] = [
     ...(refresh.menuItem === null ? [] : [refresh.menuItem]),
     ...(canWrite
@@ -332,7 +392,7 @@ export function RankingsScreen({
     if (at === null || (direction === 'next' ? at.index === at.count - 1 : at.index === 0)) return;
     guarded(() => inspector.step(direction, order));
   };
-  const openRow = openId === null ? null : (list.rows.find((row) => row.tracked_keyword_id === openId) ?? null);
+  const openRow = openId === null ? null : (rawList.rows.find((row) => row.tracked_keyword_id === openId) ?? null);
   const hiddenByFilters = openId !== null && listComplete && !order.includes(openId);
   const onRowOpen = (row: TrackedKeywordRow, intent: 'inspector' | 'new-tab'): void => {
     const target = { type: 'keyword' as const, id: row.tracked_keyword_id };
@@ -481,8 +541,9 @@ export function RankingsScreen({
           toolbar={
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
               {view.archived || (list.total ?? list.rows.length) === 0 ? null : (
-                <RankStrip scope={scope} filters={filters} total={list.total ?? list.rows.length} />
+                <RankStrip scope={scope} filters={stripFilters} total={list.total ?? list.rows.length} />
               )}
+              <KeywordScopeControls scope={keywordScope} countries={countries} />
               <div className="min-w-0 flex-1 basis-60">
                 <FilterBar
                   fields={fields}
@@ -534,8 +595,8 @@ export function RankingsScreen({
             placement="region"
             live
             message={t('incomplete.message', {
-              loaded: formatInteger(list.rows.length),
-              total: formatInteger(list.total ?? list.rows.length),
+              loaded: formatInteger(rawList.rows.length),
+              total: formatInteger(rawList.total ?? rawList.rows.length),
             })}
             actions={
               <Button variant="secondary" size="sm" onClick={list.incomplete.retry} loading={list.incomplete.retrying}>
@@ -545,7 +606,7 @@ export function RankingsScreen({
           />
         )}
         <div className="flex min-h-0 flex-1 flex-col">
-          <DataTable<TrackedKeywordRow>
+          <DataTable<PairedRow>
             caption={t('caption')}
             itemNoun={{ one: t('noun.one'), other: t('noun.other') }}
             columns={columns}
@@ -558,7 +619,7 @@ export function RankingsScreen({
                 : {
                     rangeText: t('range', {
                       from: list.server.offset + 1,
-                      to: list.server.offset + list.rows.length,
+                      to: list.server.offset + rawList.rows.length,
                       total: list.total ?? 0,
                     }),
                     offset: list.server.offset,

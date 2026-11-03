@@ -15,6 +15,7 @@ from idraft.api.schemas.keywords import TrackedKeywordFilter
 from tests.api.auth.support import Workspace, execute, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import (
+    LOCATION,
     OTHER_LOCATION,
     errors,
     group,
@@ -134,6 +135,32 @@ async def test_each_filter_keeps_the_matching_keywords(
         response = await _list(api, workspace, project, owner, **params)
         assert _texts(response) == expected, params
         assert response.json()["page"]["total"] == len(expected), params
+
+
+async def test_the_country_filter_takes_the_country_and_every_place_inside_it(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    city = 990001
+    await execute(
+        migrated,
+        "INSERT INTO core.locations (id, name, country_iso, location_type, parent_id) "
+        "VALUES ($1, 'New York', 'US', 'City', $2) ON CONFLICT (id) DO NOTHING",
+        city,
+        LOCATION,
+    )
+    await tracked_id(api, workspace, project, owner, "crm")
+    await tracked_id(api, workspace, project, owner, "nyc crm", location_id=city)
+    await tracked_id(api, workspace, project, owner, "erp", location_id=OTHER_LOCATION)
+
+    in_us = await _list(api, workspace, project, owner, **{"filter[country_id]": LOCATION})
+    in_uk = await _list(api, workspace, project, owner, **{"filter[country_id]": OTHER_LOCATION})
+    exact = await _list(api, workspace, project, owner, **{"filter[location_id]": LOCATION})
+
+    assert sorted(_texts(in_us)) == ["crm", "nyc crm"]
+    assert _texts(in_uk) == ["erp"]
+    # The exact filter is unchanged: the country only, not the city inside it
+    assert _texts(exact) == ["crm"]
 
 
 async def test_group_and_term_filters_include_what_is_under_them(

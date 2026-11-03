@@ -36,10 +36,10 @@ export type RankDisplay =
     }
   | {
       kind: 'beyond';
-      /** How far down the check looked: what the provider returned, never more than was asked for. */
+      /** How far the check was asked to look: the `>100` of a keyword not found within the top 100. */
       depth: number;
-      /** How far it was asked to look; larger than `depth` when the provider had fewer results to give. */
-      requested: number;
+      /** How far the provider's answer reached when that is less than `depth` (it had fewer results to give). */
+      returned: number | null;
       observedAt: string | null;
       stale: boolean;
       failing: boolean;
@@ -88,18 +88,18 @@ function checkMark(check: KeywordCheck | undefined): CheckMark {
   }
 }
 
-/** How far down a check looked: what the provider returned when that is less than was asked for. */
-function coverage(current: RankCell, requested: number): number {
+/** How far the provider's answer reached, when that is less than what was asked for; else null. */
+function shortfall(current: RankCell, requested: number): number | null {
   const returned = current.depth_returned;
-  return typeof returned === 'number' && Number.isInteger(returned) && returned >= 0
-    ? Math.min(returned, requested)
-    : requested;
+  return typeof returned === 'number' && Number.isInteger(returned) && returned >= 0 && returned < requested
+    ? returned
+    : null;
 }
 
 /**
  * `current` as a cell shows it. `stale` is the API's own `is_stale`, never worked out here; `consecutiveFailures`
- * is the API's count of failed checks since the last good one. A rank beyond the depth is shown beyond how far
- * the check looked (`depth_returned`), not how far it was asked to look: Google may have had fewer results.
+ * is the API's count of failed checks since the last good one. A rank beyond the depth is shown beyond the depth
+ * the check was asked for (`>100`); that Google returned fewer results is said in the tooltip, not in the number.
  */
 export function rankDisplay(
   current: RankCell,
@@ -126,8 +126,8 @@ export function rankDisplay(
       return isPlace(current.depth_requested)
         ? {
             kind: 'beyond',
-            depth: coverage(current, current.depth_requested),
-            requested: current.depth_requested,
+            depth: current.depth_requested,
+            returned: shortfall(current, current.depth_requested),
             observedAt: current.observed_at,
             stale,
             failing,
