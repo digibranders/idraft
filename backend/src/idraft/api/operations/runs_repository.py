@@ -19,6 +19,7 @@ from sqlalchemy import (
     func,
     insert,
     literal,
+    or_,
     select,
     tuple_,
     update,
@@ -292,17 +293,25 @@ async def lock_serp_check_limit(db: AsyncSession, workspace_id: UUID) -> int:
     return limit
 
 
-async def live_serp_checks_since(db: AsyncSession, workspace_id: UUID, since: datetime) -> int:
-    """Live SERP checks the workspace has asked for since `since`: the tasks that were made
-    (one that was cancelled never reached the provider), and the keywords of runs not yet
-    planned into tasks."""
+async def manual_serp_checks_since(db: AsyncSession, workspace_id: UUID, since: datetime) -> int:
+    """SERP checks the workspace has asked for by hand since `since`: the tasks of runs that
+    named their keywords (Check now, whichever queue they went to) and any task asked of the live
+    endpoint, which only a manual run uses. A cancelled task never reached the provider. The
+    keywords of runs not yet planned into tasks count too."""
     t, r = collection_tasks.c, collection_runs.c
     selector = r.config_snapshot["selector"]
+    named = func.jsonb_typeof(selector["tracked_keyword_ids"]) == "array"
     made = (
         select(func.count())
+        .select_from(
+            collection_tasks.join(
+                collection_runs, and_(r.id == t.run_id, r.workspace_id == t.workspace_id)
+            )
+        )
         .where(
             t.workspace_id == workspace_id,
-            t.provider_endpoint == SERP_ORGANIC_LIVE,
+            t.workload == "seo_rank",
+            or_(t.provider_endpoint == SERP_ORGANIC_LIVE, named),
             t.created_at >= since,
             t.status.not_in(("cancelled", "skipped_cached")),
         )
@@ -314,7 +323,7 @@ async def live_serp_checks_since(db: AsyncSession, workspace_id: UUID, since: da
             r.workspace_id == workspace_id,
             r.status == "planned",
             r.workload == "seo_rank",
-            selector["live"].as_boolean().is_(True),
+            named,
             r.created_at >= since,
         )
         .scalar_subquery()

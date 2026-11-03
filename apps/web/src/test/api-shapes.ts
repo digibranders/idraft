@@ -375,6 +375,7 @@ const RANK_CELL = z.object({
   rank: z.number().nullable(),
   absolute_rank: z.number().nullable(),
   depth_requested: z.number().nullable(),
+  depth_returned: z.exactOptional(z.number().nullable()),
   url: URL_REF.nullable(),
   observed_at: z.string().nullable(),
   serp_snapshot_id: z.string().nullable(),
@@ -385,6 +386,13 @@ const RANK_CHANGE = z.object({
   value: z.number().nullable(),
   previous_rank: z.number().nullable(),
   previous_observed_at: z.string().nullable(),
+});
+
+const KEYWORD_CHECK = z.object({
+  status: z.enum(['idle', 'queued', 'processing', 'completed', 'inconclusive', 'failed']),
+  requested_at: z.string().nullable().exactOptional(),
+  finished_at: z.string().nullable().exactOptional(),
+  reason: z.string().nullable().exactOptional(),
 });
 
 /** The rank state every tracked keyword carries (doc 19 section 3.6.4). */
@@ -408,6 +416,8 @@ export const TRACKED_KEYWORD_STATE = z.object({
   is_stale: z.boolean(),
   last_observed_at: z.string().nullable(),
   ranking_url_count: z.number(),
+  drop_unconfirmed: z.boolean(),
+  check: z.exactOptional(KEYWORD_CHECK),
 });
 
 const TRACKED_KEYWORD_FIELDS = {

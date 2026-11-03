@@ -253,6 +253,12 @@ class RankCell(BaseModel):
     rank: int | None = Field(description="The organic rank; null unless `state` is `ranked`.")
     absolute_rank: int | None
     depth_requested: int | None = Field(description="Null when `state` is `not_checked`.")
+    depth_returned: int | None = Field(
+        default=None,
+        description="How far down the provider's answer reached. Below `depth_requested` when "
+        "Google gave fewer results: `beyond_depth` then means not among those, and the cell is "
+        "best read as `>depth_returned`. Null when unknown.",
+    )
     url: UrlRef | None
     observed_at: datetime | None
     serp_snapshot_id: str | None
@@ -276,6 +282,29 @@ class AioStateInfo(BaseModel):
     observation_id: str | None
 
 
+CheckStatusName = Literal["idle", "queued", "processing", "completed", "inconclusive", "failed"]
+
+
+class KeywordCheck(BaseModel):
+    """Where the keyword's latest rank check stands, whoever asked for it (a person with Check
+    now, or a schedule). `queued` and `processing` are pending: a second Check now is refused
+    with `409 check_pending` until the check ends."""
+
+    status: CheckStatusName = Field(
+        description="`idle`: nothing recent. `queued`: asked for, not yet sent to the provider. "
+        "`processing`: sent, answer not yet read. `completed`: the answer moved the rank. "
+        "`inconclusive`: the answer was kept but cannot say if the site is absent, so the rank "
+        "did not move. `failed`: the provider gave no usable answer."
+    )
+    requested_at: datetime | None = None
+    finished_at: datetime | None = None
+    reason: str | None = Field(
+        default=None,
+        description="A failed check's error code, or why a check was inconclusive "
+        "(`unattributed_results`, `no_own_entity`).",
+    )
+
+
 class TrackedKeywordState(BaseModel):
     """The keyword's latest rank facts (`seo.tracked_keyword_state`)."""
 
@@ -294,6 +323,14 @@ class TrackedKeywordState(BaseModel):
     is_stale: bool
     last_observed_at: datetime | None
     ranking_url_count: int = Field(description="Own URLs that ranked at the last check.")
+    check: KeywordCheck = Field(default_factory=lambda: KeywordCheck(status="idle"))
+    drop_unconfirmed: bool = Field(
+        default=False,
+        description="The last check did not find a keyword that ranked before, and it is the "
+        "only one in a row that did not. A SERP moves between readings, so the drop is not "
+        "treated as final until a second check also misses (docs/09 section 4.1). The flag "
+        "says what the rank rules know, not that a check is queued.",
+    )
 
 
 class SparklinePoint(BaseModel):

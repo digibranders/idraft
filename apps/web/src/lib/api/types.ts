@@ -64,6 +64,7 @@ export type RankCell = Schemas['RankCell'];
 export type AioStateInfo = Schemas['AioStateInfo'];
 export type RankChange = Schemas['RankChange'];
 export type TrackedKeywordState = Schemas['TrackedKeywordState'];
+export type KeywordCheck = Schemas['KeywordCheck'];
 export type Sparkline = Schemas['Sparkline'];
 export type SparklinePoint = Schemas['SparklinePoint'];
 export type KeywordGroup = Schemas['KeywordGroup'];

@@ -23,6 +23,7 @@ from idraft.db.tables import (
     entities,
     project_entities,
     serp_features,
+    serp_snapshots,
     tracked_keyword_state,
     urls,
 )
@@ -58,6 +59,11 @@ class StateRecord:
     consecutive_failures: int
     is_stale: bool
     ranking_url_count: int
+    # How far down the last check's answer reached; below `current_depth_requested` when the
+    # provider had no more results to give.
+    current_depth_returned: int | None = None
+    consecutive_beyond: int = 0
+    last_ranked_rank: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,10 +124,19 @@ async def states_of(
             urls.c.path.label("url_path"),
             domains.c.host.label("url_host"),
             domains.c.registrable_domain.label("url_registrable_domain"),
+            serp_snapshots.c.depth_returned.label("snapshot_depth_returned"),
         )
         .select_from(
-            tracked_keyword_state.outerjoin(urls, urls.c.id == s.current_url_id).outerjoin(
-                domains, domains.c.id == urls.c.domain_id
+            tracked_keyword_state.outerjoin(urls, urls.c.id == s.current_url_id)
+            .outerjoin(domains, domains.c.id == urls.c.domain_id)
+            .outerjoin(
+                serp_snapshots,
+                and_(
+                    serp_snapshots.c.id == s.last_snapshot_id,
+                    serp_snapshots.c.observed_at == s.last_observed_at,
+                    serp_snapshots.c.tracked_keyword_id == s.tracked_keyword_id,
+                    serp_snapshots.c.workspace_id == s.workspace_id,
+                ),
             )
         )
         .where(s.workspace_id == workspace_id, among_ids(s.tracked_keyword_id, tracked_ids))
@@ -162,6 +177,9 @@ async def states_of(
             consecutive_failures=row.consecutive_failures,
             is_stale=row.is_stale,
             ranking_url_count=counts.get(row.tracked_keyword_id, 0),
+            current_depth_returned=row.snapshot_depth_returned,
+            consecutive_beyond=row.consecutive_beyond,
+            last_ranked_rank=row.last_ranked_rank,
         )
     return found
 

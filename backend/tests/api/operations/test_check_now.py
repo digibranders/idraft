@@ -1,5 +1,5 @@
-"""Checking keywords now: a manual rank run the worker plans and asks the provider for live
-(docs/19 section 3.6.4, rank collection plan Task 9)."""
+"""Checking keywords now: a manual rank run the worker plans and sends through the provider's
+standard queue, the path a schedule uses (docs/19 section 3.6.4), and the progress it reports."""
 
 from __future__ import annotations
 
@@ -91,7 +91,7 @@ async def _tasks(
         )
 
 
-async def test_a_check_records_a_planned_live_run_for_the_worker(
+async def test_a_check_records_a_planned_standard_queue_run_for_the_worker(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
     workspace, project, owner = await _owner(resources, migrated)
@@ -107,9 +107,10 @@ async def test_a_check_records_a_planned_live_run_for_the_worker(
     assert (data["workload"], data["trigger"], data["status"]) == ("seo_rank", "manual", "planned")
     assert data["created_by"]["actor_id"] == str(owner.user_id)
     (run,) = await _runs(migrated, project)
-    # The API writes no tasks: the worker's planner plans the run, live.
+    # The API writes no tasks: the worker's planner plans the run, through the standard queue
+    # (no `live` flag in the selector).
     assert json.loads(run["config_snapshot"]) == {
-        "selector": {"tracked_keyword_ids": sorted([crm, erp]), "live": True, "depth": 50}
+        "selector": {"tracked_keyword_ids": sorted([crm, erp]), "depth": 50}
     }
     assert run["origin_request_id"] == response.headers["x-request-id"]
     (entry,) = await fetch(
@@ -137,9 +138,7 @@ async def test_without_a_depth_each_keyword_is_checked_at_its_daily_depth(
 
     assert response.status_code == 202, response.text
     (run,) = await _runs(migrated, project)
-    assert json.loads(run["config_snapshot"]) == {
-        "selector": {"tracked_keyword_ids": [crm], "live": True}
-    }
+    assert json.loads(run["config_snapshot"]) == {"selector": {"tracked_keyword_ids": [crm]}}
 
 
 async def test_a_keyword_the_project_does_not_collect_is_refused(
@@ -209,6 +208,7 @@ async def test_a_check_counts_as_one_of_the_days_manual_runs(
 ) -> None:
     workspace, project, owner = await _owner(resources, migrated)
     crm = await tracked_id(api, workspace, project, owner, "crm")
+    erp = await tracked_id(api, workspace, project, owner, "erp")
     await execute(
         migrated,
         "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
@@ -221,14 +221,14 @@ async def test_a_check_counts_as_one_of_the_days_manual_runs(
     )
 
     last = await _check(api, workspace, project, owner, {"tracked_keyword_ids": [crm]})
-    over = await _check(api, workspace, project, owner, {"tracked_keyword_ids": [crm]})
+    over = await _check(api, workspace, project, owner, {"tracked_keyword_ids": [erp]})
 
     assert last.status_code == 202, last.text
     assert problem(over) == (429, "manual_run_limit")
     assert over.json()["limit"] == MANUAL_RUNS_PER_DAY
 
 
-async def test_the_months_live_checks_are_limited_by_the_workspace_quota(
+async def test_the_months_manual_checks_are_limited_by_the_workspace_quota(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
     workspace, project, owner = await _owner(resources, migrated)
@@ -236,14 +236,15 @@ async def test_the_months_live_checks_are_limited_by_the_workspace_quota(
     erp = await tracked_id(api, workspace, project, owner, "erp")
     await _limit(migrated, workspace, 4)
     # Two live checks made this month count; a cancelled one never reached the provider, and a
-    # scheduled check is not a live one.
+    # scheduled check is not a manual one.
     await _tasks(migrated, workspace, project, endpoint=LIVE, statuses=("ingested", "failed"))
     await _tasks(migrated, workspace, project, endpoint=LIVE, statuses=("cancelled",))
     await _tasks(migrated, workspace, project, endpoint=ASYNC, statuses=("ingested",) * 5)
 
     fits = await _check(api, workspace, project, owner, {"tracked_keyword_ids": [crm, erp]})
     # The run above is not planned yet; its two keywords count while it waits.
-    over = await _check(api, workspace, project, owner, {"tracked_keyword_ids": [crm]})
+    third = await tracked_id(api, workspace, project, owner, "hr")
+    over = await _check(api, workspace, project, owner, {"tracked_keyword_ids": [third]})
 
     assert fits.status_code == 202, fits.text
     assert problem(over) == (422, "quota_exceeded")
@@ -311,3 +312,148 @@ async def test_a_project_of_another_workspace_is_not_found(
     )
 
     assert problem(response)[0] == 404
+
+
+async def _task_for(
+    pg: PostgresServer,
+    workspace: Workspace,
+    project: uuid.UUID,
+    tracked: str,
+    status: str,
+    *,
+    due_in: str = "interval '0'",
+    error: str | None = None,
+    trigger: str = "manual",
+) -> None:
+    """A seo_rank task for the keyword in the given ledger status."""
+    run = await fetch(
+        pg,
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
+        "window_end, trigger, status, created_by_type, config_snapshot) VALUES "
+        "($1, $2, 'seo_rank', now(), now(), $3, 'running', 'user', '{}') RETURNING id",
+        workspace.id,
+        project,
+        trigger,
+    )
+    await execute(
+        pg,
+        "INSERT INTO ops.collection_tasks (run_id, workspace_id, project_id, workload, "
+        "subject_type, subject_id, location_id, idempotency_key, request_fingerprint, "
+        "provider_code, provider_endpoint, scheduled_for, status, last_error_code) VALUES "
+        f"($1, $2, $3, 'seo_rank', 'tracked_keyword', $4, 2840, $5, $5, 'dataforseo', $6, "
+        f"now() + {due_in}, $7, $8)",
+        run[0]["id"],
+        workspace.id,
+        project,
+        f"{tracked}:20",
+        uuid.uuid4().bytes,
+        ASYNC,
+        status,
+        error,
+    )
+
+
+async def _progress(
+    api: httpx.AsyncClient, workspace: Workspace, project: uuid.UUID, caller: Caller
+) -> dict[str, Any]:
+    response = await api.get(
+        project_url(workspace, project, "tracked-keywords"), headers=caller.headers
+    )
+    assert response.status_code == 200, response.text
+    return {row["keyword"]["text"]: row["state"]["check"] for row in response.json()["data"]}
+
+
+async def test_a_queued_check_is_reported_and_a_second_one_is_refused_without_a_second_run(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    crm = await tracked_id(api, workspace, project, owner, "crm")
+    erp = await tracked_id(api, workspace, project, owner, "erp")
+
+    first = await _check(api, workspace, project, owner, {"tracked_keyword_ids": [crm]})
+    # crm is queued (its run is planned, no task yet); erp is untouched.
+    second = await _check(api, workspace, project, owner, {"tracked_keyword_ids": [crm, erp]})
+
+    assert first.status_code == 202, first.text
+    assert problem(second) == (409, "check_pending")
+    assert second.json()["tracked_keyword_ids"] == [crm]
+    assert len(await _runs(migrated, project)) == 1
+    checks = await _progress(api, workspace, project, owner)
+    assert checks["crm"]["status"] == "queued"
+    assert checks["crm"]["requested_at"] is not None
+    assert checks["erp"]["status"] == "idle"
+    # The keyword that is not pending can be asked for on its own.
+    assert (
+        await _check(api, workspace, project, owner, {"tracked_keyword_ids": [erp]})
+    ).status_code == 202
+
+
+async def test_a_check_in_every_ledger_status_reports_the_right_progress(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    expected = {
+        "pending": "queued",
+        "submit_unknown": "queued",
+        "submitted": "processing",
+        "ready": "processing",
+        "fetched": "processing",
+        "ingested": "completed",
+        "failed": "failed",
+        "dead": "failed",
+        "cancelled": "idle",
+    }
+    ids = {}
+    for status in expected:
+        ids[status] = await tracked_id(api, workspace, project, owner, f"kw {status}")
+        await _task_for(
+            migrated,
+            workspace,
+            project,
+            ids[status],
+            status,
+            error="provider_error" if status == "failed" else None,
+        )
+
+    checks = await _progress(api, workspace, project, owner)
+
+    assert {status: checks[f"kw {status}"]["status"] for status in expected} == expected
+    assert checks["kw failed"]["reason"] == "provider_error"
+    for status in ("pending", "submitted", "fetched"):
+        refused = await _check(
+            api, workspace, project, owner, {"tracked_keyword_ids": [ids[status]]}
+        )
+        assert problem(refused) == (409, "check_pending"), status
+    for status in ("ingested", "failed", "cancelled"):
+        allowed = await _check(
+            api, workspace, project, owner, {"tracked_keyword_ids": [ids[status]]}
+        )
+        assert allowed.status_code == 202, status
+        # Settle the new planned run so the next keyword is not in the way.
+        await execute(
+            migrated,
+            "UPDATE ops.collection_runs SET status = 'cancelled' "
+            "WHERE project_id = $1 AND status = 'planned'",
+            project,
+        )
+
+
+async def test_a_scheduled_task_that_is_not_due_yet_does_not_stop_a_manual_check(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    crm = await tracked_id(api, workspace, project, owner, "crm")
+    await _task_for(
+        migrated,
+        workspace,
+        project,
+        crm,
+        "pending",
+        due_in="interval '5 hours'",
+        trigger="backfill",
+    )
+
+    assert (await _progress(api, workspace, project, owner))["crm"]["status"] == "idle"
+    response = await _check(api, workspace, project, owner, {"tracked_keyword_ids": [crm]})
+
+    assert response.status_code == 202, response.text

@@ -1,4 +1,4 @@
-import type { RankCell, RankChange, UrlRef } from '@/lib/api/types';
+import type { KeywordCheck, RankCell, RankChange, UrlRef } from '@/lib/api/types';
 
 /**
  * What the API's rank facts show in a cell (12-tables.md sections 6 and 7.3, 14-badges-status.md section 5).
@@ -12,14 +12,41 @@ import type { RankCell, RankChange, UrlRef } from '@/lib/api/types';
 export const EMPHASIS_ABOVE = 2;
 
 /**
+ * What a rank cell says about the check behind it, beyond the rank: `pending` while a check is queued or being
+ * answered, `inconclusive` when the latest check was kept but could not say whether the site is absent, so the
+ * rank shown is from an earlier one.
+ */
+export type CheckMark = 'none' | 'pending' | 'inconclusive';
+
+/**
  * `stale` is the API's `is_stale` (no good check for 36 hours). `failing` is true when checks after the one
  * shown have failed: the API keeps `current` from the last good check and only counts the failures after it,
  * so a number or `>20` on screen may be older than the latest attempt. `failed` is the keyword that never had a
  * good check at all.
  */
 export type RankDisplay =
-  | { kind: 'ranked'; rank: number; depth: number; observedAt: string; stale: boolean; failing: boolean }
-  | { kind: 'beyond'; depth: number; observedAt: string | null; stale: boolean; failing: boolean }
+  | {
+      kind: 'ranked';
+      rank: number;
+      depth: number;
+      observedAt: string;
+      stale: boolean;
+      failing: boolean;
+      check: CheckMark;
+    }
+  | {
+      kind: 'beyond';
+      /** How far down the check looked: what the provider returned, never more than was asked for. */
+      depth: number;
+      /** How far it was asked to look; larger than `depth` when the provider had fewer results to give. */
+      requested: number;
+      observedAt: string | null;
+      stale: boolean;
+      failing: boolean;
+      /** A single check missed a rank an earlier one had; a second check confirms it. */
+      unconfirmed: boolean;
+      check: CheckMark;
+    }
   | { kind: 'pending' }
   | { kind: 'failed'; observedAt: string | null; stale: boolean };
 
@@ -42,12 +69,46 @@ export type UrlDisplay =
 /** A place in the results: a whole number from 1 up. */
 const isPlace = (value: number | null): value is number => value !== null && Number.isInteger(value) && value >= 1;
 
+/** What the API says of the check behind a rank beyond the rank itself; both come from the keyword's state. */
+export interface CheckFacts {
+  /** `drop_unconfirmed`: one check missed a rank an earlier one had. */
+  dropUnconfirmed?: boolean | undefined;
+  check?: KeywordCheck | undefined;
+}
+
+function checkMark(check: KeywordCheck | undefined): CheckMark {
+  switch (check?.status) {
+    case 'queued':
+    case 'processing':
+      return 'pending';
+    case 'inconclusive':
+      return 'inconclusive';
+    default:
+      return 'none';
+  }
+}
+
+/** How far down a check looked: what the provider returned when that is less than was asked for. */
+function coverage(current: RankCell, requested: number): number {
+  const returned = current.depth_returned;
+  return typeof returned === 'number' && Number.isInteger(returned) && returned >= 0
+    ? Math.min(returned, requested)
+    : requested;
+}
+
 /**
  * `current` as a cell shows it. `stale` is the API's own `is_stale`, never worked out here; `consecutiveFailures`
- * is the API's count of failed checks since the last good one.
+ * is the API's count of failed checks since the last good one. A rank beyond the depth is shown beyond how far
+ * the check looked (`depth_returned`), not how far it was asked to look: Google may have had fewer results.
  */
-export function rankDisplay(current: RankCell, stale: boolean, consecutiveFailures: number = 0): RankDisplay {
+export function rankDisplay(
+  current: RankCell,
+  stale: boolean,
+  consecutiveFailures: number = 0,
+  facts: CheckFacts = {},
+): RankDisplay {
   const failing = Number.isInteger(consecutiveFailures) && consecutiveFailures > 0;
+  const check = checkMark(facts.check);
   switch (current.state) {
     case 'ranked':
       return isPlace(current.rank) && isPlace(current.depth_requested) && current.observed_at !== null
@@ -58,11 +119,21 @@ export function rankDisplay(current: RankCell, stale: boolean, consecutiveFailur
             observedAt: current.observed_at,
             stale,
             failing,
+            check,
           }
         : { kind: 'pending' };
     case 'beyond_depth':
       return isPlace(current.depth_requested)
-        ? { kind: 'beyond', depth: current.depth_requested, observedAt: current.observed_at, stale, failing }
+        ? {
+            kind: 'beyond',
+            depth: coverage(current, current.depth_requested),
+            requested: current.depth_requested,
+            observedAt: current.observed_at,
+            stale,
+            failing,
+            unconfirmed: facts.dropUnconfirmed === true,
+            check,
+          }
         : { kind: 'pending' };
     case 'failed':
       return { kind: 'failed', observedAt: current.observed_at, stale };

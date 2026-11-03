@@ -15,6 +15,7 @@ from sqlalchemy.exc import DBAPIError
 from idraft.collectors import seo_rank_ingest
 from idraft.collectors.ingest_waits import IngestReport
 from idraft.collectors.seo_rank_ingest import ingest
+from idraft.providers.dataforseo import serp as serp_endpoint
 from idraft.storage.raw import RawStorageError
 from tests.api.auth.support import execute, fetch, fetchrow
 from tests.collectors.rank_support import (
@@ -303,6 +304,196 @@ async def test_a_check_that_cannot_tell_if_the_site_is_absent_keeps_history_and_
     observed = await _rows(migrated, "seo.domain_rank_observations", keyword, "observed_at")
     assert {row["serp_snapshot_id"] for row in observed} == {first["id"]}
     assert await _events(migrated, keyword) == events
+
+
+async def test_a_dropped_duplicate_leaves_a_gap_and_the_own_rank_is_the_providers(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    keyword = await track(migrated, world.project)
+    store = MemoryStore()
+    # Rank 2 repeats rank 1 and is dropped; the own site is the provider's third result.
+    urls = [other(1), other(1) + "#again", own(), other(4)]
+    await fetched_task(worker_db, migrated, world, keyword, answer(urls), store)
+
+    assert await ingest(worker_db, store) == IngestReport(ingested=1)
+
+    state = await _state(migrated, keyword)
+    assert state["current_rank"] == 3
+    (snapshot,) = await _rows(migrated, "seo.serp_snapshots", keyword, "id")
+    assert snapshot["depth_returned"] == 4
+    assert [snapshot["organic_url_ids"][i] is None for i in range(4)] == [False, True, False, False]
+    assert len(snapshot["organic_url_ids"]) == len(snapshot["organic_abs_positions"]) == 4
+    assert snapshot["organic_abs_positions"][2] == 3
+    assert [
+        row["organic_rank"]
+        for row in await _rows(migrated, "seo.serp_current_results", keyword, "organic_rank")
+    ] == [1, 3, 4]
+
+
+async def test_a_project_without_a_tracked_own_entity_does_not_report_its_keywords_as_unranked(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    keyword = await track(migrated, world.project)
+    await execute(
+        migrated,
+        "UPDATE core.project_entities SET track_seo = false WHERE project_id = $1 AND role = 'own'",
+        world.project.id,
+    )
+    store = MemoryStore()
+    await fetched_task(worker_db, migrated, world, keyword, answer(results(own_at=3)), store)
+
+    assert await ingest(worker_db, store) == IngestReport(ingested=1)
+
+    assert await _rows(migrated, "seo.tracked_keyword_state", keyword, "tracked_keyword_id") == []
+    (snapshot,) = await _rows(migrated, "seo.serp_snapshots", keyword, "id")
+    assert json.loads(snapshot["extras"])["inconclusive"] == {"reason": "no_own_entity"}
+
+
+async def test_a_live_answer_is_kept_for_comparison_and_never_moves_the_keyword(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    keyword = await track(migrated, world.project)
+    store = MemoryStore()
+    await fetched_task(
+        worker_db,
+        migrated,
+        world,
+        keyword,
+        answer(results(own_at=5), when=NOW - DAY),
+        store,
+        fetched_at=NOW - DAY,
+    )
+    assert await ingest(worker_db, store) == IngestReport(ingested=1)
+    events = await _events(migrated, keyword)
+
+    # The live call found the site nowhere, as it did for `fynix digital` on 2026-11-03.
+    await fetched_task(
+        worker_db,
+        migrated,
+        world,
+        keyword,
+        answer(results(own_at=None), when=NOW),
+        store,
+        endpoint=serp_endpoint.SERP_ORGANIC_LIVE,
+    )
+    assert await ingest(worker_db, store) == IngestReport(ingested=1)
+
+    state = await _state(migrated, keyword)
+    assert (state["current_rank"], state["last_observed_at"]) == (5, NOW - DAY)
+    first, second = await _rows(migrated, "seo.serp_snapshots", keyword, "id")
+    assert json.loads(second["extras"])["inconclusive"] == {"reason": "live_diagnostic"}
+    assert second["provider_endpoint"] == serp_endpoint.SERP_ORGANIC_LIVE
+    observed = await _rows(migrated, "seo.domain_rank_observations", keyword, "observed_at")
+    assert {row["serp_snapshot_id"] for row in observed} == {first["id"]}
+    current = await _rows(migrated, "seo.serp_current_results", keyword, "organic_rank")
+    assert {row["serp_snapshot_id"] for row in current} == {first["id"]}
+    assert await _events(migrated, keyword) == events
+
+
+async def test_a_later_check_leaves_every_earlier_snapshot_and_observation_as_it_was(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    keyword = await track(migrated, world.project)
+    store = MemoryStore()
+    await fetched_task(
+        worker_db,
+        migrated,
+        world,
+        keyword,
+        answer(results(own_at=5, rival_at=8), when=NOW - 2 * DAY),
+        store,
+        fetched_at=NOW - 2 * DAY,
+    )
+    assert await ingest(worker_db, store) == IngestReport(ingested=1)
+    snapshots = await _rows(migrated, "seo.serp_snapshots", keyword, "id")
+    observations = await _rows(migrated, "seo.domain_rank_observations", keyword, "role")
+    events = await _events(migrated, keyword)
+
+    # A later check, a live diagnostic and an inconclusive one: none may touch the first reading.
+    await fetched_task(
+        worker_db,
+        migrated,
+        world,
+        keyword,
+        answer(results(own_at=3), when=NOW - DAY),
+        store,
+        fetched_at=NOW - DAY,
+    )
+    await fetched_task(
+        worker_db,
+        migrated,
+        world,
+        keyword,
+        answer(results(own_at=None), when=NOW),
+        store,
+        endpoint=serp_endpoint.SERP_ORGANIC_LIVE,
+    )
+    await fetched_task(
+        worker_db, migrated, world, keyword, answer([other(1), HIDDEN, other(2)], when=NOW), store
+    )
+    assert await ingest(worker_db, store) == IngestReport(ingested=3)
+
+    later = await _rows(migrated, "seo.serp_snapshots", keyword, "id")
+    assert later[0] == snapshots[0]
+    kept = [
+        row
+        for row in await _rows(migrated, "seo.domain_rank_observations", keyword, "role")
+        if row["serp_snapshot_id"] == snapshots[0]["id"]
+    ]
+    assert kept == observations
+    assert (await _events(migrated, keyword))[: len(events)] == events
+    assert len(later) == 4
+
+
+async def test_a_manual_and_a_scheduled_check_of_the_same_answer_give_the_same_rank(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    manual = await track(migrated, world.project, "crm manual")
+    scheduled = await track(migrated, world.project, "crm scheduled")
+    store = MemoryStore()
+    # The same answer for both: a repeated URL above the site, a hidden result read back, the
+    # rival below. What differs is only how the check was asked for.
+    urls = [other(1), other(1) + "#again", own(), rival(), other(5)]
+    body = answer(urls)
+    await fetched_task(
+        worker_db,
+        migrated,
+        world,
+        manual,
+        body,
+        store,
+        selector={"tracked_keyword_ids": [str(manual)]},
+    )
+    await fetched_task(worker_db, migrated, world, scheduled, body, store)
+
+    assert await ingest(worker_db, store) == IngestReport(ingested=2)
+
+    same = (
+        "current_rank",
+        "current_absolute_rank",
+        "current_depth_requested",
+        "best_rank",
+        "worst_rank",
+        "feature_types_present",
+        "aio_state",
+        "rank_change",
+        "consecutive_beyond",
+    )
+    a, b = await _state(migrated, manual), await _state(migrated, scheduled)
+    assert {name: a[name] for name in same} == {name: b[name] for name in same}
+    assert a["current_rank"] == 3
+    first = (await _rows(migrated, "seo.serp_snapshots", manual, "id"))[0]
+    second = (await _rows(migrated, "seo.serp_snapshots", scheduled, "id"))[0]
+    for name in ("depth_returned", "organic_abs_positions", "parser_version", "provider_endpoint"):
+        assert first[name] == second[name], name
+    assert [x is None for x in first["organic_url_ids"]] == [
+        x is None for x in second["organic_url_ids"]
+    ]
+    rank_of = {}
+    for keyword in (manual, scheduled):
+        rows = await _rows(migrated, "seo.domain_rank_observations", keyword, "role")
+        rank_of[keyword] = [(row["role"], row["organic_rank"]) for row in rows]
+    assert rank_of[manual] == rank_of[scheduled] == [("competitor", 4), ("own", 3)]
 
 
 async def test_a_first_check_that_cannot_tell_leaves_the_keyword_without_a_rank(

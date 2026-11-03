@@ -58,7 +58,10 @@ export function useRankColumns(timeZone: string): RankColumns {
   return useMemo((): RankColumns => {
     const pending: UnknownValue = { label: t('pending'), tooltip: t('pendingTooltip') };
     const display = (row: TrackedKeywordRow): ReturnType<typeof rankDisplay> =>
-      rankDisplay(row.state.current, row.state.is_stale, row.state.consecutive_failures);
+      rankDisplay(row.state.current, row.state.is_stale, row.state.consecutive_failures, {
+        dropUnconfirmed: row.state.drop_unconfirmed,
+        check: row.state.check,
+      });
     const aioTip = (row: TrackedKeywordRow): CellTip | undefined => {
       if (row.state.current.state === 'failed') {
         return { content: aioT('failedTooltip') };

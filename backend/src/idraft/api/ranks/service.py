@@ -550,12 +550,14 @@ class RankService:
                 db, access.workspace_id, snapshot.tracked_keyword_id
             )
             wanted_urls = (
-                set(snapshot.organic_url_ids)
+                {u for u in snapshot.organic_url_ids if u is not None}
                 | {u for o in rows for u in o.all_url_ids}
                 | {u for f in features for u in f.source_url_ids}
             )
             urls = await rank_repository.urls_by_id(db, wanted_urls)
-            domains = await repository.domains_by_id(db, set(snapshot.organic_domain_ids))
+            domains = await repository.domains_by_id(
+                db, {d for d in snapshot.organic_domain_ids if d is not None}
+            )
             refs = await repository.entities_by_ids(
                 db,
                 access.workspace_id,
@@ -923,10 +925,12 @@ def _detail(
     current_titles = {r.url_id: (r.title, r.snippet) for r in current} if is_current else {}
     source: str = "unavailable"
     organic = []
-    for position, url_id in enumerate(snapshot.organic_url_ids):
-        if url_id not in urls:
-            continue
+    for position, slot in enumerate(snapshot.organic_url_ids):
+        # An empty slot is a rank we hold no result for (a repeat, an unreadable address).
         domain_id = snapshot.organic_domain_ids[position]
+        if slot is None or domain_id is None or slot not in urls:
+            continue
+        url_id = slot
         title, snippet = current_titles.get(url_id) or titled.get(url_id) or (None, None)
         if not titles:
             title, snippet = None, None

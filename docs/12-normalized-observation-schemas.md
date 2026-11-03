@@ -44,7 +44,7 @@ class Canonical(BaseModel):
 
 
 class ProvenanceWarning(Canonical):
-    code: str                                  # e.g. 'rank_recomputed', 'unresolved_redirect'
+    code: str                                  # e.g. 'rank_collision', 'unresolved_redirect'
     detail: str
 
 

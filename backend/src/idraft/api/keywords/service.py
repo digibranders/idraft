@@ -19,7 +19,8 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api import audit
-from idraft.api.keywords import filters, rank_repository, repository
+from idraft.api.keywords import check_status, filters, rank_repository, repository
+from idraft.api.keywords.check_status import CheckProgress
 from idraft.api.keywords.rank_repository import (
     CompetitorRank as CompetitorRankRecord,
 )
@@ -160,6 +161,7 @@ class TrackedDetail:
     config_versions: int
     schedule: ScheduleRecord | None
     state: StateRecord | None
+    check: CheckProgress | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +174,7 @@ class TrackedRow:
     terms: list[TermRecord] | None
     overrides: list[OverrideRecord] | None
     state: StateRecord | None = None
+    check: CheckProgress | None = None
     sparkline: list[SparkPoint] | None = None
     competitor_ranks: list[CompetitorRankRecord] | None = None
     features: list[FeatureRecord] | None = None
@@ -494,6 +497,7 @@ class KeywordService:
                 state=(await rank_repository.states_of(db, access.workspace_id, ids)).get(
                     record.id
                 ),
+                check=(await check_status.progress_of(db, access.workspace_id, ids)).get(record.id),
                 schedule=None
                 if record.schedule_id is None
                 else await repository.schedule_ref(db, access.workspace_id, record.schedule_id),
@@ -1096,6 +1100,7 @@ class KeywordService:
             else None
         )
         states = await rank_repository.states_of(db, workspace_id, ids)
+        checks = await check_status.progress_of(db, workspace_id, ids)
         sparklines = (
             await rank_repository.sparklines_of(db, workspace_id, ids)
             if "sparkline" in include
@@ -1121,6 +1126,7 @@ class KeywordService:
                 terms=None if terms is None else terms.get(record.id, []),
                 overrides=None if overrides is None else overrides.get(record.id, []),
                 state=states.get(record.id),
+                check=checks.get(record.id),
                 sparkline=None if sparklines is None else sparklines.get(record.id, []),
                 competitor_ranks=None
                 if competitor_ranks is None

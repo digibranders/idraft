@@ -12,7 +12,7 @@ Related: [05-provider-integrations.md](05-provider-integrations.md), [09-rank-tr
 | Rank tracking, SERP features, AI Overview | `POST /v3/serp/google/organic/task_post` | Standard queue (task) | 4 |
 | Readiness (polling only, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)) | `GET /v3/serp/google/organic/tasks_ready` | poll | 4 |
 | Result fetch | `GET /v3/serp/google/organic/task_get/advanced/{id}` | fetch | 4 |
-| On-demand single check ("check now") | `POST /v3/serp/google/organic/live/advanced` (one search a call, $0.002 a page; built in Phase 4, `providers/dataforseo/serp.py`) | Live | 4 |
+| On-demand check ("check now") | The standard queue, like a schedule (since 2026-11-03; the live endpoint, `POST /v3/serp/google/organic/live/advanced`, answered a different SERP for the same query and is a diagnostic only: its answers are kept as snapshots and never move rank state) | Standard | 4 |
 | Error reconciliation | `POST /v3/serp/google/organic/errors` (tasks errored in past 7 days) | poll, 10/min | 4 |
 | Tasks posted in a period, with their tags (resolving unknown submissions) | `POST /v3/serp/id_list` with `include_metadata` (per API; 1,000 ids a call, 10 calls/min, a month back with metadata) | reconciler, off until S-01 | 4 |
 | Webhook replay | `POST /v3/appendix/webhook_resend` (up to 100 ids, no double charge) | Not used in V1: no pingback endpoint | n/a |
@@ -120,7 +120,7 @@ Mobile costs the same as desktop per page. Tracking both devices doubles collect
 | `tasks_ready`: 20 calls/min, up to 1,000 ids per call, last 3 days | Poll every 60 s per endpoint while any task is `submitted`; no call when none are. A 30 s poll during open windows is not built: the id sweeper bounds what a slower poll could miss |
 | Results re-fetchable free for 30 days (HTML 7 days) | Fetch immediately; re-fetch within 30 days is allowed for re-ingest |
 | 10 s callback timeout, then task goes to `tasks_ready` | Not relevant: no callback URL is sent, so every task is found through `tasks_ready` or the id sweeper |
-| Live: 1 task per call | Used only for "check now" and small backfills |
+| Live: 1 task per call | A diagnostic: kept as a snapshot, never moves rank state (`seo_rank_ingest`, reason `live_diagnostic`) |
 
 At 10,000 keywords per day, submission needs 100 POSTs; fetching needs 10,000 GETs. Spread over a 6-hour window that is about 28 calls per minute, 1.4% of the account limit (under 3% of our 1,000 per minute limiter).
 
@@ -213,11 +213,11 @@ Decision (ADR-007): **organic rank is canonical.** It is what users and every ma
 
 1. Take items with `type = 'organic'`, in response order.
 2. Nested `related_result` entries (grouped results from the same site) are **not** separate ranks. They are recorded as additional URLs of their parent result (same organic rank) in `all_url_ids` for the domain. Rationale: they are displayed as part of the parent listing.
-3. Validate that `rank_group` values are 1..N, strictly increasing, without gaps. If not (provider anomaly, duplicate), recompute organic rank from response order, set `rank_recomputed = true` in snapshot extras, and emit a `serp_parser_anomaly` metric.
+3. The organic rank of a result is the provider's `rank_group`, read strictly (a missing, non-integer or non-positive value fails the parse and the task, payload kept). It is never renumbered. (Parser versions 1 to 3 renumbered the kept results 1..N from response order, so a result dropped in step 5 or 4 moved every later result up one rank: measured 2026-11-03 on a live Mumbai answer for `fynix digital`, one repeated URL, `rank_recomputed` raised, every result after it one rank too high. Version 4 keeps the provider's rank and leaves a gap.) Two items at one `rank_group` keep the first; the other is reported as `rank_collision` and counted as unreadable unless it is in the right column.
 4. Canonicalize every URL (rules in [14-citation-intelligence.md](14-citation-intelligence.md) section 3). Detect unresolved Google redirect wrappers (`google.com/goto`, `google.com/url`): unwrap when the target is in a query parameter, otherwise keep the wrapper and flag `unresolved_redirect`. (Since August 2026 Google wraps organic links in `google.com/goto`; DataForSEO reports resolving 99.99% of organic results and fixed AIO cases on 28 August 2026, verified. Measured on 2026-11-02 the claim does not hold for live calls on `google.com`: the token in `url` is opaque and half of a SERP or more can be wrapped (standard-queue tasks showed none). Parser version 3 reads the site back from the item's `breadcrumb` (`https://host`, then the path pieces after a `›`, an ellipsis or words meaning only the host's root is used), else from a `website_name` that is itself a host, else from the platform a post or profile names (`LinkedIn · account` gives `linkedin.com`, host only: a count of followers or views stands in the breadcrumb; the table `_PLATFORMS` in `serp_parse.py`; seen 2026-11-02, all of the results version 2 could not read), and counts it as `redirect_site_recovered`. An item whose site cannot be read stays wrapped and flagged.)
 5. Duplicate canonical URL within one SERP: keep first occurrence, flag duplicate. A result whose site was read back is never a duplicate: its address is a guess at the page, and two of one site are two results.
-6. Build `organic_url_ids[]`, `organic_domain_ids[]`, `organic_abs_positions[]` in organic rank order.
-7. `depth_returned` = number of organic results after steps 1 to 5.
+6. Build `organic_url_ids[]`, `organic_domain_ids[]`, `organic_abs_positions[]` by position: element n is organic rank n + 1, and null where no result is held (a dropped repeat, an unreadable address). Ranks of results whose address could not be read at all (`organic_without_url`, `rank_collision`) are `NormalizedSerp.unreadable_ranks`; within the depth they make an absent own side inconclusive, like an unresolved redirect.
+7. `depth_returned` = the highest organic rank read: how far down the answer reaches. It is below `depth_requested` when Google had fewer results to give (measured 2026-11-03: depth 100 returned 99 organic results for `fynix digital` and 66 for `fynix`). The API shows it as `RankCell.depth_returned`, so a keyword not found reads `>66`, not `>100`.
 
 ### 5.3 Domain rank resolution
 

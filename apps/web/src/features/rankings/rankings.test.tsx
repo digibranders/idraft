@@ -81,6 +81,17 @@ describe('Rankings', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows where, on what device and in which language each keyword is tracked, so look-alike rows differ', async () => {
+    renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+
+    expect(within(grid).getByRole('columnheader', { name: /Tracked as/ })).toBeInTheDocument();
+    // The same keyword on both devices reads differently in this column
+    const cells = within(grid).getAllByText(/^(Desktop|Mobile), .+, .+$/);
+    expect(cells.length).toBeGreaterThan(0);
+    expect(new Set(cells.map((cell) => cell.textContent?.split(',')[0])).size).toBe(2);
+  });
+
   it('describes a keyword’s row header by where, on what device and in which language it is tracked', async () => {
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();

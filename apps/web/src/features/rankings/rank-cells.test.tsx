@@ -66,6 +66,52 @@ describe('RankCellView', () => {
     expect(screen.getByText('not in top 50')).toHaveClass('sr-only');
   });
 
+  it('shows beyond depth as far as the answer reached when Google gave fewer results than were asked for', () => {
+    renderWithProviders(rank({ state: 'beyond_depth', rank: null, depth_requested: 100, depth_returned: 66 }));
+    expect(screen.getByText('>66')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByText('not in top 66')).toHaveClass('sr-only');
+    expect(screen.queryByText('>100')).toBeNull();
+  });
+
+  it('marks a drop that one check has not yet confirmed, with words for a screen reader', () => {
+    renderWithProviders(
+      <RankCellView
+        display={rankDisplay(cell({ state: 'beyond_depth', rank: null }), false, 0, { dropUnconfirmed: true })}
+      />,
+    );
+    expect(screen.getByText('drop not yet confirmed')).toHaveClass('sr-only');
+  });
+
+  it('marks a keyword with a check on its way, and one whose latest check could not say', () => {
+    const { unmount } = renderWithProviders(
+      <RankCellView display={rankDisplay(cell(), false, 0, { check: { status: 'processing' } })} />,
+    );
+    expect(screen.getByText('check in progress')).toHaveClass('sr-only');
+    expect(screen.getByText('3')).toBeInTheDocument();
+    unmount();
+
+    renderWithProviders(
+      <RankCellView display={rankDisplay(cell(), false, 0, { check: { status: 'inconclusive' } })} />,
+    );
+    expect(screen.getByText('latest check inconclusive')).toHaveClass('sr-only');
+    expect(screen.queryByText('check in progress')).toBeNull();
+  });
+
+  it('says in the tooltip how many results Google returned, and that a drop is not confirmed', async () => {
+    const Probe = (): ReactElement => {
+      const tips = useRankTips('Europe/Berlin');
+      const tip = tips.rank(
+        rankDisplay(cell({ state: 'beyond_depth', rank: null, depth_requested: 100, depth_returned: 66 }), false, 0, {
+          dropUnconfirmed: true,
+        }),
+      );
+      return <p>{[tip?.content, tip?.detail].join(' | ')}</p>;
+    };
+    renderWithProviders(<Probe />);
+    expect(screen.getByText(/Google returned 66 of the 100 results asked for\./)).toBeInTheDocument();
+    expect(screen.getByText(/A second check confirms the drop before it stands\./)).toBeInTheDocument();
+  });
+
   it('shows pending in tertiary text before the first check', () => {
     renderWithProviders(rank({ state: 'not_checked', rank: null, depth_requested: null, observed_at: null }));
     expect(screen.getByText('Pending')).toHaveClass('text-foreground-tertiary');

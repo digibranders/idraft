@@ -51,9 +51,10 @@ async def _entity(
     domain = await fetchrow(
         pg,
         "INSERT INTO core.domains (host, registrable_domain, public_suffix) "
-        "VALUES ($1, $1, 'example') "
+        "VALUES ($1, $1, $2) "
         "ON CONFLICT (host) DO UPDATE SET host = excluded.host RETURNING id",
         host,
+        host.rsplit(".", 1)[-1],
     )
     await execute(
         pg,
@@ -173,8 +174,12 @@ async def fetched_task(
     *,
     fetched_at: datetime | None = None,
     cost: str = "0.0006",
+    endpoint: str = serp_endpoint.SERP_ORGANIC,
+    selector: dict[str, Any] | None = None,
 ) -> int:
-    """A run of one task, fetched, with `body` as its stored answer. Returns the task id."""
+    """A run of one task, fetched, with `body` as its stored answer. Returns the task id. A
+    `selector` makes it a Check now run (it names the keyword); the endpoint is the standard
+    queue's unless the task was a live call."""
     project = world.project
     run = ledger.NewRun(
         workspace_id=project.workspace_id,
@@ -184,7 +189,7 @@ async def fetched_task(
         window_start=NOW,
         window_end=NOW + timedelta(hours=1),
         trigger="manual",
-        config_snapshot={},
+        config_snapshot={} if selector is None else {"selector": selector},
     )
     async with sessions() as db, db.begin():
         run_id = await ledger.create_run(db, run, now=NOW)
@@ -203,7 +208,7 @@ async def fetched_task(
                     depth=20,
                     request_fingerprint=hashlib.sha256(uuid.uuid4().bytes).digest(),
                     provider_code="dataforseo",
-                    provider_endpoint=serp_endpoint.SERP_ORGANIC,
+                    provider_endpoint=endpoint,
                     scheduled_for=NOW,
                 )
             ],
@@ -216,7 +221,7 @@ async def fetched_task(
             body=body,
             content_type="application/json",
             provider_code="dataforseo",
-            provider_endpoint=serp_endpoint.SERP_ORGANIC,
+            provider_endpoint=endpoint,
             endpoint_slug=serp_endpoint.ENDPOINT.payload_slug,
             retention_class=RETENTION_CLASS[TaskWorkload.SEO_RANK],
         ),

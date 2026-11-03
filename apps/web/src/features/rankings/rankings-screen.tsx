@@ -18,6 +18,7 @@ import { KeywordInspector, type InspectorEditState } from './keyword-inspector/k
 import { isProjectCompetitor, projectEntitiesQuery } from './keyword-inspector/inspector-queries';
 import {
   PAGE_SIZE_CHOICES,
+  hasPendingCheck,
   keywordFilters,
   useKeywordList,
   useTrackedCount,
@@ -274,11 +275,16 @@ export function RankingsScreen({
     menuButton: moreButton,
     onDrop: dropChosen,
   });
+  const pendingChecks = useMemo(
+    (): ReadonlySet<string> => new Set(list.rows.filter(hasPendingCheck).map((row) => row.tracked_keyword_id)),
+    [list.rows],
+  );
   const checkNow = useCheckNow({
     scope,
     enabled: canRefresh,
     archived: view.archived,
     chosen,
+    pendingIds: pendingChecks,
     onDrop: dropChosen,
   });
   // Check now goes right before Refresh metrics, both ahead of the first destructive action

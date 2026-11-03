@@ -1311,8 +1311,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Check keywords now (a manual run, asked of the provider live)
-         * @description The given tracked keywords (at most 100, which the project collects; `422 validation_failed` with `keyword_unknown` otherwise), each asked of the provider live, at `depth` or else its daily depth. The run is `planned` and the worker plans it within a minute; a result is normally there within seconds after that. Read the run for its progress and the keywords' rank for the answer. A budget used up blocks it (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC), with `limit`; `422 quota_exceeded` when the month's live checks would pass the workspace's `max_serp_checks_per_month`; `503 provider_paused` while the provider is refusing every request.
+         * Check keywords now (a manual run through the provider's standard queue)
+         * @description The given tracked keywords (at most 100, which the project collects; `422 validation_failed` with `keyword_unknown` otherwise), asked through the provider's standard queue, the path a schedule uses, at `depth` or else the keyword's daily depth. The run is `planned` and the worker plans it within a minute; the provider answers within minutes, not seconds. Read each keyword's `state.check` (`queued`, `processing`, `completed`, `inconclusive`, `failed`) for progress and its rank for the answer. A keyword that already has a check queued or under way is refused with `409 check_pending` and its ids in `tracked_keyword_ids`: it would be a second paid request for the same reading. A budget used up blocks it (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC), with `limit`; `422 quota_exceeded` when the month's manual checks would pass the workspace's `max_serp_checks_per_month`; `503 provider_paused` while the provider is refusing every request.
          */
         post: operations["check_now_api_v1_workspaces__workspace_id__projects__project_id__seo_check_now_post"];
         delete?: never;
@@ -2215,7 +2215,7 @@ export interface components {
         };
         /**
          * CheckNow
-         * @description Keywords to check at once, each a live search of its own.
+         * @description Keywords to check at once, each a search of its own through the standard queue.
          */
         CheckNow: {
             /**
@@ -3056,6 +3056,29 @@ export interface components {
              * @description As first entered: what the provider receives.
              */
             text: string;
+        };
+        /**
+         * KeywordCheck
+         * @description Where the keyword's latest rank check stands, whoever asked for it (a person with Check
+         *     now, or a schedule). `queued` and `processing` are pending: a second Check now is refused
+         *     with `409 check_pending` until the check ends.
+         */
+        KeywordCheck: {
+            /** Finished At */
+            finished_at?: string | null;
+            /**
+             * Reason
+             * @description A failed check's error code, or why a check was inconclusive (`unattributed_results`, `no_own_entity`).
+             */
+            reason?: string | null;
+            /** Requested At */
+            requested_at?: string | null;
+            /**
+             * Status
+             * @description `idle`: nothing recent. `queued`: asked for, not yet sent to the provider. `processing`: sent, answer not yet read. `completed`: the answer moved the rank. `inconclusive`: the answer was kept but cannot say if the site is absent, so the rank did not move. `failed`: the provider gave no usable answer.
+             * @enum {string}
+             */
+            status: "idle" | "queued" | "processing" | "completed" | "inconclusive" | "failed";
         };
         /** KeywordDetail */
         KeywordDetail: {
@@ -4070,6 +4093,11 @@ export interface components {
              * @description Null when `state` is `not_checked`.
              */
             depth_requested: number | null;
+            /**
+             * Depth Returned
+             * @description How far down the provider's answer reached. Below `depth_requested` when Google gave fewer results: `beyond_depth` then means not among those, and the cell is best read as `>depth_returned`. Null when unknown.
+             */
+            depth_returned?: number | null;
             /** Observed At */
             observed_at: string | null;
             /**
@@ -5786,9 +5814,16 @@ export interface components {
             /** Best Rank At */
             best_rank_at: string | null;
             change: components["schemas"]["RankChange"];
+            check?: components["schemas"]["KeywordCheck"];
             /** Consecutive Failures */
             consecutive_failures: number;
             current: components["schemas"]["RankCell"];
+            /**
+             * Drop Unconfirmed
+             * @description The last check did not find a keyword that ranked before, and it is the only one in a row that did not. A SERP moves between readings, so the drop is not treated as final until a second check also misses (docs/09 section 4.1). The flag says what the rank rules know, not that a check is queued.
+             * @default false
+             */
+            drop_unconfirmed: boolean;
             /**
              * Feature Types Present
              * @description On the first page of results.
@@ -10257,6 +10292,7 @@ export const importFieldValues: ReadonlyArray<FlattenedDeepRequired<components>[
 export const importRowActionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportRow"]["action"]> = ["create", "skip", "merge", "force_separate"];
 export const importRowOutcomeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportRow"]["outcome"]> = ["new", "duplicate", "variant", "conflict", "invalid"];
 export const invitationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Invitation"]["status"]> = ["pending", "accepted", "declined", "cancelled", "expired"];
+export const keywordCheckStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordCheck"]["status"]> = ["idle", "queued", "processing", "completed", "inconclusive", "failed"];
 export const keywordImportSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImport"]["source"]> = ["upload", "paste", "api"];
 export const keywordImportStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImport"]["status"]> = ["uploaded", "parsing", "needs_mapping", "preview_ready", "writing", "completed", "completed_with_errors", "failed", "cancelled", "expired"];
 export const keywordImportConfirmDuplicate_actionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImportConfirm"]["duplicate_action"]> = ["skip", "merge_terms"];

@@ -246,6 +246,23 @@ async def test_the_selector_narrows_what_is_planned_and_none_selects_nothing(
     assert nothing.estimated_cost_usd == Decimal(0)
 
 
+async def test_a_project_without_an_own_entity_that_tracks_seo_plans_nothing(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    await _tracked(migrated, project, "crm top")
+    assert _depths(await _plan(worker_db, _window(project, {"all": True})))
+
+    await execute(
+        migrated,
+        "UPDATE core.project_entities SET track_seo = false WHERE project_id = $1 AND role = 'own'",
+        project.id,
+    )
+
+    assert list((await _plan(worker_db, _window(project, {"all": True}))).tasks) == []
+    assert list((await _plan(worker_db, _window(project, {"new": True}))).tasks) == []
+
+
 async def test_a_keyword_that_names_a_schedule_is_left_to_it(
     worker_db: Ledger, migrated: PostgresServer, world: World
 ) -> None:
@@ -360,6 +377,23 @@ async def test_check_now_plans_the_named_keywords_live_and_due_at_once(
     assert plan.config_snapshot["selector"] == selector
     # (2 + 2 + 10) pages at the live price of $0.002, and no asynchronous AI Overview to add.
     assert plan.estimated_cost_usd == Decimal("0.028")
+
+
+async def test_check_now_without_the_live_flag_plans_standard_queue_tasks_like_a_schedule(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    first = await _tracked(migrated, project, "crm first")
+    second = await _tracked(migrated, project, "crm second", profile="full")
+    selector = {"tracked_keyword_ids": [str(first), str(second)]}
+
+    plan = await _plan(worker_db, _window(project, selector))
+
+    assert _depths(plan) == {first: 20, second: 100}
+    assert {task.provider_endpoint for task in plan.tasks} == {SERP_ORGANIC}
+    assert {task.scheduled_for for task in plan.tasks} == {TUESDAY}
+    assert plan.config_snapshot["queue"] == "standard"
+    assert plan.estimated_cost_usd > Decimal(0)
 
 
 async def test_check_now_checks_at_the_depth_asked_for(

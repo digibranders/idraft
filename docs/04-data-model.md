@@ -769,7 +769,7 @@ CREATE TABLE seo.serp_snapshots (
     canonicalizer_version smallint NOT NULL,
     cost_usd              numeric(14,6),
     served_from_cache     boolean NOT NULL DEFAULT false,  -- true when reused from ops.fetch_cache (shared fetch)
-    extras                jsonb,                           -- small parser extras: check_url, spell, rank_recomputed,
+    extras                jsonb,                           -- small parser extras: check_url, spell, inconclusive (why a check kept no state),
                                                            -- refinement chips summary (<= 8 KB, Pydantic-validated)
     superseded_by         bigint,                          -- set when re-ingest from raw created a newer snapshot (12 section 7)
     PRIMARY KEY (id, observed_at)

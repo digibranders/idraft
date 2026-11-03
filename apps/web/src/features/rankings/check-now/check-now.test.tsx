@@ -418,7 +418,7 @@ describe('Check now', () => {
     const bar = await choose(user, 'seo agency');
     await user.click(within(bar).getByRole('button', { name: 'Check now' }));
     expect(
-      (await screen.findAllByText(/This workspace has made 499 of its 500 live checks this month/)).length,
+      (await screen.findAllByText(/This workspace has made 499 of its 500 manual checks this month/)).length,
     ).toBeGreaterThanOrEqual(1);
 
     server.use(http.post(mswPath(CHECK_NOW), ({ request }) => problem(request, 'provider_paused')));
@@ -426,6 +426,22 @@ describe('Check now', () => {
     expect(
       (await screen.findAllByText('The data provider is not being asked just now. Try again in a few minutes.')).length,
     ).toBeGreaterThanOrEqual(1);
+  });
+
+  it('says a check is already under way when the route refuses a second one, and asks for no second run', async () => {
+    server.use(
+      http.post(mswPath(CHECK_NOW), ({ request }) =>
+        problem(request, 'check_pending', { tracked_keyword_ids: ['one'] }),
+      ),
+    );
+    const { user } = renderWithProviders(as('editor'));
+    const bar = await choose(user, 'seo agency');
+    await user.click(within(bar).getByRole('button', { name: 'Check now' }));
+
+    expect(
+      (await screen.findAllByText(/A check is already queued or under way for this keyword/)).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByRole('progressbar')).toBeNull();
   });
 
   it('reports lost run with toast id matching keyword-${workload}-${runId}', async () => {

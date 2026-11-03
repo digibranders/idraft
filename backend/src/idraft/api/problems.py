@@ -278,6 +278,13 @@ class QuotaExceededError(ProblemError):
     status, code, title = 422, "quota_exceeded", "Workspace limit reached"
 
 
+class CheckPendingError(ProblemError):
+    """Carries `tracked_keyword_ids`: keywords that already have a check queued or being
+    answered. A second one would be a second paid request for the same reading."""
+
+    status, code, title = 409, "check_pending", "A check is already under way"
+
+
 class TooManySubjectsError(ProblemError):
     """Carries `limit`: a filter of a bulk change matched more rows than one request changes."""
 

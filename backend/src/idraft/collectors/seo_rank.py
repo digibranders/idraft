@@ -33,6 +33,7 @@ from idraft.db.tables import (
     collection_tasks,
     keyword_group_members,
     keywords,
+    project_entities,
     projects,
     provider_location_map,
     provider_price_book,
@@ -136,6 +137,20 @@ def _has_snapshot() -> ColumnElement[bool]:
         s.tracked_keyword_id == t.id,
         s.workspace_id == t.workspace_id,
         s.last_observed_at.is_not(None),
+    )
+
+
+def _tracks_own_site() -> ColumnElement[bool]:
+    """The keyword's project has an own entity that tracks SEO. Without one every check would
+    read as "not found" and the ingest keeps no state for it, so asking the provider is money
+    spent on an answer nobody can use."""
+    entity, t = project_entities.c, tracked_keywords.c
+    return exists().where(
+        entity.workspace_id == t.workspace_id,
+        entity.project_id == t.project_id,
+        entity.role == "own",
+        entity.track_seo,
+        entity.removed_at.is_(None),
     )
 
 
@@ -247,6 +262,7 @@ async def select_subjects(
             p.deleted_at.is_(None),
             func.char_length(k.text) <= KEYWORD_MAX,
             t.depth_profile.not_in(sorted(UNAVAILABLE)),
+            _tracks_own_site(),
         )
     )
     new = bool(selector.get("new"))
@@ -629,6 +645,7 @@ async def _queue_runs(
                 p.status == "active",
                 w.status == "active",
                 func.char_length(k.text) <= KEYWORD_MAX,
+                _tracks_own_site(),
                 *wanted,
                 ~waiting,
             )

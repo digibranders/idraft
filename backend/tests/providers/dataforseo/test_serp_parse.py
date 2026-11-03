@@ -81,28 +81,67 @@ def test_serp_org_01_ads_and_an_ai_overview_above_organic_rank_one() -> None:
     assert first.url.url == "https://www.example-crm.com/startups"
 
 
-@pytest.mark.parametrize(
-    "ranks",
-    [[1, 2, 4], [1, 2, 2, 3], [2, 3, 4], [None, 1, 2]],
-)
-def test_serp_org_02_a_gap_or_a_repeat_in_the_ranks_is_recomputed_from_response_order(
-    ranks: list[int | None],
-) -> None:
+@pytest.mark.parametrize("ranks", [[1, 2, 4], [2, 3, 4], [5, 9, 40]])
+def test_serp_org_02_the_rank_the_provider_gave_is_kept_across_a_gap(ranks: list[int]) -> None:
+    items = [organic(rank, f"https://example.com/{rank}") for rank in ranks]
+
+    parsed = parse_serp(serp(items))
+
+    assert [result.organic_rank for result in parsed.organic] == ranks
+    assert parsed.depth_returned == ranks[-1]
+    assert not [w for w in parsed.warnings if w.startswith("rank_")]
+
+
+def test_serp_org_02_a_second_result_at_a_rank_already_taken_is_reported_and_unattributed() -> None:
     items = [
-        organic(0, f"https://example.com/{n}") | {"rank_group": rank}
-        for n, rank in enumerate(ranks)
+        organic(1, "https://example.com/a"),
+        organic(2, "https://example.com/b"),
+        organic(2, "https://example.com/c"),
     ]
 
     parsed = parse_serp(serp(items))
 
-    assert [result.organic_rank for result in parsed.organic] == list(range(1, len(ranks) + 1))
-    assert parsed.warnings.count("rank_recomputed") == 1
+    assert [(r.organic_rank, r.url.path) for r in parsed.organic] == [(1, "/a"), (2, "/b")]
+    assert parsed.warnings.count("rank_collision") == 1
+    assert parsed.unreadable_ranks == (2,)
 
 
-def test_serp_org_02_ranks_the_provider_gave_without_a_gap_raise_no_warning() -> None:
-    parsed = parse_serp(serp([organic(n, f"https://example.com/{n}") for n in (1, 2, 3)]))
+def test_serp_org_02_a_right_column_item_never_takes_the_rank_of_a_left_column_result() -> None:
+    items = [
+        organic(1, "https://panel.example/x", position="right"),
+        organic(1, "https://own.example/"),
+    ]
 
-    assert "rank_recomputed" not in parsed.warnings
+    parsed = parse_serp(serp(items))
+
+    assert [(r.organic_rank, r.url.host.name) for r in parsed.organic] == [(1, "own.example")]
+    assert parsed.warnings.count("rank_collision") == 1
+    assert parsed.unreadable_ranks == ()
+
+
+def test_serp_org_02_a_rank_with_two_unreadable_results_is_listed_once() -> None:
+    items = [
+        organic(3, "javascript:void(0)"),
+        organic(3, "https://example.com/c"),
+        organic(3, "https://example.com/d"),
+    ]
+
+    assert parse_serp(serp(items)).unreadable_ranks == (3,)
+
+
+def test_serp_org_02_the_depth_reached_counts_a_last_result_that_was_dropped() -> None:
+    items = [organic(1, "https://a.example/p"), organic(2, "https://a.example/p#again")]
+
+    parsed = parse_serp(serp(items))
+
+    assert [r.organic_rank for r in parsed.organic] == [1]
+    assert parsed.depth_returned == 2
+
+
+@pytest.mark.parametrize("rank", [None, 0, -3, 701, 10**9, "2", 2.0, True])
+def test_serp_org_02_an_organic_result_without_a_usable_rank_fails_the_parse(rank: Any) -> None:
+    with pytest.raises(SerpSchemaMismatchError):
+        parse_serp(serp([organic(1, "https://example.com/1") | {"rank_group": rank}]))
 
 
 def test_serp_org_03_related_results_are_not_ranks_of_their_own() -> None:
@@ -247,7 +286,6 @@ def test_serp_org_04f_two_hidden_results_of_one_site_both_keep_their_rank() -> N
 
     assert [r.organic_rank for r in parsed.organic] == [1, 2, 3]
     assert "duplicate_url" not in parsed.warnings
-    assert "rank_recomputed" not in parsed.warnings
 
 
 def test_serp_org_05_a_duplicate_canonical_url_keeps_the_first() -> None:
@@ -265,8 +303,8 @@ def test_serp_org_05_a_duplicate_canonical_url_keeps_the_first() -> None:
         "https://example.com/a",
         "https://example.com/b",
     ]
-    assert [result.organic_rank for result in parsed.organic] == [1, 2]
-    assert parsed.depth_returned == 2
+    assert [result.organic_rank for result in parsed.organic] == [1, 3]
+    assert parsed.depth_returned == 3
     assert "duplicate_url" in parsed.warnings
 
 
@@ -315,9 +353,9 @@ def test_serp_org_09_a_right_column_item_is_never_a_rank() -> None:
 def test_serp_org_10_the_invariants_hold_on_every_fixture(name: str) -> None:
     parsed = parse_serp(_load(FIXTURES / f"{name}.json"))
 
-    assert [result.organic_rank for result in parsed.organic] == list(
-        range(1, parsed.depth_returned + 1)
-    )
+    ranks = [result.organic_rank for result in parsed.organic]
+    assert ranks == sorted(set(ranks))
+    assert parsed.depth_returned == max(ranks)
     hashes = [result.url.url_hash for result in parsed.organic]
     assert len(set(hashes)) == len(hashes)
     present = parsed.ai_overview.state != "absent"
@@ -336,9 +374,10 @@ def test_an_organic_result_without_a_readable_url_is_left_out_and_reported() -> 
     )
 
     assert [result.url.url for result in parsed.organic] == ["https://example.com/a"]
-    # One was refused as a URL, one had none.
+    # One was refused as a URL, one had none; both ranks are unread, not absent.
     assert parsed.warnings.count("organic_without_url") == 2
     assert parsed.warnings.count("url_rejected") == 1
+    assert parsed.unreadable_ranks == (2, 3)
 
 
 # Query facts.
@@ -688,7 +727,7 @@ def test_text_the_database_cannot_keep_is_cleaned_not_fatal() -> None:
     assert feature.payload == {"questions": [{"title": "abc?", "domain": None, "ai": False}]}
 
 
-def test_a_dropped_organic_result_that_moves_a_later_one_is_reported() -> None:
+def test_a_dropped_duplicate_does_not_move_a_later_result_up() -> None:
     parsed = parse_serp(
         serp(
             [
@@ -699,18 +738,22 @@ def test_a_dropped_organic_result_that_moves_a_later_one_is_reported() -> None:
         )
     )
 
-    assert [r.organic_rank for r in parsed.organic] == [1, 2]
+    assert [(r.organic_rank, r.url.host.name) for r in parsed.organic] == [
+        (1, "a.example"),
+        (3, "b.example"),
+    ]
     assert parsed.warnings.count("duplicate_url") == 1
-    assert "rank_recomputed" in parsed.warnings
+    assert parsed.unreadable_ranks == ()
 
 
-def test_a_dropped_last_result_moves_nothing_and_is_not_a_recompute() -> None:
+def test_a_result_without_an_address_leaves_the_rank_after_it_where_it_was() -> None:
     parsed = parse_serp(
-        serp([organic(1, "https://a.example/p"), organic(2, "https://a.example/p#frag")])
+        serp([organic(1, "javascript:void(0)"), organic(2, "https://fynix.digital/")])
     )
 
-    assert [r.organic_rank for r in parsed.organic] == [1]
-    assert "rank_recomputed" not in parsed.warnings
+    (only,) = parsed.organic
+    assert only.organic_rank == 2
+    assert parsed.unreadable_ranks == (1,)
 
 
 def test_the_businesses_of_a_local_pack_listed_one_by_one_are_one_feature() -> None:

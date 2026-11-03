@@ -53,6 +53,7 @@ from idraft.db.tables import (
     urls,
 )
 from idraft.domain.workloads import TaskWorkload
+from idraft.providers.dataforseo.serp import SERP_ORGANIC_LIVE
 from idraft.providers.dataforseo.serp_parse import (
     NormalizedSerp,
     SerpSchemaMismatchError,
@@ -213,6 +214,20 @@ async def _keep(db: AsyncSession, task: FetchedTask, serp: NormalizedSerp) -> No
         observed_at=observed_at,
     )
     side = own_side(resolved, serp)
+    if task.provider_endpoint == SERP_ORGANIC_LIVE:
+        # The live endpoint is a diagnostic: for the same query it has answered with a different
+        # SERP than the standard queue (measured 2026-11-03: most addresses hidden, the site
+        # missing), so what it says must never become the keyword's rank. Kept as a snapshot for
+        # comparison; no observation, state or event follows from it.
+        _log.info("live rank answer kept as a diagnostic", task=task.ref.id)
+        await _insert_snapshot(db, mark_inconclusive(rows, reason="live_diagnostic"))
+        return
+    if not any(entity.role == "own" for entity in context.entities):
+        # Nothing is being looked for: the project has no own entity that tracks SEO, so every
+        # keyword would read as unranked. The answer is kept; no rank, state or event follows.
+        _log.warning("rank check has no own entity to look for", task=task.ref.id)
+        await _insert_snapshot(db, mark_inconclusive(rows, reason="no_own_entity"))
+        return
     if side.inconclusive:
         # The answer hides where some results come from and the site is not among the rest, so
         # it may be among them: its absence is unknown. The answer is kept as it came; no rank,
@@ -222,7 +237,7 @@ async def _keep(db: AsyncSession, task: FetchedTask, serp: NormalizedSerp) -> No
             task=task.ref.id,
             unattributed=side.unattributed,
         )
-        await _insert_snapshot(db, mark_inconclusive(rows, side.unattributed))
+        await _insert_snapshot(db, mark_inconclusive(rows, unattributed=side.unattributed))
         return
     await _ensure_feature_types(db, rows.feature_codes)
     snapshot_id = await _insert_snapshot(db, rows)
