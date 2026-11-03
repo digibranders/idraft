@@ -2198,9 +2198,10 @@
     "columns": {
       "keyword": "Keyword",
       "keywordDetail": "{location} · {device} · {engine} · {language}",
-      "tracking": "Tracked as",
-      "trackingTooltip": "The device, location and language the keyword is tracked in. The same keyword can be tracked on both devices and in several places.",
-      "trackingValue": "{device}, {location}, {language}",
+      "device": "Device",
+      "deviceTooltip": "The device the keyword is tracked on. The same keyword can be tracked on both desktop and mobile, as two rows.",
+      "location": "Location",
+      "locationTooltip": "The place the keyword is searched from. The same keyword can be tracked in several places, as separate rows.",
       "openRankingPage": "Open the ranking page of {keyword}: {url}",
       "moreRankingPages": "{count, plural, one {(+1 more ranking page)} other {(+# more ranking pages)}}",
       "rowName": "{keyword}, {device}, {location}",

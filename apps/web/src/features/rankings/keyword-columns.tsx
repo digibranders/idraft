@@ -17,7 +17,7 @@ import type { SortKey } from '@/lib/tables/table-state';
 
 /**
  * The columns of Rankings (24-page-templates.md section 9.3), in the template's order: Keyword, Rank, Change,
- * Ranking URL, Tracked as (device, location and language, which tell one keyword's rows apart), Volume, KD, CPC, Intent, SERP features, AI Overview, Priority, Group, Tags, Best rank (in the column chooser only),
+ * Ranking URL, Device and Location (which tell one keyword's rows apart), Volume, KD, CPC, Intent, SERP features, AI Overview, Priority, Group, Tags, Best rank (in the column chooser only),
  * Updated (the last successful check) and Added. The rank, SERP feature and AI Overview columns are built in `rank-columns.tsx`.
  * Waiting for their own plans are the template's sparkline and competitor columns. The ids of
  * the sortable columns are the API's sort fields, so server mode sends them as they are.
@@ -129,17 +129,21 @@ export function useKeywordColumns(
       }),
       ranks.rank,
       ranks.url,
-      // One keyword is tracked on both devices and in more than one place: without this the rows look alike
-      col.text<TrackedKeywordRow>(
-        'tracking',
-        (row) =>
-          t('trackingValue', {
-            device: t(row.device === 'mobile' ? 'mobile' : 'desktop'),
-            location: row.location.name,
-            language: languageName(row.language_code, locale),
-          }),
-        { header: t('tracking'), headerTooltip: t('trackingTooltip'), priority: 3, width: 220, sortable: false },
-      ),
+      // One keyword is tracked on both devices and in more than one place: without these two the rows look alike
+      col.text<TrackedKeywordRow>('device', (row) => t(row.device === 'mobile' ? 'mobile' : 'desktop'), {
+        header: t('device'),
+        headerTooltip: t('deviceTooltip'),
+        priority: 2,
+        width: 104,
+        sortable: false,
+      }),
+      col.text<TrackedKeywordRow>('location', (row) => row.location.name, {
+        header: t('location'),
+        headerTooltip: t('locationTooltip'),
+        priority: 2,
+        width: 160,
+        sortable: false,
+      }),
       col.volume<TrackedKeywordRow>('search_volume', (row) => metrics(row)?.search_volume.value ?? null, {
         header: t('volume'),
         headerTooltip: t('volumeTooltip'),

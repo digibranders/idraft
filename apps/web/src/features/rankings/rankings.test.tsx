@@ -81,15 +81,16 @@ describe('Rankings', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows where, on what device and in which language each keyword is tracked, so look-alike rows differ', async () => {
+  it('shows the device and the location of each keyword in columns of their own, so look-alike rows differ', async () => {
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
 
-    expect(within(grid).getByRole('columnheader', { name: /Tracked as/ })).toBeInTheDocument();
-    // The same keyword on both devices reads differently in this column
-    const cells = within(grid).getAllByText(/^(Desktop|Mobile), .+, .+$/);
-    expect(cells.length).toBeGreaterThan(0);
-    expect(new Set(cells.map((cell) => cell.textContent?.split(',')[0])).size).toBe(2);
+    expect(within(grid).getByRole('columnheader', { name: /Device/ })).toBeInTheDocument();
+    expect(within(grid).getByRole('columnheader', { name: /Location/ })).toBeInTheDocument();
+    // The same keyword on both devices reads differently in the Device column
+    const devices = within(grid).getAllByRole('gridcell', { name: /^(Desktop|Mobile)$/ });
+    expect(new Set(devices.map((cell) => cell.textContent)).size).toBe(2);
+    expect(within(grid).getAllByRole('gridcell', { name: 'United States' }).length).toBeGreaterThan(0);
   });
 
   it('describes a keyword’s row header by where, on what device and in which language it is tracked', async () => {
