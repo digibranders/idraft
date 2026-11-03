@@ -246,6 +246,23 @@ async def test_the_selector_narrows_what_is_planned_and_none_selects_nothing(
     assert nothing.estimated_cost_usd == Decimal(0)
 
 
+async def test_a_project_without_an_own_entity_that_tracks_seo_plans_nothing(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    await _tracked(migrated, project, "crm top")
+    assert _depths(await _plan(worker_db, _window(project, {"all": True})))
+
+    await execute(
+        migrated,
+        "UPDATE core.project_entities SET track_seo = false WHERE project_id = $1 AND role = 'own'",
+        project.id,
+    )
+
+    assert list((await _plan(worker_db, _window(project, {"all": True}))).tasks) == []
+    assert list((await _plan(worker_db, _window(project, {"new": True}))).tasks) == []
+
+
 async def test_a_keyword_that_names_a_schedule_is_left_to_it(
     worker_db: Ledger, migrated: PostgresServer, world: World
 ) -> None:

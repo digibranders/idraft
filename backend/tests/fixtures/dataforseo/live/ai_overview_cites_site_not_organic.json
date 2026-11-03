@@ -1,0 +1,259 @@
+{
+ "status_code": 20000,
+ "tasks": [
+  {
+   "status_code": 20000,
+   "data": {
+    "depth": 100,
+    "device": "desktop",
+    "language_code": "en",
+    "location_code": 2356,
+    "os": "windows"
+   },
+   "result": [
+    {
+     "keyword": "fynix digital",
+     "se_domain": "google.com",
+     "datetime": "2026-11-03 11:26:13 +00:00",
+     "item_types": [
+      "ai_overview",
+      "organic"
+     ],
+     "se_results_count": 122,
+     "items": [
+      {
+       "type": "ai_overview",
+       "rank_group": 1,
+       "rank_absolute": 1,
+       "position": "left",
+       "asynchronous_ai_overview": true,
+       "items": [
+        {
+         "type": "ai_overview_element",
+         "position": "left",
+         "title": null,
+         "text": "Fynix most commonly refers to Fynix.io (operated by Fynix Interactives Private Limited), a software and SaaS company based in Ahmedabad, Gujarat, India, that combines ERP functionality with WhatsApp Cloud API automation and AI chatbots.",
+         "links": null,
+         "references": [
+          {
+           "type": "ai_overview_reference",
+           "position": "left",
+           "source": "LinkedIn India",
+           "domain": "in.linkedin.com",
+           "url": "https://in.linkedin.com/company/fynixio",
+           "title": "Fynix - LinkedIn",
+           "text": "Unlock the full potential of your business with Fynix! \ud83d\ude80 Experience the ultimate blend of ERP functionality and WhatsApp convenie..."
+          },
+          {
+           "type": "ai_overview_reference",
+           "position": "left",
+           "source": "Fynix.io",
+           "domain": "fynix.io",
+           "url": "https://fynix.io/",
+           "title": "Fynix.io \u2013 Elevate Your Workflow with WhatsApp Cloud API",
+           "text": "Core Platform: Fynix.io Meta-based SaaS ERP with 30-day free trial. Capabilities: AI chatbots, advanced analytics, SaaS automation..."
+          }
+         ]
+        },
+        {
+         "type": "ai_overview_element",
+         "position": "left",
+         "title": null,
+         "text": "Depending on the context, \"Fynix Digital\" or related names may also refer to several distinct technology and marketing entities:",
+         "links": null,
+         "references": null
+        },
+        {
+         "type": "ai_overview_element",
+         "position": "left",
+         "title": "1. Fynix.io (Fynix Interactives Pvt. Ltd.)",
+         "text": "Location: Pinnacle Business Park, Corporate Road, Ahmedabad, Gujarat Core Product: A Meta-based SaaS ERP and WhatsApp-integrated business platform featuring automated workflows, 24/7 AI chatbots, CRM tools, and catalog management. Website: Explore features and trials on Fynix.io.",
+         "links": [
+          {
+           "type": "link_element",
+           "title": "Fynix.io",
+           "url": "https://fynix.io/",
+           "domain": "fynix.io"
+          }
+         ],
+         "references": [
+          {
+           "type": "ai_overview_reference",
+           "position": "left",
+           "source": "LinkedIn India",
+           "domain": "in.linkedin.com",
+           "url": "https://in.linkedin.com/company/fynixio",
+           "title": "Fynix - LinkedIn",
+           "text": "Unlock the full potential of your business with Fynix! \ud83d\ude80 Experience the ultimate blend of ERP functionality and WhatsApp convenie..."
+          },
+          {
+           "type": "ai_overview_reference",
+           "position": "left",
+           "source": "Fynix.io",
+           "domain": "fynix.io",
+           "url": "https://fynix.io/",
+           "title": "Fynix.io \u2013 Elevate Your Workflow with WhatsApp Cloud API",
+           "text": "Core Platform: Fynix.io Meta-based SaaS ERP with 30-day free trial. Capabilities: AI chatbots, advanced analytics, SaaS automation..."
+          }
+         ]
+        },
+        {
+         "type": "ai_overview_element",
+         "position": "left",
+         "title": "2. Fynix Digital (B2B Growth & Web Studio)",
+         "text": "Location: Mumbai, India (founded around 2021) Services: UI/UX design, custom web and mobile development, technical SEO/AEO, and B2B tech/cybersecurity lead generation. Website: View case studies at Fynix Digital.",
+         "links": [
+          {
+           "type": "link_element",
+           "title": "Fynix Digital",
+           "url": "https://www.fynix.digital/",
+           "domain": "www.fynix.digital"
+          }
+         ],
+         "references": [
+          {
+           "type": "ai_overview_reference",
+           "position": "left",
+           "source": "LinkedIn India",
+           "domain": "in.linkedin.com",
+           "url": "https://in.linkedin.com/company/fynixofficial",
+           "title": "Fynix Digital | LinkedIn",
+           "text": "Company: Fynix Digital (Mumbai, IN; founded 2021; privately held; 11-50 employees; website https://fynix.digital/) Industry: Adver..."
+          },
+          {
+           "type": "ai_overview_reference",
+           "position": "left",
+           "source": "Fynix Digital",
+           "domain": "www.fynix.digital",
+           "url": "https://www.fynix.digital/",
+           "title": "Fynix Digital | A digital marketing company for Growing Brands",
+           "text": "Company: Fynix Digital (digital marketing and growth studio for B2B and cybersecurity). Services: UI/UX (user research, wireframes..."
+          }
+         ]
+        },
+        {
+         "type": "ai_overview_element",
+         "position": "left",
+         "title": "3. Other Similarly Named Entities",
+         "text": "Fyno Digital Marketing: A digital marketing and AI automation agency based in Chennai, Tamil Nadu. Foinix Digital Services: A digital marketing agency operating out of Hyderabad. Fynix Media / Fynix Global: International performance marketing and AI search optimization teams operating across Southeast Asia.",
+         "links": null,
+         "references": [
+          {
+           "type": "ai_overview_reference",
+           "position": "left",
+           "source": "LinkedIn India",
+           "domain": "in.linkedin.com",
+           "url": "https://in.linkedin.com/company/fyno-digitalmarketing",
+           "title": "Fyno Digital Marketing | LinkedIn",
+           "text": "Company: Fyno Digital Marketing (Chennai, Tamil Nadu; Founded 2024; Size 11-50 employees; HQ Peravallur, Perambur, Chennai 600082)"
+          },
+          {
+           "type": "ai_overview_reference",
+           "position": "left",
+           "source": "Built In",
+           "domain": "builtin.com",
+           "url": "https://builtin.com/company/foinix-digital-services",
+           "title": "Foinix Digital Services Careers, Perks + Culture | Built In",
+           "text": "Foinix Digital Services Save Hyderabad Year Founded: 2023 Agency Digital Media Marketing Tech Social Media SEO Foinix Digital Serv..."
+          },
+          {
+           "type": "ai_overview_reference",
+           "position": "left",
+           "source": "fynixmedia.com",
+           "domain": "fynixmedia.com",
+           "url": "https://fynixmedia.com/blog",
+           "title": "Marketing Blog: Ads, Funnels and AI Search | Fynix Media",
+           "text": "Real notes from the campaigns we run \u2014 not theory. Performance marketing, automation, AI agents, and SEO/AEO/GEO \u2014 written by the ..."
+          },
+          {
+           "type": "ai_overview_reference",
+           "position": "left",
+           "source": "www.fynixglobal.com",
+           "domain": "www.fynixglobal.com",
+           "url": "https://www.fynixglobal.com/products",
+           "title": "Explore Our Products - Fynix",
+           "text": "Fynix also provides full agency services to the brand, from creative campaign design to digital marketing including custom creativ..."
+          }
+         ]
+        },
+        {
+         "type": "ai_overview_element",
+         "position": "left",
+         "title": null,
+         "text": "Are you looking for pricing, contact details, or services for a specific Fynix company or location?",
+         "links": null,
+         "references": null
+        }
+       ],
+       "references": [
+        {
+         "type": "ai_overview_reference",
+         "position": "right",
+         "source": "LinkedIn India",
+         "domain": "in.linkedin.com",
+         "url": "https://in.linkedin.com/company/fyno-digitalmarketing",
+         "title": "Fyno Digital Marketing | LinkedIn",
+         "text": "Company: Fyno Digital Marketing (Chennai, Tamil Nadu; Founded 2024; Size 11-50 employees; HQ Peravallur, Perambur, Chennai 600082). Services: AI-driven digital mar..."
+        },
+        {
+         "type": "ai_overview_reference",
+         "position": "right",
+         "source": "fynixmedia.com",
+         "domain": "fynixmedia.com",
+         "url": "https://fynixmedia.com/blog",
+         "title": "Marketing Blog: Ads, Funnels and AI Search | Fynix Media",
+         "text": "Real notes from the campaigns we run \u2014 not theory. Performance marketing, automation, AI agents, and SEO/AEO/GEO \u2014 written by the Fynix Media team building it for ..."
+        },
+        {
+         "type": "ai_overview_reference",
+         "position": "right",
+         "source": "Built In",
+         "domain": "builtin.com",
+         "url": "https://builtin.com/company/foinix-digital-services",
+         "title": "Foinix Digital Services Careers, Perks + Culture | Built In",
+         "text": "Foinix Digital Services Save Hyderabad Year Founded: 2023 Agency Digital Media Marketing Tech Social Media SEO Foinix Digital Services is a dedicated Digital Marke..."
+        }
+       ]
+      },
+      {
+       "type": "organic",
+       "rank_group": 1,
+       "rank_absolute": 2,
+       "position": "left",
+       "domain": "play.google.com",
+       "title": "FYNIX - Google Play \u092a\u0930 \u0910\u092a\u094d\u0932\u093f\u0915\u0947\u0936\u0928",
+       "url": "https://play.google.com/store/apps/details?id=com.fynix.banking&hl=hi",
+       "breadcrumb": "https://play.google.com \u203a details \u203a i...",
+       "website_name": "Google Play",
+       "description": "FYNIX \u0915\u0947 \u0938\u093e\u0925 \u0905\u092a\u0928\u0947 \u092a\u0948\u0938\u094b\u0902 \u092a\u0930 \u0928\u093f\u092f\u0902\u0924\u094d\u0930\u0923 \u092a\u093e\u090f\u0901, \u092f\u0939 \u090f\u0915 \u0911\u0932-\u0907\u0928-\u0935\u0928 \u092b\u093f\u0928\u091f\u0947\u0915 \u0910\u092a \u0939\u0948 \u091c\u094b \u0906\u092a\u0915\u094b \u092a\u0948\u0938\u0947 \u092d\u0947\u091c\u0928\u0947 \u0914\u0930\u00a0... Read more"
+      },
+      {
+       "type": "organic",
+       "rank_group": 2,
+       "rank_absolute": 3,
+       "position": "left",
+       "domain": "in.linkedin.com",
+       "title": "Fyno Digital Marketing",
+       "url": "https://in.linkedin.com/company/fyno-digitalmarketing",
+       "breadcrumb": "510+ followers",
+       "website_name": "LinkedIn\u00a0\u00b7\u00a0Fyno Digital Marketing",
+       "description": "As an AI-Driven Digital Marketing Agency in Chennai, we combine creativity, data, and technology to deliver campaigns that actually bring results."
+      },
+      {
+       "type": "organic",
+       "rank_group": 3,
+       "rank_absolute": 4,
+       "position": "left",
+       "domain": "play.google.com",
+       "title": "Fynix \u2013 Apps on Google Play",
+       "url": "https://play.google.com/store/apps/details?id=com.fynix.app&hl=en_IN",
+       "breadcrumb": "https://play.google.com \u203a store \u203a apps \u203a details \u203a id=com...",
+       "website_name": "Google Play",
+       "description": "8 May 2023 \u2014 Fynix is an in-house haulage management app. Fynix is a haulage management app that handles drivers, trucks, clients and trips for the company.\u00a0..."
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

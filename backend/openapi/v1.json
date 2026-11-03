@@ -6243,6 +6243,18 @@
             "description": "Null when `state` is `not_checked`.",
             "title": "Depth Requested"
           },
+          "depth_returned": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How far down the provider's answer reached. Below `depth_requested` when Google gave fewer results: `beyond_depth` then means not among those, and the cell is best read as `>depth_returned`. Null when unknown.",
+            "title": "Depth Returned"
+          },
           "observed_at": {
             "anyOf": [
               {
@@ -11484,6 +11496,12 @@
           },
           "current": {
             "$ref": "#/components/schemas/RankCell"
+          },
+          "drop_unconfirmed": {
+            "default": false,
+            "description": "The last check did not find a keyword that ranked before, and it is the only one in a row that did not. A SERP moves between readings, so the drop is not treated as final until a second check also misses (docs/09 section 4.1). The flag says what the rank rules know, not that a check is queued.",
+            "title": "Drop Unconfirmed",
+            "type": "boolean"
           },
           "feature_types_present": {
             "description": "On the first page of results.",

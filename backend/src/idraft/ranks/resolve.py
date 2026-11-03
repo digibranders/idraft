@@ -135,7 +135,8 @@ def resolve_serp(
     ] = {entity_id: [] for entity_id in kept}
     # A grouped sub-result shares its parent's rank and is not another rank; the observation
     # keeps one URL for each rank (docs/04, `all_url_ids`).
-    unattributed = 0
+    # Results whose address could not be read at all hold a rank too: any of them may be own.
+    unattributed = sum(1 for rank in serp.unreadable_ranks if rank <= depth_requested)
     for result in serp.organic:
         if result.organic_rank > depth_requested:
             continue  # beyond the depth requested: not looked for, never read
@@ -311,9 +312,9 @@ def _page_one_limit(serp: NormalizedSerp) -> int | None:
     first page. None when the page has no tenth result, and then all of it is page one. A tenth
     result with no absolute rank (the right column) gives way to the last of the first ten that
     has one."""
-    first_page = [result for result in serp.organic if result.organic_rank <= PAGE_ONE]
-    if len(first_page) < PAGE_ONE:
+    if serp.depth_returned < PAGE_ONE:
         return None
+    first_page = [result for result in serp.organic if result.organic_rank <= PAGE_ONE]
     numbered = [r.absolute_rank for r in first_page if r.absolute_rank is not None]
     return max(numbered) if numbered else None
 

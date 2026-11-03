@@ -28,7 +28,7 @@ from typing import Any, Final, Literal
 
 from idraft.extraction.urls import CanonicalUrl, UrlRejectedError, canonicalize, has_known_suffix
 
-PARSER_VERSION: Final = 3
+PARSER_VERSION: Final = 4
 # What a result shows in place of its address: the origin, then the path pieces, each after a
 # single right-pointing angle quotation mark (U+203A).
 _CRUMB_SEPARATOR: Final = "›"  # noqa: RUF001
@@ -60,6 +60,8 @@ _PLATFORMS: Final[Mapping[str, str]] = {
 # measures: `json.dumps` with its default separators writes the same text.
 PAYLOAD_MAX_BYTES: Final = 4096
 NO_RESULTS_STATUS: Final = 40102
+# The deepest a check can be (the snapshot table's limit): a rank above it is not a rank.
+ORGANIC_RANK_MAX: Final = 700
 
 AiOverviewState = Literal["absent", "present", "present_async_loaded", "present_not_loaded"]
 CitationKind = Literal["reference_card", "inline"]
@@ -128,7 +130,9 @@ class Rating:
 
 @dataclass(frozen=True, slots=True)
 class OrganicResult:
-    organic_rank: int  # canonical: 1 for the first organic result, in order, without gaps
+    # The provider's `rank_group`: 1 for the first organic result. Not renumbered; a result we
+    # dropped leaves a gap.
+    organic_rank: int
     absolute_rank: int | None  # None for a right-column item
     url: CanonicalUrl
     title: str | None
@@ -203,10 +207,13 @@ class NormalizedSerp:
     warnings: tuple[str, ...]  # repairs and oddities, one entry for each occurrence
     # None when the answer does not echo the task (reported as `request_echo_missing`).
     request: RequestEcho | None = None
-
-    @property
-    def depth_returned(self) -> int:
-        return len(self.organic)
+    # Ranks of organic results that were not read (no usable address, or a second result at a
+    # rank already taken): a site may stand at any of them.
+    unreadable_ranks: tuple[int, ...] = ()
+    # How far down the answer reaches: the highest organic rank the provider sent, kept or not.
+    # Fewer than were asked for means the provider had no more to give; it is not a count of
+    # results.
+    depth_returned: int = 0
 
 
 def parse_serp(body: bytes | Mapping[str, Any]) -> NormalizedSerp:
@@ -249,6 +256,8 @@ def parse_serp(body: bytes | Mapping[str, Any]) -> NormalizedSerp:
         features=tuple(builder.features),
         ai_overview=builder.ai_overview(),
         warnings=tuple(builder.warnings),
+        unreadable_ranks=tuple(builder.unreadable),
+        depth_returned=builder.reached,
     )
 
 
@@ -442,6 +451,8 @@ class _Builder:
 
     def __init__(self) -> None:
         self.warnings: list[str] = []
+        self.unreadable: list[int] = []
+        self.reached = 0
         self.features: list[SerpFeature] = []
         self.seen_types: list[str] = []
         self._organic: list[Mapping[str, Any]] = []
@@ -617,22 +628,34 @@ class _Builder:
         return None
 
     def finish_organic(self) -> tuple[OrganicResult, ...]:
-        """The organic list (doc 06 section 5.2): ranks checked, URLs canonical, duplicates
-        dropped, ranks dense from 1. Dense ranks are the invariant of doc 12; when a gap in the
-        provider's ranks, or a result dropped before a later one, moves a result off the rank the
-        provider gave it, that is reported as `rank_recomputed`."""
-        given = [
-            _strict_int(item.get("rank_group"), "items[].rank_group") for item in self._organic
-        ]
-        recomputed = given != list(range(1, len(given) + 1))
+        """The organic list (doc 06 section 5.2): URLs canonical, duplicates dropped, each result
+        at the `rank_group` the provider gave it. A result that is dropped (a repeat of an earlier
+        URL, an address that cannot be read) leaves its rank empty; the ranks after it do not move
+        up, because a site's rank is the provider's position, not its place in what we kept. The
+        ranks of results whose address could not be read are kept in `unreadable_ranks`: the site
+        may be one of them."""
         results: list[OrganicResult] = []
         seen: set[bytes] = set()
-        for item, provider_rank in zip(self._organic, given, strict=True):
+        taken: set[int] = set()
+        # The left column first, so a right-column item at the same rank never takes its place.
+        for item in sorted(self._organic, key=lambda found: found.get("position") == "right"):
+            organic_rank = _organic_rank(item)
+            self.reached = max(self.reached, organic_rank)
+            if organic_rank in taken:
+                # Two results at one rank: the first stays. The other cannot be told apart from an
+                # own result, unless it is in the right column, which is no part of the list.
+                self.warnings.append("rank_collision")
+                if item.get("position") != "right" and organic_rank not in self.unreadable:
+                    self.unreadable.append(organic_rank)
+                continue
+            taken.add(organic_rank)
             url_warnings: list[str] = []
             url = _url(_strict_str(item.get("url"), "items[].url"), url_warnings)
             if url is None:
                 self.warnings.extend(url_warnings)
                 self.warnings.append("organic_without_url")
+                if organic_rank not in self.unreadable:
+                    self.unreadable.append(organic_rank)
                 continue
             site = _hidden_site(item) if "unresolved_redirect" in url.flags else None
             if site is not None:
@@ -654,9 +677,6 @@ class _Builder:
                 ]
             )
             links = _mappings(item.get("links"))
-            organic_rank = len(results) + 1
-            if provider_rank != organic_rank:
-                recomputed = True
             if links:
                 self._sitelinks(item, url, len(links), organic_rank)
             results.append(
@@ -676,8 +696,8 @@ class _Builder:
                     recovered=site is not None,
                 )
             )
-        if recomputed:
-            self.warnings.append("rank_recomputed")
+        results.sort(key=lambda result: result.organic_rank)
+        self.unreadable.sort()
         self._finish_ads(results)
         return tuple(results)
 
@@ -734,6 +754,18 @@ class _Builder:
 
 def _placeholder() -> SerpFeature:
     return SerpFeature("ads", 1, None, (), None)
+
+
+def _organic_rank(item: Mapping[str, Any]) -> int:
+    """The provider's position of an organic result among the organic results (`rank_group`),
+    read strictly: a rank that is missing or not a whole number from 1 fails the parse rather than
+    being invented from the order of the answer."""
+    rank = _strict_int(item.get("rank_group"), "items[].rank_group")
+    if rank is None or not 1 <= rank <= ORGANIC_RANK_MAX:
+        raise SerpSchemaMismatchError(
+            "tasks[].result[].items[].rank_group", f"an integer from 1 to {ORGANIC_RANK_MAX}"
+        )
+    return rank
 
 
 def _organic_absolute(item: Mapping[str, Any]) -> int | None:

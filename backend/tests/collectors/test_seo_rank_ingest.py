@@ -305,6 +305,49 @@ async def test_a_check_that_cannot_tell_if_the_site_is_absent_keeps_history_and_
     assert await _events(migrated, keyword) == events
 
 
+async def test_a_dropped_duplicate_leaves_a_gap_and_the_own_rank_is_the_providers(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    keyword = await track(migrated, world.project)
+    store = MemoryStore()
+    # Rank 2 repeats rank 1 and is dropped; the own site is the provider's third result.
+    urls = [other(1), other(1) + "#again", own(), other(4)]
+    await fetched_task(worker_db, migrated, world, keyword, answer(urls), store)
+
+    assert await ingest(worker_db, store) == IngestReport(ingested=1)
+
+    state = await _state(migrated, keyword)
+    assert state["current_rank"] == 3
+    (snapshot,) = await _rows(migrated, "seo.serp_snapshots", keyword, "id")
+    assert snapshot["depth_returned"] == 4
+    assert [snapshot["organic_url_ids"][i] is None for i in range(4)] == [False, True, False, False]
+    assert len(snapshot["organic_url_ids"]) == len(snapshot["organic_abs_positions"]) == 4
+    assert snapshot["organic_abs_positions"][2] == 3
+    assert [
+        row["organic_rank"]
+        for row in await _rows(migrated, "seo.serp_current_results", keyword, "organic_rank")
+    ] == [1, 3, 4]
+
+
+async def test_a_project_without_a_tracked_own_entity_does_not_report_its_keywords_as_unranked(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    keyword = await track(migrated, world.project)
+    await execute(
+        migrated,
+        "UPDATE core.project_entities SET track_seo = false WHERE project_id = $1 AND role = 'own'",
+        world.project.id,
+    )
+    store = MemoryStore()
+    await fetched_task(worker_db, migrated, world, keyword, answer(results(own_at=3)), store)
+
+    assert await ingest(worker_db, store) == IngestReport(ingested=1)
+
+    assert await _rows(migrated, "seo.tracked_keyword_state", keyword, "tracked_keyword_id") == []
+    (snapshot,) = await _rows(migrated, "seo.serp_snapshots", keyword, "id")
+    assert json.loads(snapshot["extras"])["inconclusive"] == {"reason": "no_own_entity"}
+
+
 async def test_a_first_check_that_cannot_tell_leaves_the_keyword_without_a_rank(
     worker_db: Ledger, migrated: PostgresServer, world: World
 ) -> None:

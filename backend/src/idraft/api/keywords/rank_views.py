@@ -117,6 +117,7 @@ def state_view(record: StateRecord | None) -> TrackedKeywordState:
                 "rank": record.current_rank,
                 "absolute_rank": record.current_absolute_rank,
                 "depth_requested": record.current_depth_requested,
+                "depth_returned": record.current_depth_returned,
                 "url": url_ref(record.current_url),
                 "observed_at": record.last_observed_at,
                 "serp_snapshot_id": None
@@ -154,6 +155,10 @@ def state_view(record: StateRecord | None) -> TrackedKeywordState:
         is_stale=record.is_stale,
         last_observed_at=record.last_observed_at,
         ranking_url_count=record.ranking_url_count,
+        drop_unconfirmed=checked
+        and record.current_rank is None
+        and record.last_ranked_rank is not None
+        and record.consecutive_beyond == 1,
     )
 
 

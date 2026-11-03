@@ -729,3 +729,16 @@ Independent review (Sonnet) found, and this pass fixed: the confirmation guard r
 | F102 | Existing stored states were collected before these changes and keep their values until the next check | run a check of all keywords after deploy |
 | F103 | Hidden results above a found own rank can hide a better own page, so that rank is an upper bound; it is not marked | with F99 |
 | F104 | Re-ingest does not repair old snapshots (a bumped parser version applies to new rows only) | none needed |
+
+### Rank accuracy: provider ranks kept, coverage and unconfirmed drops in the API (2026-11-03)
+
+Full audit in `docs/SEO_DATA_ACCURACY_AUDIT.md`. Live checks (about 0.21 USD) showed the parser renumbered organic results from the kept list, so a dropped repeat moved every later result up a rank; and that the provider often returns far fewer results than the depth asked for (36 to 99 of 100), which the API did not say.
+
+Changed (backend only, no migration): parser version 4 keeps `rank_group` and leaves gaps (ranks no longer depend on which results were kept); unreadable organic results make an absent own side inconclusive; snapshot arrays are positional with NULL slots; `RankCell.depth_returned` and `TrackedKeywordState.drop_unconfirmed` (closes the confirmation part of F100); a project with no own entity that tracks SEO stores inconclusive snapshots instead of unranked states.
+
+| Id | Item | Plan |
+|---|---|---|
+| F105 | Snapshots written by parser versions 1 to 3 with the warning `rank_recomputed` hold ranks that may be too good | find them with the audit's appendix query, re-check those keywords |
+| F106 | The web app still prints `>depth_requested` and ignores `drop_unconfirmed` | UI session: use `depth_returned`, mark unconfirmed drops |
+| F107 | A project's `primary_domain` is not checked against its own entity's domain rules | validate on project update; find existing cases with the audit's appendix query |
+| F108 | Standalone AI answer collection (`ai_prompt`, `ai_mode_keyword`) has workload names only, no collector | build per docs/07 |

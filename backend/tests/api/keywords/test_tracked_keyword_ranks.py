@@ -140,6 +140,7 @@ async def test_a_keyword_never_checked_is_not_checked_and_has_a_first_check_chan
             "rank": None,
             "absolute_rank": None,
             "depth_requested": None,
+            "depth_returned": None,
             "url": None,
             "observed_at": None,
             "serp_snapshot_id": None,
@@ -197,6 +198,91 @@ async def test_a_keyword_beyond_the_depth_is_beyond_depth_not_unranked(
     assert row["state"]["current"]["state"] == "beyond_depth"
     assert row["state"]["current"]["rank"] is None
     assert row["state"]["current"]["depth_requested"] == 20
+
+
+async def test_a_check_that_reached_less_far_than_asked_says_how_far_it_reached(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _world(resources, migrated)
+    tracked = await tracked_id(api, workspace, project, owner, "crm")
+    # Twenty were asked for; the provider had 12 to give and the site is not among them.
+    await _check(worker_db, migrated, world, tracked, _results(None, total=12))
+
+    (row,) = await _list(api, workspace, project, owner)
+
+    current = row["state"]["current"]
+    assert (current["state"], current["depth_requested"], current["depth_returned"]) == (
+        "beyond_depth",
+        20,
+        12,
+    )
+
+
+async def test_a_rank_lost_at_one_check_is_flagged_as_not_yet_confirmed(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _world(resources, migrated)
+    tracked = await tracked_id(api, workspace, project, owner, "crm")
+    await _check(worker_db, migrated, world, tracked, _results(5), days_ago=2)
+    await _check(worker_db, migrated, world, tracked, _results(None), days_ago=1)
+
+    (row,) = await _list(api, workspace, project, owner)
+    assert row["state"]["current"]["state"] == "beyond_depth"
+    assert row["state"]["drop_unconfirmed"] is True
+
+    # A second check that still cannot find it stands.
+    await _check(worker_db, migrated, world, tracked, _results(None))
+    (row,) = await _list(api, workspace, project, owner)
+    assert row["state"]["drop_unconfirmed"] is False
+
+
+async def test_a_snapshot_with_an_empty_rank_slot_lists_the_other_results_at_their_ranks(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _world(resources, migrated)
+    tracked = await tracked_id(api, workspace, project, owner, "crm")
+    # Rank 2 repeats rank 1, so its slot stays empty; the own site is the provider's third.
+    urls = [
+        "https://elsewhere-1.example/page",
+        "https://elsewhere-1.example/page#again",
+        f"https://www.{OWN_HOST}/pricing",
+    ]
+    await _check(worker_db, migrated, world, tracked, urls)
+
+    (row,) = await _list(api, workspace, project, owner)
+    snapshot = row["state"]["current"]["serp_snapshot_id"]
+    detail = await api.get(
+        project_url(workspace, project, "serp-snapshots", snapshot), headers=owner.headers
+    )
+
+    assert detail.status_code == 200, detail.text
+    organic = detail.json()["data"]["organic"]
+    assert [item["organic_rank"] for item in organic] == [1, 3]
+    assert organic[1]["entity"]["canonical_name"] == "Acme"
+    assert row["state"]["current"]["rank"] == 3
+
+
+async def test_a_keyword_that_never_ranked_has_no_drop_to_confirm(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _world(resources, migrated)
+    tracked = await tracked_id(api, workspace, project, owner, "crm")
+    await _check(worker_db, migrated, world, tracked, _results(None))
+
+    (row,) = await _list(api, workspace, project, owner)
+    assert row["state"]["drop_unconfirmed"] is False
 
 
 @pytest.fixture

@@ -253,6 +253,12 @@ class RankCell(BaseModel):
     rank: int | None = Field(description="The organic rank; null unless `state` is `ranked`.")
     absolute_rank: int | None
     depth_requested: int | None = Field(description="Null when `state` is `not_checked`.")
+    depth_returned: int | None = Field(
+        default=None,
+        description="How far down the provider's answer reached. Below `depth_requested` when "
+        "Google gave fewer results: `beyond_depth` then means not among those, and the cell is "
+        "best read as `>depth_returned`. Null when unknown.",
+    )
     url: UrlRef | None
     observed_at: datetime | None
     serp_snapshot_id: str | None
@@ -294,6 +300,13 @@ class TrackedKeywordState(BaseModel):
     is_stale: bool
     last_observed_at: datetime | None
     ranking_url_count: int = Field(description="Own URLs that ranked at the last check.")
+    drop_unconfirmed: bool = Field(
+        default=False,
+        description="The last check did not find a keyword that ranked before, and it is the "
+        "only one in a row that did not. A SERP moves between readings, so the drop is not "
+        "treated as final until a second check also misses (docs/09 section 4.1). The flag "
+        "says what the rank rules know, not that a check is queued.",
+    )
 
 
 class SparklinePoint(BaseModel):
