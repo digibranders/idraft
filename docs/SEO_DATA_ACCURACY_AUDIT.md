@@ -185,7 +185,7 @@ Web app (`platform/apps/web`):
 | `drop_unconfirmed` shows a mark and a sentence in the tooltip; a queued or processing check shows a mark ("check in progress"); an inconclusive latest check shows a mark | same files, strings in `messages/en.json` |
 | Check now is disabled for a selection that holds a keyword with a check on its way, and a `409 check_pending` shows its own message | `check-now/check-now-model.ts`, `use-check-now.tsx`, `rankings-screen.tsx` |
 | The keyword list is read again every 20 seconds while any row has a check queued or processing | `rankings-queries.ts` |
-| New column "Tracked as" (device, location, language) after the ranking URL, so look-alike rows differ | `keyword-columns.tsx` |
+| Two new columns, "Device" (Desktop or Mobile) and "Location", after the ranking URL, so look-alike rows differ (the language stays in the keyword cell's tooltip) | `keyword-columns.tsx` |
 | Types regenerated with the project's own `pnpm gen:api` from the regenerated `backend/openapi/v1.json` | `src/lib/api/schema.ts`, `types.ts` |
 | Mocks and test shapes carry the new fields; the quota text says manual checks | `src/mocks`, `src/test/api-shapes.ts` |
 
@@ -195,7 +195,7 @@ Web app (`platform/apps/web`):
 
 - Backend: the planner builds standard tasks for a Check now selector; the worker end to end sends a Check now run through the standard queue (one post, one fetch, no live call, rank 3 stored, one raw payload) and keeps a live diagnostic run as a snapshot with no state; a manual and a scheduled check of the same answer give the same state, snapshot arrays and observations; a later check, a live diagnostic and an inconclusive check leave every earlier snapshot and observation byte for byte as it was; the API reports each ledger status as the right progress and refuses a second check without writing a second run.
 - Real captured answers used as fixtures (trimmed, in `backend/tests/fixtures/dataforseo/live/`): four standard-queue answers for `fynix digital` and `fynix` taken today. Ingested through the real pipeline into a test database and read through the real API.
-- Web: the cells, tooltips, check marks, the "Tracked as" column, the Check now model and the pending refusal, and the states the API returned for the Fynix readings.
+- Web: the cells, tooltips, check marks, the Device and Location columns, the Check now model and the pending refusal, and the states the API returned for the Fynix readings.
 
 **Live DataForSEO validation** (real calls, standard queue, request body built by the app's own `SerpOrganicParams` and `task_body`; India, desktop, depth 100; about 0.025 USD in this pass):
 
@@ -210,7 +210,7 @@ Through the API (test database, real pipeline): `fynix digital` reads `ranked` a
 
 What this does and does not show: the pipeline now stores and displays exactly what the provider returned, and the same request returns different SERPs hours apart (also on the standard queue). It does not show which reading matches Google at a given moment.
 
-Dashboard display: shown by web tests that render the cells from the states above (`standard-queue-display.test.tsx`), not by a live browser session against a real backend. The Playwright Rankings flow ran against the mock API: 16 of 19 passed, including the Check now and rank features flow. Three fail, and fail the same way on the committed code without these changes (their expectations of which columns hide below 1680 px predate the owner's 2026-10-30 rule that every column shows at every width). The visual regression baselines were not run or updated (they need the pinned Playwright image); the new column changes them.
+Dashboard display: shown by web tests that render the cells from the states above (`standard-queue-display.test.tsx`), not by a live browser session against a real backend. The Playwright Rankings flow ran against the mock API: 16 of 19 passed, including the Check now and rank features flow. Three fail, and fail the same way on the committed code without these changes (their expectations of which columns hide below 1680 px predate the owner's 2026-10-30 rule that every column shows at every width). The visual regression baselines were not run or updated (they need the pinned Playwright image); the new columns change them.
 
 ### J3. Historical data
 
