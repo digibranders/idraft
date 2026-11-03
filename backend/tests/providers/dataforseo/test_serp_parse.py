@@ -184,7 +184,7 @@ def test_serp_org_04e_an_address_that_cannot_be_read_stays_hidden_and_flagged() 
                     1,
                     GOTO,
                     breadcrumb="510+ followers",
-                    website_name="LinkedIn · Fyno Digital Marketing",
+                    website_name="Somesite · Fyno Digital Marketing",
                 )
             ]
         )
@@ -194,6 +194,37 @@ def test_serp_org_04e_an_address_that_cannot_be_read_stays_hidden_and_flagged() 
     assert result.recovered is False
     assert "unresolved_redirect" in result.url.flags
     assert parsed.warnings == ("unresolved_redirect",)
+
+
+@pytest.mark.parametrize(
+    ("website_name", "host"),
+    [
+        ("LinkedIn\xa0\u00b7\xa0Fyno Digital Marketing", "linkedin.com"),
+        ("Instagram\xa0\u00b7\xa0stewdigitalsolutionspvtltd", "instagram.com"),
+        ("Facebook \u00b7 Fynix.ai", "facebook.com"),
+        ("YouTube\xa0\u00b7\xa0Umar Tazkeer", "youtube.com"),
+        ("X", "x.com"),
+        ("Quora", "quora.com"),
+    ],
+)
+def test_serp_org_04h_a_social_post_is_read_back_as_its_platform(
+    website_name: str, host: str
+) -> None:
+    parsed = parse_serp(
+        serp([organic(1, GOTO, breadcrumb="510+ followers", website_name=website_name)])
+    )
+
+    assert parsed.organic[0].url.host.name == host
+    assert parsed.organic[0].recovered is True
+    assert parsed.warnings == ("redirect_site_recovered",)
+
+
+def test_serp_org_04i_an_unknown_platform_name_stays_hidden() -> None:
+    parsed = parse_serp(
+        serp([organic(1, GOTO, breadcrumb="2 likes", website_name="Somesite \u00b7 account")])
+    )
+
+    assert parsed.organic[0].recovered is False
 
 
 def test_serp_org_04g_a_product_name_that_looks_like_a_host_is_not_a_site() -> None:
