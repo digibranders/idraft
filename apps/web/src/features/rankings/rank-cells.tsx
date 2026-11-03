@@ -430,8 +430,8 @@ export function useRankTips(timeZone: string): RankTips {
               break;
             }
             const rest = [
-              display.depth < display.requested
-                ? t('partialCoverage', { returned: display.depth, requested: display.requested })
+              display.returned !== null
+                ? t('partialCoverage', { returned: display.returned, requested: display.depth })
                 : undefined,
               display.unconfirmed ? t('unconfirmedTooltip') : undefined,
               previous(previousRank),

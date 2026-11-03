@@ -5,6 +5,8 @@ import { expect, test, type Locator } from '@playwright/test';
 import { expectAccessible, signIn } from '../support';
 
 const EDITOR = 'priya@digibranders.test';
+/** The mock keywords are tracked in two countries: the table opens on all of them. */
+const KEYWORDS = '/digibranders/fynix/seo/keywords?loc=0';
 
 /** The header of the column `name`: its accessible name is the label and the name of its options button. */
 function headerOf(grid: Locator, name: string): Locator {
@@ -67,11 +69,15 @@ test.describe('rankings', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
     await page.goto('/digibranders/fynix');
-    await expect(page).toHaveURL(/\/digibranders\/fynix\/seo\/keywords$/);
+    await expect(page).toHaveURL(/\/digibranders\/fynix\/seo\/keywords(\?.*)?$/);
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
-    await expect(grid.getByRole('rowheader').first()).toContainText('seo agency');
-    await expect(page.getByText('59 keywords', { exact: true }).first()).toBeVisible();
+    await expect(grid.getByRole('rowheader').first()).toBeVisible();
+    // The table opens on the project's own country, here Germany
+    await expect(page.getByRole('combobox', { name: 'Country: Germany' })).toBeVisible();
     await expectAccessible(page);
+    // The counts below are of every country
+    await page.goto(KEYWORDS);
+    await expect(grid.getByRole('rowheader').first()).toBeVisible();
 
     // Intent: Commercial through the chip editor
     await page.getByRole('button', { name: 'Add a filter' }).click();
@@ -81,7 +87,7 @@ test.describe('rankings', () => {
     await page.getByRole('dialog').getByRole('button', { name: 'Apply' }).click();
     await expect(page).toHaveURL(/[?&]intent=commercial/);
     await expect(page.getByRole('button', { name: 'Intent: Commercial. Edit filter' })).toBeVisible();
-    await expect(page.getByText('24 keywords', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('23 keywords', { exact: true }).first()).toBeVisible();
 
     // The archived view, kept across a reload
     await page.getByRole('button', { name: 'Remove filter Intent: Commercial' }).click();
@@ -96,9 +102,9 @@ test.describe('rankings', () => {
   test('Rank shows for the keywords, sorts by rank, and filters by a bucket', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/keywords');
+    await page.goto(KEYWORDS);
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
-    await expect(headerOf(grid, 'Rank')).toBeVisible();
+    await expect(headerOf(grid, 'Desktop')).toBeVisible();
     // Ranked keywords show a number and an arrow, a keyword beyond the depth shows the depth it was checked at,
     // and the one still waiting for its first check says so
     await expect(grid.getByText(/^[↑↓]\d+$/).first()).toBeVisible();
@@ -108,10 +114,10 @@ test.describe('rankings', () => {
     await expectAccessible(page);
 
     // Best rank first, and the keywords with no rank last
-    await grid.getByRole('button', { name: 'Rank', exact: true }).click();
-    await expect(headerOf(grid, 'Rank')).toHaveAttribute('aria-sort', 'ascending');
+    await grid.getByRole('button', { name: 'Desktop', exact: true }).click();
+    await expect(headerOf(grid, 'Desktop')).toHaveAttribute('aria-sort', 'ascending');
     await expect(page).toHaveURL(/[?&]sort=current_rank/);
-    const places = await columnOf(grid, 'Rank', { visible: true });
+    const places = await columnOf(grid, 'Desktop', { visible: true });
     const parseRank = (text: string): number | null => {
       const match = text.match(/^(\d+)/);
       return match ? Number(match[1]) : null;
@@ -128,8 +134,8 @@ test.describe('rankings', () => {
     await page.getByRole('dialog').getByRole('radio', { name: '4 to 10' }).click();
     await expect(page).toHaveURL(/[?&]rank=top10/);
     await expect(page.getByRole('button', { name: 'Rank: 4 to 10. Edit filter' })).toBeVisible();
-    await expect.poll(async () => (await columnOf(grid, 'Rank')).length).toBeGreaterThan(0);
-    const inRange = (await columnOf(grid, 'Rank', { visible: true })).map((text) => parseInt(text, 10));
+    await expect.poll(async () => (await columnOf(grid, 'Desktop')).length).toBeGreaterThan(0);
+    const inRange = (await columnOf(grid, 'Desktop', { visible: true })).map((text) => parseInt(text, 10));
     expect(inRange.every((place) => place >= 4 && place <= 10)).toBe(true);
     await expectAccessible(page);
   });
@@ -137,13 +143,13 @@ test.describe('rankings', () => {
   test('clicking the Rank header sorts and the chevron opens the column menu at 1440 px', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/keywords');
+    await page.goto(KEYWORDS);
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
     await expect(grid.getByRole('rowheader').first()).toBeVisible();
-    const rankHeader = headerOf(grid, 'Rank');
+    const rankHeader = headerOf(grid, 'Desktop');
     await expect(rankHeader).toBeVisible();
 
-    const chevron = rankHeader.getByRole('button', { name: 'Rank column options' });
+    const chevron = rankHeader.getByRole('button', { name: 'Desktop column options' });
     const chevronWrapper = chevron.locator('..');
     // Chevron is invisible until hovered
     await expect(chevronWrapper).toHaveCSS('opacity', '0');
@@ -151,7 +157,7 @@ test.describe('rankings', () => {
     await expect(chevronWrapper).toHaveCSS('opacity', '1');
 
     // Click to sort by Rank ascending
-    const sortBtn = rankHeader.getByRole('button', { name: 'Rank', exact: true });
+    const sortBtn = rankHeader.getByRole('button', { name: 'Desktop', exact: true });
     await sortBtn.click();
     await expect(rankHeader).toHaveAttribute('aria-sort', 'ascending');
 
@@ -182,7 +188,7 @@ test.describe('rankings', () => {
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/keywords');
+    await page.goto(KEYWORDS);
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
     await expect(grid.getByRole('rowheader').first()).toBeVisible();
 
@@ -306,7 +312,7 @@ test.describe('rankings', () => {
     page,
   }) => {
     await signIn(page, EDITOR);
-    const RANK = ['Rank', 'Volume', 'KD', 'CPC (USD)', 'AI Overview'];
+    const RANK = ['Desktop', 'Volume', 'KD', 'CPC (USD)', 'AI Overview'];
     for (const [width, columns, room, updated] of [
       [1280, RANK, 250, false],
       // Capital headers need wider columns (12-tables.md section 5), so the Keyword column is at its 200 px minimum here
@@ -320,7 +326,7 @@ test.describe('rankings', () => {
       ],
     ] as const) {
       await page.setViewportSize({ width, height: 900 });
-      await page.goto('/digibranders/fynix/seo/keywords');
+      await page.goto(KEYWORDS);
       const grid = page.getByRole('grid', { name: 'Tracked keywords' });
       await expect(grid.getByRole('rowheader').first()).toBeVisible();
       for (const name of columns) {
@@ -333,11 +339,11 @@ test.describe('rankings', () => {
       if (keyword === null) throw new Error('The Keyword header has no box');
       expect(keyword.width).toBeGreaterThanOrEqual(room);
       // The header of each column shows its whole name, not cut short, and Rank keeps at least 96 px at any width
-      for (const name of ['Rank']) {
+      for (const name of ['Desktop']) {
         const label = headerOf(grid, name).locator('.truncate').first();
         expect(await label.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
       }
-      const rankBox = await headerOf(grid, 'Rank').boundingBox();
+      const rankBox = await headerOf(grid, 'Desktop').boundingBox();
       expect(rankBox?.width ?? 0).toBeGreaterThanOrEqual(96);
     }
   });
@@ -348,13 +354,13 @@ test.describe('rankings', () => {
     await signIn(page, EDITOR);
     for (const width of [1280, 1680]) {
       await page.setViewportSize({ width, height: 900 });
-      await page.goto('/digibranders/fynix/seo/keywords');
+      await page.goto(KEYWORDS);
       const grid = page.getByRole('grid', { name: 'Tracked keywords' });
       await expect(grid.getByRole('rowheader').first()).toBeVisible();
 
       // The API flags four fixture keywords stale: one has a rank, one a rank and failed checks since, one never
       // had a good check. Each says so in its Rank cell, however narrow the table; Updated shows it from 1680 px
-      const ranks = await columnOf(grid, 'Rank');
+      const ranks = await columnOf(grid, 'Desktop');
       expect(ranks.filter((text) => text.includes('stale'))).toHaveLength(4);
       expect(ranks.filter((text) => text.includes('last check failed'))).toHaveLength(1);
       await expect(headerOf(grid, 'Updated')).toHaveCount(width >= 1680 ? 1 : 0);
@@ -440,7 +446,7 @@ test.describe('rankings', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/keywords');
+    await page.goto(KEYWORDS);
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
     await expect(grid.getByRole('rowheader').first()).toBeVisible();
 
@@ -492,19 +498,19 @@ test.describe('rankings', () => {
   test('a keyword opens in the inspector, steps with J, and saves a setting in place', async ({ page }) => {
     await page.setViewportSize({ width: 1680, height: 1000 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/keywords');
+    await page.goto(KEYWORDS);
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
     await grid.getByRole('rowheader').first().click();
     const inspector = page.getByRole('complementary', { name: 'seo agency' });
     await expect(inspector).toBeVisible();
     await expect(page).toHaveURL(/[?&]inspect=keyword%3A|[?&]inspect=keyword:/);
-    await expect(inspector.getByText('1 of 59')).toBeVisible();
+    await expect(inspector.getByText('1 of 58')).toBeVisible();
     await expect(inspector.getByRole('heading', { name: 'Search volume by month' })).toBeVisible();
     await expectAccessible(page);
 
     await page.keyboard.press('j');
     const next = page.getByRole('complementary', { name: 'backlink checker' });
-    await expect(next.getByText('2 of 59')).toBeVisible();
+    await expect(next.getByText('2 of 58')).toBeVisible();
 
     await next.getByRole('button', { name: 'Edit Tracking' }).click();
     await next.getByRole('combobox', { name: 'Priority' }).click();
@@ -518,7 +524,7 @@ test.describe('rankings', () => {
   test('a setting saved in the inspector is still there after a reload', async ({ page }) => {
     await page.setViewportSize({ width: 1680, height: 1000 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/keywords');
+    await page.goto(KEYWORDS);
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
     await grid.getByRole('rowheader').first().click();
     const inspector = page.getByRole('complementary', { name: 'seo agency' });
@@ -538,9 +544,9 @@ test.describe('rankings', () => {
   test('chosen keywords get a new priority from the bulk bar', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/keywords');
-    await page.getByRole('checkbox', { name: 'Select seo agency, desktop, United States', exact: true }).click();
-    await page.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', exact: true }).click();
+    await page.goto(KEYWORDS);
+    await page.getByRole('checkbox', { name: 'Select seo agency, United States', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select backlink checker, Germany', exact: true }).click();
     const bar = page.getByRole('group', { name: /Bulk actions/ });
     await expect(bar.getByText('2 selected')).toBeVisible();
     await bar.getByRole('button', { name: 'Set priority' }).click();
@@ -558,11 +564,11 @@ test.describe('rankings', () => {
   }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/keywords');
+    await page.goto(KEYWORDS);
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
     await grid.getByRole('rowheader').first().click();
     await expect(page.getByRole('complementary', { name: 'seo agency' })).toBeVisible();
-    await page.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select backlink checker, Germany', exact: true }).click();
     const bar = page.getByRole('group', { name: /Bulk actions/ });
     await expect(bar.getByText('1 selected')).toBeVisible();
 
@@ -592,15 +598,15 @@ test.describe('rankings', () => {
   test('chosen keywords move to a group, are archived, and come back with Undo', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/keywords');
+    await page.goto(KEYWORDS);
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
-    await expect(page.getByText('59 keywords', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('58 keywords', { exact: true }).first()).toBeVisible();
     const rowOf = (keyword: string): Locator =>
       grid.getByRole('row').filter({ has: page.getByRole('rowheader', { name: new RegExp(`^${keyword}`) }) });
     const bar = page.getByRole('group', { name: /Bulk actions/ });
     const choose = async (): Promise<void> => {
-      await page.getByRole('checkbox', { name: 'Select seo agency, desktop, United States', exact: true }).click();
-      await page.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', exact: true }).click();
+      await page.getByRole('checkbox', { name: 'Select seo agency, United States', exact: true }).click();
+      await page.getByRole('checkbox', { name: 'Select backlink checker, Germany', exact: true }).click();
       await expect(bar.getByText('2 selected')).toBeVisible();
     };
 
@@ -620,11 +626,11 @@ test.describe('rankings', () => {
     await choose();
     await bar.getByRole('button', { name: 'Archive' }).click();
     await expect(page.getByText('2 keywords archived')).toBeVisible();
-    await expect(page.getByText('57 keywords', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('56 keywords', { exact: true }).first()).toBeVisible();
     await expect(rowOf('backlink checker')).toHaveCount(0);
     await page.getByRole('button', { name: 'Undo' }).click();
     await expect(page.getByText('2 keywords unarchived')).toBeVisible();
-    await expect(page.getByText('59 keywords', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('58 keywords', { exact: true }).first()).toBeVisible();
     await expect(rowOf('backlink checker')).toContainText('Brand');
     await expectAccessible(page);
   });
@@ -632,9 +638,9 @@ test.describe('rankings', () => {
   test('a group is created while moving keywords, then renamed in Manage groups', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/keywords');
-    await page.getByRole('checkbox', { name: 'Select seo agency, desktop, United States', exact: true }).click();
-    await page.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', exact: true }).click();
+    await page.goto(KEYWORDS);
+    await page.getByRole('checkbox', { name: 'Select seo agency, United States', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select backlink checker, Germany', exact: true }).click();
     const bar = page.getByRole('group', { name: /Bulk actions/ });
     await bar.getByRole('button', { name: 'Move to group' }).click();
     const move = page.getByRole('dialog', { name: 'Move 2 keywords' });
@@ -669,7 +675,7 @@ test.describe('rankings', () => {
     // The mocks read the page's clock: Labs answers 2 minutes after a keyword is added, and the screen asks
     // again every 30 seconds while a row waits. The clock is moved by hand instead of waited for.
     await page.clock.install();
-    await page.goto('/digibranders/fynix/seo/keywords');
+    await page.goto(KEYWORDS);
     await page.getByRole('button', { name: 'Add keywords' }).click();
     const dialog = page.getByRole('dialog', { name: 'Add keywords' });
     await dialog.getByRole('textbox', { name: 'Keywords' }).fill('seo reporting tool\nSEO Reporting Tool');
@@ -695,15 +701,15 @@ test.describe('rankings', () => {
     // The first check has run: the poll that follows fills the rank in, with no reload
     await page.clock.runFor(60_000);
     await expect(row.getByText('Pending')).toHaveCount(0);
-    const rank = await cellOf(grid, row, 'Rank');
+    const rank = await cellOf(grid, row, 'Desktop');
     await expect(rank).toHaveText(/^(\d+|>\d+not in top \d+)(first check)?$/);
   });
 
   test('metrics are refreshed from More actions, and the run is followed in the header', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/keywords');
-    await expect(page.getByText('59 keywords', { exact: true }).first()).toBeVisible();
+    await page.goto(KEYWORDS);
+    await expect(page.getByText('58 keywords', { exact: true }).first()).toBeVisible();
 
     // The menu says how many manual runs the project has left today
     await page.getByRole('button', { name: 'More actions' }).click();
@@ -736,12 +742,12 @@ test.describe('rankings', () => {
   test('keywords are imported from a CSV file, and the write is followed in the header', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/keywords');
+    await page.goto(KEYWORDS);
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
-    await expect(page.getByText('59 keywords', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('58 keywords', { exact: true }).first()).toBeVisible();
 
     await page.getByRole('button', { name: 'Import', exact: true }).click();
-    await expect(page).toHaveURL(/\/seo\/keywords\/import$/);
+    await expect(page).toHaveURL(/\/seo\/keywords\/import(\?.*)?$/);
     const dialog = page.getByRole('dialog', { name: 'Import keywords' });
     await expect(dialog).toBeVisible();
     await expectAccessible(page);
@@ -775,7 +781,7 @@ test.describe('rankings', () => {
     await dialog.getByRole('button', { name: 'Import 3 keywords' }).click();
 
     // The dialog is gone, the table stays, and the header follows the write until the report is ready
-    await expect(page).toHaveURL(/\/seo\/keywords$/);
+    await expect(page).toHaveURL(/\/seo\/keywords(\?.*)?$/);
     await expect(dialog).toBeHidden();
     await expect(page.getByRole('button', { name: 'Import', exact: true })).toBeFocused();
     await expect(page.getByRole('progressbar', { name: 'Importing keywords' })).toBeVisible();
@@ -842,7 +848,7 @@ test.describe('rankings', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
     await page.clock.install();
-    await page.goto('/digibranders/fynix/seo/keywords');
+    await page.goto(KEYWORDS);
 
     // 1. Metric strip with Tracked and Top 10
     const strip = page.getByRole('group', { name: 'Summary for the filtered keywords' });
@@ -886,11 +892,11 @@ test.describe('rankings', () => {
 
     // 6. Bulk Check now with two keywords, move clock until run completes, assert toast and refetch
     const seoRow = grid.locator('tbody tr[role="row"]').filter({ hasText: 'seo agency' }).first();
-    const rankCellBefore = await cellOf(grid, seoRow, 'Rank');
+    const rankCellBefore = await cellOf(grid, seoRow, 'Desktop');
     const initialRankText = (await rankCellBefore.textContent())?.trim();
 
-    await page.getByRole('checkbox', { name: 'Select seo agency, desktop, United States', exact: true }).click();
-    await page.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select seo agency, United States', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select backlink checker, Germany', exact: true }).click();
     const bar = page.getByRole('group', { name: /Bulk actions/ });
     await expect(bar.getByText('2 selected')).toBeVisible();
     await bar.getByRole('button', { name: 'Check now' }).click();
@@ -908,7 +914,7 @@ test.describe('rankings', () => {
     const seoChecked = body.data.find((item) => item.keyword.text === 'seo agency');
     expect(seoChecked?.state.current.rank).not.toBeNull();
 
-    const rankCellAfter = await cellOf(grid, seoRow, 'Rank');
+    const rankCellAfter = await cellOf(grid, seoRow, 'Desktop');
     await expect(rankCellAfter).toBeVisible();
     const updatedRankText = (await rankCellAfter.textContent())?.trim();
     expect(updatedRankText).not.toEqual(initialRankText);

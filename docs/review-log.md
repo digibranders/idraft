@@ -756,3 +756,17 @@ Changed: Check now sends tasks through the standard queue (selector without `liv
 | F111 | Five unit tests fail on the committed code (costs budgets, invite password reason, rank trend sparkline, two rank strip tests) | look at the date or clock assumption they share |
 | F112 | The list does not poll while a check is open in server mode (very large lists) | extend the poll to the server page |
 | F113 | Production configuration items of 2026-10-31 remain: operator account, DataForSEO spending cap, one real check on the server | owner |
+
+### Rankings: one row per keyword, Desktop and Mobile rank columns, device and country scope (2026-11-03, third pass)
+
+The owner asked for the Device and Location columns to go, the rank to split into a Desktop and a Mobile column on one row per keyword, a Both, Desktop, Mobile control and a country selector (country level, India by default) beside the filters, and a `>` only for `>100`.
+
+Changed: `GET tracked-keywords` takes `filter[country_id]` (a country and every place inside it, by ISO code; no migration). The web app pairs the tracked keywords of one keyword, place and language into one row (`keyword-pairs.ts`); every action (bulk, Check now, refresh) reaches both devices; the Device control shows or hides the rank columns; the country control sends `filter[country_id]` (India, or the project's own country, until another is chosen; All countries sends none). A rank not found shows `>100` whatever Google returned; the shortfall stays in the tooltip.
+
+| Id | Item | Plan |
+|---|---|---|
+| F114 | A keyword not found at a shallower depth (the daily 20) still reads `>20`; "a `>` only above 100" cannot be kept without a different word for it | owner: show `>20` as now, or check at 100 daily |
+| F115 | In server mode (above 10,000 tracked keywords) a pair can be split by a page boundary, so a row shows one device and Not tracked for the other | page by keyword in the API, or pair on the server |
+| F116 | The inspector of a paired row opens the desktop (or mobile when only mobile is chosen) tracked keyword; there is no device switch in it | add a device switch |
+| F117 | The header count "Tracked N" is of tracked keywords (both devices), the table footer of keywords | align them |
+| F118 | The mock keywords are mostly desktop-only, so the Mobile column reads Not tracked there; the e2e flows open on All countries (`?loc=0`) | richer mock devices |

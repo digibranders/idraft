@@ -31,7 +31,7 @@ describe('rank display', () => {
     expect(rankDisplay(current({ state: 'beyond_depth', rank: null, depth_requested: 50 }), false)).toEqual({
       kind: 'beyond',
       depth: 50,
-      requested: 50,
+      returned: null,
       observedAt: '2026-10-06T02:00:00Z',
       stale: false,
       failing: false,
@@ -40,17 +40,18 @@ describe('rank display', () => {
     });
   });
 
-  it('shows how far the answer reached when Google gave fewer results than were asked for', () => {
+  it('keeps the asked depth as the number and notes in `returned` that Google gave fewer results', () => {
     const beyond = (over: Partial<RankCell>): RankCell =>
       current({ state: 'beyond_depth', rank: null, depth_requested: 100, ...over });
 
-    expect(rankDisplay(beyond({ depth_returned: 66 }), false)).toMatchObject({ depth: 66, requested: 100 });
-    // Never beyond what was asked, and the asked depth when the API does not say
-    expect(rankDisplay(beyond({ depth_returned: 140 }), false)).toMatchObject({ depth: 100, requested: 100 });
-    expect(rankDisplay(beyond({}), false)).toMatchObject({ depth: 100, requested: 100 });
-    expect(rankDisplay(beyond({ depth_returned: null }), false)).toMatchObject({ depth: 100 });
-    // An answer with no results at all looked as far as zero
-    expect(rankDisplay(beyond({ depth_returned: 0 }), false)).toMatchObject({ depth: 0, requested: 100 });
+    expect(rankDisplay(beyond({ depth_returned: 66 }), false)).toMatchObject({ depth: 100, returned: 66 });
+    // Nothing to note when the answer reached the asked depth, passed it, or the API does not say
+    expect(rankDisplay(beyond({ depth_returned: 100 }), false)).toMatchObject({ depth: 100, returned: null });
+    expect(rankDisplay(beyond({ depth_returned: 140 }), false)).toMatchObject({ depth: 100, returned: null });
+    expect(rankDisplay(beyond({}), false)).toMatchObject({ depth: 100, returned: null });
+    expect(rankDisplay(beyond({ depth_returned: null }), false)).toMatchObject({ depth: 100, returned: null });
+    // An answer with no results at all still says it
+    expect(rankDisplay(beyond({ depth_returned: 0 }), false)).toMatchObject({ depth: 100, returned: 0 });
   });
 
   it('says a drop is unconfirmed only for a rank that is beyond the depth', () => {
@@ -130,7 +131,7 @@ describe('rank display', () => {
     expect(rankDisplay(current({ state: 'beyond_depth', rank: null, observed_at: null }), false)).toEqual({
       kind: 'beyond',
       depth: 20,
-      requested: 20,
+      returned: null,
       observedAt: null,
       stale: false,
       failing: false,

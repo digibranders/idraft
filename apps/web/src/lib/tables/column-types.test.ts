@@ -18,7 +18,7 @@ describe('rank, change and URL column types (12-tables.md section 5)', () => {
     expect(COLUMN_TYPES.rank).toEqual({
       width: 80,
       min: 80,
-      max: 112,
+      max: 136,
       align: 'left',
       defaultDesc: false,
       flex: false,

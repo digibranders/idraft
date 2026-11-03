@@ -6311,7 +6311,7 @@
                 "type": "null"
               }
             ],
-            "description": "How far down the provider's answer reached. Below `depth_requested` when Google gave fewer results: `beyond_depth` then means not among those, and the cell is best read as `>depth_returned`. Null when unknown.",
+            "description": "How far down the provider's answer reached. Below `depth_requested` when Google gave fewer results; `beyond_depth` then means not among those. The web app still shows `>depth_requested` and keeps this for a tooltip. Null when unknown.",
             "title": "Depth Returned"
           },
           "observed_at": {
@@ -10655,6 +10655,18 @@
                 "type": "null"
               }
             ]
+          },
+          "country_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A country's location id: the keywords tracked in that country or anywhere inside it (a region, a city).",
+            "title": "Country Id"
           },
           "declined": {
             "anyOf": [
@@ -18666,6 +18678,24 @@
                 }
               ],
               "title": "Filter[Location Id]"
+            }
+          },
+          {
+            "description": "A country's location id: tracked in it or anywhere inside it.",
+            "in": "query",
+            "name": "filter[country_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A country's location id: tracked in it or anywhere inside it.",
+              "title": "Filter[Country Id]"
             }
           },
           {

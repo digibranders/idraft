@@ -223,8 +223,9 @@ describe('useCompetitorColumns', () => {
     expect(tip?.detail).toContain('From 6 to 4');
   });
 
-  it('mentions rank change in the Rank column header tooltip', () => {
+  it('mentions rank change in the header tooltips of the desktop and the mobile rank columns', () => {
     const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
-    expect(result.current.rank.headerTooltip).toContain('how it moved');
+    expect(result.current.rankDesktop.headerTooltip).toContain('how it moved');
+    expect(result.current.rankMobile.headerTooltip).toContain('how it moved');
   });
 });

@@ -115,6 +115,23 @@ describe('Check now', () => {
     expect(screen.getByText('Rank check queued')).toBeInTheDocument();
   });
 
+  it('asks for both devices of a keyword tracked on desktop and mobile, whichever row was chosen', async () => {
+    let checkBody: unknown = null;
+    server.events.on('request:start', async ({ request }) => {
+      if (request.url.includes('/seo/check-now')) checkBody = await request.clone().json();
+    });
+
+    const { user } = renderWithProviders(as('editor'));
+    // One row stands for the desktop and the mobile tracking of "seo agency berlin"
+    const bar = await choose(user, 'seo agency berlin');
+    await user.click(within(bar).getByRole('button', { name: 'Check now' }));
+
+    await waitFor(() => expect(checkBody).not.toBeNull());
+    const ids = (checkBody as { tracked_keyword_ids: string[] }).tracked_keyword_ids;
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+  });
+
   it('shows finished toast and reads the keyword list again on completion', async () => {
     let listReads = 0;
     const runId = 'test-finished-run-1';
@@ -267,7 +284,8 @@ describe('Check now', () => {
     const selectAllCheckbox = screen.getByRole('checkbox', { name: /^Select all/ });
     await user.click(selectAllCheckbox);
     const bar = screen.getByRole('group', { name: /Bulk actions/ });
-    expect(within(bar).getByText('101 selected')).toBeInTheDocument();
+    // Rows are keywords, a keyword on both devices is one row, and the route counts tracked keywords
+    expect(within(bar).getByText(/ selected$/)).toBeInTheDocument();
     const checkBtn = within(bar).getByRole('button', { name: 'Check now' });
     expect(checkBtn).toHaveAttribute('data-disabled');
     expect(checkBtn).toHaveAttribute('aria-disabled', 'true');

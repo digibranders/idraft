@@ -66,11 +66,11 @@ describe('RankCellView', () => {
     expect(screen.getByText('not in top 50')).toHaveClass('sr-only');
   });
 
-  it('shows beyond depth as far as the answer reached when Google gave fewer results than were asked for', () => {
+  it('shows >100 for a keyword not found within the top 100, whatever number of results Google returned', () => {
     renderWithProviders(rank({ state: 'beyond_depth', rank: null, depth_requested: 100, depth_returned: 66 }));
-    expect(screen.getByText('>66')).toHaveAttribute('aria-hidden', 'true');
-    expect(screen.getByText('not in top 66')).toHaveClass('sr-only');
-    expect(screen.queryByText('>100')).toBeNull();
+    expect(screen.getByText('>100')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByText('not in top 100')).toHaveClass('sr-only');
+    expect(screen.queryByText('>66')).toBeNull();
   });
 
   it('marks a drop that one check has not yet confirmed, with words for a screen reader', () => {

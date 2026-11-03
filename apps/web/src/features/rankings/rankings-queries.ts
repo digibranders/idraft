@@ -115,8 +115,6 @@ const maxOf = (value: FilterValue | undefined): number | null => (value?.kind ==
 export function keywordFilters(values: FilterValues, archived: boolean): KeywordFilters {
   const [group] = idsOf(values.grp);
   const terms = idsOf(values.tag);
-  const [device] = enumOf(values.dev, ['desktop', 'mobile'] as const);
-  const [location] = idsOf(values.loc);
   const [language] = idsOf(values.lang);
   const intents = enumOf(values.intent, INTENTS);
   const stages = enumOf(values.stage, FUNNEL_STAGES);
@@ -125,7 +123,6 @@ export function keywordFilters(values: FilterValues, archived: boolean): Keyword
   const priority = maxOf(values.prio);
   const volume = minOf(values.vol);
   const difficulty = maxOf(values.kd);
-  const locationId = location === undefined || !/^\d+$/.test(location) ? Number.NaN : Number(location);
   // A value from a link is sent only in the API's shape, so a hand-edited URL never reads as a server error
   const groupId = group !== undefined && isUuid(group) ? group : undefined;
   // A list filter takes at most 100 values, and a link can name more
@@ -135,8 +132,6 @@ export function keywordFilters(values: FilterValues, archived: boolean): Keyword
     'filter[is_active]': !archived,
     ...(groupId === undefined ? {} : { 'filter[group]': groupId }),
     ...(termIds.length === 0 ? {} : { 'filter[term]': termIds }),
-    ...(device === undefined ? {} : { 'filter[device]': device }),
-    ...(Number.isInteger(locationId) ? { 'filter[location_id]': locationId } : {}),
     ...(language === undefined ? {} : { 'filter[language_code]': language }),
     ...(intents.length === 0 ? {} : { 'filter[intent_in]': intents }),
     ...(stages.length === 0 ? {} : { 'filter[funnel_stage_in]': stages }),

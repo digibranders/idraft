@@ -5,6 +5,7 @@ import { expect, vi } from 'vitest';
 import { z } from 'zod';
 
 import messages from '../../messages/en.json';
+import { ALL_COUNTRIES } from '@/features/rankings/keyword-scope';
 import { RankingsScreen, type RankingsScreenProps } from '@/features/rankings/rankings-screen';
 import type { Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
@@ -63,6 +64,8 @@ export function rankingsAs(
                   },
             languageCode: 'en',
           }}
+          // The mock keywords are tracked in several countries: the table opens on all of them
+          scopeOpensOn={ALL_COUNTRIES}
           {...screenProps}
         />
       </Suspense>

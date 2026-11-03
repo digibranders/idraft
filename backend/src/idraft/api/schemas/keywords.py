@@ -256,8 +256,8 @@ class RankCell(BaseModel):
     depth_returned: int | None = Field(
         default=None,
         description="How far down the provider's answer reached. Below `depth_requested` when "
-        "Google gave fewer results: `beyond_depth` then means not among those, and the cell is "
-        "best read as `>depth_returned`. Null when unknown.",
+        "Google gave fewer results; `beyond_depth` then means not among those. The web app still "
+        "shows `>depth_requested` and keeps this for a tooltip. Null when unknown.",
     )
     url: UrlRef | None
     observed_at: datetime | None
@@ -531,6 +531,11 @@ class TrackedKeywordFilter(Body):
     )
     device: Device | None = None
     location_id: int | None = None
+    country_id: int | None = Field(
+        default=None,
+        description="A country's location id: the keywords tracked in that country or anywhere "
+        "inside it (a region, a city).",
+    )
     language_code: LanguageCode | None = None
     search_engine: Literal["google", "bing"] | None = None
     intent_in: FilterList[Intent] | None = None

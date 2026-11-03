@@ -262,6 +262,20 @@ Web (`platform/apps/web`):
 
 The 11 vitest failures: five fail on the committed code as well (costs budgets, invite password reason, rank trend sparkline, two rank strip tests), checked by running them on a stash of the web changes; six are timeouts that appear only when the whole suite runs in parallel here (add keywords, bulk actions twice, manage groups, the inspector focus test, the refresh dialog) and pass when run alone (224 tests). The 3 Playwright failures (rankings.spec.ts lines 305, 345, 664) fail identically on the committed code.
 
+## K. Third pass: the table as the owner wants it (2026-11-03, night)
+
+Asked for: no Device or Location columns; the rank split into a Desktop and a Mobile column on one row per keyword; a device control (Both by default, Desktop hides Mobile and the reverse) and a country control beside the filters, country level and India by default; a `>` only for `>100`.
+
+Done (web app, plus one backend filter, no migration):
+
+- **Rows and columns.** One row for a keyword tracked on both devices, with a Desktop and a Mobile column, each its rank and change; "Not tracked" where a device is not tracked. Pairing never drops a row (`keyword-pairs.ts`, 6 unit tests).
+- **Controls.** Both, Desktop, Mobile (a segmented control) and a country button with a searchable list and an All countries choice, in the filter row. They are URL state (`dev`, `loc`).
+- **Country.** `GET tracked-keywords` takes `filter[country_id]`: the country and every place inside it, by ISO code, so Mumbai city is in India. The table opens on the project's own country (India when it has none). Existing production keywords stay tracked at Mumbai (city level); nothing in production was changed. Tracking new keywords at country level is the add-keywords default of the project's location, which is a setting, not code: tell me if the stored tracking location of the 44 keywords should move to India as well (it changes what DataForSEO is asked and breaks comparison with the Mumbai history).
+- **`>`.** A rank not found reads `>100`; Google returning fewer results is said in the tooltip, not in the number. A check at a shallower depth (the daily 20) still reads `>20` (F114).
+- **Actions** (bulk, Check now, refresh) reach both devices of a chosen row; a test posts both tracked keyword ids for one row.
+
+Tests: backend `filter[country_id]` (a country, a city inside it, another country; the exact `location_id` filter unchanged), 253 API tests pass; web: rankings unit tests 100% except the failures that fail on the committed code too (sparkline, two rank strip tests) and one a11y test that times out only under full-suite load; Playwright Rankings 16 of 19, the other 3 as before. Screenshots of the table were taken in the mock app only.
+
 ## Appendix: read-only queries for the owner
 
 Run each inside `BEGIN READ ONLY;`. They change nothing.
