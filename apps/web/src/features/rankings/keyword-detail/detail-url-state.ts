@@ -3,6 +3,7 @@
 import { createParser, parseAsArrayOf, parseAsStringLiteral, useQueryState } from 'nuqs';
 
 import { DEFAULT_WINDOW, WINDOW_KEYS, type DetailWindow } from './detail-window';
+import { EVENT_KINDS, type EventKind } from './events-model';
 import { isUuid } from '@/lib/routes/paths';
 
 /** The two tabs of the page (24-page-templates.md section 9.4, "Tabs, justified"). */
@@ -52,6 +53,9 @@ export interface DetailUrlState {
   /** The snapshot it is compared with; null is no comparison. */
   vs: string | null;
   setVs: (id: string | null) => Promise<URLSearchParams>;
+  /** The kinds of the events feed; every kind (the default, no key in the address) when none is chosen. */
+  events: EventKind[];
+  setEvents: (kinds: readonly EventKind[]) => Promise<URLSearchParams>;
 }
 
 /**
@@ -80,6 +84,15 @@ export function useDetailUrlState(): DetailUrlState {
   );
   const [obs, setObs] = useQueryState('obs', parseAsSnapshotId.withOptions({ history: 'push' }));
   const [vs, setVs] = useQueryState('vs', parseAsSnapshotId.withOptions({ history: 'push' }));
+  const [events, setEvents] = useQueryState(
+    'events',
+    parseAsArrayOf(parseAsStringLiteral(EVENT_KINDS))
+      .withDefault([...EVENT_KINDS])
+      .withOptions({
+        history: 'replace',
+        clearOnDefault: true,
+      }),
+  );
   return {
     tab,
     setTab: (next) => setTab(next),
@@ -93,5 +106,8 @@ export function useDetailUrlState(): DetailUrlState {
     setObs: (id) => setObs(id),
     vs,
     setVs: (id) => setVs(id),
+    // Nothing chosen (an address with only unknown kinds) shows every kind: an empty feed would be a lie
+    events: events.length === 0 ? [...EVENT_KINDS] : events,
+    setEvents: (kinds) => setEvents(kinds.length === 0 ? [...EVENT_KINDS] : [...kinds]),
   };
 }

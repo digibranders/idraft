@@ -220,6 +220,88 @@ describe('useRankHistoryChart', () => {
     expect(labels(180)).toEqual([1, 10, 20]);
   });
 
+  describe('the events layer', () => {
+    const event = (type: string, date: string, entity = 'own', time = '02:00:00Z') => ({
+      rank_event_id: `${type}-${date}-${entity}`,
+      occurred_at: `${date}T${time}`,
+      event_type: type,
+      entity_id: entity,
+      from_rank: null,
+      to_rank: null,
+    });
+    const withEvents = (events: RankHistory['events']): RankHistory => history(READY, { events });
+    const MARKED = z.object({
+      series: z.array(
+        z.object({
+          markPoint: z
+            .object({
+              data: z.array(
+                z.object({ coord: z.tuple([z.number(), z.number()]), symbol: z.string(), name: z.string() }),
+              ),
+            })
+            .optional(),
+        }),
+      ),
+    });
+    const marksOf = (frame: ReturnType<typeof render>['frame']): { index: number; symbol: string; name: string }[] => {
+      expect(frame).not.toBeNull();
+      const option = MARKED.parse(frame?.extendOption({ yAxis: {}, grid: {}, series: [{ id: 'own' }] }, tokens));
+      return (option.series[0]?.markPoint?.data ?? []).map((mark) => ({
+        index: mark.coord[0],
+        symbol: mark.symbol,
+        name: mark.name,
+      }));
+    };
+    const HISTORY_EVENTS = [
+      event('url_changed', '2026-10-02'),
+      event('entered_top_10', '2026-10-04'),
+      event('url_changed', '2026-10-03', 'rival'),
+      event('rank_gain', '2026-10-04'),
+    ];
+
+    it('draws nothing and says nothing while the layer is off, even when the history holds events', () => {
+      const { frame } = render(withEvents(HISTORY_EVENTS));
+      expect(marksOf(frame)).toEqual([]);
+      expect(frame?.eventMarks).toEqual([]);
+      expect(frame?.summary).not.toContain('marked on the chart');
+    });
+
+    it('marks the own events of the chart families on their checks, with words and a shape each', () => {
+      const { frame } = render(withEvents(HISTORY_EVENTS), { events: true });
+      expect(marksOf(frame)).toEqual([
+        { index: 1, symbol: 'diamond', name: 'Ranking URL changed' },
+        { index: 3, symbol: 'pin', name: 'Entered the top 10' },
+      ]);
+      expect(frame?.eventMarks.map((mark) => mark.family)).toEqual(['url', 'rank']);
+    });
+
+    it('says in the summary how many events are marked and where they are listed', () => {
+      const { frame } = render(withEvents(HISTORY_EVENTS), { events: true });
+      expect(frame?.summary).toContain('2 events are marked on the chart and listed under Events.');
+      const one = render(withEvents([event('aio_appeared', '2026-10-01')]), { events: true });
+      expect(one.frame?.summary).toContain('1 event is marked on the chart and listed under Events.');
+    });
+
+    it('says no event is marked when the layer is on and the window has none of the chart families', () => {
+      const { frame } = render(withEvents([event('rank_gain', '2026-10-02')]), { events: true });
+      expect(marksOf(frame)).toEqual([]);
+      expect(frame?.summary).toContain('No events are marked on the chart.');
+    });
+
+    it('treats a history without events as having none', () => {
+      const { frame } = render(withEvents(null), { events: true });
+      expect(frame?.eventMarks).toEqual([]);
+      expect(frame?.summary).toContain('No events are marked on the chart.');
+    });
+
+    it('counts the day of an event in the time zone given', () => {
+      // 23:30 UTC on Oct 1 is Oct 2 in Berlin, where there is a check
+      const late = withEvents([event('url_changed', '2026-10-01', 'own', '23:30:00Z')]);
+      expect(marksOf(render(late, { events: true, timeZone: 'Europe/Berlin' }).frame).map((m) => m.index)).toEqual([1]);
+      expect(marksOf(render(late, { events: true, timeZone: 'UTC' }).frame).map((m) => m.index)).toEqual([0]);
+    });
+  });
+
   it('names the rank axis and marks a deep check in its tooltip', () => {
     const { frame } = render(history([point('2026-10-01', 'ranked', 5), point('2026-10-02', 'ranked', 35, 100)]), {
       deep: 'show',

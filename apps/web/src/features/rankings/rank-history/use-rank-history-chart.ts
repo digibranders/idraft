@@ -3,10 +3,10 @@
 import { useTranslations } from 'next-intl';
 import { useCallback, useMemo } from 'react';
 
-import { rankHistoryChart, type DeepChecks, type RankHistoryModel } from './rank-history-model';
+import { eventMarksOf, rankHistoryChart, type DeepChecks, type RankHistoryModel } from './rank-history-model';
 import type { ChartHeight } from '@/components/app/chart/chart-frame';
 import type { RankHistory } from '@/lib/api/types';
-import { rankAxis } from '@/lib/charts/rank-chart';
+import { rankAxis, type EventMark } from '@/lib/charts/rank-chart';
 import type { CategorySeries } from '@/lib/charts/category-chart';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import { formatChartDate, formatInteger } from '@/lib/format';
@@ -22,6 +22,10 @@ export interface RankHistoryChartOptions {
   competitorIds?: readonly string[] | null;
   /** Added to the meta line after a middle dot: "deep check Monday". */
   metaSuffix?: string;
+  /** Marks the own events of the chart families on the bottom edge of the plot (the page's Events layer). */
+  events?: boolean;
+  /** The project's time zone, for the day of an event that does not carry the instant of a check. Default UTC. */
+  timeZone?: string;
 }
 
 /** What `ChartFrame` needs to draw the history. */
@@ -34,6 +38,8 @@ export interface RankHistoryFrame {
   summary: string;
   meta: string;
   model: RankHistoryModel;
+  /** The events drawn on the chart (empty while the layer is off), for the key under it. */
+  eventMarks: EventMark[];
 }
 
 export type RankHistoryChartState = 'loading' | 'empty' | 'allFailed' | 'ready';
@@ -50,7 +56,7 @@ export function useRankHistoryChart(
   options: RankHistoryChartOptions,
 ): { state: RankHistoryChartState; frame: RankHistoryFrame | null } {
   const t = useTranslations('rankings.rankHistory');
-  const { height, days = DEFAULT_DAYS, deep, absolute, competitorIds, metaSuffix } = options;
+  const { height, days = DEFAULT_DAYS, deep, absolute, competitorIds, metaSuffix, events = false, timeZone } = options;
 
   const model = useMemo(
     () =>
@@ -70,11 +76,33 @@ export function useRankHistoryChart(
     () => (model?.series[0]?.values ?? []).flatMap((value, index) => (value === 'failed' ? [index] : [])),
     [model],
   );
+  const eventMarks = useMemo((): EventMark[] => {
+    const own = history?.series?.find((entry) => entry.entity.role === 'own') ?? history?.series?.[0];
+    if (!events || model === null || own === undefined) return [];
+    const labelOf = (type: string): string => {
+      switch (type) {
+        case 'url_changed':
+          return t('eventMark.url_changed');
+        case 'entered_top_10':
+          return t('eventMark.entered_top_10');
+        case 'lost_top_10':
+          return t('eventMark.lost_top_10');
+        case 'aio_appeared':
+          return t('eventMark.aio_appeared');
+        case 'aio_disappeared':
+          return t('eventMark.aio_disappeared');
+        default:
+          return type;
+      }
+    };
+    return eventMarksOf(history?.events ?? [], model.slots, own.entity.entity_id, labelOf, timeZone);
+  }, [events, history, model, t, timeZone]);
   const extendOption = useCallback(
     (base: Record<string, unknown>, tokens: ChartTokens): Record<string, unknown> =>
       model === null
         ? base
         : rankAxis(base, tokens, {
+            eventMarks,
             depthMax: model.depthMax,
             plotHeight: height,
             bands: model.bands,
@@ -86,7 +114,7 @@ export function useRankHistoryChart(
             deepIndices: model.deepIndices,
             deepLabel: t('deepCheck'),
           }),
-    [model, failedIndices, height, t],
+    [model, failedIndices, height, t, eventMarks],
   );
 
   if (model === null) return { state: 'loading', frame: null };
@@ -124,7 +152,12 @@ export function useRankHistoryChart(
       failed: model.summary.failed,
     });
   }
-  const summary = [sentence.trim(), bands, model.deepHidden > 0 ? t('deepNote', { count: model.deepHidden }) : '']
+  const summary = [
+    sentence.trim(),
+    bands,
+    model.deepHidden > 0 ? t('deepNote', { count: model.deepHidden }) : '',
+    events ? t('eventsMarked', { count: eventMarks.length }) : '',
+  ]
     .filter((part) => part !== '')
     .join(' ');
 
@@ -147,6 +180,7 @@ export function useRankHistoryChart(
       summary,
       meta,
       model,
+      eventMarks,
     },
   };
 }

@@ -1,6 +1,7 @@
 import { infiniteQueryOptions } from '@tanstack/react-query';
 
 import { apiWindow, type DetailWindow } from './detail-window';
+import { eventTypeFilter, type EventKind } from './events-model';
 import {
   effectiveCompetitorIds,
   keywordPath,
@@ -15,6 +16,12 @@ import { apiQuery, type ApiQueryOptions, type ApiResponse } from '@/lib/api/quer
 
 const AIO_HISTORY =
   '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/aio-history';
+
+const RANK_EVENTS = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/seo/rank-events';
+/** The events a page of the feed holds (18 section 7.1: the latest 50, then 50 more). */
+export const EVENTS_PAGE_SIZE = 50;
+/** A page is asked for by the cursor of the one before; the first page has none. */
+const noCursor = (): string | null => null;
 
 /**
  * What the keyword page reads beyond the keyword itself. The routes sit under the keyword's key, so a
@@ -129,3 +136,31 @@ export const snapshotQuery = (
       query: { include: ['titles'], ...(observedAt === null ? {} : { observed_at: observedAt }) },
     },
   });
+
+/**
+ * The rank events of the keyword, newest first, a page at a time (`next_cursor` leads to the next). Every
+ * kind chosen asks for no type filter, so an event of a type this app does not list is still in the feed.
+ * The key sits under `seo/rank-events`, which `refreshKeywords` invalidates after a finished check.
+ */
+export const rankEventsQuery = (scope: KeywordScope, kinds: readonly EventKind[]) => {
+  const types = eventTypeFilter(kinds);
+  const path = { workspace_id: scope.workspaceId, project_id: scope.projectId };
+  const query = {
+    'filter[tracked_keyword_id]': scope.trackedKeywordId,
+    ...(types === undefined ? {} : { 'filter[event_type_in]': types }),
+    limit: EVENTS_PAGE_SIZE,
+  };
+  return infiniteQueryOptions({
+    // The pages are stored as one list, which a plain query of the same path would not be
+    queryKey: [...queryKey(RANK_EVENTS, path, query), 'pages'],
+    queryFn: ({ pageParam, signal }) =>
+      unwrap(
+        api.GET(RANK_EVENTS, {
+          params: { path, query: pageParam === null ? query : { ...query, cursor: pageParam } },
+          signal,
+        }),
+      ),
+    initialPageParam: noCursor(),
+    getNextPageParam: (last) => last.page.next_cursor ?? undefined,
+  });
+};

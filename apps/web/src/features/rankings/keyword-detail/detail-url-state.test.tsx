@@ -127,6 +127,26 @@ describe('useDetailUrlState', () => {
     expect(updates[0]?.options.history).toBe('push');
   });
 
+  it('reads the event kinds, drops unknown ones, and reads none or all as every kind', () => {
+    const all = ['rank', 'url', 'serp_feature', 'ai_citation', 'competitor'];
+    expect(setup().result.current.events).toEqual(all);
+    expect(setup('?events=url,bogus,competitor').result.current.events).toEqual(['url', 'competitor']);
+    expect(setup('?events=bogus').result.current.events).toEqual(all);
+    expect(setup('?events=').result.current.events).toEqual(all);
+  });
+
+  it('writes the event kinds by replacing the entry, and writes every kind as no key at all', async () => {
+    const { result, updates } = setup();
+    act(() => void result.current.setEvents(['url']));
+    await waitFor(() => expect(updates.length).toBe(1));
+    expect(updates[0]?.queryString).toBe('?events=url');
+    expect(updates[0]?.options.history).toBe('replace');
+    act(() => void result.current.setEvents(['rank', 'url', 'serp_feature', 'ai_citation', 'competitor']));
+    await waitFor(() => expect(updates.length).toBe(2));
+    expect(updates[1]?.queryString).toBe('');
+    expect(result.current.events).toHaveLength(5);
+  });
+
   it('reads the chart layers, drops unknown ones, and omits an empty choice', async () => {
     expect(setup().result.current.show).toEqual([]);
     expect(setup('?show=absolute,bogus,deep').result.current.show).toEqual(['absolute', 'deep']);

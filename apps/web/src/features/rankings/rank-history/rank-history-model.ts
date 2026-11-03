@@ -1,5 +1,7 @@
 import type { CategorySeries, CategoryValue } from '@/lib/charts/category-chart';
-import type { HistoryPoint, RankHistory } from '@/lib/api/types';
+import type { EventFamily, EventMark } from '@/lib/charts/rank-chart';
+import type { HistoryEvent, HistoryPoint, RankHistory } from '@/lib/api/types';
+import { formatIsoDate } from '@/lib/format';
 
 export interface RankHistoryBand {
   from: number;
@@ -25,6 +27,8 @@ export interface RankHistoryModel {
   deepHidden: number;
   /** The categories whose own check looked deeper than the standard depth (a failed check did not look). */
   deepIndices: number[];
+  /** The check of each category, in the order of `categories`: where an event finds its place on the chart. */
+  slots: CheckSlot[];
 }
 
 /** `auto` follows the deepest check (the inspector); `hide` keeps the axis at the standard depth; `show` extends it. */
@@ -78,7 +82,8 @@ export function competitorPalette(
   return palette;
 }
 
-interface CheckSlot {
+/** One check of the chart, one category of its x axis: the project local day and the instant of the check. */
+export interface CheckSlot {
   key: string;
   date: string;
   observedAt: string | null;
@@ -229,5 +234,45 @@ export function rankHistoryChart(history: RankHistory, options: RankHistoryModel
         ? [index]
         : [],
     ),
+    slots: sortedSlots,
   };
+}
+
+/** The event types the chart draws, and the family (shape) of each (15 section 7 rule 6). */
+const CHART_FAMILY: Readonly<Record<string, EventFamily>> = {
+  url_changed: 'url',
+  entered_top_10: 'rank',
+  lost_top_10: 'rank',
+  aio_appeared: 'aio',
+  aio_disappeared: 'aio',
+};
+
+/**
+ * The events of the own site that the chart marks, each on a check. The event of a check carries the instant
+ * of that check; one that does not goes on the last check of its project local day. An event of another
+ * entity, of a type the chart does not draw, or on a day without a check in the window is left out.
+ * `labelOf` words an event type; the marks come back in the order of the checks.
+ */
+export function eventMarksOf(
+  events: readonly HistoryEvent[],
+  slots: readonly CheckSlot[],
+  ownEntityId: string,
+  labelOf: (type: string) => string,
+  timeZone = 'UTC',
+): EventMark[] {
+  const marks: EventMark[] = [];
+  for (const event of events) {
+    const family = CHART_FAMILY[event.event_type];
+    if (family === undefined || event.entity_id !== ownEntityId) continue;
+    const at = Date.parse(event.occurred_at);
+    let index = slots.findIndex((slot) => slot.observedAt !== null && Date.parse(slot.observedAt) === at);
+    if (index === -1) {
+      const date = formatIsoDate(event.occurred_at, timeZone);
+      index = slots.reduce((last, slot, position) => (slot.date === date ? position : last), -1);
+    }
+    if (index === -1) continue;
+    marks.push({ index, family, label: labelOf(event.event_type) });
+  }
+  // The sort is stable: events of one check keep the order they came in
+  return marks.sort((a, b) => a.index - b.index);
 }

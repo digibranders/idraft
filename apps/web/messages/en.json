@@ -2475,6 +2475,20 @@
       "summaryUnranked": "Organic rank of {name} over the last {days} days: not ranked within the depth checked.",
       "summaryAllFailed": "Organic rank of {name} over the last {days} days: every check failed.",
       "deepNote": "{count, plural, one {1 deep check is not drawn.} other {# deep checks are not drawn.}}",
+      "eventsMarked": "{count, plural, =0 {No events are marked on the chart.} one {1 event is marked on the chart and listed under Events.} other {# events are marked on the chart and listed under Events.}}",
+      "eventMark": {
+        "url_changed": "Ranking URL changed",
+        "entered_top_10": "Entered the top 10",
+        "lost_top_10": "Left the top 10",
+        "aio_appeared": "An AI Overview appeared",
+        "aio_disappeared": "The AI Overview disappeared"
+      },
+      "eventKey": {
+        "label": "Marks on the chart",
+        "url": "Ranking URL changed",
+        "rank": "Entered or left the top 10",
+        "aio": "AI Overview appeared or disappeared"
+      },
       "empty": "No checks yet",
       "emptyReason": "The rank history fills in after the first check.",
       "failed": "The rank history did not load."
@@ -2707,6 +2721,7 @@
       "layers": {
         "label": "Chart layers",
         "absolute": "Absolute",
+        "events": "Events",
         "deep": "Deep checks",
         "deepHidden": "Deep checks ({count} hidden)"
       },
@@ -2806,6 +2821,62 @@
         "reason": "It may have been removed, or the link is out of date.",
         "clear": "Show the latest check"
       }
+    },
+    "events": {
+      "title": "Events",
+      "filter": "Event types",
+      "all": "All events",
+      "older": "Show older events",
+      "olderLoaded": "{count, plural, one {1 more event loaded} other {# more events loaded}}",
+      "open": "Open snapshot",
+      "openOf": "Open snapshot of {date}",
+      "loading": "Loading the events",
+      "kinds": {
+        "rank": "Rank",
+        "url": "Ranking URL",
+        "serp_feature": "SERP features",
+        "ai_citation": "AI Overview citation",
+        "competitor": "Competitors"
+      },
+      "rank": {
+        "ranked": "#{rank}",
+        "none": "not ranked"
+      },
+      "types": {
+        "entered_top_3": "Entered the top 3, from {from} to {to}",
+        "entered_top_10": "Entered the top 10, from {from} to {to}",
+        "entered_top_20": "Entered the top 20, from {from} to {to}",
+        "entered_top_100": "Entered the top 100, from {from} to {to}",
+        "lost_top_3": "Left the top 3, from {from} to {to}",
+        "lost_top_10": "Left the top 10, from {from} to {to}",
+        "lost_top_20": "Left the top 20, from {from} to {to}",
+        "lost_top_100": "Left the top 100, from {from} to {to}",
+        "new_ranking": "Started ranking at {to}",
+        "lost_ranking": "Stopped ranking, it was {from}",
+        "rank_gain": "Rank improved from {from} to {to}",
+        "rank_drop": "Rank dropped from {from} to {to}",
+        "url_changed": "Ranking URL changed from {fromPath} to {toPath}",
+        "feature_gained": "You now own {feature}",
+        "feature_lost": "You no longer own {feature}",
+        "aio_appeared": "An AI Overview appeared",
+        "aio_disappeared": "The AI Overview disappeared",
+        "aio_citation_gained": "Your site is now cited in the AI Overview",
+        "aio_citation_lost": "Your site is no longer cited in the AI Overview",
+        "overtaken_by": "{competitor} passed you, from {from} to {to}",
+        "overtook": "You passed {competitor}, now at {to}",
+        "unknown": "{code}"
+      },
+      "noPath": "an unknown page",
+      "noFeature": "a SERP feature",
+      "noCompetitor": "a competitor",
+      "empty": "No events yet",
+      "emptyPending": "This keyword has not been checked yet. Events appear after the first check.",
+      "emptyFailed": "Every check of this keyword has failed, so no event can be recorded.",
+      "emptyNone": "Nothing has changed since tracking began.",
+      "emptyFiltered": "No matching events",
+      "emptyFilteredReason": "No event of the chosen types has been recorded for this keyword.",
+      "failed": "The events did not load.",
+      "olderFailed": "More events did not load."
     }
   },
   "filters": {

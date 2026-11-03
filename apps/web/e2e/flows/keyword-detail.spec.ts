@@ -13,6 +13,8 @@ const RANKED = { id: mockId('tracked', 1), text: 'seo agency berlin' };
 const STALE = { id: mockId('tracked', 34), text: 'fynix reviews' };
 const DEEP = { id: mockId('tracked', 2), text: 'seo agency germany' };
 const ARCHIVED = { id: mockId('tracked', 60), text: 'seo newsletter' };
+/** A keyword whose events include one change of the ranking URL. */
+const URL_CHANGED = { id: mockId('tracked', 11), text: 'core web vitals' };
 /** The widths of 19-responsive-behavior.md the plan names, with a height that fits the whole header. */
 const WIDTHS = [
   { width: 1440, height: 900, actions: 'beside' },
@@ -198,6 +200,62 @@ async function distinctCanvasColours(panel: Locator): Promise<number> {
       }
       return colours.size;
     });
+}
+
+const eventsPanel = (page: Page): Locator => page.getByRole('region', { name: 'Events' });
+
+interface ColourBox {
+  /** Pixels of the canvas within the tolerance of the colour. */
+  count: number;
+  /** The rows they span, in CSS pixels from the top of the canvas, and the canvas height in CSS pixels. */
+  minY: number;
+  maxY: number;
+  height: number;
+}
+
+/** Where the chart's canvas holds pixels of `colour` (the colour of the event glyphs is the page's text colour). */
+async function colourBox(panel: Locator, colour: readonly number[], tolerance: number): Promise<ColourBox> {
+  return panel
+    .locator('canvas')
+    .first()
+    .evaluate(
+      (canvas, [wanted, allowed]) => {
+        const empty = { count: 0, minY: 0, maxY: 0, height: 0 };
+        if (!(canvas instanceof HTMLCanvasElement)) return empty;
+        const context = canvas.getContext('2d');
+        if (context === null) return empty;
+        const scale = canvas.height / canvas.clientHeight;
+        const { data, width } = context.getImageData(0, 0, canvas.width, canvas.height);
+        let count = 0;
+        let minY = Number.POSITIVE_INFINITY;
+        let maxY = 0;
+        for (let index = 0; index < data.length; index += 4) {
+          const near = [0, 1, 2].every(
+            (offset) => Math.abs((data[index + offset] ?? 0) - (wanted[offset] ?? 0)) <= allowed,
+          );
+          if (!near || (data[index + 3] ?? 0) < 200) continue;
+          const y = Math.floor(index / 4 / width) / scale;
+          count += 1;
+          minY = Math.min(minY, y);
+          maxY = Math.max(maxY, y);
+        }
+        return { count, minY: count === 0 ? 0 : minY, maxY, height: canvas.clientHeight };
+      },
+      [colour, tolerance] as const,
+    );
+}
+
+/** The sentence that describes the chart in words (its `aria-describedby`). */
+async function chartDescription(panel: Locator): Promise<string> {
+  const image = panel.getByRole('img', { name: 'Rank history' });
+  const id = await image.getAttribute('aria-describedby');
+  expect(id).not.toBeNull();
+  return (
+    (await panel
+      .page()
+      .locator(`[id="${id ?? ''}"]`)
+      .textContent()) ?? ''
+  );
 }
 
 test.describe('keyword detail', () => {
@@ -415,6 +473,80 @@ test.describe('keyword detail', () => {
     await expect(panel.getByRole('button', { name: 'Absolute', exact: true })).toHaveAttribute('aria-pressed', 'true');
     // No competitor, so the legend holds the own site and its absolute rank only
     await expect(panel.getByRole('list', { name: 'Series in Rank history' }).getByRole('button')).toHaveCount(2);
+  });
+
+  test('lists the events newest first, filters by the Ranking URL kind and loads the older ones', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, EDITOR);
+    await page.goto(`${LIST}/${RANKED.id}`);
+    await expect(page.getByRole('heading', { level: 1, name: RANKED.text })).toBeVisible();
+    const panel = eventsPanel(page);
+    const rows = panel.getByRole('listitem');
+    await expect(rows).toHaveCount(50);
+
+    // Newest first: every instant is the same or earlier than the one above it
+    const instants = (
+      await panel.locator('time').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('datetime')))
+    ).map((value) => Date.parse(value ?? ''));
+    expect(instants).toHaveLength(50);
+    expect(instants.every((value) => !Number.isNaN(value))).toBe(true);
+    expect(instants.slice(1).every((value, index) => value <= (instants[index] ?? 0))).toBe(true);
+
+    await panel.getByRole('button', { name: 'Show older events' }).click();
+    await expect(rows).toHaveCount(63);
+    await expect(panel.getByRole('button', { name: 'Show older events' })).toHaveCount(0);
+    await expect(panel.getByRole('heading', { level: 2, name: 'Events' })).toBeFocused();
+
+    await page.goto(`${LIST}/${URL_CHANGED.id}`);
+    await expect(page.getByRole('heading', { level: 1, name: URL_CHANGED.text })).toBeVisible();
+    await expect(rows).not.toHaveCount(1);
+    await panel.getByRole('button', { name: 'Ranking URL' }).click();
+    await expect(page).toHaveURL(/[?&]events=url/);
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText(/Ranking URL changed from \/\S+ to \/\S+/);
+    await expect(panel.getByRole('button', { name: 'Ranking URL' })).toHaveAttribute('aria-pressed', 'true');
+    await panel.getByRole('button', { name: 'All events' }).click();
+    await expect(page).not.toHaveURL(/events=/);
+    await expect(rows).not.toHaveCount(1);
+  });
+
+  test('every event links to its snapshot on the SERP snapshots tab', async ({ page }) => {
+    await signIn(page, EDITOR);
+    await page.goto(`${LIST}/${RANKED.id}`);
+    const links = eventsPanel(page).getByRole('link', { name: /^Open snapshot of / });
+    await expect(links).toHaveCount(50);
+    const hrefs = await links.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('href')));
+    const pattern = new RegExp(`^${LIST}/${RANKED.id}\\?tab=snapshots&obs=\\d+$`);
+    expect(hrefs.filter((href) => !pattern.test(href ?? ''))).toEqual([]);
+  });
+
+  test('the Events layer puts glyphs on the bottom edge of the chart and says how many in words', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, EDITOR);
+    await page.goto(`${LIST}/${RANKED.id}`);
+    const panel = chartPanel(page);
+    await expect(panel).toBeVisible();
+    await expect.poll(() => distinctCanvasColours(panel)).toBeGreaterThan(2);
+    const ink = await rgbOf(page, 'var(--foreground)');
+    const toggle = panel.getByRole('button', { name: 'Events', exact: true });
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(await chartDescription(panel)).not.toContain('marked on the chart');
+    const before = await colourBox(panel, ink, 10);
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await expect(page).toHaveURL(/[?&]show=events/);
+    expect(await chartDescription(panel)).toMatch(/\d+ events? (is|are) marked on the chart and listed under Events\./);
+    await expect.poll(async () => (await colourBox(panel, ink, 10)).count).toBeGreaterThan(before.count + 20);
+
+    // The shapes are named in words under the chart
+    const key = panel.getByRole('group', { name: 'Marks on the chart' });
+    await expect(key).toBeVisible();
+    expect(await key.getByRole('listitem').count()).toBeGreaterThan(0);
+
+    await toggle.click();
+    await expect.poll(async () => (await colourBox(panel, ink, 10)).count).toBeLessThanOrEqual(before.count);
+    await expect(key).toHaveCount(0);
   });
 
   for (const theme of ['light', 'dark'] as const) {

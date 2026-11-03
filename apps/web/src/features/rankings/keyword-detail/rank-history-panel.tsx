@@ -1,6 +1,7 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { Diamond, MapPin, Square } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
@@ -16,6 +17,7 @@ import { rankStats } from '../rank-history/rank-stats';
 import { useRankHistoryChart } from '../rank-history/use-rank-history-chart';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { EmptyState } from '@/components/app/status/empty-state';
+import { Icon } from '@/components/ui/icon';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDecimal, formatInteger } from '@/lib/format';
 import { WEEKDAYS } from '@/lib/projects/fields';
@@ -23,7 +25,13 @@ import { WEEKDAYS } from '@/lib/projects/fields';
 export interface RankHistoryPanelProps {
   scope: KeywordScope;
   detail: KeywordDetail;
+  /** The project's time zone: the day an event belongs to when it is not the instant of a check. */
+  timeZone: string;
 }
+
+/** The glyph of each family in the key under the chart: the shape the chart draws. */
+const FAMILY_GLYPH = { url: Diamond, rank: MapPin, aio: Square } as const;
+const FAMILIES = ['url', 'rank', 'aio'] as const;
 
 const HEIGHT = 240;
 
@@ -42,7 +50,7 @@ const REASON_OF: Readonly<Record<DetailKind, 'pending' | 'failed' | 'stale' | 'a
  * request per window asks for every competitor, the absolute rank and the events, so no control after the
  * window reads again.
  */
-export function RankHistoryPanel({ scope, detail }: RankHistoryPanelProps): ReactElement {
+export function RankHistoryPanel({ scope, detail, timeZone }: RankHistoryPanelProps): ReactElement {
   const t = useTranslations('keywordDetail');
   const rank = useTranslations('rankings.rankHistory');
   const days = useTranslations('common.weekdays');
@@ -93,6 +101,8 @@ export function RankHistoryPanel({ scope, detail }: RankHistoryPanelProps): Reac
     deep: show.includes('deep') ? 'show' : 'hide',
     absolute: show.includes('absolute'),
     competitorIds: chosenIds,
+    events: show.includes('events'),
+    timeZone,
     ...(weekday === undefined ? {} : { metaSuffix: t('history.deepCheck', { weekday: days(weekday) }) }),
   });
 
@@ -186,6 +196,7 @@ export function RankHistoryPanel({ scope, detail }: RankHistoryPanelProps): Reac
               checks: formatInteger(stats.checks),
             });
 
+  const keyLabel = { url: rank('eventKey.url'), rank: rank('eventKey.rank'), aio: rank('eventKey.aio') } as const;
   const footnote = (
     <>
       {statsLine === null ? null : <p>{statsLine}</p>}
@@ -197,6 +208,19 @@ export function RankHistoryPanel({ scope, detail }: RankHistoryPanelProps): Reac
             total: competitors.all.length,
           })}
         </p>
+      ) : null}
+      {frame.eventMarks.length > 0 ? (
+        // The key of the shapes: a mark is told apart by its shape and by these words, not by colour
+        <div role="group" aria-label={rank('eventKey.label')}>
+          <ul className="flex flex-wrap gap-x-4 gap-y-1">
+            {FAMILIES.filter((family) => frame.eventMarks.some((mark) => mark.family === family)).map((family) => (
+              <li key={family} className="flex items-center gap-1.5">
+                <Icon icon={FAMILY_GLYPH[family]} size="xs" />
+                {keyLabel[family]}
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
     </>
   );

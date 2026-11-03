@@ -370,3 +370,99 @@ describe('rankAxis', () => {
     expect(labelled(112)[1]).toBe(false);
   });
 });
+
+const MARKS = z.object({
+  series: z.array(
+    z.object({
+      markPoint: z
+        .object({
+          data: z.array(
+            z.object({
+              coord: z.tuple([z.number(), z.number()]),
+              symbol: z.string(),
+              symbolSize: z.number(),
+              symbolOffset: z.tuple([z.number(), z.number()]).optional(),
+              name: z.string(),
+            }),
+          ),
+        })
+        .optional(),
+    }),
+  ),
+});
+
+const events = {
+  depthMax: 20,
+  plotHeight: 240,
+  bands: [],
+  guide: () => '',
+  bandLabel: () => '',
+} as const;
+const marksOf = (option: Record<string, unknown>): z.infer<typeof MARKS>['series'][number]['markPoint'] =>
+  MARKS.parse(option).series[0]?.markPoint;
+
+describe('rankAxis event marks', () => {
+  it('marks the events on the bottom edge of the plot with a shape per family, not by colour alone', () => {
+    const option = rankAxis(base, tokens, {
+      ...events,
+      eventMarks: [
+        { index: 1, family: 'url', label: 'Ranking URL changed' },
+        { index: 2, family: 'rank', label: 'Entered the top 10' },
+        { index: 3, family: 'aio', label: 'An AI Overview appeared' },
+      ],
+    });
+    const marks = marksOf(option)?.data ?? [];
+    expect(marks.map((mark) => [mark.coord[0], mark.symbol, mark.name])).toEqual([
+      [1, 'diamond', 'Ranking URL changed'],
+      [2, 'pin', 'Entered the top 10'],
+      [3, 'rect', 'An AI Overview appeared'],
+    ]);
+    // On the bottom edge: the deepest rank of the axis
+    expect(marks.map((mark) => mark.coord[1])).toEqual([20, 20, 20]);
+  });
+
+  it('keeps the failed check triangles beside the event marks', () => {
+    const option = rankAxis(base, tokens, {
+      ...events,
+      failedIndices: [0],
+      failedLabel: 'Check failed',
+      eventMarks: [{ index: 2, family: 'url', label: 'Ranking URL changed' }],
+    });
+    const marks = marksOf(option)?.data ?? [];
+    expect(marks.map((mark) => [mark.coord[0], mark.symbol])).toEqual([
+      [0, 'triangle'],
+      [2, 'diamond'],
+    ]);
+  });
+
+  it('draws the marks inside the plot, above the axis line, so they never touch the date labels', () => {
+    const option = rankAxis(base, tokens, {
+      ...events,
+      eventMarks: [
+        { index: 0, family: 'url', label: 'a' },
+        { index: 1, family: 'rank', label: 'b' },
+        { index: 2, family: 'aio', label: 'c' },
+      ],
+    });
+    const marks = marksOf(option)?.data ?? [];
+    // A centered glyph is lifted by half its height; a pin already stands on its point with its tip
+    expect(marks.map((mark) => [mark.symbol, mark.symbolSize, mark.symbolOffset])).toEqual([
+      ['diamond', 10, [0, -5]],
+      ['pin', 12, undefined],
+      ['rect', 10, [0, -5]],
+    ]);
+  });
+
+  it('adds no mark point at all without failed checks or events', () => {
+    expect(marksOf(rankAxis(base, tokens, { ...events, eventMarks: [] }))).toBeUndefined();
+  });
+
+  it('puts the marks on the bottom of the extended axis when a band deepens it', () => {
+    const option = rankAxis(base, tokens, {
+      ...events,
+      bands: [{ from: 0, to: 1, depth: 20 }],
+      eventMarks: [{ index: 1, family: 'url', label: 'Ranking URL changed' }],
+    });
+    expect(marksOf(option)?.data.map((mark) => mark.coord)).toEqual([[1, 25]]);
+  });
+});

@@ -5,13 +5,15 @@ import {
   chartCompetitors,
   MAX_HISTORY_COMPETITORS,
   pageRankHistoryQuery,
+  rankEventsQuery,
   serpCurrentQuery,
   SNAPSHOT_PAGE_SIZE,
   snapshotQuery,
   snapshotsQuery,
 } from './detail-queries';
+import { EVENT_KINDS } from './events-model';
 import { rankHistoryQuery, type KeywordScope } from '../keyword-inspector/inspector-queries';
-import type { ProjectEntity } from '@/lib/api/types';
+import type { ProjectEntity, RankEventPage } from '@/lib/api/types';
 
 const idOf = (n: number): string => `0192f0a1-3c44-7e10-9b1d-1f2a3b4c5d${String(n).padStart(2, '0')}`;
 
@@ -130,5 +132,43 @@ describe('the SERP snapshot queries', () => {
   it('reads 50 snapshots a page', () => {
     expect(SNAPSHOT_PAGE_SIZE).toBe(50);
     expect(snapshotsQuery(scope).queryKey).toContainEqual({ limit: 50 });
+  });
+});
+
+describe('rankEventsQuery', () => {
+  it('asks for the events of the keyword 50 at a time, with no type filter when every kind is chosen', () => {
+    expect(rankEventsQuery(scope, [...EVENT_KINDS]).queryKey.at(-2)).toEqual({
+      'filter[tracked_keyword_id]': idOf(92),
+      limit: 50,
+    });
+  });
+
+  it('asks for the types of the chosen kinds only', () => {
+    expect(rankEventsQuery(scope, ['url', 'competitor']).queryKey.at(-2)).toEqual({
+      'filter[tracked_keyword_id]': idOf(92),
+      'filter[event_type_in]': ['url_changed', 'overtaken_by', 'overtook'],
+      limit: 50,
+    });
+  });
+
+  it('sits under the key of the rank events that a finished check invalidates', () => {
+    expect(rankEventsQuery(scope, ['url']).queryKey.slice(0, 6)).toEqual([
+      'ws',
+      idOf(90),
+      'p',
+      idOf(91),
+      'seo',
+      'rank-events',
+    ]);
+  });
+
+  it('continues from the cursor of the last page and stops when it has none', () => {
+    const page = (nextCursor: string | null): RankEventPage => ({
+      data: [],
+      page: { limit: 50, next_cursor: nextCursor, has_more: nextCursor !== null },
+    });
+    const query = rankEventsQuery(scope, ['url']);
+    expect(query.getNextPageParam(page('cursor-2'), [], null, [])).toBe('cursor-2');
+    expect(query.getNextPageParam(page(null), [], null, [])).toBeUndefined();
   });
 });

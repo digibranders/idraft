@@ -426,7 +426,7 @@ describe('The rank history panel', () => {
     },
   );
 
-  it('reaches the controls in the order window, competitors, layers, views, and Space toggles a layer', async () => {
+  it('reaches the controls in the order window, competitors, layers (Absolute, Events, Deep checks), views, and Space toggles a layer', async () => {
     const { panel, user } = await renderPanel();
     await chart(panel);
     within(panel).getByRole('combobox', { name: 'Window' }).focus();
@@ -437,6 +437,11 @@ describe('The rank history panel', () => {
     expect(absolute).toHaveFocus();
     await user.keyboard(' ');
     expect(absolute).toHaveAttribute('aria-pressed', 'true');
+    await user.tab();
+    const events = within(panel).getByRole('button', { name: 'Events' });
+    expect(events).toHaveFocus();
+    await user.keyboard(' ');
+    expect(events).toHaveAttribute('aria-pressed', 'true');
     await user.tab();
     expect(within(panel).getByRole('button', { name: 'Deep checks' })).toHaveFocus();
     await user.tab();
@@ -520,7 +525,7 @@ describe('The rank history panel', () => {
     await waitFor(() => expect(writes.at(-1)).toBe(''));
   });
 
-  it('names the group of layer toggles and holds the two layers in it', async () => {
+  it('names the group of layer toggles and holds the three layers in it', async () => {
     const { panel } = await renderPanel();
     await chart(panel);
     const group = within(panel).getByRole('group', { name: 'Chart layers' });
@@ -528,7 +533,82 @@ describe('The rank history panel', () => {
       within(group)
         .getAllByRole('button')
         .map((button) => button.textContent),
-    ).toEqual(['Absolute', 'Deep checks']);
+    ).toEqual(['Absolute', 'Events', 'Deep checks']);
+  });
+
+  describe('the Events layer', () => {
+    const MARKED = z.object({
+      series: z.array(
+        z.object({
+          markPoint: z
+            .object({
+              data: z.array(
+                z.object({ coord: z.tuple([z.number(), z.number()]), symbol: z.string(), name: z.string() }),
+              ),
+            })
+            .optional(),
+        }),
+      ),
+    });
+    const marks = (): { index: number; symbol: string; name: string }[] =>
+      (MARKED.parse(drawn.options.at(-1)).series[0]?.markPoint?.data ?? []).map((mark) => ({
+        index: mark.coord[0],
+        symbol: mark.symbol,
+        name: mark.name,
+      }));
+    const description = async (panel: HTMLElement): Promise<string> => {
+      const id = (await within(panel).findByRole('img', { name: 'Rank history' })).getAttribute('aria-describedby');
+      return document.getElementById(id ?? '')?.textContent ?? '';
+    };
+
+    it('is off by default: no glyph on the chart and no sentence about events', async () => {
+      const { panel } = await renderPanel();
+      await chart(panel);
+      expect(within(panel).getByRole('button', { name: 'Events' })).toHaveAttribute('aria-pressed', 'false');
+      expect(marks()).toEqual([]);
+      expect(await description(panel)).not.toContain('marked on the chart');
+      expect(within(panel).queryByRole('group', { name: 'Marks on the chart' })).not.toBeInTheDocument();
+    });
+
+    it('marks the own events on the chart when turned on, with a sentence and a key of the shapes', async () => {
+      const record = recordHistory();
+      const writes: string[] = [];
+      const { panel, user } = await renderPanel(DETAIL_KEYWORDS.ranked, '', (event) => writes.push(event.queryString));
+      await chart(panel);
+      await waitFor(() => expect(record.answers).toHaveLength(1));
+      const answer = firstAnswer(record);
+      const ownId = answer.series?.find((s) => s.entity.role === 'own')?.entity.entity_id;
+      const charted = (answer.events ?? []).filter(
+        (e) =>
+          e.entity_id === ownId &&
+          ['url_changed', 'entered_top_10', 'lost_top_10', 'aio_appeared', 'aio_disappeared'].includes(e.event_type),
+      );
+      expect(charted.length).toBeGreaterThan(0);
+
+      await user.click(within(panel).getByRole('button', { name: 'Events' }));
+      expect(within(panel).getByRole('button', { name: 'Events' })).toHaveAttribute('aria-pressed', 'true');
+      await waitFor(() => expect(writes.at(-1)).toBe('?show=events'));
+      expect(marks()).toHaveLength(charted.length);
+      expect(new Set(marks().map((mark) => mark.symbol)).size).toBeGreaterThan(1);
+      expect(await description(panel)).toContain(
+        `${String(charted.length)} events are marked on the chart and listed under Events.`,
+      );
+      const key = within(panel).getByRole('group', { name: 'Marks on the chart' });
+      expect(within(key).getAllByRole('listitem').length).toBeGreaterThan(0);
+      // The history is not read again for a layer
+      expect(record.urls).toHaveLength(1);
+
+      await user.click(within(panel).getByRole('button', { name: 'Events' }));
+      expect(marks()).toEqual([]);
+      expect(within(panel).queryByRole('group', { name: 'Marks on the chart' })).not.toBeInTheDocument();
+    });
+
+    it('is restored from the address', async () => {
+      const { panel } = await renderPanel(DETAIL_KEYWORDS.ranked, '?show=events');
+      await chart(panel);
+      expect(within(panel).getByRole('button', { name: 'Events' })).toHaveAttribute('aria-pressed', 'true');
+      expect(marks().length).toBeGreaterThan(0);
+    });
   });
 
   it('does not say how many competitors it shows when it shows them all', async () => {

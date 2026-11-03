@@ -10,6 +10,7 @@ import { useMemo, useSyncExternalStore, type ReactElement, type ReactNode } from
 import { KeywordDetailHeader } from './detail-header';
 import { DetailStrip } from './detail-strip';
 import { useDetailUrlState, type DetailTab } from './detail-url-state';
+import { EventsPanel } from './events-panel';
 import { listReturnHref, tabStorage } from './list-return';
 import { RankHistoryPanel } from './rank-history-panel';
 import { SnapshotsTab } from './snapshots/snapshots-tab';
@@ -154,7 +155,16 @@ function KeywordDetailContent({
           {/* The evidence column is 8 of 12 from 1280 px and the full width below; the right rail joins it later */}
           <div className="grid grid-cols-12 gap-4">
             <div className="col-span-12 flex min-w-0 flex-col gap-4 xl:col-span-8">
-              <RankHistoryPanel scope={scope} detail={data} />
+              <RankHistoryPanel scope={scope} detail={data} timeZone={timeZone} />
+            </div>
+            <div className="col-span-12 flex min-w-0 flex-col gap-4 xl:col-span-4">
+              <EventsPanel
+                scope={scope}
+                detail={data}
+                workspaceSlug={workspaceSlug}
+                projectSlug={projectSlug}
+                timeZone={timeZone}
+              />
             </div>
           </div>
         </TabsPanel>

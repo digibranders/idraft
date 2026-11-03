@@ -13,7 +13,28 @@ export interface RankAxisExtras {
   /** Categories whose check was a deep check: their tooltip says so (15 section 7.4). */
   deepIndices?: readonly number[];
   deepLabel?: string;
+  /** Events drawn as glyphs on the bottom edge of the plot (15 section 7 rule 6), one shape per family. */
+  eventMarks?: readonly EventMark[];
 }
+
+/** The families of event the chart draws: a changed ranking URL, a move across the top 10, an AI Overview. */
+export type EventFamily = 'url' | 'rank' | 'aio';
+
+export interface EventMark {
+  /** The check (category) the event belongs to. */
+  index: number;
+  family: EventFamily;
+  /** What the glyph stands for, in words. */
+  label: string;
+}
+
+/** A shape per family, so that the glyphs differ without colour (WCAG 1.4.1). */
+const EVENT_SYMBOL: Readonly<Record<EventFamily, { symbol: string; size: number; offset?: [number, number] }>> = {
+  url: { symbol: 'diamond', size: 10, offset: [0, -5] },
+  // A pin stands on its point with its tip, so it needs no lift
+  rank: { symbol: 'pin', size: 12 },
+  aio: { symbol: 'rect', size: 10, offset: [0, -5] },
+};
 
 interface TooltipParam {
   dataIndex?: number;
@@ -180,19 +201,26 @@ export function rankAxis(
           }),
         };
 
+  const failedMarks = (extras.failedIndices ?? []).map((idx) => ({
+    coord: [idx, effectiveDepthMax],
+    symbol: 'triangle',
+    symbolSize: 8,
+    itemStyle: { color: tokens.other },
+    name: extras.failedLabel ?? '',
+  }));
+  const eventMarks = (extras.eventMarks ?? []).map((mark) => {
+    const shape = EVENT_SYMBOL[mark.family];
+    return {
+      coord: [mark.index, effectiveDepthMax],
+      symbol: shape.symbol,
+      symbolSize: shape.size,
+      ...(shape.offset === undefined ? {} : { symbolOffset: shape.offset }),
+      itemStyle: { color: tokens.foreground },
+      name: mark.label,
+    };
+  });
   const markPoint =
-    !extras.failedIndices || extras.failedIndices.length === 0
-      ? undefined
-      : {
-          silent: true,
-          data: extras.failedIndices.map((idx) => ({
-            coord: [idx, effectiveDepthMax],
-            symbol: 'triangle',
-            symbolSize: 8,
-            itemStyle: { color: tokens.other },
-            name: extras.failedLabel ?? '',
-          })),
-        };
+    failedMarks.length + eventMarks.length === 0 ? undefined : { silent: true, data: [...failedMarks, ...eventMarks] };
 
   if (existingSeries.length > 0 && typeof existingSeries[0] === 'object' && existingSeries[0] !== null) {
     existingSeries[0] = {

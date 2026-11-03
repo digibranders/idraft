@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { competitorPalette, rankHistoryChart } from './rank-history-model';
-import type { HistoryPoint, RankHistory } from '@/lib/api/types';
+import { competitorPalette, eventMarksOf, rankHistoryChart, type CheckSlot } from './rank-history-model';
+import type { HistoryEvent, HistoryPoint, RankHistory } from '@/lib/api/types';
 
 const fixture = (overrides: Partial<RankHistory> = {}): RankHistory => ({
   tracked_keyword_id: 'kw-1',
@@ -650,5 +650,96 @@ describe('rankHistoryChart: deep checks, absolute rank and chosen competitors', 
       { kind: 'palette', index: 4 },
     ]);
     expect(some).toEqual([{ kind: 'palette', index: 4 }]);
+  });
+
+  it('lists the check slots in the order of the categories, with the instant of each check', () => {
+    const model = rankHistoryChart(historyOf({ own: [rank(5, 20), beyond(20)] }), OWN);
+    expect(model.slots.map((slot) => [slot.date, slot.observedAt])).toEqual([
+      ['2026-10-01', '2026-10-01T02:00:00Z'],
+      ['2026-10-02', '2026-10-02T02:00:00Z'],
+    ]);
+    expect(model.slots.map((slot) => slot.date)).toEqual(model.categories);
+  });
+});
+
+const slot = (observedAt: string, date: string): CheckSlot => ({ key: observedAt, date, observedAt });
+const hev = (type: string, at: string, entity: string): HistoryEvent => ({
+  rank_event_id: `${type}-${at}-${entity}`,
+  occurred_at: at,
+  event_type: type,
+  entity_id: entity,
+  from_rank: null,
+  to_rank: null,
+});
+
+describe('eventMarksOf', () => {
+  const slots = [
+    slot('2026-10-01T02:00:00.000Z', '2026-10-01'),
+    slot('2026-10-02T02:00:00.000Z', '2026-10-02'),
+    slot('2026-10-02T14:00:00.000Z', '2026-10-02'),
+  ];
+
+  it('maps the chart families, drops a competitor event, and puts an event on the check it names', () => {
+    const events = [
+      hev('url_changed', '2026-10-02T14:00:00.000Z', 'own'),
+      hev('aio_appeared', '2026-10-01T02:00:00.000Z', 'own'),
+      hev('entered_top_10', '2026-10-02T02:00:00.000Z', 'rival'),
+      hev('rank_gain', '2026-10-02T02:00:00.000Z', 'own'),
+    ];
+    expect(eventMarksOf(events, slots, 'own', (type) => type)).toEqual([
+      { index: 0, family: 'aio', label: 'aio_appeared' },
+      { index: 2, family: 'url', label: 'url_changed' },
+    ]);
+  });
+
+  it('gives each chart type its family and the words of the caller', () => {
+    const events = [
+      hev('entered_top_10', '2026-10-01T02:00:00.000Z', 'own'),
+      hev('lost_top_10', '2026-10-02T02:00:00.000Z', 'own'),
+      hev('aio_disappeared', '2026-10-02T14:00:00.000Z', 'own'),
+    ];
+    expect(eventMarksOf(events, slots, 'own', (type) => `words of ${type}`)).toEqual([
+      { index: 0, family: 'rank', label: 'words of entered_top_10' },
+      { index: 1, family: 'rank', label: 'words of lost_top_10' },
+      { index: 2, family: 'aio', label: 'words of aio_disappeared' },
+    ]);
+  });
+
+  it('puts an event between two checks on the last check of its local day', () => {
+    const marks = eventMarksOf([hev('url_changed', '2026-10-02T10:00:00.000Z', 'own')], slots, 'own', (t) => t);
+    expect(marks.map((mark) => mark.index)).toEqual([2]);
+  });
+
+  it('counts the day in the time zone of the project, not in UTC', () => {
+    // 23:30 UTC on Oct 1 is already Oct 2 in Berlin
+    const event = hev('url_changed', '2026-10-01T23:30:00.000Z', 'own');
+    expect(eventMarksOf([event], slots, 'own', (t) => t, 'Europe/Berlin').map((mark) => mark.index)).toEqual([2]);
+    expect(eventMarksOf([event], slots, 'own', (t) => t, 'UTC').map((mark) => mark.index)).toEqual([0]);
+  });
+
+  it('matches the instant of a check whatever way the API writes it', () => {
+    const marks = eventMarksOf([hev('url_changed', '2026-10-02T14:00:00Z', 'own')], slots, 'own', (t) => t);
+    expect(marks.map((mark) => mark.index)).toEqual([2]);
+  });
+
+  it('drops an event that no check of the window covers', () => {
+    const events = [
+      hev('url_changed', '2026-09-20T02:00:00.000Z', 'own'),
+      hev('url_changed', '2026-10-09T02:00:00.000Z', 'own'),
+    ];
+    expect(eventMarksOf(events, slots, 'own', (t) => t)).toEqual([]);
+  });
+
+  it('returns the marks sorted by check, whatever order the events came in', () => {
+    const events = [
+      hev('url_changed', '2026-10-02T14:00:00.000Z', 'own'),
+      hev('entered_top_10', '2026-10-02T02:00:00.000Z', 'own'),
+      hev('aio_appeared', '2026-10-01T02:00:00.000Z', 'own'),
+    ];
+    expect(eventMarksOf(events, slots, 'own', (t) => t).map((mark) => mark.index)).toEqual([0, 1, 2]);
+  });
+
+  it('has no marks without events', () => {
+    expect(eventMarksOf([], slots, 'own', (t) => t)).toEqual([]);
   });
 });

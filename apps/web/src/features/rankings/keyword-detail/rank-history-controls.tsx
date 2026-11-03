@@ -144,6 +144,7 @@ export function RankHistoryControls({
       <CompetitorPicker competitors={competitors} chosen={chosen} onChosenChange={onChosenChange} />
       <div role="group" aria-label={t('layers.label')} className="flex items-center gap-1">
         {toggle('absolute', t('layers.absolute'))}
+        {toggle('events', t('layers.events'))}
         {toggle(
           'deep',
           !layers.includes('deep') && deepHidden > 0 ? t('layers.deepHidden', { count: deepHidden }) : t('layers.deep'),

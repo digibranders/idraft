@@ -40,6 +40,11 @@ export function formatTableDate(instant: Date | string, timeZone: string, now: D
   return sameYear(z, n) ? format(z, 'MMM d') : format(z, 'MMM d, yyyy');
 }
 
+/** The clock time of an instant in the project timezone: "18:32". */
+export function formatTime(instant: Date | string, timeZone: string): string {
+  return format(toZoned(instant, timeZone), 'HH:mm');
+}
+
 /** The calendar date of an instant in the project timezone as "2026-09-29", for a name of a file. */
 export function formatIsoDate(instant: Date | string, timeZone: string): string {
   return format(toZoned(instant, timeZone), 'yyyy-MM-dd');
