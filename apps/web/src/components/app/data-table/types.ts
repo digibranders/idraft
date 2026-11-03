@@ -166,6 +166,12 @@ export interface DataTableProps<TRow> {
   /** The row open in the inspector. */
   activeRowId?: string | null | undefined;
   /**
+   * A row that belongs to the viewer's own site or brand (the own result in a SERP) is drawn on the accent
+   * tint. Visual only: the row's cells must say who it is in words, and the keyboard, selection and names
+   * are the same for every row.
+   */
+  rowTone?: ((row: TRow) => 'own' | undefined) | undefined;
+  /**
    * The ids of the rows the table shows, in its order (searched and sorted in client mode), each time it
    * changes: the inspector's position and J and K follow it.
    */

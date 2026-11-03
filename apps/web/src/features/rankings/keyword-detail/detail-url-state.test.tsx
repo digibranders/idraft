@@ -92,6 +92,41 @@ describe('useDetailUrlState', () => {
     expect(new URLSearchParams(updates[0]?.queryString).get('comp')).toBe(ids.slice(0, 5).join(','));
   });
 
+  it('reads the snapshot shown (obs) and the one it is compared with (vs) as decimal integer text', () => {
+    expect(setup().result.current.obs).toBeNull();
+    expect(setup().result.current.vs).toBeNull();
+    expect(setup('?obs=812').result.current.obs).toBe('812');
+    expect(setup('?obs=812&vs=790').result.current.vs).toBe('790');
+  });
+
+  it('drops an obs or vs that is not a decimal integer, or too large to be sent exactly', () => {
+    for (const bad of ['abc', '0', '-5', '08', '1.5', '1e3', '12ab', '', '9007199254740993']) {
+      expect(setup(`?obs=${bad}`).result.current.obs, `obs=${bad}`).toBeNull();
+      expect(setup(`?vs=${bad}`).result.current.vs, `vs=${bad}`).toBeNull();
+    }
+  });
+
+  it('writes obs as a new history entry, so Back returns to the latest check, and clears it with null', async () => {
+    const { result, updates } = setup('?tab=snapshots');
+    act(() => void result.current.setObs('812'));
+    await waitFor(() => expect(updates.length).toBe(1));
+    expect(new URLSearchParams(updates[0]?.queryString).get('obs')).toBe('812');
+    expect(new URLSearchParams(updates[0]?.queryString).get('tab')).toBe('snapshots');
+    expect(updates[0]?.options.history).toBe('push');
+    act(() => void result.current.setObs(null));
+    await waitFor(() => expect(updates.length).toBe(2));
+    expect(updates[1]?.queryString).toBe('?tab=snapshots');
+    expect(updates[1]?.options.history).toBe('push');
+  });
+
+  it('writes vs as a new history entry', async () => {
+    const { result, updates } = setup();
+    act(() => void result.current.setVs('790'));
+    await waitFor(() => expect(updates.length).toBe(1));
+    expect(updates[0]?.queryString).toBe('?vs=790');
+    expect(updates[0]?.options.history).toBe('push');
+  });
+
   it('reads the chart layers, drops unknown ones, and omits an empty choice', async () => {
     expect(setup().result.current.show).toEqual([]);
     expect(setup('?show=absolute,bogus,deep').result.current.show).toEqual(['absolute', 'deep']);

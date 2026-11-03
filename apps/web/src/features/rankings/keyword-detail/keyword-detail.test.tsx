@@ -359,10 +359,12 @@ describe('The tabs of the keyword page', () => {
     expect(screen.getByRole('tabpanel', { name: 'SERP snapshots' })).toBeInTheDocument();
   });
 
-  it('keeps the SERP snapshots panel, which has no content yet, out of the tab order', async () => {
+  it('puts the SERP snapshots panel, which holds the snapshot table now, in the tab order', async () => {
     renderWithProviders(keywordDetailAs('viewer'), { searchParams: '?tab=snapshots' });
     await heading(DETAIL_KEYWORDS.ranked.text);
-    expect(screen.getByRole('tabpanel')).toHaveAttribute('tabindex', '-1');
+    const panel = screen.getByRole('tabpanel', { name: 'SERP snapshots' });
+    expect(panel).toHaveAttribute('tabindex', '0');
+    expect(await within(panel).findByRole('grid', { name: 'Organic results' })).toBeInTheDocument();
   });
 
   it('puts the Overview panel, which holds the chart, in the tab order', async () => {

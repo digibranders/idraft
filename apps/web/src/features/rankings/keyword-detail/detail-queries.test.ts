@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { aioHistoryQuery, chartCompetitors, MAX_HISTORY_COMPETITORS, pageRankHistoryQuery } from './detail-queries';
+import {
+  aioHistoryQuery,
+  chartCompetitors,
+  MAX_HISTORY_COMPETITORS,
+  pageRankHistoryQuery,
+  serpCurrentQuery,
+  SNAPSHOT_PAGE_SIZE,
+  snapshotQuery,
+  snapshotsQuery,
+} from './detail-queries';
 import { rankHistoryQuery, type KeywordScope } from '../keyword-inspector/inspector-queries';
 import type { ProjectEntity } from '@/lib/api/types';
 
@@ -91,5 +100,35 @@ describe('aioHistoryQuery', () => {
     const a = aioHistoryQuery(scope, { from: '2026-10-27', to: '2026-11-02' }).queryKey;
     const b = aioHistoryQuery(scope, { from: '2026-08-05', to: '2026-11-02' }).queryKey;
     expect(a).not.toEqual(b);
+  });
+});
+
+describe('the SERP snapshot queries', () => {
+  const keywordKey = ['ws', idOf(90), 'p', idOf(91), 'tracked-keywords', idOf(92)];
+
+  it('keeps the latest results and the snapshot list under the keyword, so Check now refreshes them', () => {
+    expect(serpCurrentQuery(scope).queryKey.slice(0, keywordKey.length)).toEqual(keywordKey);
+    expect(serpCurrentQuery(scope).queryKey[keywordKey.length]).toBe('serp-current');
+    expect(snapshotsQuery(scope).queryKey.slice(0, keywordKey.length)).toEqual(keywordKey);
+    expect(snapshotsQuery(scope).queryKey[keywordKey.length]).toBe('serp-snapshots');
+  });
+
+  it('keeps one snapshot under the project serp-snapshots key, which refreshKeywords invalidates', () => {
+    const key = snapshotQuery(scope, '812', '2026-10-29T02:00:00.000Z').queryKey;
+    expect(key.slice(0, 5)).toEqual(['ws', idOf(90), 'p', idOf(91), 'serp-snapshots']);
+    expect(key[5]).toBe('812');
+  });
+
+  it('asks for the titles and passes the month hint when the snapshot row is known', () => {
+    expect(snapshotQuery(scope, '812', '2026-10-29T02:00:00.000Z').queryKey.at(-1)).toEqual({
+      include: ['titles'],
+      observed_at: '2026-10-29T02:00:00.000Z',
+    });
+    expect(snapshotQuery(scope, '812', null).queryKey.at(-1)).toEqual({ include: ['titles'] });
+  });
+
+  it('reads 50 snapshots a page', () => {
+    expect(SNAPSHOT_PAGE_SIZE).toBe(50);
+    expect(snapshotsQuery(scope).queryKey).toContainEqual({ limit: 50 });
   });
 });

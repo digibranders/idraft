@@ -2738,6 +2738,74 @@
       "aioNoChecks": "No readable checks in this window",
       "unavailable": "n/a",
       "partialError": "Some figures did not load"
+    },
+    "snapshots": {
+      "picker": {
+        "label": "Snapshot",
+        "latest": "Latest check",
+        "option": "{when} · top {depth} · rank {rank}",
+        "optionBeyond": "{when} · top {depth} · not in top {depth}",
+        "urlChanged": "{option} · ranking URL changed",
+        "previous": "Previous snapshot",
+        "next": "Next snapshot",
+        "older": "Load older snapshots",
+        "atFirst": "This is the newest snapshot",
+        "atLast": "This is the oldest snapshot loaded",
+        "listFailed": "The list of snapshots did not load"
+      },
+      "heading": {
+        "latest": "Latest check, {when}",
+        "dated": "Snapshot of {when}"
+      },
+      "columns": {
+        "rank": "Rank",
+        "result": "Result",
+        "url": "URL",
+        "entity": "Entity",
+        "snippet": "Snippet"
+      },
+      "absoluteRank": "Position {absolute} counting the SERP features above it",
+      "openResult": "Open {address} in a new tab",
+      "entity": {
+        "you": "You",
+        "watch": "Watched",
+        "notTracked": "Not tracked"
+      },
+      "table": {
+        "caption": "Organic results",
+        "noun": {
+          "one": "result",
+          "other": "results"
+        },
+        "search": "Filter results",
+        "empty": {
+          "title": "This snapshot has no organic results",
+          "reason": "The provider returned none for this check."
+        },
+        "noMatch": {
+          "title": "No result matches the filter",
+          "reason": "Clear the filter to see every result.",
+          "clear": "Clear filter"
+        },
+        "failed": "The results did not load",
+        "failedReason": "The snapshot list and the picker above are still usable."
+      },
+      "loading": "Loading the results",
+      "titlesNote": "Titles are kept only for your pages, your competitors and the latest results.",
+      "returned": "{returned, plural, one {# of the top {depth} results was returned.} other {# of the top {depth} results were returned.}}",
+      "empty": {
+        "pending": "No SERP snapshot yet",
+        "pendingReason": "The first check creates one.",
+        "failed": "The check failed, so there is no snapshot",
+        "failedReason": "Check now tries again.",
+        "archived": "This archived keyword has no SERP snapshot",
+        "archivedReason": "It was never checked before it was archived."
+      },
+      "gone": {
+        "title": "This snapshot is no longer available",
+        "reason": "It may have been removed, or the link is out of date.",
+        "clear": "Show the latest check"
+      }
     }
   },
   "filters": {

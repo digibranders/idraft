@@ -67,7 +67,9 @@ function Harness({
   rowName = keywordOf,
   columns = COLUMNS,
   loadProgress = null,
+  rowTone,
 }: {
+  rowTone?: (row: Row) => 'own' | undefined;
   loadProgress?: { loaded: number; total: number } | null;
   columns?: readonly DataTableColumn<Row>[];
   rows: Row[];
@@ -118,6 +120,7 @@ function Harness({
         rowName={rowName}
         onRowOpen={onOpen}
         onRowOrderChange={onRowOrderChange}
+        rowTone={rowTone}
         status={status}
         errorState={<p>The keywords did not load.</p>}
         emptyState={<p>No keywords yet.</p>}
@@ -1304,5 +1307,51 @@ describe('DataTable controls in cells', () => {
   it('passes the accessibility check with the controls in the rows', async () => {
     const { container } = renderControlled();
     expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+const WHOSE = [
+  ...COLUMNS,
+  col.text<Row>('whose', (row) => (row.id === 'k2' ? 'You' : 'Someone else'), { header: 'Entity', priority: 1 }),
+];
+const isOwn = (row: Row): 'own' | undefined => (row.id === 'k2' ? 'own' : undefined);
+
+describe('DataTable row tone', () => {
+  const rowOf = (name: string): HTMLElement => {
+    const row = within(grid())
+      .getAllByRole('rowheader')
+      .find((cell) => cell.textContent === name)?.parentElement;
+    if (row === undefined || row === null) throw new Error(`no row for ${name}`);
+    return row;
+  };
+  const cellTexts = (): string[] =>
+    within(grid())
+      .getAllByRole('row')
+      .map((row) => row.textContent);
+
+  it('marks the row the screen names and no other', () => {
+    renderWithProviders(<Harness rows={rowsOf(5)} columns={WHOSE} rowTone={isOwn} />);
+    expect(grid().querySelectorAll('[data-tone]')).toHaveLength(1);
+    expect(rowOf('keyword 002')).toHaveAttribute('data-tone', 'own');
+    expect(rowOf('keyword 003')).not.toHaveAttribute('data-tone');
+  });
+
+  it('is visual only: every cell says the same with and without it, and the own row says "You" in words', () => {
+    const { unmount } = renderWithProviders(<Harness rows={rowsOf(5)} columns={WHOSE} />);
+    const plain = cellTexts();
+    unmount();
+    renderWithProviders(<Harness rows={rowsOf(5)} columns={WHOSE} rowTone={isOwn} />);
+    expect(cellTexts()).toEqual(plain);
+    expect(within(rowOf('keyword 002')).getByRole('gridcell', { name: 'You' })).toBeInTheDocument();
+    expect(within(rowOf('keyword 003')).queryByRole('gridcell', { name: 'You' })).toBeNull();
+  });
+
+  it('leaves the arrow keys alone: ArrowDown moves from the own row to the next one', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(5)} columns={WHOSE} rowTone={isOwn} />);
+    const own = within(rowOf('keyword 002')).getByRole('rowheader');
+    act(() => own.focus());
+    await user.keyboard('{ArrowDown}');
+    // Sorted by volume, high to low: keyword 002 is followed by keyword 000
+    expect(document.activeElement).toBe(within(rowOf('keyword 000')).getByRole('rowheader'));
   });
 });

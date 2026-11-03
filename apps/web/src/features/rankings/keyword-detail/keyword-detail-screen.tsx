@@ -12,6 +12,7 @@ import { DetailStrip } from './detail-strip';
 import { useDetailUrlState, type DetailTab } from './detail-url-state';
 import { listReturnHref, tabStorage } from './list-return';
 import { RankHistoryPanel } from './rank-history-panel';
+import { SnapshotsTab } from './snapshots/snapshots-tab';
 import { useCheckNow } from '../check-now/use-check-now';
 import { detailQuery, type KeywordScope } from '../keyword-inspector/inspector-queries';
 import { SectionError } from '../keyword-inspector/section-error';
@@ -157,8 +158,9 @@ function KeywordDetailContent({
             </div>
           </div>
         </TabsPanel>
-        {/* An empty panel is not a tab stop: the tabIndex goes when the panel holds content */}
-        <TabsPanel<DetailTab> value="snapshots" tabIndex={-1} className="pt-4" />
+        <TabsPanel<DetailTab> value="snapshots" className="pt-4">
+          <SnapshotsTab scope={scope} detail={data} timeZone={timeZone} />
+        </TabsPanel>
       </Tabs>
     </div>
   );

@@ -26,6 +26,16 @@ const parseAsCompetitors = createParser<string[]>({
   eq: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]),
 });
 
+/**
+ * `obs` and `vs`: a SERP snapshot id. The API types the id in a path as a number, so only decimal integer
+ * text that a number holds exactly is read; anything else is dropped like an unknown tab.
+ * shortcut: ids above 2^53 are refused, when the ids grow that far the path parameter must go as text.
+ */
+const parseAsSnapshotId = createParser<string>({
+  parse: (value) => (/^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value)) ? value : null),
+  serialize: (id) => id,
+});
+
 export interface DetailUrlState {
   tab: DetailTab;
   setTab: (tab: DetailTab) => Promise<URLSearchParams>;
@@ -36,6 +46,12 @@ export interface DetailUrlState {
   setComp: (ids: readonly string[] | null) => Promise<URLSearchParams>;
   show: ChartLayer[];
   setShow: (layers: readonly ChartLayer[]) => Promise<URLSearchParams>;
+  /** The SERP snapshot shown; null is the latest check. */
+  obs: string | null;
+  setObs: (id: string | null) => Promise<URLSearchParams>;
+  /** The snapshot it is compared with; null is no comparison. */
+  vs: string | null;
+  setVs: (id: string | null) => Promise<URLSearchParams>;
 }
 
 /**
@@ -62,6 +78,8 @@ export function useDetailUrlState(): DetailUrlState {
       clearOnDefault: true,
     }),
   );
+  const [obs, setObs] = useQueryState('obs', parseAsSnapshotId.withOptions({ history: 'push' }));
+  const [vs, setVs] = useQueryState('vs', parseAsSnapshotId.withOptions({ history: 'push' }));
   return {
     tab,
     setTab: (next) => setTab(next),
@@ -71,5 +89,9 @@ export function useDetailUrlState(): DetailUrlState {
     setComp: (ids) => setComp(ids === null ? null : [...ids]),
     show,
     setShow: (layers) => setShow([...layers]),
+    obs,
+    setObs: (id) => setObs(id),
+    vs,
+    setVs: (id) => setVs(id),
   };
 }
