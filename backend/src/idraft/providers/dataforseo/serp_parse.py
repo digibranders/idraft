@@ -28,7 +28,7 @@ from typing import Any, Final, Literal
 
 from idraft.extraction.urls import CanonicalUrl, UrlRejectedError, canonicalize, has_known_suffix
 
-PARSER_VERSION: Final = 2
+PARSER_VERSION: Final = 3
 # What a result shows in place of its address: the origin, then the path pieces, each after a
 # single right-pointing angle quotation mark (U+203A).
 _CRUMB_SEPARATOR: Final = "›"  # noqa: RUF001
@@ -37,6 +37,24 @@ _CRUMB_SEGMENT: Final = re.compile(r"[A-Za-z0-9._~%!$&'()*+,;=:@-]+")
 _HOSTNAME: Final = re.compile(
     r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+"
 )
+# A result's site name for a post or profile: the platform, a middle dot, then the account.
+_NAME_SEPARATOR: Final = "·"
+# The platforms whose posts and profiles come back hidden with a count in place of the address
+# (seen 2026-11-02), by the name they show. Only the host is known, never the page.
+_PLATFORMS: Final[Mapping[str, str]] = {
+    "linkedin": "linkedin.com",
+    "instagram": "instagram.com",
+    "facebook": "facebook.com",
+    "youtube": "youtube.com",
+    "x": "x.com",
+    "twitter": "x.com",
+    "quora": "quora.com",
+    "reddit": "reddit.com",
+    "pinterest": "pinterest.com",
+    "tiktok": "tiktok.com",
+    "medium": "medium.com",
+    "github": "github.com",
+}
 # A feature's payload is kept small: it is a row of a table read for every SERP of a keyword.
 # The limit is bytes of the text PostgreSQL gives the jsonb value, which is what the table's check
 # measures: `json.dumps` with its default separators writes the same text.
@@ -742,10 +760,14 @@ def _hidden_site(item: Mapping[str, Any]) -> CanonicalUrl | None:
     crumb = _text(item.get("breadcrumb"))
     if crumb is not None:
         candidate = _breadcrumb_address(crumb)
+    name = (_text(item.get("website_name")) or "").replace("\xa0", " ").strip().lower()
+    if candidate is None and _HOSTNAME.fullmatch(name):
+        candidate = f"https://{name}/"
     if candidate is None:
-        name = (_text(item.get("website_name")) or "").strip().lower()
-        if _HOSTNAME.fullmatch(name):
-            candidate = f"https://{name}/"
+        # A post or profile on a social site shows `Platform · account` and a count of followers
+        # or views in place of the address; the platform's own site is the host.
+        host = _PLATFORMS.get(name.split(_NAME_SEPARATOR)[0].strip())
+        candidate = None if host is None else f"https://{host}/"
     if candidate is None:
         return None
     try:
