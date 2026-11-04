@@ -10,14 +10,14 @@ import { Icon } from '@/components/ui/icon';
 import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { languageName } from '@/lib/format/language';
 import { TargetMismatchMarker } from './feature-cells';
-import type { DeviceScope, PairedRow } from './keyword-pairs';
+import type { Device, PairedRow } from './keyword-pairs';
 import { RankingPagesCard, rankingPages } from './ranking-pages';
 import { useCompetitorColumns, useRankColumns } from './rank-columns';
 import { CELL_CONTROL } from '@/lib/tables/grid-focus';
 import type { SortKey } from '@/lib/tables/table-state';
 
 /**
- * The columns of Rankings (24-page-templates.md section 9.3), in the template's order: Keyword, Desktop rank and Mobile rank (each with its Change),
+ * The columns of Rankings (24-page-templates.md section 9.3), in the template's order: Keyword, Rank (with its Change, of the device shown),
  * Ranking URL, Volume, KD, CPC, Intent, SERP features, AI Overview, Priority, Group, Tags, Best rank (in the column chooser only),
  * Updated (the last successful check) and Added. The rank, SERP feature and AI Overview columns are built in `rank-columns.tsx`.
  * Waiting for their own plans are the template's sparkline and competitor columns. The ids of
@@ -66,7 +66,7 @@ export function useKeywordRowName(projectLanguage: string | null): (row: Tracked
 export function useKeywordColumns(
   timeZone: string,
   competitors: readonly EntityRef[] = [],
-  device: DeviceScope = 'both',
+  device: Device = 'desktop',
 ): readonly DataTableColumn<PairedRow>[] {
   const t = useTranslations('rankings.columns');
   const common = useTranslations('common');
@@ -117,15 +117,14 @@ export function useKeywordColumns(
             <RankingPagesCard
               trigger={link}
               pages={pages}
-              scope={device}
+              device={device}
               checkedAt={row.state.last_observed_at}
               timeZone={timeZone}
             />
           );
         },
       }),
-      ranks.rankDesktop,
-      ranks.rankMobile,
+      ranks.rank,
       ranks.url,
       col.volume<TrackedKeywordRow>('search_volume', (row) => metrics(row)?.search_volume.value ?? null, {
         header: t('volume'),

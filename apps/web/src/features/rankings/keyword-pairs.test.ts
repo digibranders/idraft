@@ -29,16 +29,16 @@ const LIST = [
 
 describe('pairRows', () => {
   it('makes one row of the desktop and the mobile tracking of a keyword, in the order it first appears', () => {
-    const paired = pairRows(LIST, 'both');
+    const paired = pairRows(LIST, 'desktop');
 
-    expect(paired.map((r) => r.tracked_keyword_id)).toEqual(['a-d', 'b-m', 'c-d', 'a-d-us']);
+    expect(paired.map((r) => r.tracked_keyword_id)).toEqual(['a-d', 'c-d', 'a-d-us']);
     expect(paired[0]?.devices.desktop?.tracked_keyword_id).toBe('a-d');
     expect(paired[0]?.devices.mobile?.tracked_keyword_id).toBe('a-m');
-    expect(paired[1]?.devices).toMatchObject({ desktop: null });
+    expect(paired[1]?.devices).toMatchObject({ mobile: null });
   });
 
   it('keeps one keyword in two places or two languages as two rows', () => {
-    const paired = pairRows([...LIST, row('a-d-de', 'seo agency', 'desktop', { language: 'de' })], 'both');
+    const paired = pairRows([...LIST, row('a-d-de', 'seo agency', 'desktop', { language: 'de' })], 'desktop');
 
     expect(paired.filter((r) => r.keyword.text === 'seo agency')).toHaveLength(3);
   });
@@ -49,14 +49,20 @@ describe('pairRows', () => {
     expect(pairRows(LIST, 'mobile').map((r) => r.tracked_keyword_id)).toEqual(['a-m', 'b-m']);
   });
 
-  it('shows a mobile-only keyword as its mobile row when both devices are chosen', () => {
-    expect(pairRows(LIST, 'both')[1]).toMatchObject({ tracked_keyword_id: 'b-m', device: 'mobile' });
+  it('leaves a keyword tracked on mobile only out of the desktop pairing', () => {
+    expect(pairRows(LIST, 'desktop').some((pair) => pair.tracked_keyword_id === 'b-m')).toBe(false);
+  });
+
+  it('shows a keyword on the device chosen, with that device’s row as the row it shows', () => {
+    const mobile = pairRows(LIST, 'mobile');
+    expect(mobile.every((pair) => pair.device === 'mobile')).toBe(true);
+    expect(mobile.every((pair) => pair.devices.mobile !== null)).toBe(true);
   });
 
   it('leaves out no row the API listed: a second row of one device is a row of its own', () => {
     const twice = [row('x1', 'crm', 'desktop'), row('x2', 'crm', 'desktop'), row('x3', 'crm', 'mobile')];
 
-    const paired = pairRows(twice, 'both');
+    const paired = pairRows(twice, 'desktop');
 
     expect(paired).toHaveLength(2);
     expect(
@@ -69,7 +75,7 @@ describe('pairRows', () => {
 
 describe('expandIds', () => {
   it('adds the other device of every chosen keyword, and leaves a keyword on one device as it is', () => {
-    const paired = pairRows(LIST, 'both');
+    const paired = pairRows(LIST, 'desktop');
     const members = memberIds(paired);
 
     expect([...expandIds(new Set(['a-d']), members)].sort()).toEqual(['a-d', 'a-m']);

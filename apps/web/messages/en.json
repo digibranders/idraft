@@ -2193,7 +2193,6 @@
     },
     "scope": {
       "device": "Device",
-      "both": "Desktop and mobile",
       "country": "Country: {country}",
       "countrySearch": "Search countries",
       "countryEmpty": "No countries match “{query}”",
@@ -2286,9 +2285,6 @@
     },
     "rank": {
       "rank": "Rank",
-      "rankDesktop": "Desktop",
-      "rankMobile": "Mobile",
-      "notTracked": "Not tracked",
       "rankTooltip": "Organic rank at the latest check and how it moved since the previous check. A keyword beyond the depth that was checked shows the depth, such as >20.",
       "rankingUrl": "Ranking URL",
       "openUrl": "Open {path} in a new tab",

@@ -105,7 +105,7 @@ describe('The keyword inspector', () => {
     await waitFor(() => expect(url.latest().get('inspect')).toMatch(/^keyword:/));
     expect(within(inspector).getByText('United States · Desktop')).toBeInTheDocument();
     expect(within(inspector).getByText('Google · English')).toBeInTheDocument();
-    expect(within(inspector).getByText('1 of 58')).toBeInTheDocument();
+    expect(within(inspector).getByText('1 of 57')).toBeInTheDocument();
     const metrics = within(inspector).getByRole('group', { name: 'Metrics for this keyword' });
     expect(await within(metrics).findByText('33,100')).toBeInTheDocument();
     expect(within(metrics).getByText('$24.10')).toBeInTheDocument();
@@ -125,7 +125,7 @@ describe('The keyword inspector', () => {
     await openFromRow(user, 'seo agency');
     await user.keyboard('j');
     const next = await inspectorOf('backlink checker');
-    expect(within(next).getByText('2 of 58')).toBeInTheDocument();
+    expect(within(next).getByText('2 of 57')).toBeInTheDocument();
     await user.keyboard('k');
     expect(await inspectorOf('seo agency')).toBeInTheDocument();
   });

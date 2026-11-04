@@ -200,16 +200,23 @@ describe('useCompetitorColumns', () => {
     expect(cols[3]?.defaultVisible).toBe(false);
   });
 
-  it('gives the rank columns no tooltip of their own: the cell and its markers say what there is to say', () => {
+  it('gives the rank column no tooltip of its own: the cell and its markers say what there is to say', () => {
     const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
     const rank = makeRow({});
-    for (const column of [result.current.rankDesktop, result.current.rankMobile]) {
-      expect(column.headerTooltip).toBeUndefined();
-      expect(column.cellTip).toBeUndefined();
-    }
+    expect(result.current.rank.headerTooltip).toBeUndefined();
+    expect(result.current.rank.cellTip).toBeUndefined();
     expect(result.current.best.headerTooltip).toBeUndefined();
     expect(result.current.trend.headerTooltip).toBeUndefined();
     expect(result.current.best.cellTip?.(rank)).toBeUndefined();
+  });
+
+  it('reads the rank of the row it is given, whatever device that row is', () => {
+    const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
+    const mobile = makeRow({ device: 'mobile' });
+    expect(result.current.rank.header).toBe('Rank');
+    expect(result.current.rank.sortValue?.(mobile)).toBe(
+      mobile.state.current.state === 'ranked' ? mobile.state.current.rank : null,
+    );
   });
 
   it('keeps a tooltip only where the cell cannot say it: the features named, a failed AI Overview, a cut-short URL', () => {

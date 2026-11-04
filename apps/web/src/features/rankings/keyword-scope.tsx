@@ -1,12 +1,12 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, MapPin, Monitor, MonitorSmartphone, Smartphone } from 'lucide-react';
+import { ChevronDown, MapPin, Monitor, Smartphone } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { parseAsInteger, parseAsStringLiteral, useQueryStates } from 'nuqs';
 import { useMemo, type ReactElement } from 'react';
 
-import type { DeviceScope } from './keyword-pairs';
+import type { Device } from './keyword-pairs';
 import type { ProjectDefaults } from './add-keywords/add-keywords-dialog';
 import { readCountries, type Country } from './keyword-filters';
 import { buttonVariants } from '@/components/ui/button-variants';
@@ -15,11 +15,11 @@ import { Icon } from '@/components/ui/icon';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 
 /**
- * The scope of the Rankings table (13-filters-search.md section 2): which devices show their rank column, and
- * which country the keywords are tracked in. They sit beside the filters and are never cleared with them.
- * Both devices show unless one is chosen; the country is India until another is chosen, as a keyword is
- * tracked at country level. The URL keys are `dev` (`desktop` or `mobile`, absent for both) and `loc` (a
- * country's location id, absent for the default).
+ * The scope of the Rankings table (13-filters-search.md section 2): which device the table shows, and which
+ * country the keywords are tracked in. They sit beside the filters and are never cleared with them.
+ * Desktop shows unless mobile is chosen; the country is India until another is chosen, as a keyword is
+ * tracked at country level. The URL keys are `dev` (`mobile`, absent for desktop) and `loc` (a country's
+ * location id, absent for the default).
  */
 
 /** India, by DataForSEO's location code, which is the location id here. */
@@ -33,10 +33,10 @@ const SCOPE_STATE = {
 };
 
 export interface KeywordScope {
-  device: DeviceScope;
+  device: Device;
   /** The country the table shows: a location id, India unless the project's own default is a country. */
   countryId: number;
-  setDevice: (device: DeviceScope) => void;
+  setDevice: (device: Device) => void;
   setCountry: (countryId: number) => void;
 }
 
@@ -60,9 +60,10 @@ export function useKeywordScope(
         : countries.find((country) => country.country_iso === projectLocation.country_iso)?.location_id;
   const fallback = opensOn ?? own ?? DEFAULT_COUNTRY_ID;
   return {
-    device: state.dev ?? 'both',
+    device: state.dev ?? 'desktop',
     countryId: state.loc ?? fallback,
-    setDevice: (device) => void setState({ dev: device === 'both' ? null : device }),
+    // Desktop is the default and is kept out of the URL
+    setDevice: (device) => void setState({ dev: device === 'desktop' ? null : device }),
     // The default country is kept out of the URL, so a link without `loc` follows the project's default
     setCountry: (countryId) => void setState({ loc: countryId === fallback ? null : countryId }),
   };
@@ -126,7 +127,7 @@ export function KeywordScopeControls({
   );
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <SegmentedControl<DeviceScope>
+      <SegmentedControl<Device>
         semantics="view"
         label={t('device')}
         value={scope.device}
@@ -134,7 +135,6 @@ export function KeywordScopeControls({
         size="sm"
         iconOnly
         items={[
-          { value: 'both', label: t('both'), icon: MonitorSmartphone },
           { value: 'desktop', label: columns('desktop'), icon: Monitor },
           { value: 'mobile', label: columns('mobile'), icon: Smartphone },
         ]}

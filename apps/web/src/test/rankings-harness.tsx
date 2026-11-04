@@ -127,6 +127,7 @@ export function answerTrackedAsMany({
   slow = () => false,
   withoutGroups = false,
   rowsPerPage = null,
+  desktopOnly = false,
 }: {
   total: number;
   pages?: number;
@@ -138,6 +139,11 @@ export function answerTrackedAsMany({
   withoutGroups?: boolean;
   /** Rows in each page, the fixture rows repeated (their ids made unique), instead of the fixture's own few. */
   rowsPerPage?: number | null;
+  /**
+   * Every row is a desktop row, so the table (which shows one device) lists all of them: a test that counts
+   * the rows it selects then counts every row the page holds.
+   */
+  desktopOnly?: boolean;
 }): URLSearchParams[] {
   const asked: URLSearchParams[] = [];
   server.use(
@@ -172,6 +178,7 @@ export function answerTrackedAsMany({
         ).map((row, at) => ({
           ...row,
           ...(withoutGroups ? { groups: undefined } : {}),
+          ...(desktopOnly ? { device: 'desktop' } : {}),
           tracked_keyword_id:
             rowsPerPage === null
               ? `${row.tracked_keyword_id.slice(0, -6)}${String(index).padStart(3, '0')}${row.tracked_keyword_id.slice(-3)}`

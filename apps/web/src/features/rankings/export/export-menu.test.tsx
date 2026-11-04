@@ -33,7 +33,7 @@ afterEach(() => {
 });
 
 describe('Export', () => {
-  it('saves the table as CSV from the Export menu, one row for each keyword with a rank for each device', async () => {
+  it('saves the table as CSV from the Export menu, one row for each keyword with its rank on the device shown', async () => {
     const { user } = renderWithProviders(rankingsAs('viewer'));
     await loadedGrid();
     await user.click(screen.getByRole('button', { name: 'Export' }));
@@ -42,7 +42,7 @@ describe('Export', () => {
     await waitFor(() => expect(saved).toHaveLength(1));
     expect(names[0]).toMatch(/^keywords-\d{4}-\d{2}-\d{2}\.csv$/);
     const text = await (saved[0] as Blob).text();
-    expect(text.split('\r\n')[0]).toContain('Keyword,Desktop,Mobile');
+    expect(text.split('\r\n')[0]).toContain('Keyword,Rank (Desktop),Ranking URL');
     expect(text.split('\r\n').length).toBeGreaterThan(5);
   });
 

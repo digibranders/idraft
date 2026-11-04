@@ -2,12 +2,11 @@ import type { TrackedKeywordRow } from '@/lib/api/types';
 
 /**
  * A keyword is tracked on each device as a row of its own, so the API lists one keyword twice. The table shows
- * it once, with a rank column for each device: this pairs the rows. A pair is the rows of one keyword in one
- * place and language on one search engine. Which devices show is the Device scope control's choice.
+ * it once, as the device the Device scope control chose: this pairs the rows, so an action on a keyword still
+ * reaches both devices. A pair is the rows of one keyword in one place and language on one search engine.
  */
 
 export type Device = TrackedKeywordRow['device'];
-export type DeviceScope = 'both' | Device;
 
 /** The row the table shows for a keyword, and the rows of each device behind it (null where not tracked). */
 export interface PairedRow extends TrackedKeywordRow {
@@ -18,11 +17,11 @@ const keyOf = (row: TrackedKeywordRow): string =>
   [row.keyword.keyword_id, row.location_id, row.language_code, row.search_engine].join('|');
 
 /**
- * The rows paired, in the order each keyword first appears. The row a pair shows for everything but the rank
- * columns (volume, features, AI Overview, the keyword's own state) is the mobile row when only mobile is
- * chosen, else the desktop row; a pair with no row for a chosen device is left out.
+ * The rows paired, in the order each keyword first appears, for the device the table shows. The row a pair
+ * shows is that device's row, so everything the table reads from it (rank, features, AI Overview, trend, the
+ * ranking URL, the check time) is that device's own; a keyword not tracked on the device is left out.
  */
-export function pairRows(rows: readonly TrackedKeywordRow[], scope: DeviceScope): PairedRow[] {
+export function pairRows(rows: readonly TrackedKeywordRow[], device: Device): PairedRow[] {
   type Devices = { desktop: TrackedKeywordRow | null; mobile: TrackedKeywordRow | null };
   const groups = new Map<string, Devices[]>();
   const order: Devices[] = [];
@@ -42,9 +41,7 @@ export function pairRows(rows: readonly TrackedKeywordRow[], scope: DeviceScope)
   }
   const paired: PairedRow[] = [];
   for (const devices of order) {
-    if (scope === 'desktop' && devices.desktop === null) continue;
-    if (scope === 'mobile' && devices.mobile === null) continue;
-    const primary = scope === 'mobile' ? (devices.mobile ?? devices.desktop) : (devices.desktop ?? devices.mobile);
+    const primary = devices[device];
     if (primary === null) continue;
     paired.push({ ...primary, devices });
   }

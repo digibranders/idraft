@@ -1,5 +1,5 @@
 import type { RankCell, TrackedKeywordRow } from '@/lib/api/types';
-import type { DeviceScope, PairedRow } from '../keyword-pairs';
+import type { Device, PairedRow } from '../keyword-pairs';
 
 /** A cell of the exported table: text, a number, or nothing. */
 export type ExportCell = string | number | null;
@@ -16,6 +16,7 @@ export type ExportColumnKind =
 /** The words of the file, from the catalog, so the model itself holds no text a person reads. */
 export interface ExportLabels {
   keyword: string;
+  rank: string;
   desktop: string;
   mobile: string;
   url: string;
@@ -35,7 +36,7 @@ export interface ExportLabels {
 }
 
 export interface KeywordExport {
-  /** Counts of tracked keywords, one per device, as the strip above the table shows them. */
+  /** Counts of the tracked keywords of the device shown, as the strip above the table shows them. */
   kpis: ExportKpi[];
   header: string[];
   /** The kind of each column, in the order of the header. */
@@ -53,10 +54,10 @@ export function rankCell(cell: RankCell | undefined): ExportCell {
   return null;
 }
 
-/** The tracked keywords of a row on the devices the scope shows. */
-function trackedIn(row: PairedRow, scope: DeviceScope): TrackedKeywordRow[] {
-  const found = scope === 'both' ? [row.devices.desktop, row.devices.mobile] : [row.devices[scope]];
-  return found.filter((tracked): tracked is TrackedKeywordRow => tracked !== null);
+/** The tracked keyword of a row on the device shown, or none when it is not tracked there. */
+function trackedIn(row: PairedRow, device: Device): TrackedKeywordRow[] {
+  const found = row.devices[device];
+  return found === null ? [] : [found];
 }
 
 /** A cell that a spreadsheet would read as a formula is written as text (CSV injection). */
@@ -79,11 +80,11 @@ function latestCheck(tracked: readonly TrackedKeywordRow[]): string | null {
 }
 
 /**
- * The table as it is shown, one row for each keyword with a rank for each device chosen, and the counts
- * of the strip above it: the keywords of each device chosen, and those in the top 3, 10 and 20.
+ * The table as it is shown, one row for each keyword with its rank on the device shown, and the counts
+ * of the strip above it: the keywords of the device shown, and those in the top 3, 10 and 20.
  */
-export function buildExport(rows: readonly PairedRow[], scope: DeviceScope, labels: ExportLabels): KeywordExport {
-  const tracked = rows.flatMap((row) => trackedIn(row, scope));
+export function buildExport(rows: readonly PairedRow[], device: Device, labels: ExportLabels): KeywordExport {
+  const tracked = rows.flatMap((row) => trackedIn(row, device));
   const within = (limit: number): number =>
     tracked.filter((row) => row.state.current.state === 'ranked' && (row.state.current.rank ?? Infinity) <= limit)
       .length;
@@ -93,12 +94,9 @@ export function buildExport(rows: readonly PairedRow[], scope: DeviceScope, labe
     { label: labels.top10, value: within(TOPS[1]) },
     { label: labels.top20, value: within(TOPS[2]) },
   ];
-  const showDesktop = scope !== 'mobile';
-  const showMobile = scope !== 'desktop';
   const columns: [ExportColumnKind, string][] = [
     ['keyword', labels.keyword],
-    ...(showDesktop ? [['rank', labels.desktop] as [ExportColumnKind, string]] : []),
-    ...(showMobile ? [['rank', labels.mobile] as [ExportColumnKind, string]] : []),
+    ['rank', `${labels.rank} (${labels[device]})`],
     ['url', labels.url],
     ['volume', labels.volume],
     ['difficulty', labels.difficulty],
@@ -111,24 +109,18 @@ export function buildExport(rows: readonly PairedRow[], scope: DeviceScope, labe
   const header = columns.map(([, label]) => label);
   const kinds = columns.map(([kind]) => kind);
   const body = rows.map((row): ExportCell[] => {
-    const desktop = row.devices.desktop?.state.current;
-    const mobile = row.devices.mobile?.state.current;
-    const shown = trackedIn(row, scope);
-    const ranking = (scope === 'mobile' ? [mobile, desktop] : [desktop, mobile]).find(
-      (cell) => cell?.state === 'ranked' && cell.url !== null,
-    );
+    const current = row.devices[device]?.state.current;
     return [
       safeText(row.keyword.text),
-      ...(showDesktop ? [rankCell(desktop)] : []),
-      ...(showMobile ? [rankCell(mobile)] : []),
-      ranking?.url?.canonical_url ?? null,
+      rankCell(current),
+      current?.state === 'ranked' ? (current.url?.canonical_url ?? null) : null,
       number(row.metrics?.search_volume.value),
       row.metrics?.keyword_difficulty ?? null,
       number(row.metrics?.cpc_usd),
       labels.intents[row.intent] ?? null,
       row.priority,
       (row.groups ?? []).map((group) => group.path).join('; ') || null,
-      latestCheck(shown),
+      latestCheck(trackedIn(row, device)),
     ];
   });
   return { kpis, header, kinds, rows: body };

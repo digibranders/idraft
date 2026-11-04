@@ -13,7 +13,6 @@ import { ManageGroupsDialog } from './groups/manage-groups-dialog';
 import { ImportProgress } from './import/import-progress';
 import { forgetWritingImport, useWritingImport } from './import/import-queries';
 import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns, useKeywordRowName } from './keyword-columns';
-import { RANK_COLUMN_IDS } from './rank-columns';
 import { useKeywordFilterFields } from './keyword-filters';
 import { expandIds, memberIds, memberRows, pairRows, type PairedRow } from './keyword-pairs';
 import { ALL_COUNTRIES, KeywordScopeControls, useCountries, useKeywordScope } from './keyword-scope';
@@ -134,6 +133,7 @@ export function RankingsScreen({
   const discard = useTranslations('account.discard');
   const competitorT = useTranslations('rankings.competitor');
   const columnsT = useTranslations('rankings.columns');
+  const rankT = useTranslations('rankings.rank');
   const exportColumnsT = useTranslations('rankings.export.columns');
   const stripT = useTranslations('rankings.strip');
   const locale = useLocale();
@@ -197,19 +197,9 @@ export function RankingsScreen({
     }
     return [];
   }, [entitiesQuery.data, view.cols]);
-  const allColumns = useKeywordColumns(timeZone, competitors, keywordScope.device);
-  // The rank column of a device that is not chosen is left out
-  const columns = useMemo(
-    () =>
-      allColumns.filter(
-        (column) =>
-          !(keywordScope.device === 'desktop' && column.id === RANK_COLUMN_IDS.rankMobile) &&
-          !(keywordScope.device === 'mobile' && column.id === RANK_COLUMN_IDS.rank),
-      ),
-    [allColumns, keywordScope.device],
-  );
+  const columns = useKeywordColumns(timeZone, competitors, keywordScope.device);
   const rowName = useKeywordRowName(defaults.languageCode);
-  const columnIds = useMemo(() => new Set(allColumns.map((column) => column.id)), [allColumns]);
+  const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const sort = useMemo((): readonly SortKey[] => {
     const parsed = parseSort(view.sort, SORT_FIELDS);
     return parsed.length === 0 ? DEFAULT_SORT : parsed;
@@ -223,9 +213,9 @@ export function RankingsScreen({
     }),
     [values, view.archived, keywordScope.countryId],
   );
-  // The summary counts the keywords of the device chosen; with both, all of them
+  // The summary counts the keywords of the device shown
   const stripFilters = useMemo(
-    () => (keywordScope.device === 'both' ? filters : { ...filters, 'filter[device]': keywordScope.device }),
+    () => ({ ...filters, 'filter[device]': keywordScope.device }),
     [filters, keywordScope.device],
   );
   const search = useDebouncedValue(view.q, SEARCH_DELAY_MS);
@@ -243,7 +233,7 @@ export function RankingsScreen({
     (): KeywordList => (rows === loadedList.rows ? loadedList : { ...loadedList, rows }),
     [loadedList, rows],
   );
-  // A keyword is one row with a rank column for each device, however many tracked keywords stand behind it
+  // A keyword is one row with the rank of the device shown, however many tracked keywords stand behind it
   const pairedRows = useMemo(() => pairRows(rawList.rows, keywordScope.device), [rawList.rows, keywordScope.device]);
   const members = useMemo(() => memberIds(pairedRows), [pairedRows]);
   const list = useMemo(
@@ -454,6 +444,7 @@ export function RankingsScreen({
       const rows = pairRows(await readAllKeywords(scope, filters, view.q, new AbortController().signal), device);
       const table = buildExport(rows, device, {
         keyword: exportColumnsT('keyword'),
+        rank: rankT('rank'),
         desktop: columnsT('desktop'),
         mobile: columnsT('mobile'),
         url: exportColumnsT('url'),
@@ -481,7 +472,7 @@ export function RankingsScreen({
         keywordScope.countryId === ALL_COUNTRIES
           ? t('scope.allCountries')
           : (countries.find((candidate) => candidate.location_id === keywordScope.countryId)?.name ?? '');
-      const deviceText = device === 'both' ? t('scope.both') : columnsT(device);
+      const deviceText = columnsT(device);
       const filterText =
         activeFilters + (view.q.trim() === '' ? 0 : 1) === 0
           ? t('export.filtersNone')

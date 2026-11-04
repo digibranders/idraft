@@ -637,6 +637,8 @@ function answerListOf(count: number): void {
         const suffix = String(index).padStart(6, '0');
         return {
           ...row,
+          // Every row is a desktop row, so the table lists them all
+          device: 'desktop',
           tracked_keyword_id: `0192d1a8-0000-7a10-8e07-${suffix}`,
           keyword: { ...row.keyword, keyword_id: `0192d1a8-1111-7a10-8e07-${suffix}` },
         };
@@ -1395,7 +1397,7 @@ describe('Keywords that wait for their first metrics', () => {
     expect(await screen.findByText('1 keyword added')).toBeInTheDocument();
     const grid = await loadedGrid();
     await waitFor(() => expect(keywordsIn(grid)).toContain('rank tracker api'));
-    const rankOf = (): string => columnTexts(grid, /^Desktop$/)[keywordsIn(grid).indexOf('rank tracker api')] ?? '';
+    const rankOf = (): string => columnTexts(grid, /^Rank$/)[keywordsIn(grid).indexOf('rank tracker api')] ?? '';
     expect(rankOf()).toBe('Pending');
 
     // The metrics come at 2 minutes, the first check at 3: at 2 minutes and a half the rank still waits
