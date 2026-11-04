@@ -4,7 +4,7 @@ import type { EntityWorld } from '../entities-state';
 import { MOCK_INVITED_USER, MOCK_USERS } from '../fixtures';
 import { fixtureReading, fixtureReadingsOf, METRICS_FETCHED_AT, type FixtureReading } from '../keyword-fixtures';
 import { keywordMetrics, metricsHistory } from '../keyword-metrics';
-import { competitorRankOf, rankStateOf, sparklineOf, stoppedAtOf } from '../rank-state';
+import { competitorRankOf, rankStateOf, rankingUrlsOf, sparklineOf, stoppedAtOf } from '../rank-state';
 import { normalizeKeyword } from '@/lib/keywords/keyword-text';
 import {
   currentVersion,
@@ -39,7 +39,15 @@ type ConfigVersion = Schemas['ConfigVersion'];
 type LocationRef = Schemas['LocationRef'];
 
 export type Include =
-  'metrics' | 'groups' | 'terms' | 'competitors' | 'sparkline' | 'competitor_ranks' | 'features' | 'aio';
+  | 'metrics'
+  | 'groups'
+  | 'terms'
+  | 'competitors'
+  | 'sparkline'
+  | 'competitor_ranks'
+  | 'ranking_urls'
+  | 'features'
+  | 'aio';
 
 /** A keyword added in a browser gets Labs metrics this long after it was added (backend plan D8). */
 export const METRICS_DELAY_MS = 2 * 60 * 1000;
@@ -401,6 +409,9 @@ export function trackedKeywordRowView(
           const res = competitorRankOf(row.tracked_keyword_id, row.created_at, rank.now, entity, stoppedAtOf(row));
           return res === null ? [] : [res];
         })
+      : null,
+    ranking_urls: include.has('ranking_urls')
+      ? rankingUrlsOf(row.tracked_keyword_id, row.created_at, rank.now, rank.domain, stoppedAtOf(row))
       : null,
     features: null,
     aio: null,

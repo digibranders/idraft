@@ -7,11 +7,11 @@ import { useMemo } from 'react';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { Icon } from '@/components/ui/icon';
-import { Tooltip } from '@/components/ui/tooltip';
 import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { languageName } from '@/lib/format/language';
 import { TargetMismatchMarker } from './feature-cells';
-import type { PairedRow } from './keyword-pairs';
+import type { DeviceScope, PairedRow } from './keyword-pairs';
+import { RankingPagesCard, rankingPages } from './ranking-pages';
 import { useCompetitorColumns, useRankColumns } from './rank-columns';
 import { CELL_CONTROL } from '@/lib/tables/grid-focus';
 import type { SortKey } from '@/lib/tables/table-state';
@@ -66,6 +66,7 @@ export function useKeywordRowName(projectLanguage: string | null): (row: Tracked
 export function useKeywordColumns(
   timeZone: string,
   competitors: readonly EntityRef[] = [],
+  device: DeviceScope = 'both',
 ): readonly DataTableColumn<PairedRow>[] {
   const t = useTranslations('rankings.columns');
   const common = useTranslations('common');
@@ -93,25 +94,33 @@ export function useKeywordColumns(
         trailing: (row) => {
           const url = row.state.current.url;
           if (!url || row.state.current.state !== 'ranked') return null;
-          const hostPath = `${url.host}${url.path}`;
-          const extra = Math.max(0, (row.state.ranking_url_count ?? 1) - 1);
-          const more = extra > 0 ? ` ${t('moreRankingPages', { count: extra })}` : '';
-          const tip = `${hostPath}${more}`;
-          const ariaLabel = t('openRankingPage', { keyword: row.keyword.text, url: url.canonical_url });
-          return (
-            <Tooltip purpose="label" content={tip}>
-              <a
-                {...CELL_CONTROL}
-                href={url.canonical_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={ariaLabel}
-                onClick={(e) => e.stopPropagation()}
-                className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-muted hover:bg-surface-hover hover:text-foreground"
-              >
-                <Icon icon={ArrowUpRight} size="default" />
-              </a>
-            </Tooltip>
+          const pages = rankingPages(row, device);
+          const count = pages.length > 0 ? pages.length : Math.max(1, row.state.ranking_url_count ?? 1);
+          const parts = { keyword: row.keyword.text, url: url.canonical_url, count };
+          const link = (
+            <a
+              {...CELL_CONTROL}
+              href={url.canonical_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={count > 1 ? t('openRankingPageMany', parts) : t('openRankingPage', parts)}
+              onClick={(e) => e.stopPropagation()}
+              className="flex h-7 min-w-7 shrink-0 items-center justify-center gap-0.5 rounded-md px-1 text-foreground-muted hover:bg-surface-hover hover:text-foreground"
+            >
+              <Icon icon={ArrowUpRight} size="default" />
+              {count > 1 ? <span className="num type-micro text-warning-text">{count}</span> : null}
+            </a>
+          );
+          return pages.length === 0 ? (
+            link
+          ) : (
+            <RankingPagesCard
+              trigger={link}
+              pages={pages}
+              scope={device}
+              checkedAt={row.state.last_observed_at}
+              timeZone={timeZone}
+            />
           );
         },
       }),
@@ -186,5 +195,5 @@ export function useKeywordColumns(
       }),
     ];
     return columns;
-  }, [t, targetT, common, timeZone, ranks, competitorColumns]);
+  }, [t, targetT, common, timeZone, ranks, competitorColumns, device]);
 }

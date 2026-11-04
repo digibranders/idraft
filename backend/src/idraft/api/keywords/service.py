@@ -24,7 +24,12 @@ from idraft.api.keywords.check_status import CheckProgress
 from idraft.api.keywords.rank_repository import (
     CompetitorRank as CompetitorRankRecord,
 )
-from idraft.api.keywords.rank_repository import FeatureRecord, SparkPoint, StateRecord
+from idraft.api.keywords.rank_repository import (
+    FeatureRecord,
+    RankingUrlRecord,
+    SparkPoint,
+    StateRecord,
+)
 from idraft.api.keywords.repository import (
     CompetitorRecord,
     ConfigRecord,
@@ -177,6 +182,7 @@ class TrackedRow:
     check: CheckProgress | None = None
     sparkline: list[SparkPoint] | None = None
     competitor_ranks: list[CompetitorRankRecord] | None = None
+    ranking_urls: list[RankingUrlRecord] | None = None
     features: list[FeatureRecord] | None = None
     cited: list[UrlRecord] | None = None
 
@@ -1111,6 +1117,11 @@ class KeywordService:
             if "competitor_ranks" in include
             else None
         )
+        ranking_urls = (
+            await rank_repository.ranking_urls_of(db, workspace_id, ids)
+            if "ranking_urls" in include
+            else None
+        )
         features, cited = (
             await rank_repository.features_of(db, workspace_id, ids)
             if "features" in include or "aio" in include
@@ -1131,6 +1142,7 @@ class KeywordService:
                 competitor_ranks=None
                 if competitor_ranks is None
                 else competitor_ranks.get(record.id, []),
+                ranking_urls=None if ranking_urls is None else ranking_urls.get(record.id, []),
                 features=None
                 if features is None or "features" not in include
                 else features.get(record.id, []),

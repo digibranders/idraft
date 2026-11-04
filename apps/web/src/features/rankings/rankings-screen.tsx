@@ -197,7 +197,7 @@ export function RankingsScreen({
     }
     return [];
   }, [entitiesQuery.data, view.cols]);
-  const allColumns = useKeywordColumns(timeZone, competitors);
+  const allColumns = useKeywordColumns(timeZone, competitors, keywordScope.device);
   // The rank column of a device that is not chosen is left out
   const columns = useMemo(
     () =>

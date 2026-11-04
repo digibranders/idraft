@@ -1930,6 +1930,16 @@
       "downloadReport": "Download report",
       "reportName": "keyword-import-{date}.csv"
     },
+    "pages": {
+      "label": "Pages that rank for this keyword",
+      "title": "{count, plural, one {Ranking page} other {# pages rank for this keyword}}",
+      "page": "Page",
+      "best": "Best rank",
+      "subResult": "Sub-result of the page above",
+      "beyond": ">100",
+      "checked": "At the last check, {time}.",
+      "competing": "Pages competing for one keyword can hold each other back."
+    },
     "export": {
       "open": "Export",
       "xlsx": "Excel workbook with summary",
@@ -2244,7 +2254,7 @@
     "columns": {
       "keyword": "Keyword",
       "openRankingPage": "Open the ranking page of {keyword}: {url}",
-      "moreRankingPages": "{count, plural, one {(+1 more ranking page)} other {(+# more ranking pages)}}",
+      "openRankingPageMany": "Open the ranking page of {keyword}: {url}. {count} pages rank for this keyword",
       "rowName": "{keyword}, {location}",
       "rowNameLanguage": "{keyword}, {location}, {language}",
       "desktop": "Desktop",

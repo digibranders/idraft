@@ -1055,6 +1055,7 @@ export function parseInclude(url: URL): Set<Include> | ValidationItem {
     'competitors',
     'sparkline',
     'competitor_ranks',
+    'ranking_urls',
     'features',
     'aio',
   ] as const;

@@ -13,6 +13,7 @@ from idraft.api.keywords.rank_repository import (
 )
 from idraft.api.keywords.rank_repository import (
     FeatureRecord,
+    RankingUrlRecord,
     SparkPoint,
     StateRecord,
 )
@@ -26,6 +27,7 @@ from idraft.api.schemas.keywords import (
     KeywordCheck,
     RankCell,
     RankChange,
+    RankingUrl,
     Sparkline,
     SparklinePoint,
     TrackedKeywordState,
@@ -204,6 +206,12 @@ def _entity(record: CompetitorRecord) -> EntityRef:
             "color_index": record.color_index,
         }
     )
+
+
+def ranking_url_view(record: RankingUrlRecord) -> RankingUrl:
+    url = url_ref(record.url)
+    assert url is not None
+    return RankingUrl(url=url, rank=record.rank, shares_rank=record.shares_rank)
 
 
 def competitor_view(record: CompetitorRankRecord) -> CompetitorRank:

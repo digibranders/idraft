@@ -204,6 +204,40 @@ export function checksAt(
   return checks;
 }
 
+const EXTRA_PAGES = [
+  '/solutions/security-operations-center',
+  '/managed-soc-service',
+  '/blog/what-is-soc',
+  '/pricing',
+  '/solutions/mssp',
+];
+
+/**
+ * The pages that ranked at the keyword's last check as `include=ranking_urls` answers it: the one the state names
+ * and, when it counts more, the others a few places behind it. Every third keyword with three pages has a
+ * sub-result at the rank of the first.
+ */
+export function rankingUrlsOf(
+  trackedId: string,
+  createdAt: string,
+  now: number,
+  domain: string | null,
+  stoppedAt: string | null = null,
+): Schemas['RankingUrl'][] {
+  const latest = checksAt(trackedId, createdAt, now, domain, stoppedAt).at(-1);
+  if (domain === null || latest === undefined || latest.rank === null || latest.path === null) return [];
+  const pages = [{ url: urlRefOf(domain, latest.path), rank: latest.rank, shares_rank: false }];
+  for (let index = 1; index < latest.urlCount; index += 1) {
+    const path = EXTRA_PAGES[(hashOf(`${trackedId}:page:${index}`) + index) % EXTRA_PAGES.length] ?? '/';
+    const shares = index === 2 && hashOf(`${trackedId}:sub`) % 3 === 0;
+    const rank = shares
+      ? latest.rank
+      : Math.min(latest.depth, latest.rank + 3 * index + (hashOf(`${trackedId}:gap:${index}`) % 6));
+    pages.push({ url: urlRefOf(domain, path), rank, shares_rank: shares });
+  }
+  return pages.sort((a, b) => a.rank - b.rank);
+}
+
 /** The keyword's sparkline as `include=sparkline` answers it: the last 30 checks, oldest first. */
 export function sparklineOf(
   trackedId: string,
