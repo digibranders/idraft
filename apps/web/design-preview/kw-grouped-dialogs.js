@@ -3,8 +3,8 @@
  * The dialogs of the grouped Rankings mock: Add keywords, Import, Manage groups, Rename a group and Move to a group.
  * Each one changes the store (kw-grouped-data.js) and asks the page to draw again.
  */
-import { COUNTRIES, UNGROUPED, addGroup, addKeywords, deleteGroup, groupNames, moveKeywords, renameGroup, store } from './kw-grouped-data.js';
-import { BUTTON, BUTTON_PRIMARY, button, checkRow, toast } from './perf-ui.js';
+import { CHECK_COST_USD, COUNTRIES, PLAN_LIMIT, UNGROUPED, addGroup, addKeywords, addTracked, trackedCount, deleteGroup, groupNames, moveKeywords, renameGroup, store } from './kw-grouped-data.js';
+import { BUTTON, BUTTON_PRIMARY, button, checkRow, icon, toast } from './perf-ui.js';
 import { INPUT, confirmDialog, field, fieldError, openDialog } from './kw-dialog.js';
 import { el } from './prompts-parts.js';
 import { plural, refresh } from './kw-grouped-model.js';
@@ -25,20 +25,72 @@ function select(options, value) {
 const lines = (text) => text.split('\n').map((line) => line.trim()).filter(Boolean);
 
 function report(result) {
-  const parts = [`${plural(result.added, 'keyword')} added`];
+  const parts = result.countries
+    ? [`${plural(result.keywords, 'keyword')} in ${plural(result.countries, 'country')} on ${plural(result.devices, 'device')}: ${plural(result.checks, 'check')} a day`]
+    : [`${plural(result.added, 'keyword')} added`];
   if (result.skipped > 0) parts.push(`${plural(result.skipped, 'keyword')} already tracked`);
-  toast({ title: 'Keywords added', description: `${parts.join(', ')}. Their first check runs within minutes.`, tone: 'success' });
+  toast({ title: 'Keywords added', description: `${parts.join('. ')}. Their first check runs within minutes.`, tone: 'success' });
 }
 
-/** Add keywords: one to a line, into a group, for a country and the devices to track. */
-export function openAdd({ group = UNGROUPED, country = 'India' } = {}) {
+/**
+ * Countries: a list of chips that opens a searchable list of checkboxes under it (in the dialog, since a popover
+ * would sit under a modal). A keyword is tracked in each country chosen.
+ */
+function countryPicker(chosen, onChange) {
+  const wrap = el('div', 'flex flex-col gap-1');
+  const trigger = el('button', `${INPUT} flex items-center gap-2 text-left h-auto min-h-control py-1.5`);
+  trigger.type = 'button';
+  trigger.setAttribute('aria-label', 'Countries');
+  trigger.setAttribute('aria-expanded', 'false');
+  const summary = el('span', 'flex flex-1 flex-wrap items-center gap-1.5 min-w-0');
+  trigger.append(summary, icon('chevron-down', 'size-icon-sm shrink-0 text-foreground-tertiary'));
+  const panel = el('div', 'rounded-md border border-border bg-surface p-2 flex flex-col gap-2');
+  panel.hidden = true;
+  const search = el('input', `${INPUT} h-control-sm`);
+  search.type = 'search';
+  search.placeholder = 'Search countries';
+  search.setAttribute('aria-label', 'Search countries');
+  const list = el('div', 'flex max-h-44 flex-col overflow-auto');
+  const drawSummary = () => {
+    summary.replaceChildren();
+    if (chosen.size === 0) summary.append(el('span', 'text-foreground-tertiary', 'Choose countries'));
+    chosen.forEach((name) => summary.append(el('span', 'h-6 px-2 rounded-sm bg-neutral-subtle text-neutral-text type-label flex items-center', name)));
+  };
+  const drawList = () => {
+    list.replaceChildren(
+      ...COUNTRIES.filter((name) => name.toLowerCase().includes(search.value.trim().toLowerCase())).map((name) =>
+        checkRow(name, chosen.has(name), (on) => {
+          if (on) chosen.add(name);
+          else chosen.delete(name);
+          drawSummary();
+          onChange();
+        }),
+      ),
+    );
+  };
+  search.addEventListener('input', drawList);
+  trigger.addEventListener('click', () => {
+    panel.hidden = !panel.hidden;
+    trigger.setAttribute('aria-expanded', String(!panel.hidden));
+    if (!panel.hidden) search.focus();
+  });
+  panel.append(search, list);
+  wrap.append(trigger, panel);
+  drawSummary();
+  drawList();
+  return wrap;
+}
+
+/** Add keywords: one to a line, into a group, in one or more countries, for the devices to track. */
+export function openAdd({ group = UNGROUPED, countries = [] } = {}) {
   const frame = openDialog({ title: 'Add keywords', description: 'Keywords are tracked on Google. Their metrics arrive within minutes.', width: 'md' });
   const text = el('textarea', `${INPUT} h-40 py-2 resize-y font-mono`);
   text.placeholder = 'One keyword on each line';
   text.setAttribute('aria-label', 'Keywords');
   const count = el('span', 'type-meta text-foreground-tertiary', 'No keywords yet');
   const groupField = select([UNGROUPED, ...groupNames()], group);
-  const countryField = select(COUNTRIES, country);
+  const chosen = new Set(countries.length > 0 ? countries : ['India']);
+  const countryField = countryPicker(chosen, () => sync());
   const devices = { desktop: true, mobile: true };
   const desktop = checkRow('Desktop', true, (on) => {
     devices.desktop = on;
@@ -50,25 +102,40 @@ export function openAdd({ group = UNGROUPED, country = 'India' } = {}) {
   });
   const error = fieldError('Choose at least one device.');
   error.hidden = true;
+  const plan = el('p', 'rounded-md bg-surface-subtle px-3 py-2 type-body text-foreground-secondary flex flex-col gap-0.5');
+  plan.setAttribute('aria-live', 'polite');
   const add = button('Add keywords', { className: `${BUTTON_PRIMARY} disabled:opacity-50` });
+  const chosenDevices = () => ['desktop', 'mobile'].filter((device) => devices[device]);
   function sync() {
     const total = lines(text.value).length;
     count.textContent = total === 0 ? 'No keywords yet' : plural(total, 'keyword');
     error.hidden = devices.desktop || devices.mobile;
-    add.disabled = total === 0 || !(devices.desktop || devices.mobile);
+    const checks = total * chosen.size * chosenDevices().length;
+    const used = trackedCount();
+    const over = used + checks > PLAN_LIMIT;
+    const daily = checks * CHECK_COST_USD;
+    plan.replaceChildren();
+    if (checks === 0) plan.append(el('span', '', 'Each keyword is checked once a day for every country and device chosen.'));
+    else {
+      plan.append(
+        el('span', 'type-body-strong text-foreground', `${plural(total, 'keyword')} × ${plural(chosenDevices().length, 'device')} × ${plural(chosen.size, 'country')} = ${plural(checks, 'check')} a day`),
+        el('span', '', `Estimated cost about $${daily.toFixed(2)} a day, $${(daily * 30).toFixed(2)} a month, at $${CHECK_COST_USD} a check.`),
+        el('span', over ? 'text-negative-text' : '', over ? `This passes the plan's ${PLAN_LIMIT.toLocaleString('en-US')} tracked keywords: ${used.toLocaleString('en-US')} are used and this adds ${checks.toLocaleString('en-US')}.` : `Plan: ${used.toLocaleString('en-US')} of ${PLAN_LIMIT.toLocaleString('en-US')} tracked keywords used, ${(used + checks).toLocaleString('en-US')} after this.`),
+      );
+    }
+    add.disabled = checks === 0 || over;
   }
   text.addEventListener('input', sync);
   const cancel = button('Cancel', { className: BUTTON, onClick: frame.close });
   add.addEventListener('click', () => {
-    const chosen = ['desktop', 'mobile'].filter((device) => devices[device]);
-    report(addKeywords(text.value, { group: groupField.value, country: countryField.value, devices: chosen }));
+    report(addTracked(text.value, { group: groupField.value, countries: [...chosen], devices: chosenDevices() }));
     frame.close();
     refresh();
   });
-  frame.body.append(field('Keywords', text), count, field('Group', groupField, { hint: 'Keywords with no group are listed as not grouped.' }), field('Country', countryField), el('div', 'flex flex-col gap-1'), error);
+  frame.body.append(field('Keywords', text), count, field('Countries', countryField, { hint: 'A keyword is tracked in each country you choose, on each device.' }), field('Group', groupField, { hint: 'Keywords with no group are listed as not grouped.' }));
   const row = el('fieldset', 'flex flex-col gap-1');
-  row.append(el('legend', 'type-label mb-1', 'Track on'), desktop, mobile);
-  frame.body.append(row);
+  row.append(el('legend', 'type-label mb-1', 'Track on'), desktop, mobile, error);
+  frame.body.append(row, plan);
   frame.footer.append(cancel, add);
   sync();
   text.focus();

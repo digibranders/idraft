@@ -7,8 +7,8 @@ import { UNGROUPED, archiveKeywords, deleteKeywords, recheck, store } from './kw
 import { checkRow, icon, popover, toast } from './perf-ui.js';
 import { confirmDialog } from './kw-dialog.js';
 import { el } from './prompts-parts.js';
-import { ALL_COUNTRIES, COLUMNS, FILTER_FIELDS, csvText, download, groupOf, plural, refresh, shown, state, tableRows, workbookXml } from './kw-grouped-model.js';
-import { COUNTRIES } from './kw-grouped-data.js';
+import { ALL_COUNTRIES, COLUMNS, addScope, FILTER_FIELDS, csvText, download, groupOf, plural, refresh, shown, state, tableRows, workbookXml } from './kw-grouped-model.js';
+import { usedCountries } from './kw-grouped-data.js';
 import { openAdd, openImport, openManageGroups, openMove, openRename, confirmDeleteGroup } from './kw-grouped-dialogs.js';
 import { openGroup, openKeyword } from './kw-grouped-drawer.js';
 
@@ -61,7 +61,9 @@ export function exportItems(items, scope) {
 export function countryMenu(trigger) {
   popover(trigger, (panel, api) => {
     pad(panel);
-    [...COUNTRIES, ALL_COUNTRIES].forEach((name) =>
+    // Only the countries that have keywords, and all of them when there is more than one
+    const used = usedCountries();
+    [...used, ...(used.length > 1 ? [ALL_COUNTRIES] : [])].forEach((name) =>
       item(panel, api, name, {
         iconName: 'map-pin',
         checked: state.country === name,
@@ -96,7 +98,11 @@ export function filterMenu(trigger) {
         item(panel, api, label, {
           checked: state.filters.some((filter) => filter.field === key && filter.value === value),
           run: () => {
-            state.filters = [...state.filters.filter((filter) => filter.field !== key), { field: key, value, label: `${FILTER_FIELDS[key].label}: ${label}` }];
+            const chip = { field: key, value, label: `${FILTER_FIELDS[key].label}: ${label}` };
+            const has = state.filters.some((filter) => filter.field === key && filter.value === value);
+            // A field with several values (countries) adds or takes away one; the others replace their one chip
+            if (FILTER_FIELDS[key].multiple) state.filters = has ? state.filters.filter((filter) => !(filter.field === key && filter.value === value)) : [...state.filters, chip];
+            else state.filters = [...state.filters.filter((filter) => filter.field !== key), chip];
             refresh();
           },
         }),
@@ -179,7 +185,7 @@ export function groupMenu(trigger, name) {
     const members = shown().filter((keyword) => groupOf(keyword) === name);
     item(panel, api, 'Open group', { iconName: 'panel-right-open', run: () => openGroup(name) });
     item(panel, api, 'Check now', { iconName: 'refresh-cw', detail: plural(members.length, 'keyword'), run: () => checkNow(members) });
-    item(panel, api, 'Add keywords', { iconName: 'plus', run: () => openAdd({ group: name, country: state.country === ALL_COUNTRIES ? 'India' : state.country }) });
+    item(panel, api, 'Add keywords', { iconName: 'plus', run: () => openAdd({ group: name, countries: addScope() }) });
     const files = exportItems(members, name.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
     item(panel, api, 'Export this group', { iconName: 'download', run: files.csv });
     if (name !== UNGROUPED && store.groups.some((group) => group.name === name)) {

@@ -8,7 +8,7 @@ import { UNGROUPED, archiveKeywords, deleteKeywords, groupNames, moveKeywords, r
 import { BUTTON_SM, icon, iconButton, toast } from './perf-ui.js';
 import { confirmDialog } from './kw-dialog.js';
 import { el } from './prompts-parts.js';
-import { derived, devicesIn, gained, groupOf, isRank, measures, plural, rankText, refresh, shown, sparkline, state, volumeText } from './kw-grouped-model.js';
+import { addScope, derived, devicesIn, gained, groupOf, isRank, measures, plural, rankText, refresh, shown, sparkline, state, volumeText } from './kw-grouped-model.js';
 import { openAdd, openRename, confirmDeleteGroup } from './kw-grouped-dialogs.js';
 
 let host = null;
@@ -162,7 +162,7 @@ function actions(open) {
   } else {
     const ids = new Set(shown().filter((keyword) => groupOf(keyword) === open.name).map((keyword) => keyword.id));
     add('Check now', 'refresh-cw', check(ids));
-    add('Add keywords', 'plus', () => openAdd({ group: open.name, country: state.country === 'All countries' ? 'India' : state.country }));
+    add('Add keywords', 'plus', () => openAdd({ group: open.name, countries: addScope() }));
     if (open.name !== UNGROUPED) {
       add('Rename', 'pencil', () => openRename(open.name));
       add('Delete', 'trash-2', () => confirmDeleteGroup(open.name, closeDrawer));

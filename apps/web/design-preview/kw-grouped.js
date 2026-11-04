@@ -7,11 +7,11 @@
  * selection with bulk actions, the menus of rows and groups, and the drawers. A reload starts from the fixtures
  * again. Reached at #/keywords, the page the sidebar's Keywords links to.
  */
-import { UNGROUPED, archiveKeywords, deleteKeywords, series, store } from './kw-grouped-data.js';
+import { UNGROUPED, archiveKeywords, deleteKeywords, series, store, usedCountries } from './kw-grouped-data.js';
 import { BUTTON_SM, icon } from './perf-ui.js';
 import { confirmDialog } from './kw-dialog.js';
 import { el } from './prompts-parts.js';
-import { best, columnsFor, clicks, impressions, derived, gained, groupOf, isRank, measures, plural, rankText, refresh, setRenderer, shown, sparkline, state, volumeText } from './kw-grouped-model.js';
+import { ALL_COUNTRIES, addScope, best, columnsFor, clicks, impressions, derived, gained, groupOf, isRank, measures, plural, rankText, refresh, setRenderer, shown, sparkline, state, volumeText } from './kw-grouped-model.js';
 import { openAdd, openMove } from './kw-grouped-dialogs.js';
 import { openGroup, openKeyword, redrawDrawer } from './kw-grouped-drawer.js';
 import { bindPages, closePages, pagesOf } from './kw-grouped-pages.js';
@@ -23,7 +23,6 @@ const view = document.querySelector('[data-view="keywords"]');
 const CHILD_LIMIT = 8;
 const KEYWORD_MIN = 280;
 const DEVICES = [
-  ['both', 'Desktop and mobile', 'monitor-smartphone'],
   ['desktop', 'Desktop', 'monitor'],
   ['mobile', 'Mobile', 'smartphone'],
 ];
@@ -58,7 +57,7 @@ function rankCell(keyword, device) {
   return line;
 }
 
-const pending = (keyword) => ['desktop', 'mobile'].every((device) => keyword.ranks[device] === 'p' || keyword.ranks[device] === 'n');
+const pending = (keyword) => keyword.ranks[state.device] === 'p';
 
 function aioCell(info) {
   if (info.aio.kind === 'cited') return el('span', 'inline-flex h-6 items-center gap-1 rounded-sm bg-positive-subtle px-1.5 type-label text-positive-text', `✓ Cited #${info.aio.position}`);
@@ -74,14 +73,14 @@ function featuresCell(info) {
 }
 
 function trendCell(keyword) {
-  const top = best(keyword, ['desktop', 'mobile']);
+  const top = best(keyword);
   if (pending(keyword)) return muted('n/a');
   if (top === Infinity) {
     const line = el('span', 'block h-px w-16 border-t border-dashed border-border-strong');
     line.setAttribute('aria-label', 'Over 100 for 30 days');
     return line;
   }
-  return sparkline(series(top, keyword.keyword.length), `Rank over 30 days, now ${top}`);
+  return sparkline(series(top, keyword.keyword.length + (state.device === 'mobile' ? 7 : 0)), `Rank over 30 days, now ${top}`);
 }
 
 function menuButton(label, attach) {
@@ -136,10 +135,10 @@ function keywordRow(keyword, columns, grouped) {
     line.append(link);
   }
   name.append(line);
-  const top = best(keyword, ['desktop', 'mobile']);
+  const top = best(keyword);
   const cells = {
-    desktop: () => td(rankCell(keyword, 'desktop')),
-    mobile: () => td(rankCell(keyword, 'mobile')),
+    country: () => td(el('span', 'type-table text-foreground', keyword.country)),
+    rank: () => td(rankCell(keyword, state.device)),
     url: () => td(info.url ? el('span', 'block truncate type-table text-link', info.url.replace('https://', '')) : muted('n/a')),
     volume: () => td(pending(keyword) ? muted('Pending') : keyword.volume === 0 ? muted('No data') : num(volumeText(keyword.volume))),
     impressions: () => td(pending(keyword) || keyword.volume === 0 ? muted(pending(keyword) ? 'Pending' : 'No data') : num(impressions(keyword).toLocaleString('en-US'))),
@@ -179,13 +178,13 @@ function groupRow(group, items, columns) {
   const text = el('span', 'min-w-0 flex flex-col');
   text.append(el('span', 'truncate type-body-strong text-foreground', group.name));
   const movers = [m.up > 0 ? `↑${m.up}` : '', m.down > 0 ? `↓${m.down}` : ''].filter(Boolean).join(' ');
-  text.append(el('span', 'truncate type-label text-foreground-tertiary', `${plural(items.length, 'keyword')}${movers ? ` · ${movers}` : ''}`));
+  text.append(el('span', 'truncate type-label text-foreground-tertiary', `${plural(m.count, 'keyword')}${m.countries > 1 ? ` · ${m.countries} countries` : ''}${movers ? ` · ${movers}` : ''}`));
   line.append(toggle, text);
   name.append(line);
   const rankOf = (device) => td(num(`${m[device].top10} in top 10`));
   const cells = {
-    desktop: () => rankOf('desktop'),
-    mobile: () => rankOf('mobile'),
+    country: () => td(),
+    rank: () => rankOf(state.device),
     url: () => td(),
     volume: () => td(twoLine(m.volume.toLocaleString('en-US'), 'a month')),
     impressions: () => td(twoLine(m.impressions.toLocaleString('en-US'), '28 days')),
@@ -211,11 +210,10 @@ function groupRow(group, items, columns) {
 // Order
 
 const rankValue = (keyword, device) => (isRank(keyword.ranks[device]) ? keyword.ranks[device] : 1000);
-const bestValue = (keyword) => (best(keyword, ['desktop', 'mobile']) === Infinity ? 1000 : best(keyword, ['desktop', 'mobile']));
+const bestValue = (keyword) => (best(keyword) === Infinity ? 1000 : best(keyword));
 const keywordKey = {
   name: (keyword) => keyword.keyword,
-  desktop: (keyword) => rankValue(keyword, 'desktop'),
-  mobile: (keyword) => rankValue(keyword, 'mobile'),
+  rank: (keyword) => rankValue(keyword, state.device),
   volume: (keyword) => keyword.volume,
   clicks,
   impressions,
@@ -238,8 +236,7 @@ function sortGroups(entries) {
   const { key, dir } = state.sort;
   const value = {
     name: ([group]) => group.name,
-    desktop: ([, , m]) => m.desktop.value ?? 1000,
-    mobile: ([, , m]) => m.mobile.value ?? 1000,
+    rank: ([, , m]) => m[state.device].value ?? 1000,
     volume: ([, , m]) => m.volume,
     clicks: ([, , m]) => m.clicks,
     impressions: ([, , m]) => m.impressions,
@@ -414,8 +411,11 @@ function tableToolbar(grouped, items) {
 
 function render() {
   const grouped = state.mode === 'groups';
+  // The country shown is one the project has keywords in, or all of them
+  const used = usedCountries();
+  if (state.country !== ALL_COUNTRIES && !used.includes(state.country)) state.country = used.length > 1 ? ALL_COUNTRIES : (used[0] ?? ALL_COUNTRIES);
   const items = shown();
-  const columns = columnsFor();
+  const columns = columnsFor(items);
   const panel = el('div', 'rounded-lg border border-border bg-surface overflow-hidden');
   const chosen = items.filter((keyword) => state.selected.has(keyword.id));
   panel.append(chosen.length > 0 ? bulkBar(items) : tableToolbar(grouped, items));
@@ -424,7 +424,7 @@ function render() {
     const none = state.archived
       ? emptyState('No archived keywords', 'Keywords you archive are listed here. Restore one to track it again.')
       : state.country !== 'India' && state.country !== 'All countries'
-        ? emptyState(`No keywords tracked in ${state.country}`, 'Add keywords for this country to start tracking them.', actionButton('Add keywords', () => openAdd({ country: state.country }), true))
+        ? emptyState(`No keywords tracked in ${state.country}`, 'Add keywords for this country to start tracking them.', actionButton('Add keywords', () => openAdd({ countries: [state.country] }), true))
         : emptyState('No keywords match', 'Change the search or the filters.', actionButton('Clear filters', () => {
             state.search = '';
             state.filters = [];
@@ -515,7 +515,7 @@ function chips() {
   return state.filters.map((filter) => {
     const chip = el('button', 'h-control-sm pl-2 pr-1 rounded-md border border-border bg-surface flex items-center gap-1 whitespace-nowrap type-body text-foreground hover:bg-surface-hover');
     chip.type = 'button';
-    chip.dataset.removeFilter = filter.field;
+    chip.dataset.removeFilter = `${filter.field}:${filter.value}`;
     chip.setAttribute('aria-label', `Remove filter ${filter.label}`);
     chip.append(el('span', '', filter.label), icon('x', 'size-icon-sm text-foreground-tertiary'));
     return chip;
@@ -599,7 +599,7 @@ view.addEventListener('click', (event) => {
     refresh();
   } else if (data.sort) {
     const same = state.sort.key === data.sort;
-    const smaller = ['desktop', 'mobile', 'name', 'best'].includes(data.sort);
+    const smaller = ['rank', 'name', 'best'].includes(data.sort);
     state.sort = { key: data.sort, dir: same ? (state.sort.dir === 'asc' ? 'desc' : 'asc') : smaller ? 'asc' : 'desc' };
     refresh();
   } else if (data.expandAll) {
@@ -609,7 +609,7 @@ view.addEventListener('click', (event) => {
     if (!state.showAll.delete(data.more)) state.showAll.add(data.more);
     refresh();
   } else if (data.removeFilter) {
-    state.filters = state.filters.filter((filter) => filter.field !== data.removeFilter);
+    state.filters = state.filters.filter((filter) => `${filter.field}:${filter.value}` !== data.removeFilter);
     refresh();
   } else if (data.clearFilters !== undefined) {
     state.filters = [];
@@ -618,7 +618,7 @@ view.addEventListener('click', (event) => {
     state.archived = false;
     refresh();
   } else if (data.add !== undefined) {
-    openAdd({ country: state.country === 'All countries' ? 'India' : state.country });
+    openAdd({ countries: addScope() });
   } else if (data.toggle) {
     toggleGroup(data.toggle);
   } else if (target.closest('a, [aria-haspopup]')) {
@@ -662,11 +662,16 @@ const original = { crumb: crumb?.firstChild?.textContent, sidebar: sidebarName?.
 let workspaceCrumb = null;
 let countryButton = null;
 
-/** The country button of the top bar says the country the table shows. */
+/**
+ * The country button of the top bar says the country the table shows, and lists only the countries the project has
+ * keywords in. With one country it is a label, since there is nothing to choose.
+ */
 function syncCountry() {
   if (!countryButton) return;
-  countryButton.replaceChildren(icon('map-pin', 'size-icon text-foreground-tertiary'), el('span', '', state.country), icon('chevron-down', 'size-icon-sm text-foreground-tertiary'));
+  const several = usedCountries().length > 1;
+  countryButton.replaceChildren(icon('map-pin', 'size-icon text-foreground-tertiary'), el('span', '', state.country), ...(several ? [icon('chevron-down', 'size-icon-sm text-foreground-tertiary')] : []));
   countryButton.setAttribute('aria-label', `Country: ${state.country}`);
+  countryButton.disabled = !several;
 }
 
 function appChrome(on) {
@@ -711,4 +716,4 @@ window.addEventListener('preview-leave', (event) => {
 });
 // Keywords is the page shown when there is no route
 if (!location.hash || /^#\/(keywords|rankings)(\/|$)/.test(location.hash)) appChrome(true);
-window.addEventListener('kw-add', () => openAdd({ country: state.country === 'All countries' ? 'India' : state.country }));
+window.addEventListener('kw-add', () => openAdd({ countries: addScope() }));

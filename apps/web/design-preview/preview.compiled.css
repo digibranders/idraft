@@ -615,6 +615,9 @@
   .h-45 {
     height: calc(var(--spacing) * 45);
   }
+  .h-auto {
+    height: auto;
+  }
   .h-badge {
     height: var(--size-badge);
   }

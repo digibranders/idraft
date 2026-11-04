@@ -118,7 +118,25 @@ export const store = {
 
 /** Keywords that belong to no group (a group was deleted, or one was never picked) are listed under this name. */
 export const UNGROUPED = 'Not grouped';
-export const COUNTRIES = ['India', 'United States', 'Germany'];
+/** The countries a keyword can be tracked in (the app offers every country the provider has). */
+export const COUNTRIES = ['India', 'United States', 'United Kingdom', 'Germany', 'Australia', 'Canada', 'United Arab Emirates', 'Singapore'];
+
+/** The countries the project has active keywords in, the one with most keywords first: what the country choices list. */
+export function usedCountries() {
+  const counts = new Map();
+  store.keywords.filter((keyword) => !keyword.archived).forEach((keyword) => counts.set(keyword.country, (counts.get(keyword.country) ?? 0) + 1));
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([name]) => name);
+}
+
+/** The demo plan's room for tracked keywords (a keyword in a country on a device is one). The product's limit is higher. */
+export const PLAN_LIMIT = 500;
+
+/** The tracked keywords in use: each keyword in a country counts once for each device it is tracked on. */
+export const trackedCount = () =>
+  store.keywords.filter((keyword) => !keyword.archived).reduce((total, keyword) => total + ['desktop', 'mobile'].filter((device) => keyword.ranks[device] !== 'n').length, 0);
+
+/** The cost of one check through the standard queue at depth 100, with the asynchronous AI Overview (docs/27). */
+export const CHECK_COST_USD = 0.0066;
 
 export const groupNames = () => store.groups.map((group) => group.name);
 export const byIds = (ids) => store.keywords.filter((keyword) => ids.has(keyword.id));
@@ -170,6 +188,23 @@ export function addKeywords(text, { group, country, devices }) {
       });
     });
   return { added, skipped };
+}
+
+/**
+ * Adds keywords typed one to a line in every country chosen: a keyword is tracked once in each country, and each
+ * of those is checked on each device chosen, so 12 keywords in 2 countries on 2 devices are 48 checks a day.
+ * @returns {{keywords: number, added: number, skipped: number, countries: number, checks: number}}
+ */
+export function addTracked(text, { group, countries, devices }) {
+  let added = 0;
+  let skipped = 0;
+  countries.forEach((country) => {
+    const result = addKeywords(text, { group, country, devices });
+    added += result.added;
+    skipped += result.skipped;
+  });
+  const keywords = new Set(text.split('\n').map((line) => line.trim().toLowerCase()).filter(Boolean)).size;
+  return { keywords, added, skipped, countries: countries.length, devices: devices.length, checks: added * devices.length };
 }
 
 export function moveKeywords(ids, group) {
