@@ -274,7 +274,8 @@ async def test_no_heartbeat_is_written_when_the_database_does_not_answer(
         json.loads(line) for line in stream.getvalue().splitlines() if "tick failed" in line
     ]
     assert failures
-    assert {line["tick"] for line in failures} == {"heartbeat"}
+    # The status tick needs the database too, so it fails with the heartbeat; nothing else does
+    assert {line["tick"] for line in failures} == {"heartbeat", "status"}
 
 
 async def test_no_heartbeat_is_written_when_redis_does_not_answer(
