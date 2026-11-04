@@ -2085,9 +2085,9 @@ interface ProjectSwitcherProps {
 }
 ```
 
-- **Variants:** none. Sidebar presentation, 12 px from the top of the sidebar: 28 px square monogram with radius 6 (`foreground` fill with a `foreground-inverse` letter in the light theme, `primary` fill in the dark theme), name in `type-subsection-title` (14/20, 600; the screens show about 15 px, within tolerance, [visual-spec §6](reference/visual-spec.md)), chevron. **States:** closed, open, searching, no results.
+- **Variants:** none. Sidebar presentation, 12 px from the top of the sidebar: a bordered card with the project mark (the icon of its primary domain on a light 32 px tile, or the first letter on a monogram square: `foreground` fill with a `foreground-inverse` letter in the light theme, `primary` fill in the dark theme), name in `type-subsection-title` (14/20, 600) over the domain in `type-meta`, `ChevronsUpDown`; each project in the list has its mark and domain too. **States:** closed, open, searching, no results.
 - **A11y:** menu button whose name includes the current project; searchable list is a combobox.
-- **Use:** sidebar top (rail: the 28 px monogram alone), top bar below 1024 px. **Not for:** workspace switching (`WorkspaceMenu`).
+- **Use:** sidebar top (rail: the mark alone), top bar below 1024 px. **Not for:** workspace switching (`WorkspaceMenu`).
 
 ### 5.7 WorkspaceMenu
 `app/shell/workspace-menu.tsx` · V1 · [11 §4](11-navigation.md)

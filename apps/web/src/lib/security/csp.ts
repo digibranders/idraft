@@ -21,7 +21,9 @@
  *   never has any of these.
  */
 
-export const FAVICON_SOURCES = ['https://www.google.com/s2/favicons', 'https://*.gstatic.com'] as const;
+/** The one favicon service the pages may load from; `faviconUrl` builds the address of an icon on it. */
+export const FAVICON_ENDPOINT = 'https://www.google.com/s2/favicons';
+export const FAVICON_SOURCES = [FAVICON_ENDPOINT, 'https://*.gstatic.com'] as const;
 const SENTRY_INGEST = 'https://*.ingest.sentry.io';
 
 export interface CspOptions {

@@ -21,6 +21,26 @@ function switcher(extra: Partial<ProjectSwitcherProps> = {}): ReturnType<typeof 
   );
 }
 
+describe('ProjectSwitcher marks', () => {
+  const WITH_DOMAIN = { ...FYNIX, domain: 'fynix.com' };
+
+  it('shows the current project over its domain, with the icon of its site', () => {
+    const { container } = switcher({ current: WITH_DOMAIN, projects: [WITH_DOMAIN, CLEANSTART] });
+    const button = screen.getByRole('combobox', { name: 'Project: Fynix' });
+    expect(button).toHaveTextContent('Fynixfynix.com');
+    expect(container.querySelector('img')).toHaveAttribute('src', expect.stringContaining('domain=fynix.com'));
+  });
+
+  it('lists each project with its domain where it has one, and the name alone where it has none', async () => {
+    const { user } = switcher({ current: WITH_DOMAIN, projects: [WITH_DOMAIN, CLEANSTART] });
+    await user.click(screen.getByRole('combobox', { name: 'Project: Fynix' }));
+    const options = await screen.findAllByRole('option');
+    expect(options[0]).toHaveTextContent('Fynixfynix.com');
+    // The letter of its mark, then the name, and no second line
+    expect(options[1]).toHaveTextContent(/^CCleanstart$/);
+  });
+});
+
 describe('ProjectSwitcher footer', () => {
   it('ends with the time zone, the link to all projects and no group of workspace pages: Costs and Runs are in the sidebar', async () => {
     const { user } = switcher();
