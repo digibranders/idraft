@@ -9,6 +9,10 @@ export interface ExportKpi {
   value: number;
 }
 
+/** What a column holds, so the workbook can align, format and size it without reading its header. */
+export type ExportColumnKind =
+  'keyword' | 'rank' | 'url' | 'volume' | 'difficulty' | 'cpc' | 'intent' | 'priority' | 'groups' | 'checked';
+
 /** The words of the file, from the catalog, so the model itself holds no text a person reads. */
 export interface ExportLabels {
   keyword: string;
@@ -26,12 +30,16 @@ export interface ExportLabels {
   top3: string;
   top10: string;
   top20: string;
+  /** The name of each intent as the table shows it; an intent without a name leaves its cell empty. */
+  intents: Readonly<Record<string, string>>;
 }
 
 export interface KeywordExport {
   /** Counts of tracked keywords, one per device, as the strip above the table shows them. */
   kpis: ExportKpi[];
   header: string[];
+  /** The kind of each column, in the order of the header. */
+  kinds: ExportColumnKind[];
   rows: ExportCell[][];
 }
 
@@ -87,19 +95,21 @@ export function buildExport(rows: readonly PairedRow[], scope: DeviceScope, labe
   ];
   const showDesktop = scope !== 'mobile';
   const showMobile = scope !== 'desktop';
-  const header = [
-    labels.keyword,
-    ...(showDesktop ? [labels.desktop] : []),
-    ...(showMobile ? [labels.mobile] : []),
-    labels.url,
-    labels.volume,
-    labels.difficulty,
-    labels.cpc,
-    labels.intent,
-    labels.priority,
-    labels.groups,
-    labels.checked,
+  const columns: [ExportColumnKind, string][] = [
+    ['keyword', labels.keyword],
+    ...(showDesktop ? [['rank', labels.desktop] as [ExportColumnKind, string]] : []),
+    ...(showMobile ? [['rank', labels.mobile] as [ExportColumnKind, string]] : []),
+    ['url', labels.url],
+    ['volume', labels.volume],
+    ['difficulty', labels.difficulty],
+    ['cpc', labels.cpc],
+    ['intent', labels.intent],
+    ['priority', labels.priority],
+    ['groups', labels.groups],
+    ['checked', labels.checked],
   ];
+  const header = columns.map(([, label]) => label);
+  const kinds = columns.map(([kind]) => kind);
   const body = rows.map((row): ExportCell[] => {
     const desktop = row.devices.desktop?.state.current;
     const mobile = row.devices.mobile?.state.current;
@@ -115,13 +125,13 @@ export function buildExport(rows: readonly PairedRow[], scope: DeviceScope, labe
       number(row.metrics?.search_volume.value),
       row.metrics?.keyword_difficulty ?? null,
       number(row.metrics?.cpc_usd),
-      row.intent,
+      labels.intents[row.intent] ?? null,
       row.priority,
       (row.groups ?? []).map((group) => group.path).join('; ') || null,
       latestCheck(shown),
     ];
   });
-  return { kpis, header, rows: body };
+  return { kpis, header, kinds, rows: body };
 }
 
 /** The byte order mark that tells Excel a CSV is UTF-8. */
