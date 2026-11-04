@@ -244,6 +244,39 @@ sequenceDiagram
     end
 ```
 
+### 4.9 Clicks and impressions in the Rankings table
+
+The Rankings table has a **Clicks** column and an **Impressions** column right after it, in the flat view and in the grouped view, where a group's value is the sum of its keywords'. Both come from the same pull and follow the same rules below; where the text says clicks, impressions are read the same way. Impressions say how often the keyword showed a page of the site in results, so clicks next to impressions show whether a shown page is chosen. It shows real Search Console clicks and never an estimate from search volume and rank: an estimate would credit a keyword with visits Google does not report, and accuracy is the point of the column (decision of 2026-11-04). The design preview (`design-preview/kw-grouped*.js`) draws made-up numbers where the app reads these.
+
+**What the number is.** Clicks in the last 28 days of final data (the window ends on the last final day, section 4.4; provisional days are left out), for the keyword's text, in the keyword's country, on the devices the table shows (desktop, mobile, or both added together).
+
+**Where it comes from.** Shape B of section 4.2 (`[date, query, page, country, device]`, table `fp.gsc_search_analytics`), summed over the dates and over all pages, so a keyword's clicks are the clicks of every page that answered it. The join to a tracked keyword:
+
+| Side of the join | Tracked keyword | Search Console row |
+|---|---|---|
+| Query | `normalized_text` of the keyword (doc 08 normalization) | the query text in `fp.gsc_queries`, normalized the same way |
+| Country | the ISO code of the tracked location, or of its country when the location is a city (Search Console has no city) | `country` (ISO 3166-1 alpha-3, converted) |
+| Device | the tracked keyword's device | `device` |
+
+**States of a cell.**
+
+| State | Shown | When |
+|---|---|---|
+| Value | the number | the connection is healthy and the keyword has rows in the window |
+| Zero | `0` | the connection is healthy and the keyword has no click in the window (it may have had impressions, or none) |
+| Pending | `Pending` | the first backfill of the property is running (section 4.3), or the keyword's first rank check has not run |
+| Not connected | `Not connected` with a link to Settings, Integrations | the project has no Search Console connection; the column header says so |
+
+**Accuracy limits, stated in the header's tooltip and not hidden.**
+
+1. **Anonymized queries.** Google leaves out rare queries, so a keyword with few searches can show 0 clicks though it got some, and the clicks of all keywords add up to less than the property's total (shape A, `fp.gsc_property_daily`). A group's Clicks is the sum of its tracked keywords, never the group's total traffic.
+2. **The query as typed.** Google reports each wording as its own query (`soc service provider` and `soc service providers`); only the exact keyword is matched.
+3. **Delay.** Final data trails by two to three days (section 4.4).
+4. **Country and device** are what Search Console reports for the searcher. They can differ from the place and device of the rank check, which is one fixed place.
+5. **Property scope.** A domain property includes its subdomains; a URL-prefix property only its prefix. The clicks are those of the connected property, not of the project's own site entities alone.
+
+**Data the API needs.** `GET .../tracked-keywords` takes `include=gsc`, which adds to each row `gsc: { state, clicks: { desktop, mobile }, impressions: { desktop, mobile }, window: { start, end } }` (`state` is `ok`, `pending` or `not_connected`) and takes the sorts `gsc_clicks` and `gsc_impressions`. The sums for groups are made in the browser while the table holds every row (client mode, doc 20 section 5.3) and by the API in server mode. The same read can later carry click-through rate and average position as columns hidden by default; they need no new pull, since shape B holds them.
+
 ## 5. GSC Generative AI performance report (import)
 
 ### 5.1 What exists
