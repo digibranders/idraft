@@ -90,7 +90,7 @@ describe('entities', () => {
       canonical_name: '  Acme SEO ',
       aliases: [{ alias: ' Acme ' }, { alias: 'Acme\\s?SEO', match_mode: 'regex' }],
       domains: [
-        { domain: 'https://www.Acme-SEO.com/pricing' },
+        { domain: 'https://www.Acme-SEO.com/pricing', match_scope: 'registrable' },
         { domain: 'blog.acme-seo.com', match_scope: 'host' },
         { domain: 'www.acme-seo.com', match_scope: 'host' },
       ],
@@ -101,8 +101,9 @@ describe('entities', () => {
     expect(entity).toMatchObject({ canonical_name: 'Acme SEO', alias_count: 2 });
     expect(entity.domains.map((domain) => [domain.domain.host, domain.match_scope])).toEqual([
       ['acme-seo.com', 'registrable'],
+      // A host rule is a site, the host and its www form, so `www.acme-seo.com` is stored without the www
+      ['acme-seo.com', 'host'],
       ['blog.acme-seo.com', 'host'],
-      ['www.acme-seo.com', 'host'],
     ]);
     const detail = dataOf(await editor.call('GET', `${W}/entities/${entity.entity_id}`), ENTITY_DETAIL);
     expect(detail.aliases.map((alias) => [alias.alias, alias.match_mode, alias.created_by])).toEqual([
@@ -354,6 +355,7 @@ describe('entity domains', () => {
     const editor = mockBrowser('editor');
     const added = await editor.call('POST', domains(ids.meridian), {
       domain: 'HTTPS://WWW.Meridian-Growth.co.uk/about',
+      match_scope: 'registrable',
     });
     expect(added).toMatchObject({
       status: 201,
@@ -363,15 +365,21 @@ describe('entity domains', () => {
       },
     });
     // The same registrable domain by another host is the same rule
-    expect((await editor.call('POST', domains(ids.meridian), { domain: 'blog.meridian-growth.co.uk' })).code).toBe(
-      'duplicate',
-    );
+    expect(
+      (
+        await editor.call('POST', domains(ids.meridian), {
+          domain: 'blog.meridian-growth.co.uk',
+          match_scope: 'registrable',
+        })
+      ).code,
+    ).toBe('duplicate');
     const host = await editor.call('POST', domains(ids.meridian), {
       domain: 'https://www.meridian-growth.co.uk',
       match_scope: 'host',
     });
+    // A host rule is a site: the host and its www form, stored without the www
     expect(dataOf(host, ENTITY_DOMAIN).domain).toMatchObject({
-      host: 'www.meridian-growth.co.uk',
+      host: 'meridian-growth.co.uk',
       registrable_domain: 'meridian-growth.co.uk',
     });
     expect(
@@ -406,14 +414,38 @@ describe('entity domains', () => {
 
   it('warns when another entity of a shared project claims the same domain at the same scope', async () => {
     const editor = mockBrowser('editor');
-    const conflict = await editor.call('POST', domains(ids.clickvantage), { domain: 'www.rankforge.com' });
+    const conflict = await editor.call('POST', domains(ids.clickvantage), {
+      domain: 'www.rankforge.com',
+      match_scope: 'registrable',
+    });
     expect(conflict.body).toMatchObject({ meta: { warnings: ['domain_role_conflict'] } });
     // At another scope it claims something else
     const host = await editor.call('POST', domains(ids.clickvantage), { domain: 'rankforge.com', match_scope: 'host' });
     expect(host.body).toMatchObject({ meta: { warnings: [] } });
     // Sparkle and Rankforge share no project
-    const apart = await editor.call('POST', domains(ids.sparkle), { domain: 'rankforge.com' });
+    const apart = await editor.call('POST', domains(ids.sparkle), {
+      domain: 'rankforge.com',
+      match_scope: 'registrable',
+    });
     expect(apart.body).toMatchObject({ meta: { warnings: [] } });
+  });
+
+  it('takes a domain as a site by default: the host and its www form, not its other subdomains', async () => {
+    const editor = mockBrowser('editor');
+    const added = await editor.call('POST', domains(ids.meridian), { domain: 'https://www.eventus-security.com/' });
+    expect(dataOf(added, ENTITY_DOMAIN)).toMatchObject({
+      match_scope: 'host',
+      domain: { host: 'eventus-security.com' },
+    });
+    // The www form is the same site; a subdomain is a site of its own
+    expect((await editor.call('POST', domains(ids.meridian), { domain: 'eventus-security.com' })).code).toBe(
+      'duplicate',
+    );
+    const partner = await editor.call('POST', domains(ids.meridian), { domain: 'partner.eventus-security.com' });
+    expect(dataOf(partner, ENTITY_DOMAIN)).toMatchObject({
+      match_scope: 'host',
+      domain: { host: 'partner.eventus-security.com' },
+    });
   });
 
   it('deletes a domain by its entity domain id', async () => {

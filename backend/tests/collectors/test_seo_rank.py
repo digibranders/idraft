@@ -740,7 +740,7 @@ async def _with_state(
     )
 
 
-async def test_a_drop_is_asked_about_once_more_and_only_once(
+async def test_a_drop_is_asked_about_again_when_it_is_first_seen(
     worker_db: Ledger, migrated: PostgresServer, world: World
 ) -> None:
     project = world.project
@@ -751,8 +751,9 @@ async def test_a_drop_is_asked_about_once_more_and_only_once(
     seen = NOW - timedelta(minutes=10)
     await _with_state(migrated, project, dropped, observed=seen, rank=None, last_ranked=5, beyond=1)
     await _with_state(migrated, project, held, observed=seen, rank=4, last_ranked=4, beyond=0)
+    # Asked about twice already: the drop stands
     await _with_state(
-        migrated, project, confirmed, observed=seen, rank=None, last_ranked=5, beyond=2
+        migrated, project, confirmed, observed=seen, rank=None, last_ranked=5, beyond=3
     )
     await _with_state(
         migrated, project, never_ranked, observed=seen, rank=None, last_ranked=None, beyond=1
@@ -772,6 +773,116 @@ async def test_a_drop_is_asked_about_once_more_and_only_once(
     assert (made, again) == (1, 0)
     (run,) = await _runs(migrated, project)
     assert run["config_snapshot"] == '{"selector": {"confirm": true}}'
+
+
+async def _confirmed_once(
+    sessions: Ledger,
+    pg: PostgresServer,
+    project: Project,
+    *,
+    task_status: str,
+    asked: int = 1,
+) -> None:
+    """`asked` confirmation runs for the project's keywords, made before `NOW`, whose tasks are
+    in `task_status` and whose runs are over."""
+    for index in range(asked):
+        start = NOW - timedelta(hours=6 - index)
+        plan = await _plan(sessions, _window(project, {"confirm": True}, start=start))
+        async with sessions() as db, db.begin():
+            run_id = await ledger.create_run(
+                db,
+                NewRun(
+                    workspace_id=project.workspace_id,
+                    project_id=project.id,
+                    schedule_id=None,
+                    workload=TaskWorkload.SEO_RANK,
+                    window_start=start,
+                    window_end=start + timedelta(hours=1),
+                    trigger="manual",
+                    config_snapshot={"selector": {"confirm": True}},
+                ),
+                now=start,
+            )
+            assert run_id is not None
+            await ledger.insert_tasks(db, run_id, plan.tasks)
+            await ledger.start_run(
+                db, run_id, tasks_total=len(plan.tasks), estimated_cost_usd=Decimal(0)
+            )
+        await execute(
+            pg,
+            "UPDATE ops.collection_tasks SET status = $2 WHERE run_id = $1",
+            run_id,
+            task_status,
+        )
+        await execute(
+            pg, "UPDATE ops.collection_runs SET status = 'completed' WHERE id = $1", run_id
+        )
+
+
+async def test_a_drop_the_first_confirmation_did_not_bring_back_is_asked_about_once_more(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    dropped = await _tracked(migrated, project, "crm dropped")
+    await _with_state(
+        migrated,
+        project,
+        dropped,
+        observed=NOW - timedelta(minutes=10),
+        rank=None,
+        last_ranked=1,
+        beyond=2,
+    )
+    await _confirmed_once(worker_db, migrated, project, task_status="ingested")
+
+    plan = await _plan(worker_db, _window(project, {"confirm": True}, start=NOW))
+
+    assert _depths(plan) == {dropped: 100}
+    assert await queue_new_keywords(worker_db, now=NOW) == 1
+
+
+async def test_a_drop_is_not_asked_about_a_third_time(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    dropped = await _tracked(migrated, project, "crm dropped")
+    # Two confirmations that were too shallow to move the count: the number of asks still holds
+    await _with_state(
+        migrated,
+        project,
+        dropped,
+        observed=NOW - timedelta(minutes=10),
+        rank=None,
+        last_ranked=1,
+        beyond=2,
+    )
+    await _confirmed_once(worker_db, migrated, project, task_status="ingested", asked=2)
+
+    plan = await _plan(worker_db, _window(project, {"confirm": True}, start=NOW))
+
+    assert plan.tasks == []
+    assert await queue_new_keywords(worker_db, now=NOW) == 0
+
+
+async def test_a_confirmation_is_not_asked_for_while_the_one_before_is_on_its_way(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    dropped = await _tracked(migrated, project, "crm dropped")
+    await _with_state(
+        migrated,
+        project,
+        dropped,
+        observed=NOW - timedelta(minutes=10),
+        rank=None,
+        last_ranked=1,
+        beyond=1,
+    )
+    await _confirmed_once(worker_db, migrated, project, task_status="submitted")
+
+    plan = await _plan(worker_db, _window(project, {"confirm": True}, start=NOW))
+
+    assert plan.tasks == []
 
 
 async def test_a_drop_whose_confirmation_failed_is_not_asked_for_again(

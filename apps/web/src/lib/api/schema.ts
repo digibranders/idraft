@@ -608,7 +608,7 @@ export interface paths {
         put?: never;
         /**
          * Add a domain
-         * @description A registrable rule is stored against the registrable domain itself (`https://www.acme.com/x` is `acme.com`); host and path prefix rules keep the host.
+         * @description The default scope is `host`: a site, which is the host and its www form (`https://www.acme.com/x` and `acme.com` are the same site) and none of its other subdomains; a subdomain is a site of its own. Only a `registrable` rule takes every subdomain, and it is stored against the registrable domain itself; host and path prefix rules keep the host.
          */
         post: operations["add_entity_domain_api_v1_workspaces__workspace_id__entities__entity_id__domains_post"];
         delete?: never;
@@ -2375,7 +2375,7 @@ export interface components {
             domain: string;
             /**
              * Match Scope
-             * @default registrable
+             * @default host
              * @enum {string}
              */
             match_scope: "path_prefix" | "host" | "registrable";
@@ -3710,7 +3710,7 @@ export interface components {
             canonical_name: string;
             /**
              * Domains
-             * @description Hosts or URLs, each matched by registrable domain.
+             * @description Hosts or URLs, each a site: the host and its www form, no other subdomain.
              */
             domains?: string[];
         };

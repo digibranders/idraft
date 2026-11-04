@@ -51,9 +51,13 @@ def test_a_domain_and_prefix_are_kept_in_canonical_form() -> None:
         {"domain": " https://Medium.com/x ", "match_scope": "path_prefix", "path_prefix": "@acme/"}
     )
     assert (domain.domain, domain.path_prefix) == ("https://Medium.com/x", "/@acme")
-    assert DomainInput.model_validate({"domain": "alice.github.io"}).match_scope == "registrable"
-    # A host under a public suffix is fine as a host rule.
-    assert DomainInput.model_validate({"domain": "co.uk", "match_scope": "host"})
+    # A site by default: the host and its www form, not every subdomain
+    assert DomainInput.model_validate({"domain": "alice.github.io"}).match_scope == "host"
+    # A host under a public suffix is a site; the suffix itself is not
+    assert DomainInput.model_validate({"domain": "alice.github.io", "match_scope": "host"})
+    assert "domain_is_public_suffix" in _codes(
+        DomainInput, {"domain": "co.uk", "match_scope": "host"}
+    )
 
 
 def test_a_word_alias_is_trimmed_and_a_pattern_is_not() -> None:

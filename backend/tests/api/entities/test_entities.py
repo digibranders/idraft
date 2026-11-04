@@ -76,8 +76,8 @@ async def test_an_editor_creates_an_entity_with_aliases_and_domains(
         (d["domain"]["host"], d["domain"]["registrable_domain"], d["match_scope"], d["path_prefix"])
         for d in data["domains"]
     ] == [
-        # A registrable rule names the registrable domain itself.
-        ("acme.com", "acme.com", "registrable", None),
+        # A domain rule is a site by default: the host and its www form, not its other subdomains.
+        ("acme.com", "acme.com", "host", None),
         ("docs.acme.com", "acme.com", "host", None),
         ("medium.com", "medium.com", "path_prefix", "/@acme"),
     ]

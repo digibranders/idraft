@@ -1,4 +1,4 @@
-import { isPublicSuffix, registrableDomain } from '../factories/domain';
+import { isPublicSuffix, registrableDomain, siteOf } from '../factories/domain';
 import type { ValidationItem } from '@/lib/api/types';
 import { normalizeDomain } from '@/lib/domains/normalize';
 import { textLength } from '@/lib/text/length';
@@ -277,21 +277,22 @@ export function domainInput(value: unknown, prefix: string): DomainValues | Vali
   if (errors.length > 0) return errors;
   const host = typeof value.domain === 'string' ? canonicalHost(value.domain, { keepWww: true }) : null;
   if (host === null) return [bodyError(at(prefix, 'domain'), 'invalid_domain', 'Not a host name or an http(s) URL.')];
-  const scope: MatchScope = isOneOf(value.match_scope, MATCH_SCOPES) ? value.match_scope : 'registrable';
+  const scope: MatchScope = isOneOf(value.match_scope, MATCH_SCOPES) ? value.match_scope : 'host';
   // Model-level rules report at the input itself, as Pydantic's model validators do
   if ((scope === 'path_prefix') !== (rawPrefix !== null)) {
     return [
       bodyError(prefix, 'path_prefix_mismatch', 'Give `path_prefix` exactly when `match_scope` is `path_prefix`.'),
     ];
   }
-  if (scope === 'registrable' && isPublicSuffix(host)) {
+  if ((scope === 'registrable' || scope === 'host') && isPublicSuffix(host)) {
     return [
       bodyError(prefix, 'domain_is_public_suffix', 'A public suffix is shared by many sites; name a host under it.'),
     ];
   }
-  // A registrable rule is stored against the registrable domain: `blog.acme.com` and `www.acme.com` are `acme.com`
+  // A registrable rule is stored against the registrable domain: `blog.acme.com` and `www.acme.com` are `acme.com`.
+  // A host rule is a site, the host and its www form: `www.acme.com` is stored as `acme.com`. A path rule keeps the host.
   return {
-    host: scope === 'registrable' ? registrableDomain(host) : host,
+    host: scope === 'registrable' ? registrableDomain(host) : scope === 'host' ? siteOf(host) : host,
     match_scope: scope,
     path_prefix: pathPrefix,
   };

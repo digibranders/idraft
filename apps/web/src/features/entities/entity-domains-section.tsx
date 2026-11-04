@@ -27,7 +27,7 @@ const REMOVE = apiMutation(
 );
 
 type MatchScope = EntityDomain['match_scope'];
-const SCOPES: readonly MatchScope[] = ['registrable', 'host', 'path_prefix'];
+const SCOPES: readonly MatchScope[] = ['host', 'registrable', 'path_prefix'];
 
 /** How a rule reads in a list: the host, with the path for a path rule. */
 const ruleText = (rule: EntityDomain): string =>
@@ -45,7 +45,7 @@ export interface EntityDomainsSectionProps {
 
 /**
  * The domains that count as the entity's site (20 section 5.19.6): each with how much of the web it claims,
- * the whole registrable domain, one host, or one path. Another entity claiming the same domain at the same
+ * one site (the host and its www form), the whole domain with every subdomain, or one path. Another entity claiming the same domain at the same
  * level in a shared project is a warning, not an error: the own brand wins the tie.
  */
 export function EntityDomainsSection({ scope, entity, canWrite }: EntityDomainsSectionProps): ReactNode {
@@ -59,7 +59,7 @@ export function EntityDomainsSection({ scope, entity, canWrite }: EntityDomainsS
   const pathInput = useRef<HTMLInputElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const [domain, setDomain] = useState('');
-  const [matchScope, setMatchScope] = useState<MatchScope>('registrable');
+  const [matchScope, setMatchScope] = useState<MatchScope>('host');
   const [pathPrefix, setPathPrefix] = useState('');
   const [domainError, setDomainError] = useState<string | null>(null);
   const [pathError, setPathError] = useState<string | null>(null);
