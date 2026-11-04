@@ -127,7 +127,7 @@ async def test_each_filter_keeps_the_matching_keywords(
         ({"filter[funnel_stage_in]": "unknown"}, ["erp", "hr"]),
         ({"filter[priority_lte]": 3}, ["crm software", "erp"]),
         ({"filter[source_in]": "csv_import"}, ["crm software"]),
-        ({"filter[depth_profile_in]": ["standard"]}, ["erp", "hr"]),
+        ({"filter[depth_profile_in]": ["full"]}, ["erp", "hr"]),
         ({"filter[search_volume_gte]": 1000}, ["crm software"]),
         ({"filter[keyword_difficulty_lte]": 30}, []),
     ]

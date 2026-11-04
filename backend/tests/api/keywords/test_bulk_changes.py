@@ -81,7 +81,7 @@ async def test_bulk_update_by_ids_sets_fields_and_versions_the_configuration(
     } == {
         "crm": (1, "deep", 2),
         "erp": (1, "deep", 1),
-        "hr": (3, "standard", 1),
+        "hr": (3, "full", 1),
     }
     history = await fetch(
         migrated,

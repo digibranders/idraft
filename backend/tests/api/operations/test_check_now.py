@@ -99,7 +99,7 @@ async def test_a_check_records_a_planned_standard_queue_run_for_the_worker(
     erp = await tracked_id(api, workspace, project, owner, "erp")
 
     response = await _check(
-        api, workspace, project, owner, {"tracked_keyword_ids": [erp, crm, crm], "depth": 50}
+        api, workspace, project, owner, {"tracked_keyword_ids": [erp, crm, crm], "depth": 100}
     )
 
     assert response.status_code == 202, response.text
@@ -110,7 +110,7 @@ async def test_a_check_records_a_planned_standard_queue_run_for_the_worker(
     # The API writes no tasks: the worker's planner plans the run, through the standard queue
     # (no `live` flag in the selector).
     assert json.loads(run["config_snapshot"]) == {
-        "selector": {"tracked_keyword_ids": sorted([crm, erp]), "depth": 50}
+        "selector": {"tracked_keyword_ids": sorted([crm, erp]), "depth": 100}
     }
     assert run["origin_request_id"] == response.headers["x-request-id"]
     (entry,) = await fetch(
@@ -194,6 +194,8 @@ async def test_the_body_is_bounded(
         {"tracked_keyword_ids": []},
         {"tracked_keyword_ids": [str(uuid.uuid4()) for _ in range(101)]},
         {"tracked_keyword_ids": [crm], "depth": 30},
+        # The shallow depths are not offered: every check reads the top 100
+        {"tracked_keyword_ids": [crm], "depth": 20},
         {"tracked_keyword_ids": [crm], "extra": 1},
         {},
     ]

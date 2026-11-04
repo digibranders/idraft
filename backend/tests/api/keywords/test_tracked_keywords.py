@@ -148,7 +148,7 @@ async def test_a_keyword_is_tracked_with_the_projects_defaults(
     )
     assert (row["device"], row["search_engine"], row["os"]) == ("desktop", "google", None)
     assert (row["depth_profile"], row["frequency"], row["config_version"]) == (
-        "standard",
+        "full",
         "daily",
         1,
     )
@@ -613,7 +613,7 @@ async def test_a_change_to_depth_or_target_url_makes_a_new_config_version(
     assert cleared.json()["data"]["target_url"] is None
     versions = history.json()["data"]
     assert [(v["config_version"], v["depth_profile"]) for v in versions] == [
-        (1, "standard"),
+        (1, "full"),
         (2, "deep"),
         (3, "deep"),
         (4, "deep"),
