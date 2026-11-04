@@ -13,7 +13,7 @@ import asyncio
 import contextlib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import structlog
@@ -26,6 +26,7 @@ from idraft.db.engine import create_engine, create_session_factory
 from idraft.storage.raw import ObjectStore, RawStore, open_raw_store
 from idraft.worker.queues import Queues
 from idraft.worker.scheduler import run_scheduler
+from idraft.worker.status import STATUS_EVERY, collect, publish
 from idraft.worker.ticks import Tick, run_tick
 
 REDIS_TIMEOUT_SECONDS = 5.0
@@ -79,6 +80,27 @@ def _heartbeat(context: WorkerContext) -> Tick | None:
         path.touch()
 
     return Tick(name="heartbeat", interval=HEARTBEAT_EVERY, action=beat)
+
+
+def _status(context: WorkerContext) -> Tick:
+    """Keeps this process's report in Redis for the full health endpoint. Every process reports for
+    itself (no lock), and the report expires when it stops."""
+    started_at = datetime.now(UTC)
+    settings = context.settings
+    registered = settings.dataforseo_login is not None and settings.dataforseo_password is not None
+
+    async def report() -> None:
+        # Bounded, so a database that does not answer cannot hold the tick (and a stop) for long
+        async with asyncio.timeout(_HEALTH_TIMEOUT_SECONDS):
+            status = await collect(
+                context.sessions,
+                instance=settings.installation_id,
+                started_at=started_at,
+                provider_registered=registered,
+            )
+            await publish(context.redis, status)
+
+    return Tick(name="status", interval=STATUS_EVERY, action=report)
 
 
 async def _first_to_end(stop: asyncio.Event, tasks: Sequence[asyncio.Task[None]]) -> bool:
@@ -155,7 +177,11 @@ async def run_worker(settings: Settings, assemble: Assemble, stop: asyncio.Event
             http=http,
             raw_store=raw_store,
         )
-        ticks = [tick for tick in (_heartbeat(context), *assemble(context)) if tick is not None]
+        ticks = [
+            tick
+            for tick in (_heartbeat(context), _status(context), *assemble(context))
+            if tick is not None
+        ]
         await queues.startup()
         background = [
             asyncio.create_task(run_tick(tick, redis, stop), name=f"tick:{tick.name}")

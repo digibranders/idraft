@@ -22,6 +22,7 @@ from sqlalchemy.exc import ArgumentError
 LogLevel = Literal["debug", "info", "warning", "error", "critical"]
 
 TOTP_KEY_BYTES = 32
+MIN_HEALTH_TOKEN_LENGTH = 24
 # Good enough for the console sender. A real provider refuses it, so it is refused at start.
 DEFAULT_EMAIL_FROM = "idraft.ai <no-reply@localhost>"
 _DEFAULT_PORTS = {"https": 443, "http": 80}
@@ -148,12 +149,24 @@ class Settings(_DatabaseSettings):
     # provider account (production and a restore rehearsal, say) then never take each other's
     # answers. Production is `prod`; a copy of its database must be started with another.
     installation_id: str = Field(default="local", pattern=r"^[a-z0-9]{1,16}$")
+    # The API only. The bearer token of `GET /api/internal/health`, the full health report. Without
+    # it the route does not exist (404), so a deployment that sets none exposes nothing.
+    health_token: SecretStr | None = Field(default=None)
 
     @field_validator("heartbeat_file", "r2_raw_endpoint", mode="before")
     @classmethod
     def _empty_is_unset(cls, value: object) -> object:
         # An empty variable is "not set". As a path it would be the working directory.
         return None if value == "" else value
+
+    @field_validator("health_token")
+    @classmethod
+    def _health_token_is_long_enough(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None or value.get_secret_value() == "":
+            return None
+        if len(value.get_secret_value()) < MIN_HEALTH_TOKEN_LENGTH:
+            raise ValueError(f"health_token must be at least {MIN_HEALTH_TOKEN_LENGTH} characters")
+        return value
 
     @field_validator(
         "dataforseo_login",

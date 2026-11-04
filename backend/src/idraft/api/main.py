@@ -74,7 +74,7 @@ HTTP_TIMEOUT_SECONDS = 10.0
 IMPORT_STORE_CONNECTIONS = 4
 SESSION_CACHE_KEY_LABEL = b"idraft session cache v1"
 TOTP_SECRET_KEY_LABEL = b"idraft totp secrets v1"
-HEALTH_PATHS = frozenset({"/api/healthz", "/api/readyz"})
+HEALTH_PATHS = frozenset({"/api/healthz", "/api/readyz", "/api/internal/health"})
 
 
 def _open_import_store(settings: Settings) -> AbstractAsyncContextManager[RawStore]:
