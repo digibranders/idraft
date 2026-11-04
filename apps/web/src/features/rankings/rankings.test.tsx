@@ -127,11 +127,13 @@ describe('Rankings', () => {
     await waitFor(() => expect(asked.some((query) => query.get('filter[country_id]') === '2276')).toBe(true));
   });
 
-  it('describes a keyword’s row header by where, on what device and in which language it is tracked', async () => {
+  it('gives a keyword no description of its own, and a column header one only where it explains something', async () => {
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
     const header = within(grid).getAllByRole('rowheader')[0];
-    expect(header).toHaveAccessibleDescription('United States · Google · English');
+    expect(header).not.toHaveAccessibleDescription();
+    // The rank headers say what they are, so they have no description either
+    expect(screen.getByRole('columnheader', { name: /Desktop/ })).not.toHaveAccessibleDescription();
     expect(screen.getByRole('columnheader', { name: /KD/ })).toHaveAccessibleDescription(
       'Keyword difficulty, from 0 to 100',
     );
@@ -753,7 +755,7 @@ describe('Rankings rank columns', () => {
     expect(desc.slice(ranked.length).some((text) => parseRank(text) !== null)).toBe(false);
   });
 
-  it('gives the tooltip of a rank to the cell that holds the keyboard focus, as its description too', async () => {
+  it('gives the rank cell that holds the keyboard focus no tooltip: the cell and its markers say it all', async () => {
     const { user } = renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
     for (let presses = 0; presses < 14 && !grid.contains(document.activeElement); presses += 1) await user.tab();
@@ -761,12 +763,7 @@ describe('Rankings rank columns', () => {
     await user.keyboard('{ArrowDown}{ArrowRight}');
     const cell = document.activeElement;
     expect(cell).toHaveAttribute('role', 'gridcell');
-    const tip = /^(Rank \d+|Not in the top \d+), \w{3} \d+, \d{4} · \d{2}:\d{2} \w+/;
-    await waitFor(() => expect(document.querySelector('[data-slot="tooltip"]')?.textContent).toMatch(tip));
-    // The description is the whole tooltip, except for `>20`, which the cell already speaks as "not in top 20":
-    // then it is the check that follows
-    const checked = /^Checked \w{3} \d+, \d{4} · \d{2}:\d{2} \S+\./;
-    expect(cell).toHaveAccessibleDescription(expect.stringMatching(new RegExp(`${tip.source}|${checked.source}`)));
+    expect(cell).not.toHaveAccessibleDescription();
   });
 
   it('asks the API to sort by rank above 10,000 keywords', async () => {

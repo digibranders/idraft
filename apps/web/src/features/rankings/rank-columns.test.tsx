@@ -185,7 +185,7 @@ describe('useCompetitorColumns', () => {
   ];
 
   it('sorts competitors by color_index ascending, then canonical_name with null color_index last', () => {
-    const { result } = renderHook(() => useCompetitorColumns(competitors, 'UTC'), { wrapper });
+    const { result } = renderHook(() => useCompetitorColumns(competitors), { wrapper });
     const cols = result.current;
     expect(cols.map((col) => col.id)).toEqual([
       'competitor_e-alpha',
@@ -200,32 +200,40 @@ describe('useCompetitorColumns', () => {
     expect(cols[3]?.defaultVisible).toBe(false);
   });
 
-  it('puts competitor rank change in cell tooltip', () => {
-    const { result } = renderHook(() => useCompetitorColumns(competitors, 'UTC'), { wrapper });
-    const alphaCol = result.current[0];
-    if (!alphaCol) throw new Error('Missing alpha column');
-    const alphaCompetitor = competitors[1];
-    if (!alphaCompetitor) throw new Error('Missing alpha competitor');
-
-    const row = makeRow({
-      competitor_ranks: [
-        {
-          entity: alphaCompetitor,
-          current: { rank: 4, observed_at: '2026-10-29T10:00:00Z', depth_requested: 20, url: null, state: 'ranked' },
-          change: { label: 'numeric', value: 2, previous_rank: 6 },
-        },
-      ],
-    });
-
-    const tip = alphaCol.cellTip?.(row);
-    expect(tip?.content).toContain('Rank 4');
-    expect(tip?.content).toContain('Improved 2 positions');
-    expect(tip?.detail).toContain('From 6 to 4');
+  it('gives the rank columns no tooltip of their own: the cell and its markers say what there is to say', () => {
+    const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
+    const rank = makeRow({});
+    for (const column of [result.current.rankDesktop, result.current.rankMobile]) {
+      expect(column.headerTooltip).toBeUndefined();
+      expect(column.cellTip).toBeUndefined();
+    }
+    expect(result.current.best.headerTooltip).toBeUndefined();
+    expect(result.current.trend.headerTooltip).toBeUndefined();
+    expect(result.current.best.cellTip?.(rank)).toBeUndefined();
   });
 
-  it('mentions rank change in the header tooltips of the desktop and the mobile rank columns', () => {
+  it('keeps a tooltip only where the cell cannot say it: the features named, a failed AI Overview, a cut-short URL', () => {
     const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
-    expect(result.current.rankDesktop.headerTooltip).toContain('how it moved');
-    expect(result.current.rankMobile.headerTooltip).toContain('how it moved');
+    const checked = makeRow({});
+    const failed = {
+      ...checked,
+      state: { ...checked.state, current: { ...checked.state.current, state: 'failed' as const } },
+    } as TrackedKeywordRow;
+
+    // A feature list that is empty, or a keyword never checked, says so in the cell
+    expect(result.current.features.cellTip?.(failed)).toBeUndefined();
+    // The AI Overview cell shows what it found; only a failure is an icon without words
+    expect(result.current.aio.cellTip?.(checked)).toBeUndefined();
+    expect(result.current.aio.cellTip?.(failed)?.content).toContain('failed');
+    expect(result.current.features.headerTooltip).toBeDefined();
+    expect(result.current.aio.headerTooltip).toBeDefined();
+  });
+
+  it('gives competitor columns no tooltip: their cell is their rank', () => {
+    const { result } = renderHook(() => useCompetitorColumns(competitors), { wrapper });
+    for (const column of result.current) {
+      expect(column.headerTooltip).toBeUndefined();
+      expect(column.cellTip).toBeUndefined();
+    }
   });
 });

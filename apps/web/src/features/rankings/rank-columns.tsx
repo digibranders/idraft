@@ -66,38 +66,14 @@ export function useRankColumns(timeZone: string): RankColumns {
         dropUnconfirmed: row.state.drop_unconfirmed,
         check: row.state.check,
       });
-    const aioTip = (row: TrackedKeywordRow): CellTip | undefined => {
-      if (row.state.current.state === 'failed') {
-        return { content: aioT('failedTooltip') };
-      }
-      const disp = aioDisplay(row.state.aio, row.state.current.state);
-      switch (disp.kind) {
-        case 'notLoaded':
-          return { content: aioT('notLoadedTooltip') };
-        case 'unknown':
-          return { content: aioT('unknownTooltip') };
-        case 'pending':
-          return { content: aioT('pendingTooltip') };
-        case 'cited':
-          return disp.position !== null
-            ? { content: aioT('citedTooltip', { position: disp.position }) }
-            : { content: aioT('citedNoPosition') };
-        case 'notCited':
-        case 'absent':
-          return undefined;
-      }
-    };
+    // The AI Overview cell says what it shows; only its failure is an icon that needs words
+    const aioTip = (row: TrackedKeywordRow): CellTip | undefined =>
+      row.state.current.state === 'failed' ? { content: aioT('failedTooltip') } : undefined;
+    // The SERP feature icons carry no words: the tooltip names them, and says which are the site's own
     const featureTip = (row: TrackedKeywordRow): CellTip | undefined => {
-      if (row.state.current.state === 'not_checked') {
-        return { content: features('pendingTooltip') };
-      }
-      if (row.state.current.state === 'failed') {
-        return { content: features('failedTooltip') };
-      }
+      if (row.state.current.state === 'not_checked' || row.state.current.state === 'failed') return undefined;
       const featDisplay = featureListDisplay(row.state.feature_types_present, row.state.owned_feature_types);
-      if (featDisplay.all.length === 0) {
-        return { content: features('noneTooltip') };
-      }
+      if (featDisplay.all.length === 0) return undefined;
       const shortLabelOf = (type: string): string =>
         isFeatureType(type) ? features(`types.${FEATURE_MESSAGE_KEYS[type]}`) : type;
       const content = featDisplay.all.map((slot) => shortLabelOf(slot.type)).join(', ');
@@ -119,7 +95,6 @@ export function useRankColumns(timeZone: string): RankColumns {
         },
         {
           header: t(device === 'desktop' ? 'rankDesktop' : 'rankMobile'),
-          headerTooltip: t(device === 'desktop' ? 'rankDesktopTooltip' : 'rankMobileTooltip'),
           priority: 1,
           // "Desktop" with its sort arrow and the column menu needs more than a rank's usual width
           width: 128,
@@ -136,12 +111,6 @@ export function useRankColumns(timeZone: string): RankColumns {
               />
             );
           },
-          cellTip: (row) => {
-            const own = row.devices[device];
-            return own === null
-              ? { content: t('notTrackedTooltip') }
-              : tips.rank(display(own), own.state.change, own.state.current);
-          },
         },
       );
     return {
@@ -155,7 +124,7 @@ export function useRankColumns(timeZone: string): RankColumns {
         defaultVisible: false,
         hasControls: true,
         cell: (row) => <RankingUrlView display={urlDisplay(row.state.current, row.state.ranking_url_count)} />,
-        cellTip: (row) => tips.url(urlDisplay(row.state.current, row.state.ranking_url_count), display(row)),
+        cellTip: (row) => tips.url(urlDisplay(row.state.current, row.state.ranking_url_count)),
       }),
       features: col.features<TrackedKeywordRow>(RANK_COLUMN_IDS.features, () => null, {
         header: features('column'),
@@ -195,7 +164,6 @@ export function useRankColumns(timeZone: string): RankColumns {
       }),
       trend: col.sparkline<TrackedKeywordRow>(RANK_COLUMN_IDS.trend, {
         header: trendT('column'),
-        headerTooltip: trendT('columnTooltip'),
         priority: 2,
         width: 96,
         cell: (row) => {
@@ -239,13 +207,11 @@ export function useRankColumns(timeZone: string): RankColumns {
       }),
       best: col.rank<TrackedKeywordRow>(RANK_COLUMN_IDS.best, (row) => row.state.best_rank, {
         header: t('bestRank'),
-        headerTooltip: t('bestRankTooltip'),
         priority: 3,
         // "BEST RANK" with its sort arrow needs 112 px
         width: 112,
         defaultVisible: false,
         cell: (row) => <BestRankView best={row.state.best_rank} state={row.state.current.state} />,
-        cellTip: (row) => (row.state.best_rank === null ? tips.best(row.state.current.state) : undefined),
       }),
       updated: col.date<TrackedKeywordRow>(RANK_COLUMN_IDS.updated, (row) => row.state.last_observed_at, {
         header: t('updated'),
@@ -257,8 +223,7 @@ export function useRankColumns(timeZone: string): RankColumns {
         // The marker follows the API's `is_stale` and nothing else
         marker: (row) => (row.state.is_stale ? <StaleMarker /> : null),
         cellTip: (row) => (row.state.is_stale ? tips.stale(row.state.last_observed_at) : undefined),
-        unknown: (row) =>
-          row.state.current.state === 'failed' ? { label: t('failed'), tooltip: t('failedTooltip') } : pending,
+        unknown: (row) => (row.state.current.state === 'failed' ? { label: t('failed') } : pending),
       }),
     };
   }, [t, common, features, aioT, trendT, tips, timeZone]);
@@ -268,13 +233,7 @@ export function useRankColumns(timeZone: string): RankColumns {
  * Competitor rank columns: one column per project competitor, ordered by color_index ascending then name.
  * Default visible for the first competitor only.
  */
-export function useCompetitorColumns(
-  competitors: readonly EntityRef[],
-  timeZone: string,
-): DataTableColumn<TrackedKeywordRow>[] {
-  const t = useTranslations('rankings.competitor');
-  const tips = useRankTips(timeZone);
-
+export function useCompetitorColumns(competitors: readonly EntityRef[]): DataTableColumn<TrackedKeywordRow>[] {
   return useMemo(() => {
     const sorted = [...competitors].sort((a, b) => {
       const aColor = a.color_index ?? Number.MAX_SAFE_INTEGER;
@@ -287,7 +246,6 @@ export function useCompetitorColumns(
       const id = `competitor_${competitor.entity_id}`;
       return col.competitor<TrackedKeywordRow>(id, {
         header: competitor.canonical_name,
-        headerTooltip: t('headerTooltip', { name: competitor.canonical_name }),
         priority: 4,
         width: 120,
         sortable: false,
@@ -303,15 +261,7 @@ export function useCompetitorColumns(
             />
           );
         },
-        cellTip: (row) => {
-          const entry = row.competitor_ranks?.find((cr) => cr.entity.entity_id === competitor.entity_id);
-          if (!entry) {
-            return { content: t('notTrackedTooltip', { name: competitor.canonical_name }) };
-          }
-          const display = rankDisplay(entry.current, false, 0);
-          return tips.rank(display, entry.change, entry.current);
-        },
       });
     });
-  }, [competitors, t, tips]);
+  }, [competitors]);
 }

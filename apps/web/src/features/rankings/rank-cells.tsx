@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Icon } from '@/components/ui/icon';
 import { TextLink } from '@/components/ui/text-link';
 import { Tooltip } from '@/components/ui/tooltip';
-import type { RankCell, RankChange } from '@/lib/api/types';
+import type { RankCell } from '@/lib/api/types';
 import {
   formatDetailDateTime,
   formatInteger,
@@ -351,141 +351,27 @@ export function StaleMarker(): ReactElement {
 }
 
 export interface RankTips {
-  /**
-   * The tooltip and description of the Rank cell: where and when it was checked, the rank before it when there
-   * is one, and what is wrong with it (stale, or the checks after it failed).
-   */
-  rank: (
-    display: RankDisplay,
-    previousRankOrChange?: number | null | RankChange,
-    current?: RankCell,
-  ) => CellTip | undefined;
-  /** Where a rank moved from and to, for a change that has both ranks. */
-  change: (change: RankChange, current: RankCell) => CellTip | undefined;
-  /** The whole address and the check of a ranking URL, or why there is none yet. */
-  url: (display: UrlDisplay, rank: RankDisplay) => CellTip | undefined;
-  /** Why Best rank has no number yet or after a failed check; nothing for a keyword that was checked. */
-  best: (state: RankCell['state']) => CellTip | undefined;
+  /** The whole address of a ranking URL, which the cell shortens; nothing when there is no URL. */
+  url: (display: UrlDisplay) => CellTip | undefined;
   /** What the Stale marker of the Updated column means, with the last good check. */
   stale: (observedAt: string | null) => CellTip;
 }
 
 /**
- * The tooltips of the rank cells, in the project's time zone. A tip has a description only where the cell's
- * own text already says its first line (a change's words, a `>20` that is spoken as "not in top 20"): the
- * description is then the rest of the tooltip, so a screen reader does not hear the line twice.
+ * The tooltips of the rank cells, in the project's time zone. A tooltip is only for what the cell cannot say
+ * itself: a path that is cut short, and what a marker means. The rank, its change and its date are not repeated
+ * in one; the markers carry their own words.
  */
 export function useRankTips(timeZone: string): RankTips {
   const t = useTranslations('rankings.rank');
-  return useMemo((): RankTips => {
-    const date = (instant: string): string => formatDetailDateTime(instant, timeZone);
-    const lastGood = (observedAt: string | null, stale: boolean): string | undefined =>
-      stale && observedAt !== null ? t('lastGood', { date: date(observedAt) }) : undefined;
-    const previous = (rank: number | null): string | undefined =>
-      rank === null ? undefined : t('previousRank', { rank: formatInteger(rank) });
-    /** Sentences, each ending in its own full stop, as one line. */
-    const joined = (parts: readonly (string | undefined)[]): string | undefined => {
-      const found = parts.filter((part): part is string => part !== undefined);
-      return found.length === 0 ? undefined : found.join(' ');
-    };
-    const withDetail = (content: string, detail: string | undefined): CellTip =>
-      detail === undefined ? { content } : { content, detail };
-    const failed = (): CellTip => ({ content: t('failedTooltip') });
-    const pending = (): CellTip => ({ content: t('pendingTooltip') });
-
-    const changeTipOf = (change: RankChange, current: RankCell): CellTip | undefined => {
-      if (change.label !== 'numeric' || change.value === null || change.value === 0) return undefined;
-      if (change.previous_rank === null || current.rank === null) return undefined;
-      const detail = t('fromTo', { from: formatInteger(change.previous_rank), to: formatInteger(current.rank) });
-      const amount = Math.abs(change.value);
-      return {
-        content: t(change.value > 0 ? 'changeTip.improved' : 'changeTip.declined', { count: amount }),
-        detail,
-        description: detail,
-      };
-    };
-
-    return {
-      rank: (display, previousRankOrChange = null, current) => {
-        const isChangeObj =
-          typeof previousRankOrChange === 'object' && previousRankOrChange !== null && 'label' in previousRankOrChange;
-        const previousRank = isChangeObj ? previousRankOrChange.previous_rank : previousRankOrChange;
-        const changeObj = isChangeObj ? previousRankOrChange : undefined;
-
-        let baseTip: CellTip | undefined;
-        switch (display.kind) {
-          case 'ranked':
-            baseTip = withDetail(
-              t('rankTip', { rank: formatInteger(display.rank), date: date(display.observedAt), depth: display.depth }),
-              joined([
-                previous(previousRank),
-                lastGood(display.observedAt, display.stale),
-                display.failing ? t('failedTooltip') : undefined,
-              ]),
-            );
-            break;
-          case 'beyond': {
-            if (display.observedAt === null) {
-              baseTip = undefined;
-              break;
-            }
-            const rest = [
-              display.returned !== null
-                ? t('partialCoverage', { returned: display.returned, requested: display.depth })
-                : undefined,
-              display.unconfirmed ? t('unconfirmedTooltip') : undefined,
-              previous(previousRank),
-              lastGood(display.observedAt, display.stale),
-              display.failing ? t('failedTooltip') : undefined,
-            ];
-            // The cell says "not in top 20" itself: what the screen reader hears after it is the rest
-            const description = joined([t('checked', { date: date(display.observedAt) }), ...rest]);
-            baseTip = {
-              ...withDetail(t('beyondTip', { depth: display.depth, date: date(display.observedAt) }), joined(rest)),
-              ...(description === undefined ? {} : { description }),
-            };
-            break;
-          }
-          case 'pending':
-            baseTip = pending();
-            break;
-          case 'failed':
-            baseTip = withDetail(t('failedTooltip'), lastGood(display.observedAt, display.stale));
-            break;
-        }
-
-        if (changeObj && current) {
-          const cTip = changeTipOf(changeObj, current);
-          if (cTip) {
-            if (!baseTip) return cTip;
-            const content = `${baseTip.content.replace(/\.*$/, '')}. ${cTip.content.replace(/\.*$/, '')}.`;
-            const detail = [baseTip.detail, cTip.detail].filter(Boolean).join(' ');
-            return {
-              content,
-              ...(detail ? { detail } : {}),
-            };
-          }
-        }
-        return baseTip;
-      },
-      change: changeTipOf,
-      best: (state) => (state === 'failed' ? failed() : state === 'not_checked' ? pending() : undefined),
-      url: (display, rank) => {
-        switch (display.kind) {
-          case 'url': {
-            if (rank.kind !== 'ranked') return { content: display.full };
-            const detail = t('checked', { date: date(rank.observedAt) });
-            return { content: display.full, detail, description: detail };
-          }
-          case 'pending':
-            return pending();
-          case 'failed':
-            return failed();
-          case 'none':
-            return undefined;
-        }
-      },
-      stale: (observedAt) => withDetail(t('staleTooltip'), lastGood(observedAt, true)),
-    };
-  }, [t, timeZone]);
+  return useMemo(
+    (): RankTips => ({
+      url: (display) => (display.kind === 'url' ? { content: display.full } : undefined),
+      stale: (observedAt) => ({
+        content: t('staleTooltip'),
+        ...(observedAt === null ? {} : { detail: t('lastGood', { date: formatDetailDateTime(observedAt, timeZone) }) }),
+      }),
+    }),
+    [t, timeZone],
+  );
 }

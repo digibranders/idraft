@@ -70,9 +70,8 @@ export function useKeywordColumns(
   const t = useTranslations('rankings.columns');
   const common = useTranslations('common');
   const targetT = useTranslations('rankings.target');
-  const locale = useLocale();
   const ranks = useRankColumns(timeZone);
-  const competitorColumns = useCompetitorColumns(competitors, timeZone);
+  const competitorColumns = useCompetitorColumns(competitors);
   return useMemo(() => {
     // Before Labs answers there is nothing; after an empty answer there is no data (12-tables.md 7.3)
     const pending: UnknownValue = { label: t('pending'), tooltip: t('pendingTooltip') };
@@ -82,21 +81,14 @@ export function useKeywordColumns(
     const columns: DataTableColumn<PairedRow>[] = [
       col.keyword<TrackedKeywordRow>('keyword', keywordText, {
         header: t('keyword'),
-        detail: (row) => {
-          const keywordDetail = t('keywordDetail', {
-            location: row.location.name,
-            engine: t('google'),
-            language: languageName(row.language_code, locale),
-          });
-          if (row.state.target_url_match === false) {
-            const mismatchSentence = targetT('mismatch', {
-              ranking: row.state.current.url?.path ?? '',
-              target: row.target_url?.path ?? '',
-            });
-            return [keywordDetail, mismatchSentence].join(' ');
-          }
-          return keywordDetail;
-        },
+        // Only a warning is worth a tooltip here: the ranking page is not the target page
+        detail: (row) =>
+          row.state.target_url_match === false
+            ? targetT('mismatch', {
+                ranking: row.state.current.url?.path ?? '',
+                target: row.target_url?.path ?? '',
+              })
+            : undefined,
         marker: (row) => (row.state.target_url_match === false ? <TargetMismatchMarker /> : null),
         trailing: (row) => {
           const url = row.state.current.url;
@@ -128,7 +120,6 @@ export function useKeywordColumns(
       ranks.url,
       col.volume<TrackedKeywordRow>('search_volume', (row) => metrics(row)?.search_volume.value ?? null, {
         header: t('volume'),
-        headerTooltip: t('volumeTooltip'),
         priority: 2,
         width: 96,
         unknown: missing,
@@ -146,7 +137,7 @@ export function useKeywordColumns(
           const cpc = metrics(row)?.cpc_usd ?? null;
           return cpc === null ? null : Number(cpc);
         },
-        { header: t('cpc'), headerTooltip: t('cpcTooltip'), priority: 2, width: 112, unknown: missing },
+        { header: t('cpc'), priority: 2, width: 112, unknown: missing },
       ),
       col.text<TrackedKeywordRow>('intent', (row) => (row.intent === 'unknown' ? null : t(`intents.${row.intent}`)), {
         header: t('intent'),
@@ -161,7 +152,6 @@ export function useKeywordColumns(
       ranks.trend,
       col.count<TrackedKeywordRow>('priority', (row) => row.priority, {
         header: t('priority'),
-        headerTooltip: t('priorityTooltip'),
         priority: 3,
         // "PRIORITY" with its sort arrow needs 100 px, which is more than a count column holds
         width: 100,
@@ -196,5 +186,5 @@ export function useKeywordColumns(
       }),
     ];
     return columns;
-  }, [t, targetT, common, locale, timeZone, ranks, competitorColumns]);
+  }, [t, targetT, common, timeZone, ranks, competitorColumns]);
 }
