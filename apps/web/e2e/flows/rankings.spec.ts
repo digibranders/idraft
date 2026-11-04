@@ -91,7 +91,8 @@ test.describe('rankings', () => {
 
     // The archived view, kept across a reload
     await page.getByRole('button', { name: 'Remove filter Intent: Commercial' }).click();
-    await page.getByRole('radio', { name: 'Archived' }).click();
+    await page.getByRole('button', { name: 'More actions' }).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Show archived keywords' }).click();
     await expect(page).toHaveURL(/[?&]archived=true/);
     await page.reload();
     await expect(page.getByText('3 keywords', { exact: true }).first()).toBeVisible();
@@ -746,7 +747,8 @@ test.describe('rankings', () => {
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
     await expect(page.getByText('58 keywords', { exact: true }).first()).toBeVisible();
 
-    await page.getByRole('button', { name: 'Import', exact: true }).click();
+    await page.getByRole('button', { name: 'More ways to add keywords' }).click();
+    await page.getByRole('menuitem', { name: 'Import from a file' }).click();
     await expect(page).toHaveURL(/\/seo\/keywords\/import(\?.*)?$/);
     const dialog = page.getByRole('dialog', { name: 'Import keywords' });
     await expect(dialog).toBeVisible();
@@ -783,7 +785,7 @@ test.describe('rankings', () => {
     // The dialog is gone, the table stays, and the header follows the write until the report is ready
     await expect(page).toHaveURL(/\/seo\/keywords(\?.*)?$/);
     await expect(dialog).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Import', exact: true })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'More ways to add keywords' })).toBeFocused();
     await expect(page.getByRole('progressbar', { name: 'Importing keywords' })).toBeVisible();
     await expect(page.getByText('Import finished: 3 added, 1 skipped')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole('progressbar', { name: 'Importing keywords' })).toBeHidden();

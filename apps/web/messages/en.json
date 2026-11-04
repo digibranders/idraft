@@ -1930,8 +1930,40 @@
       "downloadReport": "Download report",
       "reportName": "keyword-import-{date}.csv"
     },
+    "export": {
+      "open": "Export",
+      "xlsx": "Excel workbook with summary",
+      "csv": "CSV, table only",
+      "failed": {
+        "title": "The export did not finish",
+        "description": "The keywords could not be read. Try again."
+      },
+      "sheet": "Keywords",
+      "country": "Country",
+      "devices": "Devices",
+      "filters": "Filters",
+      "filtersNone": "None",
+      "filtersCount": "{count, plural, one {# filter} other {# filters}}",
+      "search": "Search",
+      "archived": "Archived keywords only",
+      "exported": "Exported",
+      "columns": {
+        "keyword": "Keyword",
+        "url": "Ranking URL",
+        "volume": "Search volume",
+        "difficulty": "KD",
+        "cpc": "CPC (USD)",
+        "intent": "Intent",
+        "priority": "Priority",
+        "groups": "Groups",
+        "checked": "Last checked"
+      }
+    },
     "add": {
       "open": "Add keywords",
+      "options": "Add keywords options",
+      "moreWays": "More ways to add keywords",
+      "importFile": "Import from a file",
       "title": "Add keywords",
       "description": "Keywords are tracked on Google. Their metrics arrive within minutes.",
       "keywords": "Keywords",
@@ -2151,7 +2183,7 @@
     },
     "scope": {
       "device": "Device",
-      "both": "Both",
+      "both": "Desktop and mobile",
       "country": "Country: {country}",
       "countrySearch": "Search countries",
       "countryEmpty": "No countries match “{query}”",
@@ -2173,7 +2205,10 @@
     "view": {
       "label": "Show",
       "active": "Active",
-      "archived": "Archived"
+      "archived": "Archived",
+      "showArchived": "Show archived keywords",
+      "archivedChip": "Archived keywords",
+      "backToActive": "Show active keywords"
     },
     "error": {
       "title": "The keywords did not load",

@@ -82,6 +82,7 @@
     "react-hook-form": "^7.89.0",
     "server-only": "^0.0.1",
     "tailwind-merge": "^3.7.0",
+    "write-excel-file": "^4.1.1",
     "zod": "^4.6.5"
   },
   "msw": {

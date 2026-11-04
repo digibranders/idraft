@@ -16,6 +16,7 @@ import {
   answerImportAs,
   choose,
   chooseFile,
+  chooseImport,
   csv,
   fileInput,
   openImport,
@@ -570,7 +571,7 @@ describe('Import dialog: closing', () => {
       expect(screen.queryByText('Drop a CSV file here, or choose one')).toBeNull();
       animation.open();
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Import keywords' })).toBeNull());
-      await user.click(screen.getByRole('button', { name: 'Import' }));
+      await chooseImport(user);
       const again = await screen.findByRole('dialog', { name: 'Import keywords' });
       expect(within(again).getByText('Drop a CSV file here, or choose one')).toBeInTheDocument();
     },

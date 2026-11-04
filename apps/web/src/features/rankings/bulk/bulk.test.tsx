@@ -590,9 +590,10 @@ describe('Bulk actions', () => {
   it('does not bring a selection back when the filters return to what they were', async () => {
     const { user } = renderWithProviders(as('editor'));
     await choose(user, 'seo agency');
-    await user.click(screen.getByRole('radio', { name: 'Archived' }));
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: 'Show archived keywords' }));
     await waitFor(() => expect(screen.queryByRole('group', { name: /Bulk actions/ })).toBeNull());
-    await user.click(screen.getByRole('radio', { name: 'Active' }));
+    await user.click(screen.getByRole('button', { name: 'Show active keywords' }));
     await loadedGrid();
     expect(screen.queryByRole('group', { name: /Bulk actions/ })).toBeNull();
     expect(screen.getByRole('checkbox', { name: 'Select seo agency, United States' })).not.toBeChecked();

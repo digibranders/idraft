@@ -8,6 +8,7 @@ import type { ReactElement, Ref } from 'react';
 
 import { Icon } from './icon';
 import { useRadioFocus, type FocusHandle } from './radio-group';
+import { Tooltip } from './tooltip';
 import { cn } from '@/lib/utils';
 
 export interface SegmentedControlItem<TValue extends string> {
@@ -35,6 +36,11 @@ export interface SegmentedControlProps<TValue extends string> extends Omit<
   onValueChange: (value: TValue) => void;
   /** 2 to 5 for a view option, 2 to 4 for a form value. */
   items: readonly SegmentedControlItem<TValue>[];
+  /**
+   * Shows only the icons, each with its label as accessible name and tooltip (07-icons.md section 4): every
+   * item needs an icon. For options whose icons are understood without a word, such as the devices.
+   */
+  iconOnly?: boolean | undefined;
   /** 32 px in toolbars and panels, 36 px in page headers and forms. */
   size?: 'sm' | 'md' | undefined;
   /** Lets a form move focus to the chosen segment after a failed submit: `focusRef={field.ref}`. */
@@ -69,32 +75,49 @@ export function SegmentedControl<TValue extends string>({
   onValueChange,
   items,
   size = 'md',
+  iconOnly = false,
   focusRef,
   className,
   ...props
 }: SegmentedControlProps<TValue>): ReactElement {
   const groupRef = useRadioFocus(focusRef);
-  const segments = items.map((item) => (
-    <RadioPrimitive.Root
-      key={item.value}
-      value={item.value}
-      disabled={item.disabled}
-      className={segmentClassName(size)}
-    >
-      {item.icon ? <Icon icon={item.icon} size={size === 'sm' ? 'sm' : 'default'} /> : null}
-      <span className="grid">
-        <span className="col-start-1 row-start-1">{item.label}</span>
-        {/* The heavier copy is never seen or read: it only holds the width the label has when chosen */}
-        <span aria-hidden="true" className="invisible col-start-1 row-start-1 type-body-strong">
-          {item.label}
+  const segments = items.map((item) => {
+    if (iconOnly && item.icon) {
+      return (
+        <Tooltip key={item.value} content={item.label} purpose="label">
+          <RadioPrimitive.Root
+            value={item.value}
+            disabled={item.disabled}
+            aria-label={item.label}
+            className={cn(segmentClassName(size), size === 'sm' ? 'w-control-sm px-0' : 'w-control px-0')}
+          >
+            <Icon icon={item.icon} size={size === 'sm' ? 'sm' : 'default'} />
+          </RadioPrimitive.Root>
+        </Tooltip>
+      );
+    }
+    return (
+      <RadioPrimitive.Root
+        key={item.value}
+        value={item.value}
+        disabled={item.disabled}
+        className={segmentClassName(size)}
+      >
+        {item.icon ? <Icon icon={item.icon} size={size === 'sm' ? 'sm' : 'default'} /> : null}
+        <span className="grid">
+          <span className="col-start-1 row-start-1">{item.label}</span>
+          {/* The heavier copy is never seen or read: it only holds the width the label has when chosen */}
+          <span aria-hidden="true" className="invisible col-start-1 row-start-1 type-body-strong">
+            {item.label}
+          </span>
         </span>
-      </span>
-      {/* A flex container ignores the space for layout; it keeps label and count apart in the name */}
-      {item.count === undefined ? null : ' '}
-      {/* The count keeps the regular weight, so its width does not change with the choice */}
-      {item.count === undefined ? null : <span className="num type-body">{item.count}</span>}
-    </RadioPrimitive.Root>
-  ));
+        {/* A flex container ignores the space for layout; it keeps label and count apart in the name */}
+        {item.count === undefined ? null : ' '}
+        {/* The count keeps the regular weight, so its width does not change with the choice */}
+        {item.count === undefined ? null : <span className="num type-body">{item.count}</span>}
+      </RadioPrimitive.Root>
+    );
+  });
   // A view option is named without showing the name; a form value gets a visible legend below
   const viewProps = semantics === 'view' ? { 'aria-label': label, 'data-slot': 'segmented-control' } : {};
   const group = (

@@ -164,4 +164,25 @@ describe('SegmentedControl', () => {
     );
     expect(await axe(container)).toHaveNoViolations();
   });
+
+  it('shows only icons when asked, each named by its label', () => {
+    renderWithProviders(
+      <SegmentedControl<Device>
+        semantics="view"
+        label="Device"
+        value="desktop"
+        onValueChange={vi.fn()}
+        iconOnly
+        size="sm"
+        items={[
+          { value: 'desktop', label: 'Desktop', icon: Monitor },
+          { value: 'mobile', label: 'Mobile', icon: Monitor },
+        ]}
+      />,
+    );
+    expect(screen.getByRole('radio', { name: 'Desktop' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Mobile' })).not.toBeChecked();
+    // The label is the name, not text on the page
+    expect(screen.queryByText('Desktop')).toBeNull();
+  });
 });

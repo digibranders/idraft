@@ -339,11 +339,14 @@ describe('Who sees Refresh metrics', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Manage groups' })).toBeInTheDocument();
   });
 
-  it('gives a viewer no menu, and asks the API nothing about runs', async () => {
+  it('gives a viewer no Refresh metrics, and asks the API nothing about runs', async () => {
     const served = serveRuns({ used: 0, open: [] });
-    renderWithProviders(as('viewer'));
+    const { user } = renderWithProviders(as('viewer'));
     await loadedGrid();
-    expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull();
+    // The menu is there for the archived keywords only
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(await screen.findByRole('menuitemcheckbox', { name: 'Show archived keywords' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Refresh metrics/ })).toBeNull();
     expect(served.reads()).toBe(0);
   });
 

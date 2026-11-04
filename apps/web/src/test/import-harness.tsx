@@ -104,12 +104,18 @@ export function Controlled({
   );
 }
 
+/** Chooses "Import from a file" under the arrow of Add keywords, where the import is. */
+export async function chooseImport(user: ProvidedRender['user']): Promise<void> {
+  await user.click(screen.getByRole('button', { name: 'More ways to add keywords' }));
+  await user.click(await screen.findByRole('menuitem', { name: 'Import from a file' }));
+}
+
 export async function openImport(
   user: ProvidedRender['user'],
   changes: boolean[] = [],
 ): Promise<{ dialog: HTMLElement; changes: boolean[] }> {
   await loadedGrid();
-  await user.click(screen.getByRole('button', { name: 'Import' }));
+  await chooseImport(user);
   return { dialog: await screen.findByRole('dialog', { name: 'Import keywords' }), changes };
 }
 

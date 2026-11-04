@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Controlled } from '@/test/import-harness';
+import { chooseImport, Controlled } from '@/test/import-harness';
 import { loadedGrid, rankingsAs, restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
@@ -36,7 +36,7 @@ describe('The import dialog’s code', () => {
     const { user } = renderWithProviders(<Controlled changes={[]} />);
     await loadedGrid();
     expect(loaded.count).toBe(0);
-    await user.click(screen.getByRole('button', { name: 'Import' }));
+    await chooseImport(user);
     expect(await screen.findByRole('dialog', { name: 'Import keywords' })).toBeInTheDocument();
     expect(loaded.count).toBe(1);
   });
