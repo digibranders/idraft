@@ -21,7 +21,7 @@ export const DEFAULT_FREQUENCIES = ['daily', 'weekly'] as const satisfies readon
 /** The defaults a project has while its settings name none, as the contract declares them. */
 export const SEO_DEFAULTS: SeoSettings = {
   default_device: 'desktop',
-  default_depth_profile: 'standard',
+  default_depth_profile: 'full',
   default_frequency: 'daily',
   visibility_volume_mode: 'annual_average',
   visibility_weight_scheme: 'uniform',

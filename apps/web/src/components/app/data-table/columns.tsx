@@ -99,7 +99,7 @@ export const col = {
     id: string,
     text: (row: TRow) => string,
     options: Options & {
-      detail?: ((row: TRow) => string) | undefined;
+      detail?: ((row: TRow) => string | undefined) | undefined;
       copy?: { label: (row: TRow) => string; announcement: string } | undefined;
       marker?: ((row: TRow) => ReactNode) | undefined;
       trailing?: ((row: TRow) => ReactNode) | undefined;

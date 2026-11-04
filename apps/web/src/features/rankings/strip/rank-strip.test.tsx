@@ -26,12 +26,12 @@ describe('RankStrip', () => {
     server.events.removeAllListeners();
   });
 
-  it('shows Tracked count, checked count, and Top 3, 10 and 20 under no filters', async () => {
+  it('shows Keywords count, checked count, and Top 3, 10 and 20 under no filters', async () => {
     const activeCount = MOCK_TRACKED_KEYWORDS.filter((row) => row.is_active).length;
     const filters: KeywordFilters = { 'filter[is_active]': true };
     renderWithProviders(<RankStrip scope={SCOPE} filters={filters} total={activeCount} />);
 
-    expect(await screen.findByText('Tracked')).toBeInTheDocument();
+    expect(await screen.findByText('Keywords')).toBeInTheDocument();
     expect(await screen.findByText(String(activeCount))).toBeInTheDocument();
     expect(await screen.findByText('55 checked')).toBeInTheDocument();
     expect(screen.getByText('Top 3')).toBeInTheDocument();
@@ -59,7 +59,7 @@ describe('RankStrip', () => {
     };
     renderWithProviders(<RankStrip scope={SCOPE} filters={bucket} total={5} />);
 
-    expect(await screen.findByText('Tracked')).toBeInTheDocument();
+    expect(await screen.findByText('Keywords')).toBeInTheDocument();
     expect(await screen.findByText('Top 3')).toBeInTheDocument();
     expect(screen.getByText('0')).toBeInTheDocument();
     expect(asked.some((query) => query.includes('rank_lte=3'))).toBe(false);
@@ -78,7 +78,7 @@ describe('RankStrip', () => {
 
     renderWithProviders(<RankStrip scope={SCOPE} filters={{ 'filter[is_active]': true }} total={59} />);
 
-    expect(await screen.findByText('Tracked')).toBeInTheDocument();
+    expect(await screen.findByText('Keywords')).toBeInTheDocument();
     expect(await screen.findByText('59')).toBeInTheDocument();
     expect(screen.getByText('Top 3')).toBeInTheDocument();
     expect(screen.getByText('n/a')).toBeInTheDocument();

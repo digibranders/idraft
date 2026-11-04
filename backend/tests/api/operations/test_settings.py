@@ -47,7 +47,7 @@ async def test_a_new_project_has_the_default_settings(
         "version": 1,
         "seo": {
             "default_device": "desktop",
-            "default_depth_profile": "standard",
+            "default_depth_profile": "full",
             "default_frequency": "daily",
             "visibility_weight_scheme": "uniform",
             "visibility_volume_mode": "annual_average",

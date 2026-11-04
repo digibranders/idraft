@@ -47,20 +47,18 @@ Tracking 10,000 keywords daily at top-100 on the standard queue costs about $1,8
 
 Each tracked keyword has a **depth profile** (project default, overridable per keyword group or keyword). The profile, not a single `depth`, drives the planner.
 
+**Every check reads the top 100 (decision of 2026-11-04).** A rank is a number up to 100, and beyond that it is "over 100": no check is made at depth 10, 20 or 50, so the UI never says "over 20". The profile names below are kept so existing keywords and settings that carry them keep working; only `full` and `weekly` are offered when a keyword or a project default is set, and `full` is the default.
+
 | Profile | Daily checks | Weekly deep check | Pages per keyword per month (30 days) | Standard cost per keyword per month (desktop) |
 |---|---|---|---|---|
-| `light` | depth 10 | depth 100 on the project's deep-check weekday | 25.7 x 1 + 4.33 x 10 = 69 | $0.041 |
-| `standard` (**default**) | depth 20 | depth 100 on the deep-check weekday | 25.7 x 2 + 4.33 x 10 = 94.7 | $0.057 |
-| `deep` | depth 50 | depth 100 weekly | 25.7 x 5 + 4.33 x 10 = 172 | $0.103 |
-| `full` | depth 100 | (not needed) | 30 x 10 = 300 | $0.180 |
+| `full` (**default**) | depth 100 | (not needed) | 30 x 10 = 300 | $0.180 |
 | `weekly` | none | depth 100 weekly | 4.33 x 10 = 43 | $0.026 |
-| `weekly_light` | none | depth 20 weekly | 4.33 x 2 = 8.7 | $0.005 |
-
-On the deep-check weekday the deep check **replaces** the daily check (it contains the top 20), so no SERP is fetched twice.
+| `light`, `standard`, `deep` (no longer offered) | depth 100, as `full` | not needed | 300 | $0.180 |
+| `weekly_light` (no longer offered) | none | depth 100 weekly, as `weekly` | 43 | $0.026 |
 
 What each profile can report is stated explicitly in the UI and API:
 
-- Daily series for `standard` are exact for positions 1 to 20. A keyword outside the top 20 on a daily check is recorded as **"not in top 20"** (`organic_rank = NULL`, `depth_requested = 20`), never as unranked.
+- Daily series are exact for positions 1 to 100. A keyword outside the top 100 on a daily check is recorded as **"over 100"** (`organic_rank = NULL`, `depth_requested = 100`), never as unranked. Older readings taken at depth 10, 20 or 50 keep their depth and read "not in the top N" until the keyword is checked again.
 - Top-100 counts, "entered top 100" and "lost from top 100" events are computed only from deep checks.
 - Charts plot positions 21 to 100 as weekly points and show the daily "beyond top 20" band as a shaded region, not as a line.
 

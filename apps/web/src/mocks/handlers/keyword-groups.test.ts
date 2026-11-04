@@ -269,7 +269,7 @@ describe('project keyword settings', () => {
     const admin = mockBrowser('admin');
     expect(dataOf(await admin.call('GET', `${P}/settings`), PROJECT_SETTINGS).seo).toEqual({
       default_device: 'desktop',
-      default_depth_profile: 'standard',
+      default_depth_profile: 'full',
       default_frequency: 'daily',
       visibility_weight_scheme: 'uniform',
       visibility_volume_mode: 'annual_average',

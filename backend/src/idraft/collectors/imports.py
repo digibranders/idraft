@@ -286,7 +286,7 @@ def import_defaults(given: Mapping[str, Any], project: Any) -> Defaults:
         language_code=given.get("language_code") or project.default_language_code,
         device=given.get("device") or seo.get("default_device") or "desktop",
         priority=given.get("priority") or 3,
-        depth_profile=given.get("depth_profile") or seo.get("default_depth_profile") or "standard",
+        depth_profile=given.get("depth_profile") or seo.get("default_depth_profile") or "full",
         group_path=_names(given.get("group_path")),
         tags_vocabulary_id=vocabulary("tags_vocabulary_id"),
         topic_vocabulary_id=vocabulary("topic_vocabulary_id"),

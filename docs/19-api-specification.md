@@ -697,7 +697,7 @@ interface ProjectSettingsV1 {
   version: 1;
   seo: {
     default_device: 'desktop' | 'mobile' | 'both';                 // 'both' expands to two tracked keywords
-    default_depth_profile: 'light' | 'standard' | 'deep' | 'full' | 'weekly' | 'weekly_light' | 'until_own_match_100';
+    default_depth_profile: 'light' | 'standard' | 'deep' | 'full' | 'weekly' | 'weekly_light' | 'until_own_match_100';   // default 'full' (depth 100)
     default_frequency: 'daily' | 'weekly';
     visibility_weight_scheme: 'uniform' | 'priority' | 'business_value';   // doc 09 section 6.2
     visibility_volume_mode: 'annual_average' | 'seasonal';              // doc 08 section 6

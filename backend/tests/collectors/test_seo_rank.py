@@ -154,7 +154,7 @@ def test_a_run_that_asked_for_a_live_check_uses_the_live_call_whatever_its_mode(
 # Planning.
 
 
-async def test_each_profile_is_planned_at_its_depth_and_the_deep_weekday_replaces_the_daily_check(
+async def test_every_profile_is_planned_at_the_top_100_and_a_weekly_one_only_on_the_deep_weekday(
     worker_db: Ledger, migrated: PostgresServer, world: World
 ) -> None:
     project = world.project
@@ -168,9 +168,9 @@ async def test_each_profile_is_planned_at_its_depth_and_the_deep_weekday_replace
     monday = _depths(await _plan(worker_db, _window(project, start=MONDAY)))
 
     assert tuesday == {
-        ids["light"]: 10,
-        ids["standard"]: 20,
-        ids["deep"]: 50,
+        ids["light"]: 100,
+        ids["standard"]: 100,
+        ids["deep"]: 100,
         ids["full"]: 100,
     }
     assert monday == {
@@ -179,7 +179,7 @@ async def test_each_profile_is_planned_at_its_depth_and_the_deep_weekday_replace
         ids["deep"]: 100,
         ids["full"]: 100,
         ids["weekly"]: 100,
-        ids["weekly_light"]: 20,
+        ids["weekly_light"]: 100,
     }
     assert refused not in monday
 
@@ -202,7 +202,7 @@ async def test_the_deep_weekday_is_the_projects_own_and_read_in_its_zone(
         await _plan(worker_db, _window(project, start=TUESDAY + timedelta(days=1)))
     )
 
-    assert monday_evening == {keyword: 20}
+    assert monday_evening == {keyword: 100}
     assert tuesday_evening == {keyword: 100}
 
 
@@ -314,11 +314,11 @@ async def test_a_keyword_is_planned_once_a_local_day_across_schedules(
     )
     next_day = _window(project, schedule_id=second, start=window.window_start + timedelta(days=1))
 
-    assert _depths(plan) == {keyword: 20}
+    assert _depths(plan) == {keyword: 100}
     assert _depths(await _plan(worker_db, later_that_day)) == {}
-    assert _depths(await _plan(worker_db, next_day)) == {keyword: 20}
+    assert _depths(await _plan(worker_db, next_day)) == {keyword: 100}
     # The schedule that planned it can plan it again: nothing is added by the second time.
-    assert _depths(await _plan(worker_db, window)) == {keyword: 20}
+    assert _depths(await _plan(worker_db, window)) == {keyword: 100}
     async with worker_db() as db, db.begin():
         assert await ledger.insert_tasks(db, run_id, plan.tasks) == 0
 
@@ -369,14 +369,14 @@ async def test_check_now_plans_the_named_keywords_live_and_due_at_once(
 
     assert set(_depths(plan)) == {named, pinned, weekly}
     assert left_out not in _depths(plan)
-    # The daily depth of each profile; a weekly one has none today and gets its deep check.
-    assert _depths(plan) == {named: 20, pinned: 20, weekly: 100}
+    # Every profile reads the top 100; a weekly one has no check today and gets its deep check.
+    assert _depths(plan) == {named: 100, pinned: 100, weekly: 100}
     assert {task.provider_endpoint for task in plan.tasks} == {SERP_ORGANIC_LIVE}
     assert {task.scheduled_for for task in plan.tasks} == {TUESDAY}
     assert plan.config_snapshot["queue"] == "live"
     assert plan.config_snapshot["selector"] == selector
-    # (2 + 2 + 10) pages at the live price of $0.002, and no asynchronous AI Overview to add.
-    assert plan.estimated_cost_usd == Decimal("0.028")
+    # (10 + 10 + 10) pages at the live price of $0.002, and no asynchronous AI Overview to add.
+    assert plan.estimated_cost_usd == Decimal("0.060")
 
 
 async def test_check_now_without_the_live_flag_plans_standard_queue_tasks_like_a_schedule(
@@ -389,25 +389,25 @@ async def test_check_now_without_the_live_flag_plans_standard_queue_tasks_like_a
 
     plan = await _plan(worker_db, _window(project, selector))
 
-    assert _depths(plan) == {first: 20, second: 100}
+    assert _depths(plan) == {first: 100, second: 100}
     assert {task.provider_endpoint for task in plan.tasks} == {SERP_ORGANIC}
     assert {task.scheduled_for for task in plan.tasks} == {TUESDAY}
     assert plan.config_snapshot["queue"] == "standard"
     assert plan.estimated_cost_usd > Decimal(0)
 
 
-async def test_check_now_checks_at_the_depth_asked_for(
+async def test_check_now_checks_at_the_top_100_when_it_asks_for_it(
     worker_db: Ledger, migrated: PostgresServer, world: World
 ) -> None:
     project = world.project
     first = await _tracked(migrated, project, "crm first", profile="full")
     second = await _tracked(migrated, project, "crm second", profile="light")
-    selector = {"tracked_keyword_ids": [str(first), str(second)], "live": True, "depth": 10}
+    selector = {"tracked_keyword_ids": [str(first), str(second)], "live": True, "depth": 100}
 
     plan = await _plan(worker_db, _window(project, selector))
 
-    assert _depths(plan) == {first: 10, second: 10}
-    assert plan.estimated_cost_usd == Decimal("0.004")
+    assert _depths(plan) == {first: 100, second: 100}
+    assert plan.estimated_cost_usd == Decimal("0.040")
 
 
 async def test_check_now_plans_a_keyword_again_that_was_checked_today(
@@ -461,7 +461,7 @@ async def test_check_now_without_a_depth_is_the_daily_depth_even_on_the_deep_wee
 
     plan = await _plan(worker_db, _window(project, selector, start=MONDAY))
 
-    assert _depths(plan) == {standard: 20, weekly: 100}
+    assert _depths(plan) == {standard: 100, weekly: 100}
 
 
 @pytest.mark.parametrize(
@@ -492,11 +492,11 @@ async def test_the_estimate_is_pages_at_the_queues_price_and_the_async_ai_overvi
     standard = await _plan(worker_db, _window(project, mode="standard_queue"))
     priority = await _plan(worker_db, _window(project, mode="priority_queue"))
 
-    # Standard: (2 + 5) pages at $0.0006 and two tasks at $0.0006 for the AI Overview.
-    assert standard.estimated_cost_usd == Decimal("0.0054")
-    # Priority: 7 pages at $0.0012 and, with no price row of its own, the surcharge at the
+    # Standard: (10 + 10) pages at $0.0006 and two tasks at $0.0006 for the AI Overview.
+    assert standard.estimated_cost_usd == Decimal("0.0132")
+    # Priority: 20 pages at $0.0012 and, with no price row of its own, the surcharge at the
     # queue's page price (the additive reading of doc 06 section 6.2).
-    assert priority.estimated_cost_usd == Decimal("0.0108")
+    assert priority.estimated_cost_usd == Decimal("0.0264")
     assert standard.config_snapshot["queue"] == "standard"
     assert priority.config_snapshot["queue"] == "priority"
     assert standard.config_snapshot["selector"] == {"all": True}
@@ -965,7 +965,7 @@ async def test_a_weekly_keyword_gets_its_first_check_whatever_the_weekday(
     first = _depths(await _plan(worker_db, _window(project, {"new": True}, start=TUESDAY)))
 
     assert on_a_normal_day == {}
-    assert first == {weekly: 100, light: 20}
+    assert first == {weekly: 100, light: 100}
 
 
 async def test_nothing_is_planned_without_a_price_to_check_the_budget_against(
@@ -1050,7 +1050,7 @@ async def test_a_task_that_was_sent_counts_as_checked_even_when_its_run_was_canc
     await execute(
         migrated, "UPDATE ops.collection_tasks SET status = 'cancelled' WHERE run_id = $1", run_id
     )
-    assert _depths(await _plan(worker_db, other)) == {keyword: 20}
+    assert _depths(await _plan(worker_db, other)) == {keyword: 100}
     # Sent before the cancel: the provider has it, and it is paid for.
     await execute(
         migrated, "UPDATE ops.collection_tasks SET status = 'submitted' WHERE run_id = $1", run_id

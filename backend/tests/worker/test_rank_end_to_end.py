@@ -25,7 +25,7 @@ import pytest
 from redis.asyncio import Redis
 
 from idraft.collectors.registry import Registry
-from idraft.collectors.seo_rank import SeoRankWorkload, is_deep_day
+from idraft.collectors.seo_rank import SeoRankWorkload
 from idraft.config.settings import Settings
 from idraft.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, DataForSeoClient
 from idraft.providers.dataforseo.provider import DataForSeo
@@ -167,10 +167,6 @@ async def _states(pg: PostgresServer, world: World) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
-def _expected_deep_day() -> bool:
-    return is_deep_day(datetime.now(UTC).date(), 1)
-
-
 async def test_a_new_keyword_is_checked_without_anyone_asking(
     settings: Settings,
     redis: Redis,
@@ -188,12 +184,12 @@ async def test_a_new_keyword_is_checked_without_anyone_asking(
 
     await _run_until(settings, api, done=ingested)
 
-    # Sent once, as entered, to the depth its profile gives today (the deep weekday replaces the
-    # daily check), and fetched and paid for once.
+    # Sent once, as entered, to the top 100 (every profile reads that deep), and fetched and paid
+    # for once.
     assert len(api.sent) == len(set(api.sent)) == 1
     (posted,) = api.tasks.values()
     assert posted.task["keyword"] == "Best CRM"
-    assert posted.task["depth"] == (100 if _expected_deep_day() else 20)
+    assert posted.task["depth"] == 100
     assert posted.task["priority"] == 1
     assert len(api.gets) == 1
     (state,) = await _states(migrated, world)
@@ -287,7 +283,7 @@ async def test_a_submission_whose_answer_was_lost_is_found_and_ingested_once(
         world.project.id,
     )
     assert snapshots[0]["n"] == 2
-    assert api.depths() == ([100, 100] if _expected_deep_day() else [20, 20])
+    assert api.depths() == [100, 100]
 
 
 async def test_check_now_goes_through_the_standard_queue_and_ingests_the_answer_once(
@@ -301,7 +297,7 @@ async def test_check_now_goes_through_the_standard_queue_and_ingests_the_answer_
     world = await make_world(migrated)
     keyword = await track(migrated, world.project, "Best CRM")
     # What `POST .../seo/check-now` records: the worker plans it and sends it like a schedule does.
-    selector = {"tracked_keyword_ids": [str(keyword)], "depth": 50}
+    selector = {"tracked_keyword_ids": [str(keyword)], "depth": 100}
     await fetch(
         migrated,
         "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
@@ -322,7 +318,7 @@ async def test_check_now_goes_through_the_standard_queue_and_ingests_the_answer_
     # One task posted and fetched, no live call.
     assert api.live == []
     assert len(api.sent) == 1
-    assert api.depths() == [50]
+    assert api.depths() == [100]
     tasks = await fetch(
         migrated,
         "SELECT provider_endpoint, status FROM ops.collection_tasks WHERE project_id = $1",
@@ -356,7 +352,7 @@ async def test_a_live_diagnostic_check_is_kept_as_a_snapshot_and_moves_no_rank_s
     world = await make_world(migrated)
     keyword = await track(migrated, world.project, "Best CRM")
     # A run that asks the live endpoint (a diagnostic; `POST .../seo/check-now` does not any more).
-    selector = {"tracked_keyword_ids": [str(keyword)], "live": True, "depth": 50}
+    selector = {"tracked_keyword_ids": [str(keyword)], "live": True, "depth": 100}
     await fetch(
         migrated,
         "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
@@ -378,7 +374,7 @@ async def test_a_live_diagnostic_check_is_kept_as_a_snapshot_and_moves_no_rank_s
     assert (api.posts, api.gets) == ([], [])
     (called,) = api.live
     assert called["keyword"] == "Best CRM"
-    assert called["depth"] == 50
+    assert called["depth"] == 100
     assert not {"tag", "priority"} & called.keys()
     tasks = await fetch(
         migrated,
@@ -404,7 +400,7 @@ async def test_a_live_diagnostic_check_is_kept_as_a_snapshot_and_moves_no_rank_s
         "WHERE t.provider_endpoint = 'serp/google/organic/live'",
     )
     assert [(row["depth_requested"], row["cost_usd"]) for row in snapshot] == [
-        (50, Decimal("0.010000"))
+        (100, Decimal("0.010000"))
     ]
     # The answer is a reading for comparison: no state, no observations, no current results.
     assert await _states(migrated, world) == []

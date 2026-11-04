@@ -236,13 +236,13 @@ describe('The keyword inspector', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Change depth profile' }));
     const dialog = await screen.findByRole('dialog', { name: 'Change depth profile' });
     await user.click(within(dialog).getByRole('combobox', { name: 'Depth profile' }));
-    await user.click(await screen.findByRole('option', { name: 'Deep' }));
+    await user.click(await screen.findByRole('option', { name: /^Weekly/ }));
     await user.type(within(dialog).getByRole('textbox', { name: /Reason/ }), 'Competitive term');
     await user.click(within(dialog).getByRole('button', { name: 'Change depth' }));
     expect(await screen.findByText('Depth profile changed')).toBeInTheDocument();
     const history = section(inspector, 'Configuration history');
     expect(await within(history).findByText('Reason: Competitive term')).toBeInTheDocument();
-    expect(within(inspector).getByText('Depth: Deep')).toBeInTheDocument();
+    expect(within(inspector).getByText('Depth: Weekly')).toBeInTheDocument();
   });
 
   it('returns focus to the inspector’s More actions button when the depth dialog is cancelled', async () => {
@@ -265,7 +265,9 @@ describe('The keyword inspector', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Change depth profile' });
     await user.click(within(dialog).getByRole('combobox', { name: 'Depth profile' }));
     const options = (await screen.findAllByRole('option')).map((option) => option.textContent ?? '');
-    expect(options.some((text) => text.startsWith('Deep'))).toBe(true);
+    expect(options.some((text) => text.startsWith('Weekly'))).toBe(true);
+    // The shallow profiles are not offered: every check reads the top 100
+    expect(options.some((text) => /^(Light|Deep)/.test(text))).toBe(false);
     expect(options.some((text) => /Until own match/.test(text))).toBe(false);
   });
 
@@ -281,7 +283,7 @@ describe('The keyword inspector', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Change depth profile' }));
     const dialog = await screen.findByRole('dialog', { name: 'Change depth profile' });
     await user.click(within(dialog).getByRole('combobox', { name: 'Depth profile' }));
-    await user.click(await screen.findByRole('option', { name: /^Deep/ }));
+    await user.click(await screen.findByRole('option', { name: /^Weekly/ }));
     await user.click(within(dialog).getByRole('button', { name: 'Change depth' }));
     expect(
       await within(dialog).findByText('This depth profile is not available yet. Choose another.'),

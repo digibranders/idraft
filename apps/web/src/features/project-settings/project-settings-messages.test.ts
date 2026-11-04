@@ -42,12 +42,11 @@ describe('the words of Project settings', () => {
     expect(WEEKDAYS.every((day) => day in messages.common.weekdays)).toBe(true);
   });
 
-  it('keeps the depth profiles to the API’s, one message each, and offers all but the one not built yet', () => {
+  it('keeps the depth profiles to the API’s, one message each, and offers the daily and the weekly one', () => {
     expect(Object.keys(DEPTH_KEYS).sort()).toEqual([...seoSettingsDefault_depth_profileValues].sort());
     expect(Object.values(DEPTH_KEYS).sort()).toEqual(Object.keys(messages.common.depths).sort());
-    expect([...DEFAULT_DEPTHS].sort()).toEqual(
-      seoSettingsDefault_depth_profileValues.filter((depth) => depth !== 'until_own_match_100').sort(),
-    );
+    // Every check reads the top 100, so only the daily and the weekly profile are offered
+    expect([...DEFAULT_DEPTHS].sort()).toEqual(['full', 'weekly']);
     for (const depth of DEFAULT_DEPTHS) expect(DEPTH_KEYS[depth] in keywordDefaults.depthHints).toBe(true);
   });
 
@@ -61,7 +60,7 @@ describe('the words of Project settings', () => {
   it('starts from the defaults the contract declares', () => {
     expect(SEO_DEFAULTS).toMatchObject({
       default_device: 'desktop',
-      default_depth_profile: 'standard',
+      default_depth_profile: 'full',
       default_frequency: 'daily',
     });
   });

@@ -1077,12 +1077,7 @@
           "depth": {
             "anyOf": [
               {
-                "enum": [
-                  10,
-                  20,
-                  50,
-                  100
-                ],
+                "const": 100,
                 "type": "integer"
               },
               {
@@ -8050,7 +8045,7 @@
       "SeoSettings": {
         "properties": {
           "default_depth_profile": {
-            "default": "standard",
+            "default": "full",
             "enum": [
               "light",
               "standard",
