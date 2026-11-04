@@ -65,6 +65,11 @@ _NOT_CHECKED: Final = ("cancelled", "failed", "dead")
 CHECK_NOW_MAX: Final = 100
 # How deep the check that confirms a drop looks.
 CONFIRM_DEPTH: Final = 100
+# How many times a drop is asked about again before it stands.
+MAX_CONFIRMATIONS: Final = 2
+# A task the provider has not answered, or that no one has read yet: its keyword's state still
+# shows the check before it.
+_UNSETTLED: Final = ("pending", "submit_unknown", "submitted", "ready", "fetched")
 CHECK_NOW_DEPTHS: Final = (10, 20, 50, 100)
 _log = structlog.get_logger(__name__)
 
@@ -154,35 +159,54 @@ def _tracks_own_site() -> ColumnElement[bool]:
     )
 
 
+def _confirmation_tasks(now: datetime) -> list[ColumnElement[bool]]:
+    """What makes a ledger task one of the keyword's confirmation checks: from a `{"confirm":
+    true}` run made within `NEW_KEYWORD_QUIET`. For a subquery correlated to the keyword."""
+    t, task, run = tracked_keywords.c, collection_tasks.c, collection_runs.c
+    return [
+        task.workload == WORKLOAD.value,
+        task.subject_type == SUBJECT_TYPE,
+        func.split_part(task.subject_id, ":", 1) == cast(t.id, Text),
+        task.workspace_id == t.workspace_id,
+        run.id == task.run_id,
+        run.workspace_id == task.workspace_id,
+        run.created_at >= now - NEW_KEYWORD_QUIET,
+        run.config_snapshot["selector"]["confirm"].as_boolean().is_(True),
+    ]
+
+
 def _drop_unconfirmed(now: datetime) -> ColumnElement[bool]:
     """The keyword's last check, in the last `NEW_KEYWORD_QUIET`, lost a rank the one before had,
-    looking deep enough to have found it (`consecutive_beyond` is 1). One check is one reading
-    of a SERP that moves, so a drop is asked about once more before it stands (docs/09 section
-    4.1). At most one confirmation a keyword in that time, whatever it comes to: a task that
-    failed, or a check too shallow to move the count, is not asked for again every minute."""
+    looking deep enough to have found it, and the checks since that did not bring it back were
+    fewer than `MAX_CONFIRMATIONS` (`consecutive_beyond` counts the one that lost it and each
+    deep confirmation after). One check is one reading of a SERP that moves: the provider has
+    answered the same request with the site at rank 1 and without it minutes apart. So a drop
+    is asked about again, up to `MAX_CONFIRMATIONS` times, before it stands (docs/09 section
+    4.1). A confirmation is asked for only once the one before has ended, and never more than
+    `MAX_CONFIRMATIONS` in that time, whatever they come to: a task that failed, or a check too
+    shallow to move the count, is not asked for again every minute."""
     s, t, task, run = (
         tracked_keyword_state.c,
         tracked_keywords.c,
         collection_tasks.c,
         collection_runs.c,
     )
+    asked = (
+        select(func.count())
+        .select_from(collection_tasks.join(collection_runs, run.id == task.run_id))
+        .where(*_confirmation_tasks(now))
+        .correlate(tracked_keywords)
+        .scalar_subquery()
+    )
     return exists().where(
         s.tracked_keyword_id == t.id,
         s.workspace_id == t.workspace_id,
         s.current_rank.is_(None),
         s.last_ranked_rank.is_not(None),
-        s.consecutive_beyond == 1,
+        s.consecutive_beyond.between(1, MAX_CONFIRMATIONS),
         s.last_observed_at >= now - NEW_KEYWORD_QUIET,
-        ~exists().where(
-            task.workload == WORKLOAD.value,
-            task.subject_type == SUBJECT_TYPE,
-            func.split_part(task.subject_id, ":", 1) == cast(t.id, Text),
-            task.workspace_id == t.workspace_id,
-            run.id == task.run_id,
-            run.workspace_id == task.workspace_id,
-            run.created_at >= now - NEW_KEYWORD_QUIET,
-            run.config_snapshot["selector"]["confirm"].as_boolean().is_(True),
-        ),
+        asked < MAX_CONFIRMATIONS,
+        ~exists().where(*_confirmation_tasks(now), task.status.in_(_UNSETTLED)),
     )
 
 
@@ -582,11 +606,11 @@ async def _queues(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, str
 async def queue_new_keywords(sessions: async_sessionmaker[AsyncSession], *, now: datetime) -> int:
     """A planned run for each collecting project with keywords never checked, once (plan
     decision R1): trigger `manual`, made by the system, selector `{"new": true}`; and one for
-    each with keywords whose last check lost a rank, to ask once more before the drop stands,
-    selector `{"confirm": true}`. The planner plans them on the same tick. A project with a rank
-    run still waiting gets no other, nor does one whose run a budget blocked in the last
-    `NEW_KEYWORD_QUIET`: the blocked run made no task and would otherwise be made again every
-    minute. Returns how many runs were made."""
+    each with keywords whose last check lost a rank, to ask again (up to `MAX_CONFIRMATIONS`
+    times) before the drop stands, selector `{"confirm": true}`. The planner plans them on the
+    same tick. A project with a rank run still waiting gets no other, nor does one whose run a
+    budget blocked in the last `NEW_KEYWORD_QUIET`: the blocked run made no task and would
+    otherwise be made again every minute. Returns how many runs were made."""
     made = await _queue_runs(sessions, now, "new", [~_has_snapshot(), ~_recent_task(now)])
     return made + await _queue_runs(sessions, now, "confirm", [_drop_unconfirmed(now)])
 
