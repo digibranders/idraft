@@ -2222,7 +2222,7 @@ export interface components {
              * Depth
              * @description Results to look at; default: each keyword's daily depth.
              */
-            depth?: (10 | 20 | 50 | 100) | null;
+            depth?: 100 | null;
             /** Tracked Keyword Ids */
             tracked_keyword_ids: string[];
         };
@@ -4693,7 +4693,7 @@ export interface components {
         SeoSettings: {
             /**
              * Default Depth Profile
-             * @default standard
+             * @default full
              * @enum {string}
              */
             default_depth_profile: "light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100";
@@ -10271,7 +10271,6 @@ export const aliasUpdateMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<co
 export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["action_on_hard"]> = ["pause", "alert_only"];
 export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
-export const checkNowDepthAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CheckNow"]["depth"]> = [10, 20, 50, 100];
 export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
 export const configVersionDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ConfigVersion"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const costWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CostWorkload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync", "ai_overview", "extraction_llm", "keyword_research", "first_party"];

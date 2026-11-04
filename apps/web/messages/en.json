@@ -444,12 +444,12 @@
       "depth": "Default depth profile",
       "depthHint": "How deep the daily rank checks read the results.",
       "depthHints": {
-        "light": "Daily check to the top 10, deep check to the top 100 each week",
-        "standard": "Daily check to the top 20, deep check to the top 100 each week",
-        "deep": "Daily check to the top 50, deep check to the top 100 each week",
+        "light": "Daily check to the top 100",
+        "standard": "Daily check to the top 100",
+        "deep": "Daily check to the top 100",
         "full": "Daily check to the top 100",
         "weekly": "One check to the top 100 each week, none on other days",
-        "weeklyLight": "One check to the top 20 each week, none on other days"
+        "weeklyLight": "One check to the top 100 each week, none on other days"
       },
       "frequency": "Default check frequency",
       "frequencyHint": "How often a new keyword is checked.",

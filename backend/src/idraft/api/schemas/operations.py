@@ -372,7 +372,7 @@ class PricePage(BaseModel):
 
 class SeoSettings(BaseModel):
     default_device: Literal["desktop", "mobile", "both"] = "desktop"
-    default_depth_profile: DepthProfile = "standard"
+    default_depth_profile: DepthProfile = "full"
     default_frequency: Literal["daily", "weekly"] = "daily"
     visibility_weight_scheme: Literal["uniform", "priority", "business_value"] = "uniform"
     visibility_volume_mode: Literal["annual_average", "seasonal"] = "annual_average"

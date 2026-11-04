@@ -70,7 +70,7 @@ MAX_CONFIRMATIONS: Final = 2
 # A task the provider has not answered, or that no one has read yet: its keyword's state still
 # shows the check before it.
 _UNSETTLED: Final = ("pending", "submit_unknown", "submitted", "ready", "fetched")
-CHECK_NOW_DEPTHS: Final = (10, 20, 50, 100)
+CHECK_NOW_DEPTHS: Final = (100,)
 _log = structlog.get_logger(__name__)
 
 
