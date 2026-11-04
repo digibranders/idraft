@@ -2405,7 +2405,7 @@
     },
     "strip": {
       "label": "Summary for the filtered keywords",
-      "tracked": "Tracked",
+      "tracked": "Keywords",
       "trackedNote": "{count} checked",
       "top3": "Top 3",
       "top10": "Top 10",

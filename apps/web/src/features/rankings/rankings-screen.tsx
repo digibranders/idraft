@@ -364,7 +364,11 @@ export function RankingsScreen({
   const status = statusOf(list, filtered || view.archived || (list.mode === 'server' && search.trim() !== ''));
   const updated = newestFetch(list.rows);
   const updatedText = updated === null ? null : t('updated', { time: formatRelative(updated, timeZone) });
-  const countText = tracked === null ? null : t('tracked', { count: tracked, formatted: formatInteger(tracked) });
+  // The summary strip counts the keywords the table shows; the project's tracked keywords (a keyword on each
+  // device is two) are quoted only where the strip is not, so two counts never stand side by side
+  const showStrip = !view.archived && (list.total ?? list.rows.length) !== 0;
+  const countText =
+    tracked === null || showStrip ? null : t('tracked', { count: tracked, formatted: formatInteger(tracked) });
   const meta =
     updatedText !== null && countText !== null
       ? t('meta', { updated: updatedText, tracked: countText })
@@ -544,11 +548,11 @@ export function RankingsScreen({
             <div className="@container">
               <div className="flex flex-col gap-2 @4xl:flex-row @4xl:items-start @4xl:gap-5">
                 <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 @4xl:contents">
-                  {view.archived || (list.total ?? list.rows.length) === 0 ? null : (
+                  {showStrip ? (
                     <div className="flex h-control items-center">
                       <RankStrip scope={scope} filters={stripFilters} total={list.total ?? list.rows.length} />
                     </div>
-                  )}
+                  ) : null}
                   <KeywordScopeControls scope={keywordScope} countries={countries} />
                 </div>
                 <div className="min-w-0 @4xl:flex-1">

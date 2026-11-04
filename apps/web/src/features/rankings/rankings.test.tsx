@@ -65,7 +65,9 @@ describe('Rankings', () => {
     expect(keywordsIn(grid).slice(-3)).toEqual(['generative engine optimization', 'llm seo', 'chatgpt seo agency']);
     expect(within(grid).getAllByText('Pending').length).toBeGreaterThanOrEqual(3);
     expect(screen.getByRole('columnheader', { name: /Volume/ })).toHaveAttribute('aria-sort', 'descending');
-    expect(await screen.findByText(/59 tracked keywords/)).toBeInTheDocument();
+    // The strip counts the keywords; the header does not quote a second count beside it
+    expect(await screen.findByLabelText('Summary for the filtered keywords')).toBeInTheDocument();
+    expect(screen.queryByText(/tracked keywords/)).toBeNull();
     expect(await axe(container)).toHaveNoViolations();
   });
 
@@ -196,7 +198,7 @@ describe('Rankings', () => {
     const grid = await loadedGrid();
     await waitFor(() => expect(keywordsIn(grid)).toHaveLength(SHOWN));
     expect(screen.getAllByText(/Updated /)).toHaveLength(1);
-    expect(screen.getByText(/Updated .* · 59 tracked keywords/)).toBeInTheDocument();
+    expect(screen.getByText(/^Updated [^·]*$/)).toBeInTheDocument();
   });
 
   it('writes a sort from a header into the URL, and leaves the default out', async () => {
@@ -1133,14 +1135,12 @@ describe('Rankings summary strip', () => {
     renderWithProviders(as('viewer'), { searchParams: '?archived=true' });
     await loadedGrid();
     expect(screen.queryByText('Summary for the filtered keywords')).toBeNull();
-    expect(screen.queryByText('Tracked')).toBeNull();
   });
 
   it('is absent when the project tracks nothing yet', async () => {
     renderWithProviders(as('viewer', cleanstart.project_id));
     expect(await screen.findByRole('heading', { name: 'No keywords tracked yet' })).toBeInTheDocument();
     expect(screen.queryByText('Summary for the filtered keywords')).toBeNull();
-    expect(screen.queryByText('Tracked')).toBeNull();
   });
 
   it('follows a filter change', async () => {
@@ -1166,7 +1166,7 @@ describe('Rankings summary strip', () => {
     });
   });
 
-  it('ignores the search query in server mode and reads Tracked from the strip counts', async () => {
+  it('ignores the search query in server mode and reads its counts from the strip', async () => {
     answerAsMany({ total: 12_000 });
     const stripAsked: URLSearchParams[] = [];
     server.events.on('request:start', ({ request }) => {
@@ -1182,14 +1182,14 @@ describe('Rankings summary strip', () => {
 
     const { user } = renderWithProviders(as('viewer'));
     await loadedGrid();
-    expect(screen.getByText('Tracked')).toBeInTheDocument();
+    expect(screen.getByLabelText('Summary for the filtered keywords')).toBeInTheDocument();
 
     await user.type(screen.getByRole('searchbox', { name: /Search/ }), 'audit');
     await waitFor(() => {
       expect(stripAsked.length).toBeGreaterThan(0);
       expect(stripAsked.every((query) => !query.has('filter[q]'))).toBe(true);
     });
-    expect(screen.getByText('Tracked')).toBeInTheDocument();
+    expect(screen.getByLabelText('Summary for the filtered keywords')).toBeInTheDocument();
   });
 });
 
