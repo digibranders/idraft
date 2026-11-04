@@ -760,7 +760,7 @@ interface EntityCreate { entity_type: 'brand' | 'product' | 'organization' | 'pe
                          parent_entity_id?: Uuid; description?: string; is_ambiguous?: boolean; disambiguation_hints?: string[];
                          aliases?: AliasInput[]; domains?: DomainInput[] }
 interface DomainInput { domain: string;                                // a host, or a URL whose host is meant
-                        match_scope?: 'host' | 'registrable' | 'path_prefix';   // default 'registrable'
+                        match_scope?: 'host' | 'registrable' | 'path_prefix';   // default 'host': the site, which is the host and its www form (acme.com is www.acme.com), no other subdomain; 'registrable' takes every subdomain and has to be asked for
                         path_prefix?: string }                         // exactly when match_scope is 'path_prefix'
 interface Entity { entity_id: Uuid; entity_type: EntityCreate['entity_type']; canonical_name: string; parent_entity_id: Uuid | null;
                    description: string | null; is_ambiguous: boolean; disambiguation_hints: string[];

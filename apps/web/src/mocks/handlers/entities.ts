@@ -44,7 +44,7 @@ import {
   type StoredDomain,
   type StoredEntity,
 } from '../entities-state';
-import { registrableDomain } from '../factories/domain';
+import { registrableDomain, siteOf } from '../factories/domain';
 import { aliasesOf, aliasView, entityDetailView, entityDomainView, entityView } from '../factories/entity';
 import { MOCK_WORKSPACE } from '../fixtures';
 import { invalid, invalidField, mock, noContent, problem } from '../respond';
@@ -265,7 +265,7 @@ const claimOf = (rule: DomainValues): string =>
   rule.match_scope === 'registrable'
     ? `registrable:${registrableDomain(rule.host)}`
     : rule.match_scope === 'host'
-      ? `host:${rule.host}`
+      ? `host:${siteOf(rule.host)}`
       : `path:${rule.host}${rule.path_prefix ?? ''}`;
 
 /**

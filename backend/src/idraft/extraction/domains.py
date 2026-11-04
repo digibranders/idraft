@@ -1,7 +1,10 @@
 """Domain role resolution, stage 2 (docs/13-ai-extraction-engine.md section 4).
 
 A project's entity domains are rules; a cited or ranking URL takes the role of the most specific
-rule it matches: a path prefix on its host, then its exact host, then its registrable domain.
+rule it matches: a path prefix on its host, then its host, then its registrable domain. A host
+rule is a site: `acme.com` and `www.acme.com` are the same host rule and take both forms, and no
+other subdomain (`partner.acme.com` is another site). Only a registrable rule takes every
+subdomain, and it has to be asked for.
 Two entities claiming the same thing at the same specificity is a misconfiguration: the own
 entity wins (then a competitor, then a watched entity, then the lower id) and the tie is
 reported so the API can warn about it.
@@ -20,6 +23,16 @@ from idraft.extraction.urls import CanonicalUrl, Host, normalize_path_prefix
 ProjectRole = Literal["own", "competitor", "watch"]
 DomainRole = Literal["own", "competitor", "third_party"]
 MatchScope = Literal["path_prefix", "host", "registrable"]
+
+_WWW: Final = "www."
+
+
+def site_of(name: str) -> str:
+    """The host without a leading `www.` label, so a site and its www form are one: `www.acme.com`
+    is `acme.com`. Left alone when what follows has no dot (`www.localhost`)."""
+    rest = name.removeprefix(_WWW)
+    return rest if rest != name and "." in rest else name
+
 
 _SPECIFICITY: Final[tuple[MatchScope, ...]] = ("path_prefix", "host", "registrable")
 _PRECEDENCE: Final[dict[ProjectRole, int]] = {"own": 0, "competitor": 1, "watch": 2}
@@ -56,7 +69,7 @@ class DomainRule:
         if self.match_scope == "registrable":
             return self.host.registrable_domain
         if self.match_scope == "host":
-            return self.host.name
+            return site_of(self.host.name)
         return f"{self.host.name}{self.path_prefix}"
 
 
@@ -123,7 +136,7 @@ class DomainResolver:
             if prefix == "/" or path == prefix or path.startswith(f"{prefix}/"):
                 return resolution
         return (
-            self._exact.get(("host", host.name))
+            self._exact.get(("host", site_of(host.name)))
             or self._exact.get(("registrable", host.registrable_domain))
             or THIRD_PARTY
         )

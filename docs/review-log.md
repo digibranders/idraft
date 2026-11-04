@@ -770,3 +770,13 @@ Changed: `GET tracked-keywords` takes `filter[country_id]` (a country and every 
 | F116 | The inspector of a paired row opens the desktop (or mobile when only mobile is chosen) tracked keyword; there is no device switch in it | add a device switch |
 | F117 | The header count "Tracked N" is of tracked keywords (both devices), the table footer of keywords | align them |
 | F118 | The mock keywords are mostly desktop-only, so the Mobile column reads Not tracked there; the e2e flows open on All countries (`?loc=0`) | richer mock devices |
+
+### A domain rule is a site, not every subdomain (2026-11-04)
+
+The owner's rule: adding `eventussecurity.com` (or `www.eventussecurity.com`) tracks that site and its www form only, and a subdomain such as `partner.eventussecurity.com` is another site that is tracked only if it is added. The default scope was `registrable`, which took every subdomain.
+
+Changed: a `host` rule is now the host and its www form (`acme.com` is `www.acme.com`) and nothing else, stored without the www (resolver `site_of`, `extraction/domains.py`); `host` is the default scope of a new domain rule, of the own entity made with a project, and in the web forms ("This site"; "Site and all subdomains" is a choice). A `registrable` rule still takes every subdomain when asked for. A public suffix is refused as a host rule too. Existing rules keep their scope.
+
+| Id | Item | Plan |
+|---|---|---|
+| F114 | Rules written before this change are `registrable` and still take every subdomain, the Fynix one included | owner: change a rule to "This site" in Entities, or have it migrated; no production data was changed |

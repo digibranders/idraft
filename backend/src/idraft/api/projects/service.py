@@ -51,7 +51,8 @@ async def _create_own_entity(
     info: RequestInfo,
 ) -> None:
     """The project's brand: a word alias for each other name (its own name is matched without
-    one), a registrable rule for each domain, and the primary own role."""
+    one), a host rule for each domain (the site and its www form, not its other subdomains), and the
+    primary own role."""
     entity_id = await entities.insert_entity(
         db,
         workspace_id=access.workspace_id,
@@ -98,7 +99,7 @@ async def _create_own_entity(
             workspace_id=access.workspace_id,
             entity_id=entity_id,
             domain_id=await entities.domain_id_for(db, by_name[name]),
-            match_scope="registrable",
+            match_scope="host",
             path_prefix=None,
         )
     await project_roles.insert_role(

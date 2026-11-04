@@ -222,7 +222,9 @@ class AliasResponse(BaseModel):
 
 class DomainInput(Body):
     domain: DomainText
-    match_scope: MatchScope = "registrable"
+    # A site: the host and its www form (`acme.com` is `www.acme.com`), no other subdomain. Every
+    # subdomain of a domain is `registrable`, and has to be asked for.
+    match_scope: MatchScope = "host"
     path_prefix: PathPrefix | None = Field(
         default=None, description="Given exactly when `match_scope` is `path_prefix`."
     )
@@ -234,13 +236,13 @@ class DomainInput(Body):
                 "path_prefix_mismatch",
                 "Give `path_prefix` exactly when `match_scope` is `path_prefix`.",
             )
-        if self.match_scope == "registrable":
+        if self.match_scope in ("registrable", "host"):
             refuse_public_suffix(self.domain)
         return self
 
 
 def refuse_public_suffix(domain: str) -> None:
-    """`co.uk` or `github.io` as a registrable domain would claim every site under it."""
+    """`co.uk` or `github.io` as a domain rule would stand for every site under it."""
     host = normalize_host(domain)
     if not host.is_ip and host.registrable_domain == host.public_suffix:
         raise PydanticCustomError(
@@ -462,7 +464,8 @@ OwnAlias = Annotated[AliasText, AfterValidator(_word_alias)]
 class OwnEntityInput(Body):
     canonical_name: EntityName
     domains: Annotated[list[OwnDomain], Field(max_length=OWN_ENTITY_DOMAINS_MAX)] = Field(
-        default_factory=list, description="Hosts or URLs, each matched by registrable domain."
+        default_factory=list,
+        description="Hosts or URLs, each a site: the host and its www form, no other subdomain.",
     )
     aliases: Annotated[list[OwnAlias], Field(max_length=OWN_ENTITY_ALIASES_MAX)] = Field(
         default_factory=list,

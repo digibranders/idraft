@@ -1102,13 +1102,13 @@
       "domain": "Domain",
       "scope": "Counts",
       "scopes": {
-        "registrable": "Whole domain",
-        "host": "This host only",
+        "registrable": "Site and all subdomains",
+        "host": "This site",
         "pathPrefix": "Pages under a path"
       },
       "scopeHints": {
-        "registrable": "Every host of the domain, such as blog.acme.com",
-        "host": "Only the host as typed",
+        "registrable": "Every subdomain too, such as blog.acme.com",
+        "host": "The domain and its www form, such as acme.com and www.acme.com. Not other subdomains",
         "pathPrefix": "Only pages under one path, such as medium.com/@acme"
       },
       "path": "Path",

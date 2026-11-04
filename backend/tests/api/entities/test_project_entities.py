@@ -504,7 +504,7 @@ async def test_project_domains_come_from_live_roles(
         )
         for row in every
     ] == [
-        ("Acme", "acme.com", "registrable", None),
+        ("Acme", "acme.com", "host", None),
         ("Rival", "medium.com", "path_prefix", "/@rival"),
     ]
     assert own[0]["entity"]["color_index"] == 1
