@@ -19,6 +19,8 @@ export interface PageHeaderProps {
    * beside the title instead of under it, so a table page spends one row above its table.
    */
   toolbar?: ReactNode | undefined;
+  /** Keeps the toolbar on its own row under the title at every width, for a toolbar too wide to share the title row. */
+  stacked?: boolean | undefined;
   /** The id the skip link and route focus use; the heading takes focus when a route changes. */
   headingId?: string | undefined;
 }
@@ -30,7 +32,15 @@ export interface PageHeaderProps {
  * border: page blocks are 16 px apart. The saved view menu, the More menu and the filter bar join it with
  * the screens that have them.
  */
-export function PageHeader({ title, meta, actions, tabs, toolbar, headingId }: PageHeaderProps): ReactElement {
+export function PageHeader({
+  title,
+  meta,
+  actions,
+  tabs,
+  toolbar,
+  stacked = false,
+  headingId,
+}: PageHeaderProps): ReactElement {
   const compact = toolbar !== undefined;
   return (
     <div data-slot="page-header" className="@container flex flex-col gap-3">
@@ -38,7 +48,9 @@ export function PageHeader({ title, meta, actions, tabs, toolbar, headingId }: P
         <div
           className={cn(
             'flex min-w-0 basis-full md:basis-auto',
-            compact ? 'order-1 items-baseline gap-3 md:flex-1 @6xl:flex-none' : 'flex-col gap-1 md:flex-1',
+            compact
+              ? cn('order-1 items-baseline gap-3 md:flex-1', !stacked && '@6xl:flex-none')
+              : 'flex-col gap-1 md:flex-1',
           )}
         >
           <h1 id={headingId} tabIndex={-1} className="type-page-title outline-none">
@@ -48,10 +60,19 @@ export function PageHeader({ title, meta, actions, tabs, toolbar, headingId }: P
         </div>
         {toolbar === undefined ? null : (
           // Narrow: its own row under the title and actions. Wide (the header's own width, so a docked inspector counts): between them
-          <div className="order-3 min-w-0 basis-full @6xl:order-2 @6xl:flex-1 @6xl:basis-80">{toolbar}</div>
+          <div className={cn('order-3 min-w-0 basis-full', !stacked && '@6xl:order-2 @6xl:flex-1 @6xl:basis-80')}>
+            {toolbar}
+          </div>
         )}
         {actions === undefined ? null : (
-          <div className={cn('flex items-center gap-3 md:ml-auto', compact && 'order-2 @6xl:order-3')}>{actions}</div>
+          <div
+            className={cn(
+              'flex items-center gap-3 md:ml-auto',
+              compact && (stacked ? 'order-2' : 'order-2 @6xl:order-3'),
+            )}
+          >
+            {actions}
+          </div>
         )}
       </div>
       {tabs}

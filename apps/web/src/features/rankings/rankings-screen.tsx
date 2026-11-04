@@ -538,30 +538,38 @@ export function RankingsScreen({
           title={t('title')}
           meta={meta === '' ? undefined : meta}
           actions={menuItems.length > 0 || canImport ? headerActions : undefined}
+          stacked
           toolbar={
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-              {view.archived || (list.total ?? list.rows.length) === 0 ? null : (
-                <RankStrip scope={scope} filters={stripFilters} total={list.total ?? list.rows.length} />
-              )}
-              <KeywordScopeControls scope={keywordScope} countries={countries} />
-              <div className="min-w-0 flex-1 basis-60">
-                <FilterBar
-                  fields={fields}
-                  values={values}
-                  onChange={setValues}
-                  trailing={
-                    <SegmentedControl<'active' | 'archived'>
-                      semantics="view"
-                      label={t('view.label')}
-                      value={view.archived ? 'archived' : 'active'}
-                      onValueChange={(next) => void setView({ archived: next === 'archived' ? true : null })}
-                      items={[
-                        { value: 'active', label: t('view.active') },
-                        { value: 'archived', label: t('view.archived') },
-                      ]}
-                    />
-                  }
-                />
+            // Two rows (summary and scope, then the filters) until the toolbar is wide enough for one
+            <div className="@container">
+              <div className="flex flex-col gap-2 @4xl:flex-row @4xl:items-start @4xl:gap-5">
+                <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 @4xl:contents">
+                  {view.archived || (list.total ?? list.rows.length) === 0 ? null : (
+                    <div className="flex h-control items-center">
+                      <RankStrip scope={scope} filters={stripFilters} total={list.total ?? list.rows.length} />
+                    </div>
+                  )}
+                  <KeywordScopeControls scope={keywordScope} countries={countries} />
+                </div>
+                <div className="min-w-0 @4xl:flex-1">
+                  <FilterBar
+                    fields={fields}
+                    values={values}
+                    onChange={setValues}
+                    trailing={
+                      <SegmentedControl<'active' | 'archived'>
+                        semantics="view"
+                        label={t('view.label')}
+                        value={view.archived ? 'archived' : 'active'}
+                        onValueChange={(next) => void setView({ archived: next === 'archived' ? true : null })}
+                        items={[
+                          { value: 'active', label: t('view.active') },
+                          { value: 'archived', label: t('view.archived') },
+                        ]}
+                      />
+                    }
+                  />
+                </div>
               </div>
             </div>
           }
