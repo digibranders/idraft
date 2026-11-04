@@ -11,12 +11,10 @@ import type { Device, PairedRow } from './keyword-pairs';
 /** One page of the project that ranks for a keyword, with its rank on the device the table shows. */
 export interface RankingPage {
   url: UrlRef;
-  ranks: Partial<Record<Device, number>>;
+  rank: number;
   /** The page holds the rank another page holds: a sub-result (sitelink) of it. */
   sharesRank: boolean;
 }
-
-const bestRank = (page: RankingPage): number => Math.min(...Object.values(page.ranks), Number.POSITIVE_INFINITY);
 
 /**
  * The pages that rank for a keyword on the device shown, best rank first. A keyword whose rows did not carry
@@ -32,26 +30,24 @@ export function rankingPages(row: TrackedKeywordRow | PairedRow, device: Device)
   const own = devices[device];
   if (own === null) return [];
   for (const page of own.ranking_urls ?? []) {
-    const entry = found.get(page.url.url_id) ?? { url: page.url, ranks: {}, sharesRank: false };
-    entry.ranks[device] = page.rank;
+    const entry = found.get(page.url.url_id) ?? { url: page.url, rank: page.rank, sharesRank: false };
+    entry.rank = page.rank;
     entry.sharesRank = entry.sharesRank || page.shares_rank;
     found.set(page.url.url_id, entry);
   }
   if (found.size === 0) {
     const { url, rank, state } = own.state.current;
     if (state === 'ranked' && url !== null && rank !== null) {
-      found.set(url.url_id, { url, ranks: { [device]: rank }, sharesRank: false });
+      found.set(url.url_id, { url, rank, sharesRank: false });
     }
   }
-  return [...found.values()].sort((a, b) => bestRank(a) - bestRank(b));
+  return [...found.values()].sort((a, b) => a.rank - b.rank);
 }
 
 export interface RankingPagesCardProps {
   /** The arrow beside the keyword: a link to the best page. */
   trigger: ReactElement;
   pages: readonly RankingPage[];
-  /** The device the table shows. */
-  device: Device;
   /** When the keyword was last checked. */
   checkedAt: string | null;
   timeZone: string;
@@ -62,7 +58,7 @@ export interface RankingPagesCardProps {
  * the device shown. Two or more pages for one keyword can hold each other back, which the card says. A longer
  * analysis (a page's history, the competitors in the same results) is the detail popup that comes later.
  */
-export function RankingPagesCard({ trigger, pages, device, checkedAt, timeZone }: RankingPagesCardProps): ReactElement {
+export function RankingPagesCard({ trigger, pages, checkedAt, timeZone }: RankingPagesCardProps): ReactElement {
   const t = useTranslations('rankings.pages');
   const rank = useTranslations('rankings.rank');
   return (
@@ -97,9 +93,7 @@ export function RankingPagesCard({ trigger, pages, device, checkedAt, timeZone }
                   <span className="type-meta text-foreground-tertiary">{t('subResult')}</span>
                 ) : null}
               </td>
-              <td className="py-1.5 pl-4 text-right num type-table text-foreground">
-                {page.ranks[device] ?? t('beyond')}
-              </td>
+              <td className="py-1.5 pl-4 text-right num type-table text-foreground">{page.rank}</td>
             </tr>
           ))}
         </tbody>

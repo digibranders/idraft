@@ -1936,7 +1936,6 @@
       "page": "Page",
       "best": "Best rank",
       "subResult": "Sub-result of the page above",
-      "beyond": ">100",
       "checked": "At the last check, {time}.",
       "competing": "Pages competing for one keyword can hold each other back."
     },

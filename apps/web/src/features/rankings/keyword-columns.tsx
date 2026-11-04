@@ -114,13 +114,7 @@ export function useKeywordColumns(
           return pages.length === 0 ? (
             link
           ) : (
-            <RankingPagesCard
-              trigger={link}
-              pages={pages}
-              device={device}
-              checkedAt={row.state.last_observed_at}
-              timeZone={timeZone}
-            />
+            <RankingPagesCard trigger={link} pages={pages} checkedAt={row.state.last_observed_at} timeZone={timeZone} />
           );
         },
       }),

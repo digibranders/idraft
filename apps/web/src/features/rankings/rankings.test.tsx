@@ -100,9 +100,19 @@ describe('Rankings', () => {
     // Two options only
     expect(screen.queryByRole('radio', { name: 'Desktop and mobile' })).toBeNull();
     expect(screen.getByRole('radio', { name: 'Desktop' })).toBeChecked();
+    // seo agency berlin is tracked on both devices, with a different rank on each. The cell reads the rank, then its change.
+    const rankOf = (keyword: string): string => {
+      const index = keywordsIn(grid).indexOf(keyword);
+      if (index < 0) throw new Error(`No row for ${keyword}`);
+      return (visibleColumnTexts(grid, /^Rank$/)[index] ?? '').split(' ')[0] ?? '';
+    };
+    const onDesktop = rankOf('seo agency berlin');
+    expect(onDesktop).toMatch(/^\d+$/);
     await user.click(screen.getByRole('radio', { name: 'Mobile' }));
     await waitFor(() => expect(screen.getByRole('radio', { name: 'Mobile' })).toBeChecked());
     expect(within(grid).getByRole('columnheader', { name: /^Rank$/ })).toBeInTheDocument();
+    await waitFor(() => expect(rankOf('seo agency berlin')).not.toBe(onDesktop));
+    expect(rankOf('seo agency berlin')).toMatch(/^\d+$/);
   });
 
   it('puts one row for a keyword tracked on both devices', async () => {

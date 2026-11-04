@@ -284,7 +284,7 @@ describe('Check now', () => {
     const selectAllCheckbox = screen.getByRole('checkbox', { name: /^Select all/ });
     await user.click(selectAllCheckbox);
     const bar = screen.getByRole('group', { name: /Bulk actions/ });
-    // Rows are keywords, a keyword on both devices is one row, and the route counts tracked keywords
+    // `desktopOnly` makes every answered row a desktop row, so the table lists all 101 and the route counts them as 101 tracked keywords
     expect(within(bar).getByText(/ selected$/)).toBeInTheDocument();
     const checkBtn = within(bar).getByRole('button', { name: 'Check now' });
     expect(checkBtn).toHaveAttribute('data-disabled');

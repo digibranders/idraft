@@ -52,9 +52,9 @@ describe('rankingPages', () => {
 
     const pages = rankingPages(row, 'desktop');
 
-    expect(pages.map((page) => [page.url.path, page.ranks])).toEqual([
-      ['/best-soc-guide', { desktop: 5 }],
-      ['/managed-soc-service', { desktop: 16 }],
+    expect(pages.map((page) => [page.url.path, page.rank])).toEqual([
+      ['/best-soc-guide', 5],
+      ['/managed-soc-service', 16],
     ]);
   });
 
@@ -64,7 +64,7 @@ describe('rankingPages', () => {
       tracked('mobile', [{ url: GUIDE, rank: 9, shares_rank: false }]),
     );
 
-    expect(rankingPages(row, 'mobile').map((entry) => entry.ranks)).toEqual([{ mobile: 9 }]);
+    expect(rankingPages(row, 'mobile').map((entry) => entry.rank)).toEqual([9]);
   });
 
   it('keeps to the devices the table shows', () => {
@@ -95,9 +95,7 @@ describe('rankingPages', () => {
   it('falls back to the page the state names when the rows did not carry the pages', () => {
     const row = paired(tracked('desktop', null, { url: GUIDE, rank: 7, shares_rank: false }), null);
 
-    expect(rankingPages(row, 'desktop').map((page) => [page.url.path, page.ranks])).toEqual([
-      ['/best-soc-guide', { desktop: 7 }],
-    ]);
+    expect(rankingPages(row, 'desktop').map((page) => [page.url.path, page.rank])).toEqual([['/best-soc-guide', 7]]);
   });
 
   it('lists nothing for a keyword that does not rank', () => {
@@ -125,7 +123,6 @@ describe('RankingPagesCard', () => {
       <RankingPagesCard
         trigger={<a href="https://eventussecurity.com/best-soc-guide">Open</a>}
         pages={pages}
-        device="desktop"
         checkedAt="2026-11-04T05:00:00Z"
         timeZone="UTC"
       />,
