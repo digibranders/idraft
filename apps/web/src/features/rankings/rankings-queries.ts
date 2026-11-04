@@ -52,6 +52,41 @@ const PAGE = 200;
 // arrives with the next read of the list, which is acceptable for a keyword with one point.
 // Competitor ranks are always asked for (small payload per row) to avoid re-reading the list when toggling columns.
 const INCLUDE: NonNullable<ListQuery['include']> = ['metrics', 'groups', 'terms', 'sparkline', 'competitor_ranks'];
+/** The most pages an export reads: 50 of 200 are the 10 000 keywords the table itself holds. */
+const EXPORT_PAGES_MAX = 50;
+
+/**
+ * Every keyword the filters and the search match, read page by page for an export: the rows of the table
+ * whatever its mode, in the order of the keyword's text, with the metrics and the groups an export writes.
+ */
+export async function readAllKeywords(
+  scope: ProjectScope,
+  filters: KeywordFilters,
+  search: string,
+  signal: AbortSignal,
+): Promise<TrackedKeywordRow[]> {
+  const rows: TrackedKeywordRow[] = [];
+  let cursor: string | null = FIRST_PAGE;
+  for (let page = 0; page < EXPORT_PAGES_MAX; page += 1) {
+    const answer: ListPage = await readPage(
+      scope,
+      {
+        ...filters,
+        sort: LOAD_SORT,
+        include: ['metrics', 'groups'],
+        limit: PAGE,
+        ...(search.trim() === '' ? {} : { 'filter[q]': search.trim() }),
+        ...(cursor === null ? {} : { cursor }),
+      },
+      signal,
+    );
+    rows.push(...answer.data);
+    cursor = answer.page.has_more ? answer.page.next_cursor : null;
+    if (cursor === null) return rows;
+  }
+  throw new Error('The list is longer than an export reads');
+}
+
 /** The cursor of the first page: none. */
 const FIRST_PAGE: string | null = null;
 /** The sort the client mode loads in: the table sorts in memory, so changing it reads nothing again. */

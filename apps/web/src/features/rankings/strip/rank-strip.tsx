@@ -18,7 +18,8 @@ export interface RankStripProps {
 
 /**
  * Summary metric strip of the filtered keywords (24-page-templates.md section 9.3).
- * Four counts: Tracked (with checked count), Top 3, Top 10 and Top 20 (each of checked count).
+ * Four counts of tracked keywords (a keyword on each device is two): Keywords (with checked count), Top 3, Top 10
+ * and Top 20 (each of checked count). The device chosen narrows all four.
  */
 export function RankStrip({ scope, filters, total }: RankStripProps): ReactElement {
   const t = useTranslations('rankings.strip');
@@ -51,12 +52,13 @@ export function RankStrip({ scope, filters, total }: RankStripProps): ReactEleme
   };
 
   // The strip ignores rows without a check date for rank counts (24-page-templates.md section 9.3).
-  // Tracked count is the total tracked keywords matching the active filters.
+  // The count of keywords is of tracked keywords, one for each device: both devices chosen, a keyword counts
+  // twice, as its Top 3, Top 10 and Top 20 do, and one device chosen counts only its own.
   const items: MetricStripItem[] = [
     {
       id: 'tracked',
       label: t('tracked'),
-      value: formatInteger(total),
+      value: formatInteger(counts?.total ?? total),
       context: checkedNote,
     },
     itemOf('top3', t('top3'), counts?.top3, itemErrors.top3, ofChecked),

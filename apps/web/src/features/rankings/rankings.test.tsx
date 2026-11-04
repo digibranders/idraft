@@ -98,7 +98,7 @@ describe('Rankings', () => {
     await waitFor(() => expect(within(grid).queryByRole('columnheader', { name: /^Desktop$/ })).toBeNull());
     expect(within(grid).getByRole('columnheader', { name: /^Mobile$/ })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('radio', { name: 'Both' }));
+    await user.click(screen.getByRole('radio', { name: 'Desktop and mobile' }));
     await waitFor(() => expect(within(grid).getByRole('columnheader', { name: /^Desktop$/ })).toBeInTheDocument());
     expect(within(grid).getByRole('columnheader', { name: /^Mobile$/ })).toBeInTheDocument();
   });
@@ -252,12 +252,14 @@ describe('Rankings', () => {
     const url = urlWrites();
     const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
     const grid = await loadedGrid();
-    await user.click(screen.getByRole('radio', { name: 'Archived' }));
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: 'Show archived keywords' }));
     await waitFor(() => expect(url.latest().get('archived')).toBe('true'));
     await waitFor(() =>
       expect(keywordsIn(grid).sort()).toEqual(['seo meme', 'seo newsletter', 'wordpress seo plugin']),
     );
-    await user.click(screen.getByRole('radio', { name: 'Active' }));
+    // The chip that says the archived keywords are shown takes the table back to the active ones
+    await user.click(screen.getByRole('button', { name: 'Show active keywords' }));
     await waitFor(() => expect(url.latest().has('archived')).toBe(false));
   });
 
@@ -1191,21 +1193,20 @@ describe('Rankings summary strip', () => {
 });
 
 describe('Rankings import button', () => {
-  it('opens the import for a member who may import, before Add keywords', async () => {
+  it('opens the import from the menu of Add keywords for a member who may import', async () => {
     const onImportOpenChange = vi.fn<(open: boolean) => void>();
     const { user } = renderWithProviders(as('editor', undefined, { onImportOpenChange }));
     await loadedGrid();
-    const importButton = screen.getByRole('button', { name: 'Import' });
-    const addButton = screen.getByRole('button', { name: 'Add keywords' });
-    expect(importButton.compareDocumentPosition(addButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    await user.click(importButton);
+    expect(screen.queryByRole('button', { name: 'Import' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'More ways to add keywords' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Import from a file' }));
     expect(onImportOpenChange).toHaveBeenCalledExactlyOnceWith(true);
   });
 
   it('shows no import to a viewer', async () => {
     renderWithProviders(as('viewer'));
     await loadedGrid();
-    expect(screen.queryByRole('button', { name: 'Import' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'More ways to add keywords' })).toBeNull();
   });
 });
 

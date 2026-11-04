@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { FolderTree, MoreHorizontal, Plus, Upload } from 'lucide-react';
+import { Archive, Download, FolderTree, MoreHorizontal, Plus, Upload, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useLocale, useTranslations } from 'next-intl';
 import { parseAsBoolean, parseAsString, useQueryStates } from 'nuqs';
@@ -23,6 +23,7 @@ import {
   PAGE_SIZE_CHOICES,
   hasPendingCheck,
   keywordFilters,
+  readAllKeywords,
   useKeywordList,
   useTrackedCount,
   type KeywordList,
@@ -47,7 +48,9 @@ import { DiscardChangesDialog } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { Menu, type MenuItemDef } from '@/components/ui/menu';
-import { SegmentedControl } from '@/components/ui/segmented-control';
+import { SplitButton } from '@/components/ui/split-button';
+import { buildCsv, buildWorkbook, download, fileName, type ExportFormat } from './export/export-file';
+import { buildExport } from './export/export-model';
 import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
 import { useErrorId } from '@/lib/api/use-error-id';
@@ -79,6 +82,9 @@ const ImportDialog = dynamic(() => loadImportDialog().then((module) => module.Im
 const SEARCH_DELAY_MS = 250;
 /** The id of the More actions item that opens Manage groups. */
 const MANAGE_GROUPS = 'manage-groups';
+const SHOW_ARCHIVED = 'show-archived';
+const EXPORT_XLSX = 'export-xlsx';
+const EXPORT_CSV = 'export-csv';
 /** The list as the table shows it: one row for each keyword, with the rows of its devices behind it. */
 type PairedList = Omit<KeywordList, 'rows'> & { rows: readonly PairedRow[] };
 
@@ -126,6 +132,9 @@ export function RankingsScreen({
   const common = useTranslations('common');
   const discard = useTranslations('account.discard');
   const competitorT = useTranslations('rankings.competitor');
+  const columnsT = useTranslations('rankings.columns');
+  const exportColumnsT = useTranslations('rankings.export.columns');
+  const stripT = useTranslations('rankings.strip');
   const locale = useLocale();
   const canWrite = useCan('keywords:write');
   const canImport = useCan('imports:write');
@@ -360,6 +369,14 @@ export function RankingsScreen({
     ...(canWrite
       ? [{ id: MANAGE_GROUPS, label: t('groups.manage.open'), icon: FolderTree, onSelect: () => setManaging(true) }]
       : []),
+    {
+      id: SHOW_ARCHIVED,
+      kind: 'checkbox' as const,
+      icon: Archive,
+      label: t('view.showArchived'),
+      checked: view.archived,
+      onSelect: () => void setView({ archived: view.archived ? null : true }),
+    },
   ];
   const status = statusOf(list, filtered || view.archived || (list.mode === 'server' && search.trim() !== ''));
   const updated = newestFetch(list.rows);
@@ -423,33 +440,117 @@ export function RankingsScreen({
   const searched = (list.mode === 'server' ? search : view.q).trim();
   const activeFilters = Object.keys(values).length;
   const addButton = (
-    <Button variant="primary" icon={Plus} onClick={() => setAdding(true)}>
+    <Button variant="primary" size="sm" icon={Plus} onClick={() => setAdding(true)}>
       {t('add.open')}
     </Button>
   );
+  const [exporting, setExporting] = useState(false);
+  // The table as it is filtered, read whole whatever its mode, with the counts of the strip above it
+  const exportKeywords = async (format: ExportFormat): Promise<void> => {
+    setExporting(true);
+    try {
+      const device = keywordScope.device;
+      const rows = pairRows(await readAllKeywords(scope, filters, view.q, new AbortController().signal), device);
+      const table = buildExport(rows, device, {
+        keyword: exportColumnsT('keyword'),
+        desktop: columnsT('desktop'),
+        mobile: columnsT('mobile'),
+        url: exportColumnsT('url'),
+        volume: exportColumnsT('volume'),
+        difficulty: exportColumnsT('difficulty'),
+        cpc: exportColumnsT('cpc'),
+        intent: exportColumnsT('intent'),
+        priority: exportColumnsT('priority'),
+        groups: exportColumnsT('groups'),
+        checked: exportColumnsT('checked'),
+        keywords: stripT('tracked'),
+        top3: stripT('top3'),
+        top10: stripT('top10'),
+        top20: stripT('top20'),
+      });
+      const now = new Date();
+      const country =
+        keywordScope.countryId === ALL_COUNTRIES
+          ? t('scope.allCountries')
+          : (countries.find((candidate) => candidate.location_id === keywordScope.countryId)?.name ?? '');
+      const deviceText = device === 'both' ? t('scope.both') : columnsT(device);
+      const filterText =
+        activeFilters + (view.q.trim() === '' ? 0 : 1) === 0
+          ? t('export.filtersNone')
+          : t('export.filtersCount', { count: activeFilters + (view.q.trim() === '' ? 0 : 1) });
+      const context = [
+        [t('export.country'), country],
+        [t('export.devices'), deviceText],
+        [t('export.filters'), view.archived ? `${filterText}, ${t('export.archived')}` : filterText],
+        [t('export.exported'), `${now.toISOString().slice(0, 16).replace('T', ' ')} UTC`],
+      ] as const;
+      const blob = format === 'xlsx' ? await buildWorkbook(t('export.sheet'), context, table) : buildCsv(table);
+      download(blob, fileName(format, now));
+    } catch {
+      toast({
+        type: 'error',
+        title: t('export.failed.title'),
+        description: t('export.failed.description'),
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+  const exportMenu = (
+    <Menu
+      align="end"
+      trigger={
+        <Button variant="secondary" size="sm" icon={Download} disabled={exporting}>
+          {t('export.open')}
+        </Button>
+      }
+      items={[
+        { id: EXPORT_XLSX, label: t('export.xlsx'), onSelect: () => void exportKeywords('xlsx') },
+        { id: EXPORT_CSV, label: t('export.csv'), onSelect: () => void exportKeywords('csv') },
+      ]}
+    />
+  );
+  const importItem: MenuItemDef = {
+    id: 'import',
+    label: t('add.importFile'),
+    icon: Upload,
+    onSelect: () => onImportOpenChange?.(true),
+  };
+  // Import is another way to add keywords: one small button with the file import under its arrow
+  const addControl =
+    canWrite && canImport ? (
+      <SplitButton
+        variant="primary"
+        size="sm"
+        icon={Plus}
+        groupLabel={t('add.options')}
+        menuLabel={t('add.moreWays')}
+        items={[importItem]}
+        onMenuOpenChange={(open) => {
+          if (open) void loadImportDialog();
+        }}
+        onClick={() => setAdding(true)}
+      >
+        {t('add.open')}
+      </SplitButton>
+    ) : canWrite ? (
+      addButton
+    ) : canImport ? (
+      <Button variant="secondary" size="sm" icon={Upload} onClick={() => onImportOpenChange?.(true)}>
+        {t('import.open')}
+      </Button>
+    ) : null;
   const headerActions = (
     <>
-      {menuItems.length > 0 ? (
-        <Menu
-          align="end"
-          trigger={<IconButton ref={moreButton} icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}
-          items={menuItems}
-          header={refresh.menuHeader}
-          onOpenChange={refresh.onMenuOpenChange}
-        />
-      ) : null}
-      {canImport ? (
-        <Button
-          variant="secondary"
-          icon={Upload}
-          onClick={() => onImportOpenChange?.(true)}
-          onPointerEnter={() => void loadImportDialog()}
-          onFocus={() => void loadImportDialog()}
-        >
-          {t('import.open')}
-        </Button>
-      ) : null}
-      {canWrite ? addButton : null}
+      <Menu
+        align="end"
+        trigger={<IconButton ref={moreButton} icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}
+        items={menuItems}
+        header={refresh.menuHeader}
+        onOpenChange={refresh.onMenuOpenChange}
+      />
+      {exportMenu}
+      {addControl}
     </>
   );
   const emptyState = (
@@ -540,40 +641,30 @@ export function RankingsScreen({
       <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
         <PageHeader
           title={t('title')}
+          titleHidden
           meta={meta === '' ? undefined : meta}
-          actions={menuItems.length > 0 || canImport ? headerActions : undefined}
-          stacked
+          actions={headerActions}
           toolbar={
-            // Two rows (summary and scope, then the filters) until the toolbar is wide enough for one
-            <div className="@container">
-              <div className="flex flex-col gap-2 @4xl:flex-row @4xl:items-start @4xl:gap-5">
-                <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 @4xl:contents">
-                  {showStrip ? (
-                    <div className="flex h-control items-center">
-                      <RankStrip scope={scope} filters={stripFilters} total={list.total ?? list.rows.length} />
-                    </div>
-                  ) : null}
-                  <KeywordScopeControls scope={keywordScope} countries={countries} />
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {showStrip ? (
+                <div className="flex h-control-sm items-center">
+                  <RankStrip scope={scope} filters={stripFilters} total={list.total ?? list.rows.length} />
                 </div>
-                <div className="min-w-0 @4xl:flex-1">
-                  <FilterBar
-                    fields={fields}
-                    values={values}
-                    onChange={setValues}
-                    trailing={
-                      <SegmentedControl<'active' | 'archived'>
-                        semantics="view"
-                        label={t('view.label')}
-                        value={view.archived ? 'archived' : 'active'}
-                        onValueChange={(next) => void setView({ archived: next === 'archived' ? true : null })}
-                        items={[
-                          { value: 'active', label: t('view.active') },
-                          { value: 'archived', label: t('view.archived') },
-                        ]}
-                      />
-                    }
-                  />
-                </div>
+              ) : null}
+              <KeywordScopeControls scope={keywordScope} countries={countries} />
+              {view.archived ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={X}
+                  onClick={() => void setView({ archived: null })}
+                  aria-label={t('view.backToActive')}
+                >
+                  {t('view.archivedChip')}
+                </Button>
+              ) : null}
+              <div className="min-w-0 flex-1 basis-24">
+                <FilterBar fields={fields} values={values} onChange={setValues} />
               </div>
             </div>
           }

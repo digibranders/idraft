@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, MapPin } from 'lucide-react';
+import { ChevronDown, MapPin, Monitor, MonitorSmartphone, Smartphone } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { parseAsInteger, parseAsStringLiteral, useQueryStates } from 'nuqs';
 import { useMemo, type ReactElement } from 'react';
@@ -118,7 +118,7 @@ export function KeywordScopeControls({
     [countries, current, everywhere],
   );
   const trigger = (
-    <button type="button" className={buttonVariants({ variant: 'secondary', size: 'md' })}>
+    <button type="button" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
       <Icon icon={MapPin} size="sm" className="text-foreground-tertiary" />
       <span className="max-w-40 truncate">{current.name}</span>
       <Icon icon={ChevronDown} size="sm" className="text-foreground-tertiary" />
@@ -131,10 +131,12 @@ export function KeywordScopeControls({
         label={t('device')}
         value={scope.device}
         onValueChange={scope.setDevice}
+        size="sm"
+        iconOnly
         items={[
-          { value: 'both', label: t('both') },
-          { value: 'desktop', label: columns('desktop') },
-          { value: 'mobile', label: columns('mobile') },
+          { value: 'both', label: t('both'), icon: MonitorSmartphone },
+          { value: 'desktop', label: columns('desktop'), icon: Monitor },
+          { value: 'mobile', label: columns('mobile'), icon: Smartphone },
         ]}
       />
       <Combobox<Country>

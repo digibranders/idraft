@@ -278,6 +278,7 @@ A primary action plus a menu of alternatives, for example "Export" (default CSV)
 - Left half: `rounded-r-none`. Right half: `rounded-l-none`, `-ml-px` so borders overlap, square at the button height, `ChevronDown` 14 px, accessible name "More export options". It is a Base UI `Menu.Trigger`.
 - Allowed variants: `secondary` (default) and `primary`. For `primary`, the right half has `border-l border-l-primary-hover` as the divider.
 - The menu never repeats the default action. Use a split button only when the default is chosen at least 80% of the time; otherwise use a menu button (section 10).
+- Implemented as `SplitButton` (`components/ui/split-button.tsx`): `variant`, `size` (`sm` or `md`), `groupLabel`, `menuLabel` and `items`. The Rankings header uses it as a `primary` `sm` "Add keywords" with "Import from a file" under its arrow.
 
 ## 5. Toggle button
 
@@ -310,6 +311,8 @@ One visual component with three semantic implementations. The visual:
 | `md` | 36 px `h-control` | `px-3` | `type-body` (14 px); selected `type-body-strong` | 16 px | Page header view options (period "7d, 30d, 90d"), forms |
 
 Items fill the full height of the group; there is no inner track padding.
+
+`iconOnly` shows the icons of the items alone, each segment a square of the group's height with its label as `aria-label` and tooltip (every item needs an icon). It is for options whose icons need no word, such as the device scope (desktop, mobile, both).
 
 **Construction.** Each item draws its own 1 px border; items overlap by 1 px (`-ml-px` on every item after the first), so neighbouring borders form single dividers. The first item takes `rounded-l-md`, the last `rounded-r-md`, and middle items stay square. The selected item is `relative`, so its `primary-border` outline paints above the neighbouring borders and follows the rounded outer corner exactly. Do not build the group as one bordered, `overflow-hidden` box with an inset ring on the selected item: the ring cannot follow the clipped corner and shows square corners at the rounded end (seen and fixed in the preview on 2026-09-30).
 

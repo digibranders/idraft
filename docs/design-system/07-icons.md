@@ -35,7 +35,7 @@ An icon-only control must have:
 2. a tooltip that appears on hover and keyboard focus after 400 ms, with the shortcut if one exists,
 3. a 24 px minimum target: 24 px inside 32 px rows, 32 px (`h-control-sm`) in tables, inspectors, toolbars and everywhere else.
 
-Icon-only is allowed only for universally understood actions (close, more, copy, external link, collapse sidebar, settings, search, filter, sort direction, density, column chooser, previous and next record or page, open page (`Maximize2` in the inspector header, tooltip "Open page"), clear, metric info, show secret, stepper decrease and increase, help menu, theme menu, notifications) and for the collapsed sidebar. Everything else has a text label.
+Icon-only is allowed only for universally understood actions (close, more, copy, external link, collapse sidebar, settings, search, filter, a device scope (`Monitor` desktop, `Smartphone` mobile, `MonitorSmartphone` both, as an icon-only segmented control), sort direction, density, column chooser, previous and next record or page, open page (`Maximize2` in the inspector header, tooltip "Open page"), clear, metric info, show secret, stepper decrease and increase, help menu, theme menu, notifications) and for the collapsed sidebar. Everything else has a text label.
 
 ## 5. Engines, brands and favicons
 

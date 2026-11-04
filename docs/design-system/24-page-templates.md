@@ -499,7 +499,7 @@ At 1280 px the inspector overlays (the main column would be 672 px, 1,072 minus 
 
 | Region | Component | Notes |
 |---|---|---|
-| Header | `PageHeader`, `SavedViewMenu` | Primary "Add keywords"; "Import" secondary; Export in toolbar and More |
+| Header | `PageHeader` with `titleHidden` (the top bar's breadcrumb already names the page; the `h1` stays for assistive technology), one row: the strip, the device scope (icons) and country, the filter bar, then "Updated", More (refresh metrics, manage groups, show archived keywords), Export (Excel workbook with the counts above the table, or the table as CSV) and the primary `sm` split button "Add keywords" with "Import from a file" under its arrow | The archived view is a menu choice with a chip that leaves it; the strip counts tracked keywords, one for each device chosen |
 | Filter bar | Compare and Device scopes; chips from [13-filters-search.md](13-filters-search.md) section 4. Date range and location are in the top bar | The Rank filter editor shows bucket counts as facets, which replaces a separate distribution bar |
 | Strip | `MetricStrip` `md`, 6 items for the filtered scope | Top 50 and 100 counts are in the Rank filter facets and Overview |
 | Toolbar | Table search, count, grouping, density, columns, export | Bulk bar replaces it on selection |

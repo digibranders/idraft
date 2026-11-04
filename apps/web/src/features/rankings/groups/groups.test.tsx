@@ -772,9 +772,12 @@ describe('Manage groups', () => {
     await waitFor(() => expect(urls.at(-1)?.has('grp')).toBe(false));
   }, 25_000);
 
-  it('offers no More actions to a viewer', async () => {
-    renderWithProviders(as('viewer'));
+  it('offers a viewer no way to manage groups', async () => {
+    const { user } = renderWithProviders(as('viewer'));
     await loadedGrid();
-    expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull();
+    // The menu is there for the archived keywords, and holds nothing that changes anything
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(await screen.findByRole('menuitemcheckbox', { name: 'Show archived keywords' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Manage groups' })).toBeNull();
   });
 });
