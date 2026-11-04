@@ -20,6 +20,7 @@ const LABELS: ExportLabels = {
   top3: 'Top 3',
   top10: 'Top 10',
   top20: 'Top 20',
+  intents: { informational: 'Informational', commercial: 'Commercial' },
 };
 
 const cell = (over: Partial<RankCell>): RankCell => ({
@@ -109,12 +110,25 @@ describe('buildExport', () => {
       8100,
       13,
       2.66,
-      'informational',
+      'Informational',
       3,
       'Cybersecurity',
       '2026-11-04 05:00 UTC',
     ]);
     expect(body[2]?.slice(0, 3)).toEqual(['lonely', '>100', null]);
+  });
+
+  it('names the kind of each column in the order of the header, for the workbook to format by', () => {
+    const both = buildExport(rows, 'both', LABELS);
+    expect(both.kinds).toHaveLength(both.header.length);
+    expect(both.kinds.slice(0, 4)).toEqual(['keyword', 'rank', 'rank', 'url']);
+    expect(buildExport(rows, 'mobile', LABELS).kinds.filter((kind) => kind === 'rank')).toHaveLength(1);
+  });
+
+  it('leaves the intent empty when it has no name', () => {
+    const unnamed = paired(ranked(1), null);
+    unnamed.intent = 'unknown';
+    expect(buildExport([unnamed], 'both', LABELS).rows[0]?.[7]).toBeNull();
   });
 });
 

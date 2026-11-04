@@ -235,6 +235,7 @@ TrackedInclude = Literal[
     "competitors",
     "sparkline",
     "competitor_ranks",
+    "ranking_urls",
     "features",
     "aio",
 ]
@@ -351,6 +352,14 @@ class CompetitorRank(BaseModel):
     change: RankChange
 
 
+class RankingUrl(BaseModel):
+    url: UrlRef
+    rank: int
+    shares_rank: bool = Field(
+        description="The page holds a rank another page holds: a sub-result (sitelink) of it."
+    )
+
+
 class FeatureOnPage(BaseModel):
     feature_type: str
     ordinal: int
@@ -444,6 +453,13 @@ class TrackedKeywordRow(TrackedKeyword):
     sparkline: Sparkline | None = Field(default=None, description="`include=sparkline`.")
     competitor_ranks: list[CompetitorRank] | None = Field(
         default=None, description="`include=competitor_ranks`: the competitors' ranks."
+    )
+    ranking_urls: list[RankingUrl] | None = Field(
+        default=None,
+        description=(
+            "`include=ranking_urls`: every page of the project that ranked at the last check, best "
+            "rank first (at most 10)."
+        ),
     )
     features: list[FeatureOnPage] | None = Field(
         default=None, description="`include=features`: the features of the last check."

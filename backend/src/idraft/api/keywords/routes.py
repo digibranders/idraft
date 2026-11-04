@@ -255,7 +255,8 @@ Include = Annotated[
     "`best_rank` and `last_observed_at`, each at most once and with `-` for descending; "
     "`keyword` when left out, and the id always last. A metric or a rank sorts keywords without "
     "one (beyond the depth, or never checked) last in both directions. Every row carries its "
-    "rank `state`; `include` adds `sparkline`, `competitor_ranks`, `features` and `aio`. "
+    "rank `state`; `include` adds `sparkline`, `competitor_ranks`, `ranking_urls`, `features` "
+    "and `aio`. "
     "`page.total` counts every match. A cursor is bound to its filters and sort "
     "(`400 invalid_cursor` otherwise).",
 )
@@ -394,6 +395,9 @@ async def list_tracked_keywords(
                     "competitor_ranks": None
                     if row.competitor_ranks is None
                     else [rank_views.competitor_view(c) for c in row.competitor_ranks],
+                    "ranking_urls": None
+                    if row.ranking_urls is None
+                    else [rank_views.ranking_url_view(p) for p in row.ranking_urls],
                     "features": None
                     if row.features is None
                     else rank_views.features_view(row.features),

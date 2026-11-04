@@ -7,7 +7,7 @@ keyword says which snapshot is its latest, and the other tables are read at that
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Final
@@ -30,6 +30,8 @@ from idraft.db.tables import (
 from idraft.keywords.trees import among_ids
 
 SPARKLINE_POINTS: Final = 30
+# The most pages a row lists for one keyword: more than a person reads in a popup.
+RANKING_URLS_MAX: Final = 10
 # How far back the sparkline looks: a keyword checked weekly has 30 checks in under 210 days.
 SPARKLINE_WINDOW: Final = timedelta(days=210)
 
@@ -212,6 +214,91 @@ async def _own_url_counts(
     for row in rows:
         distinct.setdefault(row.tracked_keyword_id, set()).update(row.all_url_ids or [])
     return {tracked_id: len(url_ids) for tracked_id, url_ids in distinct.items()}
+
+
+@dataclass(frozen=True, slots=True)
+class RankingUrlRecord:
+    """One page of the project that ranked at the keyword's last check."""
+
+    url: UrlRecord
+    rank: int
+    # The page holds a rank another page holds already: a sub-result (sitelink) of that page.
+    shares_rank: bool
+
+
+def ordered_ranking_urls(entries: Iterable[tuple[int, int]]) -> list[tuple[int, int, bool]]:
+    """`(url_id, rank)` pairs of the own side of one check, in the order they were stored, as
+    `(url_id, rank, shares_rank)` with the best rank first. A page keeps its best rank; a page at
+    a rank an earlier page holds is a sub-result of it, since a sitelink is stored right after
+    the result it sits under. Ties keep the stored order. At most `RANKING_URLS_MAX`."""
+    best: dict[int, int] = {}
+    stored: list[int] = []
+    for url_id, rank in entries:
+        if url_id not in best:
+            stored.append(url_id)
+            best[url_id] = rank
+        elif rank < best[url_id]:
+            best[url_id] = rank
+    ordered = sorted(stored, key=lambda url_id: (best[url_id], stored.index(url_id)))
+    seen: set[int] = set()
+    pages: list[tuple[int, int, bool]] = []
+    for url_id in ordered:
+        rank = best[url_id]
+        pages.append((url_id, rank, rank in seen))
+        seen.add(rank)
+    return pages[:RANKING_URLS_MAX]
+
+
+async def ranking_urls_of(
+    db: AsyncSession, workspace_id: UUID, tracked_ids: Collection[UUID]
+) -> dict[UUID, list[RankingUrlRecord]]:
+    """Every page of the project that ranked at each keyword's last check, best rank first: the
+    same observations the count of `ranking_url_count` is made from, so a keyword never lists
+    fewer pages than it counts (up to `RANKING_URLS_MAX`)."""
+    if not tracked_ids:
+        return {}
+    o = domain_rank_observations.c
+    rows = await db.execute(
+        select(o.tracked_keyword_id, o.all_organic_ranks, o.all_url_ids)
+        .select_from(domain_rank_observations.join(tracked_keyword_state, _at_last_check()))  # type: ignore[arg-type]
+        .where(
+            o.workspace_id == workspace_id,
+            among_ids(o.tracked_keyword_id, tracked_ids),
+            o.role == "own",
+        )
+        .order_by(o.tracked_keyword_id, o.entity_id)
+    )
+    stored: dict[UUID, list[tuple[int, int]]] = {}
+    for row in rows:
+        stored.setdefault(row.tracked_keyword_id, []).extend(
+            zip(row.all_url_ids or [], row.all_organic_ranks or [], strict=False)
+        )
+    ordered = {tracked_id: ordered_ranking_urls(pairs) for tracked_id, pairs in stored.items()}
+    url_ids = {url_id for pages in ordered.values() for url_id, _, _ in pages}
+    records: dict[int, UrlRecord] = {}
+    if url_ids:
+        for url in await db.execute(
+            select(
+                urls.c.id,
+                urls.c.canonical_url,
+                urls.c.path,
+                domains.c.host,
+                domains.c.registrable_domain,
+            )
+            .select_from(urls.join(domains, domains.c.id == urls.c.domain_id))
+            .where(urls.c.id.in_(url_ids))
+        ):
+            records[url.id] = _url(
+                url.id, url.canonical_url, url.host, url.registrable_domain, url.path
+            )
+    return {
+        tracked_id: [
+            RankingUrlRecord(records[url_id], rank, shares)
+            for url_id, rank, shares in pages
+            if url_id in records
+        ]
+        for tracked_id, pages in ordered.items()
+    }
 
 
 async def sparklines_of(

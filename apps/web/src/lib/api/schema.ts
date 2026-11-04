@@ -1431,7 +1431,7 @@ export interface paths {
         };
         /**
          * The project's tracked keywords
-         * @description Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, `current_rank`, `rank_change`, `best_rank` and `last_observed_at`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric or a rank sorts keywords without one (beyond the depth, or never checked) last in both directions. Every row carries its rank `state`; `include` adds `sparkline`, `competitor_ranks`, `features` and `aio`. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).
+         * @description Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, `current_rank`, `rank_change`, `best_rank` and `last_observed_at`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric or a rank sorts keywords without one (beyond the depth, or never checked) last in both directions. Every row carries its rank `state`; `include` adds `sparkline`, `competitor_ranks`, `ranking_urls`, `features` and `aio`. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).
          */
         get: operations["list_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get"];
         put?: never;
@@ -4206,6 +4206,17 @@ export interface components {
         RankHistoryResponse: {
             data: components["schemas"]["RankHistory"];
         };
+        /** RankingUrl */
+        RankingUrl: {
+            /** Rank */
+            rank: number;
+            /**
+             * Shares Rank
+             * @description The page holds a rank another page holds: a sub-result (sitelink) of it.
+             */
+            shares_rank: boolean;
+            url: components["schemas"]["UrlRef"];
+        };
         /** Readiness */
         Readiness: {
             checks: components["schemas"]["ReadinessChecks"];
@@ -5776,6 +5787,11 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /**
+             * Ranking Urls
+             * @description `include=ranking_urls`: every page of the project that ranked at the last check, best rank first (at most 10).
+             */
+            ranking_urls?: components["schemas"]["RankingUrl"][] | null;
             /** Schedule Id */
             schedule_id: string | null;
             /**
@@ -9326,7 +9342,7 @@ export interface operations {
             query?: {
                 sort?: string | null;
                 /** @description Blocks to fill: a comma list, or the parameter repeated. */
-                include?: ("metrics" | "groups" | "terms" | "competitors" | "sparkline" | "competitor_ranks" | "features" | "aio")[] | null;
+                include?: ("metrics" | "groups" | "terms" | "competitors" | "sparkline" | "competitor_ranks" | "ranking_urls" | "features" | "aio")[] | null;
                 "filter[q]"?: string | null;
                 /** @description The group or one under it. */
                 "filter[group]"?: string | null;
@@ -10245,7 +10261,7 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParameters
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterTrigger_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[trigger_in]"]> = ["schedule", "manual", "backfill", "retry"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idSchedulesGetParametersQueryFilterWorkloadAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules"]["get"]["parameters"]["query"]["filter[workload]"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["include"]> = ["metrics", "groups", "terms", "competitors", "sparkline", "competitor_ranks", "features", "aio"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["include"]> = ["metrics", "groups", "terms", "competitors", "sparkline", "competitor_ranks", "ranking_urls", "features", "aio"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[device]"]> = ["desktop", "mobile"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterSearch_engineAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[search_engine]"]> = ["google", "bing"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterIntent_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[intent_in]"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];

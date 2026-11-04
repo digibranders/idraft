@@ -50,6 +50,7 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Menu, type MenuItemDef } from '@/components/ui/menu';
 import { SplitButton } from '@/components/ui/split-button';
 import { buildCsv, buildWorkbook, download, fileName, type ExportFormat } from './export/export-file';
+import { readWorkbookColors } from './export/export-colors';
 import { buildExport } from './export/export-model';
 import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
@@ -196,7 +197,7 @@ export function RankingsScreen({
     }
     return [];
   }, [entitiesQuery.data, view.cols]);
-  const allColumns = useKeywordColumns(timeZone, competitors);
+  const allColumns = useKeywordColumns(timeZone, competitors, keywordScope.device);
   // The rank column of a device that is not chosen is left out
   const columns = useMemo(
     () =>
@@ -467,6 +468,13 @@ export function RankingsScreen({
         top3: stripT('top3'),
         top10: stripT('top10'),
         top20: stripT('top20'),
+        intents: {
+          informational: columnsT('intents.informational'),
+          navigational: columnsT('intents.navigational'),
+          commercial: columnsT('intents.commercial'),
+          transactional: columnsT('intents.transactional'),
+          local: columnsT('intents.local'),
+        },
       });
       const now = new Date();
       const country =
@@ -484,7 +492,10 @@ export function RankingsScreen({
         [t('export.filters'), view.archived ? `${filterText}, ${t('export.archived')}` : filterText],
         [t('export.exported'), `${now.toISOString().slice(0, 16).replace('T', ' ')} UTC`],
       ] as const;
-      const blob = format === 'xlsx' ? await buildWorkbook(t('export.sheet'), context, table) : buildCsv(table);
+      const blob =
+        format === 'xlsx'
+          ? await buildWorkbook(t('export.sheet'), context, table, readWorkbookColors())
+          : buildCsv(table);
       download(blob, fileName(format, now));
     } catch {
       toast({

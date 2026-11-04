@@ -51,7 +51,14 @@ const PAGE = 200;
 // The pending-metrics poll lays only metrics and state over a waiting row, so a first check's sparkline
 // arrives with the next read of the list, which is acceptable for a keyword with one point.
 // Competitor ranks are always asked for (small payload per row) to avoid re-reading the list when toggling columns.
-const INCLUDE: NonNullable<ListQuery['include']> = ['metrics', 'groups', 'terms', 'sparkline', 'competitor_ranks'];
+const INCLUDE: NonNullable<ListQuery['include']> = [
+  'metrics',
+  'groups',
+  'terms',
+  'sparkline',
+  'competitor_ranks',
+  'ranking_urls',
+];
 /** The most pages an export reads: 50 of 200 are the 10 000 keywords the table itself holds. */
 const EXPORT_PAGES_MAX = 50;
 

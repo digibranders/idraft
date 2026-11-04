@@ -899,12 +899,17 @@ interface TrackedKeywordState {                  // seo.tracked_keyword_state (d
   aio: { state: 'absent' | 'present_not_cited' | 'present_cited' | 'not_loaded' | 'unknown'; citation_position: number | null; observation_id: BigId | null };
   target_url_match: boolean | null; url_changed_at: Iso | null;
   consecutive_failures: number; is_stale: boolean; last_observed_at: Iso | null;
+  ranking_url_count: number;                     // the project's own URLs that ranked at the last check
 }
 interface TrackedKeywordRow extends TrackedKeyword {
   state: TrackedKeywordState;
   metrics?: KeywordMetrics;                                  // include=metrics
   competitors?: Array<{ entity: EntityRef; current: RankCell; change: RankChange }>;   // include=competitors
   sparkline?: { depth_mode: 'daily_depth'; points: Array<{ t: Iso; rank: number | null; depth: number; state: RankCell['state'] }> };  // last 30 checks
+  // include=ranking_urls (built 2026-11-04): every own page that ranked at the last check, best rank first (at most 10),
+  // from seo.domain_rank_observations (`all_url_ids` with `all_organic_ranks`, doc 04). Behind the popup on the arrow beside
+  // a keyword. `shares_rank` marks a sub-result (a sitelink at the rank of the page above it).
+  ranking_urls?: Array<{ url: UrlRef; rank: number; shares_rank: boolean }>;
   groups?: Array<{ group_id: Uuid; name: string; path: string }>;
   terms?: Array<{ term_id: Uuid; vocabulary_kind: string; name: string; path: string }>;
   cannibalization_class?: 'likely_cannibalization' | 'co_ranking' | 'unstable_url' | 'none' | null;

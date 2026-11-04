@@ -55,6 +55,10 @@ function urlWrites(): { onUrlUpdate: (event: UrlUpdateEvent) => void; latest: ()
   };
 }
 
+/** Whether a row header names the keyword: its text, and after it the count of pages beside the arrow. */
+const named = (header: HTMLElement, text: string): boolean =>
+  (header.textContent ?? '').startsWith(text) && /^\d*$/.test((header.textContent ?? '').slice(text.length));
+
 describe('Rankings', () => {
   it('lists the active keywords by volume, the ones still without metrics last, with the project count', async () => {
     const { container } = renderWithProviders(as('viewer'));
@@ -544,7 +548,7 @@ describe('Rankings rank columns', () => {
     const grid = await loadedGrid();
     const header = within(grid)
       .getAllByRole('rowheader')
-      .find((candidate) => candidate.textContent === moved.text);
+      .find((candidate) => named(candidate, moved.text));
     const row = header?.closest('tr');
     if (row === null || row === undefined || header === undefined) throw new Error(`No row for ${moved.text}`);
     const change = moved.state.change.value ?? 0;
@@ -561,7 +565,7 @@ describe('Rankings rank columns', () => {
     expect(link).toHaveAttribute('href', moved.state.current.url?.canonical_url);
   });
 
-  it('shows translated moreRankingPages when ranking_url_count is greater than 1', async () => {
+  it('says how many pages rank when the keyword has more than one, beside the arrow', async () => {
     const states = fixtureStates();
     const multi = states.find(({ state }) => state.ranking_url_count > 1);
     expect(multi).toBeDefined();
@@ -569,11 +573,35 @@ describe('Rankings rank columns', () => {
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
     const row = within(grid).getByRole('row', { name: new RegExp(multi.text) });
-    const expectedLink = en.rankings.columns.openRankingPage
+    const expectedLink = en.rankings.columns.openRankingPageMany
       .replace('{keyword}', multi.text)
-      .replace('{url}', multi.state.current.url?.canonical_url ?? '');
+      .replace('{url}', multi.state.current.url?.canonical_url ?? '')
+      .replace('{count}', String(multi.state.ranking_url_count));
     const link = within(row).getByRole('link', { name: expectedLink });
     expect(link).toBeInTheDocument();
+  });
+
+  it('opens the pages that rank for a keyword from the arrow, each with its rank', async () => {
+    const multi = fixtureStates().find(({ state }) => state.ranking_url_count > 1);
+    if (!multi) throw new Error('No fixture keyword ranks with more than one page');
+    const { user } = renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const header = within(grid)
+      .getAllByRole('rowheader')
+      .find((candidate) => named(candidate, multi.text));
+    if (!header) throw new Error(`No row for ${multi.text}`);
+
+    await user.hover(within(header).getByRole('link'));
+
+    expect(
+      await screen.findByText(
+        `${String(multi.state.ranking_url_count)} pages rank for this keyword`,
+        {},
+        { timeout: 3000 },
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Best rank')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /^\// }).length).toBeGreaterThanOrEqual(multi.state.ranking_url_count);
   });
 
   it('shows what is not a rank in words: beyond the depth, still waiting, a failed check, and stale', async () => {
@@ -648,7 +676,7 @@ describe('Rankings rank columns', () => {
     const grid = await loadedGrid();
     const header = within(grid)
       .getAllByRole('rowheader')
-      .find((candidate) => candidate.textContent === withFeatures.text);
+      .find((candidate) => named(candidate, withFeatures.text));
     const row = header?.closest('tr');
     if (row === null || row === undefined) throw new Error(`No row for ${withFeatures.text}`);
     const cell = row.cells[columnIndex(grid, /^SERP features$/)];
@@ -666,7 +694,7 @@ describe('Rankings rank columns', () => {
     const grid = await loadedGrid();
     const header = within(grid)
       .getAllByRole('rowheader')
-      .find((candidate) => candidate.textContent === withAioCited.text);
+      .find((candidate) => named(candidate, withAioCited.text));
     const row = header?.closest('tr');
     if (row === null || row === undefined) throw new Error(`No row for ${withAioCited.text}`);
     const cell = row.cells[columnIndex(grid, /^AI Overview$/)];
@@ -693,7 +721,7 @@ describe('Rankings rank columns', () => {
       if (checked === undefined) throw new Error('No checked keyword');
       const checkedRow = within(grid)
         .getAllByRole('rowheader')
-        .find((candidate) => candidate.textContent === checked.text)
+        .find((candidate) => named(candidate, checked.text))
         ?.closest('tr');
       if (!checkedRow) throw new Error(`No row for ${checked.text}`);
       const checkedCell = checkedRow.cells[columnIndex(grid, /^Trend$/)];
@@ -706,7 +734,7 @@ describe('Rankings rank columns', () => {
 
       const pendingRow = within(grid)
         .getAllByRole('rowheader')
-        .find((candidate) => candidate.textContent === 'generative engine optimization')
+        .find((candidate) => named(candidate, 'generative engine optimization'))
         ?.closest('tr');
       if (!pendingRow) throw new Error('No row for pending keyword');
       const pendingCell = pendingRow.cells[columnIndex(grid, /^Trend$/)];
@@ -820,7 +848,7 @@ describe('Rankings rank columns', () => {
       // Keyword 1 (seo agency berlin) excludes Meridian Growth, so its cell has "n/a"
       const row1Header = within(grid)
         .getAllByRole('rowheader')
-        .find((candidate) => candidate.textContent === 'seo agency berlin');
+        .find((candidate) => named(candidate, 'seo agency berlin'));
       const row1 = row1Header?.closest('tr');
       if (!row1) throw new Error('No row for seo agency berlin');
       const meridianColIndex = columnIndex(grid, /^Meridian Growth$/);
@@ -1104,7 +1132,7 @@ describe('Rankings rank filters', () => {
 
     const mismatchRow = within(grid)
       .getAllByRole('rowheader')
-      .find((candidate) => candidate.textContent === 'website seo audit');
+      .find((candidate) => named(candidate, 'website seo audit'));
     expect(mismatchRow).toBeDefined();
     if (!mismatchRow) throw new Error('No mismatch row found');
     const icon = mismatchRow.querySelector('svg.text-warning-text');

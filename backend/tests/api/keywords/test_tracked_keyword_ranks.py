@@ -580,6 +580,52 @@ async def test_the_rank_blocks_of_include(
     assert "ai_overview" in row["state"]["feature_types_present"]
 
 
+async def test_every_own_page_that_ranks_is_listed_best_first(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _world(resources, migrated)
+    tracked = await tracked_id(api, workspace, project, owner, "crm")
+    results = _results(9, 3)
+    results[3] = f"https://www.{OWN_HOST}/crm-guide"
+    await _check(worker_db, migrated, world, tracked, results)
+
+    (plain,) = await _list(api, workspace, project, owner)
+    (row,) = await _list(api, workspace, project, owner, include="ranking_urls")
+
+    assert plain["ranking_urls"] is None
+    assert row["state"]["ranking_url_count"] == 2
+    assert [
+        (page["url"]["path"], page["rank"], page["shares_rank"]) for page in row["ranking_urls"]
+    ] == [
+        ("/crm-guide", 4, False),
+        ("/pricing", 9, False),
+    ]
+    assert row["ranking_urls"][0]["url"]["host"] == f"www.{OWN_HOST}"
+    # The page at the best rank is the one the state names
+    assert row["state"]["current"]["url"]["path"] == "/crm-guide"
+
+
+async def test_a_keyword_that_never_ranked_lists_no_pages(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _world(resources, migrated)
+    unchecked = await tracked_id(api, workspace, project, owner, "never checked")
+    beyond = await tracked_id(api, workspace, project, owner, "beyond")
+    await _check(worker_db, migrated, world, beyond, _results(None, 3))
+
+    rows = await _list(api, workspace, project, owner, include="ranking_urls")
+
+    by_id = {row["tracked_keyword_id"]: row for row in rows}
+    assert by_id[unchecked]["ranking_urls"] == []
+    assert by_id[beyond]["ranking_urls"] == []
+
+
 async def test_the_detail_carries_the_state(
     api: httpx.AsyncClient,
     resources: Resources,
