@@ -135,6 +135,15 @@ export function buildGroups(rows: readonly PairedRow[], notGroupedLabel: string)
   return [...built.filter((g) => g.groupId !== NOT_GROUPED), ...built.filter((g) => g.groupId === NOT_GROUPED)];
 }
 
+/** The group of this id among the rows, built as the By group view builds it; `null` when no row is in it. */
+export function findGroup(rows: readonly PairedRow[], groupId: string, notGroupedLabel: string): GroupData | null {
+  return buildGroups(rows, notGroupedLabel).find((group) => group.groupId === groupId) ?? null;
+}
+
+/** A group's keyword rows in the order they are listed: best rank first, then by keyword. */
+export const keywordsInOrder = (group: GroupData): PairedRow[] =>
+  [...group.rows].sort((a, b) => byRank(rankOf(a), rankOf(b)) || a.keyword.text.localeCompare(b.keyword.text));
+
 /** The best (lowest) rank among a group's keywords. */
 const bestRankOf = (group: GroupData): number | null =>
   group.rows.reduce<number | null>((best, row) => (byRank(rankOf(row), best) < 0 ? rankOf(row) : best), null);
@@ -188,9 +197,7 @@ export function groupedRows({
     const open = expanded.has(group.groupId);
     list.push({ kind: 'group', id: `group:${group.groupId}`, group, expanded: open });
     if (!open) continue;
-    const keywords = [...group.rows].sort(
-      (a, b) => byRank(rankOf(a), rankOf(b)) || a.keyword.text.localeCompare(b.keyword.text),
-    );
+    const keywords = keywordsInOrder(group);
     const shown = showAll.has(group.groupId) ? keywords : keywords.slice(0, GROUP_PREVIEW);
     for (const row of shown) {
       list.push({ kind: 'keyword', id: `${group.groupId}:${row.tracked_keyword_id}`, groupId: group.groupId, row });

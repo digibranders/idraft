@@ -2257,7 +2257,32 @@
         "volume": "Volume",
         "rank": "Best rank"
       },
-      "loading": "Groups are complete when all keywords have loaded: {loaded} of {total} so far."
+      "loading": "Groups are complete when all keywords have loaded: {loaded} of {total} so far.",
+      "openGroup": "Open group",
+      "addKeywords": "Add keywords",
+      "renameGroup": "Rename group",
+      "deleteGroup": "Delete group",
+      "noKeywordsToCheck": "No keyword of this group is in view."
+    },
+    "groupInspector": {
+      "type": "Keyword group",
+      "noun": "group",
+      "figures": "On {device}",
+      "keywords": "Keywords",
+      "top3": "Top 3",
+      "top10": "Top 10",
+      "top20": "Top 20",
+      "volume": "Search volume",
+      "cited": "Cited in AI Overview",
+      "updated": "Last checked",
+      "notChecked": "Not checked yet",
+      "ofKeywords": "{count, number} of {total, number}",
+      "list": "Keywords and their rank",
+      "keyword": "Keyword",
+      "rank": "Rank",
+      "openKeyword": "Open {keyword}",
+      "emptyTitle": "No keywords of this group in view",
+      "emptyReason": "The device, country, filters or search leave out every keyword of this group."
     },
     "error": {
       "title": "The keywords did not load",

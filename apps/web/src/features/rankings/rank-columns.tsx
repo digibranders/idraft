@@ -33,6 +33,13 @@ export const RANK_COLUMN_IDS = {
   trend: 'trend',
 } as const;
 
+/** What a row's rank cell shows, from its state. */
+export const rankDisplayOf = (row: TrackedKeywordRow): ReturnType<typeof rankDisplay> =>
+  rankDisplay(row.state.current, row.state.is_stale, row.state.consecutive_failures, {
+    dropUnconfirmed: row.state.drop_unconfirmed,
+    check: row.state.check,
+  });
+
 export interface RankColumns {
   rank: DataTableColumn<TrackedKeywordRow>;
   url: DataTableColumn<TrackedKeywordRow>;
@@ -58,11 +65,7 @@ export function useRankColumns(timeZone: string): RankColumns {
   const tips = useRankTips(timeZone);
   return useMemo((): RankColumns => {
     const pending: UnknownValue = { label: t('pending'), tooltip: t('pendingTooltip') };
-    const display = (row: TrackedKeywordRow): ReturnType<typeof rankDisplay> =>
-      rankDisplay(row.state.current, row.state.is_stale, row.state.consecutive_failures, {
-        dropUnconfirmed: row.state.drop_unconfirmed,
-        check: row.state.check,
-      });
+    const display = rankDisplayOf;
     // The AI Overview cell says what it shows; only its failure is an icon that needs words
     const aioTip = (row: TrackedKeywordRow): CellTip | undefined =>
       row.state.current.state === 'failed' ? { content: aioT('failedTooltip') } : undefined;

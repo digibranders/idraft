@@ -11,6 +11,7 @@ import {
   type GroupedRow,
   type GroupedSelection,
 } from './grouped-rows';
+import type { GroupTarget } from './group-actions';
 import { useGroupedColumns } from './grouped-columns';
 import { hiddenInGroups, mergeHidden, visibleForView, type KeywordsView } from './view-columns';
 import { keywordText } from '../keyword-columns';
@@ -28,6 +29,12 @@ export const GROUP_SORTS = {
 export type GroupSortId = keyof typeof GROUP_SORTS;
 
 const NONE: ReadonlySet<string> = new Set();
+
+/** The rows whose keyword holds the search, as the flat table searches in memory. */
+export function searchedRows(rows: readonly PairedRow[], search: string): readonly PairedRow[] {
+  const needle = search.trim().toLocaleLowerCase();
+  return needle === '' ? rows : rows.filter((row) => keywordText(row).toLocaleLowerCase().includes(needle));
+}
 
 /** Group rows at level 1 in their order; the keyword and "Show all" rows of an open group at level 2 under it. */
 export function treeOf(rows: readonly GroupedRow[]): Map<string, Omit<RowTree, 'label'>> {
@@ -157,6 +164,10 @@ export interface GroupedTableOptions {
   openId: string | null;
   /** Takes the inspector's order: the tracked ids of the keyword rows shown. */
   onOrderChange: (ids: readonly string[]) => void;
+  /** The group open in the inspector. */
+  openGroupId: string | null;
+  /** The menu of a group row; keyword and "Show all" rows have none. */
+  groupActions: (target: GroupTarget) => readonly RecordAction<GroupedRow>[];
 }
 
 /** The props of the By group `DataTable` that are not shared with the flat one. */
@@ -172,6 +183,7 @@ export interface GroupedTableProps {
   onRowOpen: (row: GroupedRow, intent: 'inspector' | 'new-tab') => void;
   activeRowId: string | null;
   onRowOrderChange: (ids: readonly string[]) => void;
+  rowActions: (row: GroupedRow) => readonly RecordAction<GroupedRow>[];
 }
 
 export interface GroupedTable {
@@ -206,16 +218,15 @@ export function useGroupedTable({
   onKeywordOpen,
   openId,
   onOrderChange,
+  openGroupId,
+  groupActions,
 }: GroupedTableOptions): GroupedTable {
   const t = useTranslations('rankings.grouped');
   const [expanded, setExpanded] = useState<ReadonlySet<string> | null>(null);
   const [showAll, setShowAll] = useState<ReadonlySet<string>>(NONE);
   const [sort, setSort] = useState<GroupSortId>('size');
   const needle = search.trim().toLocaleLowerCase();
-  const searched = useMemo(
-    () => (needle === '' ? rows : rows.filter((row) => keywordText(row).toLocaleLowerCase().includes(needle))),
-    [rows, needle],
-  );
+  const searched = useMemo(() => searchedRows(rows, needle), [rows, needle]);
   const notGroupedLabel = t('notGrouped');
   const searching = needle !== '';
   const grouped = useMemo(() => {
@@ -300,10 +311,16 @@ export function useGroupedTable({
         else if (row.kind === 'more') onShowAll(row.groupId);
       },
       activeRowId:
-        openId === null
-          ? null
-          : (list.find((row) => row.kind === 'keyword' && row.row.tracked_keyword_id === openId)?.id ?? null),
+        openGroupId !== null
+          ? (list.find((row) => row.kind === 'group' && row.group.groupId === openGroupId)?.id ?? null)
+          : openId === null
+            ? null
+            : (list.find((row) => row.kind === 'keyword' && row.row.tracked_keyword_id === openId)?.id ?? null),
       onRowOrderChange: (ids) => onOrderChange(keywordOrder(list, ids)),
+      rowActions: (row) =>
+        row.kind === 'group'
+          ? groupActions({ groupId: row.group.groupId, label: row.group.label, memberIds: row.group.memberIds })
+          : [],
     },
     sort,
     setSort,

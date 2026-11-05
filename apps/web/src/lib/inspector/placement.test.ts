@@ -17,6 +17,12 @@ describe('inspect targets', () => {
     expect(formatInspectTarget({ type: 'prompt', id: 'p1' })).toBe('prompt:p1');
   });
 
+  it('reads a keyword group, "Not grouped" included', () => {
+    expect(parseInspectTarget('group:0192f0a1-3c44-7e10')).toEqual({ type: 'group', id: '0192f0a1-3c44-7e10' });
+    expect(parseInspectTarget('group:__none')).toEqual({ type: 'group', id: '__none' });
+    expect(defaultInspectorWidth('group')).toBe(400);
+  });
+
   it('opens nothing for an unknown type, an empty or spaced id, or no colon', () => {
     expect(parseInspectTarget('report:1')).toBeNull();
     expect(parseInspectTarget('keyword:')).toBeNull();

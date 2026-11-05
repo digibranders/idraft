@@ -9,9 +9,12 @@ import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { AddKeywordsDialog, type ProjectDefaults } from './add-keywords/add-keywords-dialog';
 import { useBulkActions } from './bulk/bulk-actions';
+import type { GroupChoice } from './groups/group-choices';
 import { ManageGroupsDialog } from './groups/manage-groups-dialog';
-import type { GroupedRow } from './grouped/grouped-rows';
-import { keywordActions, useGroupedTable, viewToShow } from './grouped/use-grouped-table';
+import { useGroupActions } from './grouped/group-actions';
+import { GroupInspector } from './grouped/group-inspector';
+import { NOT_GROUPED, findGroup, type GroupedRow } from './grouped/grouped-rows';
+import { keywordActions, searchedRows, useGroupedTable, viewToShow } from './grouped/use-grouped-table';
 import type { KeywordsView } from './grouped/view-columns';
 import { ViewSwitch } from './grouped/view-switch';
 import { ImportProgress } from './import/import-progress';
@@ -162,6 +165,12 @@ export function RankingsScreen({
   if (importOpen && !importWanted) setImportWanted(true);
   const canRefresh = useCan('runs:trigger');
   const [adding, setAdding] = useState(false);
+  // The group Add keywords starts with when it is opened from a group
+  const [addPreset, setAddPreset] = useState<GroupChoice | undefined>(undefined);
+  const openAdd = (preset?: GroupChoice): void => {
+    setAddPreset(preset);
+    setAdding(true);
+  };
   const [managing, setManaging] = useState(false);
   // The imports whose writes the header follows: those Confirm started, and one a reload found under way.
   // An import that ended is remembered, so no later read of the writes under way brings it back.
@@ -440,6 +449,7 @@ export function RankingsScreen({
   // keyword with unsaved changes (16-drawers-dialogs-popovers.md section 2.5)
   const inspector = useInspector();
   const openId = inspector.target?.type === 'keyword' ? inspector.target.id : null;
+  const openGroupId = inspector.target?.type === 'group' ? inspector.target.id : null;
   const [order, setOrder] = useState<readonly string[]>([]);
   const [editState, setEditState] = useState<InspectorEditState>('clean');
   const [pendingLeave, setPendingLeave] = useState<{ run: () => void } | null>(null);
@@ -479,6 +489,30 @@ export function RankingsScreen({
         : next;
     void setView({ cols: kept === null ? null : formatColumns(kept) });
   };
+  const openGroup = (groupId: string): void => guarded(() => inspector.open({ type: 'group', id: groupId }));
+  const groupActions = useGroupActions({
+    scope,
+    canWrite,
+    checkNow,
+    onOpen: openGroup,
+    onAddKeywords: openAdd,
+    onDeleted: (groupId) => {
+      if (groupId === openGroupId) inspector.close();
+    },
+  });
+  // The group open in the drawer, from the rows loaded, as By group counts it, whichever view shows
+  const notGroupedLabel = t('grouped.notGrouped');
+  const inspectedGroup = useMemo(
+    () =>
+      openGroupId === null
+        ? null
+        : findGroup(
+            list.mode === 'server' ? pairedRows : searchedRows(pairedRows, search),
+            openGroupId,
+            notGroupedLabel,
+          ),
+    [openGroupId, list.mode, pairedRows, search, notGroupedLabel],
+  );
   const grouped = useGroupedTable({
     rows: byGroup ? pairedRows : NO_ROWS,
     search,
@@ -493,6 +527,8 @@ export function RankingsScreen({
     onKeywordOpen: onRowOpen,
     openId,
     onOrderChange: setOrder,
+    openGroupId,
+    groupActions: groupActions.rowActions,
   });
   // In By group the keyword may sit in a closed group: it is hidden only when the search or filters leave it out
   const hiddenByFilters =
@@ -519,7 +555,7 @@ export function RankingsScreen({
   const searched = (list.mode === 'server' ? search : view.q).trim();
   const activeFilters = Object.keys(values).length;
   const addButton = (
-    <Button variant="primary" size="sm" icon={Plus} onClick={() => setAdding(true)}>
+    <Button variant="primary" size="sm" icon={Plus} onClick={() => openAdd()}>
       {t('add.open')}
     </Button>
   );
@@ -619,7 +655,7 @@ export function RankingsScreen({
         onMenuOpenChange={(open) => {
           if (open) void loadImportDialog();
         }}
-        onClick={() => setAdding(true)}
+        onClick={() => openAdd()}
       >
         {t('add.open')}
       </SplitButton>
@@ -726,6 +762,33 @@ export function RankingsScreen({
       />
     );
 
+  const groupLabel =
+    openGroupId === null
+      ? ''
+      : (inspectedGroup?.label ??
+        (openGroupId === NOT_GROUPED
+          ? notGroupedLabel
+          : (projectGroups.data?.data.find((group) => group.group_id === openGroupId)?.path ?? '')));
+  const groupTarget =
+    openGroupId === null
+      ? null
+      : { groupId: openGroupId, label: groupLabel, memberIds: inspectedGroup?.memberIds ?? [] };
+  const inspectorElement =
+    groupTarget === null ? (
+      keywordInspector
+    ) : (
+      <GroupInspector
+        group={inspectedGroup}
+        label={groupTarget.label}
+        device={keywordScope.device}
+        timeZone={timeZone}
+        onClose={() => inspector.close()}
+        onOpenKeyword={(id) => inspector.open({ type: 'keyword', id })}
+        frequentAction={groupActions.checkNowButton(groupTarget)}
+        moreActions={groupActions.moreItems(groupTarget)}
+      />
+    );
+
   // What both views' tables share; the view switch is the same element in both, so switching keeps the table
   const tableProps = {
     caption: t('caption'),
@@ -765,7 +828,7 @@ export function RankingsScreen({
   };
 
   return (
-    <InspectorLayout inspector={keywordInspector}>
+    <InspectorLayout inspector={inspectorElement}>
       <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
         <PageHeader
           title={t('title')}
@@ -918,11 +981,15 @@ export function RankingsScreen({
       </div>
       {refresh.dialog}
       {canWrite ? bulk.dialogs : null}
+      {groupActions.dialogs}
       {canWrite ? (
         <ManageGroupsDialog scope={scope} open={managing} onOpenChange={setManaging} finalFocus={moreButton} />
       ) : null}
       {canWrite ? (
         <AddKeywordsDialog
+          // The form starts with the group it was opened from, so a new group starts a new form
+          key={addPreset?.key ?? ''}
+          groupPreset={addPreset}
           scope={scope}
           defaults={defaults}
           open={adding}

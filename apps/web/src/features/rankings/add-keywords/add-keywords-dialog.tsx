@@ -88,6 +88,11 @@ export interface AddKeywordsDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Opens a keyword the project tracks already, from the result: "Show it". */
   onShowKeyword: (trackedKeywordId: string, archived: boolean) => void;
+  /**
+   * The group the form starts with, when it is opened from a group. The form reads it when it starts and when
+   * it is reset, so the caller gives the dialog a new `key` when the group changes.
+   */
+  groupPreset?: GroupChoice | undefined;
 }
 
 /**
@@ -105,6 +110,7 @@ export function AddKeywordsDialog({
   open,
   onOpenChange,
   onShowKeyword,
+  groupPreset,
 }: AddKeywordsDialogProps): ReactElement {
   const t = useTranslations('rankings.add');
   const common = useTranslations('common');
@@ -175,7 +181,7 @@ export function AddKeywordsDialog({
     countries: country === null ? [] : [country],
     language_code: defaults.languageCode ?? 'en',
     device,
-    groups: [],
+    groups: groupPreset === undefined ? [] : [groupPreset],
     term_ids: [],
     priority: DEFAULT_PRIORITY,
   });
