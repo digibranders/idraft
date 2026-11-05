@@ -13,20 +13,21 @@ import {
   canRetryConnect,
   connectErrorKey,
   displayStatus,
-  gscView,
-  liveIntegration,
+  googleView,
+  productSection,
   REQUESTED_SCOPES,
-  type GscView,
-} from './gsc-model';
+  type GoogleView,
+  type Product,
+} from './google-model';
 import {
   connectionsQuery,
   DISCONNECT_GOOGLE,
   integrationsQuery,
-  refreshGsc,
+  refreshGoogle,
   SWITCH_OFF_PROPERTY,
-  type GscScope,
-} from './gsc-queries';
-import { PropertyChooser } from './property-chooser';
+  type GoogleScope,
+} from './google-queries';
+import { ProductSection } from './product-section';
 import { SyncSection } from './sync-section';
 import { useAuthorize } from './use-authorize';
 import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
@@ -42,11 +43,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import { useErrorId } from '@/lib/api/use-error-id';
+import type { Integration } from '@/lib/api/types';
 import { canManageIntegrations, useMembership } from '@/lib/permissions';
 import { useFreshSession } from '@/lib/session/fresh-session';
 import { integrationsPath } from '@/lib/routes/paths';
 
-export interface GscScreenProps extends GscScope {
+export interface GoogleScreenProps extends GoogleScope {
   workspaceSlug: string;
   projectSlug: string;
   /** The project's time zone, where the connection's date is written. */
@@ -55,23 +57,25 @@ export interface GscScreenProps extends GscScope {
 
 type Confirming = 'disconnect' | 'change' | null;
 /** The other sources of Integrations: listed so the person sees what the page will offer, none has a page yet. */
-const OTHER_SOURCES = ['bing', 'ga4', 'cloudflare', 'imports'] as const;
+const OTHER_SOURCES = ['bing', 'cloudflare', 'imports'] as const;
 
 /**
- * Integrations > Google Search Console (T5, 24-page-templates.md section 9.12; docs/18 sections 4.1, 4.8 and
- * 14). One page for every state of the connection: not connected, back from Google with a connection to
- * choose a property for, connected, Google refusing the saved sign-in, and a failed return (`?error=`).
- * Connecting, choosing and disconnecting need `integrations:manage` for every project; anyone who can read
- * the project sees the state. Nothing here shows numbers the API does not have: there is no sync yet.
+ * Integrations > Google (T5, 24-page-templates.md section 9.12; docs/18 sections 3.2, 4.1, 4.8 and 14). One
+ * Google login is one connection with one consent for Search Console and GA4, so one page: not connected,
+ * back from Google with a connection to choose properties for, connected, Google refusing the saved sign-in
+ * (for both products at once), and a failed return (`?error=`). Below the connection each product has a
+ * section of its own, since the person may have granted only one. Connecting, choosing and disconnecting need
+ * `integrations:manage` for every project; anyone who can read the project sees the state. Nothing here shows
+ * numbers the API does not have: GA4 is only chosen for now.
  */
-export function GscScreen({
+export function GoogleScreen({
   workspaceId,
   workspaceSlug,
   projectId,
   projectSlug,
   timeZone,
-}: GscScreenProps): ReactElement {
-  const scope: GscScope = { workspaceId, projectId };
+}: GoogleScreenProps): ReactElement {
+  const scope: GoogleScope = { workspaceId, projectId };
   const t = useTranslations('integrations');
   const common = useTranslations('common');
   const membership = useMembership();
@@ -92,13 +96,19 @@ export function GscScreen({
   const [confirming, setConfirming] = useState<Confirming>(null);
   // What the open dialog is about, kept from the moment it opened: the change it asks for removes the property
   // and the connection from the page, and the dialog is still fading out when they are gone
-  const [subject, setSubject] = useState<{ property: string; projects: number }>({ property: '', projects: 1 });
+  const [subject, setSubject] = useState<{ product: Product; property: string; projects: number }>({
+    product: 'gsc',
+    property: '',
+    projects: 1,
+  });
+  // The property the "Change" dialog switches off
+  const [changing, setChanging] = useState<Integration | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const loadError = integrations.error ?? connections.error;
   const errorId = useErrorId(loadError);
 
   const tabs: TabNavItem[] = [
-    { href: integrationsPath(workspaceSlug, projectSlug), label: t('tabs.gsc'), current: true },
+    { href: integrationsPath(workspaceSlug, projectSlug), label: t('tabs.google'), current: true },
     ...OTHER_SOURCES.map((source): TabNavItem => ({
       href: integrationsPath(workspaceSlug, projectSlug),
       label: t(`tabs.${source}`),
@@ -150,30 +160,24 @@ export function GscScreen({
     );
   }
 
-  const view = gscView({
-    integration: liveIntegration(integrations.data.data),
+  const view = googleView({
+    integrations: integrations.data.data,
     connections: canManage ? (connections.data?.data ?? []) : null,
     returnedId,
   });
   const account = accountOf(view);
   const accountName = account ?? t('accountUnknown');
   const connection = view.kind === 'not-connected' ? null : view.connection;
-  const property =
-    view.kind === 'connected' || view.kind === 'reauth' ? (view.integration?.external_property ?? null) : null;
 
   const meta = ((): string => {
-    switch (view.kind) {
-      case 'not-connected':
-        return t('meta.notConnected');
-      case 'choose':
-        return t('meta.chooseProperty', { account: accountName });
-      case 'reauth':
-        return t('meta.reauth', { account: accountName });
-      case 'connected':
-        return displayStatus(view) === 'error'
-          ? t('meta.problem', { account: accountName })
-          : t('meta.connected', { account: accountName, property: view.integration.external_property });
-    }
+    if (view.kind === 'not-connected') return t('meta.notConnected');
+    if (view.reauth) return t('meta.reauth', { account: accountName });
+    if (displayStatus(view) === 'error') return t('meta.problem', { account: accountName });
+    return t('meta.connected', {
+      account: accountName,
+      gsc: view.gsc?.external_property ?? t('meta.noProperty'),
+      ga4: view.ga4?.external_property ?? t('meta.noProperty'),
+    });
   })();
 
   const clearReturn = (): void => {
@@ -204,18 +208,16 @@ export function GscScreen({
     }
     toast({ type: 'success', title: t('disconnect.done'), description: t('disconnect.doneDetail') });
     clearReturn();
-    await refreshGsc(queryClient, scope);
+    await refreshGoogle(queryClient, scope);
   };
 
   const confirmChange = async (): Promise<void> => {
-    if (view.kind !== 'connected' && view.kind !== 'reauth') return;
-    const { integration } = view;
-    if (integration === null) return;
+    if (changing === null) return;
     setConfirmError(null);
     try {
       await switchOff.mutateAsync({
         params: {
-          path: { workspace_id: workspaceId, project_id: projectId, integration_id: integration.integration_id },
+          path: { workspace_id: workspaceId, project_id: projectId, integration_id: changing.integration_id },
         },
       });
     } catch (error) {
@@ -225,11 +227,21 @@ export function GscScreen({
       }
     }
     toast({ type: 'success', title: t('change.done') });
-    await refreshGsc(queryClient, scope);
+    await refreshGoogle(queryClient, scope);
+  };
+
+  const askToChange = (product: Product, integration: Integration): void => {
+    setChanging(integration);
+    setSubject({
+      product,
+      property: integration.external_property,
+      projects: connection?.integration_count ?? 1,
+    });
+    setConfirming('change');
   };
 
   const menuItems: MenuItemDef[] = [
-    ...(view.kind === 'connected'
+    ...(view.kind === 'connected' && !view.reauth
       ? [{ id: 'reconnect', label: t('actions.reconnectItem'), onSelect: authorize.connect } satisfies MenuItemDef]
       : []),
     ...(connection === null
@@ -240,7 +252,7 @@ export function GscScreen({
             label: t('actions.disconnect'),
             tone: 'destructive',
             onSelect: () => {
-              setSubject({ property: property ?? '', projects: connection.integration_count });
+              setSubject({ product: 'gsc', property: '', projects: connection.integration_count });
               setConfirming('disconnect');
             },
           } satisfies MenuItemDef,
@@ -248,7 +260,7 @@ export function GscScreen({
   ];
   const actions = canManage ? (
     <>
-      {view.kind === 'reauth' ? (
+      {view.kind === 'connected' && view.reauth ? (
         <Button variant="primary" loading={authorize.pending} onClick={authorize.connect}>
           {t('actions.reconnect')}
         </Button>
@@ -289,7 +301,7 @@ export function GscScreen({
       )}
       {authorize.error === null ? null : <Banner tone="negative" placement="region" live message={authorize.error} />}
       {canManage ? null : <Banner tone="info" placement="region" lead={t('readOnlyLead')} message={t('readOnly')} />}
-      {view.kind === 'reauth' ? (
+      {view.kind === 'connected' && view.reauth ? (
         <Banner
           tone="warning"
           placement="region"
@@ -320,13 +332,9 @@ export function GscScreen({
           view={view}
           scope={scope}
           account={account}
-          property={property}
           timeZone={timeZone}
           canManage={canManage}
-          onChange={() => {
-            setSubject({ property: property ?? '', projects: connection?.integration_count ?? 1 });
-            setConfirming('change');
-          }}
+          onChange={askToChange}
           onChosen={clearReturn}
           onReconnect={authorize.connect}
         />
@@ -348,7 +356,7 @@ export function GscScreen({
       <ConfirmDialog
         open={confirming === 'change'}
         onOpenChange={closeConfirm}
-        title={t('change.title')}
+        title={t(`change.title.${subject.product}`)}
         description={t('change.description', { property: subject.property })}
         confirmLabel={t('change.confirm')}
         cancelLabel={common('cancel')}
@@ -361,51 +369,51 @@ export function GscScreen({
 }
 
 interface ConnectedBodyProps {
-  view: Exclude<GscView, { kind: 'not-connected' }>;
-  scope: GscScope;
+  view: Extract<GoogleView, { kind: 'connected' }>;
+  scope: GoogleScope;
   account: string | null;
-  property: string | null;
   timeZone: string;
   canManage: boolean;
-  onChange: () => void;
+  onChange: (product: Product, integration: Integration) => void;
   onChosen: () => void;
   onReconnect: () => void;
 }
 
-/** Everything under the header once a Google account is connected: its facts, the picker or the sync, and the access. */
+/**
+ * Everything under the header once a Google account is connected: the connection's facts, the access it was
+ * granted, a section for each product's property, and the Search Console sync.
+ */
 function ConnectedBody({
   view,
   scope,
   account,
-  property,
   timeZone,
   canManage,
   onChange,
   onChosen,
   onReconnect,
 }: ConnectedBodyProps): ReactElement {
-  const status = view.kind === 'choose' ? view.connection.status : displayStatus(view);
+  const status = displayStatus(view);
+  const products: readonly Product[] = ['gsc', 'ga4'];
   return (
     <>
-      <ConnectionPanel
-        status={status}
-        account={account}
-        connection={view.connection}
-        property={property}
-        timeZone={timeZone}
-        onChangeProperty={canManage && view.kind === 'connected' ? onChange : undefined}
-      />
-      {view.kind === 'choose' ? (
-        <PropertyChooser
-          {...scope}
-          connection={view.connection}
+      <ConnectionPanel status={status} account={account} connection={view.connection} timeZone={timeZone} />
+      <AccessPanel scopes={view.connection?.scopes ?? REQUESTED_SCOPES} granted={view.connection !== null} />
+      {products.map((product) => (
+        <ProductSection
+          key={product}
+          product={product}
+          section={productSection(view, product)}
+          scope={scope}
           account={account}
+          canManage={canManage}
+          reauth={view.reauth}
+          onChange={(integration) => onChange(product, integration)}
           onChosen={onChosen}
           onReconnect={onReconnect}
         />
-      ) : null}
-      <AccessPanel scopes={view.connection?.scopes ?? REQUESTED_SCOPES} />
-      <SyncSection propertyChosen={property !== null} />
+      ))}
+      <SyncSection propertyChosen={view.gsc !== null} />
     </>
   );
 }

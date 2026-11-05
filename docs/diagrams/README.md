@@ -358,10 +358,10 @@ sequenceDiagram
     participant R2 as R2
     participant WP as worker (process queue)
 
-    U->>W: Connect Search Console
-    W->>A: POST /integrations/gsc/authorize
+    U->>W: Connect Google
+    W->>A: POST /integrations/google/authorize
     A->>R: store state + PKCE verifier (10 min TTL, bound to session and workspace)
-    A-->>W: Google authorize URL (webmasters.readonly openid email, offline, consent)
+    A-->>W: Google authorize URL (webmasters.readonly analytics.readonly openid email, offline, consent)
     W->>G: redirect, user consents
     G->>A: GET /oauth/google/callback?code&state
     A->>R: consume state (single use)

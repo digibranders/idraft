@@ -4,7 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useCallback, useState } from 'react';
 
-import { AUTHORIZE_GSC, type GscScope } from './gsc-queries';
+import { AUTHORIZE_GOOGLE, type GoogleScope } from './google-queries';
 import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
 import { hardNavigate } from '@/lib/navigation/hard-navigate';
@@ -34,23 +34,24 @@ export function isConsentAddress(address: string, origin: string): boolean {
 }
 
 /**
- * Starts connecting Google (docs/18 section 4.8): `POST .../integrations/gsc/authorize` needs a fresh
- * session, which `withFresh` asks for, then the page navigates to the consent address. Google returns the
- * person to this page with `?connection_id=` or `?error=`.
+ * Starts connecting Google (docs/18 section 4.8): `POST .../integrations/google/authorize` needs a
+ * fresh session, which `withFresh` asks for, then the page navigates to the consent address. One consent
+ * asks for Search Console and GA4 together. Google returns the person to this page with `?connection_id=`
+ * or `?error=`.
  */
-export function useAuthorize({ workspaceId, projectId }: GscScope): Authorize {
+export function useAuthorize({ workspaceId, projectId }: GoogleScope): Authorize {
   const t = useTranslations('integrations');
   const withFresh = useFreshSession();
-  const { mutationFn } = AUTHORIZE_GSC;
+  const { mutationFn } = AUTHORIZE_GOOGLE;
   if (mutationFn === undefined) throw new Error('apiMutation gave no mutationFn');
-  const authorize = useMutation({ ...AUTHORIZE_GSC, mutationFn: withFresh(mutationFn) });
+  const authorize = useMutation({ ...AUTHORIZE_GOOGLE, mutationFn: withFresh(mutationFn) });
   const [navigating, setNavigating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const connect = useCallback((): void => {
     setError(null);
     authorize
-      .mutateAsync({ params: { path: { workspace_id: workspaceId, project_id: projectId, kind: 'gsc' } } })
+      .mutateAsync({ params: { path: { workspace_id: workspaceId, project_id: projectId } } })
       .then((answer) => {
         const address = answer.data.authorization_url;
         if (!isConsentAddress(address, window.location.origin)) {

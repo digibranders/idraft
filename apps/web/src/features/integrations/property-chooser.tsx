@@ -1,18 +1,18 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, type ReactElement } from 'react';
 
-import { propertyRows, type PropertyRow } from './gsc-model';
-import { CHOOSE_PROPERTY, propertiesQuery, refreshGsc, type GscScope } from './gsc-queries';
+import { propertyRows, type PropertyRow } from './google-model';
+import { refreshGoogle, searchConsolePropertiesQuery, type GoogleScope } from './google-queries';
+import { useChooseProperty } from './use-choose-property';
 import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import { useErrorId } from '@/lib/api/use-error-id';
 import type { Connection, SiteProperty } from '@/lib/api/types';
@@ -22,7 +22,7 @@ type KnownPermission = (typeof KNOWN_PERMISSIONS)[number];
 const isKnownPermission = (value: string): value is KnownPermission =>
   KNOWN_PERMISSIONS.some((known) => known === value);
 
-export interface PropertyChooserProps extends GscScope {
+export interface PropertyChooserProps extends GoogleScope {
   connection: Connection;
   account: string | null;
   /** Called once the property is saved, after the page has read the new state. */
@@ -32,10 +32,11 @@ export interface PropertyChooserProps extends GscScope {
 }
 
 /**
- * The property picker after Google (docs/18 section 4.1): every property the account can see, with its type
- * and the account's permission. An unverified user's entry is disabled with the reason, since Search Console
- * refuses to hand it numbers; one already linked to a project is disabled too; one that overlaps a linked
- * site warns. The property matching the project's primary domain comes first and has the primary button.
+ * The Search Console property picker after Google (docs/18 section 4.1): every property the account can see,
+ * with its type and the account's permission. An unverified user's entry is disabled with the reason, since
+ * Search Console refuses to hand it numbers; one already linked to a project is disabled too; one that
+ * overlaps a linked site warns. The property matching the project's primary domain comes first and has the
+ * primary button.
  */
 export function PropertyChooser({
   workspaceId,
@@ -50,16 +51,21 @@ export function PropertyChooser({
   const reauth = useTranslations('integrations.reauth');
   const common = useTranslations('common');
   const queryClient = useQueryClient();
-  const properties = useQuery(propertiesQuery(workspaceId, connection.connection_id));
+  const properties = useQuery(searchConsolePropertiesQuery(workspaceId, connection.connection_id));
   const errorId = useErrorId(properties.error);
-  const choose = useMutation(CHOOSE_PROPERTY);
-  const [choosing, setChoosing] = useState<string | null>(null);
+  const { choosing, pick } = useChooseProperty(
+    { workspaceId, projectId },
+    connection.connection_id,
+    'gsc',
+    () => void properties.refetch(),
+  );
   const needsReauth = properties.isError && isApiProblem(properties.error, 'integration_reauth_required');
+  const scopeMissing = properties.isError && isApiProblem(properties.error, 'integration_scope_missing');
   // The API marks the connection when it finds the sign-in refused, so the page reads it again and switches
   // to its reconnect state; the banner below covers the moment before that
   useEffect(() => {
-    if (needsReauth) void refreshGsc(queryClient, { workspaceId, projectId });
-  }, [needsReauth, queryClient, workspaceId, projectId]);
+    if (needsReauth || scopeMissing) void refreshGoogle(queryClient, { workspaceId, projectId });
+  }, [needsReauth, scopeMissing, queryClient, workspaceId, projectId]);
 
   const rows = propertyRows(properties.data?.data ?? [], projectId);
   const permissionLabel = (level: string): string =>
@@ -67,34 +73,8 @@ export function PropertyChooser({
   const typeLabel = (type: SiteProperty['property_type']): string =>
     shared(`propertyTypes.${type === 'domain' ? 'domain' : 'urlPrefix'}`);
 
-  const pick = async (row: PropertyRow): Promise<void> => {
-    const { external_property: property } = row.property;
-    setChoosing(property);
-    try {
-      await choose.mutateAsync({
-        params: { path: { workspace_id: workspaceId, project_id: projectId } },
-        body: { connection_id: connection.connection_id, kind: 'gsc', external_property: property },
-      });
-    } catch (error) {
-      const stale = isApiProblem(error, 'property_not_accessible') || isApiProblem(error, 'duplicate');
-      toast({
-        type: 'error',
-        title: isApiProblem(error, 'property_not_accessible')
-          ? t('notAccessible')
-          : isApiProblem(error, 'duplicate')
-            ? t('taken')
-            : isApiProblem(error, 'service_unavailable')
-              ? t('googleUnavailable')
-              : t('failed'),
-      });
-      if (stale) void properties.refetch();
-      setChoosing(null);
-      return;
-    }
-    toast({ type: 'success', title: t('chosen'), description: t('chosenDetail', { property }) });
-    await refreshGsc(queryClient, { workspaceId, projectId });
-    setChoosing(null);
-    onChosen();
+  const choose = async (row: PropertyRow): Promise<void> => {
+    if (await pick(row.property.external_property, row.property.external_property)) onChosen();
   };
 
   const columns: PlainColumn<PropertyRow>[] = [
@@ -141,7 +121,7 @@ export function PropertyChooser({
           aria-label={t('chooseProperty', { property: row.property.label })}
           disabled={row.blocked !== null || (choosing !== null && choosing !== row.property.external_property)}
           loading={choosing === row.property.external_property}
-          onClick={() => void pick(row)}
+          onClick={() => void choose(row)}
         >
           {t('choose')}
         </Button>
@@ -150,15 +130,12 @@ export function PropertyChooser({
   ];
 
   return (
-    <section
-      aria-labelledby="gsc-chooser-title"
-      className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-5 py-4"
-    >
+    <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 id="gsc-chooser-title" className="type-section-title">
+          <h3 id="gsc-chooser-title" className="type-body-strong">
             {t('title')}
-          </h2>
+          </h3>
           <p className="mt-1 type-meta">{t('description')}</p>
           {account === null ? null : <p className="type-meta">{t('account', { account })}</p>}
         </div>
@@ -176,6 +153,17 @@ export function PropertyChooser({
           placement="region"
           lead={reauth('lead')}
           message={reauth('message', { account: account ?? shared('accountUnknown') })}
+          actions={
+            <Button size="sm" onClick={onReconnect}>
+              {t('reconnect')}
+            </Button>
+          }
+        />
+      ) : scopeMissing ? (
+        <Banner
+          tone="warning"
+          placement="region"
+          message={shared('product.gsc.accessMissing')}
           actions={
             <Button size="sm" onClick={onReconnect}>
               {t('reconnect')}
@@ -205,6 +193,6 @@ export function PropertyChooser({
           skeletonRows={3}
         />
       )}
-    </section>
+    </div>
   );
 }

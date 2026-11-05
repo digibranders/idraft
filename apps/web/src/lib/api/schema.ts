@@ -450,7 +450,7 @@ export interface paths {
         };
         /**
          * Where Google returns the person after consent
-         * @description Public, but the single-use `state` must belong to the caller's session. Always a 302 to the project's integrations page: `.../integrations/gsc?connection_id=...` on success, `...?error=<code>` otherwise, with `invalid_state`, `scope_denied`, `no_refresh_token`, `exchange_failed`, `google_unavailable` or `integration_not_configured`. When the project cannot be known (a wrong or reused state) it goes to the app's front page with `?integration_error=invalid_state`.
+         * @description Public, but the single-use `state` must belong to the caller's session. Always a 302 to the project's Google page: `.../integrations/google?connection_id=...` on success (when at least one product permission was granted), `...?error=<code>` otherwise, with `invalid_state`, `scope_denied`, `no_refresh_token`, `exchange_failed`, `google_unavailable` or `integration_not_configured`. When the project cannot be known (a wrong or reused state) it goes to the app's front page with `?integration_error=invalid_state`.
          */
         get: operations["google_callback_api_v1_oauth_google_callback_get"];
         put?: never;
@@ -549,7 +549,7 @@ export interface paths {
         post?: never;
         /**
          * Disconnect a Google account
-         * @description Revokes the token at Google (best effort), deletes the stored credential, marks the connection revoked and switches off its properties. The numbers already stored are kept. Disconnecting a revoked connection changes nothing.
+         * @description Revokes the token at Google (best effort), deletes the stored credential, marks the connection revoked and switches off its properties, Search Console and GA4. The numbers already stored are kept. Disconnecting a revoked connection changes nothing.
          */
         delete: operations["disconnect_api_v1_workspaces__workspace_id__connections__connection_id__delete"];
         options?: never;
@@ -557,7 +557,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/workspaces/{workspace_id}/connections/{connection_id}/properties": {
+    "/api/v1/workspaces/{workspace_id}/connections/{connection_id}/properties/ga4": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The GA4 properties of a connection
+         * @description Asks the Google Analytics Admin API (`accountSummaries.list`), by account and name. No domain is matched and none is suggested. The same problem codes as the Search Console list: `integration_reauth_required` and `integration_scope_missing` (409), `google_unavailable` and `google_rate_limited` (503).
+         */
+        get: operations["list_analytics_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_ga4_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/connections/{connection_id}/properties/gsc": {
         parameters: {
             query?: never;
             header?: never;
@@ -566,9 +586,9 @@ export interface paths {
         };
         /**
          * The Search Console properties of a connection
-         * @description Asks Google, so it can answer `google_unavailable` or `google_rate_limited` (503). `suggested_project_id` names the project whose primary domain the property matches, a Domain property before a URL prefix. `integration_reauth_required` (409) when the account must connect again.
+         * @description Asks Google, so it can answer `google_unavailable` or `google_rate_limited` (503). `suggested_project_id` names the project whose primary domain the property matches, a Domain property before a URL prefix. `integration_reauth_required` (409) when the account must connect again; `integration_scope_missing` (409) when Search Console access was not granted, without asking Google.
          */
-        get: operations["list_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_get"];
+        get: operations["list_search_console_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_gsc_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -999,10 +1019,30 @@ export interface paths {
         get: operations["list_project_integrations_api_v1_workspaces__workspace_id__projects__project_id__integrations_get"];
         put?: never;
         /**
-         * Link a Search Console property to the project
-         * @description The connection must be active and its account must be able to read the property (`property_not_accessible`, 422). A project has one live property and a property belongs to one project of the workspace (`duplicate`, 409). Nothing is pulled yet.
+         * Link a Search Console or GA4 property to the project
+         * @description `kind` is `gsc` (a Search Console property) or `ga4` (`properties/<number>`). The connection must be active, must have been granted that product (`integration_scope_missing`, 409) and its account must be able to read the property (`property_not_accessible`, 422). A project has one live property per kind and a property belongs to one project of the workspace (`duplicate`, 409). Nothing is pulled yet for GA4.
          */
         post: operations["choose_property_api_v1_workspaces__workspace_id__projects__project_id__integrations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations/google/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start connecting a Google account
+         * @description Answers Google's consent address; the web app sends the person there. One consent asks for Search Console and Google Analytics together, and the person may untick one. The address carries a single-use state and a PKCE challenge, both valid for 10 minutes and bound to the caller, the workspace and the project. Google returns the person to `GET /api/v1/oauth/google/callback`. `integration_not_configured` (503) when this installation has no Google OAuth client.
+         */
+        post: operations["authorize_api_v1_workspaces__workspace_id__projects__project_id__integrations_google_authorize_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1024,26 +1064,6 @@ export interface paths {
          * @description The property is switched off and the numbers already stored are kept.
          */
         delete: operations["disable_integration_api_v1_workspaces__workspace_id__projects__project_id__integrations__integration_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations/{kind}/authorize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Start connecting a Google account
-         * @description Answers Google's consent address; the web app sends the person there. The address carries a single-use state and a PKCE challenge, both valid for 10 minutes and bound to the caller, the workspace and the project. Google returns the person to `GET /api/v1/oauth/google/callback`. `integration_not_configured` (503) when this installation has no Google OAuth client.
-         */
-        post: operations["authorize_api_v1_workspaces__workspace_id__projects__project_id__integrations__kind__authorize_post"];
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2241,6 +2261,44 @@ export interface components {
             /** Requires Context */
             requires_context?: boolean;
         };
+        /** AnalyticsProperty */
+        AnalyticsProperty: {
+            /**
+             * Account Id
+             * @description `accounts/123`.
+             */
+            account_id: string;
+            /**
+             * Account Label
+             * @description The Analytics account's name.
+             */
+            account_label: string;
+            /**
+             * External Property
+             * @description `properties/123456`.
+             */
+            external_property: string;
+            /**
+             * Label
+             * @description The property's name in Google Analytics.
+             */
+            label: string;
+            /**
+             * Linked Project Id
+             * @description The project this property is already linked to. It cannot be linked twice.
+             */
+            linked_project_id: string | null;
+            /**
+             * Property Type
+             * @enum {string}
+             */
+            property_type: "ordinary" | "subproperty" | "rollup" | "unspecified";
+        };
+        /** AnalyticsPropertyList */
+        AnalyticsPropertyList: {
+            /** Data */
+            data: components["schemas"]["AnalyticsProperty"][];
+        };
         /** AuthorizationResponse */
         AuthorizationResponse: {
             data: components["schemas"]["OAuthStart"];
@@ -2473,6 +2531,8 @@ export interface components {
         };
         /** Connection */
         Connection: {
+            /** @description Per product, from the granted scopes. */
+            access: components["schemas"]["ConnectionAccess"];
             /**
              * Auth Method
              * @enum {string}
@@ -2502,7 +2562,7 @@ export interface components {
              * Product
              * @enum {string}
              */
-            product: "gsc" | "ga4" | "bing_wmt" | "cloudflare";
+            product: "google" | "bing_wmt" | "cloudflare";
             /** Scopes */
             scopes: string[];
             /**
@@ -2515,6 +2575,23 @@ export interface components {
              * @description The connected account, for display.
              */
             subject_label: string | null;
+        };
+        /**
+         * ConnectionAccess
+         * @description Which products the person let us read when they connected. Google lets them untick a
+         *     permission, so a connection can have one product and not the other.
+         */
+        ConnectionAccess: {
+            /**
+             * Ga4
+             * @description Google Analytics (`analytics.readonly`) was granted.
+             */
+            ga4: boolean;
+            /**
+             * Gsc
+             * @description Search Console (`webmasters.readonly`) was granted.
+             */
+            gsc: boolean;
         };
         /** ConnectionPage */
         ConnectionPage: {
@@ -3292,9 +3369,9 @@ export interface components {
             external_property: string;
             /**
              * Kind
-             * @constant
+             * @enum {string}
              */
-            kind: "gsc";
+            kind: "gsc" | "ga4";
         };
         /** IntegrationPage */
         IntegrationPage: {
@@ -7556,7 +7633,7 @@ export interface operations {
     list_connections_api_v1_workspaces__workspace_id__connections_get: {
         parameters: {
             query?: {
-                "filter[product]"?: ("gsc" | "ga4" | "bing_wmt" | "cloudflare") | null;
+                "filter[product]"?: ("google" | "bing_wmt" | "cloudflare") | null;
                 "filter[status]"?: ("active" | "reauth_required" | "revoked" | "error") | null;
                 offset?: number;
                 limit?: number;
@@ -7621,7 +7698,39 @@ export interface operations {
             };
         };
     };
-    list_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_get: {
+    list_analytics_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_ga4_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connection_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsPropertyList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_search_console_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_gsc_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -8863,6 +8972,38 @@ export interface operations {
             };
         };
     };
+    authorize_api_v1_workspaces__workspace_id__projects__project_id__integrations_google_authorize_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthorizationResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     disable_integration_api_v1_workspaces__workspace_id__projects__project_id__integrations__integration_id__delete: {
         parameters: {
             query?: never;
@@ -8883,39 +9024,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IntegrationResponse"];
-                };
-            };
-            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    authorize_api_v1_workspaces__workspace_id__projects__project_id__integrations__kind__authorize_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                kind: "gsc";
-                project_id: string;
-                workspace_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuthorizationResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -11087,7 +11195,7 @@ type ReadonlyArray<T> = [
     unknown[]
 ] ? Readonly<Exclude<T, undefined>> : Readonly<Exclude<T, undefined>[]>;
 export const pathsApiV1LocationsGetParametersQueryFilterSupportsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/locations"]["get"]["parameters"]["query"]["filter[supports]"]> = ["serp", "ai_mode", "llm_scraper"];
-export const pathsApiV1WorkspacesWorkspace_idConnectionsGetParametersQueryFilterProductAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/connections"]["get"]["parameters"]["query"]["filter[product]"]> = ["gsc", "ga4", "bing_wmt", "cloudflare"];
+export const pathsApiV1WorkspacesWorkspace_idConnectionsGetParametersQueryFilterProductAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/connections"]["get"]["parameters"]["query"]["filter[product]"]> = ["google", "bing_wmt", "cloudflare"];
 export const pathsApiV1WorkspacesWorkspace_idConnectionsGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/connections"]["get"]["parameters"]["query"]["filter[status]"]> = ["active", "reauth_required", "revoked", "error"];
 export const pathsApiV1WorkspacesWorkspace_idCostsGetParametersQueryGroup_byAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/costs"]["get"]["parameters"]["query"]["group_by"]> = ["project", "workload", "provider", "endpoint", "engine", "day", "channel"];
 export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterEntity_typeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[entity_type]"]> = ["brand", "product", "organization", "person", "other"];
@@ -11126,13 +11234,14 @@ export const aliasTestMentionStatusValues: ReadonlyArray<FlattenedDeepRequired<c
 export const aliasTestSpanMatch_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestSpan"]["match_method"]> = ["alias_word", "alias_exact", "alias_substring", "alias_regex", "alias_name", "alias_domain", "via_product"];
 export const aliasTestSpanStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestSpan"]["status"]> = ["accepted", "uncertain", "discarded"];
 export const aliasUpdateMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasUpdate"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
+export const analyticsPropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AnalyticsProperty"]["property_type"]> = ["ordinary", "subproperty", "rollup", "unspecified"];
 export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["action_on_hard"]> = ["pause", "alert_only"];
 export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
 export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
 export const configVersionDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ConfigVersion"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const connectionAuth_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["auth_method"]> = ["oauth", "api_key", "api_token", "service_account"];
-export const connectionProductValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["product"]> = ["gsc", "ga4", "bing_wmt", "cloudflare"];
+export const connectionProductValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["product"]> = ["google", "bing_wmt", "cloudflare"];
 export const connectionStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["status"]> = ["active", "reauth_required", "revoked", "error"];
 export const costWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CostWorkload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync", "ai_overview", "extraction_llm", "keyword_research", "first_party"];
 export const domainInputMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainInput"]["match_scope"]> = ["path_prefix", "host", "registrable"];
@@ -11162,6 +11271,7 @@ export const importRowOutcomeValues: ReadonlyArray<FlattenedDeepRequired<compone
 export const integrationConnection_statusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Integration"]["connection_status"]> = ["active", "reauth_required", "revoked", "error"];
 export const integrationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Integration"]["kind"]> = ["gsc", "bing_wmt", "ga4", "cloudflare", "server_logs"];
 export const integrationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Integration"]["status"]> = ["active", "reauth_required", "disabled", "error"];
+export const integrationCreateKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IntegrationCreate"]["kind"]> = ["gsc", "ga4"];
 export const integrationSyncPhaseValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IntegrationSync"]["phase"]> = ["pending", "backfilling", "synced"];
 export const invitationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Invitation"]["status"]> = ["pending", "accepted", "declined", "cancelled", "expired"];
 export const keywordCheckStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordCheck"]["status"]> = ["idle", "queued", "processing", "completed", "inconclusive", "failed"];

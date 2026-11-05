@@ -166,6 +166,73 @@ def test_schedules_and_runs_from_before_the_ledger_revisions_are_carried_over(
     ) == ["True"]
 
 
+def test_a_search_console_connection_becomes_a_google_connection_and_back(
+    pg: PostgresServer,
+) -> None:
+    """0017: the product of a connection is `google`; the Search Console properties keep their
+    kind and their link, the unique key and the grants stay, and the downgrade reverses it."""
+    url = _fresh_database(pg, "migrate_google")
+    command.upgrade(alembic_config(url), "0016")
+    # No rows at all (production): both directions are fine.
+    command.upgrade(alembic_config(url), "0017")
+    command.downgrade(alembic_config(url), "0016")
+    (workspace,) = _query(
+        url, "INSERT INTO auth.workspaces (name, slug) VALUES ('w', 'w') RETURNING id"
+    )
+    (project,) = _query(
+        url,
+        "INSERT INTO core.projects (workspace_id, name, slug) "
+        f"VALUES ('{workspace}', 'p', 'p') RETURNING id",
+    )
+    (secret,) = _query(
+        url,
+        "INSERT INTO ops.secrets (workspace_id, kind, ciphertext, dek_wrapped, kek_version, "
+        f"fingerprint) VALUES ('{workspace}', 'oauth_refresh_token', '\\x00', '\\x00', 1, 'ab') "
+        "RETURNING id",
+    )
+    (connection,) = _query(
+        url,
+        "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
+        f"credential_ref, scopes) VALUES ('{workspace}', 'gsc', 'oauth', 's-1', '{secret}', "
+        "'{openid}') RETURNING id",
+    )
+    _query(
+        url,
+        "INSERT INTO fp.integrations (workspace_id, project_id, kind, external_property, "
+        f"connection_id, scopes) VALUES ('{workspace}', '{project}', 'gsc', "
+        f"'sc-domain:example.com', '{connection}', '{{openid}}') RETURNING id",
+    )
+
+    command.upgrade(alembic_config(url), "0017")
+
+    assert _query(url, "SELECT product FROM fp.connections") == ["google"]
+    assert _query(url, "SELECT kind || ' ' || connection_id FROM fp.integrations") == [
+        f"gsc {connection}"
+    ]
+    for product in ("gsc", "ga4"):
+        with pytest.raises(asyncpg.CheckViolationError):
+            _query(
+                url,
+                "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
+                f"credential_ref, scopes) VALUES ('{workspace}', '{product}', 'oauth', 's-2', "
+                f"'{secret}', '{{}}') RETURNING id",
+            )
+    # The key is still (workspace, product, subject)
+    with pytest.raises(asyncpg.UniqueViolationError):
+        _query(
+            url,
+            "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
+            f"credential_ref, scopes) VALUES ('{workspace}', 'google', 'oauth', 's-1', "
+            f"'{secret}', '{{}}') RETURNING id",
+        )
+
+    command.downgrade(alembic_config(url), "0016")
+
+    assert _query(url, "SELECT product FROM fp.connections") == ["gsc"]
+    command.upgrade(alembic_config(url), "0017")
+    assert _query(url, "SELECT product FROM fp.connections") == ["google"]
+
+
 def test_projects_that_already_track_keywords_get_the_default_rank_schedule(
     pg: PostgresServer,
 ) -> None:

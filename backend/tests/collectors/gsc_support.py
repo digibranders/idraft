@@ -198,7 +198,7 @@ async def make_property(
             pg,
             "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
             "subject_label, credential_ref, scopes) "
-            "VALUES ($1, 'gsc', 'oauth', $2, $3, $4, '{openid}') RETURNING id",
+            "VALUES ($1, 'google', 'oauth', $2, $3, $4, '{openid}') RETURNING id",
             workspace.id,
             account.sub,
             account.email,

@@ -7,23 +7,79 @@ import { INTEGRATIONS_COOKIE } from './session';
 /**
  * What one browser did with Google through the mocks (19 section 3.10, backend `api/integrations`): the
  * connections it made and the properties it linked to projects. There is no Google here, so a connection is
- * made the moment the person is sent to "consent", and the account is always the one below. Only the changes
- * are kept, in their own cookie and in a compact form: each row a tuple, an id as its number.
+ * made the moment the person is sent to "consent", and the account is always the one below. A connection
+ * carries what the person granted (both products, or one, as Google's granular consent allows). Only the
+ * changes are kept, in their own cookie and in a compact form: each row a tuple, an id as its number.
  */
 export { INTEGRATIONS_COOKIE };
 
 export const CONNECTION_STATUSES = ['active', 'reauth_required', 'revoked', 'error'] as const;
+/** What a property of a project is for (`Integration.kind`, the two Google products). */
+export type Product = 'gsc' | 'ga4';
 export const INTEGRATION_STATUSES = ['active', 'reauth_required', 'disabled', 'error'] as const;
 export type ConnectionStatus = (typeof CONNECTION_STATUSES)[number];
 export type IntegrationStatus = (typeof INTEGRATION_STATUSES)[number];
 
 /** The Google account every mocked consent signs in. */
 export const MOCK_GOOGLE_ACCOUNT = 'seo@fynix.digital';
-/** What the backend asks Google for (`CONNECT_SCOPES`). */
-export const MOCK_SCOPES: readonly string[] = [
+/** What a mocked connection was granted: both products, or only one of them. */
+export const GRANTS = ['both', 'gsc', 'ga4'] as const;
+export type MockGrant = (typeof GRANTS)[number];
+export const isGrant = (value: string | undefined): value is MockGrant => GRANTS.some((grant) => grant === value);
+
+const WEBMASTERS = 'https://www.googleapis.com/auth/webmasters.readonly';
+const ANALYTICS = 'https://www.googleapis.com/auth/analytics.readonly';
+/** The scopes a grant gives (the backend asks for `CONNECT_SCOPES`; Google returns what was ticked). */
+export const scopesOf = (grant: MockGrant): string[] => [
   'openid',
   'email',
-  'https://www.googleapis.com/auth/webmasters.readonly',
+  ...(grant === 'ga4' ? [] : [WEBMASTERS]),
+  ...(grant === 'gsc' ? [] : [ANALYTICS]),
+];
+/** Whether a grant reaches a product. */
+export const grants = (grant: MockGrant, product: Product): boolean => grant === 'both' || grant === product;
+/** Every scope of a full grant, for tests that only need a connection that can do everything. */
+export const MOCK_SCOPES: readonly string[] = scopesOf('both');
+
+/** A GA4 property the mocked account can see, with its Analytics account. */
+export interface MockAnalyticsProperty {
+  external_property: string;
+  label: string;
+  account_id: string;
+  account_label: string;
+  property_type: 'ordinary' | 'subproperty' | 'rollup' | 'unspecified';
+}
+
+/** By account then name, as the backend lists them. */
+export const MOCK_ANALYTICS_PROPERTIES: readonly MockAnalyticsProperty[] = [
+  {
+    external_property: 'properties/412003011',
+    label: 'Cleanstart website',
+    account_id: 'accounts/90311',
+    account_label: 'Cleanstart Inc',
+    property_type: 'ordinary',
+  },
+  {
+    external_property: 'properties/398844120',
+    label: 'Fynix blog',
+    account_id: 'accounts/77210',
+    account_label: 'Fynix Digital',
+    property_type: 'ordinary',
+  },
+  {
+    external_property: 'properties/398844007',
+    label: 'Fynix website',
+    account_id: 'accounts/77210',
+    account_label: 'Fynix Digital',
+    property_type: 'ordinary',
+  },
+  {
+    external_property: 'properties/398845333',
+    label: 'Fynix, all sites',
+    account_id: 'accounts/77210',
+    account_label: 'Fynix Digital',
+    property_type: 'rollup',
+  },
 ];
 
 /** A property the mocked account can see, with the project whose primary domain it matches, by fixture slug. */
@@ -82,13 +138,14 @@ export const MOCK_PROPERTIES: readonly MockProperty[] = [
   },
 ];
 
-/** `[id, status, connected by (user id), connected at]` */
-const CONNECTION = z.tuple([z.number().int(), z.enum(CONNECTION_STATUSES), z.string(), z.string()]);
-/** `[id, project id, connection id, property, status, created at]` */
+/** `[id, status, connected by (user id), connected at, grant]` */
+const CONNECTION = z.tuple([z.number().int(), z.enum(CONNECTION_STATUSES), z.string(), z.string(), z.enum(GRANTS)]);
+/** `[id, project id, connection id, kind, property, status, created at]` */
 const INTEGRATION = z.tuple([
   z.number().int(),
   z.string(),
   z.number().int(),
+  z.enum(['gsc', 'ga4']),
   z.string(),
   z.enum(INTEGRATION_STATUSES),
   z.string(),
@@ -105,12 +162,14 @@ export interface StoredConnection {
   status: ConnectionStatus;
   connectedBy: string;
   connectedAt: string;
+  grant: MockGrant;
 }
 
 export interface StoredIntegration {
   id: string;
   projectId: string;
   connectionId: string;
+  kind: Product;
   property: string;
   status: IntegrationStatus;
   createdAt: string;
@@ -137,16 +196,18 @@ export function integrationWorld(cookies: Readonly<Record<string, string>>): Int
   const stored = readJsonCookie(cookies, INTEGRATIONS_COOKIE, STORED, EMPTY);
   return {
     next: stored.next,
-    connections: stored.connections.map(([n, status, connectedBy, connectedAt]) => ({
+    connections: stored.connections.map(([n, status, connectedBy, connectedAt, grant]) => ({
       id: idOf('connection', n),
       status,
       connectedBy,
       connectedAt,
+      grant,
     })),
-    integrations: stored.integrations.map(([n, projectId, connection, property, status, createdAt]) => ({
+    integrations: stored.integrations.map(([n, projectId, connection, kind, property, status, createdAt]) => ({
       id: idOf('integration', n),
       projectId,
       connectionId: idOf('connection', connection),
+      kind,
       property,
       status,
       createdAt,
@@ -163,11 +224,13 @@ export function integrationsCookie(world: IntegrationWorld): string | null {
       row.status,
       row.connectedBy,
       row.connectedAt,
+      row.grant,
     ]),
     integrations: world.integrations.map((row) => [
       numberOf('integration', row.id),
       row.projectId,
       numberOf('connection', row.connectionId),
+      row.kind,
       row.property,
       row.status,
       row.createdAt,
@@ -199,6 +262,16 @@ export function withIntegration(
     world: { ...world, next: world.next + 1, integrations: [...world.integrations, { ...row, id }] },
   };
 }
+
+/** `world` with the connection granted `grant` (the same account connecting again, ticking other boxes). */
+export const withConnectionGrant = (
+  world: IntegrationWorld,
+  connectionId: string,
+  grant: MockGrant,
+): IntegrationWorld => ({
+  ...world,
+  connections: world.connections.map((row) => (row.id === connectionId ? { ...row, grant } : row)),
+});
 
 export const withConnectionStatus = (
   world: IntegrationWorld,

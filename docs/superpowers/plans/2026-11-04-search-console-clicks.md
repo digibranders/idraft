@@ -10,15 +10,15 @@ estimate (doc 18 section 4.9). This plan says what is built, what the owner has 
 | `include=gsc` on the tracked keyword list: `gsc { state, clicks, impressions, window }`, and the sorts `gsc_clicks`, `gsc_impressions` | Built (steps 3 and 4): `not_connected`, `pending` and `ok` from the stored numbers |
 | `include=ranking_urls` (pages that rank for a keyword) | Built and committed (72bc44c) |
 | Storage for connections, queries and daily numbers (`fp.connections`, `fp.integrations`, `fp.gsc_queries`, `fp.gsc_search_analytics`) | Built (step 1, migration 0015) |
-| Connect with Google, choose the property, disconnect | Built and tested against a fake Google, no web screen yet (step 2) |
+| Connect with Google, choose the property, disconnect | Built and tested against a fake Google; the web screen is built (route `/integrations/google`). Changed 2026-11-05 (migration 0017): one Google connection (`product = 'google'`) carries Search Console and GA4 with one consent for both scopes; the callback accepts at least one granted product; GA4 properties are listed (Analytics Admin API `accountSummaries.list`) and chosen, one per project, and stored. There is no GA4 pull yet |
 | The pull (backfill and daily sync) | Built (step 3): the `gsc_sync` job, tested against a fake Google; not yet run against the real one |
 | The reading side that fills `gsc` from stored numbers, and the sorts `gsc_clicks`, `gsc_impressions` | Built (step 4); the export columns are built in the web, not here |
 | Grouped view, new column order, header changes in the app | Waiting for the design preview to settle (the owner is updating it) |
 
 ## What the owner provides (nothing here can be done from the code)
 
-1. **A Google Cloud project** with the Search Console API enabled.
-2. **An OAuth consent screen** with the scope `https://www.googleapis.com/auth/webmasters.readonly`.
+1. **A Google Cloud project** with these APIs enabled: Google Search Console API, Google Analytics Admin API (GA4 property listing) and Google Analytics Data API (the later GA4 pull).
+2. **An OAuth consent screen** with the scopes `https://www.googleapis.com/auth/webmasters.readonly` and `https://www.googleapis.com/auth/analytics.readonly` (both are asked in one consent; Google's verification reviews both). Add the Analytics scope under Data Access before connecting.
    - While the app is in Testing status Google expires refresh tokens after 7 days and allows 100 named test users,
      which is fine for Eventus and Fynix but not for customers. Production needs Google's verification of the scope.
 3. **An OAuth client** of type Web application with the redirect URI `https://app.idraft.ai/api/v1/oauth/google/callback` (the route in docs/19). For local work add `http://localhost:3000/api/v1/oauth/google/callback`.

@@ -350,18 +350,13 @@ describe('Who sees Refresh metrics', () => {
     expect(served.reads()).toBe(0);
   });
 
-  it('gives the bulk bar of an editor the action, and an analyst, who cannot choose rows, none', async () => {
+  it('keeps the action out of the bulk bar of an editor, and an analyst, who cannot choose rows, has no bar', async () => {
     serveRuns({ used: 0, open: [] });
     const { user, unmount } = renderWithProviders(as('editor'));
     await loadedGrid();
     await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, United States' }));
     const bar = screen.getByRole('group', { name: /Bulk actions/ });
-    const names = within(bar)
-      .getAllByRole('button')
-      .map((button) => button.textContent);
-    // With the other changes, ahead of Archive and Delete
-    expect(names.indexOf('Refresh metrics')).toBeGreaterThan(names.indexOf('Set priority'));
-    expect(names.indexOf('Refresh metrics')).toBeLessThan(names.indexOf('Archive'));
+    expect(within(bar).queryByRole('button', { name: 'Refresh metrics' })).toBeNull();
     unmount();
     renderWithProviders(as('analyst'));
     await loadedGrid();
@@ -415,20 +410,6 @@ describe('What the dialog refreshes', () => {
     expect(screen.getByRole('checkbox', { name: 'Select seo agency, United States' })).toBeChecked();
   });
 
-  it('opens from the bulk bar for the same keywords', async () => {
-    serveRuns({ used: 0, open: [] });
-    const seen = watchRows();
-    const sent = serveRefresh(() => accepted(run()));
-    const { user } = renderWithProviders(as('editor'));
-    await loadedGrid();
-    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, United States' }));
-    const bar = screen.getByRole('group', { name: /Bulk actions/ });
-    await user.click(within(bar).getByRole('button', { name: 'Refresh metrics' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Refresh metrics' });
-    expect(within(dialog).getByRole('radio', { name: 'The chosen keyword' })).toBeChecked();
-    await submit(user, dialog, 'Refresh metrics for 1 keyword');
-    await waitFor(() => expect(sent.bodies).toEqual([{ keyword_ids: [seen.ids('seo agency').keyword] }]));
-  });
 
   it('offers the keywords matching the filters, each once, and starts on them', async () => {
     serveRuns({ used: 0, open: [] });

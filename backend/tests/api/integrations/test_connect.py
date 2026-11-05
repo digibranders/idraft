@@ -69,7 +69,10 @@ async def test_the_owner_and_an_admin_are_given_googles_consent_address(google: 
         assert data["authorization_url"].startswith("https://accounts.google.com/o/oauth2/v2/auth?")
         assert query["client_id"] == CLIENT_ID
         assert query["redirect_uri"] == REDIRECT_URI == BASE_URL + CALLBACK
-        assert query["scope"] == "openid email https://www.googleapis.com/auth/webmasters.readonly"
+        assert query["scope"] == (
+            "openid email https://www.googleapis.com/auth/webmasters.readonly "
+            "https://www.googleapis.com/auth/analytics.readonly"
+        )
         assert (query["access_type"], query["prompt"]) == ("offline", "consent")
         assert query["include_granted_scopes"] == "false"
         assert query["code_challenge_method"] == "S256"
@@ -130,7 +133,7 @@ async def test_starting_needs_a_session_a_membership_and_a_project_of_the_worksp
     assert (await start(google, world, other.owner)).status_code == 404
     stranger_project = await google.api.post(
         f"/api/v1/workspaces/{world.workspace.id}/projects/{other.project_id}"
-        "/integrations/gsc/authorize",
+        "/integrations/google/authorize",
         headers=world.owner.headers,
     )
     assert stranger_project.status_code == 404
@@ -169,7 +172,7 @@ async def test_a_connection_is_made_and_the_person_lands_on_the_property_picker(
     )
     assert (row["workspace_id"], row["product"], row["auth_method"]) == (
         world.workspace.id,
-        "gsc",
+        "google",
         "oauth",
     )
     assert (row["subject_id"], row["subject_label"], row["status"]) == (
@@ -182,6 +185,7 @@ async def test_a_connection_is_made_and_the_person_lands_on_the_property_picker(
         "openid",
         "email",
         "https://www.googleapis.com/auth/webmasters.readonly",
+        "https://www.googleapis.com/auth/analytics.readonly",
     }
     assert row["credential_ref"] is not None
     assert await _actions(google, world.workspace.id) == ["connection.created"]
@@ -318,7 +322,7 @@ async def test_a_state_works_once(google: Harness) -> None:
     first = await callback(google, world.owner, code=code, state=query["state"])
     again = await callback(google, world.owner, code=code, state=query["state"])
 
-    assert location(first)[0].endswith("/integrations/gsc")
+    assert location(first)[0].endswith("/integrations/google")
     assert location(again) == (BASE_URL + "/", {"integration_error": "invalid_state"})
     assert len(google.fake.called("https://oauth2.googleapis.com/token")) == 1
 
@@ -424,13 +428,16 @@ async def test_google_adds_parameters_of_its_own_and_they_are_ignored(google: Ha
         world.owner,
         code=code,
         state=query["state"],
-        scope="email openid https://www.googleapis.com/auth/webmasters.readonly",
+        scope=(
+            "email openid https://www.googleapis.com/auth/webmasters.readonly "
+            "https://www.googleapis.com/auth/analytics.readonly"
+        ),
         authuser="0",
         prompt="consent",
         hd="example.com",
     )
 
-    assert location(response)[0].endswith("/integrations/gsc")
+    assert location(response)[0].endswith("/integrations/google")
 
 
 async def test_a_person_who_declines_consent_is_sent_back_with_scope_denied(
@@ -447,7 +454,7 @@ async def test_a_person_who_declines_consent_is_sent_back_with_scope_denied(
     assert await _actions(google, world.workspace.id) == []
 
 
-async def test_a_grant_without_the_search_console_scope_is_refused_and_given_back(
+async def test_a_grant_without_any_product_scope_is_refused_and_given_back(
     google: Harness,
 ) -> None:
     world = await make_world(google)

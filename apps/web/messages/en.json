@@ -1689,8 +1689,6 @@
       "tags": "Add tags",
       "group": "Move to group",
       "targetUrl": "Set target URL",
-      "priority": "Set priority",
-      "archive": "Archive",
       "unarchive": "Unarchive",
       "delete": "Delete",
       "failed": "The change was not made. Try again.",
@@ -1730,17 +1728,6 @@
         "set": "Target URL set for {count}",
         "cleared": "Target URL cleared for {count}",
         "versions": "{count, plural, one {# configuration version started} other {# configuration versions started}}"
-      },
-      "priorityDialog": {
-        "title": "Priority for {count}",
-        "priority": "Priority",
-        "submit": "Set for {count}",
-        "set": "Priority {priority} set for {count}"
-      },
-      "archiveConfirm": {
-        "title": "Archive {count}?",
-        "description": "Archived keywords are no longer checked and do not count against the plan. Their history is kept, and you can unarchive them.",
-        "confirm": "Archive {count}"
       },
       "unarchiveConfirm": {
         "title": "Unarchive {count}?",
@@ -2774,49 +2761,47 @@
     "apply": "Apply"
   },
   "integrations": {
-    "pageTitle": "Google Search Console",
-    "title": "Google Search Console",
+    "pageTitle": "Google",
+    "title": "Google",
     "accountUnknown": "a Google account",
     "tabs": {
       "label": "Data sources",
-      "gsc": "Search Console",
+      "google": "Google",
       "bing": "Bing",
-      "ga4": "GA4",
       "cloudflare": "Cloudflare",
       "imports": "Imports",
       "unavailable": "Not available yet"
     },
     "meta": {
       "notConnected": "Not connected. Nothing is imported from Google.",
-      "chooseProperty": "Connected as {account}. No property chosen yet.",
-      "connected": "Connected as {account}. Property {property}. No sync yet.",
+      "connected": "Connected as {account}. Search Console: {gsc}. GA4: {ga4}.",
+      "noProperty": "no property chosen",
       "reauth": "Reconnect needed for {account}.",
       "problem": "Connected as {account}, but Google is reporting an error."
     },
     "actions": {
-      "more": "More actions for Google Search Console",
+      "more": "More actions for Google",
       "reconnect": "Reconnect",
       "reconnectItem": "Reconnect Google",
-      "changeProperty": "Change property",
       "disconnect": "Disconnect Google"
     },
-    "loadFailed": "Could not load Search Console",
+    "loadFailed": "Could not load Google",
     "loadFailedReason": "The server returned an error. Nothing was changed.",
     "connectionLoadFailed": "Could not load the Google connection",
     "forbidden": "Your role cannot see integrations.",
     "readOnlyLead": "Read only:",
-    "readOnly": "Connections belong to the whole workspace. Connecting Google or changing the property needs the owner or admin role with access to every project.",
+    "readOnly": "Connections belong to the whole workspace. Connecting Google or changing a property needs the owner or admin role with access to every project.",
     "empty": {
-      "title": "Search Console is not connected",
-      "reason": "Connect the Google account that can read this site's property in Search Console.",
-      "reasonReadOnly": "Ask an owner or admin to connect the Google account that can read this site's property.",
-      "note": "Clicks and impressions are not imported yet. Connecting now saves the property for when they are.",
+      "title": "Google is not connected",
+      "reason": "Connect the Google account that can read this site in Search Console and Google Analytics. One sign-in covers both.",
+      "reasonReadOnly": "Ask an owner or admin to connect the Google account that can read this site.",
+      "note": "Clicks and impressions are not imported yet, and neither are GA4 numbers. Connecting now saves the properties for when they are.",
       "connect": "Connect Google"
     },
     "errors": {
       "lead": "Google was not connected.",
       "invalidState": "The link expired, was already used, or was opened in another session. Connect again.",
-      "scopeDenied": "Google did not give idraft permission to read Search Console. Connect again and leave the Search Console box ticked.",
+      "scopeDenied": "Google did not give idraft permission to read Search Console or Google Analytics. Connect again and leave at least one of the two boxes ticked.",
       "noRefreshToken": "Google did not return the sign-in idraft needs to stay connected. Connect again. If it repeats, remove idraft from the third-party access of your Google account first.",
       "exchangeFailed": "Google could not finish the sign-in. Connect again.",
       "googleUnavailable": "Google did not answer. Try again in a few minutes.",
@@ -2830,7 +2815,7 @@
     "opening": "Opening Google to ask for permission",
     "reauth": {
       "lead": "Reconnect needed:",
-      "message": "Google no longer accepts the saved sign-in for {account}. Reconnect to keep using this property."
+      "message": "Google no longer accepts the saved sign-in for {account}. Reconnect to keep using Search Console and GA4."
     },
     "connection": {
       "title": "Connection",
@@ -2838,9 +2823,6 @@
       "account": "Account",
       "connectedBy": "Connected by",
       "since": "Since",
-      "property": "Property",
-      "noProperty": "None chosen yet",
-      "change": "Change property",
       "unknown": "Not shown",
       "statuses": {
         "active": "Connected",
@@ -2853,18 +2835,37 @@
       "domain": "Domain",
       "urlPrefix": "URL prefix"
     },
+    "product": {
+      "property": "Property",
+      "change": "Change",
+      "reconnect": "Reconnect",
+      "reconnectFirst": "Reconnect Google to choose a property.",
+      "noneChosen": "No property chosen.",
+      "keptProperty": "Kept from before: {property}. It is not read until access is granted.",
+      "gsc": {
+        "title": "Search Console property",
+        "accessMissing": "Search Console access was not granted. Reconnect Google and leave the Search Console box ticked to add it."
+      },
+      "ga4": {
+        "title": "GA4 property",
+        "accessMissing": "Google Analytics access was not granted. Reconnect Google and leave the Google Analytics box ticked to add it.",
+        "importNote": "Importing GA4 numbers is not available yet. Choosing a property saves it for when it is."
+      }
+    },
     "access": {
       "title": "Access",
-      "description": "What idraft may do with the connected Google account.",
+      "description": "What idraft may do with the connected Google account. Google lets you untick a permission, so a product can be missing.",
       "listLabel": "Access granted to idraft",
-      "webmasters": "Read search performance for the property",
+      "webmasters": "Read search performance for Search Console properties",
+      "analytics": "Read reports and the property list of Google Analytics",
       "openid": "Identify the Google account that connected",
       "email": "Read the email address of the account, to name the connection",
       "other": "Other access granted by Google",
+      "notGranted": "Not granted",
       "readOnly": "Cannot modify properties, sitemaps or settings"
     },
     "chooser": {
-      "title": "Choose a property",
+      "title": "Choose a Search Console property",
       "description": "Choose the Search Console property to read for this project. Domain properties cover every subdomain and both http and https, so they come first.",
       "account": "Reading as {account}.",
       "reload": "Reload list",
@@ -2891,10 +2892,32 @@
       "taken": "That property, or this project, is already linked. The list was reloaded.",
       "googleUnavailable": "Google did not answer. Try again in a few minutes.",
       "failed": "Could not save the property. Try again.",
-      "reconnect": "Reconnect"
+      "reconnect": "Reconnect",
+      "scopeMissing": "Search Console or GA4 access was not granted for this connection. Reconnect Google to add it."
+    },
+    "analyticsChooser": {
+      "title": "Choose a GA4 property",
+      "description": "Properties are listed by Google Analytics account. idraft does not match them to this project's domain, so pick the one that measures this site.",
+      "tableLabel": "GA4 properties of the connected account",
+      "columns": {
+        "property": "Property",
+        "account": "Account",
+        "actions": "Actions"
+      },
+      "types": {
+        "ordinary": "Standard",
+        "subproperty": "Subproperty",
+        "rollup": "Roll-up",
+        "unspecified": "Property"
+      },
+      "chooseProperty": "Choose {property} of {account}",
+      "emptyTitle": "This account sees no GA4 properties",
+      "emptyReason": "Create a property in Google Analytics with this Google account, then reload the list, or disconnect and connect another account.",
+      "loadFailed": "Could not load the GA4 properties",
+      "loadFailedReason": "Google or the server did not answer. Nothing was changed."
     },
     "sync": {
-      "stripLabel": "Sync status",
+      "stripLabel": "Search Console sync status",
       "lastSync": "Last sync",
       "never": "Never",
       "coverage": "Coverage",
@@ -2903,22 +2926,25 @@
       "none": "None yet",
       "next": "Next sync",
       "notScheduled": "Not scheduled",
-      "historyTitle": "Sync history",
+      "historyTitle": "Search Console sync history",
       "emptyTitle": "No sync yet",
       "emptyBeforeProperty": "The first sync starts after a property is chosen.",
       "emptyAfterProperty": "The property is saved. Importing its numbers is not available yet, so nothing has been synced."
     },
     "disconnect": {
       "title": "Disconnect Google?",
-      "description": "idraft revokes its access at Google and deletes the saved sign-in. Properties stop syncing, and the numbers already stored are kept.",
-      "descriptionShared": "idraft revokes its access at Google and deletes the saved sign-in. {count, plural, one {# project uses} other {# projects use}} this connection and stop syncing. The numbers already stored are kept.",
+      "description": "idraft revokes its access at Google and deletes the saved sign-in. Search Console and GA4 properties stop syncing, and the numbers already stored are kept.",
+      "descriptionShared": "idraft revokes its access at Google and deletes the saved sign-in. {count, plural, one {# property} other {# properties}} linked to projects use this connection, for Search Console and GA4, and stop syncing. The numbers already stored are kept.",
       "confirm": "Disconnect",
       "failed": "Could not disconnect. Nothing was changed. Try again.",
       "done": "Google disconnected",
       "doneDetail": "The numbers already stored are kept."
     },
     "change": {
-      "title": "Change the property?",
+      "title": {
+        "gsc": "Change the Search Console property?",
+        "ga4": "Change the GA4 property?"
+      },
       "description": "{property} is switched off for this project. The numbers already stored are kept, and you can choose a property again right away.",
       "confirm": "Switch off property",
       "failed": "Could not switch off the property. Nothing was changed. Try again.",

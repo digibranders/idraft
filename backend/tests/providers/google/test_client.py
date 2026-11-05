@@ -6,6 +6,8 @@ import httpx
 import pytest
 
 from idraft.providers.google.client import (
+    ACCOUNT_SUMMARIES_URL,
+    ANALYTICS_SCOPE,
     CONNECT_SCOPES,
     REVOKE_URL,
     SEARCH_CONSOLE_SCOPE,
@@ -62,7 +64,9 @@ def test_a_pkce_pair_is_an_s256_challenge_of_a_fresh_verifier() -> None:
     assert first.verifier not in repr(first)
 
 
-def test_the_authorization_address_asks_for_offline_access_and_this_grant_only() -> None:
+def test_the_authorization_address_asks_for_both_products_in_one_consent_and_this_grant_only() -> (
+    None
+):
     pkce = new_pkce()
     address = authorization_url(
         client_id=CLIENT_ID, redirect_uri=REDIRECT, state="s-1", challenge=pkce.challenge
@@ -76,7 +80,10 @@ def test_the_authorization_address_asks_for_offline_access_and_this_grant_only()
         "client_id": CLIENT_ID,
         "redirect_uri": REDIRECT,
         "response_type": "code",
-        "scope": "openid email https://www.googleapis.com/auth/webmasters.readonly",
+        "scope": (
+            "openid email https://www.googleapis.com/auth/webmasters.readonly "
+            "https://www.googleapis.com/auth/analytics.readonly"
+        ),
         "state": "s-1",
         "code_challenge": pkce.challenge,
         "code_challenge_method": "S256",
@@ -84,7 +91,7 @@ def test_the_authorization_address_asks_for_offline_access_and_this_grant_only()
         "prompt": "consent",
         "include_granted_scopes": "false",
     }
-    assert SEARCH_CONSOLE_SCOPE in CONNECT_SCOPES
+    assert {SEARCH_CONSOLE_SCOPE, ANALYTICS_SCOPE} <= set(CONNECT_SCOPES)
 
 
 async def test_a_code_is_exchanged_with_its_verifier_and_the_account_is_read() -> None:
@@ -270,3 +277,102 @@ async def test_a_token_is_revoked_and_a_failure_to_revoke_is_reported_not_raised
 async def test_attempts_must_be_positive() -> None:
     with pytest.raises(ValueError, match="attempts"):
         GoogleClient(httpx.AsyncClient(), client_id="a", client_secret="b", attempts=0)
+
+
+async def _analytics_token(fake: FakeGoogle, google: GoogleClient, refresh_token: str) -> str:
+    return (await google.refresh(refresh_token)).access_token
+
+
+async def test_ga4_properties_are_listed_by_account_and_an_empty_account_adds_none() -> None:
+    fake = FakeGoogle(REDIRECT)
+    account = fake.account(
+        "person@example.com",
+        analytics=[
+            ("100", "Acme", [("111", "Acme site", "PROPERTY_TYPE_ORDINARY")]),
+            ("200", "Empty account", []),
+            (
+                "300",
+                "Agency",
+                [
+                    ("333", "Roll-up", "PROPERTY_TYPE_ROLLUP"),
+                    ("444", "Sub", "PROPERTY_TYPE_SUBPROPERTY"),
+                ],
+            ),
+        ],
+    )
+    google = _client(fake.transport)
+
+    found = await google.list_analytics_properties(
+        await _analytics_token(fake, google, account.refresh_token)
+    )
+
+    assert [
+        (p.name, p.display_name, p.property_type, p.account, p.account_name) for p in found
+    ] == [
+        ("properties/111", "Acme site", "PROPERTY_TYPE_ORDINARY", "accounts/100", "Acme"),
+        ("properties/333", "Roll-up", "PROPERTY_TYPE_ROLLUP", "accounts/300", "Agency"),
+        ("properties/444", "Sub", "PROPERTY_TYPE_SUBPROPERTY", "accounts/300", "Agency"),
+    ]
+    assert fake.called(ACCOUNT_SUMMARIES_URL)[0].authorization is not None
+
+
+async def test_ga4_properties_follow_the_next_page_token() -> None:
+    fake = FakeGoogle(REDIRECT)
+    fake.summaries_page_size = 2
+    accounts = [
+        (str(100 + n), f"Account {n}", [(str(500 + n), f"Property {n}", "PROPERTY_TYPE_ORDINARY")])
+        for n in range(5)
+    ]
+    account = fake.account("person@example.com", analytics=accounts)
+    google = _client(fake.transport)
+
+    found = await google.list_analytics_properties(
+        await _analytics_token(fake, google, account.refresh_token)
+    )
+
+    assert [p.name for p in found] == [f"properties/{500 + n}" for n in range(5)]
+    assert len(fake.called(ACCOUNT_SUMMARIES_URL)) == 3
+
+
+async def test_an_account_with_no_ga4_property_has_an_empty_list() -> None:
+    fake = FakeGoogle(REDIRECT)
+    account = fake.account("person@example.com")
+    google = _client(fake.transport)
+    token = await _analytics_token(fake, google, account.refresh_token)
+    assert await google.list_analytics_properties(token) == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"accountSummaries": [{"account": "accounts/1", "propertySummaries": [{"property": "x"}]}]},
+        {"accountSummaries": [{"account": "nope"}]},
+        {"accountSummaries": "nope"},
+        [],
+    ],
+)
+async def test_an_account_summary_that_is_not_documented_writes_nothing(body: object) -> None:
+    def answer(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=body)
+
+    with pytest.raises(GoogleResponseError) as error:
+        await _client(httpx.MockTransport(answer)).list_analytics_properties("ya29.x")
+    assert "ya29" not in str(error.value)
+
+
+async def test_the_account_summary_paging_is_bounded() -> None:
+    def forever(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"nextPageToken": "again"})
+
+    with pytest.raises(GoogleResponseError):
+        await _client(httpx.MockTransport(forever)).list_analytics_properties("ya29.x")
+
+
+async def test_the_analytics_admin_api_maps_a_disabled_api_to_a_permission_error() -> None:
+    def answer(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            403, json={"error": {"status": "PERMISSION_DENIED", "message": "API has not been used"}}
+        )
+
+    with pytest.raises(GooglePermissionError):
+        await _client(httpx.MockTransport(answer)).list_analytics_properties("ya29.x")

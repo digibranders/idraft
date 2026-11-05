@@ -3,8 +3,8 @@ import { delay, http, HttpResponse } from 'msw';
 import { Suspense, type ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WEBMASTERS_SCOPE } from './gsc-model';
-import { GscScreen } from './gsc-screen';
+import { WEBMASTERS_SCOPE } from './google-model';
+import { GoogleScreen } from './google-screen';
 import { FreshSessionProvider } from '@/features/session';
 import type { Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
@@ -15,9 +15,11 @@ import {
   integrationsCookie,
   integrationWorld,
   withConnection,
+  withConnectionGrant,
   withConnectionStatus,
   withIntegration,
   type IntegrationWorld,
+  type MockGrant,
 } from '@/mocks/integrations-state';
 import { freshSessionRequired, problem } from '@/mocks/respond';
 import { isFresh, readSession, SESSION_COOKIE } from '@/mocks/session';
@@ -29,7 +31,7 @@ const navigation = vi.hoisted(() => ({ hardNavigate: vi.fn() }));
 vi.mock('@/lib/navigation/hard-navigate', () => ({ hardNavigate: navigation.hardNavigate }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/digibranders/fynix/integrations/gsc',
+  usePathname: () => '/digibranders/fynix/integrations/google',
 }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => (
@@ -52,11 +54,12 @@ function remember(build: (world: IntegrationWorld) => IntegrationWorld): void {
 }
 
 /** A connection by the owner, as the mocks make one; its id is the first they mint. */
-const connect = (world: IntegrationWorld): { world: IntegrationWorld; id: string } =>
+const connect = (world: IntegrationWorld, grant: MockGrant = 'both'): { world: IntegrationWorld; id: string } =>
   withConnection(world, {
     status: 'active',
     connectedBy: mockUser('owner').user_id,
     connectedAt: '2026-10-20T09:30:00Z',
+    grant,
   });
 
 /** A connection with the property of Fynix chosen. */
@@ -70,6 +73,7 @@ function connectedFynix(
     world: withIntegration(made.world, {
       projectId: fynix?.project_id ?? '',
       connectionId: made.id,
+      kind: 'gsc',
       property,
       status: 'active',
       createdAt: '2026-10-20T09:40:00Z',
@@ -89,7 +93,7 @@ function screenAs(
     >
       <FreshSessionProvider>
         <Suspense fallback={null}>
-          <GscScreen
+          <GoogleScreen
             workspaceId={MOCK_WORKSPACE.workspace_id}
             workspaceSlug="digibranders"
             projectId={fynix?.project_id ?? ''}
@@ -109,7 +113,7 @@ const rowOf = async (name: string): Promise<HTMLElement> => {
   return row;
 };
 
-describe('Integrations, Google Search Console', () => {
+describe('Integrations, Google', () => {
   beforeEach(() => {
     navigation.hardNavigate.mockReset();
     document.cookie = 'mock-integrations=; Path=/; Max-Age=0';
@@ -118,12 +122,12 @@ describe('Integrations, Google Search Console', () => {
   describe('not connected', () => {
     it('says so, offers Connect Google, and lists in plain words what idraft will ask for', async () => {
       const { container } = renderWithProviders(screenAs('owner'));
-      expect(await screen.findByRole('heading', { name: 'Search Console is not connected' })).toBeInTheDocument();
-      expect(screen.getByRole('heading', { level: 1, name: 'Google Search Console' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'Google is not connected' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1, name: 'Google' })).toBeInTheDocument();
       expect(screen.getByText('Not connected. Nothing is imported from Google.')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Connect Google' })).toBeInTheDocument();
       const access = screen.getByRole('list', { name: 'Access granted to idraft' });
-      expect(within(access).getByText('Read search performance for the property')).toBeInTheDocument();
+      expect(within(access).getByText('Read search performance for Search Console properties')).toBeInTheDocument();
       expect(within(access).getByText('Cannot modify properties, sitemaps or settings')).toBeInTheDocument();
       expect(await axe(container)).toHaveNoViolations();
     });
@@ -131,15 +135,15 @@ describe('Integrations, Google Search Console', () => {
     it('shows the other sources as tabs that are not available yet, and no fake content for them', async () => {
       renderWithProviders(screenAs('owner'));
       const nav = await screen.findByRole('navigation', { name: 'Data sources' });
-      expect(within(nav).getByRole('link', { name: 'Search Console' })).toHaveAttribute('aria-current', 'page');
-      for (const name of ['Bing', 'GA4', 'Cloudflare', 'Imports']) {
+      expect(within(nav).getByRole('link', { name: 'Google' })).toHaveAttribute('aria-current', 'page');
+      for (const name of ['Bing', 'Cloudflare', 'Imports']) {
         expect(within(nav).getByRole('link', { name })).toHaveAttribute('aria-disabled', 'true');
       }
     });
 
     it('sends the person to Google at the address the API gives', async () => {
       server.use(
-        http.post(`${W}/projects/${fynix.project_id}/integrations/gsc/authorize`, () =>
+        http.post(`${W}/projects/${fynix.project_id}/integrations/google/authorize`, () =>
           HttpResponse.json({ data: { authorization_url: GOOGLE, state_expires_at: '2026-10-20T10:00:00Z' } }),
         ),
       );
@@ -150,7 +154,7 @@ describe('Integrations, Google Search Console', () => {
 
     it('does not follow an address that is not Google over https', async () => {
       server.use(
-        http.post(`${W}/projects/${fynix.project_id}/integrations/gsc/authorize`, () =>
+        http.post(`${W}/projects/${fynix.project_id}/integrations/google/authorize`, () =>
           HttpResponse.json({
             data: { authorization_url: 'http://evil.example/steal', state_expires_at: '2026-10-20T10:00:00Z' },
           }),
@@ -164,7 +168,7 @@ describe('Integrations, Google Search Console', () => {
 
     it('says when Google sign-in is not set up on this installation', async () => {
       server.use(
-        http.post(`${W}/projects/${fynix.project_id}/integrations/gsc/authorize`, ({ request }) =>
+        http.post(`${W}/projects/${fynix.project_id}/integrations/google/authorize`, ({ request }) =>
           problem(request, 'integration_not_configured'),
         ),
       );
@@ -175,7 +179,7 @@ describe('Integrations, Google Search Console', () => {
 
     it('asks the person to confirm it is them when the session is not fresh, and goes on once they did', async () => {
       server.use(
-        http.post(`${W}/projects/${fynix.project_id}/integrations/gsc/authorize`, ({ request, cookies }) => {
+        http.post(`${W}/projects/${fynix.project_id}/integrations/google/authorize`, ({ request, cookies }) => {
           const session = readSession(cookies);
           return session !== null && isFresh(session)
             ? HttpResponse.json({ data: { authorization_url: GOOGLE, state_expires_at: '2026-10-20T10:00:00Z' } })
@@ -215,7 +219,7 @@ describe('Integrations, Google Search Console', () => {
 
   describe('back from Google with an error', () => {
     it.each([
-      ['scope_denied', /did not give idraft permission to read Search Console/],
+      ['scope_denied', /did not give idraft permission to read Search Console or Google Analytics/],
       ['invalid_state', /expired, was already used, or was opened in another session/],
       ['no_refresh_token', /did not return the sign-in idraft needs/],
       ['exchange_failed', /could not finish the sign-in/],
@@ -257,8 +261,12 @@ describe('Integrations, Google Search Console', () => {
 
     it('lists the properties with type and permission, the one matching the project first with the primary button', async () => {
       const { container } = renderWithProviders(screenAs('owner'), { searchParams: backFromGoogle() });
-      expect(await screen.findByRole('heading', { name: 'Choose a property' })).toBeInTheDocument();
-      expect(screen.getByText('Connected as seo@fynix.digital. No property chosen yet.')).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'Choose a Search Console property' })).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'Connected as seo@fynix.digital. Search Console: no property chosen. GA4: no property chosen.',
+        ),
+      ).toBeInTheDocument();
       const table = await screen.findByRole('table', { name: 'Search Console properties of the connected account' });
       const first = within(table).getAllByRole('row')[1];
       if (first === undefined) throw new Error('no first row');
@@ -290,6 +298,7 @@ describe('Integrations, Google Search Console', () => {
         return withIntegration(made.world, {
           projectId: cleanstart?.project_id ?? '',
           connectionId: made.id,
+          kind: 'gsc',
           property: 'https://fynix.digital/',
           status: 'active',
           createdAt: '2026-10-20T09:40:00Z',
@@ -311,12 +320,16 @@ describe('Integrations, Google Search Console', () => {
       const { user } = renderWithProviders(screenAs('owner'), { searchParams: backFromGoogle(), onUrlUpdate });
       await user.click(await screen.findByRole('button', { name: 'Choose fynix.digital' }));
       expect(await screen.findByText('Property chosen')).toBeInTheDocument();
-      const connection = await screen.findByRole('region', { name: 'Connection' });
-      expect(within(connection).getByText('sc-domain:fynix.digital')).toBeInTheDocument();
-      expect(within(connection).getByRole('button', { name: 'Change property' })).toBeInTheDocument();
-      expect(screen.queryByRole('heading', { name: 'Choose a property' })).not.toBeInTheDocument();
+      const section = await screen.findByRole('region', { name: 'Search Console property' });
+      expect(within(section).getByText('sc-domain:fynix.digital')).toBeInTheDocument();
+      expect(within(section).getByRole('button', { name: 'Change' })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Choose a Search Console property' })).not.toBeInTheDocument();
+      // GA4 has no property yet, and its picker is still there
+      expect(screen.getByRole('heading', { name: 'Choose a GA4 property' })).toBeInTheDocument();
       expect(
-        screen.getByText('Connected as seo@fynix.digital. Property sc-domain:fynix.digital. No sync yet.'),
+        screen.getByText(
+          'Connected as seo@fynix.digital. Search Console: sc-domain:fynix.digital. GA4: no property chosen.',
+        ),
       ).toBeInTheDocument();
       // The address no longer carries the connection Google returned
       await waitFor(() => expect(onUrlUpdate).toHaveBeenLastCalledWith(expect.objectContaining({ queryString: '' })));
@@ -337,13 +350,13 @@ describe('Integrations, Google Search Console', () => {
 
     it('shows a skeleton while Google answers, and a retry when it does not', async () => {
       server.use(
-        http.get(`${W}/connections/:id/properties`, async () => {
+        http.get(`${W}/connections/:id/properties/gsc`, async () => {
           await delay(50);
           return new HttpResponse(null, { status: 500 });
         }),
       );
       const { user } = renderWithProviders(screenAs('owner'), { searchParams: backFromGoogle() });
-      expect(await screen.findByRole('heading', { name: 'Choose a property' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'Choose a Search Console property' })).toBeInTheDocument();
       expect(await screen.findByText('Could not load the properties')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: 'Try again' }));
@@ -357,14 +370,14 @@ describe('Integrations, Google Search Console', () => {
         return withConnectionStatus(made.world, made.id, 'reauth_required');
       });
       renderWithProviders(screenAs('owner'), { searchParams: `connection_id=${id}` });
-      expect(await screen.findByText(/Reconnect to keep using this property/)).toBeInTheDocument();
+      expect(await screen.findByText(/Reconnect to keep using Search Console and GA4/)).toBeInTheDocument();
       expect(screen.getAllByRole('button', { name: 'Reconnect' })[0]).toBeInTheDocument();
-      expect(screen.queryByRole('heading', { name: 'Choose a property' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Choose a Search Console property' })).not.toBeInTheDocument();
     });
   });
 
   describe('connected', () => {
-    it('shows status, account, who connected it and since when, the property, and the access', async () => {
+    it('shows status, account, who connected it and since when, the property of each product, and the access', async () => {
       remember((world) => connectedFynix(world).world);
       const { container } = renderWithProviders(screenAs('owner'));
       const connection = await screen.findByRole('region', { name: 'Connection' });
@@ -372,10 +385,11 @@ describe('Integrations, Google Search Console', () => {
       expect(within(connection).getByText('seo@fynix.digital')).toBeInTheDocument();
       expect(within(connection).getByText('Ana Brandt')).toBeInTheDocument();
       expect(within(connection).getByText(/Oct 20, 2026/)).toBeInTheDocument();
-      expect(within(connection).getByText('sc-domain:fynix.digital')).toBeInTheDocument();
-      expect(within(connection).getByText('Domain')).toBeInTheDocument();
+      const section = screen.getByRole('region', { name: 'Search Console property' });
+      expect(within(section).getByText('sc-domain:fynix.digital')).toBeInTheDocument();
+      expect(within(section).getByText('Domain')).toBeInTheDocument();
       const access = screen.getByRole('list', { name: 'Access granted to idraft' });
-      expect(within(access).getByText('Read search performance for the property')).toBeInTheDocument();
+      expect(within(access).getByText('Read search performance for Search Console properties')).toBeInTheDocument();
       expect(within(access).getByText('Identify the Google account that connected')).toBeInTheDocument();
       expect(await axe(container)).toHaveNoViolations();
     });
@@ -390,6 +404,7 @@ describe('Integrations, Google Search Console', () => {
             data: [
               connectionFactory({
                 scopes: ['https://www.googleapis.com/auth/userinfo.email', 'openid', WEBMASTERS_SCOPE],
+                access: { gsc: true, ga4: false },
               }),
             ],
             page: { offset: 0, limit: 100, total: 1 },
@@ -403,10 +418,13 @@ describe('Integrations, Google Search Console', () => {
           .getAllByRole('button')
           .map((item) => item.textContent),
       ).toEqual([
-        'Read search performance for the property',
+        'Read search performance for Search Console properties',
+        'Read reports and the property list of Google Analytics',
         'Identify the Google account that connected',
         'Read the email address of the account, to name the connection',
       ]);
+      // The permission that was not granted says so, next to its line
+      expect(within(access).getByText('Not granted')).toBeInTheDocument();
       expect(within(access).getAllByRole('listitem').at(-1)).toHaveTextContent(
         'Cannot modify properties, sitemaps or settings',
       );
@@ -415,7 +433,7 @@ describe('Integrations, Google Search Console', () => {
     it('shows the raw scope in a tooltip', async () => {
       remember((world) => connectedFynix(world).world);
       const { user } = renderWithProviders(screenAs('owner'));
-      await user.hover(await screen.findByText('Read search performance for the property'));
+      await user.hover(await screen.findByText('Read search performance for Search Console properties'));
       await waitFor(() =>
         expect(document.querySelector('[data-slot="tooltip"]')).toHaveTextContent(
           'https://www.googleapis.com/auth/webmasters.readonly',
@@ -426,12 +444,12 @@ describe('Integrations, Google Search Console', () => {
     it('labels the sync strip and history as not started, with no numbers', async () => {
       remember((world) => connectedFynix(world).world);
       renderWithProviders(screenAs('owner'));
-      const strip = await screen.findByRole('group', { name: 'Sync status' });
+      const strip = await screen.findByRole('group', { name: 'Search Console sync status' });
       expect(within(strip).getByText('Never')).toBeInTheDocument();
       expect(within(strip).getByText('Not started')).toBeInTheDocument();
       expect(within(strip).getByText('None yet')).toBeInTheDocument();
       expect(within(strip).getByText('Not scheduled')).toBeInTheDocument();
-      const history = screen.getByRole('region', { name: 'Sync history' });
+      const history = screen.getByRole('region', { name: 'Search Console sync history' });
       expect(within(history).getByText('No sync yet')).toBeInTheDocument();
       expect(within(history).getByText(/Importing its numbers is not available yet/)).toBeInTheDocument();
     });
@@ -440,28 +458,29 @@ describe('Integrations, Google Search Console', () => {
       remember((world) => connectedFynix(world).world);
       renderWithProviders(screenAs('viewer'));
       const connection = await screen.findByRole('region', { name: 'Connection' });
-      expect(within(connection).getByText('sc-domain:fynix.digital')).toBeInTheDocument();
+      const section = screen.getByRole('region', { name: 'Search Console property' });
+      expect(within(section).getByText('sc-domain:fynix.digital')).toBeInTheDocument();
       expect(within(connection).getByText('seo@fynix.digital')).toBeInTheDocument();
-      expect(within(connection).queryByRole('button', { name: 'Change property' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'More actions for Google Search Console' })).not.toBeInTheDocument();
+      expect(within(section).queryByRole('button', { name: 'Change' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'More actions for Google' })).not.toBeInTheDocument();
       expect(screen.getByText(/Connections belong to the whole workspace/)).toBeInTheDocument();
     });
 
     it('switches the property off and offers the picker again', async () => {
       remember((world) => connectedFynix(world).world);
       const { user } = renderWithProviders(screenAs('owner'));
-      await user.click(await screen.findByRole('button', { name: 'Change property' }));
-      const dialog = await screen.findByRole('alertdialog', { name: 'Change the property?' });
+      const section = await screen.findByRole('region', { name: 'Search Console property' });
+      await user.click(await within(section).findByRole('button', { name: 'Change' }));
+      const dialog = await screen.findByRole('alertdialog', { name: 'Change the Search Console property?' });
       expect(within(dialog).getByText(/The numbers already stored are kept/)).toBeInTheDocument();
       await user.click(within(dialog).getByRole('button', { name: 'Switch off property' }));
-      expect(await screen.findByRole('heading', { name: 'Choose a property' })).toBeInTheDocument();
-      expect(screen.getByText('None chosen yet')).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'Choose a Search Console property' })).toBeInTheDocument();
     });
 
     it('disconnects from the More menu, below a separator, after a question that says stored numbers are kept', async () => {
       remember((world) => connectedFynix(world).world);
       const { user } = renderWithProviders(screenAs('owner'));
-      await user.click(await screen.findByRole('button', { name: 'More actions for Google Search Console' }));
+      await user.click(await screen.findByRole('button', { name: 'More actions for Google' }));
       const menu = await screen.findByRole('menu');
       const items = within(menu).getAllByRole('menuitem');
       expect(items.map((item) => item.textContent)).toEqual(['Reconnect Google', 'Disconnect Google']);
@@ -471,7 +490,7 @@ describe('Integrations, Google Search Console', () => {
       expect(within(dialog).getByText(/the numbers already stored are kept/)).toBeInTheDocument();
       await user.click(within(dialog).getByRole('button', { name: 'Disconnect' }));
       expect(await screen.findByText('Google disconnected')).toBeInTheDocument();
-      expect(await screen.findByRole('heading', { name: 'Search Console is not connected' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'Google is not connected' })).toBeInTheDocument();
     });
 
     it('says how many projects lose the connection when others use it too', async () => {
@@ -480,15 +499,16 @@ describe('Integrations, Google Search Console', () => {
         return withIntegration(made.world, {
           projectId: cleanstart?.project_id ?? '',
           connectionId: made.connectionId,
+          kind: 'gsc',
           property: 'sc-domain:cleanstart.com',
           status: 'active',
           createdAt: '2026-10-20T09:50:00Z',
         }).world;
       });
       const { user } = renderWithProviders(screenAs('owner'));
-      await user.click(await screen.findByRole('button', { name: 'More actions for Google Search Console' }));
+      await user.click(await screen.findByRole('button', { name: 'More actions for Google' }));
       await user.click(await screen.findByRole('menuitem', { name: 'Disconnect Google' }));
-      expect(await screen.findByText(/2 projects use this connection and stop syncing/)).toBeInTheDocument();
+      expect(await screen.findByText(/2 properties linked to projects use this connection/)).toBeInTheDocument();
     });
 
     it('keeps the dialog open and says so when disconnecting fails', async () => {
@@ -497,7 +517,7 @@ describe('Integrations, Google Search Console', () => {
         http.delete(`${W}/connections/:id`, ({ request }) => problem(request, 'service_unavailable' as never)),
       );
       const { user } = renderWithProviders(screenAs('owner'));
-      await user.click(await screen.findByRole('button', { name: 'More actions for Google Search Console' }));
+      await user.click(await screen.findByRole('button', { name: 'More actions for Google' }));
       await user.click(await screen.findByRole('menuitem', { name: 'Disconnect Google' }));
       await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Disconnect' }));
       expect(await screen.findByText('Could not disconnect. Nothing was changed. Try again.')).toBeInTheDocument();
@@ -512,17 +532,17 @@ describe('Integrations, Google Search Console', () => {
       });
       const { user } = renderWithProviders(screenAs('owner'));
       const banner = await screen.findByText(
-        /Google no longer accepts the saved sign-in for seo@fynix.digital. Reconnect to keep using this property/,
+        /Google no longer accepts the saved sign-in for seo@fynix.digital. Reconnect to keep using Search Console and GA4/,
       );
       expect(banner).toBeInTheDocument();
       expect(screen.getByText('Reconnect needed:')).toBeInTheDocument();
       const reconnect = screen.getByRole('button', { name: 'Reconnect' });
       expect(reconnect.className).toContain('bg-primary');
       expect(
-        within(screen.getByRole('region', { name: 'Connection' })).getByText('sc-domain:fynix.digital'),
+        within(screen.getByRole('region', { name: 'Search Console property' })).getByText('sc-domain:fynix.digital'),
       ).toBeInTheDocument();
       server.use(
-        http.post(`${W}/projects/${fynix.project_id}/integrations/gsc/authorize`, () =>
+        http.post(`${W}/projects/${fynix.project_id}/integrations/google/authorize`, () =>
           HttpResponse.json({ data: { authorization_url: GOOGLE, state_expires_at: '2026-10-20T10:00:00Z' } }),
         ),
       );
@@ -536,7 +556,7 @@ describe('Integrations, Google Search Console', () => {
         return withConnectionStatus(made.world, made.connectionId, 'reauth_required');
       });
       renderWithProviders(screenAs('viewer'));
-      expect(await screen.findByText(/Reconnect to keep using this property/)).toBeInTheDocument();
+      expect(await screen.findByText(/Reconnect to keep using Search Console and GA4/)).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Reconnect' })).not.toBeInTheDocument();
     });
   });
@@ -550,9 +570,9 @@ describe('Integrations, Google Search Console', () => {
         }),
       );
       renderWithProviders(screenAs('owner'));
-      expect(screen.getByRole('heading', { level: 1, name: 'Google Search Console' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1, name: 'Google' })).toBeInTheDocument();
       expect(screen.getByText('Loading')).toBeInTheDocument();
-      expect(await screen.findByRole('heading', { name: 'Search Console is not connected' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'Google is not connected' })).toBeInTheDocument();
     });
 
     it('says it could not load and retries', async () => {
@@ -565,10 +585,10 @@ describe('Integrations, Google Search Console', () => {
         ),
       );
       const { user } = renderWithProviders(screenAs('owner'));
-      expect(await screen.findByText('Could not load Search Console')).toBeInTheDocument();
+      expect(await screen.findByText('Could not load Google')).toBeInTheDocument();
       failing = false;
       await user.click(screen.getByRole('button', { name: 'Try again' }));
-      expect(await screen.findByRole('heading', { name: 'Search Console is not connected' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'Google is not connected' })).toBeInTheDocument();
     });
 
     it('says a role without access cannot see integrations, instead of offering a retry', async () => {
@@ -578,6 +598,287 @@ describe('Integrations, Google Search Console', () => {
       renderWithProviders(screenAs('owner'));
       expect(await screen.findByText('Your role cannot see integrations.')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+    });
+  });
+});
+
+/** A connection by the owner, ticking `grant`, with a Search Console and a GA4 property of Fynix when asked. */
+function linked(
+  world: IntegrationWorld,
+  { grant = 'both', gsc = false, ga4 = false }: { grant?: MockGrant; gsc?: boolean; ga4?: boolean } = {},
+): { world: IntegrationWorld; connectionId: string } {
+  const made = connect(world, grant);
+  let next = made.world;
+  const link = (kind: 'gsc' | 'ga4', property: string): void => {
+    next = withIntegration(next, {
+      projectId: fynix?.project_id ?? '',
+      connectionId: made.id,
+      kind,
+      property,
+      status: 'active',
+      createdAt: '2026-10-20T09:40:00Z',
+    }).world;
+  };
+  if (gsc) link('gsc', 'sc-domain:fynix.digital');
+  if (ga4) link('ga4', 'properties/398844007');
+  return { world: next, connectionId: made.id };
+}
+
+const sectionOf = (name: 'Search Console property' | 'GA4 property'): Promise<HTMLElement> =>
+  screen.findByRole('region', { name });
+
+describe('Integrations, one Google connection for Search Console and GA4', () => {
+  beforeEach(() => {
+    navigation.hardNavigate.mockReset();
+    document.cookie = 'mock-integrations=; Path=/; Max-Age=0';
+  });
+
+  describe('not connected', () => {
+    it('asks for both products in one consent and says so, with one Connect Google button', async () => {
+      renderWithProviders(screenAs('owner'));
+      expect(await screen.findAllByRole('button', { name: 'Connect Google' })).toHaveLength(1);
+      expect(screen.getByText(/One sign-in covers both/)).toBeInTheDocument();
+      const access = screen.getByRole('list', { name: 'Access granted to idraft' });
+      expect(within(access).getByText('Read search performance for Search Console properties')).toBeInTheDocument();
+      expect(within(access).getByText('Read reports and the property list of Google Analytics')).toBeInTheDocument();
+      expect(within(access).getByText('Identify the Google account that connected')).toBeInTheDocument();
+      expect(within(access).queryByText('Not granted')).not.toBeInTheDocument();
+      // No GA4 tab, and no section for either product before there is a connection
+      const nav = screen.getByRole('navigation', { name: 'Data sources' });
+      expect(within(nav).queryByRole('link', { name: 'GA4' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('region', { name: 'GA4 property' })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('back from Google with both products', () => {
+    const back = (): string => {
+      let id = '';
+      remember((world) => {
+        const made = connect(world);
+        id = made.id;
+        return made.world;
+      });
+      return `connection_id=${id}`;
+    };
+
+    it('shows a section for each product with its own picker, and the access with nothing missing', async () => {
+      const { container } = renderWithProviders(screenAs('owner'), { searchParams: back() });
+      const gsc = await sectionOf('Search Console property');
+      const ga4 = await sectionOf('GA4 property');
+      expect(await within(gsc).findByRole('heading', { name: 'Choose a Search Console property' })).toBeInTheDocument();
+      expect(await within(ga4).findByRole('heading', { name: 'Choose a GA4 property' })).toBeInTheDocument();
+      expect(within(ga4).getByText(/Importing GA4 numbers is not available yet/)).toBeInTheDocument();
+      expect(screen.queryByText('Not granted')).not.toBeInTheDocument();
+      expect(await axe(container)).toHaveNoViolations();
+    });
+
+    it('lists the GA4 properties by account, with the type, and nothing suggested', async () => {
+      renderWithProviders(screenAs('owner'), { searchParams: back() });
+      const table = await screen.findByRole('table', { name: 'GA4 properties of the connected account' });
+      await within(table).findByText('Fynix, all sites');
+      const rows = within(table).getAllByRole('row').slice(1);
+      expect(rows).toHaveLength(4);
+      expect(rows[0]).toHaveTextContent('Cleanstart Inc');
+      for (const row of rows.slice(1)) expect(row).toHaveTextContent('Fynix Digital');
+      const roll = (await within(table).findByText('Fynix, all sites')).closest('tr');
+      if (roll === null) throw new Error('no row');
+      expect(within(roll).getByText('Roll-up')).toBeInTheDocument();
+      expect(within(roll).getByText('properties/398845333')).toBeInTheDocument();
+      expect(within(table).queryByText('Suggested')).not.toBeInTheDocument();
+    });
+
+    it('saves a GA4 property, and the Search Console picker stays for its own choice', async () => {
+      const { user } = renderWithProviders(screenAs('owner'), { searchParams: back() });
+      await user.click(await screen.findByRole('button', { name: 'Choose Fynix website of Fynix Digital' }));
+      expect(await screen.findByText('Property chosen')).toBeInTheDocument();
+      const ga4 = await sectionOf('GA4 property');
+      expect(await within(ga4).findByText('properties/398844007')).toBeInTheDocument();
+      expect(within(ga4).getByRole('button', { name: 'Change' })).toBeInTheDocument();
+      const gsc = await sectionOf('Search Console property');
+      expect(within(gsc).getByRole('heading', { name: 'Choose a Search Console property' })).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'Connected as seo@fynix.digital. Search Console: no property chosen. GA4: properties/398844007.',
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it('disables a GA4 property that another project already uses', async () => {
+      let id = '';
+      remember((world) => {
+        const made = connect(world);
+        id = made.id;
+        return withIntegration(made.world, {
+          projectId: cleanstart?.project_id ?? '',
+          connectionId: made.id,
+          kind: 'ga4',
+          property: 'properties/398844007',
+          status: 'active',
+          createdAt: '2026-10-20T09:40:00Z',
+        }).world;
+      });
+      renderWithProviders(screenAs('owner'), { searchParams: `connection_id=${id}` });
+      const button = await screen.findByRole('button', { name: 'Choose Fynix website of Fynix Digital' });
+      expect(button).toBeDisabled();
+      const row = button.closest('tr');
+      if (row === null) throw new Error('no row');
+      expect(within(row).getByText('Already linked to another project.')).toBeInTheDocument();
+    });
+
+    it('says when the account cannot read the GA4 property any more, and reads the list again', async () => {
+      server.use(
+        http.post(`${W}/projects/${fynix.project_id}/integrations`, ({ request }) =>
+          problem(request, 'property_not_accessible'),
+        ),
+      );
+      const { user } = renderWithProviders(screenAs('owner'), { searchParams: back() });
+      await user.click(await screen.findByRole('button', { name: 'Choose Fynix website of Fynix Digital' }));
+      expect(
+        (await screen.findAllByText('This account cannot read that property. The list was reloaded.')).length,
+      ).toBeGreaterThan(0);
+    });
+
+    it('shows a retry when Google does not answer for GA4, without touching the Search Console list', async () => {
+      server.use(http.get(`${W}/connections/:id/properties/ga4`, () => new HttpResponse(null, { status: 500 })));
+      renderWithProviders(screenAs('owner'), { searchParams: back() });
+      expect(await screen.findByText('Could not load the GA4 properties')).toBeInTheDocument();
+      expect(
+        await screen.findByRole('table', { name: 'Search Console properties of the connected account' }),
+      ).toBeInTheDocument();
+    });
+
+    it('says the account has no GA4 property', async () => {
+      server.use(http.get(`${W}/connections/:id/properties/ga4`, () => HttpResponse.json({ data: [] })));
+      renderWithProviders(screenAs('owner'), { searchParams: back() });
+      expect(await screen.findByText('This account sees no GA4 properties')).toBeInTheDocument();
+    });
+  });
+
+  describe('granular consent', () => {
+    it('Search Console only: GA4 says access was not granted and offers Reconnect, and the access list shows it', async () => {
+      let id = '';
+      remember((world) => {
+        const made = connect(world, 'gsc');
+        id = made.id;
+        return made.world;
+      });
+      const { user } = renderWithProviders(screenAs('owner'), { searchParams: `connection_id=${id}` });
+      const ga4 = await sectionOf('GA4 property');
+      expect(within(ga4).getByText(/Google Analytics access was not granted/)).toBeInTheDocument();
+      expect(within(ga4).queryByRole('table')).not.toBeInTheDocument();
+      const gsc = await sectionOf('Search Console property');
+      expect(await within(gsc).findByRole('heading', { name: 'Choose a Search Console property' })).toBeInTheDocument();
+      const access = screen.getByRole('list', { name: 'Access granted to idraft' });
+      expect(within(access).getByText('Not granted')).toBeInTheDocument();
+      server.use(
+        http.post(`${W}/projects/${fynix.project_id}/integrations/google/authorize`, () =>
+          HttpResponse.json({ data: { authorization_url: GOOGLE, state_expires_at: '2026-10-20T10:00:00Z' } }),
+        ),
+      );
+      await user.click(within(ga4).getByRole('button', { name: 'Reconnect' }));
+      await waitFor(() => expect(navigation.hardNavigate).toHaveBeenCalledWith(GOOGLE));
+    });
+
+    it('GA4 only: Search Console says access was not granted, and GA4 can still be chosen', async () => {
+      let id = '';
+      remember((world) => {
+        const made = connect(world, 'ga4');
+        id = made.id;
+        return made.world;
+      });
+      renderWithProviders(screenAs('owner'), { searchParams: `connection_id=${id}` });
+      const gsc = await sectionOf('Search Console property');
+      expect(within(gsc).getByText(/Search Console access was not granted/)).toBeInTheDocument();
+      expect(within(gsc).queryByRole('table')).not.toBeInTheDocument();
+      const ga4 = await sectionOf('GA4 property');
+      expect(await within(ga4).findByRole('heading', { name: 'Choose a GA4 property' })).toBeInTheDocument();
+      expect(screen.getByRole('list', { name: 'Access granted to idraft' })).toHaveTextContent('Not granted');
+    });
+
+    it('names a property kept from before when its product was unticked at the last connection', async () => {
+      remember((world) => {
+        const made = linked(world, { gsc: true, ga4: true });
+        return withConnectionGrant(made.world, made.connectionId, 'ga4');
+      });
+      renderWithProviders(screenAs('owner'));
+      const gsc = await sectionOf('Search Console property');
+      expect(await within(gsc).findByText(/Search Console access was not granted/)).toBeInTheDocument();
+      expect(within(gsc).getByText(/Kept from before: sc-domain:fynix.digital/)).toBeInTheDocument();
+      const ga4 = await sectionOf('GA4 property');
+      expect(within(ga4).getByText('properties/398844007')).toBeInTheDocument();
+    });
+
+    it('a connection made before GA4 existed shows GA4 as not granted and Search Console as working', async () => {
+      remember((world) => linked(world, { grant: 'gsc', gsc: true }).world);
+      renderWithProviders(screenAs('owner'));
+      const gsc = await sectionOf('Search Console property');
+      expect(await within(gsc).findByText('sc-domain:fynix.digital')).toBeInTheDocument();
+      expect(
+        within(await sectionOf('GA4 property')).getByText(/Google Analytics access was not granted/),
+      ).toBeInTheDocument();
+    });
+
+    it('readers see the state of a product from the project, without reading connections', async () => {
+      remember((world) => linked(world, { gsc: true, ga4: true }).world);
+      renderWithProviders(screenAs('viewer'));
+      expect(await within(await sectionOf('GA4 property')).findByText('properties/398844007')).toBeInTheDocument();
+      expect(within(await sectionOf('Search Console property')).queryByRole('button')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('both products connected', () => {
+    it('shows both properties, the Search Console sync, and the GA4 import note', async () => {
+      remember((world) => linked(world, { gsc: true, ga4: true }).world);
+      renderWithProviders(screenAs('owner'));
+      const ga4 = await sectionOf('GA4 property');
+      expect(await within(ga4).findByText('properties/398844007')).toBeInTheDocument();
+      expect(within(ga4).getByText(/Importing GA4 numbers is not available yet/)).toBeInTheDocument();
+      expect(within(ga4).queryByText('Domain')).not.toBeInTheDocument();
+      expect(
+        within(await sectionOf('Search Console property')).getByText('sc-domain:fynix.digital'),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: 'Search Console sync status' })).toBeInTheDocument();
+    });
+
+    it('changes one property without touching the other', async () => {
+      remember((world) => linked(world, { gsc: true, ga4: true }).world);
+      const { user } = renderWithProviders(screenAs('owner'));
+      const ga4 = await sectionOf('GA4 property');
+      await user.click(await within(ga4).findByRole('button', { name: 'Change' }));
+      const dialog = await screen.findByRole('alertdialog', { name: 'Change the GA4 property?' });
+      expect(within(dialog).getByText(/properties\/398844007 is switched off/)).toBeInTheDocument();
+      await user.click(within(dialog).getByRole('button', { name: 'Switch off property' }));
+      expect(await screen.findByRole('heading', { name: 'Choose a GA4 property' })).toBeInTheDocument();
+      expect(
+        within(await sectionOf('Search Console property')).getByText('sc-domain:fynix.digital'),
+      ).toBeInTheDocument();
+    });
+
+    it('asks to reconnect once for both products', async () => {
+      remember((world) => {
+        const made = linked(world, { gsc: true, ga4: true });
+        return withConnectionStatus(made.world, made.connectionId, 'reauth_required');
+      });
+      renderWithProviders(screenAs('owner'));
+      expect(await screen.findAllByText(/Reconnect to keep using Search Console and GA4/)).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: 'Reconnect' })).toHaveLength(1);
+      // Both properties are kept, and neither can be changed until the sign-in works
+      expect(
+        within(await sectionOf('Search Console property')).getByText('sc-domain:fynix.digital'),
+      ).toBeInTheDocument();
+      expect(within(await sectionOf('GA4 property')).getByText('properties/398844007')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Change' })).not.toBeInTheDocument();
+    });
+
+    it('names both products when disconnecting, and switches both off', async () => {
+      remember((world) => linked(world, { gsc: true, ga4: true }).world);
+      const { user } = renderWithProviders(screenAs('owner'));
+      await user.click(await screen.findByRole('button', { name: 'More actions for Google' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Disconnect Google' }));
+      const dialog = await screen.findByRole('alertdialog', { name: 'Disconnect Google?' });
+      expect(within(dialog).getByText(/for Search Console and GA4, and stop syncing/)).toBeInTheDocument();
+      await user.click(within(dialog).getByRole('button', { name: 'Disconnect' }));
+      expect(await screen.findByRole('heading', { name: 'Google is not connected' })).toBeInTheDocument();
     });
   });
 });

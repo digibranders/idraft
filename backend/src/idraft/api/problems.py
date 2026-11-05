@@ -324,6 +324,13 @@ class IntegrationReauthRequiredError(ProblemError):
     status, code, title = 409, "integration_reauth_required", "The connection needs to be renewed"
 
 
+class IntegrationScopeMissingError(ProblemError):
+    """The person did not grant this product's permission when connecting Google, so nothing is
+    asked of Google for it. They connect again and tick it."""
+
+    status, code, title = 409, "integration_scope_missing", "Access to this product was not granted"
+
+
 class PropertyNotAccessibleError(ProblemError):
     """The connected account cannot read the property, or it is not one of its properties."""
 

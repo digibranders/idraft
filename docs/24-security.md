@@ -182,14 +182,14 @@ store: ciphertext, dek_wrapped, kek_version = N
 
 | Control | Implementation |
 |---|---|
-| Availability | Phase 12, together with envelope encryption (section 5.2). Search Console connect, with the encryption it needs, is built (migration 0015, `idraft.vault`); Bing, Cloudflare and GA4 are not |
+| Availability | Phase 12, together with envelope encryption (section 5.2). Google connect (Search Console and GA4 properties, one connection), with the encryption it needs, is built (migrations 0015 and 0017, `idraft.vault`); the GA4 pull, Bing and Cloudflare are not |
 | Flow | Authorization code with PKCE and a signed, single-use `state` bound to the user session and workspace (stored in Redis, 10 min TTL) |
-| Scopes | Minimum read-only: GSC `https://www.googleapis.com/auth/webmasters.readonly`; GA4 `https://www.googleapis.com/auth/analytics.readonly`; Bing and Cloudflare per [18-first-party-integrations.md](18-first-party-integrations.md) |
+| Scopes | Minimum read-only, asked together in one Google consent (one login is one connection): GSC `https://www.googleapis.com/auth/webmasters.readonly` and GA4 `https://www.googleapis.com/auth/analytics.readonly`, plus `openid email` to name the account. `include_granted_scopes=false`. The person may untick one product (granular consent); the connection stores what was granted and the other product is refused until they reconnect. Bing and Cloudflare per [18-first-party-integrations.md](18-first-party-integrations.md) |
 | Token storage | Refresh token encrypted in `ops.secrets`; access tokens held in worker memory only |
 | Redirect URI | Exact match, HTTPS, on the app origin under `/api/v1/` |
 | Revocation | "Disconnect" revokes the token at the provider, deletes the secret, and keeps already-ingested data unless the user also chooses "delete imported data" |
-| Failure | `invalid_grant` marks the integration `reauth_required` and notifies admins |
-| Verification | Google treats Search Console and Analytics read scopes as sensitive, so an app used by external customers needs Google OAuth app verification. Internal use (one Google Workspace organization) can run as an "Internal" app without verification. Plan for verification before external SaaS launch (see [30-risks-open-questions.md](30-risks-open-questions.md)) |
+| Failure | `invalid_grant` marks the connection and all its integrations, Search Console and GA4, `reauth_required` and notifies admins |
+| Verification | Google treats Search Console and Analytics read scopes as sensitive, so an app used by external customers needs Google OAuth app verification. Internal use (one Google Workspace organization) can run as an "Internal" app without verification. Plan for verification before external SaaS launch (see [30-risks-open-questions.md](30-risks-open-questions.md)). Because both scopes are requested together, the verification review covers both: the use of `analytics.readonly` must be justified in the request even while no GA4 data is pulled yet. The Google Cloud project needs the Google Search Console API, the Google Analytics Admin API (property listing) and the Google Analytics Data API (the later pull) enabled |
 
 ## 7. Untrusted content handling
 

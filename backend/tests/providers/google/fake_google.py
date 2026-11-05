@@ -1,4 +1,4 @@
-"""A stand-in for Google's OAuth, userinfo, Search Console and revoke endpoints.
+"""A stand-in for Google's OAuth, userinfo, Search Console, Analytics Admin and revoke endpoints.
 
 It is an `httpx.MockTransport` handler, so the code under test makes its real calls and nothing
 leaves the process. It checks what the real services check: the client id and secret, the
@@ -17,6 +17,8 @@ from urllib.parse import parse_qs
 import httpx
 
 from idraft.providers.google.client import (
+    ACCOUNT_SUMMARIES_URL,
+    ANALYTICS_SCOPE,
     REVOKE_URL,
     SEARCH_CONSOLE_SCOPE,
     SITES_URL,
@@ -26,7 +28,14 @@ from idraft.providers.google.client import (
 
 CLIENT_ID = "fake-client-id.apps.googleusercontent.com"
 CLIENT_SECRET = "fake-client-secret"
-ALL_SCOPES = ("openid", "email", SEARCH_CONSOLE_SCOPE)
+ALL_SCOPES = ("openid", "email", SEARCH_CONSOLE_SCOPE, ANALYTICS_SCOPE)
+# What a person gets when they untick one product on Google's consent page.
+SEARCH_CONSOLE_ONLY = ("openid", "email", SEARCH_CONSOLE_SCOPE)
+ANALYTICS_ONLY = ("openid", "email", ANALYTICS_SCOPE)
+NO_PRODUCT = ("openid", "email")
+# One Analytics account with its properties: (account id, account name, [(property id, name,
+# type)]).
+type AnalyticsAccount = tuple[str, str, list[tuple[str, str, str]]]
 
 
 @dataclass
@@ -35,6 +44,7 @@ class Account:
     email: str
     sites: list[tuple[str, str]] = field(default_factory=list)
     refresh_token: str = ""
+    analytics: list[AnalyticsAccount] = field(default_factory=list)
 
 
 @dataclass
@@ -63,19 +73,27 @@ class FakeGoogle:
         self.token_outage = 0  # answer 503 this many times first
         self.sites_status: int | None = None
         self.sites_body: dict[str, object] | None = None
+        self.summaries_status: int | None = None
+        self.summaries_page_size = 200  # the page size this fake gives, to test the paging
         self.revoke_status = 200
         self._numbers = itertools.count(1)
         self._codes: dict[str, _Code] = {}
         self._access: dict[str, Account] = {}
         self._refresh: dict[str, Account] = {}
 
-    def account(self, email: str, sites: list[tuple[str, str]] | None = None) -> Account:
+    def account(
+        self,
+        email: str,
+        sites: list[tuple[str, str]] | None = None,
+        analytics: list[AnalyticsAccount] | None = None,
+    ) -> Account:
         number = next(self._numbers)
         account = Account(
             sub=f"1000{number}",
             email=email,
             sites=sites or [],
             refresh_token=f"1//fake-rt-{number}",
+            analytics=analytics or [],
         )
         self._refresh[account.refresh_token] = account
         return account
@@ -122,6 +140,8 @@ class FakeGoogle:
             return httpx.Response(200, json={"sub": account.sub, "email": account.email})
         if url == SITES_URL:
             return self._sites(authorization)
+        if url == ACCOUNT_SUMMARIES_URL:
+            return self._summaries(authorization, dict(request.url.params))
         if url == REVOKE_URL:
             if self.revoke_status == 200:
                 self._refresh.pop(form.get("token", ""), None)
@@ -141,6 +161,40 @@ class FakeGoogle:
             return httpx.Response(200, json=self.sites_body)
         entries = [{"siteUrl": url, "permissionLevel": level} for url, level in account.sites]
         return httpx.Response(200, json={"siteEntry": entries} if entries else {})
+
+    def _summaries(self, authorization: str | None, params: dict[str, str]) -> httpx.Response:
+        """The shape of `accountSummaries.list`: accountSummaries[] with propertySummaries[], and
+        a nextPageToken while there are more accounts. Accounts without a property have no
+        `propertySummaries`."""
+        if self.summaries_status is not None:
+            return httpx.Response(self.summaries_status, json={"error": {"message": "fake"}})
+        account = self._bearer(authorization)
+        if account is None:
+            return httpx.Response(401, json={"error": {"code": 401}})
+        start = int(params.get("pageToken", "0"))
+        page = account.analytics[start : start + self.summaries_page_size]
+        summaries: list[dict[str, object]] = []
+        for account_id, account_name, properties in page:
+            summary: dict[str, object] = {
+                "name": f"accountSummaries/{account_id}",
+                "account": f"accounts/{account_id}",
+                "displayName": account_name,
+            }
+            if properties:
+                summary["propertySummaries"] = [
+                    {
+                        "property": f"properties/{property_id}",
+                        "displayName": name,
+                        "propertyType": kind,
+                        "parent": f"accounts/{account_id}",
+                    }
+                    for property_id, name, kind in properties
+                ]
+            summaries.append(summary)
+        body: dict[str, object] = {"accountSummaries": summaries} if summaries else {}
+        if start + self.summaries_page_size < len(account.analytics):
+            body["nextPageToken"] = str(start + self.summaries_page_size)
+        return httpx.Response(200, json=body)
 
     def _token(self, form: dict[str, str]) -> httpx.Response:
         if self.token_outage > 0:

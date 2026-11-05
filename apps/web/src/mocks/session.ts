@@ -108,6 +108,11 @@ export const KEYWORDS_COOKIE = 'mock-keywords';
 export const OPERATIONS_COOKIE = 'mock-operations';
 /** What a browser changed in the Google connections and the properties linked to projects (./integrations-state.ts). */
 export const INTEGRATIONS_COOKIE = 'mock-integrations';
+/**
+ * What the person ticks on Google's consent page, for the next mocked connection: `gsc` or `ga4` for one product
+ * only. Absent, both are granted. A developer sets it in the console to walk the granular-consent states.
+ */
+export const GOOGLE_GRANT_COOKIE = 'mock-google-grant';
 
 /** Every cookie of the mocks: a test expires them all, so it starts from the fixtures, signed out. */
 export const MOCK_COOKIES: readonly string[] = [
@@ -120,6 +125,7 @@ export const MOCK_COOKIES: readonly string[] = [
   KEYWORDS_COOKIE,
   OPERATIONS_COOKIE,
   INTEGRATIONS_COOKIE,
+  GOOGLE_GRANT_COOKIE,
 ];
 
 /** The `Set-Cookie` that expires cookie `name`. */

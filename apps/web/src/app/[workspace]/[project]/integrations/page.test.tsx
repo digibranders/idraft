@@ -14,13 +14,13 @@ const open = (searchParams: Record<string, string | string[]>): Promise<unknown>
 beforeEach(() => navigation.redirect.mockReset());
 
 describe('Integrations', () => {
-  it('opens Search Console, the first source', async () => {
+  it('opens Google, the first source', async () => {
     await open({});
-    expect(navigation.redirect).toHaveBeenCalledWith('/digibranders/fynix/integrations/gsc');
+    expect(navigation.redirect).toHaveBeenCalledWith('/digibranders/fynix/integrations/google');
   });
 
   it('keeps the query it came with', async () => {
     await open({ error: 'scope_denied' });
-    expect(navigation.redirect).toHaveBeenCalledWith('/digibranders/fynix/integrations/gsc?error=scope_denied');
+    expect(navigation.redirect).toHaveBeenCalledWith('/digibranders/fynix/integrations/google?error=scope_denied');
   });
 });

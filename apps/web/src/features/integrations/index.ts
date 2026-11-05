@@ -1,1 +1,1 @@
-export { GscScreen, type GscScreenProps } from './gsc-screen';
+export { GoogleScreen, type GoogleScreenProps } from './google-screen';
