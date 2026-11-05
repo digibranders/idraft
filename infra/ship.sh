@@ -169,7 +169,10 @@ fi
 if [ "$deploy_web" = 1 ]; then
   # COPYFILE_DISABLE keeps macOS ._ files out. The build runs on Linux as is (no native module is loaded:
   # the app does not use next/image); sharp's macOS binaries are left out as dead weight.
-  COPYFILE_DISABLE=1 tar -czf - --exclude '._*' --exclude '.env*' --exclude 'sharp-darwin*' \
+  # --no-xattrs and --no-mac-metadata keep macOS attributes (com.apple.provenance) out, which GNU tar
+  # on the VPS otherwise warns about once per file.
+  COPYFILE_DISABLE=1 tar -czf - --no-xattrs --no-mac-metadata \
+    --exclude '._*' --exclude '.env*' --exclude 'sharp-darwin*' \
     --exclude 'sharp-libvips-darwin*' -C apps/web/.next/standalone . | remote "cat > '$stage/web.tar.gz'"
 fi
 
