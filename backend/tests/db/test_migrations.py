@@ -344,7 +344,19 @@ def test_a_migrator_waits_its_turn_longer_than_the_role_lock_timeout(pg: Postgre
                     subprocess.run, command, env=environment, capture_output=True, timeout=60
                 )
             )
-            await asyncio.sleep(3)  # longer than the role's lock_timeout
+            # Once the migrator is queued on the lock, hold it past the role's 2 s lock_timeout.
+            for _ in range(300):
+                queued = await holder.fetchval(
+                    "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted "
+                    "AND database = "
+                    "(SELECT oid FROM pg_database WHERE datname = current_database())"
+                )
+                if queued:
+                    break
+                await asyncio.sleep(0.1)
+            else:
+                raise AssertionError("the migrator never queued on the migration lock")
+            await asyncio.sleep(2.5)
             await holder.execute("SELECT pg_advisory_unlock($1)", ADVISORY_LOCK_KEY)
             return await migrator
         finally:
