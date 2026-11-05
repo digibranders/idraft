@@ -209,6 +209,7 @@ The matrix compares organic ranking strength with AI visibility for keywords (or
 | Area | None |
 | Last point | 3 px dot in the stroke color |
 | Baseline | Optional 1 px dashed `chart-grid` at zero (rates, counts) |
+| Search volume | The Keywords table's Trend: the last 12 months, oldest at the left, higher is up, on a scale of the row's own lowest and highest month (volumes differ by orders of magnitude from one keyword to the next, so the row shows the shape and the cell tip the numbers); a month without a volume breaks the line; a series that never moves sits mid-height |
 | Ranks | Inverted (better is up); scale fixed per table (1 to 20 by default) so rows are comparable; beyond-depth points break the line |
 | Rates | Drawn in a window of at least 20 points around the row's own values, so a move of a point or two stays flat and a real move shows. A week without a usable rate breaks the line, and a series that ends in a gap has no last point |
 | Direction color | The line is never red or green. The adjacent delta cell carries color when warranted |

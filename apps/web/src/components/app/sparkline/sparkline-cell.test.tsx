@@ -2,7 +2,6 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SparklineCell } from './sparkline-cell';
-import type { SparklinePoint } from '@/lib/api/types';
 
 describe('SparklineCell', () => {
   const contextSpies = {
@@ -27,12 +26,8 @@ describe('SparklineCell', () => {
   });
 
   it('renders a canvas with role="img", aria-label, and scaled pixel dimensions', () => {
-    const points: SparklinePoint[] = [
-      { t: '2026-10-01T00:00:00Z', rank: 3, depth: 20, state: 'ranked' },
-      { t: '2026-10-02T00:00:00Z', rank: 4, depth: 20, state: 'ranked' },
-    ];
-    render(<SparklineCell points={points} label="Rank trend: from 3 to 4, best 3" />);
-    const canvas = screen.getByRole('img', { name: 'Rank trend: from 3 to 4, best 3' });
+    render(<SparklineCell values={[1300, 1900]} label="Search volume trend: from 1,300 to 1,900" />);
+    const canvas = screen.getByRole('img', { name: 'Search volume trend: from 1,300 to 1,900' });
     expect(canvas.tagName.toLowerCase()).toBe('canvas');
     expect(canvas).toHaveAttribute('width', String(64 * (window.devicePixelRatio || 1)));
     expect(canvas).toHaveAttribute('height', String(20 * (window.devicePixelRatio || 1)));
@@ -41,46 +36,30 @@ describe('SparklineCell', () => {
     expect(contextSpies.arc).toHaveBeenCalledTimes(1);
   });
 
-  it('breaks into multiple multi-point segments with no arc if the last check was beyond depth', () => {
-    const points: SparklinePoint[] = [
-      { t: '2026-10-01T00:00:00Z', rank: 3, depth: 20, state: 'ranked' },
-      { t: '2026-10-02T00:00:00Z', rank: 4, depth: 20, state: 'ranked' },
-      { t: '2026-10-03T00:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
-    ];
-    render(<SparklineCell points={points} label="Rank trend" />);
+  it('breaks the line at a month without a volume, and puts no dot on a last month that has none', () => {
+    render(<SparklineCell values={[300, 400, null]} label="Search volume trend" />);
     expect(contextSpies.moveTo).toHaveBeenCalledTimes(1);
     expect(contextSpies.lineTo).toHaveBeenCalledTimes(1);
     expect(contextSpies.arc).not.toHaveBeenCalled();
   });
 
-  it('draws a dot for a one-point segment in [beyond, ranked, beyond]', () => {
-    const points: SparklinePoint[] = [
-      { t: '2026-10-01T00:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
-      { t: '2026-10-02T00:00:00Z', rank: 7, depth: 20, state: 'ranked' },
-      { t: '2026-10-03T00:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
-    ];
-    render(<SparklineCell points={points} label="Rank trend" />);
+  it('draws a dot for a run of one month in [none, volume, none]', () => {
+    render(<SparklineCell values={[null, 700, null]} label="Search volume trend" />);
     expect(contextSpies.arc).toHaveBeenCalledTimes(1);
     expect(contextSpies.fill).toHaveBeenCalledTimes(1);
   });
 
-  it('renders dashed treatment when there are no segments [beyond, beyond]', () => {
-    const points: SparklinePoint[] = [
-      { t: '2026-10-01T00:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
-      { t: '2026-10-02T00:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
-    ];
-    const { container } = render(<SparklineCell points={points} label="Rank trend: not ranked within the depth" />);
-    const emptyWrapper = screen.getByRole('img', { name: 'Rank trend: not ranked within the depth' });
+  it('renders the dashed treatment when no month has a volume', () => {
+    const { container } = render(<SparklineCell values={[null, null]} label="Search volume trend: none" />);
+    const emptyWrapper = screen.getByRole('img', { name: 'Search volume trend: none' });
     expect(emptyWrapper.tagName.toLowerCase()).toBe('span');
-    const line = container.querySelector('.border-border');
-    expect(line).toBeInTheDocument();
+    expect(container.querySelector('.border-border')).toBeInTheDocument();
   });
 
-  it('renders empty state when there are no points', () => {
-    const { container } = render(<SparklineCell points={[]} label="Rank trend: no checks yet" />);
-    const emptyWrapper = screen.getByRole('img', { name: 'Rank trend: no checks yet' });
+  it('renders the dashed treatment when there are no months', () => {
+    const { container } = render(<SparklineCell values={[]} label="Search volume trend: no monthly volumes yet" />);
+    const emptyWrapper = screen.getByRole('img', { name: 'Search volume trend: no monthly volumes yet' });
     expect(emptyWrapper.tagName.toLowerCase()).toBe('span');
-    const line = container.querySelector('.border-border');
-    expect(line).toBeInTheDocument();
+    expect(container.querySelector('.border-border')).toBeInTheDocument();
   });
 });

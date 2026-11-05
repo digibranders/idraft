@@ -52,6 +52,13 @@ def months_of(monthly: Sequence[Mapping[str, object]]) -> list[Month]:
     return sorted(found, key=lambda month: (month.year, month.month))
 
 
+def monthly_view(months: Sequence[Month]) -> list[MonthlySearches]:
+    return [
+        MonthlySearches(year=month.year, month=month.month, search_volume=month.search_volume)
+        for month in months
+    ]
+
+
 def _month_end(day: date) -> date:
     return day.replace(day=calendar.monthrange(day.year, day.month)[1])
 
@@ -129,6 +136,7 @@ def keyword_metrics(record: MetricsRecord) -> KeywordMetrics:
         intent_main=record.intent_main,
         trend_pct_per_month=trend_pct_per_month(months),
         is_seasonal=is_seasonal,
+        monthly_searches=monthly_view(months),
     )
 
 
@@ -153,12 +161,7 @@ def history(
                 fetched_at=snapshot.fetched_at,
                 data_month=snapshot.data_month,
                 search_volume=snapshot.search_volume,
-                monthly_searches=[
-                    MonthlySearches(
-                        year=month.year, month=month.month, search_volume=month.search_volume
-                    )
-                    for month in months_of(snapshot.monthly_searches)
-                ],
+                monthly_searches=monthly_view(months_of(snapshot.monthly_searches)),
                 cpc_usd=snapshot.cpc_usd,
                 keyword_difficulty=snapshot.keyword_difficulty,
                 is_material_change=snapshot.is_material_change,

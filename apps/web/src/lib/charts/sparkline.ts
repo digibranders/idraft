@@ -1,16 +1,13 @@
-import type { SparklinePoint } from '@/lib/api/types';
-
 /**
- * Where a rank sparkline's line and last point fall in its box (15-data-visualization.md section 9): ranks
- * inverted, better up, on a scale fixed per table (1 to 20) so rows compare; a deeper rank sits on the bottom
- * edge; a check beyond the depth breaks the line. The canvas only draws what this returns.
+ * Where a search volume sparkline's line and last point fall in its box (15-data-visualization.md section 9):
+ * the months oldest first, higher volume higher up, on a scale of the keyword's own lowest and highest month
+ * (volumes differ by orders of magnitude from one keyword to the next, so rows show the shape, and the cell's
+ * tooltip the numbers); a month with no volume breaks the line. The canvas only draws what this returns.
  */
 
 export const SPARK_WIDTH = 64;
 export const SPARK_HEIGHT = 20;
 const PAD = 2.5;
-/** The rank at the bottom edge of every sparkline in a table. */
-export const SPARK_RANK_SCALE = 20;
 
 export interface SparkPoint {
   x: number;
@@ -18,29 +15,34 @@ export interface SparkPoint {
 }
 
 export interface SparklineGeometry {
-  /** Runs of ranked checks; a check beyond the depth ends a run. */
+  /** Runs of months with a volume; a month without one ends a run. */
   segments: SparkPoint[][];
-  /** The latest check, when it ranked. */
+  /** The latest month, when it has a volume. */
   last: SparkPoint | null;
 }
 
-type Point = Pick<SparklinePoint, 'rank' | 'state'>;
+/** A month's volume, or `null` where the provider sent none. */
+export type SparkValue = number | null;
 
 export function sparklineGeometry(
-  points: readonly Point[],
+  values: readonly SparkValue[],
   width: number = SPARK_WIDTH,
   height: number = SPARK_HEIGHT,
 ): SparklineGeometry {
+  const known = values.filter((value): value is number => value !== null);
+  const low = Math.min(...known);
+  const range = Math.max(...known) - low;
   const segments: SparkPoint[][] = [];
-  const step = points.length > 1 ? (width - PAD * 2) / (points.length - 1) : 0;
+  const step = values.length > 1 ? (width - PAD * 2) / (values.length - 1) : 0;
   let run: SparkPoint[] | null = null;
-  for (const [index, point] of points.entries()) {
-    if (point.state !== 'ranked' || point.rank === null) {
+  for (const [index, value] of values.entries()) {
+    if (value === null) {
       run = null;
       continue;
     }
-    const share = (Math.min(Math.max(point.rank, 1), SPARK_RANK_SCALE) - 1) / (SPARK_RANK_SCALE - 1);
-    const at = { x: points.length > 1 ? PAD + index * step : width / 2, y: PAD + share * (height - PAD * 2) };
+    // A series that never moves sits in the middle of the box
+    const share = range === 0 ? 0.5 : (value - low) / range;
+    const at = { x: values.length > 1 ? PAD + index * step : width / 2, y: PAD + (1 - share) * (height - PAD * 2) };
     if (run === null) {
       run = [at];
       segments.push(run);
@@ -48,29 +50,26 @@ export function sparklineGeometry(
       run.push(at);
     }
   }
-  const latest = points.at(-1);
-  const last = latest?.state === 'ranked' && latest.rank !== null ? (segments.at(-1)?.at(-1) ?? null) : null;
+  const last = values.at(-1) === null || values.length === 0 ? null : (segments.at(-1)?.at(-1) ?? null);
   return { segments, last };
 }
 
 export interface SparklineSummary {
-  checks: number;
-  /** The first and last ranked checks' ranks, and the best. */
+  /** The months in the series, those without a volume included. */
+  months: number;
+  /** The volumes of the first and the last month that has one, and the highest. */
   first: number | null;
   last: number | null;
-  best: number | null;
-  /** Checks beyond the depth checked. */
-  beyond: number;
+  peak: number | null;
 }
 
-/** The numbers of a sparkline's accessible name (20-accessibility.md: "from 9 to 4, best 3, 2 checks not in top 20"). */
-export function sparklineSummary(points: readonly Point[]): SparklineSummary {
-  const ranks = points.flatMap((point) => (point.state === 'ranked' && point.rank !== null ? [point.rank] : []));
+/** The numbers of a sparkline's accessible name (20-accessibility.md: "from 1,300 to 1,900, peak 2,400"). */
+export function sparklineSummary(values: readonly SparkValue[]): SparklineSummary {
+  const known = values.filter((value): value is number => value !== null);
   return {
-    checks: points.length,
-    first: ranks[0] ?? null,
-    last: ranks.at(-1) ?? null,
-    best: ranks.length === 0 ? null : Math.min(...ranks),
-    beyond: points.length - ranks.length,
+    months: values.length,
+    first: known[0] ?? null,
+    last: known.at(-1) ?? null,
+    peak: known.length === 0 ? null : Math.max(...known),
   };
 }

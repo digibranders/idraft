@@ -155,6 +155,7 @@ export function keywordMetrics(reading: LabsReading): KeywordMetrics {
     intent_main: reading.intent,
     trend_pct_per_month: trendPctPerMonth(months),
     is_seasonal: seasonalityOf(months).seasonal,
+    monthly_searches: months,
   };
 }
 

@@ -177,8 +177,9 @@ read_release() {
   worker_image="$(jq -r '.worker // empty' "$file")" || die "Not valid JSON: $file"
   web_image="$(jq -r '.web // empty' "$file")" || die "Not valid JSON: $file"
   release_sha="$(jq -r '.sha // empty' "$file")" || die "Not valid JSON: $file"
-  [ -n "$api_image" ] && [ -n "$worker_image" ] && [ -n "$web_image" ] \
-    || die "Release file must define .api, .worker and .web: $file"
+  if [ -z "$api_image" ] || [ -z "$worker_image" ] || [ -z "$web_image" ]; then
+    die "Release file must define .api, .worker and .web: $file"
+  fi
   validate_image api "$api_image"
   validate_image worker "$worker_image"
   validate_image web "$web_image"

@@ -2414,13 +2414,10 @@
     },
     "trend": {
       "column": "Trend",
-      "label": "Rank trend, last {checks, plural, one {check} other {# checks}}: from {first} to {last}, best {best}",
-      "labelBeyond": "{count, plural, one {1 check} other {# checks}} beyond the depth checked",
-      "labelNone": "Rank trend: not ranked within the depth in the last {checks, plural, one {check} other {# checks}}",
-      "labelEmpty": "Rank trend: no checks yet",
-      "labelFailed": "Rank trend: checks failed",
-      "tipTitle": "Last checks",
-      "tipPoint": "{date}: {rank}"
+      "label": "Search volume trend, last {months, plural, one {month} other {# months}}: from {first} to {last}, peak {peak}",
+      "labelEmpty": "Search volume trend: no monthly volumes yet",
+      "tipTitle": "Monthly search volume",
+      "tipPoint": "{month}: {volume}"
     },
     "strip": {
       "label": "Summary for the filtered keywords",

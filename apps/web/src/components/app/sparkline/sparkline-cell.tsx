@@ -2,26 +2,26 @@
 
 import { useEffect, useMemo, useRef, type ReactElement } from 'react';
 
-import type { SparklinePoint } from '@/lib/api/types';
-import { SPARK_HEIGHT, SPARK_WIDTH, sparklineGeometry } from '@/lib/charts/sparkline';
+import { SPARK_HEIGHT, SPARK_WIDTH, sparklineGeometry, type SparkValue } from '@/lib/charts/sparkline';
 import { readColorToken } from '@/lib/design/read-tokens';
 import { cn } from '@/lib/utils';
 
 export interface SparklineCellProps {
-  points: readonly SparklinePoint[];
+  /** The monthly search volumes, oldest first; `null` for a month without one. */
+  values: readonly SparkValue[];
   label: string;
   className?: string | undefined;
 }
 
 /**
- * A rank trend sparkline in a table cell (15-data-visualization.md section 9).
+ * A search volume trend sparkline in a table cell (15-data-visualization.md section 9).
  * Draws on a 64 x 20 canvas with role="img" and accessible label.
  * An empty sparkline renders a 1 px dashed line across the width.
  */
-export function SparklineCell({ points, label, className }: SparklineCellProps): ReactElement {
+export function SparklineCell({ values, label, className }: SparklineCellProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const geo = useMemo(() => sparklineGeometry(points, SPARK_WIDTH, SPARK_HEIGHT), [points]);
+  const geo = useMemo(() => sparklineGeometry(values, SPARK_WIDTH, SPARK_HEIGHT), [values]);
   const hasSegments = geo.segments.length > 0;
 
   useEffect(() => {

@@ -4,7 +4,7 @@
  * Rankings table has them, with their widths), the numbers of a set of keywords for the devices chosen, the filters,
  * and the two export formats.
  */
-import { UNGROUPED, groupNames, series, store, usedCountries } from './kw-grouped-data.js';
+import { UNGROUPED, groupNames, store, usedCountries } from './kw-grouped-data.js';
 
 export const GROUP_LABELS = { order: 'Order of the groups' };
 export const ALL_COUNTRIES = 'All countries';
@@ -152,7 +152,6 @@ export function measures(items) {
   const kds = items.map((keyword) => keyword.kd).filter((kd) => kd !== null);
   const cpcs = items.map((keyword) => keyword.cpc).filter((cpc) => cpc > 0);
   const moves = items.flatMap((keyword) => devices.map((device) => gained(keyword, device)));
-  const ranked = ranks.filter(isRank);
   return {
     count: new Set(items.map((keyword) => keyword.keyword)).size,
     countries: new Set(items.map((keyword) => keyword.country)).size,
@@ -171,8 +170,26 @@ export function measures(items) {
     up: moves.filter((move) => move > 0).length,
     down: moves.filter((move) => move < 0).length,
     cited: items.filter((keyword) => derived(keyword).aio.kind === 'cited').length,
-    trend: series(ranked.length === 0 ? 40 : sum(ranked) / ranked.length, items.length),
+    // The months of the group's search volume: the sum of its keywords' months
+    trend: Array.from({ length: MONTHS }, (_, month) => sum(items.map((keyword) => monthly(keyword)[month]))),
   };
+}
+
+const MONTHS = 12;
+
+/**
+ * The last twelve months of a keyword's search volume, oldest first, averaging its volume: a gentle slope up or
+ * down and, for about a quarter of the keywords, a season. Derived from the text, so it is the same on every visit.
+ */
+export function monthly(keyword) {
+  const seed = hash(keyword.keyword) / 4294967295;
+  const slope = (seed - 0.5) * 0.04;
+  const swing = seed > 0.75 ? 0.6 : 0.12;
+  const peak = Math.floor(seed * 1000) % MONTHS;
+  return Array.from({ length: MONTHS }, (_, month) => {
+    const season = 1 + swing * Math.cos(((month - peak) / MONTHS) * 2 * Math.PI);
+    return Math.max(0, Math.round(keyword.volume * season * (1 + slope * (month - (MONTHS - 1) / 2))));
+  });
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -273,14 +290,19 @@ export function csvText(rows) {
   return `${String.fromCharCode(0xfeff)}${rows.map((row) => row.map(field).join(',')).join('\r\n')}\r\n`;
 }
 
-/** A line of a series, drawn so that up is better (a smaller rank is higher). */
-export function sparkline(points, label, className = 'w-18 h-5.5 text-primary') {
+/**
+ * A line of a series on a scale of its own lowest and highest point. By default up is better (a smaller rank is
+ * higher); with `higherIsUp` a larger value is higher, as for a search volume.
+ */
+export function sparkline(points, label, className = 'w-18 h-5.5 text-primary', higherIsUp = false) {
   const width = 72;
   const height = 22;
   const high = Math.max(...points);
   const low = Math.min(...points);
   const span = high - low || 1;
-  const path = points.map((point, index) => `${index === 0 ? 'M' : 'L'}${((index / (points.length - 1)) * width).toFixed(1)} ${(((point - low) / span) * (height - 4) + 2).toFixed(1)}`).join(' ');
+  // A series that never moves sits in the middle
+  const share = (point) => (high === low ? 0.5 : (higherIsUp ? high - point : point - low) / span);
+  const path = points.map((point, index) => `${index === 0 ? 'M' : 'L'}${((index / (points.length - 1)) * width).toFixed(1)} ${(share(point) * (height - 4) + 2).toFixed(1)}`).join(' ');
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
   svg.setAttribute('class', className);

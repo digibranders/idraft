@@ -316,7 +316,7 @@ export const col = {
     return rich(id, 'aiOverview', sortValue, options);
   },
 
-  /** Rank trend sparkline: canvas, left aligned (15-data-visualization.md section 9). Never sorts. */
+  /** Search volume trend sparkline: canvas, left aligned (15-data-visualization.md section 9). Never sorts. */
   sparkline<TRow>(id: string, options: RichOptions<TRow>): DataTableColumn<TRow> {
     return rich(id, 'sparkline', () => null, { ...options, sortable: false });
   },

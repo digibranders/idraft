@@ -584,6 +584,10 @@ async def test_the_detail_carries_current_metrics(
         "2026-08-01",
     )
     assert (metrics["trend_pct_per_month"], metrics["is_seasonal"]) == (0.0, False)
+    # The twelve months behind the trend, oldest first, for the table's Trend column
+    assert len(metrics["monthly_searches"]) == 12
+    assert metrics["monthly_searches"][0] == {"year": 2025, "month": 9, "search_volume": 100}
+    assert metrics["monthly_searches"][-1] == {"year": 2026, "month": 8, "search_volume": 100}
 
 
 async def test_a_change_to_depth_or_target_url_makes_a_new_config_version(
