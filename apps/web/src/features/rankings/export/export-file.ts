@@ -34,9 +34,11 @@ function rankStyle(value: ExportCell, colors: WorkbookColors): Partial<CellObjec
 }
 
 const CENTERED: ReadonlySet<ExportColumnKind> = new Set(['rank', 'difficulty', 'priority']);
-const RIGHT: ReadonlySet<ExportColumnKind> = new Set(['volume', 'cpc']);
+const RIGHT: ReadonlySet<ExportColumnKind> = new Set(['volume', 'clicks', 'impressions', 'cpc']);
 const NUMBER_FORMAT: Partial<Record<ExportColumnKind, string>> = {
   volume: '#,##0',
+  clicks: '#,##0',
+  impressions: '#,##0',
   difficulty: '0',
   cpc: '[$$-409]#,##0.00',
   priority: '0',
@@ -45,6 +47,8 @@ const NUMBER_FORMAT: Partial<Record<ExportColumnKind, string>> = {
 const FIXED_WIDTH: Partial<Record<ExportColumnKind, number>> = {
   rank: 12,
   volume: 15,
+  clicks: 20,
+  impressions: 24,
   difficulty: 9,
   cpc: 12,
   intent: 16,

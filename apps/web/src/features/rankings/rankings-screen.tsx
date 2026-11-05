@@ -598,6 +598,8 @@ export function RankingsScreen({
         mobile: columnsT('mobile'),
         url: exportColumnsT('url'),
         volume: exportColumnsT('volume'),
+        clicks: exportColumnsT('clicks'),
+        impressions: exportColumnsT('impressions'),
         difficulty: exportColumnsT('difficulty'),
         cpc: exportColumnsT('cpc'),
         intent: exportColumnsT('intent'),

@@ -5,6 +5,7 @@ import { useMemo, type ReactNode } from 'react';
 
 import type { GroupData, GroupedRow } from './grouped-rows';
 import type { PairedRow } from '../keyword-pairs';
+import { GSC_CLICKS, GSC_IMPRESSIONS } from '../gsc-counts';
 import { RANK_COLUMN_IDS } from '../rank-columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,17 @@ export function useGroupedColumns(
           return { text: t('inTop10', { count: measures.top10 }), muted: measures.top10 === 0, number: true };
         case 'search_volume':
           return { text: formatInteger(measures.volume), muted: false, number: true };
+        case GSC_CLICKS:
+        case GSC_IMPRESSIONS: {
+          const sum = id === GSC_CLICKS ? measures.clicks : measures.impressions;
+          return sum === null
+            ? {
+                text: t(measures.gscState === 'pending' ? 'gscPending' : 'gscNotConnected'),
+                muted: true,
+                number: false,
+              }
+            : { text: formatInteger(sum), muted: false, number: true };
+        }
         case 'cpc_usd':
           return measures.cpc === null
             ? { text: t('unknown'), muted: true, number: false }

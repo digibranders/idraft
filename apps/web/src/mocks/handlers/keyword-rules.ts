@@ -9,6 +9,7 @@ import {
   canonicalUrl,
   decimalOfCents,
   groupAndBelow,
+  gscOf,
   readingOf,
   stateOf,
   type Include,
@@ -1011,6 +1012,9 @@ export const SORT_KEYS = [
   'rank_change',
   'best_rank',
   'last_observed_at',
+  // Search Console counts of the keyword's own device, as `gscOf` gives them
+  'gsc_clicks',
+  'gsc_impressions',
 ] as const;
 type SortKey = (typeof SORT_KEYS)[number];
 /** The sort when none is asked for. */
@@ -1053,6 +1057,10 @@ export function sortRows(
       const observed = ranks(row).last_observed_at;
       return observed === null ? null : Date.parse(observed);
     }
+    if (key === 'gsc_clicks' || key === 'gsc_impressions') {
+      const gsc = gscOf(world, row);
+      return gsc[key === 'gsc_clicks' ? 'clicks' : 'impressions']?.[row.device] ?? 0;
+    }
     const reading = readingOf(world, row.keyword_id, row.location_id, row.language_code)?.reading;
     if (reading === undefined) return null;
     if (key === 'search_volume') return reading.volume;
@@ -1086,6 +1094,7 @@ export function parseInclude(url: URL): Set<Include> | ValidationItem {
     'sparkline',
     'competitor_ranks',
     'ranking_urls',
+    'gsc',
     'features',
     'aio',
   ] as const;

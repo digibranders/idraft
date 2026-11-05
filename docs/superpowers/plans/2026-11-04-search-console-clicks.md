@@ -13,7 +13,8 @@ estimate (doc 18 section 4.9). This plan says what is built, what the owner has 
 | Connect with Google, choose the property, disconnect | Built and tested against a fake Google; the web screen is built (route `/integrations/google`). Changed 2026-11-05 (migration 0017): one Google connection (`product = 'google'`) carries Search Console and GA4 with one consent for both scopes; the callback accepts at least one granted product; GA4 properties are listed (Analytics Admin API `accountSummaries.list`) and chosen, one per project, and stored. There is no GA4 pull yet |
 | The pull (backfill and daily sync) | Built (step 3): the `gsc_sync` job, tested against a fake Google; not yet run against the real one |
 | The reading side that fills `gsc` from stored numbers, and the sorts `gsc_clicks`, `gsc_impressions` | Built (step 4); the export columns are built in the web, not here |
-| Grouped view, new column order, header changes in the app | Waiting for the design preview to settle (the owner is updating it) |
+| Grouped view, new column order, header changes in the app | Built and released |
+| Step 6: Clicks and Impressions columns in Rankings (value, 0, Pending, Not connected), the group sums, the sorts and the export columns | Built 2026-11-05 in `apps/web/src/features/rankings` (`gsc-counts.ts`); the list asks for `include=gsc` |
 
 ## What the owner provides (nothing here can be done from the code)
 

@@ -11,6 +11,8 @@ const LABELS: ExportLabels = {
   mobile: 'Mobile',
   url: 'Ranking URL',
   volume: 'Volume',
+  clicks: 'Clicks (28 days)',
+  impressions: 'Impressions (28 days)',
   difficulty: 'KD',
   cpc: 'CPC (USD)',
   intent: 'Intent',
@@ -110,6 +112,8 @@ describe('buildExport', () => {
       1,
       'https://eventussecurity.com/soc',
       8100,
+      null,
+      null,
       13,
       2.66,
       'Informational',
@@ -131,7 +135,23 @@ describe('buildExport', () => {
   it('leaves the intent empty when it has no name', () => {
     const unnamed = paired(ranked(1), null);
     unnamed.intent = 'unknown';
-    expect(buildExport([unnamed], 'desktop', LABELS).rows[0]?.[6]).toBeNull();
+    expect(buildExport([unnamed], 'desktop', LABELS).rows[0]?.[8]).toBeNull();
+  });
+
+  it('writes the Search Console counts of the device shown after the volume, and nothing without them', () => {
+    const connected = paired(ranked(1), ranked(2));
+    connected.gsc = {
+      state: 'ok',
+      clicks: { desktop: 120, mobile: 30 },
+      impressions: { desktop: 4000, mobile: 900 },
+    };
+    const desktop = buildExport([connected], 'desktop', LABELS);
+    expect(desktop.header.slice(3, 6)).toEqual(['Volume', 'Clicks (28 days)', 'Impressions (28 days)']);
+    expect(desktop.kinds.slice(3, 6)).toEqual(['volume', 'clicks', 'impressions']);
+    expect(desktop.rows[0]?.slice(3, 6)).toEqual([8100, 120, 4000]);
+    const waiting = paired(ranked(1), null);
+    waiting.gsc = { state: 'pending' };
+    expect(buildExport([waiting], 'desktop', LABELS).rows[0]?.slice(4, 6)).toEqual([null, null]);
   });
 });
 

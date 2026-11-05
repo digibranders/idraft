@@ -166,6 +166,33 @@ describe('groupMeasures', () => {
       cpc: 2,
       cited: 1,
       updated: '2026-11-03T10:00:00Z',
+      clicks: null,
+      impressions: null,
+      // The rows were listed without the Search Console block, so its counts are still to come
+      gscState: 'pending',
+    });
+  });
+
+  it('sums the Search Console counts of the device shown, and says why there is no sum', () => {
+    const counted = (id: string, keyword: string, clicks: number, impressions: number): TrackedKeywordRow => ({
+      ...tracked(id, keyword),
+      gsc: { state: 'ok', clicks: { desktop: clicks, mobile: 1 }, impressions: { desktop: impressions, mobile: 1 } },
+    });
+    const rows = paired([
+      counted('a-d', 'alpha', 10, 400),
+      counted('b-d', 'bravo', 0, 0),
+      counted('c-d', 'charlie', 5, 90),
+    ]);
+    expect(groupMeasures(rows)).toMatchObject({ clicks: 15, impressions: 490, gscState: 'ok' });
+
+    const notConnected = (id: string, keyword: string): TrackedKeywordRow => ({
+      ...tracked(id, keyword),
+      gsc: { state: 'not_connected' },
+    });
+    expect(groupMeasures(paired([notConnected('a-d', 'alpha')]))).toMatchObject({
+      clicks: null,
+      impressions: null,
+      gscState: 'not_connected',
     });
   });
 

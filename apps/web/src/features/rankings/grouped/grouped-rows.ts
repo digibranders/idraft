@@ -1,3 +1,4 @@
+import { gscCount, gscStateOf, type GscState } from '../gsc-counts';
 import { idsOfPair, type PairedRow } from '../keyword-pairs';
 
 export const NOT_GROUPED = '__none';
@@ -18,6 +19,11 @@ export interface GroupMeasures {
   cited: number;
   /** The newest check time among the keywords, ISO; null when none was checked. */
   updated: string | null;
+  /** Search Console clicks and impressions of the last 28 days over every place; null while `gscState` is not `ok`. */
+  clicks: number | null;
+  impressions: number | null;
+  /** `ok` when any keyword has counts; otherwise `pending` if one waits for the first pull, else `not_connected`. */
+  gscState: GscState;
 }
 
 export interface GroupData {
@@ -71,7 +77,20 @@ export function groupMeasures(rows: readonly PairedRow[]): GroupMeasures {
   let cpcSum = 0;
   let cpcCount = 0;
   let updated: string | null = null;
+  let clicks = 0;
+  let impressions = 0;
+  let counted = false;
+  let waiting = false;
   for (const row of rows) {
+    const rowClicks = gscCount(row, 'clicks');
+    const rowImpressions = gscCount(row, 'impressions');
+    if (rowClicks !== null || rowImpressions !== null) {
+      counted = true;
+      clicks += rowClicks ?? 0;
+      impressions += rowImpressions ?? 0;
+    } else if (gscStateOf(row) === 'pending') {
+      waiting = true;
+    }
     const held = best.get(row.keyword.keyword_id);
     if (held === undefined || byRank(rankOf(row), rankOf(held)) < 0) best.set(row.keyword.keyword_id, row);
     volume += row.metrics?.search_volume.value ?? 0;
@@ -104,6 +123,9 @@ export function groupMeasures(rows: readonly PairedRow[]): GroupMeasures {
     cpc: cpcCount === 0 ? null : cpcSum / cpcCount,
     cited: citedKeywords.size,
     updated,
+    clicks: counted ? clicks : null,
+    impressions: counted ? impressions : null,
+    gscState: counted ? 'ok' : waiting ? 'pending' : 'not_connected',
   };
 }
 
