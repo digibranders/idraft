@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import en from '../../../messages/en.json';
 
-import type { TrackedKeywordState } from '@/lib/api/types';
+import type { TrackedKeywordRow, TrackedKeywordState } from '@/lib/api/types';
 import { MOCK_ENTITY_IDS } from '@/mocks/entity-fixtures';
 import { MOCK_KEYWORDS, MOCK_TRACKED_KEYWORDS } from '@/mocks/keyword-fixtures';
 import { KEYWORD_TABLE } from '@/mocks/keyword-table';
@@ -509,10 +509,11 @@ describe('Rankings', () => {
 });
 
 /** The fixture keywords as the mocks state them now: what the API will answer for each active row. */
-function fixtureStates(): { text: string; state: TrackedKeywordState }[] {
+function fixtureStates(): { text: string; device: TrackedKeywordRow['device']; state: TrackedKeywordState }[] {
   const texts = new Map(MOCK_KEYWORDS.map((keyword) => [keyword.keyword_id, keyword.text]));
   return MOCK_TRACKED_KEYWORDS.filter((row) => row.is_active).map((row) => ({
     text: texts.get(row.keyword_id) ?? '',
+    device: row.device,
     state: rankStateOf(
       row.tracked_keyword_id,
       row.created_at,
@@ -967,8 +968,10 @@ describe('Rankings rank filters', () => {
         asked.some((query) => query.get('filter[rank_gte]') === '4' && query.get('filter[rank_lte]') === '10'),
       ).toBe(true),
     );
+    // The table shows one device, desktop unless mobile is chosen
     const within4to10 = fixtureStates().filter(
-      ({ state }) => state.current.rank !== null && state.current.rank >= 4 && state.current.rank <= 10,
+      ({ device, state }) =>
+        device === 'desktop' && state.current.rank !== null && state.current.rank >= 4 && state.current.rank <= 10,
     );
     expect(within4to10.length).toBeGreaterThan(0);
     await waitFor(() => expect(keywordsIn(grid)).toHaveLength(within4to10.length));

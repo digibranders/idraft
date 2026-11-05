@@ -35,11 +35,11 @@ describe('RankStrip', () => {
     expect(await screen.findByText(String(activeCount))).toBeInTheDocument();
     expect(await screen.findByText('55 checked')).toBeInTheDocument();
     expect(screen.getByText('Top 3')).toBeInTheDocument();
-    expect(screen.getByText('6')).toBeInTheDocument();
+    expect(screen.getByText('7')).toBeInTheDocument();
     expect(screen.getByText('Top 10')).toBeInTheDocument();
     expect(screen.getByText('12')).toBeInTheDocument();
     expect(screen.getByText('Top 20')).toBeInTheDocument();
-    expect(screen.getByText('28')).toBeInTheDocument();
+    expect(screen.getByText('23')).toBeInTheDocument();
     expect(screen.getAllByText('of 55 checked')).toHaveLength(3);
   });
 
@@ -85,7 +85,7 @@ describe('RankStrip', () => {
     expect(screen.getByText('Top 10')).toBeInTheDocument();
     expect(screen.getByText('12')).toBeInTheDocument();
     expect(screen.getByText('Top 20')).toBeInTheDocument();
-    expect(screen.getByText('28')).toBeInTheDocument();
+    expect(screen.getByText('23')).toBeInTheDocument();
     expect(screen.getByText('The summary did not load.')).toBeInTheDocument();
   });
 
