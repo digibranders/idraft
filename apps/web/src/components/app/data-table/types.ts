@@ -137,6 +137,13 @@ export interface RowTree {
   /** Rows at this level in the group it belongs to, and this row's place among them (aria-setsize, aria-posinset). */
   setSize: number;
   posInSet: number;
+  /**
+   * A row with `false` (a "Show all" row) draws no checkbox and is not part of a range, a select-all or the
+   * "select all N loaded" count. Group rows never are, whatever this says: only level 2 rows are counted.
+   */
+  selectable?: boolean | undefined;
+  /** Group rows only: the whole accessible name of the disclosure button ("Expand CRM group, 42 keywords"); the row's name with Expand or Collapse when not given. */
+  label?: string | undefined;
 }
 
 export type TableStatus = 'loading' | 'ready' | 'refetching' | 'error' | 'empty' | 'filtered-empty';
@@ -195,7 +202,8 @@ export interface DataTableProps<TRow> {
   activeRowId?: string | null | undefined;
   /**
    * The ids of the rows the table shows, in its order (searched and sorted in client mode), each time it
-   * changes: the inspector's position and J and K follow it.
+   * changes: the inspector's position and J and K follow it. In tree mode it reports every rendered row id,
+   * group rows included.
    */
   onRowOrderChange?: ((ids: readonly string[]) => void) | undefined;
   status: TableStatus;
