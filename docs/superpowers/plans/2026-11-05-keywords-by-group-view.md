@@ -230,7 +230,7 @@ With a harness project that has groups (the fixture `fynix` has keywords; read `
 2. Group rows show the label and distinct keyword count; expanding one (click, then check `aria-expanded`) shows its keywords; "Show all N" appears for a group over 8 and shows the rest.
 3. The group checkbox selects all of the group's keywords, including those not shown (the bulk bar says `N selected` with N the keywords, not rows), and a keyword in two groups shows selected under both.
 4. Ticking one keyword makes its group's checkbox indeterminate.
-5. Archive on a group selection sends `bulk-archive` with the tracked ids of both devices of every keyword (capture the request like the existing bulk tests).
+5. Delete on a group selection sends `bulk-delete` (the bulk bar has no Archive since develop e4ff2fd) with the tracked ids of both devices of every keyword (capture the request like the existing bulk tests).
 6. KD, Intent, SERP features, Trend and Tags headers are absent in By group and present in All keywords; editing columns in By group and going back keeps the flat view's columns.
 7. Switching device re-aggregates (Mobile shows different counts than Desktop for a group, using a keyword whose ranks differ).
 8. In server mode (override the count so the list is server mode, as `rankings.test.tsx` tests of server mode do) By group is disabled and the flat view shows.

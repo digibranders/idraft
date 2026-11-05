@@ -199,10 +199,10 @@ describe('Keywords By group', () => {
     expect(within(screen.getByRole('group', { name: /Bulk actions/ })).getByText('1 selected')).toBeInTheDocument();
   });
 
-  it('archives a group with the tracked keywords of both devices of every keyword', async () => {
+  it('deletes a group with the tracked keywords of both devices of every keyword', async () => {
     const seen: unknown[] = [];
     server.events.on('request:start', ({ request }) => {
-      if (request.method !== 'POST' || !request.url.endsWith('/bulk-archive')) return;
+      if (request.method !== 'POST' || !request.url.endsWith('/bulk-delete')) return;
       void request
         .clone()
         .json()
@@ -213,7 +213,9 @@ describe('Keywords By group', () => {
     await user.click(screen.getByRole('checkbox', { name: /^Select Local, 10 keywords$/ }));
     const bar = screen.getByRole('group', { name: /Bulk actions/ });
     expect(within(bar).getByText('10 selected')).toBeInTheDocument();
-    await user.click(within(bar).getByRole('button', { name: 'Archive' }));
+    await user.click(within(bar).getByRole('button', { name: 'Delete' }));
+    const confirm = await screen.findByRole('alertdialog', { name: /^Delete \d+ keywords\?$/ });
+    await user.click(within(confirm).getByRole('button', { name: /^Delete \d+ keywords$/ }));
     await waitFor(() => expect(seen).toHaveLength(1));
     const ids = z.object({ ids: z.array(z.string()) }).parse(seen[0]).ids;
     // Ten desktop keywords, and "seo agency berlin" on mobile too
@@ -304,7 +306,7 @@ describe('Keywords By group', () => {
     answerTrackedAsMany({ total: 118, pages: 2, failSecond: () => true });
     const seen: unknown[] = [];
     server.events.on('request:start', ({ request }) => {
-      if (request.method !== 'POST' || !request.url.endsWith('/bulk-archive')) return;
+      if (request.method !== 'POST' || !request.url.endsWith('/bulk-delete')) return;
       void request
         .clone()
         .json()
@@ -325,11 +327,14 @@ describe('Keywords By group', () => {
     rerender(rankingsAs('editor'));
     await loadedGrid();
     await user.click(
-      within(screen.getByRole('group', { name: /Bulk actions/ })).getByRole('button', { name: 'Archive' }),
+      within(screen.getByRole('group', { name: /Bulk actions/ })).getByRole('button', { name: 'Delete' }),
     );
+    // The question counts the ticked rows, not the 118 that matched before the untick
+    const confirm = await screen.findByRole('alertdialog', { name: /^Delete \d+ keywords\?$/ });
+    expect(confirm).not.toHaveAccessibleName('Delete 118 keywords?');
+    await user.click(within(confirm).getByRole('button', { name: /^Delete \d+ keywords$/ }));
     await waitFor(() => expect(seen).toHaveLength(1));
-    expect(screen.queryByRole('alertdialog')).toBeNull();
-    expect(seen[0]).toEqual({ ids: expect.any(Array), archive: true });
+    expect(seen[0]).toEqual({ ids: expect.any(Array) });
   });
 
   it('opens every group with a match while searching, and shows the search empty state when none is left', async () => {

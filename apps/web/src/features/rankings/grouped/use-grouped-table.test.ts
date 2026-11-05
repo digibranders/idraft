@@ -57,7 +57,7 @@ describe('the By group table', () => {
 
   it('runs a flat action on the chosen keywords, whatever rows the table hands over', () => {
     const onSelect = vi.fn();
-    const action: RecordAction<PairedRow> = { id: 'archive', label: 'Archive', group: 'destructive', onSelect };
+    const action: RecordAction<PairedRow> = { id: 'delete', label: 'Delete', group: 'destructive', onSelect };
     const [grouped] = keywordActions([action], rows, new Set(['t3']));
     grouped?.onSelect(list(['g2']), { ids: new Set(['group:g2']), allMatching: true });
     expect(onSelect).toHaveBeenCalledWith([rows[2]], { ids: new Set(['t3']), allMatching: false });
