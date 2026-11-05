@@ -262,6 +262,8 @@ interface ListArgs {
   sort: readonly SortKey[];
   /** The search, which server mode sends as `filter[q]` (already debounced). */
   search: string;
+  /** False while the filters are not settled: nothing is read, and the list reports that it is loading. */
+  enabled?: boolean;
 }
 
 type AllPages = UseInfiniteQueryResult<InfiniteData<ListPage, string | null>>;
@@ -276,9 +278,10 @@ export function hasPendingCheck(row: { state?: Pick<TrackedKeywordState, 'check'
 }
 
 /** The rows of Rankings in the mode their count calls for. */
-export function useKeywordList({ scope, filters, sort, search }: ListArgs): KeywordList {
+export function useKeywordList({ scope, filters, sort, search, enabled = true }: ListArgs): KeywordList {
   const all: AllPages = useInfiniteQuery({
     queryKey: allListKey(scope, filters),
+    enabled,
     queryFn: ({ pageParam, signal }) =>
       readPage(
         scope,

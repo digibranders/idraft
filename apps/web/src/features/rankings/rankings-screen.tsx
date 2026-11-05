@@ -181,8 +181,9 @@ export function RankingsScreen({
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
   // Which devices show a rank column, and the country the keywords are tracked in
   const countries = useCountries();
-  const countriesInUse = useKeywordCountries(scope).countries;
-  const keywordScope = useKeywordScope(defaults.location, countriesInUse, scopeOpensOn, countries);
+  const inUse = useKeywordCountries(scope);
+  const countriesInUse = inUse.countries;
+  const keywordScope = useKeywordScope(defaults.location, inUse, scopeOpensOn, countries);
   const entitiesQuery = useQuery(projectEntitiesQuery(scope));
   const competitors = useMemo((): EntityRef[] => {
     if (entitiesQuery.data) {
@@ -207,7 +208,7 @@ export function RankingsScreen({
     }
     return [];
   }, [entitiesQuery.data, view.cols]);
-  const allColumns = useKeywordColumns(timeZone, competitors, keywordScope.device);
+  const allColumns = useKeywordColumns(timeZone, competitors, keywordScope.device, countriesInUse);
   const rowName = useKeywordRowName(defaults.languageCode);
   // The Country column is a known id even while it is not shown, so a person's choice of it stays in the URL
   const columnIds = useMemo(() => new Set(allColumns.map((column) => column.id)), [allColumns]);
@@ -231,7 +232,7 @@ export function RankingsScreen({
   );
   const search = useDebouncedValue(view.q, SEARCH_DELAY_MS);
 
-  const loadedList = useKeywordList({ scope, filters, sort, search });
+  const loadedList = useKeywordList({ scope, filters, sort, search, enabled: keywordScope.ready });
   // New keywords wait for their first metrics: the poll lays what it hears over the rows, and only those
   const rows = usePendingMetrics({
     scope,
@@ -670,7 +671,12 @@ export function RankingsScreen({
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               {showStrip ? (
                 <div className="flex h-control-sm items-center">
-                  <RankStrip scope={scope} filters={stripFilters} total={list.total ?? list.rows.length} />
+                  <RankStrip
+                    scope={scope}
+                    filters={stripFilters}
+                    total={list.total ?? list.rows.length}
+                    enabled={keywordScope.ready}
+                  />
                 </div>
               ) : null}
               <KeywordScopeControls scope={keywordScope} inUse={countriesInUse} countries={countries} />
@@ -766,9 +772,10 @@ export function RankingsScreen({
             columnState={{
               visible,
               onChange: (next) => {
-                // The table cannot offer a column that is out of view, so a change to the others keeps the choice of it
+                // The table cannot offer a column that is out of view, so a change to the others keeps it chosen:
+                // it is in the explicit list when the person had it there, and in the default one
                 const kept =
-                  next !== null && !severalCountries && visible?.includes(COUNTRY_COLUMN) === true
+                  next !== null && !severalCountries && (visible === null || visible.includes(COUNTRY_COLUMN))
                     ? [...next.slice(0, 1), COUNTRY_COLUMN, ...next.slice(1)]
                     : next;
                 void setView({ cols: kept === null ? null : formatColumns(kept) });

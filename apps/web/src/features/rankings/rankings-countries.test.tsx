@@ -1,7 +1,11 @@
 import { screen, waitFor, within } from '@testing-library/react';
+import { delay, http, HttpResponse } from 'msw';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
+import en from '../../../messages/en.json';
+
 import type { KeywordCountry } from './keyword-countries';
+import type { Country } from './keyword-filters';
 import { DEFAULT_COUNTRY_ID, useKeywordScope } from './keyword-scope';
 import type { ProjectDefaults } from './add-keywords/add-keywords-dialog';
 import { cleanstart, loadedGrid, rankingsAs as as, restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
@@ -32,6 +36,23 @@ function listQueries(): URLSearchParams[] {
   return asked;
 }
 
+const COUNTRIES_IN_USE = '*/api/v1/workspaces/:w/projects/:p/tracked-keywords/countries';
+
+/** The countries the project has keywords in, as the API answers them, after `wait` milliseconds. */
+const inUseAnswer = (
+  entries: readonly (readonly [number, string, string, number])[],
+  wait = 0,
+): ReturnType<typeof http.get> =>
+  http.get(COUNTRIES_IN_USE, async () => {
+    if (wait > 0) await delay(wait);
+    return HttpResponse.json({
+      data: entries.map(([id, name, iso, count]) => ({
+        location: { location_id: id, name, country_iso: iso, location_type: 'Country' },
+        keyword_count: count,
+      })),
+    });
+  });
+
 const headerNames = (grid: HTMLElement): string[] =>
   within(grid)
     .getAllByRole('columnheader')
@@ -55,6 +76,81 @@ describe('the country control', () => {
     expect(screen.queryByRole('combobox', { name: /^Country:/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Country:/ })).toBeNull();
     expect(screen.queryByText('All countries')).toBeNull();
+  });
+
+  it('is a label when the scope is the one country in use', async () => {
+    server.use(inUseAnswer([[2356, 'India', 'IN', 4]]));
+    renderWithProviders(as('viewer', undefined, { opensOnOwnCountry: true }));
+    await waitFor(() => expect(screen.getByText('India', { selector: '[aria-hidden]' })).toBeInTheDocument());
+    expect(screen.queryByRole('combobox', { name: /^Country:/ })).toBeNull();
+  });
+
+  it('stays a control when a link names a country other than the one in use, so the person can leave it', async () => {
+    server.use(inUseAnswer([[2356, 'India', 'IN', 4]]));
+    const { user } = renderWithProviders(as('viewer'), { searchParams: `?loc=${String(UNITED_STATES)}` });
+    await screen.findByRole('grid', { name: 'Tracked keywords' });
+    await user.click(await screen.findByRole('combobox', { name: 'Country: United States' }));
+    expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
+      'All countries',
+      'India',
+    ]);
+  });
+
+  it('stays a control for all countries when only one is in use', async () => {
+    server.use(inUseAnswer([[2356, 'India', 'IN', 4]]));
+    renderWithProviders(as('viewer'), { searchParams: '?loc=0' });
+    await screen.findByRole('grid', { name: 'Tracked keywords' });
+    expect(await screen.findByRole('combobox', { name: 'Country: All countries' })).toBeInTheDocument();
+  });
+});
+
+describe('a shared Country chip', () => {
+  it('is kept when the countries in use cannot be read', async () => {
+    server.use(http.get(COUNTRIES_IN_USE, () => HttpResponse.json({ error: 'down' }, { status: 500 })));
+    const asked = listQueries();
+    renderWithProviders(as('viewer'), { searchParams: `?loc=0&country=${String(GERMANY)}` });
+    await loadedGrid();
+    await waitFor(() =>
+      expect(asked.some((query) => query.get('filter[country_id_in]') === String(GERMANY))).toBe(true),
+    );
+    expect(screen.queryByText(/left out/)).toBeNull();
+    expect(screen.getAllByRole('button', { name: /^Country: .*\. Edit filter$/ })).toHaveLength(1);
+  });
+});
+
+describe('waiting for the countries in use', () => {
+  it('asks for the list in the country it resolves to, never in the guess, and shows no empty state meanwhile', async () => {
+    // The project's own country is Germany, which has no keywords: the table opens on the United States
+    server.use(inUseAnswer([[UNITED_STATES, 'United States', 'US', 5]], 150));
+    const asked = listQueries();
+    const flashed = vi.fn();
+    const watcher = new MutationObserver(() => {
+      if (document.body.textContent?.includes(en.rankings.empty.title) === true) flashed();
+    });
+    watcher.observe(document.body, { childList: true, subtree: true, characterData: true });
+    renderWithProviders(as('viewer', undefined, { opensOnOwnCountry: true }));
+    await loadedGrid();
+    watcher.disconnect();
+    expect(asked.length).toBeGreaterThan(0);
+    expect(asked[0]?.get('filter[country_id]')).toBe(String(UNITED_STATES));
+    expect(asked.some((query) => query.get('filter[country_id]') === String(GERMANY))).toBe(false);
+    expect(flashed).not.toHaveBeenCalled();
+  });
+
+  it('does not wait for ever when the countries in use cannot be read: it asks in the project’s own country', async () => {
+    server.use(http.get(COUNTRIES_IN_USE, () => HttpResponse.json({ error: 'down' }, { status: 500 })));
+    const asked = listQueries();
+    renderWithProviders(as('viewer', undefined, { opensOnOwnCountry: true }));
+    await waitFor(() => expect(asked.some((query) => query.get('filter[country_id]') === String(GERMANY))).toBe(true));
+  });
+
+  it('asks at once when the link names the country', async () => {
+    server.use(inUseAnswer([[UNITED_STATES, 'United States', 'US', 5]], 400));
+    const asked = listQueries();
+    renderWithProviders(as('viewer', undefined, { opensOnOwnCountry: true }), {
+      searchParams: `?loc=${String(GERMANY)}`,
+    });
+    await waitFor(() => expect(asked.some((query) => query.get('filter[country_id]') === String(GERMANY))).toBe(true));
   });
 });
 
@@ -98,6 +194,24 @@ describe('the Country column', () => {
   });
 });
 
+describe('the Country column and the default columns', () => {
+  it('stays among the columns written to the URL when another is hidden while one country is in view', async () => {
+    const written: string[] = [];
+    const { user } = renderWithProviders(as('viewer'), {
+      searchParams: `?loc=${String(GERMANY)}`,
+      onUrlUpdate: (event) => written.push(event.queryString),
+    });
+    const grid = await loadedGrid();
+    expect(headerNames(grid)).not.toContain('Country');
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'CPC (USD)' }));
+    await waitFor(() => expect(new URLSearchParams(written.at(-1) ?? '').has('cols')).toBe(true));
+    const columns = (new URLSearchParams(written.at(-1) ?? '').get('cols') ?? '').split(',');
+    expect(columns.slice(0, 2)).toEqual(['keyword', 'country']);
+    expect(columns).not.toContain('cpc_usd');
+  });
+});
+
 describe('the Country filter', () => {
   it('sends the countries chosen as filter[country_id_in] and shows one chip', async () => {
     const asked = listQueries();
@@ -133,22 +247,72 @@ describe('the country the table opens on', () => {
   function Opens({
     location,
     inUse,
+    loading,
     opensOn,
+    known,
   }: {
     location: ProjectDefaults['location'];
     inUse: readonly KeywordCountry[];
+    loading: boolean;
     opensOn?: number;
+    known: readonly Country[];
   }) {
-    return <span data-testid="opens">{String(useKeywordScope(location, inUse, opensOn).countryId)}</span>;
+    const scope = useKeywordScope(location, { countries: inUse, loading }, opensOn, known);
+    return (
+      <span data-testid="opens">
+        {String(scope.countryId)} {scope.ready ? 'ready' : 'waiting'}
+      </span>
+    );
   }
-  const opens = (location: ProjectDefaults['location'], inUse: readonly KeywordCountry[], opensOn?: number): string => {
+  const readScope = (
+    location: ProjectDefaults['location'],
+    inUse: readonly KeywordCountry[],
+    options: { loading?: boolean; opensOn?: number; known?: readonly Country[] } = {},
+  ): string => {
     const { unmount } = renderWithProviders(
-      <Opens location={location} inUse={inUse} {...(opensOn === undefined ? {} : { opensOn })} />,
+      <Opens
+        location={location}
+        inUse={inUse}
+        loading={options.loading ?? false}
+        known={options.known ?? []}
+        {...(options.opensOn === undefined ? {} : { opensOn: options.opensOn })}
+      />,
     );
     const shown = screen.getByTestId('opens').textContent ?? '';
     unmount();
     return shown;
   };
+  const opens = (location: ProjectDefaults['location'], inUse: readonly KeywordCountry[]): string =>
+    readScope(location, inUse).split(' ')[0] ?? '';
+
+  it('resolves the country of a city through the countries in use, else through the known countries', () => {
+    const city: ProjectDefaults['location'] = {
+      location_id: 1003854,
+      name: 'Berlin',
+      location_type: 'City',
+      country_iso: 'DE',
+    };
+    const known: readonly Country[] = [
+      {
+        location_id: GERMANY,
+        name: 'Germany',
+        country_iso: 'DE',
+        location_type: 'Country',
+        parent_id: null,
+        supports: ['serp'],
+      },
+    ];
+    // Keywords only in the United States: the city's country has none, so the one with keywords opens
+    expect(readScope(city, [us], { known })).toBe(`${String(UNITED_STATES)} ready`);
+    // No keywords at all: the country of the city, found among the known countries
+    expect(readScope(city, [], { known })).toBe(`${String(GERMANY)} ready`);
+    expect(readScope(city, [germany], { known: [] })).toBe(`${String(GERMANY)} ready`);
+  });
+
+  it('is not ready while the countries in use load, unless the link or the screen names the country', () => {
+    expect(readScope(inCountry(GERMANY, 'DE'), [], { loading: true })).toBe(`${String(GERMANY)} waiting`);
+    expect(readScope(inCountry(GERMANY, 'DE'), [], { loading: true, opensOn: 0 })).toBe('0 ready');
+  });
 
   it('is the project’s own country when it has keywords there', () => {
     expect(opens(inCountry(GERMANY, 'DE'), [us, germany])).toBe(String(GERMANY));

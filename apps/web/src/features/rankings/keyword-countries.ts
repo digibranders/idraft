@@ -20,7 +20,15 @@ export interface KeywordCountry {
   keywordCount: number;
 }
 
-export function useKeywordCountries(scope: ProjectScope): { countries: readonly KeywordCountry[]; loading: boolean } {
+export interface KeywordCountries {
+  countries: readonly KeywordCountry[];
+  /** No answer yet. */
+  loading: boolean;
+  /** The read failed: the list is empty because it is unknown, not because the project has no keywords. */
+  failed: boolean;
+}
+
+export function useKeywordCountries(scope: ProjectScope): KeywordCountries {
   const query = useQuery(
     apiQuery(COUNTRIES, { params: { path: { workspace_id: scope.workspaceId, project_id: scope.projectId } } }),
   );
@@ -34,5 +42,5 @@ export function useKeywordCountries(scope: ProjectScope): { countries: readonly 
       })),
     [query.data],
   );
-  return { countries, loading: query.isPending };
+  return { countries, loading: query.isPending, failed: query.isError };
 }

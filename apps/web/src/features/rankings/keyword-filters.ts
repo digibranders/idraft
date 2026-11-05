@@ -77,6 +77,7 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
     [groups.data],
   );
   const inUse = useKeywordCountries(scope);
+  const countriesLoading = inUse.loading || inUse.failed;
   const countryOptions = useMemo(
     (): FilterOption[] =>
       inUse.countries.map(({ locationId, name, keywordCount }) => ({
@@ -114,7 +115,8 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
         label: t('country'),
         multi: true,
         options: countryOptions,
-        optionsLoading: inUse.loading,
+        // A list that failed keeps a value from a link, as the groups and tags do
+        optionsLoading: countriesLoading,
       },
       { id: 'tag', kind: 'enum', label: t('tag'), multi: true, options: termOptions, optionsLoading: termsLoading },
       // One range of places and one change at a time: the API joins its rank filters with AND (rank-filters.ts)
@@ -220,7 +222,7 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
     countryOptions,
     termOptions,
     groupsLoading,
-    inUse.loading,
+    countriesLoading,
     termsLoading,
   ]);
 }

@@ -8,7 +8,7 @@ import { useMemo, type ReactElement } from 'react';
 
 import type { Device } from './keyword-pairs';
 import type { ProjectDefaults } from './add-keywords/add-keywords-dialog';
-import type { KeywordCountry } from './keyword-countries';
+import type { KeywordCountries, KeywordCountry } from './keyword-countries';
 import { readCountries, type Country } from './keyword-filters';
 import { buttonVariants } from '@/components/ui/button-variants';
 import { Combobox } from '@/components/ui/combobox';
@@ -38,6 +38,8 @@ export interface KeywordScope {
   device: Device;
   /** The country the table shows: a location id, India unless the project's own default is a country. */
   countryId: number;
+  /** Whether `countryId` is settled: queries for the table wait until it is, so none is made for a guess. */
+  ready: boolean;
   setDevice: (device: Device) => void;
   setCountry: (countryId: number) => void;
 }
@@ -50,8 +52,8 @@ export interface KeywordScope {
  */
 export function useKeywordScope(
   projectLocation: ProjectDefaults['location'],
-  /** The countries the project has keywords in. */
-  inUse: readonly KeywordCountry[],
+  /** The countries the project has keywords in, and whether that read is still under way. */
+  { countries: inUse, loading }: Pick<KeywordCountries, 'countries' | 'loading'>,
   /** A country (or `ALL_COUNTRIES`) the table opens on instead of the project's own. */
   opensOn?: number | undefined,
   /** Every country, which names the country of a project whose default location is a city and has no keywords. */
@@ -74,6 +76,8 @@ export function useKeywordScope(
   return {
     device: state.dev ?? 'desktop',
     countryId: state.loc ?? fallback,
+    // The default is a guess until the countries in use are read (a failed read ends the wait: the guess stands)
+    ready: state.loc !== null || opensOn !== undefined || !loading,
     // Desktop is the default and is kept out of the URL
     setDevice: (device) => void setState({ dev: device === 'desktop' ? null : device }),
     // The default country is kept out of the URL, so a link without `loc` follows the project's default
@@ -102,7 +106,8 @@ const countryOf = (locationId: number, name: string, countryIso: string): Countr
 
 /**
  * The two controls, side by side. The country control lists the countries the project has keywords in, with
- * "All countries" when there is more than one; with one or none it is a label, as there is nothing to choose.
+ * "All countries" when there is more than one; when the scope is the only one or there is none it is a label,
+ * as there is nothing to choose.
  */
 export function KeywordScopeControls({
   scope,
@@ -147,6 +152,9 @@ export function KeywordScopeControls({
       <Icon icon={ChevronDown} size="sm" className="text-foreground-tertiary" />
     </button>
   );
+  // There is a choice unless the scope is the only country in use (or none is): a link may name another
+  // country or all of them, and the person must be able to leave it for the one with keywords
+  const choosable = inUse.length > 1 || (inUse.length === 1 && inUse[0]?.locationId !== scope.countryId);
   const label = (
     <span className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'pointer-events-none')}>
       <Icon icon={MapPin} size="sm" className="text-foreground-tertiary" />
@@ -170,7 +178,7 @@ export function KeywordScopeControls({
           { value: 'mobile', label: columns('mobile'), icon: Smartphone },
         ]}
       />
-      {inUse.length > 1 ? (
+      {choosable ? (
         <Combobox<Country>
           value={current}
           onValueChange={(country) => {

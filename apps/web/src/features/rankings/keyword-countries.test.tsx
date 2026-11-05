@@ -28,7 +28,7 @@ beforeEach(() => {
 describe('useKeywordCountries', () => {
   it('lists the countries the project has keywords in, the larger count first', async () => {
     const { result } = renderHook(() => useKeywordCountries(SCOPE), { wrapper });
-    expect(result.current).toEqual({ countries: [], loading: true });
+    expect(result.current).toEqual({ countries: [], loading: true, failed: false });
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.countries.map(({ locationId, name, countryIso }) => [locationId, name, countryIso])).toEqual([
       [2276, 'Germany', 'DE'],

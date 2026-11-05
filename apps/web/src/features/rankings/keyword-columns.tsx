@@ -11,6 +11,7 @@ import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { languageName } from '@/lib/format/language';
 import { TargetMismatchMarker } from './feature-cells';
 import type { Device, PairedRow } from './keyword-pairs';
+import type { KeywordCountry } from './keyword-countries';
 import { useCountries } from './keyword-scope';
 import { RankingPagesCard, rankingPages } from './ranking-pages';
 import { useCompetitorColumns, useRankColumns } from './rank-columns';
@@ -71,6 +72,8 @@ export function useKeywordColumns(
   timeZone: string,
   competitors: readonly EntityRef[] = [],
   device: Device = 'desktop',
+  /** The countries the project has keywords in, which name a row's country before the list of every country is in. */
+  inUse: readonly KeywordCountry[] = [],
 ): readonly DataTableColumn<PairedRow>[] {
   const t = useTranslations('rankings.columns');
   const common = useTranslations('common');
@@ -78,9 +81,14 @@ export function useKeywordColumns(
   const ranks = useRankColumns(timeZone);
   const competitorColumns = useCompetitorColumns(competitors);
   const countries = useCountries();
+  // The countries in use come last, so their names win; a row's own location name is the last resort
   const countryNames = useMemo(
-    (): ReadonlyMap<string, string> => new Map(countries.map((country) => [country.country_iso, country.name])),
-    [countries],
+    (): ReadonlyMap<string, string> =>
+      new Map([
+        ...countries.map((country): [string, string] => [country.country_iso, country.name]),
+        ...inUse.map((country): [string, string] => [country.countryIso, country.name]),
+      ]),
+    [countries, inUse],
   );
   return useMemo(() => {
     // Before Labs answers there is nothing; after an empty answer there is no data (12-tables.md 7.3)
