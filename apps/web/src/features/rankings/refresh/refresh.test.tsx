@@ -410,7 +410,6 @@ describe('What the dialog refreshes', () => {
     expect(screen.getByRole('checkbox', { name: 'Select seo agency, United States' })).toBeChecked();
   });
 
-
   it('offers the keywords matching the filters, each once, and starts on them', async () => {
     serveRuns({ used: 0, open: [] });
     const seen = watchRows();
