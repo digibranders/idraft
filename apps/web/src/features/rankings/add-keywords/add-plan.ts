@@ -1,6 +1,7 @@
 import type { components } from '@/lib/api/schema';
 
-type Price = Pick<components['schemas']['Price'], 'endpoint' | 'price_unit' | 'conditions' | 'unit_price_usd'>;
+type Price = Pick<components['schemas']['Price'], 'endpoint' | 'price_unit' | 'conditions' | 'unit_price_usd'> &
+  Partial<Pick<components['schemas']['Price'], 'valid_from'>>;
 
 /** The device choice of an add; `null` while the project default is not yet known. */
 export type AddDevice = 'desktop' | 'mobile' | 'both';
@@ -39,15 +40,30 @@ export function costOf(checksPerDay: number, perCheckUsd: number | null): { day:
   return { day, month: day * DAYS_A_MONTH };
 }
 
-/** The cost of one depth-100 check on the standard queue with the asynchronous AI Overview, from the price book. */
+/** The row that started last; on the same day the dearer one, as the backend reads the book (`seo_rank.py`). */
+function newest(rows: readonly Price[]): Price | undefined {
+  return rows.reduce<Price | undefined>((best, row) => {
+    if (best === undefined) return row;
+    const [from, bestFrom] = [row.valid_from ?? '', best.valid_from ?? ''];
+    if (from !== bestFrom) return from > bestFrom ? row : best;
+    return Number(row.unit_price_usd) > Number(best.unit_price_usd) ? row : best;
+  }, undefined);
+}
+
+/**
+ * The cost of one depth-100 check on the standard queue (the estimate is the standard queue, not priority or
+ * live) with the asynchronous AI Overview, from the price book: ten pages and one AI Overview task. Where two
+ * rows of a price overlap the newest wins. A book without the task row charges the page price for the AI
+ * Overview, as the backend does. `null` when the book has no standard page price.
+ */
 export function checkPriceUsd(prices: readonly Price[]): number | null {
-  const serp = prices.filter((price) => price.endpoint === 'serp/google/organic');
-  const standard = (price: Price): boolean => price.conditions['queue'] === 'standard';
-  const page = serp.find((price) => price.price_unit === 'page' && standard(price));
-  const task = serp.find(
-    (price) => price.price_unit === 'task' && standard(price) && price.conditions['async_ai_overview'] === true,
+  const standard = prices.filter(
+    (price) => price.endpoint === 'serp/google/organic' && price.conditions['queue'] === 'standard',
   );
-  if (page === undefined || task === undefined) return null;
+  const aiOverview = (price: Price): boolean => price.conditions['async_ai_overview'] === true;
+  const page = newest(standard.filter((price) => price.price_unit === 'page' && !aiOverview(price)));
+  if (page === undefined) return null;
+  const task = newest(standard.filter((price) => price.price_unit === 'task' && aiOverview(price))) ?? page;
   return Math.ceil(ESTIMATE_DEPTH / PAGE_SIZE) * Number(page.unit_price_usd) + Number(task.unit_price_usd);
 }
 

@@ -91,6 +91,20 @@ describe('useCheckPrice', () => {
     expect(result.current).toBeCloseTo(CHECK_PRICE, 6);
   });
 
+  it('asks for the prices of the provider and the endpoint the checks run on', async () => {
+    let query = new URLSearchParams();
+    server.use(
+      http.get(PRICE_BOOK, ({ request }) => {
+        query = new URL(request.url).searchParams;
+        return HttpResponse.json(EMPTY_PRICE_BOOK);
+      }),
+    );
+    renderHook(() => useCheckPrice(SCOPE, true), { wrapper });
+    await waitFor(settled);
+    expect(query.get('filter[provider_code]')).toBe('dataforseo');
+    expect(query.get('filter[endpoint]')).toBe('serp/google/organic');
+  });
+
   it('reads nothing until it is enabled', async () => {
     let asked = 0;
     server.use(

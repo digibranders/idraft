@@ -127,9 +127,16 @@ export const pageListKey = (scope: ProjectScope, filters: KeywordFilters, query:
 ];
 export const countKey = (scope: ProjectScope): QueryKey => [...keywordsKey(scope), 'count'];
 
-/** The workspace's tracked keyword quota, which every add, archive and delete changes. */
-const quotaKey = (scope: ProjectScope): QueryKey =>
-  queryKey('/api/v1/workspaces/{workspace_id}/tracked-keyword-quota', { workspace_id: scope.workspaceId });
+/** The countries the project has keywords in (`useKeywordCountries`), under `keywordsKey`. */
+export const keywordCountriesKey = (scope: ProjectScope): QueryKey =>
+  queryKey('/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/countries', {
+    workspace_id: scope.workspaceId,
+    project_id: scope.projectId,
+  });
+
+/** The workspace's tracked keyword quota (`useTrackedKeywordQuota`), which every add, archive and delete changes. */
+export const trackedKeywordQuotaKey = (workspaceId: string): QueryKey =>
+  queryKey('/api/v1/workspaces/{workspace_id}/tracked-keyword-quota', { workspace_id: workspaceId });
 
 /**
  * After any change to tracked keywords: the list, its counts, every page, the countries in use (all under
@@ -139,7 +146,7 @@ const quotaKey = (scope: ProjectScope): QueryKey =>
 export async function refreshKeywords(queryClient: QueryClient, scope: ProjectScope): Promise<void> {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: keywordsKey(scope) }),
-    queryClient.invalidateQueries({ queryKey: quotaKey(scope) }),
+    queryClient.invalidateQueries({ queryKey: trackedKeywordQuotaKey(scope.workspaceId) }),
   ]);
 }
 

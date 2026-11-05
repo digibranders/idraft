@@ -246,7 +246,7 @@ describe('price book', () => {
   it('lists the verified Labs and SERP prices valid on a day, by provider and endpoint', async () => {
     const analyst = mockBrowser('analyst');
     const all = await analyst.call('GET', `${W}/price-book?limit=5`);
-    expect(pageOf(all, OFFSET_PAGE)).toEqual({ offset: 0, limit: 5, total: 18 });
+    expect(pageOf(all, OFFSET_PAGE)).toEqual({ offset: 0, limit: 5, total: 20 });
     const overview = dataOf(
       await analyst.call('GET', `${W}/price-book?filter[endpoint]=${KEYWORD_OVERVIEW_ENDPOINT}`),
       PRICES,
@@ -258,10 +258,12 @@ describe('price book', () => {
     expect(overview[0]).toMatchObject({ verified_at: '2026-09-29', valid_to: null });
     // The Labs prices start on 29 September; the SERP prices (the backend's seed) on 1 July
     const september = await analyst.call('GET', `${W}/price-book?valid_at=2026-09-01`);
-    expect(pageOf(september, OFFSET_PAGE).total).toBe(2);
-    expect(dataOf(september, PRICES).map((price) => price.endpoint)).toEqual([
-      'serp/google/organic',
-      'serp/google/organic',
+    expect(pageOf(september, OFFSET_PAGE).total).toBe(4);
+    expect(dataOf(september, PRICES).map((price) => [price.endpoint, price.price_unit, price.unit_price_usd])).toEqual([
+      ['serp/google/organic', 'page', '0.000600'],
+      ['serp/google/organic', 'page', '0.001200'],
+      ['serp/google/organic', 'page', '0.002000'],
+      ['serp/google/organic', 'task', '0.000600'],
     ]);
     const june = await analyst.call('GET', `${W}/price-book?valid_at=2026-06-30`);
     expect(pageOf(june, OFFSET_PAGE).total).toBe(0);

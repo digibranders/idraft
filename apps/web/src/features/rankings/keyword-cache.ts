@@ -1,6 +1,14 @@
 import type { InfiniteData, QueryClient, QueryKey } from '@tanstack/react-query';
 
-import { countKey, keywordsKey, type KeywordFilters, type ListPage, type ProjectScope } from './rankings-queries';
+import {
+  countKey,
+  keywordCountriesKey,
+  keywordsKey,
+  trackedKeywordQuotaKey,
+  type KeywordFilters,
+  type ListPage,
+  type ProjectScope,
+} from './rankings-queries';
 import type { TrackedKeywordDetail, TrackedKeywordRow } from '@/lib/api/types';
 
 /**
@@ -194,4 +202,9 @@ export function applyKeywordWrite(queryClient: QueryClient, scope: ProjectScope,
     }
   }
   if (membershipChanged) void queryClient.invalidateQueries({ queryKey: countKey(scope), exact: true });
+  // Who is tracked changed, or cannot be told because no list holds the keyword: the countries and the quota follow
+  if (membershipChanged || before === undefined) {
+    void queryClient.invalidateQueries({ queryKey: keywordCountriesKey(scope), exact: true });
+    void queryClient.invalidateQueries({ queryKey: trackedKeywordQuotaKey(scope.workspaceId), exact: true });
+  }
 }

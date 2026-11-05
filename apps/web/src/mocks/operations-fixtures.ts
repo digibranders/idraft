@@ -328,22 +328,23 @@ const LABS_PRICES: readonly StoredPrice[] = LABS_ENDPOINTS.flatMap((name, index)
 });
 
 const SERP_SOURCE = 'https://dataforseo.com/pricing/serp-api/google-serp-api';
-const SERP_MICROS = 600;
 const SERP_VALID_FROM = '2026-07-01';
 
 /**
- * Google organic SERP, standard queue: a page of ten results and the task that reads the AI Overview later. A
- * check at depth 100 costs ten pages and one such task, the figure the Add keywords dialog estimates.
+ * Google organic SERP as the backend seeds it (migration 0013, in its order): a page of ten results on the
+ * standard, priority and live queues, and the task that reads the AI Overview later on the standard queue. A
+ * check at depth 100 costs ten standard pages and one such task, the figure the Add keywords dialog estimates.
  */
 const SERP_PRICES: readonly StoredPrice[] = [
-  { price_unit: 'page', conditions: { queue: 'standard' } },
-  { price_unit: 'task', conditions: { queue: 'standard', async_ai_overview: true } },
+  { price_unit: 'page', unit_price_micros: 600, conditions: { queue: 'standard' } },
+  { price_unit: 'page', unit_price_micros: 1200, conditions: { queue: 'priority' } },
+  { price_unit: 'page', unit_price_micros: 2000, conditions: { queue: 'live' } },
+  { price_unit: 'task', unit_price_micros: 600, conditions: { queue: 'standard', async_ai_overview: true } },
 ].map((price, index) => ({
   ...price,
   price_id: mockId('price', LABS_PRICES.length + index + 1),
   provider_code: 'dataforseo',
   endpoint: 'serp/google/organic',
-  unit_price_micros: SERP_MICROS,
   // The day the backend's seed (migration 0013) starts these prices
   valid_from: SERP_VALID_FROM,
   valid_to: null,

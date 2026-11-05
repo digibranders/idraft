@@ -10,6 +10,7 @@ import { apiAllPagesQuery, apiQuery } from '@/lib/api/query';
 
 const QUOTA = '/api/v1/workspaces/{workspace_id}/tracked-keyword-quota';
 const PRICE_BOOK = '/api/v1/workspaces/{workspace_id}/price-book';
+const CHECK_PROVIDER = 'dataforseo';
 const CHECK_ENDPOINT = 'serp/google/organic';
 
 export interface TrackedKeywordQuota {
@@ -33,12 +34,15 @@ export function useTrackedKeywordQuota(scope: ProjectScope, enabled: boolean): T
 /**
  * The cost in dollars of one depth-100 check, from the price book; `null` while it loads, when the price
  * book is refused to this member (it is behind `costs:read`) or fails, and when it holds no such price. The
- * dialog then leaves the cost line out. Only the Google organic prices are read, those valid today.
+ * dialog then leaves the cost line out. Only DataForSEO's Google organic prices are read, those valid today.
  */
 export function useCheckPrice(scope: ProjectScope, enabled: boolean): number | null {
   const query = useQuery({
     ...apiAllPagesQuery(PRICE_BOOK, (price) => price.price_id, {
-      params: { path: { workspace_id: scope.workspaceId }, query: { 'filter[endpoint]': CHECK_ENDPOINT } },
+      params: {
+        path: { workspace_id: scope.workspaceId },
+        query: { 'filter[provider_code]': CHECK_PROVIDER, 'filter[endpoint]': CHECK_ENDPOINT },
+      },
     }),
     enabled,
   });
