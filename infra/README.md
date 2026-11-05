@@ -2,16 +2,19 @@
 
 ## How releases go out today (since 2026-11-05)
 
-The checks run on the owner's Mac, not in GitHub Actions, and the push deploys at once:
-
 ```bash
-infra/ship.sh                      # release origin/develop onto main
+infra/ship.sh                      # release origin/develop onto main: local checks, push, deploy
 infra/ship.sh --rollback web       # or backend: serve the previous release again
 ```
 
-`infra/ship.sh` works in its own worktree (`.claude/worktrees/release`). It merges `develop` into `main`, finds the parts that changed (backend, web, infra) and runs their checks in parallel: `backend/check.sh` on 4 workers, the web app's lint, types, unit tests, formatting and production build, and shellcheck, actionlint and the release-resolution test for infra. Only when all pass does it push `main`. The marketing site is not in this repository: it moved to `digibranders/idraft-site` on 2026-11-05 and deploys on Vercel from that repository's `main`. Then it uploads the changed parts to the VPS and runs `infra/vps/activate.sh`, which backs up the database, installs the release into `/srv/idraft/releases/<part>/<commit>`, migrates, switches the `current` link, restarts the units, checks `/api/readyz`, the worker heartbeat and `/login`, and switches back by itself when a check fails. `SHIP_ALL=1` checks and deploys every part.
+The full runbook is [docs/ops/release-and-deploy.md](../docs/ops/release-and-deploy.md): the rules, what the
+script checks and deploys, the server layout, rollback and what to do when something fails. In short, the
+checks run on the owner's Mac, `main` is pushed only when they pass, and `infra/vps/activate.sh` installs the
+release on the VPS (still the hand-built systemd install, in the release layout `infra/vps/setup-releases.sh`
+made) and switches back by itself when a health check fails. GitHub Actions is disabled.
 
-The VPS still runs the hand-built systemd install (`idraft-api`, `idraft-worker`, `idraft-web`, nginx, host PostgreSQL 18 and Redis); `infra/vps/setup-releases.sh` turned it into the release layout once. The `backend`, `web`, `infra` and `deploy` workflows are disabled (`gh workflow enable <file>` turns one back on). Everything below describes the Docker Compose stack and the GitHub Actions pipeline, which are not in use yet; `docs/superpowers/plans/2026-11-05-vps-compose-cutover.md` is the plan to move to them.
+**Everything below this section describes the Docker Compose stack and the GitHub Actions pipeline, which
+are not in use.** `docs/superpowers/plans/2026-11-05-vps-compose-cutover.md` is the plan to move to them.
 
 This directory contains the production Docker Compose stack, configuration files, host bootstrap script, and deployment automation for `app.idraft.ai`.
 

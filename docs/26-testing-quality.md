@@ -643,6 +643,8 @@ Metric response (`methodVersion`, boundaries) to rollup (`computed_at`) to fact 
 
 ### 10.1 Pipeline (GitHub Actions)
 
+> Not in use since 2026-11-05: the same checks run on the owner's Mac through `infra/ship.sh` and GitHub Actions is disabled. See [ops/release-and-deploy.md](ops/release-and-deploy.md).
+
 Two toolchains, no Turborepo (ADR-022): `uv` for `backend/`, pnpm for `apps/web/`. Caching is the GitHub Actions cache keyed on each lockfile.
 
 | Stage | Contents | Budget |
