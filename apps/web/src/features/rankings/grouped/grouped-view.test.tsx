@@ -134,14 +134,14 @@ describe('Keywords By group', () => {
 
     // Audits shows 8 of its 13, then the rest on Show all
     expect(keywordsUnder(tree, /SEO audits/)).toHaveLength(8);
-    await user.click(screen.getByRole('button', { name: 'Show all 5' }));
+    await user.click(screen.getByRole('button', { name: 'Show 5 more' }));
     await waitFor(() => expect(keywordsUnder(tree, /SEO audits/)).toHaveLength(13));
   });
 
   it('shows the rest of a group from any cell of its Show all row, by click or Enter, and opens no inspector', async () => {
     /** A cell of the Show all row that holds no button: the Volume cell. */
     const emptyCell = (tree: HTMLElement): HTMLElement => {
-      const button = screen.getByRole('button', { name: 'Show all 5' });
+      const button = screen.getByRole('button', { name: 'Show 5 more' });
       const row = button.closest('tr');
       const header = within(tree).getByRole('columnheader', { name: /^Volume/ });
       if (row === null || !(header instanceof HTMLTableCellElement)) throw new Error('No Show all row');
@@ -175,7 +175,7 @@ describe('Keywords By group', () => {
     expect(within(bar).getByText('13 selected')).toBeInTheDocument();
     // Under Brand at once, and under SEO audits once its rest shows
     expect(within(tree).getByRole('checkbox', { name: /^Select seo audit,/ })).toBeChecked();
-    await user.click(screen.getByRole('button', { name: 'Show all 5' }));
+    await user.click(screen.getByRole('button', { name: 'Show 5 more' }));
     await waitFor(() => expect(within(tree).getAllByRole('checkbox', { name: /^Select seo audit,/ })).toHaveLength(2));
     const seoAudit = within(tree).getAllByRole('checkbox', { name: /^Select seo audit,/ });
     for (const box of seoAudit) expect(box).toBeChecked();
@@ -189,7 +189,7 @@ describe('Keywords By group', () => {
   it('shows a group as partly selected when one of its keywords is ticked', async () => {
     const { user } = renderWithProviders(byDefault());
     await loadedTree();
-    await user.click(screen.getByRole('button', { name: 'Show all 5' }));
+    await user.click(screen.getByRole('button', { name: 'Show 5 more' }));
     await user.click(await screen.findByRole('checkbox', { name: /^Select seo audit,/ }));
     expect(screen.getByRole('checkbox', { name: /^Select .*SEO audits, 13 keywords$/ })).toHaveAttribute(
       'aria-checked',

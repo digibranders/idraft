@@ -16,14 +16,17 @@ import { cn } from '@/lib/utils';
 export interface GroupedColumnOptions {
   /** The project's time zone, for the Updated column. */
   timeZone: string;
-  /** Called with the id of the group whose "Show all" row was used. */
+  /**
+   * Called with the id of the group whose "Show more" row was used. It must keep its identity between renders
+   * (`useCallback`): it is a dependency of the memoised columns, which the table searches and sorts by.
+   */
   onShowAll: (groupId: string) => void;
 }
 
 /**
  * The keyword columns for the By group view (12-tables.md section 16). A keyword row shows what its keyword
  * column shows; a group row shows the group's sums and counts in the columns where they mean something and
- * nothing in the others; a "Show all" row holds only its button. The table is in group order, so no column
+ * nothing in the others; a "Show more" row holds only its button. The table is in group order, so no column
  * sorts. The disclosure chevron is the table's own, drawn in the identity cell of a group row.
  */
 export function useGroupedColumns(
@@ -40,53 +43,51 @@ export function useGroupedColumns(
         </span>
       </span>
     );
-    const figureCell = (id: string, group: GroupData): ReactNode => {
-      const { measures } = group;
+    // What a group row shows in a column where a sum or count means something; null where it does not
+    const figureOf = (
+      id: string,
+      { measures }: GroupData,
+    ): { text: string; muted: boolean; number: boolean } | null => {
       switch (id) {
         case RANK_COLUMN_IDS.rank:
-          return (
-            <span className={cn('num', measures.top10 === 0 && 'text-foreground-tertiary')}>
-              {t('inTop10', { count: measures.top10 })}
-            </span>
-          );
+          return { text: t('inTop10', { count: measures.top10 }), muted: measures.top10 === 0, number: true };
         case 'search_volume':
-          return <span className="num">{formatInteger(measures.volume)}</span>;
+          return { text: formatInteger(measures.volume), muted: false, number: true };
         case 'cpc_usd':
-          return measures.cpc === null ? (
-            <span className="text-foreground-tertiary">{t('unknown')}</span>
-          ) : (
-            <span className="num">{formatCurrency(measures.cpc)}</span>
-          );
+          return measures.cpc === null
+            ? { text: t('unknown'), muted: true, number: false }
+            : { text: formatCurrency(measures.cpc), muted: false, number: true };
         case RANK_COLUMN_IDS.aio:
-          return (
-            <span className={cn('num', measures.cited === 0 && 'text-foreground-tertiary')}>
-              {t('cited', { count: measures.cited })}
-            </span>
-          );
+          return { text: t('cited', { count: measures.cited }), muted: measures.cited === 0, number: true };
         case RANK_COLUMN_IDS.updated:
-          return measures.updated === null ? (
-            <span className="text-foreground-tertiary">{EMPTY_VALUE}</span>
-          ) : (
-            <span className="num text-foreground-tertiary">{formatTableDateTime(measures.updated, timeZone)}</span>
-          );
+          return measures.updated === null
+            ? { text: EMPTY_VALUE, muted: true, number: false }
+            : { text: formatTableDateTime(measures.updated, timeZone), muted: true, number: true };
         default:
           return null;
       }
     };
+    const figureCell = (id: string, group: GroupData): ReactNode => {
+      const figure = figureOf(id, group);
+      return figure === null ? null : (
+        <span className={cn(figure.number && 'num', figure.muted && 'text-foreground-tertiary')}>{figure.text}</span>
+      );
+    };
     return keywordColumns.map((column): DataTableColumn<GroupedRow> => {
       const identity = column.identity === true;
       const keywordLabel = column.cellLabel;
-      // A row header is named by its row; another cell has a name of its own only on a keyword row
+      // A row header is named by its row. Another cell that has a name of its own keeps it on a keyword row; on a
+      // group row it is the figure the cell shows, which a fixed name would hide, and nothing where it shows none
       const cellLabel = (row: GroupedRow): string => {
         switch (row.kind) {
           case 'keyword':
             return keywordLabel?.(row.row) ?? row.row.keyword.text;
           case 'group':
             return identity
-              ? `${row.group.label}, ${t('keywordCount', { count: row.group.measures.size })}`
-              : column.header;
+              ? t('groupName', { label: row.group.label, count: row.group.measures.size })
+              : (figureOf(column.id, row.group)?.text ?? '');
           case 'more':
-            return identity ? t('showAll', { count: row.hidden }) : column.header;
+            return identity ? t('showAll', { count: row.hidden }) : '';
         }
       };
       return {
@@ -94,7 +95,7 @@ export function useGroupedColumns(
         sortValue: undefined,
         cellTip: (row) => (row.kind === 'keyword' ? column.cellTip?.(row.row) : undefined),
         cellLabel: identity || keywordLabel !== undefined ? cellLabel : undefined,
-        // The identity cell of a "Show all" row holds a button
+        // The identity cell of a "Show more" row holds a button
         hasControls: identity ? true : column.hasControls,
         cell: (row) => {
           if (row.kind === 'keyword') return column.cell(row.row);

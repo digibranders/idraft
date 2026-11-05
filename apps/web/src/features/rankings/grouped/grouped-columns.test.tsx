@@ -50,12 +50,15 @@ const KEYWORD_COLUMNS: readonly DataTableColumn<PairedRow>[] = [
     cellLabel: (row) => `Keyword ${row.keyword.text}`,
     cellTip: (row) => ({ content: `tip ${row.keyword.text}` }),
   },
-  col.text<PairedRow>('country', () => 'Germany', { header: 'Country' }),
+  { ...col.text<PairedRow>('country', () => 'Germany', { header: 'Country' }), cellLabel: () => 'Country Germany' },
   col.rank<PairedRow>('current_rank', (row) => (row.state.current.state === 'ranked' ? row.state.current.rank : null), {
     header: 'Rank',
     cell: (row) => <span>rank {String(row.state.current.state === 'ranked' ? row.state.current.rank : null)}</span>,
   }),
-  col.volume<PairedRow>('search_volume', (row) => row.metrics?.search_volume.value ?? null, { header: 'Volume' }),
+  {
+    ...col.volume<PairedRow>('search_volume', (row) => row.metrics?.search_volume.value ?? null, { header: 'Volume' }),
+    cellLabel: (row) => `Volume of ${row.keyword.text}`,
+  },
   col.count<PairedRow>('keyword_difficulty', () => 42, { header: 'KD' }),
   col.currency<PairedRow>('cpc_usd', () => 1, { header: 'CPC (USD)' }),
   col.aiOverview<PairedRow>('aio', () => null, { header: 'AI Overview', cell: () => <span>row aio</span> }),
@@ -156,6 +159,22 @@ describe('useGroupedColumns', () => {
     });
   });
 
+  describe('the name of a cell that has one', () => {
+    it('is the keyword column’s on a keyword row, the figure on a group row, and none where the cell is empty', () => {
+      const volume = columnById('search_volume');
+      expect(volume.cellLabel?.(keywordRow())).toBe('Volume of crm pricing');
+      expect(volume.cellLabel?.(groupRow())).toBe('1,200');
+      expect(volume.cellLabel?.(moreRow())).toBe('');
+      const country = columnById('country');
+      expect(country.cellLabel?.(keywordRow())).toBe('Country Germany');
+      expect(country.cellLabel?.(groupRow())).toBe('');
+    });
+
+    it('is not set on a column that has none', () => {
+      expect(columnById('current_rank').cellLabel).toBeUndefined();
+    });
+  });
+
   describe('a group row', () => {
     it('names the group and counts its keywords, with no disclosure button of its own', () => {
       renderCell('keyword', groupRow());
@@ -231,9 +250,9 @@ describe('useGroupedColumns', () => {
     it('is a button that asks to show the group’s keywords', async () => {
       const onShowAll = vi.fn();
       const { user } = renderCell('keyword', moreRow(), onShowAll);
-      await user.click(screen.getByRole('button', { name: 'Show all 3' }));
+      await user.click(screen.getByRole('button', { name: 'Show 3 more' }));
       expect(onShowAll).toHaveBeenCalledWith('crm');
-      expect(columnById('keyword').cellLabel?.(moreRow())).toBe('Show all 3');
+      expect(columnById('keyword').cellLabel?.(moreRow())).toBe('Show 3 more');
     });
 
     it('leaves the other columns empty', () => {
