@@ -42,7 +42,9 @@ done
 
 ids_a="$(docker ps -q --filter label=com.docker.compose.project=idraft-par-a | sort)"
 ids_b="$(docker ps -q --filter label=com.docker.compose.project=idraft-par-b | sort)"
-[ -n "$ids_a" ] && [ -n "$ids_b" ] || fail "a project has no containers"
+if [ -z "$ids_a" ] || [ -z "$ids_b" ]; then
+  fail "a project has no containers"
+fi
 [ -z "$(comm -12 <(echo "$ids_a") <(echo "$ids_b"))" ] || fail "the projects share a container"
 echo "project a: $(echo "$ids_a" | wc -l | tr -d ' ') containers, project b: $(echo "$ids_b" | wc -l | tr -d ' ') containers"
 docker ps --filter label=com.docker.compose.project --format '{{.Names}}\t{{.Ports}}' | grep -E 'idraft-par' | sort
