@@ -3,7 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { PanelRightOpen, Pencil, Plus, RefreshCw, Trash2, type LucideIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useState, type FormEvent, type ReactElement, type ReactNode } from 'react';
+import { useRef, useState, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
 
 import { NOT_GROUPED, type GroupedRow } from './grouped-rows';
 import type { CheckNowResult } from '../check-now/use-check-now';
@@ -11,7 +11,8 @@ import type { GroupChoice } from '../groups/group-choices';
 import { useChangeGroup, useDeleteGroup, useGroupNameCheck } from '../groups/group-mutations';
 import { groupRefusal } from '../groups/group-refusals';
 import { refreshKeywords, type ProjectScope } from '../rankings-queries';
-import { refreshGroups, useKeywordGroups } from '../taxonomy-queries';
+import { flattenGroups, subtreeIds, type GroupNode } from '../groups/group-tree';
+import { refreshGroups, useKeywordGroupTree } from '../taxonomy-queries';
 import type { RecordAction } from '@/components/app/data-table/types';
 import { ConfirmDialog } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,6 @@ import { Input } from '@/components/ui/input';
 import type { MenuItemDef } from '@/components/ui/menu';
 import { toast } from '@/components/ui/toast';
 import { Tooltip } from '@/components/ui/tooltip';
-import type { KeywordGroup } from '@/lib/api/types';
 
 /** A group an action reaches: its id ("Not grouped" is `NOT_GROUPED`), its label, and its keywords' tracked ids. */
 export interface GroupTarget {
@@ -40,8 +40,11 @@ export interface GroupActionsOptions {
   onOpen: (groupId: string) => void;
   /** Opens Add keywords with the group chosen. */
   onAddKeywords: (group: GroupChoice) => void;
-  /** After the group was deleted. */
-  onDeleted: (groupId: string) => void;
+  /**
+   * Where focus goes when a rename or delete dialog closes: the menu item that opened it is gone, and after a
+   * delete so are the group's row and drawer.
+   */
+  focusAfter: (change: 'rename' | 'delete') => HTMLElement | null;
 }
 
 export interface GroupActions {
@@ -64,22 +67,6 @@ interface GroupItem {
   run: () => void;
 }
 
-/** The groups under a group, at any depth, in the flat list. */
-function subgroupCount(groups: readonly KeywordGroup[], groupId: string): number {
-  const under = new Set([groupId]);
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const group of groups) {
-      if (group.parent_id !== null && under.has(group.parent_id) && !under.has(group.group_id)) {
-        under.add(group.group_id);
-        grew = true;
-      }
-    }
-  }
-  return under.size - 1;
-}
-
 /**
  * What can be done to a group of the By group view, from its row's menu and from its drawer (the mock's group
  * menu): open it, check its keywords now, add keywords to it, rename it and delete it. "Not grouped" is no
@@ -91,19 +78,33 @@ export function useGroupActions({
   checkNow,
   onOpen,
   onAddKeywords,
-  onDeleted,
+  focusAfter,
 }: GroupActionsOptions): GroupActions {
   const t = useTranslations('rankings.grouped');
   const checkT = useTranslations('rankings.checkNow');
   const manage = useTranslations('rankings.groups.manage');
   const refusals = useTranslations('rankings.groups.refusals');
-  const groups = useKeywordGroups(scope).data?.data ?? [];
+  // The tree, as Manage groups reads it: a delete names the subgroups that go with the group
+  const groups = flattenGroups(useKeywordGroupTree(scope).data?.data ?? []);
   const deleteGroup = useDeleteGroup(scope);
-  const [renaming, setRenaming] = useState<KeywordGroup | null>(null);
-  const [deleting, setDeleting] = useState<KeywordGroup | null>(null);
+  const [renaming, setRenaming] = useState<GroupNode | null>(null);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameRound, setRenameRound] = useState(0);
+  const [deleting, setDeleting] = useState<GroupNode | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const finalFocus = useRef<HTMLElement | null>(null);
+  const startRename = (group: GroupNode): void => {
+    finalFocus.current = focusAfter('rename');
+    setRenaming(group);
+    setRenameOpen(true);
+    setRenameRound((round) => round + 1);
+  };
+  const startDelete = (group: GroupNode): void => {
+    finalFocus.current = focusAfter('delete');
+    setDeleting(group);
+  };
 
-  const stored = (groupId: string): KeywordGroup | null => groups.find((group) => group.group_id === groupId) ?? null;
+  const stored = (groupId: string): GroupNode | null => groups.find((group) => group.group_id === groupId) ?? null;
   const checkReason = (target: GroupTarget): string | null =>
     target.memberIds.length === 0 ? t('noKeywordsToCheck') : checkNow.reasonFor(new Set(target.memberIds));
   const itemsOf = (target: GroupTarget): GroupItem[] => {
@@ -151,7 +152,7 @@ export function useGroupActions({
           icon: Pencil,
           group: 'object',
           disabledReason: null,
-          run: () => setRenaming(group),
+          run: () => startRename(group),
         },
         {
           id: 'delete-group',
@@ -159,7 +160,7 @@ export function useGroupActions({
           icon: Trash2,
           group: 'destructive',
           disabledReason: null,
-          run: () => setDeleting(group),
+          run: () => startDelete(group),
         },
       );
     }
@@ -205,7 +206,7 @@ export function useGroupActions({
     );
   };
 
-  const subgroups = deleting === null ? 0 : subgroupCount(groups, deleting.group_id);
+  const subgroups = deleting === null ? 0 : subtreeIds(deleting).size - 1;
   const confirmDelete = async (): Promise<void> => {
     if (deleting === null) return;
     setDeleteError(null);
@@ -216,14 +217,24 @@ export function useGroupActions({
       throw error;
     }
     toast({ type: 'success', title: manage('deleted', { name: deleting.name }) });
-    onDeleted(deleting.group_id);
+    // The group's row and drawer are gone: what to focus is asked again
+    finalFocus.current = focusAfter('delete');
   };
   const dialogs = canWrite ? (
     <>
       {renaming === null ? null : (
-        <RenameGroupDialog key={renaming.group_id} scope={scope} group={renaming} onClose={() => setRenaming(null)} />
+        <RenameGroupDialog
+          // Each opening starts from the group's current name
+          key={renameRound}
+          scope={scope}
+          group={renaming}
+          open={renameOpen}
+          finalFocus={finalFocus}
+          onClose={() => setRenameOpen(false)}
+        />
       )}
       <ConfirmDialog
+        finalFocus={finalFocus}
         open={deleting !== null}
         onOpenChange={(next) => {
           if (!next) {
@@ -250,10 +261,15 @@ export function useGroupActions({
 function RenameGroupDialog({
   scope,
   group,
+  open,
+  finalFocus,
   onClose,
 }: {
   scope: ProjectScope;
-  group: KeywordGroup;
+  group: GroupNode;
+  /** Kept mounted while it closes, so focus goes back where `finalFocus` says. */
+  open: boolean;
+  finalFocus: RefObject<HTMLElement | null>;
   onClose: () => void;
 }): ReactElement {
   const manage = useTranslations('rankings.groups.manage');
@@ -300,9 +316,10 @@ function RenameGroupDialog({
 
   return (
     <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose();
+      open={open}
+      finalFocus={finalFocus}
+      onOpenChange={(next) => {
+        if (!next) onClose();
       }}
       size="sm"
       dirty={name.trim() !== group.name}

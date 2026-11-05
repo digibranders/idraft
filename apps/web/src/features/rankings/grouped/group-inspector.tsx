@@ -19,6 +19,11 @@ import type { MenuItemDef } from '@/components/ui/menu';
 import { formatInteger, formatRelative, rowChangeDisplay } from '@/lib/format';
 
 export interface GroupInspectorProps {
+  /**
+   * `loading` while the keywords or the groups load; `needsEveryKeyword` while the list is read a page at a
+   * time (over 10,000 keywords), when a group's figures would only be those of the page.
+   */
+  status: 'loading' | 'ready' | 'needsEveryKeyword';
   /** The group's keywords in view (device, country, filters and search applied); `null` when none is. */
   group: GroupData | null;
   /** The group's path, or "Not grouped"; shown while the group has no keyword in view too. */
@@ -42,6 +47,7 @@ export interface GroupInspectorProps {
  * their rank, each of which opens in the inspector. The group's other actions are in the More menu.
  */
 export function GroupInspector({
+  status,
   group,
   label,
   device,
@@ -56,6 +62,7 @@ export function GroupInspector({
   const keywordInspector = useTranslations('rankings.inspector');
   const devices = useTranslations('rankings.filters.devices');
   const size = group?.measures.size ?? 0;
+  const figuresTitle = t('figures', { device: devices(device) });
 
   return (
     <Inspector
@@ -63,20 +70,32 @@ export function GroupInspector({
       backLabel={keywordInspector('back')}
       onClose={onClose}
       header={{
-        title: label,
+        title: status === 'loading' ? '' : label,
         typeLabel: t('type'),
         typeNoun: t('noun'),
-        positionText: grouped('keywordCount', { count: size }),
-        frequentAction: group === null ? null : frequentAction,
-        moreActions,
+        positionText: status === 'ready' ? grouped('keywordCount', { count: size }) : null,
+        frequentAction: status === 'ready' && group !== null ? frequentAction : null,
+        moreActions: status === 'loading' ? [] : moreActions,
       }}
     >
       <InspectorBody>
-        {group === null ? (
+        {status === 'loading' ? (
+          <>
+            <InspectorSection title={figuresTitle} icon={ChartColumn} status="loading" />
+            <InspectorSection title={t('list')} icon={ListOrdered} status="loading" />
+          </>
+        ) : status === 'needsEveryKeyword' ? (
+          <EmptyState
+            variant="inline"
+            title={t('needsEveryKeyword')}
+            reason={t('needsEveryKeywordReason')}
+            headingLevel={3}
+          />
+        ) : group === null ? (
           <EmptyState variant="inline" title={t('emptyTitle')} reason={t('emptyReason')} headingLevel={3} />
         ) : (
           <>
-            <InspectorSection title={t('figures', { device: devices(device) })} icon={ChartColumn} status="ready">
+            <InspectorSection title={figuresTitle} icon={ChartColumn} status="ready">
               <GroupFigures group={group} timeZone={timeZone} />
             </InspectorSection>
             <InspectorSection title={t('list')} icon={ListOrdered} status="ready">

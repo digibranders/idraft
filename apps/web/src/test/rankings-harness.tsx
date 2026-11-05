@@ -8,7 +8,7 @@ import messages from '../../messages/en.json';
 import { ALL_COUNTRIES } from '@/features/rankings/keyword-scope';
 import { RankingsScreen, type RankingsScreenProps } from '@/features/rankings/rankings-screen';
 import type { Role } from '@/lib/api/types';
-import { PermissionProvider } from '@/lib/permissions';
+import { PermissionProvider, type Permission } from '@/lib/permissions';
 import { MOCK_LOCATIONS } from '@/mocks/entity-fixtures';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
@@ -41,21 +41,26 @@ type ScreenProps = Partial<Pick<RankingsScreenProps, 'importOpen' | 'onImportOpe
    * it; the URL's `view` wins either way.
    */
   opensOnDefaultView?: boolean;
+  /** Permissions the role holds that this member is not given. */
+  withoutPermissions?: readonly Permission[];
 };
 
 /** Rankings of `projectId` for a member of `role`, signed in through the mock session cookie. */
 export function rankingsAs(
   role: Role,
   projectId: string = fynix.project_id,
-  { opensOnOwnCountry = false, opensOnDefaultView = false, ...screenProps }: ScreenProps = {},
+  { opensOnOwnCountry = false, opensOnDefaultView = false, withoutPermissions = [], ...screenProps }: ScreenProps = {},
   /** The projects a member limited to some may open; `null` is every project. */
   projectIds: readonly string[] | null = null,
 ): ReactElement {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   const locationId = MOCK_PROJECTS.find((candidate) => candidate.project_id === projectId)?.location_id ?? null;
   const location = MOCK_LOCATIONS.find((candidate) => candidate.location_id === locationId) ?? null;
+  const membership = membershipFactory(role, { projectIds });
+  const without = new Set<string>(withoutPermissions);
+  const permissions = membership.permissions.filter((key) => !without.has(key));
   return (
-    <PermissionProvider membership={membershipFactory(role, { projectIds })}>
+    <PermissionProvider membership={{ ...membership, permissions }}>
       <Suspense fallback={null}>
         <RankingsScreen
           workspaceId={MOCK_WORKSPACE.workspace_id}

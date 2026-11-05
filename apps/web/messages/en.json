@@ -2282,7 +2282,9 @@
       "rank": "Rank",
       "openKeyword": "Open {keyword}",
       "emptyTitle": "No keywords of this group in view",
-      "emptyReason": "The device, country, filters or search leave out every keyword of this group."
+      "emptyReason": "The device, country, filters or search leave out every keyword of this group.",
+      "needsEveryKeyword": "Group figures need every keyword loaded, which works up to 10,000 keywords.",
+      "needsEveryKeywordReason": "Narrow the list with a filter to see this group's figures and keywords."
     },
     "error": {
       "title": "The keywords did not load",

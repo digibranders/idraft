@@ -5,7 +5,7 @@ import { Archive, Download, FolderTree, MoreHorizontal, Plus, Upload, X } from '
 import dynamic from 'next/dynamic';
 import { useLocale, useTranslations } from 'next-intl';
 import { parseAsBoolean, parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs';
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { AddKeywordsDialog, type ProjectDefaults } from './add-keywords/add-keywords-dialog';
 import { useBulkActions } from './bulk/bulk-actions';
@@ -114,6 +114,8 @@ const VIEW_STATE = {
   view: parseAsStringLiteral(['groups', 'flat'] as const),
 };
 const NO_ROWS: readonly PairedRow[] = [];
+/** The inspector's place in the URL, for closing the drawer of a group that is gone without a history step. */
+const INSPECT_STATE = { inspect: parseAsString, itab: parseAsString };
 export interface RankingsScreenProps extends ProjectScope {
   /** The project's time zone, for the Added column. */
   timeZone: string;
@@ -179,6 +181,8 @@ export function RankingsScreen({
   const queryClient = useQueryClient();
   // Where focus returns to when Manage groups closes
   const moreButton = useRef<HTMLButtonElement>(null);
+  // Where focus goes after a group's rename or delete: the table's current cell
+  const tableArea = useRef<HTMLDivElement>(null);
   const scope = useMemo((): ProjectScope => ({ workspaceId, projectId }), [workspaceId, projectId]);
 
   const fields = useKeywordFilterFields(scope, depth);
@@ -197,6 +201,7 @@ export function RankingsScreen({
       }),
   });
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
+  const [, setInspectQuery] = useQueryStates(INSPECT_STATE, { history: 'replace' });
   // Which devices show a rank column, and the country the keywords are tracked in
   const countries = useCountries();
   const inUse = useKeywordCountries(scope);
@@ -496,23 +501,37 @@ export function RankingsScreen({
     checkNow,
     onOpen: openGroup,
     onAddKeywords: openAdd,
-    onDeleted: (groupId) => {
-      if (groupId === openGroupId) inspector.close();
-    },
+    // The group drawer's title after a rename it stays open for; the table otherwise, as a deleted group's
+    // row and drawer are gone
+    focusAfter: (change) =>
+      (change === 'rename' && openGroupId !== null
+        ? document.querySelector<HTMLElement>('aside[aria-labelledby] h2')
+        : null) ??
+      tableArea.current?.querySelector<HTMLElement>('[role="treegrid"] [tabindex="0"], [role="grid"] [tabindex="0"]') ??
+      null,
   });
-  // The group open in the drawer, from the rows loaded, as By group counts it, whichever view shows
+  // The group open in the drawer, from the rows loaded, as By group counts it, whichever view shows. A list
+  // read a page at a time holds only part of a group, so it gives no figures
   const notGroupedLabel = t('grouped.notGrouped');
   const inspectedGroup = useMemo(
     () =>
-      openGroupId === null
+      openGroupId === null || list.mode === 'server'
         ? null
-        : findGroup(
-            list.mode === 'server' ? pairedRows : searchedRows(pairedRows, search),
-            openGroupId,
-            notGroupedLabel,
-          ),
+        : findGroup(searchedRows(pairedRows, search), openGroupId, notGroupedLabel),
     [openGroupId, list.mode, pairedRows, search, notGroupedLabel],
   );
+  // A group that no longer exists (deleted here, in Manage groups or by a teammate, or a link to one that never
+  // did) closes its drawer once the groups are read
+  const groupGone =
+    openGroupId !== null &&
+    openGroupId !== NOT_GROUPED &&
+    projectGroups.data !== undefined &&
+    !projectGroups.data.data.some((group) => group.group_id === openGroupId);
+  // Replaced, not gone back from: Back must not lead to the drawer of a group that is no more
+  const closeGoneGroup = useEffectEvent(() => void setInspectQuery({ inspect: null, itab: null }));
+  useEffect(() => {
+    if (groupGone) closeGoneGroup();
+  }, [groupGone]);
   const grouped = useGroupedTable({
     rows: byGroup ? pairedRows : NO_ROWS,
     search,
@@ -778,6 +797,9 @@ export function RankingsScreen({
       keywordInspector
     ) : (
       <GroupInspector
+        status={
+          list.loading || projectGroups.isPending ? 'loading' : list.mode === 'server' ? 'needsEveryKeyword' : 'ready'
+        }
         group={inspectedGroup}
         label={groupTarget.label}
         device={keywordScope.device}
@@ -914,7 +936,7 @@ export function RankingsScreen({
             })}
           />
         ) : null}
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div ref={tableArea} className="flex min-h-0 flex-1 flex-col">
           {byGroup ? (
             <DataTable<GroupedRow>
               {...tableProps}
