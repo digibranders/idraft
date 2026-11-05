@@ -1622,6 +1622,19 @@ describe('DataTable tree mode', () => {
     expect(controls).not.toContainElement(end);
   });
 
+  it('wraps the toolbar on a narrow table: the switch and the controls drop to a second line together', () => {
+    renderWithProviders(<TreeHarness toolbarEnd={<button type="button">By group</button>} />);
+    const controls = screen.getByRole('toolbar', { name: /Keywords/ });
+    const endGroup = controls.parentElement;
+    expect(endGroup).toContainElement(screen.getByRole('button', { name: 'By group' }));
+    expect(endGroup?.parentElement).toHaveClass('flex-wrap', 'min-h-12');
+    // The search field may narrow to nothing rather than push the bar wider than the table
+    expect(screen.getByRole('searchbox', { name: 'Search in table' }).closest('[data-slot="input-group"]')).toHaveClass(
+      'min-w-0',
+      'max-w-full',
+    );
+  });
+
   describe('selecting rows in a tree', () => {
     const onChange = vi.fn<(ids: ReadonlySet<string>) => void>();
     beforeEach(() => {

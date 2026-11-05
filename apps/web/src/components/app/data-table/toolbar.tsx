@@ -11,7 +11,6 @@ import { Menu } from '@/components/ui/menu';
 import { Spinner } from '@/components/ui/spinner';
 import { useShortcut } from '@/lib/a11y/use-shortcut';
 import { DENSITIES, type Density } from '@/lib/tables/table-state';
-import { cn } from '@/lib/utils';
 
 /** The longest search the box takes: the API's text filters take 200 characters (`QueryText`). */
 const SEARCH_MAX_LENGTH = 200;
@@ -62,8 +61,9 @@ export function DataTableToolbar({
     { kind: 'single-key' },
   );
   return (
-    <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border-subtle px-3">
-      <InputGroup leadingIcon={Search} size="sm" className="w-64 max-w-full min-w-32">
+    // 48 px on one line; on a narrow table the bar wraps rather than scrolling the page sideways
+    <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle px-3 py-2">
+      <InputGroup leadingIcon={Search} size="sm" className="w-64 max-w-full min-w-0">
         <Input
           ref={input}
           size="sm"
@@ -88,25 +88,24 @@ export function DataTableToolbar({
           {t('updating')}
         </p>
       ) : null}
-      {end === undefined ? null : <div className="ml-auto flex shrink-0 items-center gap-1">{end}</div>}
-      <div
-        role="toolbar"
-        aria-label={t('toolbar', { caption })}
-        className={cn('flex shrink-0 items-center gap-1', end === undefined && 'ml-auto')}
-      >
-        <Menu
-          align="end"
-          trigger={<IconButton icon={Rows3} variant="ghost" label={t('density')} />}
-          items={DENSITIES.map((value) => ({
-            id: value,
-            kind: 'radio' as const,
-            group: t('density'),
-            label: value === 'compact' ? t('densityCompact') : t('densityDefault'),
-            checked: density === value,
-            onSelect: () => onDensityChange(value),
-          }))}
-        />
-        {columns(<IconButton icon={Columns3} variant="ghost" label={t('columns')} />)}
+      {/* The end slot and the controls go to a second line together when the bar is too narrow for one */}
+      <div className="ml-auto flex items-center gap-1">
+        {end}
+        <div role="toolbar" aria-label={t('toolbar', { caption })} className="flex items-center gap-1">
+          <Menu
+            align="end"
+            trigger={<IconButton icon={Rows3} variant="ghost" label={t('density')} />}
+            items={DENSITIES.map((value) => ({
+              id: value,
+              kind: 'radio' as const,
+              group: t('density'),
+              label: value === 'compact' ? t('densityCompact') : t('densityDefault'),
+              checked: density === value,
+              onSelect: () => onDensityChange(value),
+            }))}
+          />
+          {columns(<IconButton icon={Columns3} variant="ghost" label={t('columns')} />)}
+        </div>
       </div>
     </div>
   );
