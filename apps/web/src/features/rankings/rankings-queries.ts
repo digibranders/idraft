@@ -15,7 +15,7 @@ import { rankFilterParams } from './rank-filters';
 import type { PageSize } from '@/components/app/data-table/types';
 import type { FilterValues } from '@/components/app/filters/types';
 import { api, unwrap } from '@/lib/api/client';
-import { projectKey, type QueryKey } from '@/lib/api/keys';
+import { projectKey, queryKey, type QueryKey } from '@/lib/api/keys';
 import type { paths } from '@/lib/api/schema';
 import type { TrackedKeywordRow, TrackedKeywordState } from '@/lib/api/types';
 import type { FilterValue } from '@/lib/filters/filter-values';
@@ -127,12 +127,20 @@ export const pageListKey = (scope: ProjectScope, filters: KeywordFilters, query:
 ];
 export const countKey = (scope: ProjectScope): QueryKey => [...keywordsKey(scope), 'count'];
 
+/** The workspace's tracked keyword quota, which every add, archive and delete changes. */
+const quotaKey = (scope: ProjectScope): QueryKey =>
+  queryKey('/api/v1/workspaces/{workspace_id}/tracked-keyword-quota', { workspace_id: scope.workspaceId });
+
 /**
- * After any change to tracked keywords: the list, its counts, every page and the open keyword. Resolves
- * once the queries on screen have read again.
+ * After any change to tracked keywords: the list, its counts, every page, the countries in use (all under
+ * `keywordsKey`), the open keyword and the workspace's quota. Resolves once the queries on screen have read
+ * again.
  */
-export function refreshKeywords(queryClient: QueryClient, scope: ProjectScope): Promise<void> {
-  return queryClient.invalidateQueries({ queryKey: keywordsKey(scope) });
+export async function refreshKeywords(queryClient: QueryClient, scope: ProjectScope): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: keywordsKey(scope) }),
+    queryClient.invalidateQueries({ queryKey: quotaKey(scope) }),
+  ]);
 }
 
 // The URL keys of the filters (13-filters-search.md section 5) and what each sends
