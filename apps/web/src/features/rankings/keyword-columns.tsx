@@ -8,9 +8,12 @@ import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { Icon } from '@/components/ui/icon';
 import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
+import { formatInteger } from '@/lib/format';
 import { languageName } from '@/lib/format/language';
 import { TargetMismatchMarker } from './feature-cells';
-import { GSC_CLICKS, GSC_IMPRESSIONS, gscCount, gscStateOf } from './gsc-counts';
+import { GSC_CLICKS, GSC_IMPRESSIONS, gscCount, gscStateOf, type GscMetric } from './gsc-counts';
+import { gscTrendOf } from './gsc-trend';
+import { GscTrendCell, gscTrendWords } from './gsc-trend-cell';
 import type { Device, PairedRow } from './keyword-pairs';
 import type { KeywordCountry } from './keyword-countries';
 import { useCountries } from './keyword-scope';
@@ -81,6 +84,7 @@ export function useKeywordColumns(
   const t = useTranslations('rankings.columns');
   const common = useTranslations('common');
   const targetT = useTranslations('rankings.target');
+  const trendT = useTranslations('rankings.gscTrend');
   const ranks = useRankColumns(timeZone);
   const competitorColumns = useCompetitorColumns(competitors);
   const countries = useCountries();
@@ -104,6 +108,26 @@ export function useKeywordColumns(
       gscStateOf(row) === 'not_connected'
         ? { label: t('gscNotConnected'), tooltip: t('gscNotConnectedTooltip') }
         : { label: t('pending'), tooltip: t('gscPendingTooltip') };
+    // The count with the graph of its 4-day buckets, coloured by the direction its label says in words
+    const gscColumn = (id: string, metric: GscMetric): DataTableColumn<PairedRow> =>
+      col.volumeTrend<TrackedKeywordRow>(id, (row) => gscCount(row, metric), {
+        header: t(metric),
+        headerTooltip: t('gscTooltip'),
+        priority: 2,
+        unknown: gscUnknown,
+        known: (row, value) => {
+          const buckets = gscTrendOf(row, metric);
+          return buckets === null ? (
+            <span className="num">{formatInteger(value)}</span>
+          ) : (
+            <GscTrendCell value={value} buckets={buckets} words={gscTrendWords(trendT, buckets, metric)} />
+          );
+        },
+        knownTip: (row) => {
+          const buckets = gscTrendOf(row, metric);
+          return buckets === null ? undefined : gscTrendWords(trendT, buckets, metric).tip;
+        },
+      });
     const columns: DataTableColumn<PairedRow>[] = [
       col.keyword<TrackedKeywordRow>('keyword', keywordText, {
         header: t('keyword'),
@@ -157,20 +181,8 @@ export function useKeywordColumns(
         width: 96,
         unknown: missing,
       }),
-      col.volume<TrackedKeywordRow>(GSC_CLICKS, (row) => gscCount(row, 'clicks'), {
-        header: t('clicks'),
-        headerTooltip: t('gscTooltip'),
-        priority: 2,
-        width: 96,
-        unknown: gscUnknown,
-      }),
-      col.volume<TrackedKeywordRow>(GSC_IMPRESSIONS, (row) => gscCount(row, 'impressions'), {
-        header: t('impressions'),
-        headerTooltip: t('gscTooltip'),
-        priority: 2,
-        width: 112,
-        unknown: gscUnknown,
-      }),
+      gscColumn(GSC_CLICKS, 'clicks'),
+      gscColumn(GSC_IMPRESSIONS, 'impressions'),
       col.count<TrackedKeywordRow>('keyword_difficulty', (row) => metrics(row)?.keyword_difficulty ?? null, {
         header: t('difficulty'),
         headerTooltip: t('difficultyTooltip'),
@@ -233,5 +245,5 @@ export function useKeywordColumns(
       }),
     ];
     return columns;
-  }, [t, targetT, common, timeZone, ranks, competitorColumns, device, countryNames]);
+  }, [t, targetT, trendT, common, timeZone, ranks, competitorColumns, device, countryNames]);
 }

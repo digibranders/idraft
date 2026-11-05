@@ -3031,7 +3031,24 @@ export interface components {
              * @enum {string}
              */
             state: "ok" | "pending" | "not_connected";
+            /** @description `ok` only: the tracked device's clicks and impressions in 4-day buckets of the window, oldest first; the buckets add up to that device's counts. */
+            trend?: components["schemas"]["GscTrend"] | null;
             window?: components["schemas"]["GscWindow"] | null;
+        };
+        /**
+         * GscTrend
+         * @description The keyword's own device over the window in consecutive buckets, oldest first.
+         */
+        GscTrend: {
+            /**
+             * Bucket Days
+             * @description Days in a bucket; bucket i starts i * bucket_days days after the window start.
+             */
+            bucket_days: number;
+            /** Clicks */
+            clicks: number[];
+            /** Impressions */
+            impressions: number[];
         };
         /** GscWindow */
         GscWindow: {

@@ -12,6 +12,9 @@ query, after the keyword normalizer, is the keyword's normalized text, in the co
 keyword's location (a city counts as its country), on each device. The sum of a keyword with
 no rows in the window is 0, which is a count. Tablets are not added to either device, and the
 numbers are never estimated from volume and rank.
+
+`ok` also carries the trend of the keyword's own device: its clicks and impressions in the seven
+4-day buckets of the window, oldest first, from the same rows, so the buckets add up to the totals.
 """
 
 from __future__ import annotations
@@ -36,10 +39,20 @@ from idraft.db.tables import (
     tracked_keywords,
 )
 from idraft.domain.countries import ISO3_OF, iso2_of
-from idraft.domain.gsc_pull import PullState
+from idraft.domain.gsc_pull import ALL_PAGES, WINDOW_DAYS, PullState
 
 SEARCH_TYPE = "web"
 Metric = Literal["clicks", "impressions"]
+BUCKET_DAYS = 4
+BUCKETS = WINDOW_DAYS // BUCKET_DAYS
+
+
+@dataclass(frozen=True, slots=True)
+class GscTrendRecord:
+    """Clicks and impressions of the keyword's own device in each bucket, oldest first."""
+
+    clicks: list[int]
+    impressions: list[int]
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +61,11 @@ class GscRecord:
     clicks: dict[str, int] | None = None
     impressions: dict[str, int] | None = None
     window: tuple[date, date] | None = None
+    trend: GscTrendRecord | None = None
+
+
+# Per device name: a (clicks, impressions) pair for each bucket of the window.
+_Buckets = dict[str, list[tuple[int, int]]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,12 +123,13 @@ async def gsc_of(
     if not tracked_ids:
         return {}
     wanted = {
-        row.id: (row.normalized_text, row.country_iso)
+        row.id: (row.normalized_text, row.country_iso, row.device)
         for row in await db.execute(
             select(
                 tracked_keywords.c.id,
                 keywords.c.normalized_text,
                 locations.c.country_iso,
+                tracked_keywords.c.device,
             )
             .join(keywords, keywords.c.id == tracked_keywords.c.keyword_id)
             .join(locations, locations.c.id == tracked_keywords.c.location_id)
@@ -126,19 +145,22 @@ async def gsc_of(
         workspace_id,
         scope.integration_id,
         scope.window,
-        texts={text for text, _ in wanted.values()},
-        countries={country for _, country in wanted.values()},
+        texts={text for text, _, _ in wanted.values()},
+        countries={country for _, country, _ in wanted.values()},
     )
-    zero = {"desktop": 0, "mobile": 0}
+    empty = [(0, 0)] * BUCKETS
     found: dict[UUID, GscRecord] = {}
     for tracked_id in tracked_ids:
         key = wanted.get(tracked_id)
-        counts = sums.get(key, {}) if key else {}
+        buckets = sums.get(key[:2], {}) if key else {}
+        own = buckets.get(key[2], empty) if key else empty
+        devices = {device: buckets.get(device, empty) for device in ("desktop", "mobile")}
         found[tracked_id] = GscRecord(
             state="ok",
-            clicks={**zero, **{device: n[0] for device, n in counts.items()}},
-            impressions={**zero, **{device: n[1] for device, n in counts.items()}},
+            clicks={device: sum(c for c, _ in n) for device, n in devices.items()},
+            impressions={device: sum(i for _, i in n) for device, n in devices.items()},
             window=scope.window,
+            trend=GscTrendRecord(clicks=[c for c, _ in own], impressions=[i for _, i in own]),
         )
     return found
 
@@ -151,17 +173,21 @@ async def _sums(
     *,
     texts: set[str],
     countries: set[str],
-) -> dict[tuple[str, str], dict[str, tuple[int, int]]]:
-    """Clicks and impressions by (normalized query, country, device name), desktop and mobile."""
+) -> dict[tuple[str, str], _Buckets]:
+    """Clicks and impressions by (normalized query, country), device name (desktop and mobile)
+    and 4-day bucket of the window, zero where a bucket has no rows."""
     a, q = gsc_search_analytics.c, gsc_queries.c
     iso3 = sorted(ISO3_OF[country] for country in countries if country in ISO3_OF)
     if not texts or not iso3:
         return {}
+    # date - date is a day count in Postgres; `//` keeps the division integral.
+    bucket = ((a.metric_date - window[0]) // BUCKET_DAYS).label("bucket")
     rows = await db.execute(
         select(
             q.normalized_text,
             a.country_iso3,
             a.device,
+            bucket,
             func.sum(a.clicks).label("clicks"),
             func.sum(a.impressions).label("impressions"),
         )
@@ -175,22 +201,24 @@ async def _sums(
             a.workspace_id == workspace_id,
             a.integration_id == integration_id,
             a.search_type == SEARCH_TYPE,
+            # Rows per page (the first version of the pull) count an impression for each page of a
+            # search, so only the rows over all pages are read
+            a.url_id == ALL_PAGES,
             a.data_state == "final",
             a.metric_date.between(*window),
             a.device.in_(("DESKTOP", "MOBILE")),
             q.normalized_text == any_(literal(sorted(texts), type_=ARRAY(Text))),
             a.country_iso3 == any_(literal(iso3, type_=ARRAY(Text))),
         )
-        .group_by(q.normalized_text, a.country_iso3, a.device)
+        .group_by(q.normalized_text, a.country_iso3, a.device, bucket)
     )
-    found: dict[tuple[str, str], dict[str, tuple[int, int]]] = {}
+    found: dict[tuple[str, str], _Buckets] = {}
     for row in rows:
         country = iso2_of(row.country_iso3)
         if country is not None:
-            found.setdefault((row.normalized_text, country), {})[row.device.lower()] = (
-                int(row.clicks),
-                int(row.impressions),
-            )
+            devices = found.setdefault((row.normalized_text, country), {})
+            buckets = devices.setdefault(row.device.lower(), [(0, 0)] * BUCKETS)
+            buckets[int(row.bucket)] = (int(row.clicks), int(row.impressions))
     return found
 
 
@@ -213,6 +241,7 @@ def sorted_total(metric: Metric, scope: GscScope) -> ColumnElement[Any]:
             a.c.workspace_id == tracked_keywords.c.workspace_id,
             a.c.integration_id == scope.integration_id,
             a.c.search_type == SEARCH_TYPE,
+            a.c.url_id == ALL_PAGES,
             a.c.data_state == "final",
             a.c.metric_date.between(*scope.window),
             q.c.normalized_text == keywords.c.normalized_text,

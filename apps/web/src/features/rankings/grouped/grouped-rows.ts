@@ -1,4 +1,5 @@
 import { gscCount, gscStateOf, type GscState } from '../gsc-counts';
+import { gscTrendOf, sumBuckets } from '../gsc-trend';
 import { idsOfPair, type PairedRow } from '../keyword-pairs';
 
 export const NOT_GROUPED = '__none';
@@ -22,6 +23,12 @@ export interface GroupMeasures {
   /** Search Console clicks and impressions of the last 28 days over every place; null while `gscState` is not `ok`. */
   clicks: number | null;
   impressions: number | null;
+  /**
+   * The 4-day buckets of the same rows summed bucket by bucket, so they add up to `clicks` and `impressions`; null
+   * with them, and null when no counted row has buckets.
+   */
+  clicksTrend: number[] | null;
+  impressionsTrend: number[] | null;
   /** `ok` when any keyword has counts; otherwise `pending` if one waits for the first pull, else `not_connected`. */
   gscState: GscState;
 }
@@ -79,6 +86,8 @@ export function groupMeasures(rows: readonly PairedRow[]): GroupMeasures {
   let updated: string | null = null;
   let clicks = 0;
   let impressions = 0;
+  const clicksSeries: (readonly number[])[] = [];
+  const impressionsSeries: (readonly number[])[] = [];
   let counted = false;
   let waiting = false;
   for (const row of rows) {
@@ -88,6 +97,10 @@ export function groupMeasures(rows: readonly PairedRow[]): GroupMeasures {
       counted = true;
       clicks += rowClicks ?? 0;
       impressions += rowImpressions ?? 0;
+      const clicksTrend = gscTrendOf(row, 'clicks');
+      const impressionsTrend = gscTrendOf(row, 'impressions');
+      if (clicksTrend !== null) clicksSeries.push(clicksTrend);
+      if (impressionsTrend !== null) impressionsSeries.push(impressionsTrend);
     } else if (gscStateOf(row) === 'pending') {
       waiting = true;
     }
@@ -125,6 +138,8 @@ export function groupMeasures(rows: readonly PairedRow[]): GroupMeasures {
     updated,
     clicks: counted ? clicks : null,
     impressions: counted ? impressions : null,
+    clicksTrend: sumBuckets(clicksSeries),
+    impressionsTrend: sumBuckets(impressionsSeries),
     gscState: counted ? 'ok' : waiting ? 'pending' : 'not_connected',
   };
 }

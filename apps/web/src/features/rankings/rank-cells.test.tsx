@@ -58,19 +58,41 @@ describe('RankCellView', () => {
     expect(screen.getByText('3')).toHaveClass('num', 'text-foreground');
   });
 
-  it('shows beyond depth as plain tertiary text for the depth that was checked, and says it in words', () => {
+  it('shows beyond depth as a plain tertiary hyphen, and says in words the depth that was checked', () => {
     renderWithProviders(rank({ state: 'beyond_depth', rank: null, depth_requested: 50 }));
-    const glyph = screen.getByText('>50');
+    const glyph = screen.getByText('-');
     expect(glyph).toHaveClass('text-foreground-tertiary');
     expect(glyph).toHaveAttribute('aria-hidden', 'true');
     expect(screen.getByText('not in top 50')).toHaveClass('sr-only');
+    expect(screen.queryByText('>50')).toBeNull();
   });
 
-  it('shows >100 for a keyword not found within the top 100, whatever number of results Google returned', () => {
+  it('shows a hyphen for a keyword not found within the top 100, whatever number of results Google returned', () => {
     renderWithProviders(rank({ state: 'beyond_depth', rank: null, depth_requested: 100, depth_returned: 66 }));
-    expect(screen.getByText('>100')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByText('-')).toHaveAttribute('aria-hidden', 'true');
     expect(screen.getByText('not in top 100')).toHaveClass('sr-only');
+    expect(screen.queryByText('>100')).toBeNull();
     expect(screen.queryByText('>66')).toBeNull();
+  });
+
+  it('keeps the rank and its change in one group: a three-digit box, a small gap, the number ending at the change', () => {
+    const { container } = renderWithProviders(
+      <RankCellView display={rankDisplay(cell({ rank: 32 }), false)} change={changeDisplay(change('numeric', 30))} />,
+    );
+    const group = container.firstElementChild;
+    expect(group).toHaveClass('flex', 'gap-1.5');
+    expect(group).not.toHaveClass('gap-2');
+    const [box, slot] = [...(group?.children ?? [])];
+    expect(box).toHaveClass('w-7', 'shrink-0', 'justify-end', 'text-right');
+    expect(box).toContainElement(screen.getByText('32'));
+    expect(slot).toHaveTextContent('↑30');
+  });
+
+  it('leaves pending as it was: the word alone, with no rank box', () => {
+    const { container } = renderWithProviders(rank({ state: 'not_checked', rank: null }));
+    expect(screen.getByText('Pending')).toBeInTheDocument();
+    expect(container.querySelector('.w-7')).toBeNull();
+    expect(screen.queryByText('-')).toBeNull();
   });
 
   it('marks a drop that one check has not yet confirmed, with words for a screen reader', () => {
@@ -117,7 +139,7 @@ describe('RankCellView', () => {
 
   it.each([
     ['ranked', {}, '3'],
-    ['beyond the depth', { state: 'beyond_depth', rank: null }, '>20'],
+    ['beyond the depth', { state: 'beyond_depth', rank: null }, '-'],
   ] as const)('marks a stale rank that is %s with a clock, for every width, and says so in words', (_, over, shown) => {
     const { container } = renderWithProviders(rank(over, true));
     expect(screen.getByText(shown)).toBeInTheDocument();
@@ -148,7 +170,7 @@ describe('RankCellView', () => {
 
   it('warns for a failing check beyond the depth too, and shows both marks for a stale failing one', () => {
     const { container } = renderWithProviders(rank({ state: 'beyond_depth', rank: null }, true, 4));
-    expect(screen.getByText('>20')).toBeInTheDocument();
+    expect(screen.getByText('-')).toBeInTheDocument();
     expect(glyphsIn(container)).toHaveLength(2);
     expect(screen.getByText('stale')).toBeInTheDocument();
     expect(screen.getByText('last check failed')).toBeInTheDocument();
@@ -168,7 +190,7 @@ describe('RankCellView', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('gives failed, ranked, beyond and stale cases the same fixed 32 px rank box and slot alignment', () => {
+  it('gives failed, ranked, beyond and stale cases the same fixed 28 px rank box and slot alignment', () => {
     const chg = changeDisplay(change('numeric', 2));
     const { container } = renderWithProviders(
       <div>
@@ -195,9 +217,9 @@ describe('RankCellView', () => {
 
     for (const testId of ['ranked', 'beyond', 'failed', 'stale', 'stale-beyond-100']) {
       const el = container.querySelector(`[data-testid="${testId}"]`);
-      const rankBox = el?.querySelector('.w-8');
+      const rankBox = el?.querySelector('.w-7');
       expect(rankBox).toBeInTheDocument();
-      expect(rankBox).toHaveClass('w-8', 'shrink-0');
+      expect(rankBox).toHaveClass('w-7', 'shrink-0');
       expect(rankBox).not.toHaveClass('overflow-hidden');
     }
   });
@@ -220,17 +242,17 @@ describe('RankCellView', () => {
     );
   });
 
-  it('shows positions up to 100 with >100 at depth 100 and >20 at depth 20', () => {
+  it('shows a hyphen at depth 100 and at depth 20, with the depth in the words', () => {
     const { rerender } = renderWithProviders(
       <RankCellView display={rankDisplay(cell({ state: 'beyond_depth', rank: null, depth_requested: 100 }), false)} />,
     );
-    expect(screen.getByText('>100')).toBeInTheDocument();
+    expect(screen.getByText('-')).toBeInTheDocument();
     expect(screen.getByText('not in top 100')).toHaveClass('sr-only');
 
     rerender(
       <RankCellView display={rankDisplay(cell({ state: 'beyond_depth', rank: null, depth_requested: 20 }), false)} />,
     );
-    expect(screen.getByText('>20')).toBeInTheDocument();
+    expect(screen.getByText('-')).toBeInTheDocument();
     expect(screen.getByText('not in top 20')).toHaveClass('sr-only');
   });
 });

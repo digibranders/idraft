@@ -366,6 +366,16 @@ class DeviceCounts(BaseModel):
     mobile: int
 
 
+class GscTrend(BaseModel):
+    """The keyword's own device over the window in consecutive buckets, oldest first."""
+
+    bucket_days: int = Field(
+        description="Days in a bucket; bucket i starts i * bucket_days days after the window start."
+    )
+    clicks: list[int]
+    impressions: list[int]
+
+
 class GscBlock(BaseModel):
     """Clicks and impressions from Search Console (docs/18 section 4.9): counts, not estimates."""
 
@@ -379,6 +389,13 @@ class GscBlock(BaseModel):
     clicks: DeviceCounts | None = None
     impressions: DeviceCounts | None = None
     window: GscWindow | None = None
+    trend: GscTrend | None = Field(
+        default=None,
+        description=(
+            "`ok` only: the tracked device's clicks and impressions in 4-day buckets of the "
+            "window, oldest first; the buckets add up to that device's counts."
+        ),
+    )
 
 
 class RankingUrl(BaseModel):

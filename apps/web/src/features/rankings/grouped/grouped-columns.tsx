@@ -6,6 +6,7 @@ import { useMemo, type ReactNode } from 'react';
 import type { GroupData, GroupedRow } from './grouped-rows';
 import type { PairedRow } from '../keyword-pairs';
 import { GSC_CLICKS, GSC_IMPRESSIONS } from '../gsc-counts';
+import { GscTrendCell, gscTrendWords, type GscTrendWords } from '../gsc-trend-cell';
 import { RANK_COLUMN_IDS } from '../rank-columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ export function useGroupedColumns(
   { timeZone, onShowAll }: GroupedColumnOptions,
 ): readonly DataTableColumn<GroupedRow>[] {
   const t = useTranslations('rankings.grouped');
+  const trendT = useTranslations('rankings.gscTrend');
   return useMemo(() => {
     const identityCell = (group: GroupData): ReactNode => (
       <span className="flex min-w-0 items-baseline gap-2">
@@ -79,7 +81,20 @@ export function useGroupedColumns(
           return null;
       }
     };
+    // The group's summed buckets for a Search Console column, with the words that read them; null elsewhere
+    const trendOf = (
+      id: string,
+      { measures }: GroupData,
+    ): { sum: number; buckets: number[]; words: GscTrendWords } | null => {
+      const metric = id === GSC_CLICKS ? 'clicks' : id === GSC_IMPRESSIONS ? 'impressions' : null;
+      if (metric === null) return null;
+      const sum = measures[metric];
+      const buckets = metric === 'clicks' ? measures.clicksTrend : measures.impressionsTrend;
+      return sum === null || buckets === null ? null : { sum, buckets, words: gscTrendWords(trendT, buckets, metric) };
+    };
     const figureCell = (id: string, group: GroupData): ReactNode => {
+      const trend = trendOf(id, group);
+      if (trend !== null) return <GscTrendCell value={trend.sum} buckets={trend.buckets} words={trend.words} />;
       const figure = figureOf(id, group);
       return figure === null ? null : (
         // One line, as a keyword row's cells are: a narrow column cuts the figure rather than doubling the row
@@ -108,7 +123,12 @@ export function useGroupedColumns(
       return {
         ...column,
         sortValue: undefined,
-        cellTip: (row) => (row.kind === 'keyword' ? column.cellTip?.(row.row) : undefined),
+        cellTip: (row) =>
+          row.kind === 'keyword'
+            ? column.cellTip?.(row.row)
+            : row.kind === 'group'
+              ? trendOf(column.id, row.group)?.words.tip
+              : undefined,
         cellLabel: identity || keywordLabel !== undefined ? cellLabel : undefined,
         // The identity cell of a "Show more" row holds a button
         hasControls: identity ? true : column.hasControls,
@@ -124,5 +144,5 @@ export function useGroupedColumns(
         },
       };
     });
-  }, [keywordColumns, t, timeZone, onShowAll]);
+  }, [keywordColumns, t, trendT, timeZone, onShowAll]);
 }

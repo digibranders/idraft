@@ -10,6 +10,7 @@ export type ColumnType =
   | 'text'
   | 'count'
   | 'volume'
+  | 'volumeTrend'
   | 'currency'
   | 'date'
   | 'badge'
@@ -45,6 +46,10 @@ export const COLUMN_TYPES: Readonly<Record<ColumnType, ColumnTypeSpec>> = {
   // (USD)" 139, "Best rank" 112) sets its own width, and its own `minWidth` where it must not be squeezed
   count: { width: 88, min: 72, max: 120, align: 'left', defaultDesc: true, flex: false },
   volume: { width: 96, min: 96, max: 120, align: 'left', defaultDesc: true, flex: false },
+  // A count with its 64 px trend graph (Search Console clicks and impressions): a 7-digit count, an 8 px gap and the
+  // graph take about 140 px with padding. "IMPRESSIONS" is 86 px in capitals (Chrome, 2026-11-05): with the 14 px
+  // arrow, 4 px gap, the 24 px column menu and 12 px padding each side the header needs 152 px
+  volumeTrend: { width: 160, min: 152, max: 200, align: 'left', defaultDesc: true, flex: false },
   currency: { width: 128, min: 112, max: 144, align: 'left', defaultDesc: true, flex: false },
   date: { width: 120, min: 104, max: 160, align: 'left', defaultDesc: true, flex: false },
   badge: { width: 120, min: 88, max: 180, align: 'left', defaultDesc: false, flex: false },

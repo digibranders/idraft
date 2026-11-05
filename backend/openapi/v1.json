@@ -2790,6 +2790,17 @@
             "title": "State",
             "type": "string"
           },
+          "trend": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GscTrend"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`ok` only: the tracked device's clicks and impressions in 4-day buckets of the window, oldest first; the buckets add up to that device's counts."
+          },
           "window": {
             "anyOf": [
               {
@@ -2805,6 +2816,37 @@
           "state"
         ],
         "title": "GscBlock",
+        "type": "object"
+      },
+      "GscTrend": {
+        "description": "The keyword's own device over the window in consecutive buckets, oldest first.",
+        "properties": {
+          "bucket_days": {
+            "description": "Days in a bucket; bucket i starts i * bucket_days days after the window start.",
+            "title": "Bucket Days",
+            "type": "integer"
+          },
+          "clicks": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Clicks",
+            "type": "array"
+          },
+          "impressions": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Impressions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "bucket_days",
+          "clicks",
+          "impressions"
+        ],
+        "title": "GscTrend",
         "type": "object"
       },
       "GscWindow": {

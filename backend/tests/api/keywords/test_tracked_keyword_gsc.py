@@ -16,7 +16,7 @@ import httpx
 import pytest
 
 from idraft.api.resources import Resources
-from idraft.domain.gsc_pull import PullState
+from idraft.domain.gsc_pull import ALL_PAGES, PullState
 from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.entities.support import Caller, member
 from tests.api.keywords.support import (
@@ -99,6 +99,7 @@ async def _rows(
     normalized: str | None = None,
     data_state: str = "final",
     search_type: str = "web",
+    url_id: int = ALL_PAGES,
 ) -> None:
     query_hash = hashlib.sha256(query.encode()).digest()
     await execute(
@@ -120,7 +121,7 @@ async def _rows(
         day,
         search_type,
         query_hash,
-        abs(hash((query, country, device, day, data_state))) % 10**9,
+        url_id,
         country,
         device,
         workspace.id,
@@ -177,7 +178,13 @@ async def test_a_property_whose_first_days_are_not_all_stored_is_pending(
 
     (row,) = await _list(api, workspace, project, owner, include="gsc")
 
-    assert row["gsc"] == {"state": "pending", "clicks": None, "impressions": None, "window": None}
+    assert row["gsc"] == {
+        "state": "pending",
+        "clicks": None,
+        "impressions": None,
+        "window": None,
+        "trend": None,
+    }
 
 
 async def test_a_window_that_is_stored_gives_the_counts_of_both_devices_and_its_dates(
@@ -204,6 +211,23 @@ async def test_a_window_that_is_stored_gives_the_counts_of_both_devices_and_its_
             {"desktop": 50, "mobile": 30},
         )
     assert {row["tracked_keyword_id"] for row in rows} == {desktop, mobile}
+
+
+async def test_rows_stored_per_page_by_the_first_version_of_the_pull_are_not_counted(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _world(resources, migrated)
+    await tracked_id(api, workspace, project, owner, "crm software")
+    integration = await _property(migrated, workspace, project)
+    put = _putter(migrated, workspace, project, integration)
+    await put(END, "crm software", "USA", DESKTOP, 4, 40)
+    # two pages of one search, each counted an impression: summed they would read 40 + 25 + 25
+    await put(END, "crm software", "USA", DESKTOP, 4, 25, url_id=11)
+    await put(END, "crm software", "USA", DESKTOP, 0, 25, url_id=12)
+
+    (row,) = await _list(api, workspace, project, owner, include="gsc", sort="-gsc_impressions")
+
+    assert _counts(row) == ({"desktop": 4, "mobile": 0}, {"desktop": 40, "mobile": 0})
 
 
 async def test_two_spellings_of_one_query_are_one_keyword_and_other_text_is_not(
@@ -301,6 +325,7 @@ async def test_a_property_that_stopped_syncing_is_not_shown_as_current(
     (row,) = await _list(api, workspace, project, owner, include="gsc")
 
     assert row["gsc"]["state"] == "not_connected"
+    assert row["gsc"]["trend"] is None
 
 
 async def test_another_workspaces_rows_are_never_counted(
@@ -343,6 +368,51 @@ async def test_the_api_role_sees_only_its_workspaces_numbers(
         await connection.close()
     assert [row["clicks"] for row in seen] == [1]
     assert {row["workspace_id"] for row in queries} == {one.id}
+
+
+async def test_the_trend_is_the_keywords_own_device_in_seven_4_day_buckets_oldest_first(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _world(resources, migrated)
+    await tracked_id(api, workspace, project, owner, "crm software")
+    await tracked_id(api, workspace, project, owner, "crm software", device="mobile")
+    await tracked_id(api, workspace, project, owner, "quiet keyword")
+    integration = await _property(migrated, workspace, project)
+    put = _putter(migrated, workspace, project, integration)
+    await put(START, "crm software", "USA", DESKTOP, 1, 10)
+    await put(START + timedelta(days=3), "crm software", "USA", DESKTOP, 2, 20)
+    await put(START + timedelta(days=4), "crm software", "USA", DESKTOP, 4, 40)
+    await put(END - timedelta(days=3), "crm software", "USA", DESKTOP, 8, 80)
+    await put(END, "crm software", "USA", DESKTOP, 16, 160)
+    await put(START + timedelta(days=13), "crm software", "USA", MOBILE, 5, 50)
+    # outside the window, not final, or a tablet: in no bucket
+    await put(START - timedelta(days=1), "crm software", "USA", DESKTOP, 99, 990)
+    await put(END + timedelta(days=1), "crm software", "USA", DESKTOP, 99, 990)
+    await put(END - timedelta(days=1), "crm software", "USA", DESKTOP, 99, 990, data_state="all")
+    await put(END, "crm software", "USA", "TABLET", 99, 990)
+    # a row of one page, beside the rows over all pages: in no bucket
+    await put(START + timedelta(days=8), "crm software", "USA", DESKTOP, 99, 990, url_id=11)
+
+    rows = await _list(api, workspace, project, owner, include="gsc")
+
+    by_key = {(row["keyword"]["text"], row["device"]): row["gsc"] for row in rows}
+    desktop = by_key[("crm software", "desktop")]
+    mobile = by_key[("crm software", "mobile")]
+    quiet = by_key[("quiet keyword", "desktop")]
+    assert desktop["trend"] == {
+        "bucket_days": 4,
+        "clicks": [3, 4, 0, 0, 0, 0, 24],
+        "impressions": [30, 40, 0, 0, 0, 0, 240],
+    }
+    assert mobile["trend"] == {
+        "bucket_days": 4,
+        "clicks": [0, 0, 0, 5, 0, 0, 0],
+        "impressions": [0, 0, 0, 50, 0, 0, 0],
+    }
+    assert quiet["trend"] == {"bucket_days": 4, "clicks": [0] * 7, "impressions": [0] * 7}
+    for gsc, device in ((desktop, "desktop"), (mobile, "mobile"), (quiet, "desktop")):
+        assert sum(gsc["trend"]["clicks"]) == gsc["clicks"][device]
+        assert sum(gsc["trend"]["impressions"]) == gsc["impressions"][device]
 
 
 async def _three(
