@@ -754,7 +754,8 @@ export function DataTable<TRow extends RowData>({
     }));
   })();
 
-  const selecting = selection !== undefined && (selected.size > 0 || selection.allMatching);
+  // The caller's count rules: keywords chosen in closed groups have no rendered id in the selection
+  const selecting = selection !== undefined && (selectedCount > 0 || selection.allMatching);
   // The bulk bar goes when the selection empties (Clear, or an action that cleared it). Focus inside it
   // would fall to the page body, so it returns to the grid at the last focused cell (20 section 4.3)
   const wasSelecting = useRef(selecting);

@@ -1590,6 +1590,28 @@ describe('DataTable tree mode', () => {
     expect(within(bulkBar()).queryByText(/hidden by filters/)).toBeNull();
   });
 
+  it('keeps the bulk bar while keywords are chosen only in closed groups, and Clear empties the selection', async () => {
+    const onChange = vi.fn<(ids: ReadonlySet<string>) => void>();
+    const onAllMatchingChange = vi.fn<(allMatching: boolean) => void>();
+    const { user } = renderWithProviders(
+      <TreeHarness
+        selection={{ selectedIds: new Set(), selectedCount: 3, unrenderedCount: 3, onChange, onAllMatchingChange }}
+      />,
+    );
+    expect(within(bulkBar()).getByText('3 selected')).toBeInTheDocument();
+    expect(within(bulkBar()).queryByText(/hidden by filters/)).toBeNull();
+    expect(screen.queryByRole('searchbox', { name: 'Search in table' })).toBeNull();
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Clear selection' }));
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(new Set());
+    expect(onAllMatchingChange).toHaveBeenCalledExactlyOnceWith(false);
+  });
+
+  it('shows the toolbar when the count is 0, whatever ids the selection holds', () => {
+    renderWithProviders(<TreeHarness selection={{ selectedIds: new Set(['x1']), selectedCount: 0 }} />);
+    expect(screen.queryByRole('group', { name: /Bulk actions/ })).toBeNull();
+    expect(screen.getByRole('searchbox', { name: 'Search in table' })).toBeInTheDocument();
+  });
+
   it('renders toolbarStart at the start of the toolbar, before the search field', () => {
     renderWithProviders(<TreeHarness toolbarStart={<button type="button">By group</button>} />);
     const start = screen.getByRole('button', { name: 'By group' });
