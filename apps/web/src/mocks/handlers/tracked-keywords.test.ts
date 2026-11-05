@@ -129,6 +129,50 @@ describe('tracked keywords: the list', () => {
       'filter[priority_lte]:less_than_equal',
     ]);
   });
+
+  it('filters by several countries at once and keeps none for a country without keywords', async () => {
+    const viewer = mockBrowser('viewer');
+    expect(await listOf(viewer, 'filter[country_id_in]=2276,2840')).toHaveLength(ACTIVE.length);
+    expect(await listOf(viewer, 'filter[country_id_in]=2840')).toHaveLength(
+      ACTIVE.filter((row) => row.location === 2840).length,
+    );
+    expect(await listOf(viewer, 'filter[country_id_in]=2356')).toEqual([]);
+    expect(fieldCodes(await viewer.call('GET', `${TK}?filter[country_id_in]=de`))).toEqual([
+      'filter[country_id_in]:int_parsing',
+    ]);
+  });
+});
+
+describe('tracked keywords: the countries in use', () => {
+  const COUNTRIES = z.array(
+    z.object({
+      location: z.object({
+        location_id: z.number(),
+        name: z.string(),
+        country_iso: z.string(),
+        location_type: z.string(),
+      }),
+      keyword_count: z.number(),
+    }),
+  );
+  const QUOTA = z.object({ limit: z.number(), used: z.number() });
+  /** Distinct keywords (text and language) of the active seed rows at a location. */
+  const keywordsAt = (location: number): number =>
+    new Set(ACTIVE.filter((row) => row.location === location).map((row) => `${row.text}|${row.language}`)).size;
+
+  it('lists each country with its distinct keywords, the larger count first', async () => {
+    const countries = dataOf(await mockBrowser('viewer').call('GET', `${TK}/countries`), COUNTRIES);
+    expect(countries.map((entry) => [entry.location.name, entry.location.location_type, entry.keyword_count])).toEqual([
+      ['Germany', 'Country', keywordsAt(2276)],
+      ['United States', 'Country', keywordsAt(2840)],
+    ]);
+    expect(keywordsAt(2276)).toBeGreaterThan(keywordsAt(2840));
+  });
+
+  it('answers the workspace quota with the limit and the active tracked keywords', async () => {
+    const quota = dataOf(await mockBrowser('viewer').call('GET', `${W}/tracked-keyword-quota`), QUOTA);
+    expect(quota).toEqual({ limit: MAX_TRACKED_KEYWORDS, used: ACTIVE.length });
+  });
 });
 
 describe('tracked keywords: tracking', () => {

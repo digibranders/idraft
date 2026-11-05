@@ -35,6 +35,7 @@ const LOOKS_AT = {
   'filter[keyword_difficulty_lte]': (row) => row.metrics?.keyword_difficulty ?? null,
   // The rank filters look at the rank state; a save of the keyword's settings leaves it as it is.
   'filter[country_id]': (row) => row.location_id,
+  'filter[country_id_in]': (row) => row.location_id,
   'filter[rank_lte]': (row) => row.state.current.rank,
   'filter[rank_gte]': (row) => row.state.current.rank,
   'filter[rank_is_null]': (row) => row.state.current.rank,

@@ -246,7 +246,7 @@ describe('price book', () => {
   it('lists the verified Labs prices valid on a day, by provider and endpoint', async () => {
     const analyst = mockBrowser('analyst');
     const all = await analyst.call('GET', `${W}/price-book?limit=5`);
-    expect(pageOf(all, OFFSET_PAGE)).toEqual({ offset: 0, limit: 5, total: 16 });
+    expect(pageOf(all, OFFSET_PAGE)).toEqual({ offset: 0, limit: 5, total: 18 });
     const overview = dataOf(
       await analyst.call('GET', `${W}/price-book?filter[endpoint]=${KEYWORD_OVERVIEW_ENDPOINT}`),
       PRICES,
