@@ -6,7 +6,9 @@ import { expectAccessible, signIn } from '../support';
 
 const EDITOR = 'priya@digibranders.test';
 /** The mock keywords are tracked in two countries: the table opens on all of them. */
-const KEYWORDS = '/digibranders/fynix/seo/keywords?loc=0';
+const GROUPED = '/digibranders/fynix/seo/keywords?loc=0';
+/** The keyword rows themselves: the project has groups, so the page opens By group unless the view is named. */
+const KEYWORDS = `${GROUPED}&view=flat`;
 
 /** The header of the column `name`: its accessible name is the label and the name of its options button. */
 function headerOf(grid: Locator, name: string): Locator {
@@ -70,12 +72,13 @@ test.describe('rankings', () => {
     await signIn(page, EDITOR);
     await page.goto('/digibranders/fynix');
     await expect(page).toHaveURL(/\/digibranders\/fynix\/seo\/keywords(\?.*)?$/);
-    const grid = page.getByRole('grid', { name: 'Tracked keywords' });
-    await expect(grid.getByRole('rowheader').first()).toBeVisible();
+    // The project has groups, so it opens By group
+    await expect(page.getByRole('treegrid', { name: 'Tracked keywords' }).getByRole('rowheader').first()).toBeVisible();
     // The table opens on the project's own country, here Germany
     await expect(page.getByRole('combobox', { name: 'Country: Germany' })).toBeVisible();
     await expectAccessible(page);
     // The counts below are of every country
+    const grid = page.getByRole('grid', { name: 'Tracked keywords' });
     await page.goto(KEYWORDS);
     await expect(grid.getByRole('rowheader').first()).toBeVisible();
 
@@ -97,6 +100,54 @@ test.describe('rankings', () => {
     await page.reload();
     await expect(page.getByText('3 keywords', { exact: true }).first()).toBeVisible();
     await expect(grid.getByRole('rowheader', { name: /seo meme/ })).toBeVisible();
+    await expectAccessible(page);
+  });
+
+  test('By group opens first: a group opens, is chosen as its keywords, opens its drawer, and follows the device and the view', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, EDITOR);
+    await page.goto(GROUPED);
+    const tree = page.getByRole('treegrid', { name: 'Tracked keywords' });
+    await expect(tree.getByRole('rowheader').first()).toBeVisible();
+    await expect(page.getByRole('radio', { name: 'By group' })).toBeChecked();
+
+    // Local lists 10 keywords on Desktop; it opens to its first 8 and the rest behind Show more
+    await expect(tree.getByRole('rowheader', { name: /^Local, 10 keywords$/ })).toBeVisible();
+    await tree.getByRole('button', { name: 'Expand Local group, 10 keywords' }).click();
+    await expect(tree.getByRole('button', { name: 'Collapse Local group, 10 keywords' })).toBeVisible();
+    await expect(tree.getByRole('button', { name: 'Show 2 more' })).toBeVisible();
+
+    // The group's tick chooses its keywords, the 2 behind Show more included: keywords, not rows
+    await tree.getByRole('checkbox', { name: 'Select Local, 10 keywords' }).click();
+    const bar = page.getByRole('group', { name: /Bulk actions/ });
+    await expect(bar.getByText('10 selected')).toBeVisible();
+    await bar.getByRole('button', { name: 'Clear selection' }).click();
+    await expect(bar).toHaveCount(0);
+
+    // The drawer of the group, from its row menu
+    await tree.getByRole('button', { name: 'Actions for Local, 10 keywords' }).click();
+    await page.getByRole('menuitem', { name: /Open group/ }).click();
+    await expect(page).toHaveURL(/[?&]inspect=group(%3A|:)/);
+    const drawer = page.getByRole('complementary', { name: 'Local' });
+    await expect(drawer.getByText('10 keywords')).toBeVisible();
+    await expect(drawer.getByText('On Desktop')).toBeVisible();
+
+    // On Mobile only one of its keywords is checked: the row and the drawer follow
+    await page.getByRole('radiogroup', { name: 'Device' }).getByRole('radio', { name: 'Mobile' }).click();
+    await expect(tree.getByRole('rowheader', { name: /^Local, 1 keyword$/ })).toBeVisible();
+    await expect(drawer.getByText('1 keyword', { exact: true })).toBeVisible();
+    await expect(drawer.getByText('On Mobile')).toBeVisible();
+    await drawer.getByRole('button', { name: 'Close' }).click();
+    await expect(page.getByRole('complementary')).toHaveCount(0);
+
+    // All keywords: the flat table with the Rank and Group columns
+    await page.getByRole('radio', { name: 'All keywords' }).click();
+    const grid = page.getByRole('grid', { name: 'Tracked keywords' });
+    await expect(headerOf(grid, 'Rank')).toBeVisible();
+    await expect(headerOf(grid, 'Group')).toBeVisible();
+    await expect(page.getByRole('treegrid')).toHaveCount(0);
     await expectAccessible(page);
   });
 
