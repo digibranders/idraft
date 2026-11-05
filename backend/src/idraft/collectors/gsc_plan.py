@@ -22,11 +22,11 @@ from typing import Final
 from uuid import UUID
 
 from pydantic import BaseModel
-from sqlalchemy import Join, and_, exists, func, insert, select, update
+from sqlalchemy import Join, and_, exists, func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.db.tables import connections, integrations, projects, schedules, workspaces
-from idraft.domain.gsc_pull import PullState
+from idraft.domain.gsc_pull import VERSION, PullState
 from idraft.domain.schedules import Cadence, ScheduleRule, next_occurrence
 
 JOB: Final = "gsc_sync"
@@ -211,8 +211,13 @@ async def _send_unfinished(db: AsyncSession, send: Send, now: datetime) -> int:
         .where(
             _healthy,
             _collecting,
-            func.coalesce(integrations.c.backfill_state["gsc"]["complete"].astext, "false")
-            != "true",
+            # A state of another version is a pull not begun (`PullState.read`), finished or not
+            or_(
+                func.coalesce(integrations.c.backfill_state["gsc"]["version"].astext, "0")
+                != str(VERSION),
+                func.coalesce(integrations.c.backfill_state["gsc"]["complete"].astext, "false")
+                != "true",
+            ),
         )
         .order_by(integrations.c.created_at, integrations.c.id)
         .limit(PLAN_LIMIT)

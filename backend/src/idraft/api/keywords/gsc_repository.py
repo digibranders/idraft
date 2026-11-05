@@ -36,7 +36,7 @@ from idraft.db.tables import (
     tracked_keywords,
 )
 from idraft.domain.countries import ISO3_OF, iso2_of
-from idraft.domain.gsc_pull import PullState
+from idraft.domain.gsc_pull import ALL_PAGES, PullState
 
 SEARCH_TYPE = "web"
 Metric = Literal["clicks", "impressions"]
@@ -175,6 +175,9 @@ async def _sums(
             a.workspace_id == workspace_id,
             a.integration_id == integration_id,
             a.search_type == SEARCH_TYPE,
+            # Rows per page (the first version of the pull) count an impression for each page of a
+            # search, so only the rows over all pages are read
+            a.url_id == ALL_PAGES,
             a.data_state == "final",
             a.metric_date.between(*window),
             a.device.in_(("DESKTOP", "MOBILE")),
@@ -213,6 +216,7 @@ def sorted_total(metric: Metric, scope: GscScope) -> ColumnElement[Any]:
             a.c.workspace_id == tracked_keywords.c.workspace_id,
             a.c.integration_id == scope.integration_id,
             a.c.search_type == SEARCH_TYPE,
+            a.c.url_id == ALL_PAGES,
             a.c.data_state == "final",
             a.c.metric_date.between(*scope.window),
             q.c.normalized_text == keywords.c.normalized_text,

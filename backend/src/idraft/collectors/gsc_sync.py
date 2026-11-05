@@ -1,7 +1,7 @@
 """The Search Console pull of one property (docs/18 sections 4.2 to 4.6).
 
 One pass: ask Search Console which days have final numbers (shape P), fetch the days that are
-missing one at a time (shape B, `[date, query, page, country, device]`, paged by `startRow`),
+missing one at a time (shape B, `[date, query, country, device]`, paged by `startRow`),
 and replace each day in one transaction together with the progress that says it is stored. The
 order and the progress are those of `domain.gsc_pull`: the 28 days that end on the latest final
 day first, then the older days oldest first, and on later runs the trailing days that were not
@@ -42,7 +42,6 @@ from idraft.domain.gsc_pull import (
     history_start,
     window_of,
 )
-from idraft.extraction.urls import UrlRejectedError, canonicalize
 from idraft.keywords.text import normalize
 from idraft.providers.google.client import (
     SEARCH_ANALYTICS_ROW_LIMIT,
@@ -67,7 +66,9 @@ PACIFIC = ZoneInfo("America/Los_Angeles")
 # Well inside the queue's handler limit (`worker.queues.HANDLER_TIME_LIMIT`, 8 minutes), so a
 # pass ends by itself and its message is acknowledged.
 PASS_BUDGET = timedelta(minutes=5)
-DETAIL_DIMENSIONS: tuple[Dimension, ...] = ("date", "query", "page", "country", "device")
+# No page: a search that shows two pages of the site counts one impression per page when grouped by
+# page, so summed pages overstate the impressions of a query (see `domain.gsc_pull.ALL_PAGES`).
+DETAIL_DIMENSIONS: tuple[Dimension, ...] = ("date", "query", "country", "device")
 _log = structlog.get_logger(__name__)
 
 
@@ -112,20 +113,15 @@ def pacific_today(now: datetime) -> date:
 
 
 def day_rows(rows: Sequence[AnalyticsRow], day: date) -> tuple[list[DayRow], int]:
-    """Shape B rows as rows to store, and how many were left out: a page that is not an
-    http(s) address, or a device or country the tables have no place for."""
+    """Shape B rows as rows to store, and how many were left out: a device or country the
+    tables have no place for."""
     found: list[DayRow] = []
     skipped = 0
     for row in rows:
-        stamp, query, page, country, device = row.keys
+        stamp, query, country, device = row.keys
         if stamp != day.isoformat():
             raise GoogleResponseError("a row is of another day than the one asked for")
         iso3, kind = country.upper(), device.upper()
-        try:
-            url = canonicalize(page)
-        except UrlRejectedError:
-            skipped += 1
-            continue
         if len(iso3) != 3 or kind not in gsc_store.DEVICES:
             skipped += 1
             continue
@@ -134,7 +130,6 @@ def day_rows(rows: Sequence[AnalyticsRow], day: date) -> tuple[list[DayRow], int
                 query_hash=hashlib.sha256(query.encode()).digest(),
                 query_text=query,
                 normalized_text=normalize(query),
-                url=url,
                 country=iso3,
                 device=kind,
                 clicks=row.clicks,

@@ -92,7 +92,7 @@ All calls: `POST https://www.googleapis.com/webmasters/v3/sites/{siteUrl}/search
 |---|---|---|---|---|---|
 | P (probe) | Which days have data per type | `[date]`, full 16-month range, one call per type | `byProperty` (`auto` for `discover` and `googleNews`, where `byProperty` is not supported) | none (at most about 490 rows) | none; plans the backfill |
 | A (property totals) | Accurate totals including anonymized queries | `[date, country, device]` | `byProperty` (`auto` for `discover`, `googleNews`) | `startRow` until empty | `fp.gsc_property_daily` (new) |
-| B (detail) | Query and page analysis | `[date, query, page, country, device]` | `auto` (resolves to by-page) | `startRow` 0, 25000, 50000, ... until a response returns 0 rows | `fp.gsc_search_analytics`, `fp.gsc_queries` |
+| B (detail) | Query analysis: the numbers of a keyword (changed 2026-11-05, was `[date, query, page, country, device]`) | `[date, query, country, device]` | `auto` (resolves to by-property) | `startRow` 0, 25000, 50000, ... until a response returns 0 rows | `fp.gsc_search_analytics`, `fp.gsc_queries` |
 | C (page totals) | Honest page totals including anonymized-query traffic | `[date, page]` | `byPage` | `startRow` until empty | `fp.gsc_page_daily` |
 
 **Watched pages.** The per-URL feature of [32-page-performance.md](32-page-performance.md) adds shape D, `[date, country, device]` filtered to one watched page (stored in `fp.gsc_watched_page_daily`), and live shapes for queries. It needs only the connection of 4.1, shape A and the freshness rules of 4.4, so it ships before the full ingest below.
@@ -249,7 +249,7 @@ The Rankings table has a **Clicks** column and an **Impressions** column right a
 
 **What the number is.** Clicks in the last 28 days of final data (the window ends on the last final day, section 4.4; provisional days are left out), for the keyword's text, in the keyword's country, on the device the table shows (desktop or mobile, never added together).
 
-**Where it comes from.** Shape B of section 4.2 (`[date, query, page, country, device]`, table `fp.gsc_search_analytics`), summed over the dates and over all pages, so a keyword's clicks are the clicks of every page that answered it. The join to a tracked keyword:
+**Where it comes from.** Shape B of section 4.2 (`[date, query, country, device]`, table `fp.gsc_search_analytics`), summed over the dates. Search Console counts the numbers over all pages of the property, so a keyword's clicks are the clicks of every page that answered it and its impressions count a search once. Rows are stored with `url_id = 0` (all pages). The first build pulled `[date, query, page, country, device]` and summed the pages, which counted a search once for every page of the site that it showed: on 2026-11-05 one Eventus query read 330 impressions that way and 92 from Google without the page dimension (clicks were equal). A state of version 1 therefore reads as a pull not begun, every day is fetched again in the new shape, and the readers use only rows with `url_id = 0`. The join to a tracked keyword:
 
 | Side of the join | Tracked keyword | Search Console row |
 |---|---|---|

@@ -20,8 +20,7 @@ from idraft.collectors.gsc_sync import (
     sync_integration,
 )
 from idraft.db.engine import workspace_transaction
-from idraft.domain.gsc_pull import PullState, history_start, window_of
-from idraft.extraction.urls import canonicalize
+from idraft.domain.gsc_pull import ALL_PAGES, PullState, history_start, window_of
 from idraft.providers.google.client import AnalyticsRow
 from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
 from tests.collectors.gsc_support import (
@@ -73,8 +72,10 @@ async def test_a_first_pass_stores_every_final_day_and_says_the_window_is_ready(
     assert {row[0] for row in rows} == set(days)
     assert {row[9] for row in rows} == {"final"}
     assert {row[10] for row in rows} == {"web"}
-    # five rows a day: two raw spellings of one query, whose pages and spellings are kept apart
+    # five rows a day: two raw spellings of one query, whose spellings are kept apart
     assert len(rows) == len(days) * 5
+    # every row is the query's numbers over all pages
+    assert {row[3] for row in rows} == {ALL_PAGES}
     first_day = [row for row in rows if row[0] == days[0]]
     assert {row[1] for row in first_day} == {"crm software", "CRM  Software", "erp"}
     assert {row[2] for row in first_day} == {"crm software", "erp"}
@@ -132,7 +133,8 @@ async def test_the_pull_asks_only_for_final_data_one_day_at_a_time(
     assert {body["dataState"] for _, body in fake.requests} == {"final"}
     for body in fake.detail_requests():
         assert body["startDate"] == body["endDate"]
-        assert body["dimensions"] == ["date", "query", "page", "country", "device"]
+        # No page: grouped by page, a search that shows two pages counts an impression for each
+        assert body["dimensions"] == ["date", "query", "country", "device"]
         assert body["type"] == "web"
     probe = [body for _, body in fake.requests if body["dimensions"] == ["date"]]
     assert len(probe) == 1
@@ -157,6 +159,46 @@ async def test_a_second_pass_changes_nothing_and_asks_for_no_stored_day_again(
     assert await stored(migrated, prop.integration_id) == before
     assert fake.detail_requests() == []
     assert _state(await integration_row(migrated, prop.integration_id)) == state_before
+
+
+async def test_days_stored_per_page_by_the_first_version_are_fetched_again_over_all_pages(
+    worker_db: Sessions, migrated: PostgresServer, fake: FakeSearchConsole
+) -> None:
+    prop = await make_property(migrated, fake)
+    days = fill(fake, SITE, days=12)
+    # What the first version left: a finished pull, version 1, with every day stored per page and
+    # the impressions of a search counted once for each page that showed
+    legacy = {"gsc": {"version": 1, "recent_done": True, "complete": True, "days_stored": 12}}
+    await execute(
+        migrated,
+        "UPDATE fp.integrations SET backfill_state = $2::jsonb WHERE id = $1",
+        prop.integration_id,
+        json.dumps(legacy),
+    )
+    for day in days:
+        await execute(
+            migrated,
+            "INSERT INTO fp.gsc_search_analytics (integration_id, metric_date, search_type, "
+            "query_hash, url_id, country_iso3, device, workspace_id, project_id, clicks, "
+            "impressions, position_sum, data_state) "
+            "VALUES ($1, $2, 'web', '\\x01', 77, 'USA', 'DESKTOP', $3, $4, 1, 999, 5, 'final')",
+            prop.integration_id,
+            day,
+            prop.workspace_id,
+            prop.project_id,
+        )
+
+    report = await _pull(worker_db, fake, prop)
+
+    assert report.outcome is Outcome.DONE
+    assert report.days_written == len(days)
+    rows = await stored(migrated, prop.integration_id)
+    assert {row[3] for row in rows} == {ALL_PAGES}
+    assert 999 not in {row[7] for row in rows}
+    assert len(rows) == len(days) * 5
+    state = _state(await integration_row(migrated, prop.integration_id))
+    assert state.recent_done
+    assert state.days_stored == len(days)
 
 
 async def test_a_day_that_becomes_final_later_is_fetched_by_the_next_pass(
@@ -185,13 +227,12 @@ async def test_replacing_a_day_twice_leaves_one_copy_and_replacing_it_with_new_n
 ) -> None:
     prop = await make_property(migrated, fake)
     day = today() - timedelta(days=5)
-    page = canonicalize("https://acme.example/crm")
 
     def make(clicks: int) -> list[DayRow]:
         rows, _ = day_rows(
             [
-                AnalyticsRow((day.isoformat(), "crm", page.url, "usa", "DESKTOP"), clicks, 10, 3.0),
-                AnalyticsRow((day.isoformat(), "crm", page.url, "usa", "MOBILE"), 1, 4, 3.0),
+                AnalyticsRow((day.isoformat(), "crm", "usa", "DESKTOP"), clicks, 10, 3.0),
+                AnalyticsRow((day.isoformat(), "crm", "usa", "MOBILE"), 1, 4, 3.0),
             ],
             day,
         )
@@ -212,28 +253,18 @@ async def test_replacing_a_day_twice_leaves_one_copy_and_replacing_it_with_new_n
     assert sorted(row[6] for row in rows) == [1, 9]
 
 
-async def test_pages_that_collapse_to_one_address_are_summed(
+async def test_rows_repeating_a_key_are_summed_and_a_country_or_device_without_a_place_is_skipped(
     worker_db: Sessions, migrated: PostgresServer, fake: FakeSearchConsole
 ) -> None:
     prop = await make_property(migrated, fake)
     day = today() - timedelta(days=5)
     rows, skipped = day_rows(
         [
-            AnalyticsRow(
-                (day.isoformat(), "crm", "https://Acme.example/crm", "usa", "DESKTOP"), 2, 10, 3.0
-            ),
-            AnalyticsRow(
-                (day.isoformat(), "crm", "https://acme.example/crm#top", "usa", "DESKTOP"),
-                3,
-                20,
-                5.0,
-            ),
-            AnalyticsRow(
-                (day.isoformat(), "crm", "android-app://acme", "usa", "DESKTOP"), 9, 9, 1.0
-            ),
-            AnalyticsRow(
-                (day.isoformat(), "crm", "https://acme.example/crm", "usa", "WATCH"), 9, 9, 1.0
-            ),
+            AnalyticsRow((day.isoformat(), "crm", "usa", "DESKTOP"), 2, 10, 3.0),
+            # the same country written in capitals is the same key
+            AnalyticsRow((day.isoformat(), "crm", "USA", "DESKTOP"), 3, 20, 5.0),
+            AnalyticsRow((day.isoformat(), "crm", "us", "DESKTOP"), 9, 9, 1.0),
+            AnalyticsRow((day.isoformat(), "crm", "usa", "WATCH"), 9, 9, 1.0),
         ],
         day,
     )

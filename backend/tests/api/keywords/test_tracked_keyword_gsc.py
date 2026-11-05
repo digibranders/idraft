@@ -16,7 +16,7 @@ import httpx
 import pytest
 
 from idraft.api.resources import Resources
-from idraft.domain.gsc_pull import PullState
+from idraft.domain.gsc_pull import ALL_PAGES, PullState
 from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.entities.support import Caller, member
 from tests.api.keywords.support import (
@@ -99,6 +99,7 @@ async def _rows(
     normalized: str | None = None,
     data_state: str = "final",
     search_type: str = "web",
+    url_id: int = ALL_PAGES,
 ) -> None:
     query_hash = hashlib.sha256(query.encode()).digest()
     await execute(
@@ -120,7 +121,7 @@ async def _rows(
         day,
         search_type,
         query_hash,
-        abs(hash((query, country, device, day, data_state))) % 10**9,
+        url_id,
         country,
         device,
         workspace.id,
@@ -204,6 +205,23 @@ async def test_a_window_that_is_stored_gives_the_counts_of_both_devices_and_its_
             {"desktop": 50, "mobile": 30},
         )
     assert {row["tracked_keyword_id"] for row in rows} == {desktop, mobile}
+
+
+async def test_rows_stored_per_page_by_the_first_version_of_the_pull_are_not_counted(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _world(resources, migrated)
+    await tracked_id(api, workspace, project, owner, "crm software")
+    integration = await _property(migrated, workspace, project)
+    put = _putter(migrated, workspace, project, integration)
+    await put(END, "crm software", "USA", DESKTOP, 4, 40)
+    # two pages of one search, each counted an impression: summed they would read 40 + 25 + 25
+    await put(END, "crm software", "USA", DESKTOP, 4, 25, url_id=11)
+    await put(END, "crm software", "USA", DESKTOP, 0, 25, url_id=12)
+
+    (row,) = await _list(api, workspace, project, owner, include="gsc", sort="-gsc_impressions")
+
+    assert _counts(row) == ({"desktop": 4, "mobile": 0}, {"desktop": 40, "mobile": 0})
 
 
 async def test_two_spellings_of_one_query_are_one_keyword_and_other_text_is_not(

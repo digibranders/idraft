@@ -180,6 +180,24 @@ async def test_a_property_whose_pull_is_not_finished_is_sent_at_once(
     assert tasks[new.integration_id].workspace_id == new.workspace_id
 
 
+async def test_a_property_whose_finished_pull_is_of_an_older_version_is_sent_at_once(
+    worker_db: Sessions, migrated: PostgresServer, fake: FakeSearchConsole
+) -> None:
+    old = await make_property(migrated, fake)
+    # Finished by the first version of the pull, which stored the numbers per page
+    await execute(
+        migrated,
+        "UPDATE fp.integrations SET backfill_state = $2::jsonb WHERE id = $1",
+        old.integration_id,
+        json.dumps({"gsc": {"version": 1, "recent_done": True, "complete": True}}),
+    )
+    sent = Sent()
+
+    await plan_syncs(worker_db, sent, now=datetime.now(UTC))
+
+    assert old.integration_id in sent.integrations
+
+
 async def test_a_pass_that_failed_is_not_sent_again_before_its_wait_is_over(
     worker_db: Sessions, migrated: PostgresServer, fake: FakeSearchConsole
 ) -> None:
