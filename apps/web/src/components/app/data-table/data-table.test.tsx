@@ -378,6 +378,21 @@ describe('DataTable', () => {
     expect(within(bulkBar()).getByText('5 selected')).toBeInTheDocument();
   });
 
+  it('keeps a Shift click on a row checkbox as the one range it asks for, and a plain click as one toggle', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(6)} />);
+    // The default sort is by volume, descending: k5 (185), k4 (148), k3 (111), k2 (74), k0 (0), k1 (none)
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 005' }));
+    expect(within(bulkBar()).getByText('1 selected')).toBeInTheDocument();
+    await user.keyboard('{Shift>}');
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 002' }));
+    await user.keyboard('{/Shift}');
+    expect(within(bulkBar()).getByText('4 selected')).toBeInTheDocument();
+    for (const name of ['005', '004', '003', '002']) {
+      expect(screen.getByRole('checkbox', { name: `Select keyword ${name}` })).toBeChecked();
+    }
+    expect(screen.getByRole('checkbox', { name: 'Select keyword 000' })).not.toBeChecked();
+  });
+
   it('offers every matching row only once every loaded row is selected, and runs a bulk action on it', async () => {
     const { user } = renderWithProviders(<Harness rows={rowsOf(5)} matchingTotal={4812} />);
     await user.click(screen.getByRole('checkbox', { name: 'Select keyword 000' }));
@@ -1597,24 +1612,51 @@ describe('DataTable tree mode', () => {
       expect(bodyRows()[3]).not.toHaveAttribute('aria-selected');
     });
 
-    it('extends a Shift click over the keywords between two groups, and over no group row or other row', async () => {
-      const { user } = renderWide();
+    // A caller that keeps the selection, as the screens do: a click's change is read by the next click
+    function StatefulTree(): ReactElement {
+      const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
+      return (
+        <TreeHarness
+          rows={WIDE_ROWS}
+          tree={WIDE}
+          selection={{
+            selectedIds,
+            onChange: (next) => {
+              onChange(next);
+              setSelectedIds(next);
+            },
+          }}
+        />
+      );
+    }
+    const checkedNames = (): (string | null)[] =>
+      bodyRows()
+        .filter((row) => within(row).queryByRole('checkbox', { checked: true }) !== null)
+        .map((row) => within(row).getByRole('rowheader').textContent);
+
+    it('extends a Shift click over the keywords between two groups, and over no group row or other row, in one change', async () => {
+      const { user } = renderWithProviders(<StatefulTree />);
       await user.click(screen.getByRole('checkbox', { name: 'Select alpha one' }));
-      expect(onChange).toHaveBeenLastCalledWith(new Set(['c1']));
       await user.keyboard('{Shift>}');
       await user.click(screen.getByRole('checkbox', { name: 'Select beta two' }));
       await user.keyboard('{/Shift}');
-      // jsdom then runs the checkbox's own change as well, which a browser cancels with the click
-      expect(onChange).toHaveBeenNthCalledWith(2, new Set(['c1', 'c2', 'd1', 'd2']));
+      expect(onChange).toHaveBeenCalledTimes(2);
+      expect(onChange).toHaveBeenLastCalledWith(new Set(['c1', 'c2', 'd1', 'd2']));
+      expect(checkedNames()).toEqual(['alpha one', 'alpha two', 'beta one', 'beta two']);
     });
 
-    it('lets a group row checkbox toggle its own id, with or without Shift', async () => {
-      const { user } = renderWide();
+    it('lets a group row checkbox toggle its own id, with or without Shift, in one change, and keeps the anchor', async () => {
+      const { user } = renderWithProviders(<StatefulTree />);
       await user.click(screen.getByRole('checkbox', { name: 'Select alpha one' }));
       await user.keyboard('{Shift>}');
       await user.click(screen.getByRole('checkbox', { name: 'Select Group B' }));
+      expect(onChange).toHaveBeenCalledTimes(2);
+      expect(onChange).toHaveBeenLastCalledWith(new Set(['c1', 'g2']));
+      // The anchor is still alpha one, so this range runs from it
+      await user.click(screen.getByRole('checkbox', { name: 'Select alpha two' }));
       await user.keyboard('{/Shift}');
-      expect(onChange).toHaveBeenNthCalledWith(2, new Set(['g2']));
+      expect(onChange).toHaveBeenCalledTimes(3);
+      expect(onChange).toHaveBeenLastCalledWith(new Set(['c1', 'c2', 'g2']));
     });
 
     it('selects only the keyword rows from the header checkbox, and counts only them in its name', async () => {

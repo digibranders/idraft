@@ -1185,13 +1185,11 @@ export function DataTable<TRow extends RowData>({
                                         label={t('selectRow', { name })}
                                         labelDisplay="visually-hidden"
                                         tabIndex={-1}
-                                        onCheckedChange={() => toggleRow(id, false)}
-                                        onClick={(event) => {
-                                          if (event.shiftKey) {
-                                            event.preventDefault();
-                                            toggleRow(id, true);
-                                          }
-                                        }}
+                                        // One change per click. The checkbox re-dispatches the click, with its
+                                        // modifiers, on its input, and its change carries that event: Shift is read here
+                                        onCheckedChange={(_checked, details) =>
+                                          toggleRow(id, details.event instanceof MouseEvent && details.event.shiftKey)
+                                        }
                                         className="justify-center"
                                       />
                                     ) : null
