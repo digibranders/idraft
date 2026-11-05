@@ -76,17 +76,39 @@ export interface SizedColumn {
 /**
  * The widths of the visible columns in a region `available` pixels wide (24-page-templates.md section 9.3,
  * "Width resolution"): the flex column takes what the others leave, at least its minimum, so the table
- * always fills its panel (past its usual maximum when few columns are shown, rather than leaving an empty
- * strip beside the table); when the set does not fit, the flex column shrinks to its minimum, then the
- * others shrink toward theirs in proportion; what still does not fit scrolls sideways (the sum then
- * exceeds `available`).
+ * always fills its panel. Room past the flex column's maximum first widens the others toward their maximums
+ * in proportion; what is left after that (when few columns are shown) is spread over every resizable column,
+ * the flex one included, in proportion to its width, rather than leaving an empty strip beside the table or
+ * handing it all to the flex column. When the set does not fit, the
+ * flex column shrinks to its minimum, then the others shrink toward theirs in proportion; what still does
+ * not fit scrolls sideways (the sum then exceeds `available`).
  */
 export function resolveWidths(columns: readonly SizedColumn[], available: number): Map<string, number> {
   const widths = new Map(columns.map((column) => [column.id, column.width]));
   const flex = columns.find((column) => column.flex);
   const fixedTotal = columns.reduce((sum, column) => sum + (column.flex ? 0 : column.width), 0);
-  if (flex !== undefined) {
-    widths.set(flex.id, Math.max(flex.min, available - fixedTotal));
+  const surplus = flex === undefined ? 0 : available - fixedTotal - Math.max(flex.max, flex.min);
+  if (flex !== undefined && surplus <= 0) widths.set(flex.id, Math.max(flex.min, available - fixedTotal));
+  if (flex !== undefined && surplus > 0) {
+    // Widen the others toward their maximums, each by its share of the room it has
+    const growable = columns.filter((column) => !column.flex && column.max > column.width);
+    const growRoom = growable.reduce((sum, column) => sum + (column.max - column.width), 0);
+    const growRatio = growRoom === 0 ? 0 : Math.min(1, surplus / growRoom);
+    for (const column of growable) {
+      widths.set(column.id, Math.floor(column.width + (column.max - column.width) * growRatio));
+    }
+    // What is still left is spread over every resizable column, the flex one included, in proportion to its width
+    const sized = (column: SizedColumn): number =>
+      column.flex ? Math.max(flex.max, flex.min) : (widths.get(column.id) ?? column.width);
+    const left = surplus - (growRoom === 0 ? 0 : Math.min(surplus, growRoom));
+    const resizable = columns.filter((column) => column.flex || column.max > column.min);
+    const resizableTotal = resizable.reduce((sum, column) => sum + sized(column), 0);
+    for (const column of resizable) {
+      if (!column.flex) widths.set(column.id, Math.floor(sized(column) + (left * sized(column)) / resizableTotal));
+    }
+    const othersTotal = columns.reduce((sum, column) => sum + (column.flex ? 0 : (widths.get(column.id) ?? 0)), 0);
+    widths.set(flex.id, available - othersTotal);
+    return widths;
   }
   const total = (): number => [...widths.values()].reduce((sum, width) => sum + width, 0);
   const excess = total() - available;

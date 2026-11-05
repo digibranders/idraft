@@ -138,7 +138,9 @@ export function useRankColumns(timeZone: string): RankColumns {
         header: aioT('column'),
         headerTooltip: aioT('columnTooltip'),
         priority: 2,
-        width: 104,
+        // "AI OVERVIEW" in capitals is 80 px, 104 with the cell padding: a little more keeps it whole, unsqueezed
+        width: 112,
+        minWidth: 112,
         sortable: false,
         cell: (row) => (
           <AioStatusView

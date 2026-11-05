@@ -67,7 +67,28 @@ describe('rank, change and URL column types (12-tables.md section 5)', () => {
 describe('resolveWidths', () => {
   it('gives the flex column what the others leave, so the table fills its panel', () => {
     expect(resolveWidths(COLUMNS, FIXED + 300).get('keyword')).toBe(300);
-    expect(resolveWidths(COLUMNS, 2000).get('keyword')).toBe(2000 - FIXED);
+    expect(resolveWidths(COLUMNS, FIXED + 480).get('keyword')).toBe(480);
+  });
+
+  it('past the flex maximum, widens the others toward their maximums in proportion first', () => {
+    // 48 px past 480, from 96 px of room (24 in volume, 32 in KD, 40 in the date column): each takes half
+    const widths = resolveWidths(COLUMNS, FIXED + 480 + 48);
+    expect(widths.get('keyword')).toBe(480);
+    expect(widths.get('volume')).toBe(108);
+    expect(widths.get('kd')).toBe(104);
+    expect(widths.get('added')).toBe(140);
+    expect(widths.get('select')).toBe(40);
+  });
+
+  it('once the others are at their maximums, spreads the rest over every resizable column by its width', () => {
+    // 1,080 px left over 880 px of resizable width (keyword 480, volume 120, KD 120, date 160); the select column stays
+    const widths = resolveWidths(COLUMNS, 2000);
+    expect(widths.get('select')).toBe(40);
+    expect(widths.get('volume')).toBe(267);
+    expect(widths.get('kd')).toBe(267);
+    expect(widths.get('added')).toBe(356);
+    expect(widths.get('keyword')).toBe(2000 - 40 - 267 - 267 - 356);
+    expect([...widths.values()].reduce((sum, width) => sum + width, 0)).toBe(2000);
   });
 
   it('shrinks the flex column to its minimum before the others', () => {
