@@ -710,6 +710,38 @@ test.describe('rankings', () => {
     await expect(rank).toHaveText(/^(\d+|>\d+not in top \d+)(first check)?$/);
   });
 
+  test('keywords are added in two countries, with the plan before Add, and the country control lists the new one', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, EDITOR);
+    await page.goto(KEYWORDS);
+    const control = page.getByRole('combobox', { name: /^Country: / });
+    await control.click();
+    await expect(page.getByRole('option')).toHaveText(['All countries', 'Germany', 'United States']);
+    await page.keyboard.press('Escape');
+
+    await page.getByRole('button', { name: 'Add keywords', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add keywords' });
+    await dialog.getByRole('textbox', { name: 'Keywords' }).fill('seo dashboard\nrank tracker api');
+    // The project's own country, Germany, is chosen; France joins it
+    await expect(dialog.getByRole('toolbar', { name: 'Chosen Countries' }).getByText('Germany')).toBeVisible();
+    await dialog.getByRole('combobox', { name: /^Countries/ }).fill('Fra');
+    await page.getByRole('option', { name: 'France' }).click();
+    // Leaving the field closes its list, which keeps the rest of the dialog out of reach while it is open
+    await page.keyboard.press('Tab');
+    await expect(dialog.getByRole('toolbar', { name: 'Chosen Countries' }).getByText('France')).toBeVisible();
+    await expect(dialog.getByText(/^2 keywords × 1 device × 2 countries = 4 checks a day$/)).toBeVisible();
+    await expectAccessible(page);
+    await dialog.getByRole('button', { name: 'Add 2 keywords' }).click();
+    await expect(page.getByText('4 tracked keywords added')).toBeVisible();
+    await expect(dialog).toBeHidden();
+
+    // The control reads the countries in use again: France is there now
+    await control.click();
+    await expect(page.getByRole('option')).toHaveText(['All countries', 'Germany', 'United States', 'France']);
+  });
+
   test('metrics are refreshed from More actions, and the run is followed in the header', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
