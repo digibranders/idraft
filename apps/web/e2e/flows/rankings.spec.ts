@@ -75,7 +75,9 @@ test.describe('rankings', () => {
     // The project has groups, so it opens By group
     await expect(page.getByRole('treegrid', { name: 'Tracked keywords' }).getByRole('rowheader').first()).toBeVisible();
     // The table opens on the project's own country, here Germany
-    await expect(page.getByRole('combobox', { name: 'Country: Germany' })).toBeVisible();
+    // The country control is in the top bar, beside the theme switch and Help, not in the table's toolbar
+    await expect(page.getByRole('banner').getByRole('combobox', { name: 'Country: Germany' })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('combobox', { name: /^Country:/ })).toHaveCount(0);
     await expectAccessible(page);
     // The counts below are of every country
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });

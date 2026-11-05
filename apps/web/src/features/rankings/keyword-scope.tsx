@@ -104,12 +104,33 @@ const countryOf = (locationId: number, name: string, countryIso: string): Countr
   supports: ['serp'],
 });
 
+/** The Desktop and Mobile switch: one device at a time, in the page's toolbar. */
+export function KeywordDeviceControl({ scope }: { scope: KeywordScope }): ReactElement {
+  const t = useTranslations('rankings.scope');
+  const columns = useTranslations('rankings.columns');
+  return (
+    <SegmentedControl<Device>
+      semantics="view"
+      label={t('device')}
+      value={scope.device}
+      onValueChange={scope.setDevice}
+      size="sm"
+      iconOnly
+      items={[
+        { value: 'desktop', label: columns('desktop'), icon: Monitor },
+        { value: 'mobile', label: columns('mobile'), icon: Smartphone },
+      ]}
+    />
+  );
+}
+
 /**
- * The two controls, side by side. The country control lists the countries the project has keywords in, with
- * "All countries" when there is more than one; when the scope is the only one or there is none it is a label,
- * as there is nothing to choose.
+ * The country control, drawn in the top bar beside the theme switch (11-navigation.md section 4). It lists the
+ * countries the project has keywords in, with "All countries" when there is more than one; when the scope is
+ * the only one or there is none it is a label, as there is nothing to choose. From 1024 px it shows the
+ * country's name; below, the room is short and it shows the ISO code (the pin alone for all countries).
  */
-export function KeywordScopeControls({
+export function KeywordCountryControl({
   scope,
   inUse,
   countries,
@@ -120,7 +141,6 @@ export function KeywordScopeControls({
   countries: readonly Country[];
 }): ReactElement {
   const t = useTranslations('rankings.scope');
-  const columns = useTranslations('rankings.columns');
   const everywhere = useMemo((): Country => countryOf(ALL_COUNTRIES, t('allCountries'), ''), [t]);
   const used = useMemo(
     (): readonly Country[] =>
@@ -145,10 +165,20 @@ export function KeywordScopeControls({
     [countries, everywhere, scope.countryId, t, used],
   );
   const options = useMemo((): readonly Country[] => [everywhere, ...used], [everywhere, used]);
+  const shown = (
+    <>
+      <span aria-hidden className="hidden max-w-40 truncate lg:inline">
+        {current.name}
+      </span>
+      <span aria-hidden className="uppercase lg:hidden">
+        {current.country_iso}
+      </span>
+    </>
+  );
   const trigger = (
     <button type="button" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
       <Icon icon={MapPin} size="sm" className="text-foreground-tertiary" />
-      <span className="max-w-40 truncate">{current.name}</span>
+      {shown}
       <Icon icon={ChevronDown} size="sm" className="text-foreground-tertiary" />
     </button>
   );
@@ -159,44 +189,26 @@ export function KeywordScopeControls({
     <span className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'pointer-events-none')}>
       <Icon icon={MapPin} size="sm" className="text-foreground-tertiary" />
       <span className="sr-only">{t('country', { country: current.name })}</span>
-      <span aria-hidden className="max-w-40 truncate">
-        {current.name}
-      </span>
+      {shown}
     </span>
   );
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <SegmentedControl<Device>
-        semantics="view"
-        label={t('device')}
-        value={scope.device}
-        onValueChange={scope.setDevice}
-        size="sm"
-        iconOnly
-        items={[
-          { value: 'desktop', label: columns('desktop'), icon: Monitor },
-          { value: 'mobile', label: columns('mobile'), icon: Smartphone },
-        ]}
-      />
-      {choosable ? (
-        <Combobox<Country>
-          value={current}
-          onValueChange={(country) => {
-            if (country !== null) scope.setCountry(country.location_id);
-          }}
-          items={options}
-          itemToString={(country) => country.name}
-          itemKey={(country) => String(country.location_id)}
-          emptyText={(query) => t('countryEmpty', { query })}
-          placeholder={t('countrySearch')}
-          clearLabel={t('clear')}
-          openLabel={t('open')}
-          trigger={trigger}
-          triggerLabel={t('country', { country: current.name })}
-        />
-      ) : (
-        label
-      )}
-    </div>
+  return choosable ? (
+    <Combobox<Country>
+      value={current}
+      onValueChange={(country) => {
+        if (country !== null) scope.setCountry(country.location_id);
+      }}
+      items={options}
+      itemToString={(country) => country.name}
+      itemKey={(country) => String(country.location_id)}
+      emptyText={(query) => t('countryEmpty', { query })}
+      placeholder={t('countrySearch')}
+      clearLabel={t('clear')}
+      openLabel={t('open')}
+      trigger={trigger}
+      triggerLabel={t('country', { country: current.name })}
+    />
+  ) : (
+    label
   );
 }

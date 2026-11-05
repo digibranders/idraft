@@ -31,7 +31,13 @@ import {
 import { useKeywordCountries } from './keyword-countries';
 import { useKeywordFilterFields } from './keyword-filters';
 import { expandIds, memberIds, memberRows, pairRows, type PairedRow } from './keyword-pairs';
-import { ALL_COUNTRIES, KeywordScopeControls, useCountries, useKeywordScope } from './keyword-scope';
+import {
+  ALL_COUNTRIES,
+  KeywordCountryControl,
+  KeywordDeviceControl,
+  useCountries,
+  useKeywordScope,
+} from './keyword-scope';
 import { KeywordInspector, type InspectorEditState } from './keyword-inspector/keyword-inspector';
 import { isProjectCompetitor, projectEntitiesQuery } from './keyword-inspector/inspector-queries';
 import {
@@ -57,6 +63,7 @@ import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import { useInspector } from '@/components/app/inspector/use-inspector';
 import { PageHeader } from '@/components/app/shell/page-header';
+import { TopBarPortal } from '@/components/app/shell/top-bar-slot';
 import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
@@ -851,6 +858,9 @@ export function RankingsScreen({
 
   return (
     <InspectorLayout inspector={inspectorElement}>
+      <TopBarPortal>
+        <KeywordCountryControl scope={keywordScope} inUse={countriesInUse} countries={countries} />
+      </TopBarPortal>
       <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
         <PageHeader
           title={t('title')}
@@ -869,7 +879,7 @@ export function RankingsScreen({
                   />
                 </div>
               ) : null}
-              <KeywordScopeControls scope={keywordScope} inUse={countriesInUse} countries={countries} />
+              <KeywordDeviceControl scope={keywordScope} />
               {view.archived ? (
                 <Button
                   variant="secondary"

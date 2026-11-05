@@ -5,6 +5,7 @@ import { expect, vi } from 'vitest';
 import { z } from 'zod';
 
 import messages from '../../messages/en.json';
+import { TopBarSlotProvider, TopBarSlotTarget } from '@/components/app/shell/top-bar-slot';
 import { ALL_COUNTRIES } from '@/features/rankings/keyword-scope';
 import { RankingsScreen, type RankingsScreenProps } from '@/features/rankings/rankings-screen';
 import type { Role } from '@/lib/api/types';
@@ -61,29 +62,35 @@ export function rankingsAs(
   const permissions = membership.permissions.filter((key) => !without.has(key));
   return (
     <PermissionProvider membership={{ ...membership, permissions }}>
-      <Suspense fallback={null}>
-        <RankingsScreen
-          workspaceId={MOCK_WORKSPACE.workspace_id}
-          projectId={projectId}
-          timeZone="Europe/Berlin"
-          defaults={{
-            location:
-              location === null
-                ? null
-                : {
-                    location_id: location.location_id,
-                    name: location.name,
-                    location_type: location.location_type,
-                    country_iso: location.country_iso,
-                  },
-            languageCode: 'en',
-          }}
-          // The mock keywords are tracked in several countries: the table opens on all of them
-          {...(opensOnOwnCountry ? {} : { scopeOpensOn: ALL_COUNTRIES })}
-          {...(opensOnDefaultView ? {} : { viewOpensOn: 'flat' as const })}
-          {...screenProps}
-        />
-      </Suspense>
+      {/* The shell's top bar holds the country control: a stand-in banner gives the screen its slot */}
+      <TopBarSlotProvider>
+        <header>
+          <TopBarSlotTarget />
+        </header>
+        <Suspense fallback={null}>
+          <RankingsScreen
+            workspaceId={MOCK_WORKSPACE.workspace_id}
+            projectId={projectId}
+            timeZone="Europe/Berlin"
+            defaults={{
+              location:
+                location === null
+                  ? null
+                  : {
+                      location_id: location.location_id,
+                      name: location.name,
+                      location_type: location.location_type,
+                      country_iso: location.country_iso,
+                    },
+              languageCode: 'en',
+            }}
+            // The mock keywords are tracked in several countries: the table opens on all of them
+            {...(opensOnOwnCountry ? {} : { scopeOpensOn: ALL_COUNTRIES })}
+            {...(opensOnDefaultView ? {} : { viewOpensOn: 'flat' as const })}
+            {...screenProps}
+          />
+        </Suspense>
+      </TopBarSlotProvider>
     </PermissionProvider>
   );
 }

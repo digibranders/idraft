@@ -12,6 +12,7 @@ import { ProjectSwitcher, type SwitcherProject } from '@/components/app/shell/pr
 import { SidebarNav, type SidebarSectionProps } from '@/components/app/shell/sidebar';
 import { SkipLink } from '@/components/app/shell/skip-link';
 import { TopBar } from '@/components/app/shell/top-bar';
+import { TopBarSlotProvider } from '@/components/app/shell/top-bar-slot';
 import { Drawer } from '@/components/ui/drawer';
 import { MEDIA, useMediaQuery } from '@/lib/dom/use-media-query';
 import {
@@ -150,7 +151,7 @@ export function ProjectShell({
   );
 
   return (
-    <>
+    <TopBarSlotProvider>
       <SkipLink label={t('skipToMain')} targetId={MAIN_ID} />
       <div className="flex min-h-dvh">
         {/* Expanded at 1280 px and up, the 56 px rail at 1024 to 1279 px (expanded over the page on request),
@@ -208,6 +209,6 @@ export function ProjectShell({
           {sidebar('drawer')}
         </nav>
       </Drawer>
-    </>
+    </TopBarSlotProvider>
   );
 }

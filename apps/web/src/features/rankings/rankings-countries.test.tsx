@@ -59,6 +59,17 @@ const headerNames = (grid: HTMLElement): string[] =>
     .map((header) => header.textContent?.replace(/\s+/g, ' ').trim() ?? '');
 
 describe('the country control', () => {
+  it('sits in the top bar beside the page controls, not in the table toolbar, and the device switch stays in the toolbar', async () => {
+    renderWithProviders(as('viewer'));
+    await loadedGrid();
+    const bar = screen.getByRole('banner');
+    expect(await within(bar).findByRole('combobox', { name: 'Country: All countries' })).toBeInTheDocument();
+    // The only country control on the page is the one in the bar
+    expect(screen.getAllByRole('combobox', { name: /^Country:/ })).toHaveLength(1);
+    expect(screen.getByRole('radio', { name: 'Desktop' })).toBeInTheDocument();
+    expect(within(bar).queryByRole('radio', { name: 'Desktop' })).toBeNull();
+  });
+
   it('lists the countries the project has keywords in, and all countries, and no other', async () => {
     const { user } = renderWithProviders(as('viewer'));
     await loadedGrid();
