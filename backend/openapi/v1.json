@@ -10145,6 +10145,41 @@
         "title": "TrackedKeywordBulkUpdate",
         "type": "object"
       },
+      "TrackedKeywordCountries": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TrackedKeywordCountry"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "TrackedKeywordCountries",
+        "type": "object"
+      },
+      "TrackedKeywordCountry": {
+        "properties": {
+          "keyword_count": {
+            "description": "Distinct keywords tracked in it or anywhere inside it, devices counted once.",
+            "title": "Keyword Count",
+            "type": "integer"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationRef",
+            "description": "The country itself."
+          }
+        },
+        "required": [
+          "location",
+          "keyword_count"
+        ],
+        "title": "TrackedKeywordCountry",
+        "type": "object"
+      },
       "TrackedKeywordCreate": {
         "additionalProperties": false,
         "description": "Defaults come from the project: its location and language, and its settings\n(`seo.default_device`, `default_depth_profile`, `default_frequency`).",
@@ -19577,6 +19612,60 @@
           }
         },
         "summary": "Change tracked keywords by ids or by filter",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/countries": {
+      "get": {
+        "description": "One entry for each country with active tracked keywords, a keyword tracked in a city counting for the city's country, most keywords first. `keyword_count` counts distinct keywords: one tracked on both devices counts once.",
+        "operationId": "list_tracked_keyword_countries_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_countries_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackedKeywordCountries"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The countries the project has keywords in",
         "tags": [
           "keywords"
         ]

@@ -486,6 +486,17 @@ class TrackedKeywordPage(BaseModel):
     page: TrackedKeywordPageInfo
 
 
+class TrackedKeywordCountry(BaseModel):
+    location: LocationRef = Field(description="The country itself.")
+    keyword_count: int = Field(
+        description="Distinct keywords tracked in it or anywhere inside it, devices counted once."
+    )
+
+
+class TrackedKeywordCountries(BaseModel):
+    data: list[TrackedKeywordCountry]
+
+
 class ScheduleRef(BaseModel):
     schedule_id: UUID
     name: str
