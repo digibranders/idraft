@@ -47,7 +47,10 @@ A release takes about 8 minutes; an agent runs it in the background and reads it
 What it does, in order:
 
 1. Fetches `origin`, resets `.claude/worktrees/release` to `origin/main` and merges `origin/develop` into it.
-   A conflict stops here: resolve it on `develop`.
+   A conflict stops here: resolve it on `develop`. If the `infra/ship.sh` you started differs from the one in
+   the release (a checkout whose `develop` lags behind), it hands over to the release's copy and starts
+   again, so the newest release logic always runs. Copies older than develop `0ba6cd1` lack this and fail
+   from the main checkout with `cd: ../.git/..`: start from an up-to-date worktree once.
 2. Works out which parts changed since `origin/main`, and which parts the VPS serves an older commit of:
 
    | Part | Paths | Checks |

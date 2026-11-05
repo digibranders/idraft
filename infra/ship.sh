@@ -46,7 +46,9 @@ export DOCKER_HOST="${DOCKER_HOST:-unix://$HOME/.colima/default/docker.sock}"
 export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE="${TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE:-/var/run/docker.sock}"
 docker info >/dev/null 2>&1 || die "Docker does not answer (colima start?)"
 
-repo="$(cd "$(git -C "$(dirname "$0")" rev-parse --git-common-dir)/.." && pwd)"
+self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+# Absolute: from the main checkout git answers a path relative to infra/, from a worktree an absolute one.
+repo="$(dirname "$(git -C "$(dirname "$self")" rev-parse --path-format=absolute --git-common-dir)")"
 work="$repo/.claude/worktrees/release"
 
 say "Merging $source_ref into main"
@@ -65,6 +67,13 @@ git clean -ffdq -e node_modules -e .venv -e .next
 git checkout --quiet --detach origin/main
 git merge --quiet --no-edit "$source_ref" || { git merge --abort 2>/dev/null || true; die "$source_ref does not merge cleanly into main"; }
 sha="$(git rev-parse HEAD)"
+
+# The checkout this was started from may hold an older copy of this script (the main checkout's develop
+# often lags origin). The release's own copy decides how the release is made.
+if [ -z "${SHIP_REEXEC:-}" ] && ! cmp -s "$self" "$work/infra/ship.sh"; then
+  say "Handing over to the infra/ship.sh of the release being made"
+  SHIP_REEXEC=1 exec "$work/infra/ship.sh" "$source_ref"
+fi
 
 # What to check: what is new on main. What to deploy: what the VPS does not serve yet, so a deploy that
 # failed after its push is retried by the next run.
