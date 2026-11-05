@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { checkPriceUsd } from './add-plan';
+import { readCountries, type Country } from '../keyword-filters';
 import type { ProjectScope } from '../rankings-queries';
 import { apiAllPagesQuery, apiQuery } from '@/lib/api/query';
 
@@ -12,6 +13,29 @@ const QUOTA = '/api/v1/workspaces/{workspace_id}/tracked-keyword-quota';
 const PRICE_BOOK = '/api/v1/workspaces/{workspace_id}/price-book';
 const CHECK_PROVIDER = 'dataforseo';
 const CHECK_ENDPOINT = 'serp/google/organic';
+
+/** One empty list while the countries load, so what depends on it does not change on every render. */
+const NO_COUNTRIES: readonly Country[] = [];
+
+export interface CountryList {
+  countries: readonly Country[];
+  /** The list could not be read; `retry` asks again. */
+  isError: boolean;
+  retry: () => void;
+}
+
+/**
+ * Every country, with whether the list could be read. The same cache entry as `useCountries()` of
+ * keyword-scope.tsx (its key and reader), which the Add dialog needs with its error state.
+ */
+export function useCountryList(): CountryList {
+  const query = useQuery({
+    queryKey: ['locations', 'countries', 'all'],
+    queryFn: ({ signal }) => readCountries(signal),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+  return { countries: query.data ?? NO_COUNTRIES, isError: query.isError, retry: () => void query.refetch() };
+}
 
 export interface TrackedKeywordQuota {
   limit: number;

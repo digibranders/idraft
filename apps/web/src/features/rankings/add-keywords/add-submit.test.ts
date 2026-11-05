@@ -100,11 +100,38 @@ describe('createInChunks', () => {
     expect(result.stoppedBy).toBe(problem);
   });
 
-  it('lets any other failure through', async () => {
+  it('stops at the first quota refusal even before anything was added', async () => {
+    const problem = quotaProblem();
+    const { send } = recorder(() => {
+      throw problem;
+    });
+    const result = await createInChunks({ chunks: [['a'], ['b']], countries: [GERMANY], send });
+    expect(result.created).toEqual([]);
+    expect(result.stoppedBy).toBe(problem);
+  });
+
+  it('lets any other failure of the first request through', async () => {
     const failure = new Error('offline');
     const { send } = recorder(() => {
       throw failure;
     });
-    await expect(createInChunks({ chunks: [['a']], countries: [GERMANY], send })).rejects.toBe(failure);
+    await expect(createInChunks({ chunks: [['a'], ['b']], countries: [GERMANY], send })).rejects.toBe(failure);
+  });
+
+  it('keeps what earlier requests did when a later one fails for another reason', async () => {
+    const failure = new Error('offline');
+    const { calls, send } = recorder((items, call) => {
+      if (call === 2) throw failure;
+      return {
+        created: [],
+        restored: [],
+        skipped: [{ index: 0, existing_id: 'old' }],
+        rejected: [],
+      };
+    });
+    const result = await createInChunks({ chunks: [['a'], ['b'], ['c']], countries: [GERMANY], send });
+    expect(calls).toHaveLength(2);
+    expect(result.skipped).toEqual([{ id: 'old', keyword: 'a', country: GERMANY }]);
+    expect(result.stoppedBy).toBe(failure);
   });
 });

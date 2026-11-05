@@ -395,9 +395,11 @@ describe('Add keywords in several countries', () => {
     ]) {
       await pickCountry(user, dialog, name, name);
     }
-    await user.tab();
-    expect(await within(dialog).findByText('Choose at most 10 countries in one add')).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Add 1 keyword' })).toHaveAttribute('aria-disabled', 'true');
+    // Add says why it is refused at once, through its description
+    const add = within(dialog).getByRole('button', { name: 'Add 1 keyword' });
+    expect(add).toHaveAttribute('aria-disabled', 'true');
+    expect(add).toHaveAccessibleDescription(/Choose at most 10 countries in one add/);
+    expect(await within(dialog).findAllByText('Choose at most 10 countries in one add')).not.toHaveLength(0);
   }, 30_000);
 
   it('sends a long list in parts that fit one request each', async () => {
@@ -459,4 +461,144 @@ describe('Add keywords in several countries', () => {
       ),
     ).toBeInTheDocument();
   }, 30_000);
+
+  it('shows the keywords tracked already when a later part finds no room in the plan', async () => {
+    let calls = 0;
+    server.use(
+      http.get(mswPath(QUOTA), () => HttpResponse.json({ data: { limit: 50_000, used: 0 } })),
+      http.post(mswPath(BULK_CREATE), ({ request }) => {
+        calls += 1;
+        if (calls > 1) return problem(request, 'quota_exceeded', { limit: 1500, used: 1500, requested: 1000 });
+        return HttpResponse.json({
+          data: {
+            created: [],
+            restored: [],
+            skipped: [{ index: 0, existing_id: '0192d1a8-e007-7a10-8e07-000000000001' }],
+            rejected: [],
+          },
+        });
+      }),
+    );
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openWithCountry(user);
+    await user.click(within(dialog).getByRole('textbox', { name: 'Keywords' }));
+    await user.paste(Array.from({ length: 1000 }, (_, index) => `keyword ${String(index)}`).join('\n'));
+    await user.click(within(dialog).getByRole('radio', { name: 'Desktop' }));
+    await pickCountry(user, dialog, 'Uni', 'United States');
+    await user.click(within(dialog).getByRole('button', { name: 'Add 1,000 keywords' }));
+    const result = await screen.findByRole('dialog', { name: 'No keywords added' });
+    expect(within(result).getByRole('heading', { name: 'Already tracked' })).toBeInTheDocument();
+    expect(
+      within(result).getByText(
+        'Your plan has no room for another active keyword (1,500 of 1,500 used); this adds 1,000.',
+      ),
+    ).toBeInTheDocument();
+  }, 30_000);
+});
+
+describe('Add keywords when a request fails', () => {
+  const LIST = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords';
+
+  /** 1,000 keywords in two countries: two requests of 1,000 items, the second answered by `second`. */
+  async function addInTwoParts(second: (request: Request) => Response | Promise<Response>): Promise<{
+    result: HTMLElement;
+    listReads: () => number;
+  }> {
+    let calls = 0;
+    let reads = 0;
+    server.use(
+      http.get(mswPath(QUOTA), () => HttpResponse.json({ data: { limit: 50_000, used: 0 } })),
+      http.get(mswPath(LIST), () => {
+        reads += 1;
+      }),
+      http.post(mswPath(BULK_CREATE), async ({ request }) => {
+        calls += 1;
+        if (calls > 1) return second(request);
+        const { items } = BULK_BODY.parse(await request.json());
+        return HttpResponse.json({
+          data: {
+            created: items.map((_, index) => `created-${String(index)}`),
+            restored: [],
+            skipped: [],
+            rejected: [],
+          },
+        });
+      }),
+    );
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openWithCountry(user);
+    await user.click(within(dialog).getByRole('textbox', { name: 'Keywords' }));
+    await user.paste(Array.from({ length: 1000 }, (_, index) => `keyword ${String(index)}`).join('\n'));
+    await user.click(within(dialog).getByRole('radio', { name: 'Desktop' }));
+    await pickCountry(user, dialog, 'Uni', 'United States');
+    const readsBefore = reads;
+    await user.click(within(dialog).getByRole('button', { name: 'Add 1,000 keywords' }));
+    const result = await screen.findByRole('dialog', { name: 'Keywords added' });
+    return { result, listReads: () => reads - readsBefore };
+  }
+
+  it('keeps what the first part added when the second fails', async () => {
+    const { result, listReads } = await addInTwoParts(() => HttpResponse.json({ title: 'Broken' }, { status: 500 }));
+    expect(within(result).getByText('1,000 tracked keywords were added.')).toBeInTheDocument();
+    expect(
+      within(result).getByText(
+        'The add stopped before every keyword was sent. Try again: the keywords already added are skipped.',
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(listReads()).toBeGreaterThan(0));
+  }, 30_000);
+
+  it('keeps what the first part added when the second is refused as invalid', async () => {
+    const { result, listReads } = await addInTwoParts((request) =>
+      invalid(request, [{ location: 'body', path: 'items.3.keyword', code: 'keyword_too_long', message: 'Too long.' }]),
+    );
+    expect(within(result).getByText('1,000 tracked keywords were added.')).toBeInTheDocument();
+    expect(within(result).getByText(/^The add stopped before every keyword was sent/)).toBeInTheDocument();
+    await waitFor(() => expect(listReads()).toBeGreaterThan(0));
+  }, 30_000);
+
+  it('keeps the form when the first request fails', async () => {
+    server.use(http.post(mswPath(BULK_CREATE), () => HttpResponse.json({ title: 'Broken' }, { status: 500 })));
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openWithCountry(user);
+    await user.type(within(dialog).getByRole('textbox', { name: 'Keywords' }), 'rank api');
+    await user.click(within(dialog).getByRole('button', { name: 'Add 1 keyword' }));
+    expect(await within(dialog).findByText('The keywords were not added. Try again.')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Add keywords' })).toBe(dialog);
+  });
+
+  it('asks for a device when the project’s default cannot be read, and sends nothing without one', async () => {
+    let sent = 0;
+    server.use(
+      http.get(mswPath(SETTINGS), () => HttpResponse.json({ title: 'Broken' }, { status: 500 })),
+      http.post(mswPath(BULK_CREATE), () => {
+        sent += 1;
+      }),
+    );
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openWithCountry(user);
+    await user.type(within(dialog).getByRole('textbox', { name: 'Keywords' }), 'rank api');
+    expect(within(dialog).getByText('Choose a device to see the checks a day')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Add 1 keyword' }));
+    expect(await within(dialog).findByText('Choose a device')).toBeInTheDocument();
+    expect(sent).toBe(0);
+    await user.click(within(dialog).getByRole('radio', { name: 'Mobile' }));
+    expect(within(dialog).getByText('1 keyword × 1 device × 1 country = 1 check a day')).toBeInTheDocument();
+  }, 15_000);
+
+  it('says when the countries cannot be loaded, and loads them again on Retry', async () => {
+    let fail = true;
+    server.use(
+      http.get(mswPath('/api/v1/locations'), () =>
+        fail ? HttpResponse.json({ title: 'Broken' }, { status: 500 }) : undefined,
+      ),
+    );
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openDialog(user);
+    expect(await within(dialog).findByText('The countries could not be loaded')).toBeInTheDocument();
+    fail = false;
+    await user.click(within(dialog).getByRole('button', { name: 'Try again' }));
+    expect(await within(dialog).findByRole('toolbar', { name: 'Chosen Countries' })).toBeInTheDocument();
+    expect(within(dialog).queryByText('The countries could not be loaded')).toBeNull();
+  }, 15_000);
 });
