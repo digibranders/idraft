@@ -39,9 +39,11 @@ export function trendDirection(buckets: readonly number[], metric: GscMetric): T
   return { direction, earlier, later, percent: Math.round(Math.abs(change) * 100) };
 }
 
-/** A row's buckets for one metric, on its own device; null while the project's numbers are not `ok`. */
+/** A row's buckets for one metric, on its own device; null while the numbers are not `ok` or the API sent no trend. */
 export function gscTrendOf(row: Pick<TrackedKeywordRow, 'gsc'>, metric: GscMetric): readonly number[] | null {
-  return row.gsc?.state === 'ok' ? (row.gsc.trend?.[metric] ?? null) : null;
+  const buckets = row.gsc?.state === 'ok' ? (row.gsc.trend?.[metric] ?? null) : null;
+  // No trend, or an empty one, draws no graph: the cell shows the count alone
+  return buckets === null || buckets.length === 0 ? null : buckets;
 }
 
 /** Bucket-by-bucket sums of several series of the same length; null when there are none. */

@@ -390,6 +390,8 @@ async def test_the_trend_is_the_keywords_own_device_in_seven_4_day_buckets_oldes
     await put(END + timedelta(days=1), "crm software", "USA", DESKTOP, 99, 990)
     await put(END - timedelta(days=1), "crm software", "USA", DESKTOP, 99, 990, data_state="all")
     await put(END, "crm software", "USA", "TABLET", 99, 990)
+    # a row of one page, beside the rows over all pages: in no bucket
+    await put(START + timedelta(days=8), "crm software", "USA", DESKTOP, 99, 990, url_id=11)
 
     rows = await _list(api, workspace, project, owner, include="gsc")
 

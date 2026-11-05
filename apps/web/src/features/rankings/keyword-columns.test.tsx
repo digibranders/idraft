@@ -103,6 +103,31 @@ describe('the keyword columns', () => {
     expect(column?.cellTip?.(row)).toEqual({ content: label, detail: halves });
   });
 
+  it('show the count alone, with no graph, when the block has no trend or an empty one', () => {
+    const { result } = renderHook(() => useKeywordColumns('UTC'), { wrapper });
+    const clicks = result.current.find((column) => column.id === 'gsc_clicks');
+    const counts = { desktop: 12, mobile: 0 };
+    const row = (trend: NonNullable<TrackedKeywordRow['gsc']>['trend']): PairedRow =>
+      ({
+        device: 'desktop',
+        keyword: { text: 'soc' },
+        devices: { desktop: null, mobile: null },
+        gsc: { state: 'ok', clicks: counts, impressions: counts, window: null, trend },
+      }) as PairedRow;
+
+    for (const trend of [null, undefined, { bucket_days: 4, clicks: [], impressions: [] }]) {
+      const { container, queryByRole, unmount } = render(<>{clicks?.cell(row(trend))}</>);
+      expect(container.textContent).toBe('12');
+      expect(queryByRole('img')).toBeNull();
+      expect(clicks?.cellTip?.(row(trend))).toBeUndefined();
+      unmount();
+    }
+    const pending = { device: 'desktop', keyword: { text: 'soc' }, gsc: { state: 'pending' } } as PairedRow;
+    const { container, queryByRole } = render(<>{clicks?.cell(pending)}</>);
+    expect(container.textContent).toBe('Pending');
+    expect(queryByRole('img')).toBeNull();
+  });
+
   it('follow the order of the page template: CPC after AI Overview, the competitors after CPC', () => {
     const { result } = renderHook(() => useKeywordColumns('UTC', [COMPETITOR]), { wrapper });
     expect(result.current.map((column) => column.id)).toEqual([
