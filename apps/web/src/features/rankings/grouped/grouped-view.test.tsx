@@ -286,13 +286,15 @@ describe('Keywords By group', () => {
   });
 
   it('keeps the chosen keywords across a switch of view', async () => {
-    const { user } = renderWithProviders(byDefault());
+    const { user, rerender } = renderWithProviders(byDefault());
     const tree = await loadedTree();
     const first = keywordsUnder(tree, /SEO audits/)[0] ?? '';
     await user.click(screen.getByRole('checkbox', { name: new RegExp(`^Select ${first},`) }));
-    // A closed group still holds the choice, and the toolbar with the switch comes back
+    // A closed group still holds the choice, and the bulk bar stays with its count
     await user.click(screen.getByRole('button', { name: /^Collapse .*SEO audits group/ }));
-    await user.click(await screen.findByRole('radio', { name: 'All keywords' }));
+    expect(within(screen.getByRole('group', { name: /Bulk actions/ })).getByText('1 selected')).toBeInTheDocument();
+    // The bulk bar stands where the view switch is, so the view changes as a link or Back would change it
+    rerender(rankingsAs('editor'));
     await loadedGrid();
     expect(within(screen.getByRole('group', { name: /Bulk actions/ })).getByText('1 selected')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: new RegExp(`^Select ${first},`) })).toBeChecked();
