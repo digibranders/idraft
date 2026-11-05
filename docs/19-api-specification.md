@@ -917,9 +917,12 @@ interface TrackedKeywordRow extends TrackedKeyword {
   ranking_urls?: Array<{ url: UrlRef; rank: number; shares_rank: boolean }>;
   // include=gsc (built; doc 18 section 4.9). `pending` until the pull has stored the 28 final days that end on the latest final day;
   // then `ok`, with the sums of that window for the keyword's normalized text and country, for both devices (the table picks the
-  // one it shows; a keyword with no rows is 0). A property waiting for a new sign-in counts as `not_connected`.
+  // one it shows; a keyword with no rows is 0). A property waiting for a new sign-in counts as `not_connected`. `trend` (only with
+  // `ok`) is the tracked keyword's own device in seven 4-day buckets of the window, oldest first, zero where a bucket has no rows;
+  // the buckets add up to that device's counts. The Clicks and Impressions cells draw it as a graph.
   gsc?: { state: 'ok' | 'pending' | 'not_connected'; clicks: { desktop: number; mobile: number } | null;
-          impressions: { desktop: number; mobile: number } | null; window: { start: string; end: string } | null };
+          impressions: { desktop: number; mobile: number } | null; window: { start: string; end: string } | null;
+          trend: { bucket_days: number; clicks: number[]; impressions: number[] } | null };
   groups?: Array<{ group_id: Uuid; name: string; path: string }>;
   terms?: Array<{ term_id: Uuid; vocabulary_kind: string; name: string; path: string }>;
   cannibalization_class?: 'likely_cannibalization' | 'co_ranking' | 'unstable_url' | 'none' | null;

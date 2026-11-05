@@ -662,7 +662,13 @@ async def _search_console(
     )
 
 
-NOT_CONNECTED = {"state": "not_connected", "clicks": None, "impressions": None, "window": None}
+NOT_CONNECTED = {
+    "state": "not_connected",
+    "clicks": None,
+    "impressions": None,
+    "window": None,
+    "trend": None,
+}
 
 
 async def test_search_console_clicks_say_not_connected_until_a_property_is_linked(
@@ -691,7 +697,7 @@ async def test_search_console_clicks_say_pending_once_a_property_is_linked(
 
     # Nothing is pulled yet, so no keyword has a number to show
     assert [row["gsc"] for row in rows] == [
-        {"state": "pending", "clicks": None, "impressions": None, "window": None}
+        {"state": "pending", "clicks": None, "impressions": None, "window": None, "trend": None}
     ] * 2
 
 

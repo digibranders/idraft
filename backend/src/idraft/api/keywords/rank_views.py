@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from idraft.api.keywords.check_status import CheckProgress
-from idraft.api.keywords.gsc_repository import GscRecord
+from idraft.api.keywords.gsc_repository import BUCKET_DAYS, GscRecord
 from idraft.api.keywords.rank_repository import (
     CompetitorRank as CompetitorRankRecord,
 )
@@ -27,6 +27,7 @@ from idraft.api.schemas.keywords import (
     DeviceCounts,
     FeatureOnPage,
     GscBlock,
+    GscTrend,
     GscWindow,
     KeywordCheck,
     RankCell,
@@ -220,6 +221,13 @@ def gsc_view(record: GscRecord) -> GscBlock:
         window=None
         if record.window is None
         else GscWindow(start=record.window[0], end=record.window[1]),
+        trend=None
+        if record.trend is None
+        else GscTrend(
+            bucket_days=BUCKET_DAYS,
+            clicks=record.trend.clicks,
+            impressions=record.trend.impressions,
+        ),
     )
 
 

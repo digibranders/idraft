@@ -177,7 +177,13 @@ async def test_a_property_whose_first_days_are_not_all_stored_is_pending(
 
     (row,) = await _list(api, workspace, project, owner, include="gsc")
 
-    assert row["gsc"] == {"state": "pending", "clicks": None, "impressions": None, "window": None}
+    assert row["gsc"] == {
+        "state": "pending",
+        "clicks": None,
+        "impressions": None,
+        "window": None,
+        "trend": None,
+    }
 
 
 async def test_a_window_that_is_stored_gives_the_counts_of_both_devices_and_its_dates(
@@ -301,6 +307,7 @@ async def test_a_property_that_stopped_syncing_is_not_shown_as_current(
     (row,) = await _list(api, workspace, project, owner, include="gsc")
 
     assert row["gsc"]["state"] == "not_connected"
+    assert row["gsc"]["trend"] is None
 
 
 async def test_another_workspaces_rows_are_never_counted(
@@ -343,6 +350,49 @@ async def test_the_api_role_sees_only_its_workspaces_numbers(
         await connection.close()
     assert [row["clicks"] for row in seen] == [1]
     assert {row["workspace_id"] for row in queries} == {one.id}
+
+
+async def test_the_trend_is_the_keywords_own_device_in_seven_4_day_buckets_oldest_first(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _world(resources, migrated)
+    await tracked_id(api, workspace, project, owner, "crm software")
+    await tracked_id(api, workspace, project, owner, "crm software", device="mobile")
+    await tracked_id(api, workspace, project, owner, "quiet keyword")
+    integration = await _property(migrated, workspace, project)
+    put = _putter(migrated, workspace, project, integration)
+    await put(START, "crm software", "USA", DESKTOP, 1, 10)
+    await put(START + timedelta(days=3), "crm software", "USA", DESKTOP, 2, 20)
+    await put(START + timedelta(days=4), "crm software", "USA", DESKTOP, 4, 40)
+    await put(END - timedelta(days=3), "crm software", "USA", DESKTOP, 8, 80)
+    await put(END, "crm software", "USA", DESKTOP, 16, 160)
+    await put(START + timedelta(days=13), "crm software", "USA", MOBILE, 5, 50)
+    # outside the window, not final, or a tablet: in no bucket
+    await put(START - timedelta(days=1), "crm software", "USA", DESKTOP, 99, 990)
+    await put(END + timedelta(days=1), "crm software", "USA", DESKTOP, 99, 990)
+    await put(END - timedelta(days=1), "crm software", "USA", DESKTOP, 99, 990, data_state="all")
+    await put(END, "crm software", "USA", "TABLET", 99, 990)
+
+    rows = await _list(api, workspace, project, owner, include="gsc")
+
+    by_key = {(row["keyword"]["text"], row["device"]): row["gsc"] for row in rows}
+    desktop = by_key[("crm software", "desktop")]
+    mobile = by_key[("crm software", "mobile")]
+    quiet = by_key[("quiet keyword", "desktop")]
+    assert desktop["trend"] == {
+        "bucket_days": 4,
+        "clicks": [3, 4, 0, 0, 0, 0, 24],
+        "impressions": [30, 40, 0, 0, 0, 0, 240],
+    }
+    assert mobile["trend"] == {
+        "bucket_days": 4,
+        "clicks": [0, 0, 0, 5, 0, 0, 0],
+        "impressions": [0, 0, 0, 50, 0, 0, 0],
+    }
+    assert quiet["trend"] == {"bucket_days": 4, "clicks": [0] * 7, "impressions": [0] * 7}
+    for gsc, device in ((desktop, "desktop"), (mobile, "mobile"), (quiet, "desktop")):
+        assert sum(gsc["trend"]["clicks"]) == gsc["clicks"][device]
+        assert sum(gsc["trend"]["impressions"]) == gsc["impressions"][device]
 
 
 async def _three(
