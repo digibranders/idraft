@@ -36,6 +36,7 @@ from idraft.worker.assembly import (
 from idraft.worker.queues import Queues
 from idraft.worker.ticks import Tick
 from tests.api.auth.support import execute, fetch
+from tests.collectors import gsc_support
 from tests.collectors.support import (
     FakeProvider,
     FakeWorkload,
@@ -45,8 +46,9 @@ from tests.collectors.support import (
 )
 from tests.collectors.test_fetching import MemoryStore
 from tests.collectors.test_imports import _csv, _import, _project, _row
-from tests.conftest import PostgresServer
+from tests.conftest import TEST_SECRETS_KEY, PostgresServer
 from tests.providers.dataforseo.support import LOGIN, ORIGIN, PASSWORD, Api, FakeGate, fixture
+from tests.providers.google.fake_google import CLIENT_ID, CLIENT_SECRET
 from tests.worker.conftest import eventually
 
 
@@ -392,3 +394,68 @@ async def test_the_account_jobs_read_the_provider_and_do_nothing_without_one(
         await context.redis.get(reconciliation_key("dataforseo", yesterday)) or "{}"
     )
     assert Decimal(report["provider_spend_usd"]) == Decimal("2.00")
+
+
+def _google_settings(settings: Settings) -> Settings:
+    return settings.model_copy(
+        update={
+            "google_oauth_client_id": SecretStr(CLIENT_ID),
+            "google_oauth_client_secret": SecretStr(CLIENT_SECRET),
+            "secrets_encryption_key": TEST_SECRETS_KEY,
+        }
+    )
+
+
+async def test_search_console_is_not_registered_without_a_google_client_and_a_key(
+    context: WorkerContext,
+) -> None:
+    ticks = ticks_of(context, Registry())
+
+    assert "gsc_plan" not in ticks
+    assert assembly.gsc_context(context) is None
+    # a client and no key, or a key and no client, is not enough either
+    for update in (
+        {"google_oauth_client_id": SecretStr("a"), "google_oauth_client_secret": SecretStr("b")},
+        {"secrets_encryption_key": TEST_SECRETS_KEY},
+    ):
+        half = replace(context, settings=context.settings.model_copy(update=update))
+        assert assembly.gsc_context(replace(half, http=httpx.AsyncClient())) is None
+
+
+async def test_a_property_goes_from_the_tick_through_the_queue_to_stored_numbers(
+    context: WorkerContext, migrated: PostgresServer
+) -> None:
+    await gsc_support.empty_integrations(migrated)
+    fake = gsc_support.FakeSearchConsole()
+    prop = await gsc_support.make_property(migrated, fake)
+    days = gsc_support.fill(fake, gsc_support.SITE, days=30)
+    async with httpx.AsyncClient(transport=fake.transport) as http:
+        configured = replace(context, settings=_google_settings(context.settings), http=http)
+        ticks = ticks_of(configured, Registry())
+        assert (ticks["gsc_plan"].interval, ticks["gsc_plan"].lock_ttl) == (
+            assembly.GSC_PLAN_EVERY,
+            assembly.GSC_PLAN_LOCK,
+        )
+
+        await ticks["gsc_plan"].action()
+        # a second tick while the first message waits sends nothing new
+        await ticks["gsc_plan"].action()
+        await configured.queues.startup()
+        finish = asyncio.Event()
+        receiving = asyncio.create_task(
+            configured.queues.receive("collect", concurrency=1, finish=finish)
+        )
+        try:
+            await eventually(lambda: _pulled(migrated, prop.integration_id), within=15)
+        finally:
+            finish.set()
+            await receiving
+
+    rows = await gsc_support.stored(migrated, prop.integration_id)
+    assert {row[0] for row in rows} == set(days)
+    assert len(fake.detail_days()) == len(days)
+
+
+async def _pulled(pg: PostgresServer, integration_id: object) -> bool:
+    state = (await gsc_support.integration_row(pg, integration_id))["backfill_state"]  # type: ignore[arg-type]
+    return bool(state.get("gsc", {}).get("complete"))

@@ -137,7 +137,7 @@ describe('ProjectShell', () => {
     expect(navigation.push).toHaveBeenCalledWith('/digibranders/cleanstart/settings');
   });
 
-  it('lists Runs and Costs in the sidebar for the roles that can open them: Runs needs data:read, Costs costs:read', async () => {
+  it('lists Integrations, Runs and Costs in the sidebar for the roles that can open them: the first two need data:read, Costs costs:read', async () => {
     const listed: Record<string, string[]> = {};
     for (const role of ['editor', 'viewer', 'billing'] as const) {
       const { unmount } = renderWithProviders(shell(role));
@@ -151,12 +151,14 @@ describe('ProjectShell', () => {
     expect(listed).toEqual({
       editor: [
         'Keywords /digibranders/fynix/seo/keywords',
+        'Integrations /digibranders/fynix/integrations',
         'Runs /digibranders/fynix/ops/runs',
         'Costs /digibranders/fynix/costs',
         'Settings /digibranders/fynix/settings',
       ],
       viewer: [
         'Keywords /digibranders/fynix/seo/keywords',
+        'Integrations /digibranders/fynix/integrations',
         'Runs /digibranders/fynix/ops/runs',
         'Settings /digibranders/fynix/settings',
       ],

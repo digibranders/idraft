@@ -12,6 +12,7 @@ from __future__ import annotations
 NOT_PATH_SCOPED: dict[tuple[str, str], str] = {
     ("GET", "/api/healthz"): "no tenant data",
     ("GET", "/api/readyz"): "no tenant data",
+    ("GET", "/api/internal/health"): "no tenant data; behind its own bearer token",
     ("GET", "/api/v1/openapi.json"): "no tenant data",
     ("POST", "/api/v1/auth/register"): "no tenant data; the invitation token is tested in "
     "tests/api/auth/test_register.py",
@@ -44,4 +45,7 @@ NOT_PATH_SCOPED: dict[tuple[str, str], str] = {
     "address, tests/api/workspaces/test_invitations.py",
     ("GET", "/api/v1/locations"): "a global dictionary, no tenant data (plan decision D1)",
     ("GET", "/api/v1/domain-categories"): "a global dictionary, no tenant data",
+    ("GET", "/api/v1/oauth/google/callback"): "scoped by a single-use state that names the user, "
+    "workspace and project; a state made for another user or workspace is refused, "
+    "tests/api/integrations/test_connect.py",
 }

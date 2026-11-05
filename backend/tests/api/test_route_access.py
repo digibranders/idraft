@@ -21,6 +21,8 @@ from idraft.api.permissions import Permission
 EXPECTED: dict[tuple[str, str], str] = {
     ("GET", "/api/healthz"): "public",
     ("GET", "/api/readyz"): "public",
+    # Behind its own bearer token, not a session.
+    ("GET", "/api/internal/health"): "public",
     ("GET", "/api/v1/openapi.json"): "authenticated",
     ("POST", "/api/v1/auth/register"): "public",
     ("POST", "/api/v1/auth/verify-email/request"): "public",
@@ -248,6 +250,31 @@ EXPECTED: dict[tuple[str, str], str] = {
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords",
     ): "data:read",
+    # Search Console. Connections are the workspace's credentials, so a manager limited to some
+    # projects neither manages them nor links one to a project.
+    ("GET", "/api/v1/workspaces/{workspace_id}/connections"): ("integrations:manage every-project"),
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/connections/{connection_id}/properties",
+    ): "integrations:manage every-project",
+    ("DELETE", "/api/v1/workspaces/{workspace_id}/connections/{connection_id}"): (
+        "integrations:manage every-project fresh"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations"): "data:read",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations",
+    ): "integrations:manage every-project",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations/{kind}/authorize",
+    ): "integrations:manage every-project fresh",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations/{integration_id}",
+    ): "integrations:manage every-project fresh",
+    # Google sends the browser here: the single-use state, not a session rule, decides.
+    ("GET", "/api/v1/oauth/google/callback"): "public",
     **{
         (
             "GET",
@@ -374,6 +401,12 @@ PATH_PARAMETERS = {
     # Inside one project, after `{project_id}`: the service finds the snapshot within that
     # project, so a snapshot of another project is a 404.
     "serp_snapshot_id",
+    # A connection is a credential of the workspace, shared by its projects.
+    "connection_id",
+    # Inside one project, after `{project_id}`: the service finds it within that project.
+    "integration_id",
+    # The product of an integration (`gsc`), not an id.
+    "kind",
 }
 # `{name}` or `{name:converter}`.
 PATH_PARAMETER = re.compile(r"\{(\w+)(?::\w+)?\}")

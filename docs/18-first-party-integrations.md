@@ -74,14 +74,14 @@ Google app verification: doc 24 plans for Google OAuth app verification before e
 
 ### 4.1 Property selection UX
 
-1. **Project settings > Integrations > Google Search Console > Connect** (owner or admin).
+1. **Integrations > Google Search Console > Connect** (project sidebar, route `/<workspace>/<project>/integrations/gsc`; owner or admin). Google returns the person to the same screen with `?connection_id=...` (the property picker opens) or `?error=<code>`.
 2. **Consent** with `webmasters.readonly openid email`, `access_type=offline`, `prompt=consent` (to receive a refresh token).
 3. **Property picker** from `sites.list` (verified 2026-09-29): type (Domain `sc-domain:` or URL-prefix) and permission level. Unverified-user entries are disabled, since `searchanalytics.query` needs read permission (verified 2026-09-29). The property matching the project's primary domain is pre-selected, Domain preferred over URL-prefix.
 4. **Overlap guard:** a Domain and a URL-prefix property for the same host in one project trigger a warning; they are never summed.
 5. **Backfill options:** default 16 months, all search types with data, with the call and time estimate from 4.3.
 6. **Progress panel:** days done per type, provisional days, last error, next sync.
 
-V1 maps one property to one project (`fp.integrations` is unique per workspace and property). Using one property in two projects is open question FP-Q4.
+V1 maps one property to one project (`fp.integrations` is unique per workspace and property), and a project has one live property per source (a partial unique index, migration 0015), so a Domain and a URL-prefix property of one site are never both counted. Using one property in two projects is open question FP-Q4.
 
 Service-account mode for agencies (the customer adds our service account email as a user on the property) is supported by the OAuth credential types (verified 2026-09-29), but adding a service account as a property user is UNVERIFIED on a current Google page. It ships behind a flag after spike FP-S8.
 
@@ -248,7 +248,7 @@ sequenceDiagram
 
 The Rankings table has a **Clicks** column and an **Impressions** column right after it, in the flat view and in the grouped view, where a group's value is the sum of its keywords'. Both come from the same pull and follow the same rules below; where the text says clicks, impressions are read the same way. Impressions say how often the keyword showed a page of the site in results, so clicks next to impressions show whether a shown page is chosen. It shows real Search Console clicks and never an estimate from search volume and rank: an estimate would credit a keyword with visits Google does not report, and accuracy is the point of the column (decision of 2026-11-04). The design preview (`design-preview/kw-grouped*.js`) draws made-up numbers where the app reads these.
 
-**What the number is.** Clicks in the last 28 days of final data (the window ends on the last final day, section 4.4; provisional days are left out), for the keyword's text, in the keyword's country, on the devices the table shows (desktop, mobile, or both added together).
+**What the number is.** Clicks in the last 28 days of final data (the window ends on the last final day, section 4.4; provisional days are left out), for the keyword's text, in the keyword's country, on the device the table shows (desktop or mobile, never added together).
 
 **Where it comes from.** Shape B of section 4.2 (`[date, query, page, country, device]`, table `fp.gsc_search_analytics`), summed over the dates and over all pages, so a keyword's clicks are the clicks of every page that answered it. The join to a tracked keyword:
 
@@ -274,6 +274,8 @@ The Rankings table has a **Clicks** column and an **Impressions** column right a
 3. **Delay.** Final data trails by two to three days (section 4.4).
 4. **Country and device** are what Search Console reports for the searcher. They can differ from the place and device of the rank check, which is one fixed place.
 5. **Property scope.** A domain property includes its subdomains; a URL-prefix property only its prefix. The clicks are those of the connected property, not of the project's own site entities alone.
+
+**Built so far (2026-11-05).** `include=gsc` reads the stored numbers: `not_connected` until a project has an active property on a healthy connection, `pending` until the pull has stored the 28 final days that end on the latest final day, then `ok` with the sums (a keyword with no rows in the window is 0). The storage (migration 0015), the connect flow (start, callback, property list and choice, disconnect) and the pull (the `gsc_sync` job: final data only, `web` search type, shape B one day at a time, the latest 28 days first, then the older days oldest first, resumable from `backfill_state`) are built and tested against a fake Google. Decisions of the build: the Rankings columns count the `web` type only; the window ends on the latest day that has final data (a run of idle days at the end does not move it); a property that waits for a new sign-in (`reauth_required`) or is in error shows as `not_connected`, never with numbers presented as current; the call budgets of section 4.5 are token buckets inside the one worker process (move them to Redis before a second worker runs); shapes A and C, other search types, the raw-response copy in R2 and the admin notifications of section 4.6 are not built.
 
 **Data the API needs.** `GET .../tracked-keywords` takes `include=gsc`, which adds to each row `gsc: { state, clicks: { desktop, mobile }, impressions: { desktop, mobile }, window: { start, end } }` (`state` is `ok`, `pending` or `not_connected`) and takes the sorts `gsc_clicks` and `gsc_impressions`. The sums for groups are made in the browser while the table holds every row (client mode, doc 20 section 5.3) and by the API in server mode. The same read can later carry click-through rate and average position as columns hidden by default; they need no new pull, since shape B holds them.
 
@@ -799,7 +801,7 @@ Bot class is not stored on `fp.log_hits_daily`; it is joined from `fp.ai_bot_reg
 | Id | Table | Change | Reason |
 |---|---|---|---|
 | A1 | `fp.gsc_queries` | Add `workspace_id uuid NOT NULL`; primary key becomes `(workspace_id, query_hash)`; enable RLS | Query text is tenant data; `matched_keyword_ids` are workspace ids |
-| A2 | `fp.integrations` | Add `connection_id uuid REFERENCES fp.connections(id)`; make `credential_ref` nullable with `CHECK (kind = 'server_logs' OR credential_ref IS NOT NULL)` | Section 3.1; log uploads have no credential |
+| A2 | `fp.integrations` | Add `connection_id uuid REFERENCES fp.connections(id)` with `CHECK (kind = 'server_logs' OR connection_id IS NOT NULL)`. No `credential_ref` on the integration (revised 2026-11-04, migration 0015) | Section 3.1; log uploads have no credential. The credential belongs to the connection: a second reference to the same secret would make the disconnect, which deletes the secret, break every integration |
 | A3 | `fp.gsc_page_daily` | Partition by `metric_date` month; register in section 12.1 table | 50,000 pages x 365 days x 2 types is about 36 M rows per year for a large site |
 | A4 | `fp.metric_observations` | Add `data_state text NOT NULL DEFAULT 'final' CHECK (data_state IN ('final','provisional'))` and `data_origin text NOT NULL DEFAULT 'api'`; partition by `metric_date` month | Cloudflare partial days, GA4 restated days; Cloudflare path rows grow fast |
 | A5 | `fp.metric_observations.source` comment | Values: `bing_traffic`, `bing_query_stats`, `bing_page_stats`, `bing_page_query_stats`, `cloudflare_ai_crawl`, `cloudflare_ai_referral`, `ga4_source_daily`, `ga4_ai_landing_daily` | Replaces `bing_ai_performance` and `ga4_ai_referral`, which now have their own tables |

@@ -21,6 +21,8 @@ export interface HomeScreenProps {
   workspace: { name: string; slug: string } | null;
   /** A platform operator may create a workspace while sign-up is by invitation. */
   canCreateWorkspace: boolean;
+  /** The Google connection came back without a project to return to, so it says it did not finish. */
+  integrationFailed?: boolean | undefined;
 }
 
 /**
@@ -28,7 +30,13 @@ export interface HomeScreenProps {
  * accepted (with the way on to a workspace the person has), or that they belong to no workspace yet. Both
  * offer signing out, so a person signed in with the wrong account can change it.
  */
-export function HomeScreen({ email, invitation, workspace, canCreateWorkspace }: HomeScreenProps): ReactNode {
+export function HomeScreen({
+  email,
+  invitation,
+  workspace,
+  canCreateWorkspace,
+  integrationFailed = false,
+}: HomeScreenProps): ReactNode {
   const t = useTranslations('session');
   const app = useTranslations('app');
   const { signOut, pending } = useSignOut();
@@ -37,8 +45,16 @@ export function HomeScreen({ email, invitation, workspace, canCreateWorkspace }:
     setFailed(false);
     signOut().catch(() => setFailed(true));
   };
-  const title = invitation === null ? t('noWorkspace.title') : t('invitation.title');
-  const description = invitation === null ? t('noWorkspace.description') : t(`invitation.${invitation}`);
+  const title = integrationFailed
+    ? t('integrationNotice.title')
+    : invitation === null
+      ? t('noWorkspace.title')
+      : t('invitation.title');
+  const description = integrationFailed
+    ? t('integrationNotice.description')
+    : invitation === null
+      ? t('noWorkspace.description')
+      : t(`invitation.${invitation}`);
 
   return (
     <AuthCard productName={app('name')} title={title} description={description}>

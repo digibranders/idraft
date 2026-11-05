@@ -99,7 +99,7 @@ Diagnostics ("Why am I losing this keyword/prompt?") are never navigation entrie
 | Group label | `type-label` (12 px, `foreground-tertiary`), sentence case ("AI Visibility"), 16 px above and 4 px below, not interactive |
 | Count badge | Right-aligned neutral subtle `Badge` (22 px, `type-micro num`, `neutral-subtle` background, 4 px radius, [14-badges-status.md](14-badges-status.md) section 1); only for actionable counts (new discovery candidates, unread alerts); max "99+" |
 | Section spacing | 16 px of space between sections and between groups. No divider lines |
-| Project switcher | Top of the sidebar, 12 px from the top: a 28 px square monogram with radius 6 px (near-black `foreground` fill with a `foreground-inverse` letter in light theme; `primary` fill with a `primary-foreground` letter in dark theme), the project name in `type-subsection-title` (14 / 20 px, weight 600; the screens show about 15 px, within tolerance), and a trailing `ChevronDown` |
+| Project switcher | Top of the sidebar, 12 px from the top: a card (`surface` fill, 1 px `border-subtle`, radius 8 px, 48 px tall) with the project mark in a 32 px tile (the icon of the project's site, or its first letter on a near-black square; [07-icons.md](07-icons.md) section 5), the project name in `type-subsection-title` (14 / 20 px, weight 600) over its domain in `type-meta`, and a trailing `ChevronsUpDown`. The list shows each project the same way (28 px mark, name over domain), and its footer has the time zone, "All projects in ..." and "Create project", each with an icon |
 | Footer | Collection status line ("Last run 06:12 · 1,284 keywords") in `type-label` (12 px, `foreground-tertiary`) above the Collapse button; the footer ends 16 px from the bottom of the sidebar |
 | Sub-level | One level only (group > item). No nested trees in the sidebar |
 
@@ -111,7 +111,7 @@ A parent group (SEO, AI Visibility) is a label, not a link. Child items are alwa
 - Every item shows a tooltip on hover and focus with the full label ("SEO: Rankings") and the item's shortcut if any, placed to the right with 6 px offset ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 6.1).
 - The active item keeps `surface-selected`.
 - Count badges become a 6 px `primary` dot at the icon's top-right (with the count in the tooltip and accessible name).
-- The project switcher collapses to its 28 px monogram; clicking opens the same switcher menu.
+- The project switcher collapses to its 32 px mark, with no card around it; clicking opens the same switcher menu.
 
 ## 4. Top bar
 

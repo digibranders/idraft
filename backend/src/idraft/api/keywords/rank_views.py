@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from idraft.api.keywords.check_status import CheckProgress
+from idraft.api.keywords.gsc_repository import GscRecord
 from idraft.api.keywords.rank_repository import (
     CompetitorRank as CompetitorRankRecord,
 )
@@ -23,7 +24,10 @@ from idraft.api.schemas.keywords import (
     AioCitations,
     AioStateInfo,
     CompetitorRank,
+    DeviceCounts,
     FeatureOnPage,
+    GscBlock,
+    GscWindow,
     KeywordCheck,
     RankCell,
     RankChange,
@@ -205,6 +209,17 @@ def _entity(record: CompetitorRecord) -> EntityRef:
             "role": record.role,
             "color_index": record.color_index,
         }
+    )
+
+
+def gsc_view(record: GscRecord) -> GscBlock:
+    return GscBlock(
+        state=record.state,
+        clicks=None if record.clicks is None else DeviceCounts(**record.clicks),
+        impressions=None if record.impressions is None else DeviceCounts(**record.impressions),
+        window=None
+        if record.window is None
+        else GscWindow(start=record.window[0], end=record.window[1]),
     )
 
 

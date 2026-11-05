@@ -236,6 +236,7 @@ TrackedInclude = Literal[
     "sparkline",
     "competitor_ranks",
     "ranking_urls",
+    "gsc",
     "features",
     "aio",
 ]
@@ -352,6 +353,31 @@ class CompetitorRank(BaseModel):
     change: RankChange
 
 
+class GscWindow(BaseModel):
+    start: date
+    end: date
+
+
+class DeviceCounts(BaseModel):
+    desktop: int
+    mobile: int
+
+
+class GscBlock(BaseModel):
+    """Clicks and impressions from Search Console (docs/18 section 4.9): counts, not estimates."""
+
+    state: Literal["ok", "pending", "not_connected"] = Field(
+        description=(
+            "`ok`: the counts are the last 28 days of final data (0 is a count). "
+            "`pending`: the first pull of the property is running. "
+            "`not_connected`: the project has no Search Console connection."
+        )
+    )
+    clicks: DeviceCounts | None = None
+    impressions: DeviceCounts | None = None
+    window: GscWindow | None = None
+
+
 class RankingUrl(BaseModel):
     url: UrlRef
     rank: int
@@ -460,6 +486,9 @@ class TrackedKeywordRow(TrackedKeyword):
             "`include=ranking_urls`: every page of the project that ranked at the last check, best "
             "rank first (at most 10)."
         ),
+    )
+    gsc: GscBlock | None = Field(
+        default=None, description="`include=gsc`: clicks and impressions from Search Console."
     )
     features: list[FeatureOnPage] | None = Field(
         default=None, description="`include=features`: the features of the last check."

@@ -48,6 +48,20 @@ describe('HomeScreen', () => {
     expect(screen.getByRole('link', { name: 'Create a workspace' })).toHaveAttribute('href', '/new');
   });
 
+  it('says a Google connection did not finish, and opens the workspace the person has', () => {
+    renderWithProviders(
+      <HomeScreen
+        email={EMAIL}
+        invitation={null}
+        workspace={{ name: 'Digibranders', slug: 'digibranders' }}
+        canCreateWorkspace={false}
+        integrationFailed
+      />,
+    );
+    expect(screen.getByRole('heading', { level: 1, name: 'The Google connection did not finish' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Continue to Digibranders' })).toHaveAttribute('href', '/digibranders');
+  });
+
   it('says why an invitation could not be accepted, and opens the workspace the person has', async () => {
     const { container } = renderWithProviders(
       <HomeScreen

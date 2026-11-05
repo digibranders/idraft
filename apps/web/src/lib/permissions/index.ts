@@ -1,6 +1,7 @@
 export {
   can,
   canCreateProjects,
+  canManageIntegrations,
   canOpenProject,
   canWriteEntities,
   canWriteSharedTaxonomy,

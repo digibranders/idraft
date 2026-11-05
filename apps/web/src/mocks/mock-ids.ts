@@ -17,7 +17,9 @@ export type IdKind =
   | 'run'
   | 'import'
   | 'budget'
-  | 'price';
+  | 'price'
+  | 'connection'
+  | 'integration';
 
 /** One hexadecimal digit per kind, so the id stays a UUID. */
 const KIND_DIGIT: Readonly<Record<IdKind, string>> = {
@@ -34,6 +36,8 @@ const KIND_DIGIT: Readonly<Record<IdKind, string>> = {
   import: 'b',
   budget: 'c',
   price: 'd',
+  connection: 'e',
+  integration: 'f',
 };
 
 /** The first number a browser's rows get; the fixtures stay below it. */
