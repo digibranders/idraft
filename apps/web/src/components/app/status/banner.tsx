@@ -59,14 +59,19 @@ export function Banner({
     <div
       data-slot="banner"
       role={live ? (tone === 'negative' ? 'alert' : 'status') : undefined}
-      className={cn('flex items-start gap-2', PLACEMENT_CLASS[placement], TONE_CLASS[tone], className)}
+      className={cn(
+        'flex flex-wrap items-start gap-x-2 gap-y-2',
+        PLACEMENT_CLASS[placement],
+        TONE_CLASS[tone],
+        className,
+      )}
     >
       <Icon icon={ICON[tone]} className={cn('mt-0.5 shrink-0', ICON_CLASS[tone])} />
-      <p className="min-w-0 flex-1 type-body text-foreground">
+      <p className="min-w-0 flex-1 basis-64 type-body text-foreground">
         {lead === undefined ? null : <span className="type-body-strong">{lead} </span>}
         {message}
       </p>
-      {actions === undefined ? null : <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions === undefined ? null : <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div>}
     </div>
   );
 }

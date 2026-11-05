@@ -307,6 +307,9 @@ All production secrets must be stored in the GitHub Actions `production` Environ
 | `REDIS_URL_APP` | `/etc/idraft/.env` | `redis://app:<pass>@redis:6379/0` |
 | `REDIS_ACL_DIR` | `/etc/idraft/.env` | Host directory for the rendered `users.acl` (`/etc/idraft/redis`). |
 | `TOTP_ENCRYPTION_KEY` | Backend API / Worker | Base64-encoded 32-byte secret for encrypting MFA keys at rest. Must NEVER be changed or regenerated once users exist, or all stored TOTP secrets will be corrupted. |
+| `SECRETS_ENCRYPTION_KEY` | Backend API / Worker | Base64-encoded 32-byte key (version 1) that wraps the data key of every stored credential (Google refresh tokens). Required when `APP_ENV` is production. Must NEVER be changed or lost once a Google account is connected: the stored tokens could not be read again. Not the same value as `TOTP_ENCRYPTION_KEY`. |
+| `GOOGLE_OAUTH_CLIENT_ID` | Backend API / Worker | Client id of the "idraft web app" OAuth client (Web application) in the Google Cloud project. Set with the secret below, or not at all: without them connecting Google is off and nothing else changes. Needs `SECRETS_ENCRYPTION_KEY`. |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Backend API / Worker | Client secret of that OAuth client. The authorized redirect URI to register is `<APP_ORIGIN>/api/v1/oauth/google/callback` (production `https://app.idraft.ai/api/v1/oauth/google/callback`). |
 | `EMAIL_PROVIDER` | Backend API | Transactional email provider (`brevo`, `resend`, or `console`). |
 | `EMAIL_API_KEY` | Backend API | API key for Brevo transactional email delivery. |
 | `EMAIL_FROM` | Backend API | Verified sender address (e.g. `hello@idraft.ai`). |

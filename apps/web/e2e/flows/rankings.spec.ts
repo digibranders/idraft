@@ -872,7 +872,7 @@ test.describe('rankings', () => {
     await expect(page.getByRole('button', { name: 'AI Overview: Cited. Edit filter' })).toBeVisible();
     const aioCells = await columnOf(grid, 'AI Overview');
     expect(aioCells.length).toBeGreaterThan(0);
-    expect(aioCells.every((text) => text.includes('Cited'))).toBe(true);
+    expect(aioCells.every((text) => /^#\d+$/.test(text))).toBe(true);
 
     // 4. Filter "SERP feature: Video"
     await page.getByRole('button', { name: 'Remove filter AI Overview: Cited' }).click();

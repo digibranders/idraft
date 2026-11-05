@@ -163,7 +163,8 @@ export function AioStatusView({ display, state, stale, lastSuccessfulCheck }: Ai
   const content = (() => {
     switch (display.kind) {
       case 'cited': {
-        const text = display.position === null ? t('citedNoPosition') : t('cited', { position: display.position });
+        // The check and the position; the word "Cited" is the accessible name, not a visible label
+        const text = display.position === null ? '' : t('cited', { position: display.position });
         const speech =
           display.position === null ? t('speech.citedNoPosition') : t('speech.cited', { position: display.position });
         return (

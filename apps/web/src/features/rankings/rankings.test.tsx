@@ -685,7 +685,7 @@ describe('Rankings rank columns', () => {
     expect(within(cell).getByText(/^SERP features:/)).toHaveClass('sr-only');
   });
 
-  it('shows Cited #n for a keyword cited in the AI Overview', async () => {
+  it('shows #n with a check for a keyword cited in the AI Overview', async () => {
     const withAioCited = fixtureStates().find(
       ({ state }) => state.aio.state === 'present_cited' && state.aio.citation_position !== null,
     );
@@ -699,7 +699,8 @@ describe('Rankings rank columns', () => {
     if (row === null || row === undefined) throw new Error(`No row for ${withAioCited.text}`);
     const cell = row.cells[columnIndex(grid, /^AI Overview$/)];
     if (cell === undefined) throw new Error('No AI Overview cell');
-    expect(within(cell).getByText(`Cited #${withAioCited.state.aio.citation_position}`)).toBeInTheDocument();
+    expect(within(cell).getByText(`#${withAioCited.state.aio.citation_position}`)).toBeInTheDocument();
+    expect(within(cell).queryByText(/Cited/)).toBeNull();
   });
 
   it('shows the rank trend sparkline for checked and pending keywords, and requests include=sparkline', async () => {

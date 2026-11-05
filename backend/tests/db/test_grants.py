@@ -314,6 +314,35 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         access("SELECT", INSERT=AUDIT_COLUMNS),
         access("SELECT", INSERT=AUDIT_COLUMNS),
     ),
+    # Connecting Search Console (migration 0015). The API makes and deletes a secret and never
+    # changes one; the worker reads it to refresh a token.
+    "ops.secrets": (access("SELECT, INSERT, DELETE"), READ),
+    "fp.connections": (
+        access(
+            "SELECT, INSERT",
+            UPDATE=(
+                "subject_label",
+                "credential_ref",
+                "scopes",
+                "status",
+                "connected_by",
+                "connected_at",
+                "last_refresh_at",
+                "last_error_code",
+            ),
+        ),
+        access("SELECT", UPDATE=("status", "last_refresh_at", "last_error_code")),
+    ),
+    "fp.integrations": (
+        access(
+            "SELECT, INSERT",
+            UPDATE=("external_account", "connection_id", "scopes", "status", "last_error"),
+        ),
+        access("SELECT", UPDATE=("status", "last_success_at", "last_error", "backfill_state")),
+    ),
+    "fp.gsc_queries": (READ, access("SELECT, INSERT", UPDATE=("matched_keyword_ids",))),
+    # The worker replaces a day of numbers: a DELETE and an INSERT (docs/18 section 4.4).
+    "fp.gsc_search_analytics": (READ, access("SELECT, INSERT, DELETE")),
 }
 
 _TABLES = """

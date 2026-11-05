@@ -52,6 +52,11 @@ TENANT_TABLES: dict[str, str] = {
     "seo.tracked_keyword_state": "workspace_id",
     "seo.serp_current_results": "workspace_id",
     "seo.rank_events": "workspace_id",
+    "ops.secrets": "workspace_id",
+    "fp.connections": "workspace_id",
+    "fp.integrations": "workspace_id",
+    "fp.gsc_queries": "workspace_id",
+    "fp.gsc_search_analytics": "workspace_id",
 }
 
 
@@ -162,6 +167,7 @@ async def seed_tenant(pg: PostgresServer, label: str) -> Tenant:
         entity_id, term_id = await seed_vocabulary(db, workspace_id, project_id, label)
         schedule_id, run_id = await seed_operations(db, workspace_id, project_id)
         await seed_keywords(db, workspace_id, project_id, owner_id, entity_id, term_id)
+        await seed_search_console(db, workspace_id, project_id, owner_id)
     return Tenant(workspace_id, owner_id, project_id, token_hash, schedule_id, run_id)
 
 
@@ -412,6 +418,59 @@ async def seed_rank(
         snapshot_id,
     )
     return snapshot_id
+
+
+async def seed_search_console(
+    db: asyncpg.Connection[Any],
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    owner_id: uuid.UUID,
+) -> uuid.UUID:
+    """One row in every Search Console table: a secret, the connection that holds it, a property
+    linked to the project, a query and one day of numbers. Returns the integration's id."""
+    secret_id: uuid.UUID = await db.fetchval(
+        "INSERT INTO ops.secrets (workspace_id, kind, ciphertext, dek_wrapped, kek_version, "
+        "fingerprint) VALUES ($1, 'oauth_refresh_token', $2, $3, 1, 'abcd') RETURNING id",
+        workspace_id,
+        b"ciphertext",
+        b"wrapped",
+    )
+    connection_id: uuid.UUID = await db.fetchval(
+        "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
+        "subject_label, credential_ref, scopes, connected_by) "
+        "VALUES ($1, 'gsc', 'oauth', $2, 'person@example.com', $3, '{openid}', $4) RETURNING id",
+        workspace_id,
+        uuid.uuid4().hex,
+        secret_id,
+        owner_id,
+    )
+    integration_id: uuid.UUID = await db.fetchval(
+        "INSERT INTO fp.integrations (workspace_id, project_id, kind, external_account, "
+        "external_property, connection_id, scopes) "
+        "VALUES ($1, $2, 'gsc', 'person@example.com', 'sc-domain:example.com', $3, '{openid}') "
+        "RETURNING id",
+        workspace_id,
+        project_id,
+        connection_id,
+    )
+    query_hash = uuid.uuid4().bytes + uuid.uuid4().bytes
+    await db.execute(
+        "INSERT INTO fp.gsc_queries (workspace_id, query_hash, query_text, normalized_text) "
+        "VALUES ($1, $2, 'CRM Software', 'crm software')",
+        workspace_id,
+        query_hash,
+    )
+    await db.execute(
+        "INSERT INTO fp.gsc_search_analytics (integration_id, metric_date, search_type, "
+        "query_hash, url_id, country_iso3, device, workspace_id, project_id, clicks, "
+        "impressions, position_sum, data_state) "
+        "VALUES ($1, current_date, 'web', $2, 1, 'USA', 'DESKTOP', $3, $4, 3, 40, 120.5, 'final')",
+        integration_id,
+        query_hash,
+        workspace_id,
+        project_id,
+    )
+    return integration_id
 
 
 async def seed_operations(

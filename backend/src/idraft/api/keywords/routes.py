@@ -252,11 +252,14 @@ Include = Annotated[
     summary="The project's tracked keywords",
     description="Sorted by `sort`, a comma list of `keyword`, `search_volume`, "
     "`keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, `current_rank`, `rank_change`, "
-    "`best_rank` and `last_observed_at`, each at most once and with `-` for descending; "
-    "`keyword` when left out, and the id always last. A metric or a rank sorts keywords without "
-    "one (beyond the depth, or never checked) last in both directions. Every row carries its "
-    "rank `state`; `include` adds `sparkline`, `competitor_ranks`, `ranking_urls`, `features` "
-    "and `aio`. "
+    "`best_rank`, `last_observed_at`, `gsc_clicks` and `gsc_impressions`, each at most once and "
+    "with `-` for descending; `keyword` when left out, and the id always last. A metric or a rank "
+    "sorts keywords without one (beyond the depth, or never checked) last in both directions. "
+    "The Search Console sorts use the 28 days of `include=gsc` on the keyword's own device, and "
+    "count a keyword with no rows as 0 (every row is 0 while the project is `pending` or "
+    "`not_connected`). Every row carries its "
+    "rank `state`; `include` adds `sparkline`, `competitor_ranks`, `ranking_urls`, `gsc`, "
+    "`features` and `aio`. "
     "`page.total` counts every match. A cursor is bound to its filters and sort "
     "(`400 invalid_cursor` otherwise).",
 )
@@ -398,6 +401,7 @@ async def list_tracked_keywords(
                     "ranking_urls": None
                     if row.ranking_urls is None
                     else [rank_views.ranking_url_view(p) for p in row.ranking_urls],
+                    "gsc": None if row.gsc is None else rank_views.gsc_view(row.gsc),
                     "features": None
                     if row.features is None
                     else rank_views.features_view(row.features),

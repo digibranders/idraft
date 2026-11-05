@@ -79,7 +79,15 @@ describe('AioStatusView', () => {
     expect(badge).toBeInTheDocument();
     expect(badge).toHaveAccessibleName('AI Overview present, cited at position 2');
     expect(badge).toHaveClass('bg-positive-subtle', 'text-positive-text');
-    expect(badge).toHaveTextContent('Cited #2');
+    // The check and the position, with no word "Cited"
+    expect(badge).toHaveTextContent(/^#2$/);
+  });
+
+  it('renders a cited status with no position as the check alone', () => {
+    renderWithProviders(<AioStatusView display={{ kind: 'cited', position: null }} />);
+    const badge = screen.getByRole('img', { name: 'AI Overview present, cited' });
+    expect(badge).toHaveTextContent(/^$/);
+    expect(badge.querySelector('svg')).not.toBeNull();
   });
 
   it('renders notCited as a 16 px check icon in primary text with an accessible name and no visible word', () => {

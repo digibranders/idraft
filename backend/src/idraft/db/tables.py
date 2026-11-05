@@ -1245,3 +1245,137 @@ rank_events = Table(
     ),
     schema="seo",
 )
+
+# Envelope-encrypted credentials (docs/24-security.md section 5.2). A workspace of NULL is a
+# platform secret, which no workspace transaction can see.
+secrets = Table(
+    "secrets",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, ForeignKey(workspaces.c.id, ondelete="CASCADE")),
+    Column("kind", Text, nullable=False),
+    Column("ciphertext", LargeBinary, nullable=False),
+    Column("dek_wrapped", LargeBinary, nullable=False),
+    Column("kek_version", SmallInteger, nullable=False),
+    Column("fingerprint", Text, nullable=False),
+    _created_at(),
+    Column("rotated_at", DateTime(timezone=True)),
+    Column("expires_at", DateTime(timezone=True)),
+    UniqueConstraint("workspace_id", "id", name="secrets_workspace_id_id_key"),
+    schema="ops",
+)
+
+# One credential grant, for example one Google login (docs/18 section 3.1).
+connections = Table(
+    "connections",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, ForeignKey(workspaces.c.id, ondelete="CASCADE"), nullable=False),
+    Column("product", Text, nullable=False),
+    Column("auth_method", Text, nullable=False),
+    Column("subject_id", Text, nullable=False),
+    Column("subject_label", Text),
+    # NULL only once a disconnect has deleted the secret.
+    Column("credential_ref", Uuid),
+    Column("scopes", ARRAY(Text), nullable=False),
+    Column("status", Text, nullable=False, server_default=FetchedValue()),
+    Column("connected_by", Uuid, ForeignKey(users.c.id)),
+    Column("connected_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    Column("last_refresh_at", DateTime(timezone=True)),
+    Column("last_error_code", Text),
+    UniqueConstraint(
+        "workspace_id",
+        "product",
+        "subject_id",
+        name="connections_workspace_id_product_subject_id_key",
+    ),
+    UniqueConstraint("id", "workspace_id", name="connections_id_workspace_id_key"),
+    ForeignKeyConstraint(
+        ["workspace_id", "credential_ref"], [secrets.c.workspace_id, secrets.c.id]
+    ),
+    schema="fp",
+)
+
+# One property of a connection, linked to one project (docs/18 section 3.1).
+integrations = Table(
+    "integrations",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid),
+    Column("kind", Text, nullable=False),
+    Column("external_account", Text),
+    Column("external_property", Text, nullable=False),
+    Column("connection_id", Uuid),
+    Column("scopes", ARRAY(Text), nullable=False),
+    Column("status", Text, nullable=False, server_default=FetchedValue()),
+    Column("last_success_at", DateTime(timezone=True)),
+    Column("last_error", Text),
+    Column("backfill_state", JSONB, nullable=False, server_default=FetchedValue()),
+    _created_at(),
+    UniqueConstraint(
+        "workspace_id",
+        "kind",
+        "external_property",
+        name="integrations_workspace_id_kind_external_property_key",
+    ),
+    UniqueConstraint("id", "workspace_id", name="integrations_id_workspace_id_key"),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"],
+        [projects.c.id, projects.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+        ["connection_id", "workspace_id"], [connections.c.id, connections.c.workspace_id]
+    ),
+    schema="fp",
+)
+
+# Query text is tenant data, so it is scoped to the workspace (docs/18 section 12.2, A1).
+gsc_queries = Table(
+    "gsc_queries",
+    metadata,
+    Column("workspace_id", Uuid, ForeignKey(workspaces.c.id, ondelete="CASCADE"), nullable=False),
+    Column("query_hash", LargeBinary, nullable=False),
+    Column("query_text", Text, nullable=False),
+    Column("normalized_text", Text, nullable=False),
+    Column("matched_keyword_ids", ARRAY(Uuid), nullable=False, server_default=FetchedValue()),
+    PrimaryKeyConstraint("workspace_id", "query_hash"),
+    schema="fp",
+)
+
+# Search Console numbers by day, query, page, country and device (docs/18 section 4.2, shape B).
+# Partitioned by month on `metric_date`, which is part of the key.
+gsc_search_analytics = Table(
+    "gsc_search_analytics",
+    metadata,
+    Column("integration_id", Uuid, nullable=False),
+    Column("metric_date", Date, nullable=False),
+    Column("search_type", Text, nullable=False),
+    Column("query_hash", LargeBinary, nullable=False),
+    Column("url_id", BigInteger, nullable=False),
+    Column("country_iso3", CHAR(3), nullable=False),
+    Column("device", Text, nullable=False),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("clicks", Integer, nullable=False),
+    Column("impressions", Integer, nullable=False),
+    Column("position_sum", Numeric(14, 2), nullable=False),
+    Column("data_state", Text, nullable=False),
+    Column("ingested_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    PrimaryKeyConstraint(
+        "integration_id",
+        "metric_date",
+        "search_type",
+        "query_hash",
+        "url_id",
+        "country_iso3",
+        "device",
+    ),
+    ForeignKeyConstraint(
+        ["integration_id", "workspace_id"],
+        [integrations.c.id, integrations.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="fp",
+)
