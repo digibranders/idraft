@@ -76,18 +76,17 @@ behind_vps() {
   git diff --name-only "$serving" HEAD | grep -qE "$2"
 }
 part_changed() { [ "${SHIP_ALL:-0}" = 1 ] || grep -qE "$1" <<<"$changed"; }
-deploy_backend=0 deploy_web=0 backend=0 web=0 site=0 infra=0
+deploy_backend=0 deploy_web=0 backend=0 web=0 infra=0
 { [ "${SHIP_ALL:-0}" = 1 ] || behind_vps backend "$backend_paths"; } && deploy_backend=1
 { [ "${SHIP_ALL:-0}" = 1 ] || behind_vps web "$web_paths"; } && deploy_web=1
 { part_changed "$backend_paths" || [ "$deploy_backend" = 1 ]; } && backend=1
 { part_changed "$web_paths" || [ "$deploy_web" = 1 ]; } && web=1
-part_changed '^(apps/site/|package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml)' && site=1
 part_changed '^(infra/|\.github/)' && infra=1
 if [ "$sha" = "$(git rev-parse origin/main)" ] && [ "$deploy_backend$deploy_web" = 00 ]; then
   say "main already has $source_ref and the VPS serves it: nothing to release"
   exit 0
 fi
-say "Release ${sha:0:12}: check backend=$backend web=$web site=$site infra=$infra; deploy backend=$deploy_backend web=$deploy_web"
+say "Release ${sha:0:12}: check backend=$backend web=$web infra=$infra; deploy backend=$deploy_backend web=$deploy_web"
 
 logs="$(mktemp -d "${TMPDIR:-/tmp}/idraft-ship.XXXXXX")"
 
@@ -96,12 +95,11 @@ check_backend() {
   (cd backend && uv sync --frozen --quiet && ./check.sh -n "${PYTEST_WORKERS:-4}")
 }
 
-check_js() {
+check_web() {
   pnpm install --frozen-lockfile --prefer-offline --silent &&
-    { [ "$web" = 0 ] || (cd apps/web && pnpm lint && pnpm typecheck && pnpm test && pnpm format:check &&
+    (cd apps/web && pnpm lint && pnpm typecheck && pnpm test && pnpm format:check &&
       NEXT_PUBLIC_APP_ENV=production NEXT_PUBLIC_API_MOCKING=off NEXT_PUBLIC_RELEASE="$sha" \
-      API_INTERNAL_ORIGIN=http://127.0.0.1:8000 pnpm build && node scripts/prepare-standalone.mjs); } &&
-    { [ "$site" = 0 ] || (cd apps/site && pnpm lint && pnpm typecheck && pnpm build); }
+      API_INTERNAL_ORIGIN=http://127.0.0.1:8000 pnpm build && node scripts/prepare-standalone.mjs)
 }
 
 check_infra() {
@@ -125,7 +123,7 @@ run() {
 # Ctrl-C stops the checks too; nothing has been pushed at that point.
 trap 'kill "${pids[@]}" 2>/dev/null; exit 130' INT TERM
 [ "$backend" = 1 ] && run backend check_backend
-{ [ "$web" = 1 ] || [ "$site" = 1 ]; } && run js check_js
+[ "$web" = 1 ] && run web check_web
 [ "$infra" = 1 ] && run infra check_infra
 [ "${#names[@]}" -gt 0 ] && say "Checking: ${names[*]} (logs in $logs)"
 
@@ -153,7 +151,7 @@ if [ "$sha" != "$(git rev-parse origin/main)" ]; then
 fi
 
 if [ "$deploy_backend$deploy_web" = 00 ]; then
-  say "Nothing to deploy to the VPS (the marketing site deploys on Vercel from main)"
+  say "Nothing to deploy to the VPS"
   rm -rf "$logs"
   exit 0
 fi
