@@ -1,6 +1,6 @@
 import type { HttpResponse } from 'msw';
 
-import { projectCaller, workspaceCaller, type ProjectCaller, type WorkspaceCaller } from './access';
+import { projectCaller, workspaceCaller, type Gate, type ProjectCaller, type WorkspaceCaller } from './access';
 import { at, bodyError, enumError, extraMembers, isOneOf, isRecord, queryError, textError, uuidError } from './rules';
 import { stateTime } from '../entities-codec';
 import { MOCK_LOCATIONS } from '../entity-fixtures';
@@ -95,7 +95,7 @@ export function keywordWorkspaceCaller(
   request: Request,
   cookies: Readonly<Record<string, string>>,
   workspaceId: PathParam,
-  gate: { permission: Permission; query?: readonly string[] },
+  gate: Gate,
 ): KeywordWorkspaceCaller | HttpResponse<Problem> {
   const caller = workspaceCaller(request, cookies, workspaceId, gate);
   if (caller instanceof Response) return caller;
@@ -738,8 +738,9 @@ function readFilter(source: FilterSource, defaultActive: boolean | null): Tracke
       return [];
     }
     const numbers = values.filter((value): value is number => typeof value === 'number');
-    if (numbers.some((value) => value < min || value > max)) {
-      errors.push(source.error(name, 'greater_than_equal', 'Out of range.'));
+    const outside = numbers.find((value) => value < min || value > max);
+    if (outside !== undefined) {
+      errors.push(source.error(name, outside < min ? 'greater_than_equal' : 'less_than_equal', 'Out of range.'));
       return [];
     }
     return numbers;

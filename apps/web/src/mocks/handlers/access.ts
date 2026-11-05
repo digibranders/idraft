@@ -59,8 +59,9 @@ export interface ProjectCaller extends WorkspaceCaller {
   project: Project;
 }
 
-interface Gate {
-  permission: Permission;
+export interface Gate {
+  /** The permission the route needs; `null` for a route open to every member of the workspace (`MemberAccess`). */
+  permission: Permission | null;
   /** The query parameters the route has; any other is a `422`. */
   query?: readonly string[];
   /**
@@ -96,7 +97,7 @@ export function workspaceCaller(
   const changes = readChanges(cookies);
   const access = accessTo(workspaceId, session.user, changes, cookies);
   if (!access) return problem(request, 'not_found');
-  if (!can(access, permission)) return problem(request, 'forbidden');
+  if (permission !== null && !can(access, permission)) return problem(request, 'forbidden');
   if (everyProject && access.membership.project_ids !== null) {
     return problem(request, 'forbidden', { detail: 'Not available to a member who is limited to some projects.' });
   }
@@ -131,7 +132,7 @@ export function projectCaller(
   const projects = visibleProjects(access, changes, entityChanges);
   const project = projects.find((candidate) => candidate.project_id === projectId);
   if (!project) return problem(request, 'not_found');
-  if (!can(access, permission)) return problem(request, 'forbidden');
+  if (permission !== null && !can(access, permission)) return problem(request, 'forbidden');
   return {
     session,
     access,

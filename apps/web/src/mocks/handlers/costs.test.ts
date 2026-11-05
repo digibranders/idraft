@@ -243,7 +243,7 @@ describe('the pre-flight budget check', () => {
 });
 
 describe('price book', () => {
-  it('lists the verified Labs prices valid on a day, by provider and endpoint', async () => {
+  it('lists the verified Labs and SERP prices valid on a day, by provider and endpoint', async () => {
     const analyst = mockBrowser('analyst');
     const all = await analyst.call('GET', `${W}/price-book?limit=5`);
     expect(pageOf(all, OFFSET_PAGE)).toEqual({ offset: 0, limit: 5, total: 18 });
@@ -256,7 +256,14 @@ describe('price book', () => {
       ['item', '0.000120'],
     ]);
     expect(overview[0]).toMatchObject({ verified_at: '2026-09-29', valid_to: null });
-    const before = await analyst.call('GET', `${W}/price-book?valid_at=2026-09-01`);
-    expect(pageOf(before, OFFSET_PAGE).total).toBe(0);
+    // The Labs prices start on 29 September; the SERP prices (the backend's seed) on 1 July
+    const september = await analyst.call('GET', `${W}/price-book?valid_at=2026-09-01`);
+    expect(pageOf(september, OFFSET_PAGE).total).toBe(2);
+    expect(dataOf(september, PRICES).map((price) => price.endpoint)).toEqual([
+      'serp/google/organic',
+      'serp/google/organic',
+    ]);
+    const june = await analyst.call('GET', `${W}/price-book?valid_at=2026-06-30`);
+    expect(pageOf(june, OFFSET_PAGE).total).toBe(0);
   });
 });

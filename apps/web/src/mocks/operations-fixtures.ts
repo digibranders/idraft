@@ -329,6 +329,7 @@ const LABS_PRICES: readonly StoredPrice[] = LABS_ENDPOINTS.flatMap((name, index)
 
 const SERP_SOURCE = 'https://dataforseo.com/pricing/serp-api/google-serp-api';
 const SERP_MICROS = 600;
+const SERP_VALID_FROM = '2026-07-01';
 
 /**
  * Google organic SERP, standard queue: a page of ten results and the task that reads the AI Overview later. A
@@ -343,7 +344,8 @@ const SERP_PRICES: readonly StoredPrice[] = [
   provider_code: 'dataforseo',
   endpoint: 'serp/google/organic',
   unit_price_micros: SERP_MICROS,
-  valid_from: LABS_VERIFIED,
+  // The day the backend's seed (migration 0013) starts these prices
+  valid_from: SERP_VALID_FROM,
   valid_to: null,
   source_url: SERP_SOURCE,
   verified_at: LABS_VERIFIED,
