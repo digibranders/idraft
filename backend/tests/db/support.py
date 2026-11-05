@@ -438,7 +438,7 @@ async def seed_search_console(
     connection_id: uuid.UUID = await db.fetchval(
         "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
         "subject_label, credential_ref, scopes, connected_by) "
-        "VALUES ($1, 'gsc', 'oauth', $2, 'person@example.com', $3, '{openid}', $4) RETURNING id",
+        "VALUES ($1, 'google', 'oauth', $2, 'person@example.com', $3, '{openid}', $4) RETURNING id",
         workspace_id,
         uuid.uuid4().hex,
         secret_id,

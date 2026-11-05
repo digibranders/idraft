@@ -171,7 +171,7 @@ async def test_a_disconnected_account_cannot_be_used_until_it_connects_again(
     await _delete(google, world, connection)
 
     properties = await google.api.get(
-        workspace_url(world.workspace, "connections", connection, "properties"),
+        workspace_url(world.workspace, "connections", connection, "properties", "gsc"),
         headers=world.owner.headers,
     )
     again = await connected(google, world, account)

@@ -25,6 +25,8 @@ from idraft.db.tables import (
 )
 
 LIVE = ("active", "reauth_required", "error")
+# `last_error` of a property whose product the person did not grant when they last connected.
+SCOPE_MISSING = "scope_missing"
 
 
 class PropertyTakenError(Exception):
@@ -290,9 +292,12 @@ async def renew_connection(
     subject_label: str | None,
     credential_ref: UUID,
     scopes: Collection[str],
+    granted_kinds: Collection[str],
     connected_by: UUID,
 ) -> None:
-    """The same account connecting again: a new credential, and the connection works again."""
+    """The same account connecting again: a new credential, and the connection works again.
+    The properties of a product whose permission is now granted work again; those of one that is
+    not stop, and wait for a connection that grants it."""
     await db.execute(
         update(connections)
         .where(connections.c.workspace_id == workspace_id, connections.c.id == connection_id)
@@ -311,9 +316,21 @@ async def renew_connection(
         .where(
             integrations.c.workspace_id == workspace_id,
             integrations.c.connection_id == connection_id,
-            integrations.c.status == "reauth_required",
+            integrations.c.kind.in_(list(granted_kinds)),
+            (integrations.c.status == "reauth_required")
+            | ((integrations.c.status == "error") & (integrations.c.last_error == SCOPE_MISSING)),
         )
         .values(status="active", last_error=None)
+    )
+    await db.execute(
+        update(integrations)
+        .where(
+            integrations.c.workspace_id == workspace_id,
+            integrations.c.connection_id == connection_id,
+            integrations.c.kind.not_in(list(granted_kinds)),
+            integrations.c.status != "disabled",
+        )
+        .values(status="error", last_error=SCOPE_MISSING)
     )
 
 

@@ -1,6 +1,6 @@
 import { MOCK_CREATED_AT, MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '../fixtures';
 import { MOCK_GOOGLE_ACCOUNT, MOCK_SCOPES } from '../integrations-state';
-import type { Connection, Integration, SiteProperty } from '@/lib/api/types';
+import type { AnalyticsProperty, Connection, Integration, SiteProperty } from '@/lib/api/types';
 
 /**
  * Builders for the integration payloads of the API, typed by the generated schema. Each takes overrides, so
@@ -17,10 +17,11 @@ export function connectionFactory(overrides: Partial<Connection> = {}): Connecti
   const owner = mockUser('owner');
   return {
     connection_id: CONNECTION_ID,
-    product: 'gsc',
+    product: 'google',
     auth_method: 'oauth',
     subject_label: MOCK_GOOGLE_ACCOUNT,
     scopes: [...MOCK_SCOPES],
+    access: { gsc: true, ga4: true },
     status: 'active',
     connected_by: { user_id: owner.user_id, name: owner.name, email: owner.email },
     connected_at: '2026-10-20T09:30:00Z',
@@ -60,6 +61,18 @@ export function propertyFactory(overrides: Partial<SiteProperty> = {}): SiteProp
     suggested_project_id: null,
     linked_project_id: null,
     overlap_warning: null,
+    ...overrides,
+  };
+}
+
+export function analyticsPropertyFactory(overrides: Partial<AnalyticsProperty> = {}): AnalyticsProperty {
+  return {
+    external_property: 'properties/398844007',
+    label: 'Fynix website',
+    account_id: 'accounts/77210',
+    account_label: 'Fynix Digital',
+    property_type: 'ordinary',
+    linked_project_id: null,
     ...overrides,
   };
 }

@@ -1,8 +1,8 @@
-"""A client for the Google calls the Search Console connection makes.
+"""A client for the Google calls the Google connection makes (Search Console and GA4).
 
-Authorization-code flow with PKCE, token refresh, the account's identity and `sites.list`
-(docs/18 sections 3.2, 4.1 and 4.6). The HTTP client is injected, so a test hands it a
-`httpx.MockTransport` and nothing leaves the process.
+Authorization-code flow with PKCE, token refresh, the account's identity, `sites.list` and the
+Analytics Admin API's `accountSummaries.list` (docs/18 sections 3.2, 4.1 and 4.6). The HTTP
+client is injected, so a test hands it a `httpx.MockTransport` and nothing leaves the process.
 
 Retries: a transport error or a 5xx is tried again with exponential backoff and full jitter, up
 to `attempts` times; the interactive routes keep the base short, the worker passes the long one
@@ -44,11 +44,19 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 SITES_URL = "https://www.googleapis.com/webmasters/v3/sites"
+ACCOUNT_SUMMARIES_URL = "https://analyticsadmin.googleapis.com/v1beta/accountSummaries"
+# Largest page of accountSummaries.list; the pages are followed up to ACCOUNT_SUMMARY_PAGES.
+ACCOUNT_SUMMARY_PAGE_SIZE = 200
+ACCOUNT_SUMMARY_PAGES = 25
 # Largest page the API gives (docs/18 section 4.2).
 SEARCH_ANALYTICS_ROW_LIMIT = 25_000
 SEARCH_CONSOLE_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
-# Minimum, read-only; `openid email` identify the account (a stable `sub`).
-CONNECT_SCOPES = ("openid", "email", SEARCH_CONSOLE_SCOPE)
+ANALYTICS_SCOPE = "https://www.googleapis.com/auth/analytics.readonly"
+# Minimum, read-only; `openid email` identify the account (a stable `sub`). Both product scopes
+# are asked in one consent: one login is one connection (docs/18 section 3.2).
+CONNECT_SCOPES = ("openid", "email", SEARCH_CONSOLE_SCOPE, ANALYTICS_SCOPE)
+# The scope each integration kind needs.
+KIND_SCOPES = {"gsc": SEARCH_CONSOLE_SCOPE, "ga4": ANALYTICS_SCOPE}
 ATTEMPTS = 3
 BACKOFF_SECONDS = 0.5
 _VERIFIER_BYTES = 48
@@ -77,8 +85,8 @@ def new_pkce() -> Pkce:
 
 def authorization_url(*, client_id: str, redirect_uri: str, state: str, challenge: str) -> str:
     """The address the person is sent to. `prompt=consent` with `access_type=offline` makes
-    Google issue a refresh token every time, and `include_granted_scopes=false` keeps this grant
-    to Search Console: GA4 gets its own grant and its own revocation (docs/18 section 3.2)."""
+    Google issue a refresh token every time, and `include_granted_scopes=false` keeps the grant
+    to what is asked here, not to whatever else this login gave the client earlier."""
     query = urlencode(
         {
             "client_id": client_id,
@@ -124,6 +132,30 @@ class _SitesBody(BaseModel):
 
     # Left out of the answer when the account has no property.
     siteEntry: list[_SiteEntry] = Field(default_factory=list)  # noqa: N815
+
+
+class _PropertySummary(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    name: str = Field(alias="property", pattern=r"^properties/[0-9]+$", max_length=64)
+    displayName: str = Field(default="", max_length=512)  # noqa: N815
+    propertyType: str = Field(default="PROPERTY_TYPE_UNSPECIFIED", max_length=64)  # noqa: N815
+
+
+class _AccountSummary(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    account: str = Field(pattern=r"^accounts/[0-9]+$", max_length=64)
+    displayName: str = Field(default="", max_length=512)  # noqa: N815
+    # Left out of the answer for an account with no property.
+    propertySummaries: list[_PropertySummary] = Field(default_factory=list)  # noqa: N815
+
+
+class _AccountSummariesBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    accountSummaries: list[_AccountSummary] = Field(default_factory=list)  # noqa: N815
+    nextPageToken: str = ""  # noqa: N815
 
 
 class _AnalyticsRow(BaseModel):
@@ -182,6 +214,19 @@ class Site:
     permission_level: str
 
 
+@dataclass(frozen=True, slots=True)
+class AnalyticsProperty:
+    """One GA4 property from `accountSummaries.list`, with the account it sits under."""
+
+    name: str  # `properties/123`
+    display_name: str
+    # PROPERTY_TYPE_ORDINARY, PROPERTY_TYPE_SUBPROPERTY or PROPERTY_TYPE_ROLLUP; a new one is
+    # passed on.
+    property_type: str
+    account: str  # `accounts/456`
+    account_name: str
+
+
 class GoogleClient:
     def __init__(
         self,
@@ -237,6 +282,37 @@ class GoogleClient:
         response = await self._send("GET", SITES_URL, headers=_bearer(access_token))
         _raise_for_api(response)
         return [Site(e.siteUrl, e.permissionLevel) for e in _parse(_SitesBody, response).siteEntry]
+
+    async def list_analytics_properties(self, access_token: str) -> list[AnalyticsProperty]:
+        """Every GA4 property the account can see, by account (Analytics Admin API v1beta,
+        `accountSummaries.list`). Follows `nextPageToken`, at most `ACCOUNT_SUMMARY_PAGES`
+        pages."""
+        found: list[AnalyticsProperty] = []
+        token = ""
+        for _ in range(ACCOUNT_SUMMARY_PAGES):
+            params = {"pageSize": str(ACCOUNT_SUMMARY_PAGE_SIZE)}
+            if token:
+                params["pageToken"] = token
+            response = await self._send(
+                "GET", ACCOUNT_SUMMARIES_URL, headers=_bearer(access_token), params=params
+            )
+            _raise_for_api(response)
+            body = _parse(_AccountSummariesBody, response)
+            found.extend(
+                AnalyticsProperty(
+                    name=prop.name,
+                    display_name=prop.displayName,
+                    property_type=prop.propertyType,
+                    account=summary.account,
+                    account_name=summary.displayName,
+                )
+                for summary in body.accountSummaries
+                for prop in summary.propertySummaries
+            )
+            token = body.nextPageToken
+            if not token:
+                return found
+        raise GoogleResponseError("accountSummaries has more pages than this client follows")
 
     async def search_analytics(
         self,

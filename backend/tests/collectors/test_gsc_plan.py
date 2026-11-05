@@ -128,6 +128,39 @@ async def test_a_disabled_property_gets_no_schedule(
     assert await _schedules(migrated, prop) == []
 
 
+async def test_a_ga4_property_is_never_planned_and_does_not_get_a_schedule(
+    worker_db: Sessions, migrated: PostgresServer, fake: FakeSearchConsole
+) -> None:
+    """GA4 properties are only chosen and stored for now: there is no GA4 pull to plan."""
+    ga4 = await make_property(migrated, fake)
+    await execute(
+        migrated,
+        "UPDATE fp.integrations SET kind = 'ga4', external_property = 'properties/11' "
+        "WHERE id = $1",
+        ga4.integration_id,
+    )
+    gsc = await make_property(migrated, fake)
+    # The same project can hold both kinds on one connection: it is planned for Search Console
+    # only, once.
+    await execute(
+        migrated,
+        "INSERT INTO fp.integrations (workspace_id, project_id, kind, external_property, "
+        "connection_id, scopes) VALUES ($1, $2, 'ga4', 'properties/12', $3, '{openid}')",
+        gsc.workspace_id,
+        gsc.project_id,
+        gsc.connection_id,
+    )
+    sent = Sent()
+
+    report = await plan_syncs(worker_db, sent, now=datetime.now(UTC))
+
+    assert sent.integrations == {gsc.integration_id}
+    assert ga4.integration_id not in sent.integrations
+    assert await _schedules(migrated, ga4) == []
+    assert len(await _schedules(migrated, gsc)) == 1
+    assert report.schedules_made == 1
+
+
 async def test_a_property_whose_pull_is_not_finished_is_sent_at_once(
     worker_db: Sessions, migrated: PostgresServer, fake: FakeSearchConsole
 ) -> None:

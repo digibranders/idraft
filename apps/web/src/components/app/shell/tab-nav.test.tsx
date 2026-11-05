@@ -7,7 +7,7 @@ import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
 const items: readonly TabNavItem[] = [
-  { href: '/acme/site/integrations/gsc' as Route, label: 'Search Console', current: true },
+  { href: '/acme/site/integrations/google' as Route, label: 'Google', current: true },
   { href: '/acme/site/integrations/bing' as Route, label: 'Bing', current: false, unavailable: 'Not available yet' },
 ];
 
@@ -16,8 +16,8 @@ describe('TabNav', () => {
     renderWithProviders(<TabNav label="Data sources" items={items} />);
     const nav = screen.getByRole('navigation', { name: 'Data sources' });
     expect(nav).toBeInTheDocument();
-    const current = screen.getByRole('link', { name: 'Search Console' });
-    expect(current).toHaveAttribute('href', '/acme/site/integrations/gsc');
+    const current = screen.getByRole('link', { name: 'Google' });
+    expect(current).toHaveAttribute('href', '/acme/site/integrations/google');
     expect(current).toHaveAttribute('aria-current', 'page');
   });
 

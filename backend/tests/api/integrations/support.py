@@ -145,7 +145,7 @@ def workspace_url(workspace: Workspace, *parts: object) -> str:
 
 async def start(h: Harness, world: World, caller: Caller) -> httpx.Response:
     return await h.api.post(
-        project_url(world, "integrations", "gsc", "authorize"), headers=caller.headers
+        project_url(world, "integrations", "google", "authorize"), headers=caller.headers
     )
 
 
@@ -166,7 +166,7 @@ def location(response: httpx.Response) -> tuple[str, dict[str, str]]:
 
 
 def integrations_page(world: World) -> str:
-    return f"{BASE_URL}/{world.workspace_slug}/{world.project_slug}/integrations/gsc"
+    return f"{BASE_URL}/{world.workspace_slug}/{world.project_slug}/integrations/google"
 
 
 async def connect(

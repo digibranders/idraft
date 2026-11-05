@@ -111,10 +111,11 @@ export type HistorySeries = Schemas['HistorySeries'];
 export type HistoryPoint = Schemas['HistoryPoint'];
 export type HistoryBand = Schemas['HistoryBand'];
 
-// Integrations: Google Search Console connections and the properties linked to projects
+// Integrations: Google connections (Search Console and GA4) and the properties linked to projects
 export type Connection = Schemas['Connection'];
 export type ConnectionStatus = Connection['status'];
 export type SiteProperty = Schemas['SiteProperty'];
+export type AnalyticsProperty = Schemas['AnalyticsProperty'];
 export type Integration = Schemas['Integration'];
 export type OverlapWarning = Schemas['OverlapWarning'];
 
