@@ -844,6 +844,8 @@ export function RankingsScreen({
     ),
     emptyState,
     filteredEmptyState: filteredEmpty,
+    // By group leaves out six columns; their room widens the others rather than only the Keyword column
+    identityCap: byGroup,
     toolbarEnd: (
       <ViewSwitch
         view={shownView ?? 'flat'}

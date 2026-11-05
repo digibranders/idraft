@@ -161,6 +161,7 @@ export function DataTable<TRow extends RowData>({
   rowTree,
   onToggleGroup,
   toolbarEnd,
+  identityCap = false,
   bulkActions,
   rowActions,
   rowName,
@@ -286,7 +287,7 @@ export function DataTable<TRow extends RowData>({
       flex: identity,
     };
   });
-  const widths = resolveWidths(sized, regionSize.width);
+  const widths = resolveWidths(sized, regionSize.width, { capIdentity: identityCap });
   const identityIndex = grid.findIndex((column) => column.kind === 'data' && column.column.identity === true);
   const identityColumn = grid.find((column) => column.kind === 'data' && column.column.identity === true);
   const identityId = identityColumn?.kind === 'data' ? identityColumn.column.id : null;
