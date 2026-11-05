@@ -651,8 +651,8 @@ test.describe('rankings', () => {
     const more = bar.getByRole('button', { name: 'More actions' });
     if ((await more.count()) > 0) {
       await more.click();
-      const items = await page.getByRole('menuitem').allTextContents();
-      expect(items.at(-1)).toBe('Delete');
+      // Waits for the menu to open, which reading the items at once would not
+      await expect(page.getByRole('menuitem').last()).toHaveText('Delete');
       await page.keyboard.press('Escape');
     }
     await expectAccessible(page);
