@@ -636,6 +636,59 @@ def _problem(response: httpx.Response) -> tuple[int, str]:
     return response.status_code, response.json()["code"]
 
 
+def _json_parts(node: object) -> list[object]:
+    """Every key and scalar value of a JSON document."""
+    if isinstance(node, dict):
+        return [part for key, item in node.items() for part in (key, *_json_parts(item))]
+    if isinstance(node, list):
+        return [part for item in node for part in _json_parts(item)]
+    return [node]
+
+
+def _shows(body: object, text: str, secret: str) -> bool:
+    """Whether a response shows `secret`. Ids, slugs and addresses are found anywhere in the text. A
+    numeric id only as a whole number: a JSON number equal to it, or in a string or key a run of
+    digits not part of a longer number, word or decimal (`kw-232`, `id:232` and `/k/232` count;
+    `9232`, `0.232` and `22:32.232Z` do not). As a substring, `232` is inside the other tenant's own
+    UUIDs, times and decimals, and the ids stay that short on a fresh test database."""
+    if not secret.isdigit():
+        return secret in text
+    whole = re.compile(rf"(?<![0-9A-Za-z.]){secret}(?![0-9A-Za-z]|\.\d)")
+    for part in _json_parts(body):
+        if isinstance(part, bool):
+            continue
+        if isinstance(part, int) and str(part) == secret:
+            return True
+        if isinstance(part, str) and whole.search(part):
+            return True
+    return False
+
+
+def test_a_numeric_id_counts_as_shown_only_as_a_whole_value() -> None:
+    hidden_inside = {
+        "id": "5f0c2322-7a1b-4c22-9232-0d1e2f3a4b5c",
+        "at": "2026-11-05T10:22:32.232Z",
+        "cost": "0.232000",
+        "count": 2320,
+    }
+    assert not _shows(hidden_inside, str(hidden_inside), "232")
+    for shown in (
+        {"keyword_id": 232},
+        {"ref": "232"},
+        {"232": True},
+        {"url": "/k/232/x"},
+        {"url": "/k?id=232&x=1"},
+        {"detail": "keyword 232 deleted"},
+        {"ref": "kw-232"},
+        {"ref": "id:232"},
+        {"ref": "snap_232"},
+        {"ref": "(232)"},
+    ):
+        assert _shows(shown, str(shown), "232"), shown
+    assert not _shows({"ok": True}, '{"ok": true}', "1")  # a boolean is not the number 1
+    assert _shows({}, "acme-crm@client.example", "acme-crm")
+
+
 def _without_request_details(response: httpx.Response) -> dict[str, Any]:
     body: dict[str, Any] = response.json()
     return {key: value for key, value in body.items() if key not in ("instance", "request_id")}
@@ -803,8 +856,11 @@ async def test_a_list_holds_nothing_of_another_workspace(
     )
 
     assert response.status_code == 200, response.text
+    body = response.json()
     for secret in b.secrets():
-        assert secret not in response.text, f"{path} shows {secret} of another workspace"
+        assert not _shows(body, response.text, secret), (
+            f"{path} shows {secret} of another workspace"
+        )
     # The list is not empty for a trivial reason: it shows A's own data.
     if path not in PLATFORM_LISTS | COUNT_ROUTES:
         assert any(own in response.text for own in [*a.ids().values(), str(a.owner.id)])

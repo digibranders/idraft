@@ -197,7 +197,8 @@ async def test_five_thousand_keywords_from_a_csv_get_their_metrics_and_a_cost(
                 )
                 return bool(row["n"] == KEYWORDS)
 
-            await eventually(with_metrics, within=170, every=1)
+            # docs/29 section 3: metrics within 5 minutes; the suite's workers share the CPUs.
+            await eventually(with_metrics, within=290, every=1)
             # A few more passes of everything: nothing is asked again.
             await asyncio.sleep(3)
         finally:
