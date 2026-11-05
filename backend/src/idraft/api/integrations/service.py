@@ -1,9 +1,14 @@
-"""Connecting Search Console to a project (docs/18 sections 3.2 and 4.1, doc 24 section 6).
+"""Connecting Google (Search Console and GA4) to a project (docs/18 sections 3.2 and 4.1, doc 24
+section 6).
 
-The flow: `authorize` stores a single-use state and the PKCE verifier and answers Google's
-consent address; Google sends the person to the callback, which consumes the state, trades the
-code for tokens, stores the refresh token encrypted and creates or renews the connection;
-`properties` lists what the account can read; `choose` links one property to the project.
+One Google login is one connection and one consent: the authorization address asks for both
+read-only product scopes, and the person may untick one (granular consent), so what a connection
+can reach is read from its granted scopes. The flow: `authorize` stores a single-use state and
+the PKCE verifier and answers Google's consent address; Google sends the person to the callback,
+which consumes the state, trades the code for tokens, stores the refresh token encrypted and
+creates or renews the connection; `search_console_properties` and `analytics_properties` list
+what the account can read for each product; `choose` links one property of a kind to the project.
+Disconnect, re-auth and revocation act on the connection and every property it carries.
 
 No database transaction is held across a call to Google. Plaintext tokens live in local
 variables only: never logged, never cached, never in an audit entry or an exception. The API
@@ -45,34 +50,46 @@ from idraft.api.problems import (
     DuplicateError,
     IntegrationNotConfiguredError,
     IntegrationReauthRequiredError,
+    IntegrationScopeMissingError,
     NotFoundError,
     PropertyNotAccessibleError,
     ServiceUnavailableError,
 )
 from idraft.api.request_info import RequestInfo
-from idraft.api.schemas.integrations import OAuthStart, OverlapWarning, SiteProperty
+from idraft.api.schemas.integrations import (
+    AnalyticsProperty,
+    IntegrationKind,
+    OAuthStart,
+    OverlapWarning,
+    SiteProperty,
+)
 from idraft.api.workspaces import repository as workspaces
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
 from idraft.providers.google.client import (
-    SEARCH_CONSOLE_SCOPE,
+    KIND_SCOPES,
     GoogleClient,
     Site,
     TokenGrant,
     authorization_url,
     new_pkce,
 )
+from idraft.providers.google.client import (
+    AnalyticsProperty as GoogleAnalyticsProperty,
+)
 from idraft.providers.google.errors import (
     GoogleClientRejectedError,
     GoogleError,
     GoogleInvalidGrantError,
+    GooglePermissionError,
     GoogleQuotaError,
     GoogleUnavailableError,
 )
 from idraft.vault import store as vault
 from idraft.vault.envelope import EnvelopeCipher, SecretUnreadableError
 
-PRODUCT = "gsc"
+PRODUCT = "google"
+_PROPERTY_TYPES = {"ordinary", "subproperty", "rollup"}
 _log = structlog.get_logger(__name__)
 
 
@@ -124,9 +141,10 @@ class IntegrationService:
         )
 
     async def _access_token(
-        self, access: WorkspaceAccess, connection_id: UUID
+        self, access: WorkspaceAccess, connection_id: UUID, kind: IntegrationKind
     ) -> tuple[ConnectionRecord, str]:
-        """The connection and a fresh access token, held in memory for this request only."""
+        """The connection and a fresh access token, held in memory for this request only. A
+        product whose permission was not granted is refused here, before Google is asked."""
         _, cipher = self._configured()
         async with self._transaction(access.workspace_id, access.user_id) as db:
             record = await repository.get_connection(db, access.workspace_id, connection_id)
@@ -134,6 +152,8 @@ class IntegrationService:
                 raise NotFoundError
             if record.status != "active" or record.credential_ref is None:
                 raise IntegrationReauthRequiredError("Connect the Google account again.")
+            if KIND_SCOPES[kind] not in record.scopes:
+                raise IntegrationScopeMissingError(_scope_missing_detail(kind))
             try:
                 refresh_token = await vault.read(
                     db,
@@ -176,6 +196,12 @@ class IntegrationService:
     async def _sites(self, access_token: str) -> list[Site]:
         try:
             return await self._google().list_sites(access_token)
+        except GoogleError as error:
+            raise _unavailable(error) from None
+
+    async def _analytics_properties(self, access_token: str) -> list[GoogleAnalyticsProperty]:
+        try:
+            return await self._google().list_analytics_properties(access_token)
         except GoogleError as error:
             raise _unavailable(error) from None
 
@@ -251,7 +277,8 @@ class IntegrationService:
             return self._failure("integration_not_configured", base=base)
         except GoogleError:
             return self._failure("google_unavailable", base=base)
-        if SEARCH_CONSOLE_SCOPE not in grant.scopes:
+        # Google lets the person untick a permission: one product is enough, none is not.
+        if not any(scope in grant.scopes for scope in KIND_SCOPES.values()):
             await _abandon(google, grant)
             return self._failure("scope_denied", base=base)
         if grant.refresh_token is None:
@@ -286,7 +313,7 @@ class IntegrationService:
             return None
         if context.workspace_status != "active":
             return None
-        return f"{self._origin}/{context.workspace_slug}/{context.project_slug}/integrations/gsc"
+        return f"{self._origin}/{context.workspace_slug}/{context.project_slug}/integrations/google"
 
     async def _store_connection(
         self,
@@ -330,6 +357,7 @@ class IntegrationService:
                     subject_label=email,
                     credential_ref=secret_id,
                     scopes=grant.scopes,
+                    granted_kinds=[k for k, scope in KIND_SCOPES.items() if scope in grant.scopes],
                     connected_by=pending.user_id,
                 )
                 if existing.credential_ref is not None:
@@ -376,12 +404,14 @@ class IntegrationService:
                 db, access.workspace_id, project_id, offset=offset, limit=limit
             )
 
-    async def properties(self, access: WorkspaceAccess, connection_id: UUID) -> list[SiteProperty]:
-        _, access_token = await self._access_token(access, connection_id)
+    async def search_console_properties(
+        self, access: WorkspaceAccess, connection_id: UUID
+    ) -> list[SiteProperty]:
+        _, access_token = await self._access_token(access, connection_id, "gsc")
         sites = await self._sites(access_token)
         async with self._transaction(access.workspace_id, access.user_id) as db:
             candidates = await repository.projects_with_domains(db, access.workspace_id)
-            linked = await repository.linked_properties(db, access.workspace_id, PRODUCT)
+            linked = await repository.linked_properties(db, access.workspace_id, "gsc")
         found = [parse_property(site.site_url, site.permission_level) for site in sites]
         suggested = suggestions(
             [
@@ -392,6 +422,22 @@ class IntegrationService:
         )
         return [_view(prop, suggested, linked) for prop in sorted(found, key=_listing_order)]
 
+    async def analytics_properties(
+        self, access: WorkspaceAccess, connection_id: UUID
+    ) -> list[AnalyticsProperty]:
+        """The GA4 properties the account can see, by account then name. No domain matching and
+        no suggestion: a property's site is a web stream, which takes more calls (docs/18)."""
+        _, access_token = await self._access_token(access, connection_id, "ga4")
+        found = await self._analytics_properties(access_token)
+        async with self._transaction(access.workspace_id, access.user_id) as db:
+            linked = await repository.linked_properties(db, access.workspace_id, "ga4")
+        return [
+            _analytics_view(prop, linked)
+            for prop in sorted(
+                found, key=lambda p: (p.account_name.casefold(), p.display_name.casefold(), p.name)
+            )
+        ]
+
     # -- changes ------------------------------------------------------------------------------
 
     async def choose(
@@ -400,6 +446,7 @@ class IntegrationService:
         project_id: UUID,
         *,
         connection_id: UUID,
+        kind: IntegrationKind,
         external_property: str,
         info: RequestInfo,
     ) -> IntegrationRecord:
@@ -407,21 +454,30 @@ class IntegrationService:
         async with self._transaction(access.workspace_id, access.user_id) as db:
             if await repository.project_context(db, access.workspace_id, project_id) is None:
                 raise NotFoundError
-        record, access_token = await self._access_token(access, connection_id)
-        sites = {site.site_url: site for site in await self._sites(access_token)}
-        site = sites.get(external_property)
-        if site is None or site.permission_level == UNVERIFIED:
+        record, access_token = await self._access_token(access, connection_id, kind)
+        if kind == "gsc":
+            sites = {site.site_url: site for site in await self._sites(access_token)}
+            site = sites.get(external_property)
+            readable = site is not None and site.permission_level != UNVERIFIED
+        else:
+            readable = any(
+                prop.name == external_property
+                for prop in await self._analytics_properties(access_token)
+            )
+        if not readable:
             raise PropertyNotAccessibleError(
                 "This account cannot read that property. Pick one from the list."
             )
         try:
             async with self._transaction(access.workspace_id, access.user_id) as db:
-                integration_id = await self._link(db, access, project_id, record, site, info)
+                integration_id = await self._link(
+                    db, access, project_id, record, kind, external_property, info
+                )
                 created = await repository.get_integration(
                     db, access.workspace_id, project_id, integration_id
                 )
         except PropertyTakenError:
-            raise _property_taken() from None
+            raise _property_taken(kind) from None
         if created is None:  # pragma: no cover - the row was written in this transaction
             raise NotFoundError
         return created
@@ -432,22 +488,21 @@ class IntegrationService:
         access: WorkspaceAccess,
         project_id: UUID,
         connection: ConnectionRecord,
-        site: Site,
+        kind: IntegrationKind,
+        external_property: str,
         info: RequestInfo,
     ) -> UUID:
-        live = await repository.live_integration_status(
-            db, access.workspace_id, project_id, PRODUCT
-        )
-        existing = await repository.property_row(db, access.workspace_id, PRODUCT, site.site_url)
+        live = await repository.live_integration_status(db, access.workspace_id, project_id, kind)
+        existing = await repository.property_row(db, access.workspace_id, kind, external_property)
         if live is not None:
-            raise _property_taken("The project already has a Search Console property.")
+            raise _property_taken(kind, own_project=True)
         if existing is None:
             integration_id = await repository.insert_integration(
                 db,
                 workspace_id=access.workspace_id,
                 project_id=project_id,
-                kind=PRODUCT,
-                external_property=site.site_url,
+                kind=kind,
+                external_property=external_property,
                 external_account=connection.subject_label,
                 connection_id=connection.id,
                 scopes=connection.scopes,
@@ -455,7 +510,7 @@ class IntegrationService:
         else:
             integration_id, owner, status = existing
             if owner != project_id or status != "disabled":
-                raise _property_taken()
+                raise _property_taken(kind)
             await repository.reactivate_integration(
                 db,
                 workspace_id=access.workspace_id,
@@ -473,8 +528,8 @@ class IntegrationService:
             target_id=integration_id,
             info=info,
             after={
-                "kind": PRODUCT,
-                "external_property": site.site_url,
+                "kind": kind,
+                "external_property": external_property,
                 "project_id": str(project_id),
                 "connection_id": str(connection.id),
             },
@@ -568,10 +623,20 @@ class IntegrationService:
         return revoked
 
 
-def _property_taken(
-    detail: str = "This property is already linked to a project.",
-) -> DuplicateError:
-    return DuplicateError(detail)
+_PRODUCT_NAMES = {"gsc": "Search Console", "ga4": "GA4"}
+
+
+def _property_taken(kind: IntegrationKind, *, own_project: bool = False) -> DuplicateError:
+    if own_project:
+        return DuplicateError(f"The project already has a {_PRODUCT_NAMES[kind]} property.")
+    return DuplicateError("This property is already linked to a project.")
+
+
+def _scope_missing_detail(kind: IntegrationKind) -> str:
+    return (
+        f"{_PRODUCT_NAMES[kind]} access was not granted. Connect the Google account again "
+        "and tick it."
+    )
 
 
 def _unavailable(error: GoogleError) -> ServiceUnavailableError:
@@ -582,6 +647,11 @@ def _unavailable(error: GoogleError) -> ServiceUnavailableError:
     if isinstance(error, GoogleUnavailableError):
         return ServiceUnavailableError(
             "Google did not answer. Try again.", code="google_unavailable"
+        )
+    if isinstance(error, GooglePermissionError):
+        return ServiceUnavailableError(
+            "Google refused the request. The API may not be enabled for this installation.",
+            code="google_unavailable",
         )
     return ServiceUnavailableError(
         "Google gave an answer that could not be used. Try again.", code="google_unavailable"
@@ -595,6 +665,20 @@ async def _abandon(google: GoogleClient, grant: TokenGrant) -> None:
 
 def _listing_order(prop: Property) -> tuple[bool, str]:
     return (prop.property_type != "domain", prop.label)
+
+
+def _analytics_view(prop: GoogleAnalyticsProperty, linked: dict[str, UUID]) -> AnalyticsProperty:
+    kind = prop.property_type.removeprefix("PROPERTY_TYPE_").lower()
+    return AnalyticsProperty.model_validate(
+        {
+            "external_property": prop.name,
+            "label": prop.display_name or prop.name,
+            "account_id": prop.account,
+            "account_label": prop.account_name or prop.account,
+            "property_type": kind if kind in _PROPERTY_TYPES else "unspecified",
+            "linked_project_id": linked.get(prop.name),
+        }
+    )
 
 
 def _view(prop: Property, suggested: dict[str, UUID], linked: dict[str, UUID]) -> SiteProperty:

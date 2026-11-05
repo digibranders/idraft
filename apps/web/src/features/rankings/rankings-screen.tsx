@@ -348,13 +348,12 @@ export function RankingsScreen({
     pendingIds: pendingChecks,
     onDrop: dropChosen,
   });
-  // Check now goes right before Refresh metrics, both ahead of the first destructive action
+  // Check now goes ahead of the first destructive action
   const firstDestructive = bulk.actions.findIndex((action) => action.group === 'destructive');
   const insertAt = firstDestructive === -1 ? bulk.actions.length : firstDestructive;
   const nonDestructive = bulk.actions.slice(0, insertAt);
   const destructive = bulk.actions.slice(insertAt);
   const checkNowBar = checkNow.barAction === null ? [] : [checkNow.barAction];
-  const refreshBar = refresh.barAction === null ? [] : [refresh.barAction];
   // An action reaches the keyword on both devices, whichever row was chosen
   const expandAction = (action: RecordAction<TrackedKeywordRow>): RecordAction<PairedRow> => ({
     ...action,
@@ -364,7 +363,7 @@ export function RankingsScreen({
         allMatching: actionScope.allMatching,
       }),
   });
-  const bulkActions = [...nonDestructive, ...checkNowBar, ...refreshBar, ...destructive].map(expandAction);
+  const bulkActions = [...nonDestructive, ...checkNowBar, ...destructive].map(expandAction);
   const menuItems: MenuItemDef[] = [
     ...(refresh.menuItem === null ? [] : [refresh.menuItem]),
     ...(canWrite

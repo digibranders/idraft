@@ -274,7 +274,7 @@ Vertical budget at 1440 x 900 without tabs: top bar 52, header offset 20, title 
 
 **States:** Not connected (S1 shows what the source adds and a "Connect" primary; S2 lists requested access before OAuth; S3 to S5 absent), Connecting (top-level navigation to the OAuth start, returns to a property picker), Backfilling (`CollectionProgress` in the meta line with "Backfilling: 212 of 480 days"), Re-auth required, Revoked, Disconnected with or without data deletion.
 
-**URL state:** path per source (`/integrations/gsc`); `win` for sync history.
+**URL state:** path per source (`/integrations/google`); `win` for sync history.
 
 **Responsive:** S2 and S3 stack below 1280 px.
 
@@ -491,7 +491,7 @@ At 1280 px the inspector overlays (the main column would be 672 px, 1,072 minus 
 
 **Grouping.** "Group: none" menu in the toolbar: Keyword group, Topic, Ranking URL, Intent. One level. Group header rows show the group name, keyword count, summed volume and top 10 count; never averaged ranks unless the API supplies them with `n_ranked`.
 
-**Bulk actions.** Add tags, Move to group, Set target URL, Set priority, Check now (shows remaining manual quota), Create prompts, Export, then after a separator Archive (reversible, `TriageToast` undo; over 100 rows it first confirms with the count, [20-accessibility.md](20-accessibility.md) section 2, WCAG 3.3.4) and Delete (confirmation with exact count).
+**Bulk actions.** Add tags, Move to group, Set target URL, Check now (shows remaining manual quota), Create prompts, Export, then after a separator Delete (confirmation with exact count). The bar has no Set priority, Refresh metrics or Archive: priority is set per keyword in the inspector, Refresh metrics is in the More actions menu, and a keyword is archived from its own menu. In the Archived view the bar adds Unarchive before Delete (reversible, `TriageToast` undo; over 100 rows it first confirms with the count, [20-accessibility.md](20-accessibility.md) section 2, WCAG 3.3.4).
 
 **Density.** Compact is the default (owner decision of 2026-10-29). At desktop widths both densities keep one line per row, as the reference screens show: Compact (32 px rows, 14 visible at 1440 x 900) and Default (40 px rows, 11 visible), which a person can choose. Location and device are in the keyword tooltip and the previous rank in the rank tooltip. Below 1280 px, Default density adds a secondary line under the keyword ([19-responsive-behavior.md](19-responsive-behavior.md) section 6.6).
 
@@ -933,46 +933,50 @@ The Opportunities tab lists `OpportunityStatus` conditions (section 7.3 of [23-a
 
 ### 9.12 Integrations (T5)
 
-Route `/integrations/gsc`.
+Route `/integrations/google` (`/integrations` and `/integrations/gsc` redirect there, keeping the query string). One Google login is one connection with one consent for Search Console and GA4, so there is one page and one Connect button. The tabs are Google, Bing, Cloudflare and Imports; there is no GA4 tab, and Bing, Cloudflare and Imports are listed as not available yet.
 
 ```text
-| Google Search Console                                                   [Sync now] [...]             |
-| Connected · Last sync 38m ago · Property sc-domain:northwind.com                                     |
-| Search Console   Bing   GA4   Cloudflare   Imports                                                   |
-+------------------------------------------------------------------------------------------------------+
-| Connection                                                                                           |
-| Status  [Connected]   Account  analytics@northwind.com   Connected by  M. Keller   Since  Mar 4, 2026|
-+------------------------------------------------------------------------------------------------------+
-| Access                                           | Configuration                                     |
-| Read search performance for the property         | Property      [sc-domain:northwind.com v]         |
-| Read URL inspection results (not used in V1)     | Backfill      [16 months v]                       |
-| Cannot modify properties, sitemaps or settings   | Query matching [x]   Match GSC queries to         |
-| Scope strings in tooltip                         |               tracked keywords (exact)            |
-|                                                  | Save bar appears when changed                     |
-+--------------------------------------------------+---------------------------------------------------+
-| Last sync      |Coverage        |Rows imported   |Provisional days|Unmatched       |Next sync        |
-| 38m ago        |28 of 28 days   |1.24M           |2               |8,412           |Sep 30, 04:00    |
-| completed      |window          |this month      |final after 3d  |[Add to inbox]  |daily            |
-+----------------+----------------+----------------+----------------+----------------+-----------------+
-| Sync history                                                                         View all        |
-| Sep 29, 04:02  Completed  Sep 26 to Sep 28 · 41,220 rows · 2 provisional days                        |
-| Sep 28, 04:01  Completed  Sep 25 to Sep 27 · 40,980 rows                                             |
-| Sep 27, 04:03  Completed with errors  1 request failed (quota), retried Sep 27, 05:00                |
-+------------------------------------------------------------------------------------------------------+
-| Errors (last 30 days)                                                                                |
-| Sep 27, 04:03  Quota exceeded  "User rate limit exceeded" (escaped)  1  Retried automatically        |
+| Google                                                                              [Reconnect] [...] |
+| Connected as analytics@northwind.com. Search Console: sc-domain:northwind.com. GA4: no property chosen.  |
+| Google   Bing   Cloudflare   Imports                                                                    |
++---------------------------------------------------------------------------------------------------------+
+| [!] Reconnect needed: Google no longer accepts the saved sign-in ...   (only when re-auth is required)   |
++---------------------------------------------------------------------------------------------------------+
+| Connection                                                                                              |
+| Status  [Connected]   Account  analytics@northwind.com   Connected by  M. Keller   Since  Mar 4, 2026   |
++---------------------------------------------------------------------------------------------------------+
+| Access                                                                                                  |
+| Read search performance for Search Console properties                                                   |
+| Read reports and the property list of Google Analytics   [Not granted]   (when the person unticked it)  |
+| Identify the Google account that connected                                                              |
+| Cannot modify properties, sitemaps or settings                                                          |
++---------------------------------------------------------------------------------------------------------+
+| Search Console property                                                                                 |
+| Property  sc-domain:northwind.com  [Domain]  Change                                                     |
++---------------------------------------------------------------------------------------------------------+
+| GA4 property                                                                                            |
+| Importing GA4 numbers is not available yet. Choosing a property saves it for when it is.                |
+| Choose a GA4 property                                                          [Reload list]            |
+| Property                                  Account                                                       |
+| Northwind website  properties/398844007   Northwind Ltd                                       [Choose]  |
++---------------------------------------------------------------------------------------------------------+
+| Last sync      |Coverage        |Rows imported   |Next sync        |   (Search Console only)            |
+| Sync history                                                                                            |
 ```
 
 | Region | Component | Notes |
 |---|---|---|
-| Header | `PageHeader` with `TabNav` per source | No primary while connected and healthy; "Reconnect" becomes primary when re-auth is required; "Disconnect" is in More, below a separator |
-| Connection | `ConnectionStatus` | Re-auth required: warning `Banner` "Sync paused since Sep 21: reconnect to resume" above this row |
-| Access | `ScopeList` | Plain-language scopes; raw strings in tooltips |
-| Configuration | Form fields with `SaveBar`; "Query matching" is a checkbox | Backfill change shows the time estimate |
-| Sync status | `MetricStrip` `md` | Coverage never implies completeness beyond the window |
-| History and errors | `EventTimeline` and `DataTable` | Error messages escaped |
+| Header | `PageHeader` with `TabNav` per source | No primary while connected and healthy; "Reconnect" becomes primary when re-auth is required; "Disconnect Google" is in More, below a separator, and its question names Search Console and GA4 |
+| Re-auth | warning `Banner` above the Connection region | One banner for the whole connection: re-auth stops both products. The properties are kept and cannot be changed until it works again |
+| Connection | `ConnectionStatus` | Status, account, who connected it, since when. No property here: each product has its own section |
+| Access | `ScopeList` | Plain-language scopes, raw strings in tooltips. A product permission the person unticked on Google's consent page stays listed with a "Not granted" badge |
+| Search Console property | `section` with the chosen property and "Change", or the picker | The picker keeps its behaviours: Domain suggested first with the primary button, unverified entries disabled, an overlap warning, a property linked to another project disabled |
+| GA4 property | `section` with the same states | The picker lists properties with their Analytics account and type, suggests nothing (no domain matching) and disables a property another project uses. The section says importing GA4 numbers is not available yet |
+| Not granted | the section's body | "Search Console access was not granted" or "Google Analytics access was not granted", with "Reconnect" for those who manage connections. A property kept from before is named, and not read |
+| Sync status | `MetricStrip` `md` | Search Console only; coverage never implies completeness beyond the window |
+| History and errors | `EventTimeline` and `DataTable` | Search Console only; error messages escaped |
 
-Nothing on this page combines first-party data with synthetic observations; data views live under their own routes ([20-frontend-specification.md](../20-frontend-specification.md) section 5.15).
+Each product section has its own state (not chosen, picker, chosen with Change, access not granted, nothing to choose from while re-auth is required or for a reader), so a connection can have Search Console and not GA4. Nothing on this page combines first-party data with synthetic observations; data views live under their own routes ([20-frontend-specification.md](../20-frontend-specification.md) section 5.15).
 
 ### 9.13 Settings (T4)
 

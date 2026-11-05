@@ -35,7 +35,7 @@ async def _properties(
     h: Harness, world: World, connection_id: str, caller: Caller | None = None
 ) -> httpx.Response:
     return await h.api.get(
-        workspace_url(world.workspace, "connections", connection_id, "properties"),
+        workspace_url(world.workspace, "connections", connection_id, "properties", "gsc"),
         headers=(caller or world.owner).headers,
     )
 
@@ -255,13 +255,13 @@ async def test_connections_are_listed_with_who_connected_and_how_many_properties
 
     response = await google.api.get(
         workspace_url(world.workspace, "connections"),
-        params={"filter[product]": "gsc", "filter[status]": "active"},
+        params={"filter[product]": "google", "filter[status]": "active"},
         headers=world.owner.headers,
     )
 
     (row,) = response.json()["data"]
     assert row["connection_id"] == connection
-    assert (row["product"], row["auth_method"], row["status"]) == ("gsc", "oauth", "active")
+    assert (row["product"], row["auth_method"], row["status"]) == ("google", "oauth", "active")
     assert row["subject_label"] == "a@example.com"
     assert row["connected_by"]["user_id"] == str(world.admin.user_id)
     assert row["integration_count"] == 1
@@ -284,12 +284,12 @@ async def test_a_manager_limited_to_some_projects_does_not_manage_workspace_cred
     token, _ = await open_session(google.resources, user, fresh=True)
 
     response = await google.api.get(
-        workspace_url(world.workspace, "connections", connection, "properties"),
+        workspace_url(world.workspace, "connections", connection, "properties", "gsc"),
         headers=cookie(token),
     )
 
     start_here = await google.api.post(
-        project_url(world, "integrations", "gsc", "authorize"), headers=cookie(token)
+        project_url(world, "integrations", "google", "authorize"), headers=cookie(token)
     )
     link = await google.api.post(
         project_url(world, "integrations"),

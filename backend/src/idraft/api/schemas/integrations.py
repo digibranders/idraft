@@ -1,26 +1,30 @@
 """Bodies of the first-party integration routes (docs/19-api-specification.md section 3.10).
 
-What connecting Search Console needs: the authorization address, connections, the properties a
-connection can see, and the properties linked to a project with the progress of their pull
-(`IntegrationSync`). There is no route to start a sync by hand.
+What connecting Google needs: the authorization address, connections (one Google login carries
+Search Console and GA4), the properties of each product a connection can see, and the properties
+linked to a project with the progress of the Search Console pull (`IntegrationSync`). There is
+no route to start a sync by hand.
 """
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from idraft.api.pagination import OffsetPageInfo
 from idraft.api.schemas.common import Body, UserRef
 
-IntegrationKind = Literal["gsc"]
+IntegrationKind = Literal["gsc", "ga4"]
 ConnectionStatus = Literal["active", "reauth_required", "revoked", "error"]
 IntegrationStatus = Literal["active", "reauth_required", "disabled", "error"]
 # A Search Console property: `sc-domain:example.com` or a URL prefix such as `https://example.com/`.
 PropertyText = Annotated[str, StringConstraints(min_length=1, max_length=2048)]
+# A GA4 property: `properties/` and its number.
+GA4_PROPERTY = re.compile(r"properties/[0-9]{1,20}")
 
 
 class OAuthStart(BaseModel):
@@ -32,12 +36,21 @@ class AuthorizationResponse(BaseModel):
     data: OAuthStart
 
 
+class ConnectionAccess(BaseModel):
+    """Which products the person let us read when they connected. Google lets them untick a
+    permission, so a connection can have one product and not the other."""
+
+    gsc: bool = Field(description="Search Console (`webmasters.readonly`) was granted.")
+    ga4: bool = Field(description="Google Analytics (`analytics.readonly`) was granted.")
+
+
 class Connection(BaseModel):
     connection_id: UUID
-    product: Literal["gsc", "ga4", "bing_wmt", "cloudflare"]
+    product: Literal["google", "bing_wmt", "cloudflare"]
     auth_method: Literal["oauth", "api_key", "api_token", "service_account"]
     subject_label: str | None = Field(description="The connected account, for display.")
     scopes: list[str]
+    access: ConnectionAccess = Field(description="Per product, from the granted scopes.")
     status: ConnectionStatus
     connected_by: UserRef | None
     connected_at: datetime
@@ -87,10 +100,31 @@ class SitePropertyList(BaseModel):
     data: list[SiteProperty]
 
 
+class AnalyticsProperty(BaseModel):
+    external_property: str = Field(description="`properties/123456`.")
+    label: str = Field(description="The property's name in Google Analytics.")
+    account_id: str = Field(description="`accounts/123`.")
+    account_label: str = Field(description="The Analytics account's name.")
+    property_type: Literal["ordinary", "subproperty", "rollup", "unspecified"]
+    linked_project_id: UUID | None = Field(
+        description="The project this property is already linked to. It cannot be linked twice."
+    )
+
+
+class AnalyticsPropertyList(BaseModel):
+    data: list[AnalyticsProperty]
+
+
 class IntegrationCreate(Body):
     connection_id: UUID
     kind: IntegrationKind
     external_property: PropertyText
+
+    @model_validator(mode="after")
+    def _ga4_property_format(self) -> Self:
+        if self.kind == "ga4" and GA4_PROPERTY.fullmatch(self.external_property) is None:
+            raise ValueError("a GA4 property is written `properties/` and its number")
+        return self
 
 
 class IntegrationSync(BaseModel):

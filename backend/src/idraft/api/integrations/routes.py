@@ -1,4 +1,5 @@
-"""First-party integration routes (docs/19-api-specification.md section 3.10), Search Console.
+"""First-party integration routes (docs/19-api-specification.md section 3.10), Google (Search
+Console and GA4 share one connection).
 
 Starting a connection answers JSON with Google's address, not a 302: the web app calls it with
 `fetch` and then navigates, and a redirect to another origin would be refused there. The return
@@ -22,8 +23,10 @@ from idraft.api.request_info import Info
 from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.common import UserRef
 from idraft.api.schemas.integrations import (
+    AnalyticsPropertyList,
     AuthorizationResponse,
     Connection,
+    ConnectionAccess,
     ConnectionPage,
     ConnectionResponse,
     ConnectionStatus,
@@ -37,6 +40,7 @@ from idraft.api.schemas.integrations import (
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 from idraft.domain.gsc_pull import PullState
+from idraft.providers.google.client import KIND_SCOPES
 
 TAG = "integrations"
 project_router = APIRouter(
@@ -87,6 +91,9 @@ def _connection(record: ConnectionRecord) -> Connection:
             "auth_method": record.auth_method,
             "subject_label": record.subject_label,
             "scopes": record.scopes,
+            "access": ConnectionAccess(
+                gsc=KIND_SCOPES["gsc"] in record.scopes, ga4=KIND_SCOPES["ga4"] in record.scopes
+            ),
             "status": record.status,
             "connected_by": connected_by,
             "connected_at": record.connected_at,
@@ -136,18 +143,19 @@ def _integration(record: IntegrationRecord) -> Integration:
 
 
 @project_router.post(
-    "/{kind}/authorize",
+    "/google/authorize",
     summary="Start connecting a Google account",
     description=(
-        "Answers Google's consent address; the web app sends the person there. The address "
-        "carries a single-use state and a PKCE challenge, both valid for 10 minutes and bound to "
-        "the caller, the workspace and the project. Google returns the person to "
+        "Answers Google's consent address; the web app sends the person there. One consent asks "
+        "for Search Console and Google Analytics together, and the person may untick one. The "
+        "address carries a single-use state and a PKCE challenge, both valid for 10 minutes and "
+        "bound to the caller, the workspace and the project. Google returns the person to "
         "`GET /api/v1/oauth/google/callback`. `integration_not_configured` (503) when this "
         "installation has no Google OAuth client."
     ),
 )
 async def authorize(
-    kind: Literal["gsc"], project_id: UUID, access: ManageFresh, integrations: Integrations
+    project_id: UUID, access: ManageFresh, integrations: Integrations
 ) -> AuthorizationResponse:
     return AuthorizationResponse(data=await integrations.authorize(access, project_id))
 
@@ -168,11 +176,14 @@ async def list_project_integrations(
 @project_router.post(
     "",
     status_code=201,
-    summary="Link a Search Console property to the project",
+    summary="Link a Search Console or GA4 property to the project",
     description=(
-        "The connection must be active and its account must be able to read the property "
-        "(`property_not_accessible`, 422). A project has one live property and a property "
-        "belongs to one project of the workspace (`duplicate`, 409). Nothing is pulled yet."
+        "`kind` is `gsc` (a Search Console property) or `ga4` (`properties/<number>`). The "
+        "connection must be active, must have been granted that product "
+        "(`integration_scope_missing`, 409) and its account must be able to read the property "
+        "(`property_not_accessible`, 422). A project has one live property per kind and a "
+        "property belongs to one project of the workspace (`duplicate`, 409). Nothing is pulled "
+        "yet for GA4."
     ),
 )
 async def choose_property(
@@ -186,6 +197,7 @@ async def choose_property(
         access,
         project_id,
         connection_id=body.connection_id,
+        kind=body.kind,
         external_property=body.external_property,
         info=info,
     )
@@ -214,7 +226,7 @@ async def list_connections(
     page: Offset,
     integrations: Integrations,
     product: Annotated[
-        Literal["gsc", "ga4", "bing_wmt", "cloudflare"] | None, Query(alias="filter[product]")
+        Literal["google", "bing_wmt", "cloudflare"] | None, Query(alias="filter[product]")
     ] = None,
     status: Annotated[ConnectionStatus | None, Query(alias="filter[status]")] = None,
 ) -> ConnectionPage:
@@ -228,19 +240,40 @@ async def list_connections(
 
 
 @connection_router.get(
-    "/{connection_id}/properties",
+    "/{connection_id}/properties/gsc",
     summary="The Search Console properties of a connection",
     description=(
         "Asks Google, so it can answer `google_unavailable` or `google_rate_limited` (503). "
         "`suggested_project_id` names the project whose primary domain the property matches, "
         "a Domain property before a URL prefix. `integration_reauth_required` (409) when the "
-        "account must connect again."
+        "account must connect again; `integration_scope_missing` (409) when Search Console "
+        "access was not granted, without asking Google."
     ),
 )
-async def list_properties(
+async def list_search_console_properties(
     connection_id: UUID, access: Manage, integrations: Integrations
 ) -> SitePropertyList:
-    return SitePropertyList(data=await integrations.properties(access, connection_id))
+    return SitePropertyList(
+        data=await integrations.search_console_properties(access, connection_id)
+    )
+
+
+@connection_router.get(
+    "/{connection_id}/properties/ga4",
+    summary="The GA4 properties of a connection",
+    description=(
+        "Asks the Google Analytics Admin API (`accountSummaries.list`), by account and name. "
+        "No domain is matched and none is suggested. The same problem codes as the Search "
+        "Console list: `integration_reauth_required` and `integration_scope_missing` (409), "
+        "`google_unavailable` and `google_rate_limited` (503)."
+    ),
+)
+async def list_analytics_properties(
+    connection_id: UUID, access: Manage, integrations: Integrations
+) -> AnalyticsPropertyList:
+    return AnalyticsPropertyList(
+        data=await integrations.analytics_properties(access, connection_id)
+    )
 
 
 @connection_router.delete(
@@ -248,8 +281,8 @@ async def list_properties(
     summary="Disconnect a Google account",
     description=(
         "Revokes the token at Google (best effort), deletes the stored credential, marks the "
-        "connection revoked and switches off its properties. The numbers already stored are "
-        "kept. Disconnecting a revoked connection changes nothing."
+        "connection revoked and switches off its properties, Search Console and GA4. The "
+        "numbers already stored are kept. Disconnecting a revoked connection changes nothing."
     ),
 )
 async def disconnect(
@@ -265,7 +298,8 @@ async def disconnect(
     summary="Where Google returns the person after consent",
     description=(
         "Public, but the single-use `state` must belong to the caller's session. Always a 302 to "
-        "the project's integrations page: `.../integrations/gsc?connection_id=...` on success, "
+        "the project's Google page: `.../integrations/google?connection_id=...` on success "
+        "(when at least one product permission was granted), "
         "`...?error=<code>` otherwise, with `invalid_state`, `scope_denied`, `no_refresh_token`, "
         "`exchange_failed`, `google_unavailable` or `integration_not_configured`. When the "
         "project cannot be known (a wrong or reused state) it goes to the app's front page with "

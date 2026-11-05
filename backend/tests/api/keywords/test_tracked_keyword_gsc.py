@@ -61,7 +61,7 @@ async def _property(
     connection = await fetch(
         pg,
         "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
-        "credential_ref, scopes, status) VALUES ($1, 'gsc', 'oauth', $2, $3, '{}', $4) "
+        "credential_ref, scopes, status) VALUES ($1, 'google', 'oauth', $2, $3, '{}', $4) "
         "RETURNING id",
         workspace.id,
         uuid.uuid4().hex,

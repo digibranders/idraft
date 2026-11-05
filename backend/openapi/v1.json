@@ -709,6 +709,79 @@
         "title": "AliasUpdate",
         "type": "object"
       },
+      "AnalyticsProperty": {
+        "properties": {
+          "account_id": {
+            "description": "`accounts/123`.",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "account_label": {
+            "description": "The Analytics account's name.",
+            "title": "Account Label",
+            "type": "string"
+          },
+          "external_property": {
+            "description": "`properties/123456`.",
+            "title": "External Property",
+            "type": "string"
+          },
+          "label": {
+            "description": "The property's name in Google Analytics.",
+            "title": "Label",
+            "type": "string"
+          },
+          "linked_project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The project this property is already linked to. It cannot be linked twice.",
+            "title": "Linked Project Id"
+          },
+          "property_type": {
+            "enum": [
+              "ordinary",
+              "subproperty",
+              "rollup",
+              "unspecified"
+            ],
+            "title": "Property Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "external_property",
+          "label",
+          "account_id",
+          "account_label",
+          "property_type",
+          "linked_project_id"
+        ],
+        "title": "AnalyticsProperty",
+        "type": "object"
+      },
+      "AnalyticsPropertyList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsProperty"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AnalyticsPropertyList",
+        "type": "object"
+      },
       "AuthorizationResponse": {
         "properties": {
           "data": {
@@ -1317,6 +1390,10 @@
       },
       "Connection": {
         "properties": {
+          "access": {
+            "$ref": "#/components/schemas/ConnectionAccess",
+            "description": "Per product, from the granted scopes."
+          },
           "auth_method": {
             "enum": [
               "oauth",
@@ -1377,8 +1454,7 @@
           },
           "product": {
             "enum": [
-              "gsc",
-              "ga4",
+              "google",
               "bing_wmt",
               "cloudflare"
             ],
@@ -1421,6 +1497,7 @@
           "auth_method",
           "subject_label",
           "scopes",
+          "access",
           "status",
           "connected_by",
           "connected_at",
@@ -1429,6 +1506,27 @@
           "integration_count"
         ],
         "title": "Connection",
+        "type": "object"
+      },
+      "ConnectionAccess": {
+        "description": "Which products the person let us read when they connected. Google lets them untick a\npermission, so a connection can have one product and not the other.",
+        "properties": {
+          "ga4": {
+            "description": "Google Analytics (`analytics.readonly`) was granted.",
+            "title": "Ga4",
+            "type": "boolean"
+          },
+          "gsc": {
+            "description": "Search Console (`webmasters.readonly`) was granted.",
+            "title": "Gsc",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "gsc",
+          "ga4"
+        ],
+        "title": "ConnectionAccess",
         "type": "object"
       },
       "ConnectionPage": {
@@ -3711,7 +3809,10 @@
             "type": "string"
           },
           "kind": {
-            "const": "gsc",
+            "enum": [
+              "gsc",
+              "ga4"
+            ],
             "title": "Kind",
             "type": "string"
           }
@@ -13942,7 +14043,7 @@
     },
     "/api/v1/oauth/google/callback": {
       "get": {
-        "description": "Public, but the single-use `state` must belong to the caller's session. Always a 302 to the project's integrations page: `.../integrations/gsc?connection_id=...` on success, `...?error=<code>` otherwise, with `invalid_state`, `scope_denied`, `no_refresh_token`, `exchange_failed`, `google_unavailable` or `integration_not_configured`. When the project cannot be known (a wrong or reused state) it goes to the app's front page with `?integration_error=invalid_state`.",
+        "description": "Public, but the single-use `state` must belong to the caller's session. Always a 302 to the project's Google page: `.../integrations/google?connection_id=...` on success (when at least one product permission was granted), `...?error=<code>` otherwise, with `invalid_state`, `scope_denied`, `no_refresh_token`, `exchange_failed`, `google_unavailable` or `integration_not_configured`. When the project cannot be known (a wrong or reused state) it goes to the app's front page with `?integration_error=invalid_state`.",
         "operationId": "google_callback_api_v1_oauth_google_callback_get",
         "parameters": [
           {
@@ -14278,8 +14379,7 @@
               "anyOf": [
                 {
                   "enum": [
-                    "gsc",
-                    "ga4",
+                    "google",
                     "bing_wmt",
                     "cloudflare"
                   ],
@@ -14369,7 +14469,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/connections/{connection_id}": {
       "delete": {
-        "description": "Revokes the token at Google (best effort), deletes the stored credential, marks the connection revoked and switches off its properties. The numbers already stored are kept. Disconnecting a revoked connection changes nothing.",
+        "description": "Revokes the token at Google (best effort), deletes the stored credential, marks the connection revoked and switches off its properties, Search Console and GA4. The numbers already stored are kept. Disconnecting a revoked connection changes nothing.",
         "operationId": "disconnect_api_v1_workspaces__workspace_id__connections__connection_id__delete",
         "parameters": [
           {
@@ -14421,10 +14521,64 @@
         ]
       }
     },
-    "/api/v1/workspaces/{workspace_id}/connections/{connection_id}/properties": {
+    "/api/v1/workspaces/{workspace_id}/connections/{connection_id}/properties/ga4": {
       "get": {
-        "description": "Asks Google, so it can answer `google_unavailable` or `google_rate_limited` (503). `suggested_project_id` names the project whose primary domain the property matches, a Domain property before a URL prefix. `integration_reauth_required` (409) when the account must connect again.",
-        "operationId": "list_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_get",
+        "description": "Asks the Google Analytics Admin API (`accountSummaries.list`), by account and name. No domain is matched and none is suggested. The same problem codes as the Search Console list: `integration_reauth_required` and `integration_scope_missing` (409), `google_unavailable` and `google_rate_limited` (503).",
+        "operationId": "list_analytics_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_ga4_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsPropertyList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The GA4 properties of a connection",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/connections/{connection_id}/properties/gsc": {
+      "get": {
+        "description": "Asks Google, so it can answer `google_unavailable` or `google_rate_limited` (503). `suggested_project_id` names the project whose primary domain the property matches, a Domain property before a URL prefix. `integration_reauth_required` (409) when the account must connect again; `integration_scope_missing` (409) when Search Console access was not granted, without asking Google.",
+        "operationId": "list_search_console_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_gsc_get",
         "parameters": [
           {
             "in": "path",
@@ -16908,7 +17062,7 @@
         ]
       },
       "post": {
-        "description": "The connection must be active and its account must be able to read the property (`property_not_accessible`, 422). A project has one live property and a property belongs to one project of the workspace (`duplicate`, 409). Nothing is pulled yet.",
+        "description": "`kind` is `gsc` (a Search Console property) or `ga4` (`properties/<number>`). The connection must be active, must have been granted that product (`integration_scope_missing`, 409) and its account must be able to read the property (`property_not_accessible`, 422). A project has one live property per kind and a property belongs to one project of the workspace (`duplicate`, 409). Nothing is pulled yet for GA4.",
         "operationId": "choose_property_api_v1_workspaces__workspace_id__projects__project_id__integrations_post",
         "parameters": [
           {
@@ -16964,7 +17118,61 @@
             "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
           }
         },
-        "summary": "Link a Search Console property to the project",
+        "summary": "Link a Search Console or GA4 property to the project",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations/google/authorize": {
+      "post": {
+        "description": "Answers Google's consent address; the web app sends the person there. One consent asks for Search Console and Google Analytics together, and the person may untick one. The address carries a single-use state and a PKCE challenge, both valid for 10 minutes and bound to the caller, the workspace and the project. Google returns the person to `GET /api/v1/oauth/google/callback`. `integration_not_configured` (503) when this installation has no Google OAuth client.",
+        "operationId": "authorize_api_v1_workspaces__workspace_id__projects__project_id__integrations_google_authorize_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Start connecting a Google account",
         "tags": [
           "integrations"
         ]
@@ -17029,70 +17237,6 @@
           }
         },
         "summary": "Stop using a property for the project",
-        "tags": [
-          "integrations"
-        ]
-      }
-    },
-    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations/{kind}/authorize": {
-      "post": {
-        "description": "Answers Google's consent address; the web app sends the person there. The address carries a single-use state and a PKCE challenge, both valid for 10 minutes and bound to the caller, the workspace and the project. Google returns the person to `GET /api/v1/oauth/google/callback`. `integration_not_configured` (503) when this installation has no Google OAuth client.",
-        "operationId": "authorize_api_v1_workspaces__workspace_id__projects__project_id__integrations__kind__authorize_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "kind",
-            "required": true,
-            "schema": {
-              "const": "gsc",
-              "title": "Kind",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Project Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "workspace_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Workspace Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthorizationResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            },
-            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
-          }
-        },
-        "summary": "Start connecting a Google account",
         "tags": [
           "integrations"
         ]

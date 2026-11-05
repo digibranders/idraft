@@ -250,12 +250,16 @@ EXPECTED: dict[tuple[str, str], str] = {
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords",
     ): "data:read",
-    # Search Console. Connections are the workspace's credentials, so a manager limited to some
-    # projects neither manages them nor links one to a project.
+    # Google (Search Console and GA4). Connections are the workspace's credentials, so a manager
+    # limited to some projects neither manages them nor links one to a project.
     ("GET", "/api/v1/workspaces/{workspace_id}/connections"): ("integrations:manage every-project"),
     (
         "GET",
-        "/api/v1/workspaces/{workspace_id}/connections/{connection_id}/properties",
+        "/api/v1/workspaces/{workspace_id}/connections/{connection_id}/properties/gsc",
+    ): "integrations:manage every-project",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/connections/{connection_id}/properties/ga4",
     ): "integrations:manage every-project",
     ("DELETE", "/api/v1/workspaces/{workspace_id}/connections/{connection_id}"): (
         "integrations:manage every-project fresh"
@@ -267,7 +271,7 @@ EXPECTED: dict[tuple[str, str], str] = {
     ): "integrations:manage every-project",
     (
         "POST",
-        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations/{kind}/authorize",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations/google/authorize",
     ): "integrations:manage every-project fresh",
     (
         "DELETE",

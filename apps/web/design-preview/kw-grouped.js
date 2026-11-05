@@ -336,11 +336,13 @@ function bulkBar(items) {
   };
   add('Move to group', 'folder', () => openMove(ids, () => state.selected.clear()));
   add('Check now', 'refresh-cw', () => checkNow(chosen));
-  add(state.archived ? 'Restore' : 'Archive', state.archived ? 'archive-restore' : 'archive', () => {
-    archiveKeywords(ids, !state.archived);
-    state.selected.clear();
-    refresh();
-  });
+  if (state.archived) {
+    add('Restore', 'archive-restore', () => {
+      archiveKeywords(ids, false);
+      state.selected.clear();
+      refresh();
+    });
+  }
   add('Export', 'download', exportItems(chosen, 'selected').csv);
   add('Delete', 'trash-2', () => confirmDialog({ title: `Delete ${plural(ids.size, 'keyword')}?`, description: 'Their history is deleted with them.', confirmLabel: 'Delete', danger: true, onConfirm: () => {
     deleteKeywords(ids);

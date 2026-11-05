@@ -645,7 +645,7 @@ async def _search_console(
     connection = await fetch(
         pg,
         "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
-        "credential_ref, scopes) VALUES ($1, 'gsc', 'oauth', $2, $3, '{}') RETURNING id",
+        "credential_ref, scopes) VALUES ($1, 'google', 'oauth', $2, $3, '{}') RETURNING id",
         workspace.id,
         uuid.uuid4().hex,
         secret[0]["id"],

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Archive, ArchiveRestore, FolderInput, Gauge, Link2, Tags, Trash2 } from 'lucide-react';
+import { ArchiveRestore, FolderInput, Link2, Tags, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
@@ -18,7 +18,6 @@ import {
   type BulkTarget,
 } from './bulk-target';
 import { MoveToGroupDialog } from './move-to-group-dialog';
-import { PriorityDialog } from './priority-dialog';
 import { TagsDialog } from './tags-dialog';
 import { TargetUrlDialog } from './target-url-dialog';
 import { readPage, refreshKeywords, type KeywordFilters, type ProjectScope } from '../rankings-queries';
@@ -47,7 +46,7 @@ const linksOf = (change: Change): number =>
   (change.remove_group_ids?.length ?? 0) +
   (change.add_term_ids?.length ?? 0) +
   (change.remove_term_ids?.length ?? 0);
-type Dialog = 'tags' | 'group' | 'target' | 'priority' | 'archive' | 'unarchive' | 'delete';
+type Dialog = 'tags' | 'group' | 'target' | 'unarchive' | 'delete';
 
 interface Opened {
   dialog: Dialog;
@@ -75,9 +74,9 @@ export interface BulkContext {
 
 /**
  * The bulk actions of Rankings (24-page-templates.md section 9.3, backend plan D15) in the template's
- * order: Add tags, Move to group, Set target URL, Set priority, then Archive (or Unarchive) and Delete. An
+ * order: Add tags, Move to group, Set target URL, then Unarchive (in the Archived view only) and Delete. An
  * action applies to the chosen keywords by id, or to every keyword the filters match by the filters.
- * Archive and Unarchive run at once with Undo, asking first above 100 keywords (12-tables.md section 14);
+ * Unarchive runs at once with Undo, asking first above 100 keywords (12-tables.md section 14);
  * Delete always asks, with the count.
  */
 export function useBulkActions(context: BulkContext): {
@@ -280,27 +279,31 @@ export function useBulkActions(context: BulkContext): {
     { id: 'tags', label: t('tags'), icon: Tags, group: 'object', onSelect: open('tags') },
     { id: 'group', label: t('group'), icon: FolderInput, group: 'object', onSelect: open('group') },
     { id: 'target', label: t('targetUrl'), icon: Link2, group: 'object', onSelect: open('target') },
-    { id: 'priority', label: t('priority'), icon: Gauge, group: 'object', onSelect: open('priority') },
-    {
-      id: 'archive',
-      label: archived ? t('unarchive') : t('archive'),
-      icon: archived ? ArchiveRestore : Archive,
-      // Last in the bar, but neutral: it loses nothing, and its toast has Undo
-      group: 'destructive',
-      tone: 'default',
-      onSelect: (rows, actionScope) => {
-        const count = actionScope.allMatching ? (matchingTotal ?? actionScope.ids.size) : actionScope.ids.size;
-        const target = bulkTarget(actionScope, filters, search);
-        // A small change runs at once, with Undo; one above 100 keywords asks first, with the count
-        if (count <= CONFIRM_ABOVE) {
-          void runArchive(target, !archived, { undoable: true, toastFailure: true, chosen: count }).catch(
-            () => undefined,
-          );
-          return;
-        }
-        open(archived ? 'unarchive' : 'archive')(rows, actionScope);
-      },
-    },
+    // Only the Archived view has the action: there it is the way back. A keyword is archived from its own menu.
+    ...(archived
+      ? [
+          {
+            id: 'archive',
+            label: t('unarchive'),
+            icon: ArchiveRestore,
+            // Last in the bar, but neutral: it loses nothing, and its toast has Undo
+            group: 'destructive' as const,
+            tone: 'default' as const,
+            onSelect: (rows: readonly TrackedKeywordRow[], actionScope: ActionScope) => {
+              const count = actionScope.allMatching ? (matchingTotal ?? actionScope.ids.size) : actionScope.ids.size;
+              const target = bulkTarget(actionScope, filters, search);
+              // A small change runs at once, with Undo; one above 100 keywords asks first, with the count
+              if (count <= CONFIRM_ABOVE) {
+                void runArchive(target, false, { undoable: true, toastFailure: true, chosen: count }).catch(
+                  () => undefined,
+                );
+                return;
+              }
+              open('unarchive')(rows, actionScope);
+            },
+          },
+        ]
+      : []),
     {
       id: 'delete',
       label: t('delete'),
@@ -311,8 +314,6 @@ export function useBulkActions(context: BulkContext): {
   ];
 
   const countOfOpened = countText(opened?.count ?? 0);
-  // The one question of Archive and Unarchive: it keeps its words while it closes
-  const unarchiving = opened?.dialog === 'unarchive' || (opened === null && archived);
   const dialogs = (
     <>
       <TagsDialog
@@ -376,41 +377,20 @@ export function useBulkActions(context: BulkContext): {
           });
         }}
       />
-      <PriorityDialog
-        open={opened?.dialog === 'priority'}
-        onOpenChange={(next) => (next ? undefined : close())}
-        finalFocus={gridFocus}
-        countText={countOfOpened}
-        onApply={async (priority) => {
-          const { matched } = await applyChange({ set: { priority } });
-          toast({
-            type: 'success',
-            title: t('priorityDialog.set', { priority: String(priority), count: countText(matched) }),
-          });
-        }}
-      />
       <ConfirmDialog
-        open={opened?.dialog === 'archive' || opened?.dialog === 'unarchive'}
+        open={opened?.dialog === 'unarchive'}
         onOpenChange={(next) => (next ? undefined : close())}
         finalFocus={gridFocus}
-        title={
-          unarchiving
-            ? t('unarchiveConfirm.title', { count: countOfOpened })
-            : t('archiveConfirm.title', { count: countOfOpened })
-        }
-        description={unarchiving ? t('unarchiveConfirm.description') : t('archiveConfirm.description')}
-        confirmLabel={
-          unarchiving
-            ? t('unarchiveConfirm.confirm', { count: countOfOpened })
-            : t('archiveConfirm.confirm', { count: countOfOpened })
-        }
+        title={t('unarchiveConfirm.title', { count: countOfOpened })}
+        description={t('unarchiveConfirm.description')}
+        confirmLabel={t('unarchiveConfirm.confirm', { count: countOfOpened })}
         cancelLabel={common('cancel')}
         tone="neutral"
         error={confirmError}
         onConfirm={async () => {
           if (opened === null) return;
           try {
-            await runArchive(opened.target, !unarchiving, {
+            await runArchive(opened.target, false, {
               undoable: true,
               toastFailure: false,
               chosen: opened.count,

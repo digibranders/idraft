@@ -115,6 +115,7 @@ const PROBLEMS = {
   manual_run_limit: [429, 'Manual run limit reached'],
   provider_paused: [503, 'Provider paused'],
   integration_reauth_required: [409, 'The connection needs to be renewed'],
+  integration_scope_missing: [409, 'Access to this product was not granted'],
   property_not_accessible: [422, 'The account cannot read this property'],
   integration_not_configured: [503, 'The integration is not set up'],
   google_unavailable: [503, 'Service unavailable'],

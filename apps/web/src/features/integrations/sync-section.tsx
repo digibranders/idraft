@@ -7,7 +7,7 @@ import { MetricStrip, type MetricStripItem } from '@/components/app/metric/metri
 import { EmptyState } from '@/components/app/status/empty-state';
 
 /**
- * Sync status and history (24-page-templates.md section 9.12). The backend has no pull yet, so there is
+ * Search Console sync status and history (24-page-templates.md section 9.12). The backend has no pull yet, so there is
  * nothing to count: every cell says so in words instead of showing a number, and the history says why it is
  * empty. Once the pull exists this reads its progress; the strip keeps these labels.
  */
@@ -24,8 +24,8 @@ export function SyncSection({ propertyChosen }: { propertyChosen: boolean }): Re
   return (
     <>
       <MetricStrip size="md" label={t('stripLabel')} groups={groups} status="ready" />
-      <section aria-labelledby="gsc-history-title" className="rounded-lg border border-border bg-surface">
-        <h2 id="gsc-history-title" className="px-5 pt-4 type-section-title">
+      <section aria-labelledby="gsc-sync-history-title" className="rounded-lg border border-border bg-surface">
+        <h2 id="gsc-sync-history-title" className="px-5 pt-4 type-section-title">
           {t('historyTitle')}
         </h2>
         <EmptyState

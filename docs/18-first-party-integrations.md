@@ -32,27 +32,26 @@ Labels: **(verified 2026-09-29)** marks a fact read on a primary page in researc
 
 ### 3.1 Connections and integrations
 
-A **connection** is one credential grant (one Google login, one Bing OAuth grant or API key, one Cloudflare API token). An **integration** is one property on that connection (one GSC property, one GA4 property, one Bing site, one Cloudflare zone). One connection has many integrations. Rate limits, re-auth state and revocation belong to the connection; sync cursors and data belong to the integration. This needs a new table `fp.connections` (DDL in section 12) and a `connection_id` column on `fp.integrations`.
+A **connection** is one credential grant (one Google login, one Bing OAuth grant or API key, one Cloudflare API token). An **integration** is one property on that connection (one GSC property, one GA4 property, one Bing site, one Cloudflare zone). One connection has many integrations. One Google login carries both Search Console and GA4: its connection has `product = 'google'` and the integrations of both kinds (`gsc`, `ga4`) hang on it. What the connection may reach is read from its granted `scopes`. Rate limits, re-auth state and revocation belong to the connection; sync cursors and data belong to the integration. This needs a new table `fp.connections` (DDL in section 12) and a `connection_id` column on `fp.integrations`.
 
 ### 3.2 Credentials and OAuth (doc 24 sections 5 and 6)
 
 Doc 24 section 6 controls apply unchanged: PKCE with single-use `state` (Redis, 10-minute TTL), refresh tokens envelope-encrypted in `ops.secrets` (`oauth_refresh_token`; Bing keys and Cloudflare tokens as `provider_api_key`), access tokens in worker memory only, exact-match HTTPS redirect URIs. Additions:
 
 - Only `owner` and `admin` can connect or disconnect; both actions write `ops.audit_logs`.
-- **Disconnect** also sets `fp.connections.status = 'revoked'` and disables the schedules.
-- **`invalid_grant`** (or the provider equivalent) sets the connection and all its integrations to `reauth_required`, pauses their schedules, and notifies admins. Ingested data stays visible under a "sync paused since <date>" banner.
+- **Disconnect** also sets `fp.connections.status = 'revoked'` and disables the schedules and every integration of the connection, Search Console and GA4 alike.
+- **`invalid_grant`** (or the provider equivalent) sets the connection and all its integrations, of both Google products, to `reauth_required`, pauses their schedules, and notifies admins. Ingested data stays visible under a "sync paused since <date>" banner.
 - **Self-hosted note.** Each installation registers its own OAuth clients in its own Google Cloud project. Every "per project" quota below is per installation, shared by all its workspaces.
 
 Scopes (minimum, read-only):
 
 | Product | Auth | Scopes or permissions |
 |---|---|---|
-| GSC | OAuth 2.0 | `https://www.googleapis.com/auth/webmasters.readonly` (verified 2026-09-29), plus `openid email` to identify the Google account (stable `sub` for rate-limit keys) |
-| GA4 | OAuth 2.0 | `https://www.googleapis.com/auth/analytics.readonly` (INFERRED in research 05; listed in doc 24) |
+| Google (GSC and GA4, one connection) | OAuth 2.0 | `https://www.googleapis.com/auth/webmasters.readonly` (verified 2026-09-29) and `https://www.googleapis.com/auth/analytics.readonly` (INFERRED in research 05; listed in doc 24), asked together in one consent, plus `openid email` to identify the Google account (stable `sub` for rate-limit keys) |
 | Bing | OAuth 2.0 preferred; API key fallback | `Webmaster.read` (verified 2026-09-29). Never `Webmaster.manage` |
 | Cloudflare | Customer-created API token | Analytics Read on the selected zones (zone-level permission naming INFERRED), plus Zone Read if the customer wants us to list zones; otherwise the customer pastes zone IDs |
 
-Google app verification: doc 24 plans for Google OAuth app verification before external SaaS launch. Research 05 could not confirm whether `webmasters.readonly` is a sensitive or restricted scope (UNVERIFIED). Internal use inside one Google Workspace organization can run as an "Internal" app without verification (doc 24). Google refresh tokens for External apps in "Testing" publishing status are commonly reported to expire after 7 days (UNVERIFIED in research 05), which would surface as weekly `invalid_grant`; spike FP-S3 confirms this. GSC and GA4 scopes are requested in separate connect flows without `include_granted_scopes`, so each product has its own grant and its own revocation.
+Google app verification: doc 24 plans for Google OAuth app verification before external SaaS launch. Research 05 could not confirm whether `webmasters.readonly` is a sensitive or restricted scope (UNVERIFIED). Internal use inside one Google Workspace organization can run as an "Internal" app without verification (doc 24). Google refresh tokens for External apps in "Testing" publishing status are commonly reported to expire after 7 days (UNVERIFIED in research 05), which would surface as weekly `invalid_grant`; spike FP-S3 confirms this. GSC and GA4 scopes are requested together in one consent (decision of 2026-11-05: access and connection are made at the same time). One Google login is one connection, so a second consent for the same login would only ask the person to sign in twice and would leave two grants of one account to revoke. The request keeps `include_granted_scopes=false`, so the grant is exactly what is asked. Google's granular consent lets the person untick a product: the callback accepts the grant when at least one product scope is granted with a refresh token (`scope_denied` only when neither is), stores the granted scopes on the connection, and the API exposes them as `access: { gsc, ga4 }`. A product that was not granted is refused with `integration_scope_missing` (409) before Google is asked, and the person reconnects to add it. Google's verification reviews both scopes, so the use of GA4 must be justified in the verification request even while only Search Console is pulled. The Google Cloud project must have these APIs enabled: Google Search Console API, Google Analytics Admin API (property listing) and Google Analytics Data API (the GA4 pull, later).
 
 ### 3.3 Queue, tasks and raw payloads
 
@@ -74,9 +73,9 @@ Google app verification: doc 24 plans for Google OAuth app verification before e
 
 ### 4.1 Property selection UX
 
-1. **Integrations > Google Search Console > Connect** (project sidebar, route `/<workspace>/<project>/integrations/gsc`; owner or admin). Google returns the person to the same screen with `?connection_id=...` (the property picker opens) or `?error=<code>`.
-2. **Consent** with `webmasters.readonly openid email`, `access_type=offline`, `prompt=consent` (to receive a refresh token).
-3. **Property picker** from `sites.list` (verified 2026-09-29): type (Domain `sc-domain:` or URL-prefix) and permission level. Unverified-user entries are disabled, since `searchanalytics.query` needs read permission (verified 2026-09-29). The property matching the project's primary domain is pre-selected, Domain preferred over URL-prefix.
+1. **Integrations > Google > Connect** (project sidebar, route `/<workspace>/<project>/integrations/google`; owner or admin; `/integrations/gsc` redirects there). Google returns the person to the same screen with `?connection_id=...` (the property pickers open) or `?error=<code>`.
+2. **Consent** with `webmasters.readonly analytics.readonly openid email`, `access_type=offline`, `prompt=consent` (to receive a refresh token), `include_granted_scopes=false`. One consent covers both products.
+3. **Search Console property picker** from `sites.list` (verified 2026-09-29): type (Domain `sc-domain:` or URL-prefix) and permission level. Unverified-user entries are disabled, since `searchanalytics.query` needs read permission (verified 2026-09-29). The property matching the project's primary domain is pre-selected, Domain preferred over URL-prefix.
 4. **Overlap guard:** a Domain and a URL-prefix property for the same host in one project trigger a warning; they are never summed.
 5. **Backfill options:** default 16 months, all search types with data, with the call and time estimate from 4.3.
 6. **Progress panel:** days done per type, provisional days, last error, next sync.
@@ -208,10 +207,10 @@ sequenceDiagram
     participant R2 as R2
     participant WP as worker (process queue)
 
-    U->>W: Connect Search Console
-    W->>A: POST /integrations/gsc/authorize
+    U->>W: Connect Google
+    W->>A: POST /integrations/google/authorize
     A->>R: store state + PKCE verifier (10 min TTL, bound to session and workspace)
-    A-->>W: Google authorize URL (webmasters.readonly openid email, offline, consent)
+    A-->>W: Google authorize URL (webmasters.readonly analytics.readonly openid email, offline, consent)
     W->>G: redirect, user consents
     G->>A: GET /oauth/google/callback?code&state
     A->>R: consume state (single use)
@@ -357,7 +356,7 @@ Rows go to `fp.bing_ai_performance` with the filter columns denormalized onto ev
 
 ### 7.1 Auth and property selection
 
-OAuth with `analytics.readonly` in its own connect flow. Listing properties uses the Analytics Admin API account summaries method (not covered by research 05; UNVERIFIED, confirmed in FP-S6). The picker pre-selects properties whose web stream domain matches the project domain. The schedule timezone is set to the GA4 property timezone, because GA4 `date` values are property-local.
+OAuth with `analytics.readonly`, granted in the same consent and on the same connection as Search Console (section 3.2); there is no separate GA4 connect flow. Listing properties uses the Analytics Admin API `accountSummaries.list` (`GET https://analyticsadmin.googleapis.com/v1beta/accountSummaries`, paged with `pageToken`; each summary has `account`, `displayName` and `propertySummaries[]` of `property` (`properties/123`), `displayName` and `propertyType`; the response shape is from the API reference and is UNVERIFIED against a real account until the first live run). The picker lists properties by account and name and pre-selects nothing: the web stream domain needs further calls, so domain matching is not built. A project has one live GA4 property, `kind = 'ga4'`, `external_property = 'properties/<id>'`. Choosing a property only stores it; the pull (sections 7.2 onward) is not built. The schedule timezone is set to the GA4 property timezone, because GA4 `date` values are property-local.
 
 ### 7.2 Reports
 
@@ -557,7 +556,7 @@ These metrics are never inputs to synthetic metrics (mention rate, share of voic
 CREATE TABLE fp.connections (
     id               uuid PRIMARY KEY DEFAULT uuidv7(),
     workspace_id     uuid NOT NULL REFERENCES auth.workspaces(id) ON DELETE CASCADE,
-    product          text NOT NULL CHECK (product IN ('gsc','ga4','bing_wmt','cloudflare')),
+    product          text NOT NULL CHECK (product IN ('google','bing_wmt','cloudflare')),  -- 'google' carries GSC and GA4 (migration 0017)
     auth_method      text NOT NULL CHECK (auth_method IN ('oauth','api_key','api_token','service_account')),
     subject_id       text NOT NULL,          -- Google 'sub', Cloudflare token id, or our connection id when unknown (Bing)
     subject_label    text,                   -- email or token name, display only

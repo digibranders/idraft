@@ -13,47 +13,70 @@ import {
 } from './rules';
 import {
   CONNECTION_STATUSES,
+  grants,
   integrationsCookie,
   integrationWorld,
+  isGrant,
   liveIntegrations,
+  MOCK_ANALYTICS_PROPERTIES,
   MOCK_GOOGLE_ACCOUNT,
   MOCK_PROPERTIES,
-  MOCK_SCOPES,
+  scopesOf,
   withConnection,
+  withConnectionGrant,
   withConnectionStatus,
   withIntegration,
   withIntegrationStatus,
   type IntegrationWorld,
   type MockProperty,
+  type Product,
   type StoredConnection,
   type StoredIntegration,
 } from '../integrations-state';
 import { freshSessionRequired, invalid, mock, problem } from '../respond';
-import { isFresh } from '../session';
+import { GOOGLE_GRANT_COOKIE, isFresh } from '../session';
 import { MOCK_USERS } from '../fixtures';
-import type { Connection, Integration, Problem, Project, SiteProperty, ValidationItem } from '@/lib/api/types';
+import type {
+  AnalyticsProperty,
+  Connection,
+  Integration,
+  Problem,
+  Project,
+  SiteProperty,
+  ValidationItem,
+} from '@/lib/api/types';
 
 /**
- * Google Search Console, as far as the backend has built it (19 section 3.10, `api/integrations`): starting
- * a connection, the connections of the workspace, the properties of one, linking a property to a project and
- * switching it off, and disconnecting. There is no Google: the address `authorize` answers is the page the
- * person would come back to, with the connection already made, so the whole flow can be walked in a browser.
- * Starting, switching off and disconnecting need a fresh session; managing needs `integrations:manage` and
- * every project (a connection is the workspace's, shared by its projects).
+ * Google (Search Console and GA4 share one connection), as far as the backend has built it (19 section 3.10,
+ * `api/integrations`): starting a connection, the connections of the workspace, the properties of each product
+ * of one, linking a property to a project and switching it off, and disconnecting. There is no Google: the
+ * address `authorize` answers is the page the person would come back to, with the connection already made, so
+ * the whole flow can be walked in a browser. The grant is both products unless the `mock-google-grant` cookie
+ * says `gsc` or `ga4` (Google's granular consent). Starting, switching off and disconnecting need a fresh
+ * session; managing needs `integrations:manage` and every project (a connection is the workspace's, shared by
+ * its projects).
  */
 
 const W = '/api/v1/workspaces/{workspace_id}';
 const P = `${W}/projects/{project_id}`;
-const ONE_LINK = 'The project already has a Search Console property.';
+const ONE_LINK = {
+  gsc: 'The project already has a Search Console property.',
+  ga4: 'The project already has a GA4 property.',
+} as const satisfies Record<Product, string>;
+const MISSING = {
+  gsc: 'Search Console access was not granted. Connect the Google account again and tick it.',
+  ga4: 'GA4 access was not granted. Connect the Google account again and tick it.',
+} as const satisfies Record<Product, string>;
 
 function connectionView(world: IntegrationWorld, row: StoredConnection): Connection {
   const user = MOCK_USERS.find((candidate) => candidate.user_id === row.connectedBy);
   return {
     connection_id: row.id,
-    product: 'gsc',
+    product: 'google',
     auth_method: 'oauth',
     subject_label: MOCK_GOOGLE_ACCOUNT,
-    scopes: [...MOCK_SCOPES],
+    scopes: scopesOf(row.grant),
+    access: { gsc: grants(row.grant, 'gsc'), ga4: grants(row.grant, 'ga4') },
     status: row.status,
     connected_by: user === undefined ? null : { user_id: user.user_id, name: user.name, email: user.email },
     connected_at: row.connectedAt,
@@ -65,17 +88,19 @@ function connectionView(world: IntegrationWorld, row: StoredConnection): Connect
 
 function integrationView(world: IntegrationWorld, row: StoredIntegration): Integration {
   const connection = world.connections.find((candidate) => candidate.id === row.connectionId);
+  // Connecting again without this product's box stops its property, as the backend does
+  const unticked = connection !== undefined && row.status !== 'disabled' && !grants(connection.grant, row.kind);
   return {
     integration_id: row.id,
     project_id: row.projectId,
     connection_id: row.connectionId,
-    kind: 'gsc',
+    kind: row.kind,
     external_property: row.property,
     external_account: MOCK_GOOGLE_ACCOUNT,
-    status: row.status,
+    status: unticked ? 'error' : row.status,
     connection_status: connection?.status ?? null,
     last_success_at: null,
-    last_error: null,
+    last_error: unticked ? 'scope_missing' : null,
     backfill_state: {},
     sync: null,
     created_at: row.createdAt,
@@ -91,7 +116,7 @@ function propertyViews(
   world: IntegrationWorld,
   projects: readonly Pick<Project, 'slug' | 'project_id'>[],
 ): SiteProperty[] {
-  const live = liveIntegrations(world);
+  const live = liveIntegrations(world).filter((row) => row.kind === 'gsc');
   return MOCK_PROPERTIES.map((property) => {
     const linked = live.find((row) => row.property === property.external_property);
     const clash = live
@@ -112,23 +137,53 @@ function propertyViews(
   });
 }
 
+function analyticsViews(world: IntegrationWorld): AnalyticsProperty[] {
+  const live = liveIntegrations(world).filter((row) => row.kind === 'ga4');
+  return MOCK_ANALYTICS_PROPERTIES.map((property) => ({
+    ...property,
+    linked_project_id: live.find((row) => row.property === property.external_property)?.projectId ?? null,
+  }));
+}
+
+const GA4_PROPERTY = /^properties\/[0-9]{1,20}$/;
+
 /** `403` for a member who may manage connections but is limited to some projects, as the backend refuses. */
 const limited = (request: Request, caller: ProjectCaller): HttpResponse<Problem> | null =>
   caller.access.membership.project_ids === null
     ? null
     : problem(request, 'forbidden', { detail: 'Not available to a member who is limited to some projects.' });
 
+/** The world when the connection can be asked for `product`'s properties; else the problem the backend answers. */
+function usableConnection(
+  request: Request,
+  cookies: Readonly<Record<string, string>>,
+  connectionId: string | readonly string[] | undefined,
+  product: Product,
+): IntegrationWorld | HttpResponse<Problem> {
+  const world = integrationWorld(cookies);
+  const connection = world.connections.find((row) => row.id === connectionId);
+  if (connection === undefined || connection.status === 'revoked') return problem(request, 'not_found');
+  if (connection.status !== 'active') {
+    return problem(request, 'integration_reauth_required', { detail: 'Connect the Google account again.' });
+  }
+  if (!grants(connection.grant, product)) {
+    return problem(request, 'integration_scope_missing', { detail: MISSING[product] });
+  }
+  return world;
+}
+
 export const integrationHandlers: HttpHandler[] = [
-  mock('post', `${P}/integrations/{kind}/authorize`, ({ request, cookies, params }) => {
+  mock('post', `${P}/integrations/google/authorize`, ({ request, cookies, params }) => {
     const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
       permission: 'integrations:manage',
     });
     if (caller instanceof Response) return caller;
     const refused = limited(request, caller);
     if (refused !== null) return refused;
-    if (params.kind !== 'gsc') return problem(request, 'not_found');
     if (!isFresh(caller.session)) return freshSessionRequired(request);
     const world = integrationWorld(cookies);
+    const ticked = cookies[GOOGLE_GRANT_COOKIE];
+    const grant = isGrant(ticked) ? ticked : 'both';
     // Connecting again for a connection that needs it renews that one; otherwise there is a new connection
     const renewing = world.connections.find((row) => row.status === 'reauth_required');
     const made =
@@ -137,12 +192,16 @@ export const integrationHandlers: HttpHandler[] = [
             status: 'active',
             connectedBy: caller.session.user.user_id,
             connectedAt: new Date().toISOString(),
+            grant,
           })
-        : { world: withConnectionStatus(world, renewing.id, 'active'), id: renewing.id };
+        : {
+            world: withConnectionGrant(withConnectionStatus(world, renewing.id, 'active'), renewing.id, grant),
+            id: renewing.id,
+          };
     const cookie = integrationsCookie(made.world);
     if (cookie === null) return problem(request, 'mock_state_full');
     const back = new URL(request.url);
-    back.pathname = `/${caller.access.workspace.slug}/${caller.project.slug}/integrations/gsc`;
+    back.pathname = `/${caller.access.workspace.slug}/${caller.project.slug}/integrations/google`;
     back.search = `?connection_id=${made.id}`;
     return HttpResponse.json(
       {
@@ -184,32 +243,46 @@ export const integrationHandlers: HttpHandler[] = [
       ...(['connection_id', 'kind', 'external_property'] as const).flatMap((name) =>
         typeof body[name] === 'string' ? [] : [bodyError(name, 'missing', 'Field required')],
       ),
-      ...(body.kind === undefined || body.kind === 'gsc'
+      ...(body.kind === undefined || body.kind === 'gsc' || body.kind === 'ga4'
         ? []
-        : [bodyError('kind', 'literal_error', "Input should be 'gsc'")]),
+        : [bodyError('kind', 'literal_error', "Input should be 'gsc' or 'ga4'")]),
+      ...(body.kind === 'ga4' &&
+      typeof body.external_property === 'string' &&
+      !GA4_PROPERTY.test(body.external_property)
+        ? [bodyError('external_property', 'value_error', 'A GA4 property is written `properties/` and its number')]
+        : []),
     ];
     if (errors.length > 0) return invalid(request, errors);
+    const kind: Product = body.kind === 'ga4' ? 'ga4' : 'gsc';
     const world = integrationWorld(cookies);
     const connection = world.connections.find((row) => row.id === body.connection_id);
     if (connection === undefined || connection.status === 'revoked') return problem(request, 'not_found');
     if (connection.status !== 'active') return problem(request, 'integration_reauth_required');
-    const property = MOCK_PROPERTIES.find((row) => row.external_property === body.external_property);
-    if (property === undefined || property.permission_level === 'siteUnverifiedUser') {
+    if (!grants(connection.grant, kind))
+      return problem(request, 'integration_scope_missing', { detail: MISSING[kind] });
+    const readable =
+      kind === 'gsc'
+        ? MOCK_PROPERTIES.some(
+            (row) => row.external_property === body.external_property && row.permission_level !== 'siteUnverifiedUser',
+          )
+        : MOCK_ANALYTICS_PROPERTIES.some((row) => row.external_property === body.external_property);
+    if (!readable || typeof body.external_property !== 'string') {
       return problem(request, 'property_not_accessible', {
         detail: 'This account cannot read that property. Pick one from the list.',
       });
     }
-    const live = liveIntegrations(world);
+    const live = liveIntegrations(world).filter((row) => row.kind === kind);
     if (live.some((row) => row.projectId === caller.project.project_id)) {
-      return problem(request, 'duplicate', { detail: ONE_LINK });
+      return problem(request, 'duplicate', { detail: ONE_LINK[kind] });
     }
-    if (live.some((row) => row.property === property.external_property)) {
+    if (live.some((row) => row.property === body.external_property)) {
       return problem(request, 'duplicate', { detail: 'This property is already linked to a project.' });
     }
     const made = withIntegration(world, {
       projectId: caller.project.project_id,
       connectionId: connection.id,
-      property: property.external_property,
+      kind,
+      property: body.external_property,
       status: 'active',
       createdAt: new Date().toISOString(),
     });
@@ -255,9 +328,9 @@ export const integrationHandlers: HttpHandler[] = [
     const status = caller.url.searchParams.get('filter[status]');
     const paging = offsetPaging(caller.url);
     const errors: ValidationItem[] = [
-      ...(product === null || isOneOf(product, ['gsc', 'ga4', 'bing_wmt', 'cloudflare'] as const)
+      ...(product === null || isOneOf(product, ['google', 'bing_wmt', 'cloudflare'] as const)
         ? []
-        : [queryError('filter[product]', 'enum', 'Allowed: gsc, ga4, bing_wmt, cloudflare.')]),
+        : [queryError('filter[product]', 'enum', 'Allowed: google, bing_wmt, cloudflare.')]),
       ...(status === null || isOneOf(status, CONNECTION_STATUSES)
         ? []
         : [queryError('filter[status]', 'enum', `Allowed: ${CONNECTION_STATUSES.join(', ')}.`)]),
@@ -267,25 +340,32 @@ export const integrationHandlers: HttpHandler[] = [
     const world = integrationWorld(cookies);
     // Newest first, as the backend lists them
     const rows = world.connections
-      .filter((row) => (product === null || product === 'gsc') && (status === null || row.status === status))
+      .filter((row) => (product === null || product === 'google') && (status === null || row.status === status))
       .sort((first, second) => second.connectedAt.localeCompare(first.connectedAt))
       .map((row) => connectionView(world, row));
     return HttpResponse.json(offsetPageOf(rows, paging));
   }),
 
-  mock('get', `${W}/connections/{connection_id}/properties`, ({ request, cookies, params }) => {
+  mock('get', `${W}/connections/{connection_id}/properties/gsc`, ({ request, cookies, params }) => {
     const caller = workspaceCaller(request, cookies, params.workspace_id, {
       permission: 'integrations:manage',
       everyProject: true,
     });
     if (caller instanceof Response) return caller;
-    const world = integrationWorld(cookies);
-    const connection = world.connections.find((row) => row.id === params.connection_id);
-    if (connection === undefined || connection.status === 'revoked') return problem(request, 'not_found');
-    if (connection.status !== 'active') {
-      return problem(request, 'integration_reauth_required', { detail: 'Connect the Google account again.' });
-    }
-    return HttpResponse.json({ data: propertyViews(world, caller.projects) });
+    const found = usableConnection(request, cookies, params.connection_id, 'gsc');
+    if (found instanceof Response) return found;
+    return HttpResponse.json({ data: propertyViews(found, caller.projects) });
+  }),
+
+  mock('get', `${W}/connections/{connection_id}/properties/ga4`, ({ request, cookies, params }) => {
+    const caller = workspaceCaller(request, cookies, params.workspace_id, {
+      permission: 'integrations:manage',
+      everyProject: true,
+    });
+    if (caller instanceof Response) return caller;
+    const found = usableConnection(request, cookies, params.connection_id, 'ga4');
+    if (found instanceof Response) return found;
+    return HttpResponse.json({ data: analyticsViews(found) });
   }),
 
   mock('delete', `${W}/connections/{connection_id}`, ({ request, cookies, params }) => {

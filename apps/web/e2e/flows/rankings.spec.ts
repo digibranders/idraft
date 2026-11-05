@@ -542,7 +542,9 @@ test.describe('rankings', () => {
     await expectAccessible(page);
   });
 
-  test('chosen keywords get a new priority from the bulk bar', async ({ page }) => {
+  test('chosen keywords get a new target URL from the bulk bar, which has no Set priority, Refresh metrics or Archive', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
     await page.goto(KEYWORDS);
@@ -550,19 +552,19 @@ test.describe('rankings', () => {
     await page.getByRole('checkbox', { name: 'Select backlink checker, Germany', exact: true }).click();
     const bar = page.getByRole('group', { name: /Bulk actions/ });
     await expect(bar.getByText('2 selected')).toBeVisible();
-    await bar.getByRole('button', { name: 'Set priority' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Priority for 2 keywords' });
-    await dialog.getByRole('combobox', { name: 'Priority' }).click();
-    await page.getByRole('option', { name: '5, lowest' }).click();
+    for (const name of ['Set priority', 'Refresh metrics', 'Archive']) {
+      await expect(bar.getByRole('button', { name })).toHaveCount(0);
+    }
+    await bar.getByRole('button', { name: 'Set target URL' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Target URL for 2 keywords' });
+    await dialog.getByRole('textbox', { name: /Target URL/ }).fill('https://fynix.io/seo');
     await expectAccessible(page);
     await dialog.getByRole('button', { name: 'Set for 2 keywords' }).click();
-    await expect(page.getByText('Priority 5 set for 2 keywords')).toBeVisible();
+    await expect(page.getByText('Target URL set for 2 keywords')).toBeVisible();
     await expect(bar).toBeHidden();
   });
 
-  test('the bulk bar at 1280 px with the inspector open keeps every action in sight, Archive and Delete in the More menu', async ({
-    page,
-  }) => {
+  test('the bulk bar at 1280 px with the inspector open keeps every action in sight, Delete last', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await signIn(page, EDITOR);
     await page.goto(KEYWORDS);
@@ -588,15 +590,17 @@ test.describe('rankings', () => {
     }
 
     // What did not fit is in the More menu, with Delete last
-    await bar.getByRole('button', { name: 'More actions' }).click();
-    await expect(page.getByRole('menuitem', { name: 'Archive' })).toBeVisible();
-    const items = await page.getByRole('menuitem').allTextContents();
-    expect(items.at(-1)).toBe('Delete');
-    await page.keyboard.press('Escape');
+    const more = bar.getByRole('button', { name: 'More actions' });
+    if ((await more.count()) > 0) {
+      await more.click();
+      const items = await page.getByRole('menuitem').allTextContents();
+      expect(items.at(-1)).toBe('Delete');
+      await page.keyboard.press('Escape');
+    }
     await expectAccessible(page);
   });
 
-  test('chosen keywords move to a group, are archived, and come back with Undo', async ({ page }) => {
+  test('chosen keywords move to a group', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
     await page.goto(KEYWORDS);
@@ -623,16 +627,7 @@ test.describe('rankings', () => {
     await expect(rowOf('backlink checker')).toContainText('Brand');
     await expect(rowOf('seo agency').first()).toContainText('Brand');
 
-    // Archiving needs no question below 100 keywords: the rows leave and the toast offers Undo
-    await choose();
-    await bar.getByRole('button', { name: 'Archive' }).click();
-    await expect(page.getByText('2 keywords archived')).toBeVisible();
-    await expect(page.getByText('56 keywords', { exact: true }).first()).toBeVisible();
-    await expect(rowOf('backlink checker')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Undo' }).click();
-    await expect(page.getByText('2 keywords unarchived')).toBeVisible();
     await expect(page.getByText('58 keywords', { exact: true }).first()).toBeVisible();
-    await expect(rowOf('backlink checker')).toContainText('Brand');
     await expectAccessible(page);
   });
 

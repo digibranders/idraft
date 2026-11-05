@@ -147,7 +147,7 @@ async def test_one_google_account_is_one_connection_per_workspace(
         async with refused(db, asyncpg.UniqueViolationError):
             await db.execute(
                 "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
-                "credential_ref, scopes) VALUES ($1, 'gsc', 'oauth', $2, $3, '{}')",
+                "credential_ref, scopes) VALUES ($1, 'google', 'oauth', $2, $3, '{}')",
                 alpha.workspace_id,
                 subject,
                 secret,
@@ -156,7 +156,7 @@ async def test_one_google_account_is_one_connection_per_workspace(
         other = await _secret(db, beta.workspace_id)
         await db.execute(
             "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
-            "credential_ref, scopes) VALUES ($1, 'gsc', 'oauth', $2, $3, '{}')",
+            "credential_ref, scopes) VALUES ($1, 'google', 'oauth', $2, $3, '{}')",
             beta.workspace_id,
             subject,
             other,

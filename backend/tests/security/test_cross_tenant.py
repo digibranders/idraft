@@ -175,7 +175,7 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
         "kind": "gsc",
         "external_property": "sc-domain:acme.example",
     },
-    ("POST", _W + "/projects/{project_id}/integrations/{kind}/authorize"): {},
+    ("POST", _W + "/projects/{project_id}/integrations/google/authorize"): {},
     ("POST", _W + "/projects/{project_id}/keyword-imports/{import_id}/cancel"): {},
     ("POST", _W + "/projects/{project_id}/keyword-imports/{import_id}/confirm"): {
         "duplicate_action": "merge_terms",
@@ -188,7 +188,7 @@ WORDS = {"kind": "gsc"}
 # change the workspace's credentials, which belong to no one project (docs/24 section 3.2).
 EVERY_PROJECT_ONLY = {
     ("POST", _W + "/projects/{project_id}/integrations"),
-    ("POST", _W + "/projects/{project_id}/integrations/{kind}/authorize"),
+    ("POST", _W + "/projects/{project_id}/integrations/google/authorize"),
     ("DELETE", _W + "/projects/{project_id}/integrations/{integration_id}"),
 }
 # Routes that take a file instead of JSON.
@@ -517,8 +517,8 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     connection = await fetchrow(
         pg,
         "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
-        "subject_label, credential_ref, scopes, connected_by) VALUES ($1, 'gsc', 'oauth', $2, $3, "
-        "$4, '{openid}', $5) RETURNING id",
+        "subject_label, credential_ref, scopes, connected_by) "
+        "VALUES ($1, 'google', 'oauth', $2, $3, $4, '{openid}', $5) RETURNING id",
         workspace.id,
         account.sub,
         account.email,
