@@ -11,6 +11,7 @@ import { Menu } from '@/components/ui/menu';
 import { Spinner } from '@/components/ui/spinner';
 import { useShortcut } from '@/lib/a11y/use-shortcut';
 import { DENSITIES, type Density } from '@/lib/tables/table-state';
+import { cn } from '@/lib/utils';
 
 /** The longest search the box takes: the API's text filters take 200 characters (`QueryText`). */
 const SEARCH_MAX_LENGTH = 200;
@@ -29,8 +30,8 @@ export interface DataTableToolbarProps {
   onDensityChange: (density: Density) => void;
   /** The column chooser, opened from its own trigger. */
   columns: (trigger: ReactElement) => ReactNode;
-  /** The view switch, before the search field. */
-  start?: ReactNode;
+  /** The view switch, at the end of the bar before density and columns. */
+  end?: ReactNode;
 }
 
 /**
@@ -48,7 +49,7 @@ export function DataTableToolbar({
   density,
   onDensityChange,
   columns,
-  start,
+  end,
 }: DataTableToolbarProps): ReactElement {
   const t = useTranslations('dataTable');
   const input = useRef<HTMLInputElement>(null);
@@ -62,8 +63,7 @@ export function DataTableToolbar({
   );
   return (
     <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border-subtle px-3">
-      {start}
-      <InputGroup leadingIcon={Search} size="sm" className="w-64 max-w-full">
+      <InputGroup leadingIcon={Search} size="sm" className="w-64 max-w-full min-w-32">
         <Input
           ref={input}
           size="sm"
@@ -79,7 +79,7 @@ export function DataTableToolbar({
         />
       </InputGroup>
       {/* The table announces a new count itself, so it is heard while the bulk bar is up as well */}
-      {countText === null ? null : <p className="num type-meta">{countText}</p>}
+      {countText === null ? null : <p className="shrink-0 num type-meta whitespace-nowrap">{countText}</p>}
       {/* Shown from 1280 px, and always readable, since aria-sort names only the first key */}
       {sortSummary === null ? null : <p className="sr-only type-meta xl:not-sr-only">{sortSummary}</p>}
       {updating ? (
@@ -88,7 +88,12 @@ export function DataTableToolbar({
           {t('updating')}
         </p>
       ) : null}
-      <div role="toolbar" aria-label={t('toolbar', { caption })} className="ml-auto flex items-center gap-1">
+      {end === undefined ? null : <div className="ml-auto flex shrink-0 items-center gap-1">{end}</div>}
+      <div
+        role="toolbar"
+        aria-label={t('toolbar', { caption })}
+        className={cn('flex shrink-0 items-center gap-1', end === undefined && 'ml-auto')}
+      >
         <Menu
           align="end"
           trigger={<IconButton icon={Rows3} variant="ghost" label={t('density')} />}

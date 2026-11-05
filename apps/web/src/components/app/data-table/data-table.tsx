@@ -160,7 +160,7 @@ export function DataTable<TRow extends RowData>({
   selection,
   rowTree,
   onToggleGroup,
-  toolbarStart,
+  toolbarEnd,
   bulkActions,
   rowActions,
   rowName,
@@ -923,7 +923,7 @@ export function DataTable<TRow extends RowData>({
           updating={showUpdating}
           density={density}
           onDensityChange={onDensityChange}
-          start={toolbarStart}
+          end={toolbarEnd}
           columns={(trigger) => (
             <ColumnChooser
               trigger={trigger}

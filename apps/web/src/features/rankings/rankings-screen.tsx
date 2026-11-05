@@ -844,7 +844,7 @@ export function RankingsScreen({
     ),
     emptyState,
     filteredEmptyState: filteredEmpty,
-    toolbarStart: (
+    toolbarEnd: (
       <ViewSwitch
         view={shownView ?? 'flat'}
         onViewChange={(next) => void setView({ view: next })}
