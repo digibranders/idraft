@@ -14,8 +14,8 @@ import { sparklineSummary } from '@/lib/charts/sparkline';
 import {
   aioDisplay,
   formatDetailDateTime,
-  formatRankCell,
-  formatTableDate,
+  formatInteger,
+  formatMonth,
   rankDisplay,
   rowChangeDisplay,
   urlDisplay,
@@ -167,42 +167,33 @@ export function useRankColumns(timeZone: string): RankColumns {
         priority: 2,
         width: 96,
         cell: (row) => {
-          const points = row.sparkline?.points ?? [];
-          const label = ((): string => {
-            if (row.state.current.state === 'failed') return trendT('labelFailed');
-            if (row.state.current.state === 'not_checked' || points.length === 0) return trendT('labelEmpty');
-            const summary = sparklineSummary(points);
-            if (summary.first === null) return trendT('labelNone', { checks: summary.checks });
-            const latest = points.at(-1);
-            const lastRankStr =
-              latest?.state === 'beyond_depth'
-                ? formatRankCell({ rank: null, depth: latest.depth })
-                : String(summary.last ?? summary.first);
-            const base = trendT('label', {
-              checks: summary.checks,
-              first: summary.first,
-              last: lastRankStr,
-              best: summary.best ?? summary.first,
-            });
-            return summary.beyond > 0 ? `${base}, ${trendT('labelBeyond', { count: summary.beyond })}` : base;
-          })();
-          return <SparklineCell points={points} label={label} />;
+          const months = row.metrics?.monthly_searches ?? [];
+          const values = months.map((month) => month.search_volume);
+          const summary = sparklineSummary(values);
+          const label =
+            summary.first === null || summary.last === null || summary.peak === null
+              ? trendT('labelEmpty')
+              : trendT('label', {
+                  months: summary.months,
+                  first: formatInteger(summary.first),
+                  last: formatInteger(summary.last),
+                  peak: formatInteger(summary.peak),
+                });
+          return <SparklineCell values={values} label={label} />;
         },
         cellTip: (row) => {
-          const points = row.sparkline?.points ?? [];
-          if (points.length === 0) return undefined;
-          const last7 = points
-            .slice(-7)
-            .map((point) => {
-              const d = formatTableDate(point.t, timeZone);
-              const r = formatRankCell({ rank: point.rank, depth: point.depth });
-              return trendT('tipPoint', { date: d, rank: r });
-            })
+          const months = row.metrics?.monthly_searches ?? [];
+          if (months.length === 0) return undefined;
+          const recent = months
+            .slice(-6)
+            .map((month) =>
+              trendT('tipPoint', {
+                month: formatMonth(month.year, month.month),
+                volume: formatInteger(month.search_volume),
+              }),
+            )
             .join(', ');
-          return {
-            content: trendT('tipTitle'),
-            detail: last7,
-          };
+          return { content: trendT('tipTitle'), detail: recent };
         },
       }),
       best: col.rank<TrackedKeywordRow>(RANK_COLUMN_IDS.best, (row) => row.state.best_rank, {

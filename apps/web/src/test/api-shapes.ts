@@ -303,6 +303,7 @@ export const KEYWORD_METRICS: z.ZodType<KeywordMetrics> = z.object({
   intent_main: z.string().nullable(),
   trend_pct_per_month: z.number().nullable(),
   is_seasonal: z.boolean().nullable(),
+  monthly_searches: z.array(z.object({ year: z.number(), month: z.number(), search_volume: z.number().nullable() })),
 });
 
 export const KEYWORD_DETAIL: z.ZodType<KeywordDetail> = z.object({

@@ -4803,6 +4803,14 @@
             "title": "Location Id",
             "type": "integer"
           },
+          "monthly_searches": {
+            "description": "The provider's monthly volumes behind the trend, oldest first; empty when the provider sent none.",
+            "items": {
+              "$ref": "#/components/schemas/MonthlySearches"
+            },
+            "title": "Monthly Searches",
+            "type": "array"
+          },
           "search_volume": {
             "$ref": "#/components/schemas/MetricValue"
           },
@@ -4840,7 +4848,8 @@
           "keyword_difficulty",
           "intent_main",
           "trend_pct_per_month",
-          "is_seasonal"
+          "is_seasonal",
+          "monthly_searches"
         ],
         "title": "KeywordMetrics",
         "type": "object"

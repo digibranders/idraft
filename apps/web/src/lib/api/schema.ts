@@ -3682,6 +3682,11 @@ export interface components {
             language_code: string;
             /** Location Id */
             location_id: number;
+            /**
+             * Monthly Searches
+             * @description The provider's monthly volumes behind the trend, oldest first; empty when the provider sent none.
+             */
+            monthly_searches: components["schemas"]["MonthlySearches"][];
             search_volume: components["schemas"]["MetricValue"];
             /**
              * Source

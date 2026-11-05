@@ -469,7 +469,7 @@ In the drawing, `[]` stands for a SERP feature icon slot, intent badges are shor
 | 7 | SERP features | `features` | 120 / 112 | 3 | `SERPFeatureList`, owned in `primary-text` |
 | 8 | AI Overview | `aiOverview` | 104 / 96 | 2 | `AIOverviewStatus` |
 | 9 | Competitor | `competitor` | 120 / 120 | 4 | First selected competitor's rank; more competitors via the column chooser |
-| 10 | Trend | `sparkline` | 96 / 88 | 2 | 30 checks, inverted, depth breaks |
+| 10 | Trend | `sparkline` | 96 / 88 | 2 | Monthly search volume, last 12 months, higher is up, on the row's own scale; a month without a volume breaks the line |
 | 11 | Updated | `date` | 104 / 104 | 4 | Stale badge after threshold |
 | 12 | (actions) | `actions` | 40 / 40 | always | Row "More" menu |
 

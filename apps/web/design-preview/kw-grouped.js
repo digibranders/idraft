@@ -7,11 +7,11 @@
  * selection with bulk actions, the menus of rows and groups, and the drawers. A reload starts from the fixtures
  * again. Reached at #/keywords, the page the sidebar's Keywords links to.
  */
-import { UNGROUPED, archiveKeywords, deleteKeywords, series, store, usedCountries } from './kw-grouped-data.js';
+import { UNGROUPED, archiveKeywords, deleteKeywords, store, usedCountries } from './kw-grouped-data.js';
 import { BUTTON_SM, icon } from './perf-ui.js';
 import { confirmDialog } from './kw-dialog.js';
 import { el } from './prompts-parts.js';
-import { ALL_COUNTRIES, addScope, best, columnsFor, clicks, impressions, derived, gained, groupOf, isRank, measures, plural, rankText, refresh, setRenderer, shown, sparkline, state, volumeText } from './kw-grouped-model.js';
+import { ALL_COUNTRIES, addScope, best, columnsFor, clicks, impressions, derived, gained, groupOf, isRank, measures, monthly, plural, rankText, refresh, setRenderer, shown, sparkline, state, volumeText } from './kw-grouped-model.js';
 import { openAdd, openMove } from './kw-grouped-dialogs.js';
 import { openGroup, openKeyword, redrawDrawer } from './kw-grouped-drawer.js';
 import { bindPages, closePages, pagesOf } from './kw-grouped-pages.js';
@@ -72,15 +72,16 @@ function featuresCell(info) {
   return row;
 }
 
+/** The keyword's search volume over the last 12 months, whatever its rank: the column is about demand, not position. */
 function trendCell(keyword) {
-  const top = best(keyword);
-  if (pending(keyword)) return muted('n/a');
-  if (top === Infinity) {
+  if (keyword.volume === 0) {
     const line = el('span', 'block h-px w-16 border-t border-dashed border-border-strong');
-    line.setAttribute('aria-label', 'Over 100 for 30 days');
+    line.setAttribute('aria-label', 'Search volume trend: no monthly volumes yet');
     return line;
   }
-  return sparkline(series(top, keyword.keyword.length + (state.device === 'mobile' ? 7 : 0)), `Rank over 30 days, now ${top}`);
+  const months = monthly(keyword);
+  const text = (value) => value.toLocaleString('en-US');
+  return sparkline(months, `Search volume trend, last 12 months: from ${text(months[0])} to ${text(months.at(-1))}, peak ${text(Math.max(...months))}`, undefined, true);
 }
 
 function menuButton(label, attach) {
@@ -194,7 +195,7 @@ function groupRow(group, items, columns) {
     intent: () => td(),
     features: () => td(),
     aio: () => td(m.cited > 0 ? twoLine(String(m.cited), 'cited') : muted('n/a')),
-    trend: () => td(sparkline(m.trend, `Average rank of ${group.name} over 30 days`)),
+    trend: () => td(sparkline(m.trend, `Search volume of ${group.name}, last 12 months`, undefined, true)),
     priority: () => td(),
     group: () => td(),
     tags: () => td(),

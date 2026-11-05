@@ -404,6 +404,12 @@ MetricsSource = Literal["dataforseo_labs", "dataforseo_google_ads", "dataforseo_
 CompetitionLevel = Literal["LOW", "MEDIUM", "HIGH"]
 
 
+class MonthlySearches(BaseModel):
+    year: int
+    month: int
+    search_volume: int | None
+
+
 class KeywordMetrics(BaseModel):
     source: MetricsSource
     location_id: int
@@ -418,6 +424,10 @@ class KeywordMetrics(BaseModel):
     intent_main: str | None
     trend_pct_per_month: float | None
     is_seasonal: bool | None
+    monthly_searches: list[MonthlySearches] = Field(
+        description="The provider's monthly volumes behind the trend, oldest first; "
+        "empty when the provider sent none."
+    )
 
 
 class GroupRef(BaseModel):
@@ -728,12 +738,6 @@ class KeywordDetail(Keyword):
 
 class KeywordDetailResponse(BaseModel):
     data: KeywordDetail
-
-
-class MonthlySearches(BaseModel):
-    year: int
-    month: int
-    search_volume: int | None
 
 
 class MetricsSnapshot(BaseModel):

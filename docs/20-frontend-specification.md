@@ -582,7 +582,7 @@ Columns (default set in bold, rest in the column chooser):
 | **SERP features** | Icons: outline = present, filled = owned; accessible names list both |
 | **AIO** | absent, present (not cited), cited #n |
 | **Competitor positions** | One column per selected competitor (first 2 by default), rank or depth chip |
-| **Trend** | 30-check sparkline with the depth band as a grey strip |
+| **Trend** | Sparkline of the keyword's monthly search volume, last 12 months (superseded: this was the 30-check rank sparkline with the depth band as a grey strip; as built, the Trend column reads `metrics.monthly_searches`, see the note on the four new columns below) |
 | Absolute rank, pixel displacement proxy | Secondary |
 | Volatility, URL stability | With "10 ranked checks needed" insufficient state |
 | GSC clicks, impressions, avg position | Labeled GSC, low-data rule |
@@ -617,6 +617,8 @@ States: stale rows show the badge and last successful check; keywords added toda
 > As built (rank features, 2026-10-29, plan `docs/superpowers/plans/2026-10-29-rank-features-ui.md`): the route is `/seo/keywords` with a redirect from `/seo/rankings`. Rank and Change are merged into a single Rank column (fixed 32 px rank number slot and fixed change slot to its right); rank sorts by `current_rank` only. The Keyword cell arrow link opens the ranking URL in a new tab without opening the inspector.
 >
 > Four new columns are added: SERP features (`features`, `SERPFeatureList`), AI Overview (`aiOverview`, `AioStatusView`), Trend (`sparkline`, `SparklineCell` 64 x 20 px in both compact and comfortable densities), and Competitor positions (`competitor`, `CompetitorRankView`, one column per project competitor sorted by `color_index` ascending then name, default visible for the first competitor). None of the four column types sorts.
+>
+> Trend shows search volume, not rank (2026-11-05): the last 12 months of `metrics.monthly_searches` (`include=metrics`, which the table asks for already; the rows no longer ask for `include=sparkline`, which the API still answers). Higher volume is higher up, on a scale of the row's own lowest and highest month, so a keyword of 50 searches and one of 50,000 draw alike and the shape is what the row shows; a month without a volume breaks the line, and the last month gets the dot. The cell's accessible name is "Search volume trend, last 12 months: from 1,300 to 1,900, peak 2,400", the cell tip lists the last 6 months ("Mar 2026: 1,900"), and a keyword with no monthly volumes yet shows the dashed line named "Search volume trend: no monthly volumes yet". The column header stays "Trend", with no tooltip of its own: the cell tip says what the line is.
 >
 > Target URL mismatch marker (`TargetMismatchMarker`) renders on the Keyword cell when `row.state.target_url_match === false`. Two new filter chips: `featown` (SERP feature you own) and `tmatch` (Target URL match: Matches target URL, Mismatches target URL).
 >

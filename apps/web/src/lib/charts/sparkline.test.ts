@@ -2,61 +2,61 @@ import { describe, expect, it } from 'vitest';
 
 import { SPARK_HEIGHT, SPARK_WIDTH, sparklineGeometry, sparklineSummary } from './sparkline';
 
-const ranked = (rank: number) => ({ rank, state: 'ranked' as const });
-const beyond = { rank: null, state: 'beyond_depth' as const };
-
-describe('sparkline geometry', () => {
-  it('puts rank 1 at the top and rank 20 at the bottom, inside the padding', () => {
-    const { segments } = sparklineGeometry([ranked(1), ranked(20)]);
-    const [first, second] = segments[0] ?? [];
-    expect(first).toEqual({ x: 2.5, y: 2.5 });
-    expect(second).toEqual({ x: SPARK_WIDTH - 2.5, y: SPARK_HEIGHT - 2.5 });
+describe('sparklineGeometry', () => {
+  it('puts the lowest month on the bottom edge and the highest on the top edge, higher volume higher up', () => {
+    const { segments } = sparklineGeometry([100, 400, 250]);
+    const [run] = segments;
+    expect(run).toHaveLength(3);
+    expect(run?.[1]?.y).toBeLessThan(run?.[2]?.y ?? 0);
+    expect(run?.[2]?.y).toBeLessThan(run?.[0]?.y ?? 0);
+    expect(run?.[1]?.y).toBeGreaterThan(0);
+    expect(run?.[0]?.y).toBeLessThan(SPARK_HEIGHT);
   });
 
-  it('keeps a deeper rank on the bottom edge', () => {
-    const { segments } = sparklineGeometry([ranked(1), ranked(45)]);
-    expect(segments[0]?.[1]?.y).toBe(SPARK_HEIGHT - 2.5);
+  it('scales each series to its own range, so a keyword of 50 searches and one of 50,000 draw alike', () => {
+    expect(sparklineGeometry([50, 100, 75])).toEqual(sparklineGeometry([50_000, 100_000, 75_000]));
   });
 
-  it('breaks the line at a check beyond the depth', () => {
-    const { segments } = sparklineGeometry([ranked(3), ranked(4), beyond, ranked(5)]);
-    expect(segments.map((segment) => segment.length)).toEqual([2, 1]);
+  it('draws a series that never moves in the middle of the box', () => {
+    const { segments } = sparklineGeometry([300, 300, 300]);
+    expect(segments[0]?.every((point) => point.y === SPARK_HEIGHT / 2)).toBe(true);
   });
 
-  it('marks the last point only when the last check ranked', () => {
-    expect(sparklineGeometry([ranked(3), ranked(4)]).last).not.toBeNull();
-    expect(sparklineGeometry([ranked(3), beyond]).last).toBeNull();
+  it('spreads the months over the width, oldest at the left', () => {
+    const [run] = sparklineGeometry([1, 2, 3, 4]).segments;
+    const xs = run?.map((point) => point.x) ?? [];
+    expect(xs).toEqual([...xs].sort((a, b) => a - b));
+    expect(xs[0]).toBeGreaterThan(0);
+    expect(xs.at(-1)).toBeLessThan(SPARK_WIDTH);
   });
 
-  it('centres a single point', () => {
-    expect(sparklineGeometry([ranked(10)]).segments).toEqual([[{ x: SPARK_WIDTH / 2, y: expect.any(Number) }]]);
+  it('breaks the line at a month without a volume and keeps the runs on one scale', () => {
+    const { segments } = sparklineGeometry([10, 20, null, 30, 40]);
+    expect(segments.map((run) => run.length)).toEqual([2, 2]);
   });
 
-  it('has nothing to draw without points or when all points are beyond depth', () => {
+  it('marks the last month only when it has a volume', () => {
+    expect(sparklineGeometry([3, 4]).last).not.toBeNull();
+    expect(sparklineGeometry([3, null]).last).toBeNull();
+  });
+
+  it('draws one month as a dot in the middle of the width', () => {
+    expect(sparklineGeometry([10]).segments).toEqual([[{ x: SPARK_WIDTH / 2, y: SPARK_HEIGHT / 2 }]]);
+  });
+
+  it('draws nothing without a volume', () => {
     expect(sparklineGeometry([])).toEqual({ segments: [], last: null });
-    expect(sparklineGeometry([beyond, beyond])).toEqual({ segments: [], last: null });
-  });
-
-  it('creates a single one-point segment for [beyond, ranked, beyond]', () => {
-    const geo = sparklineGeometry([beyond, ranked(8), beyond]);
-    expect(geo.segments).toHaveLength(1);
-    expect(geo.segments[0]).toHaveLength(1);
-    expect(geo.last).toBeNull();
+    expect(sparklineGeometry([null, null])).toEqual({ segments: [], last: null });
   });
 });
 
-describe('sparkline summary', () => {
-  it('says where the rank started and ended, the best, and how many checks were beyond the depth', () => {
-    expect(sparklineSummary([ranked(9), beyond, ranked(3), ranked(4)])).toEqual({
-      checks: 4,
-      first: 9,
-      last: 4,
-      best: 3,
-      beyond: 1,
-    });
+describe('sparklineSummary', () => {
+  it('reads the first and last month with a volume, and the peak', () => {
+    expect(sparklineSummary([null, 900, 2400, 1300, null])).toEqual({ months: 5, first: 900, last: 1300, peak: 2400 });
   });
 
-  it('has no ranks when every check was beyond the depth', () => {
-    expect(sparklineSummary([beyond, beyond])).toEqual({ checks: 2, first: null, last: null, best: null, beyond: 2 });
+  it('has nothing to read where no month has a volume', () => {
+    expect(sparklineSummary([null, null])).toEqual({ months: 2, first: null, last: null, peak: null });
+    expect(sparklineSummary([])).toEqual({ months: 0, first: null, last: null, peak: null });
   });
 });

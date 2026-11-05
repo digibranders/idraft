@@ -864,6 +864,7 @@ interface KeywordMetrics {                       // from seo.keyword_metrics_cur
   cpc_usd: Usd | null; competition: number | null; competition_level: 'LOW' | 'MEDIUM' | 'HIGH' | null;
   keyword_difficulty: number | null;             // provider metric, doc 09 section 8
   intent_main: string | null; trend_pct_per_month: number | null; is_seasonal: boolean | null;
+  monthly_searches: Array<{ year: number; month: number; search_volume: number | null }>;   // the provider's months behind the trend, oldest first; [] when it sent none. The table's Trend column draws these
 }
 interface KeywordMetricsHistory {
   snapshots: Array<{ snapshot_id: BigId; fetched_at: Iso; data_month: Day | null; search_volume: number | null;
@@ -1777,7 +1778,8 @@ Ids are shortened for readability where marked `...`; everything else is a liter
                            "filters": { "location_id": 2840, "language_code": "en" }, "is_estimate": true,
                            "method": "Provider-reported average monthly search volume (DataForSEO Labs), annual average", "method_version": 1 },
         "cpc_usd": "14.2300", "competition": 0.67, "competition_level": "HIGH", "keyword_difficulty": 58,
-        "intent_main": "commercial", "trend_pct_per_month": 1.8, "is_seasonal": false
+        "intent_main": "commercial", "trend_pct_per_month": 1.8, "is_seasonal": false,
+        "monthly_searches": [ { "year": 2025, "month": 9, "search_volume": 1700 }, "... 10 more ...", { "year": 2026, "month": 8, "search_volume": 1900 } ]
       },
       "competitors": [
         { "entity": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color_index": 2 },
