@@ -10,6 +10,7 @@ import { Icon } from '@/components/ui/icon';
 import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { languageName } from '@/lib/format/language';
 import { TargetMismatchMarker } from './feature-cells';
+import { GSC_CLICKS, GSC_IMPRESSIONS, gscCount, gscStateOf } from './gsc-counts';
 import type { Device, PairedRow } from './keyword-pairs';
 import type { KeywordCountry } from './keyword-countries';
 import { useCountries } from './keyword-scope';
@@ -20,7 +21,7 @@ import type { SortKey } from '@/lib/tables/table-state';
 
 /**
  * The columns of Rankings (24-page-templates.md section 9.3), in the template's order: Keyword, Country (only while more than one country is in view), Rank (with its Change, of the device shown),
- * Ranking URL, Volume, KD, Intent, SERP features, AI Overview, CPC, Priority, Group, Tags, Best rank (in the column chooser only),
+ * Ranking URL, Volume, Clicks and Impressions (Search Console, 28 days), KD, Intent, SERP features, AI Overview, CPC, Priority, Group, Tags, Best rank (in the column chooser only),
  * Updated (the last successful check) and Added. The rank, SERP feature and AI Overview columns are built in `rank-columns.tsx`.
  * Waiting for their own plans are the template's sparkline and competitor columns. The ids of
  * the sortable columns are the API's sort fields, so server mode sends them as they are.
@@ -37,6 +38,8 @@ export const SORT_FIELDS: ReadonlySet<string> = new Set([
   'best_rank',
   'last_observed_at',
   'search_volume',
+  GSC_CLICKS,
+  GSC_IMPRESSIONS,
   'keyword_difficulty',
   'cpc_usd',
   'priority',
@@ -96,6 +99,11 @@ export function useKeywordColumns(
     const noData: UnknownValue = { label: t('noData'), tooltip: t('noDataTooltip') };
     const metrics = (row: TrackedKeywordRow): NonNullable<TrackedKeywordRow['metrics']> | null => row.metrics ?? null;
     const missing = (row: TrackedKeywordRow): UnknownValue => (metrics(row) === null ? pending : noData);
+    // No Search Console count is either the wait for the first pull or no connection, never an estimate
+    const gscUnknown = (row: TrackedKeywordRow): UnknownValue =>
+      gscStateOf(row) === 'not_connected'
+        ? { label: t('gscNotConnected'), tooltip: t('gscNotConnectedTooltip') }
+        : { label: t('pending'), tooltip: t('gscPendingTooltip') };
     const columns: DataTableColumn<PairedRow>[] = [
       col.keyword<TrackedKeywordRow>('keyword', keywordText, {
         header: t('keyword'),
@@ -143,12 +151,25 @@ export function useKeywordColumns(
       ),
       ranks.rank,
       ranks.url,
-      // The Search Console columns (Clicks, Impressions) go right after Volume
       col.volume<TrackedKeywordRow>('search_volume', (row) => metrics(row)?.search_volume.value ?? null, {
         header: t('volume'),
         priority: 2,
         width: 96,
         unknown: missing,
+      }),
+      col.volume<TrackedKeywordRow>(GSC_CLICKS, (row) => gscCount(row, 'clicks'), {
+        header: t('clicks'),
+        headerTooltip: t('gscTooltip'),
+        priority: 2,
+        width: 96,
+        unknown: gscUnknown,
+      }),
+      col.volume<TrackedKeywordRow>(GSC_IMPRESSIONS, (row) => gscCount(row, 'impressions'), {
+        header: t('impressions'),
+        headerTooltip: t('gscTooltip'),
+        priority: 2,
+        width: 112,
+        unknown: gscUnknown,
       }),
       col.count<TrackedKeywordRow>('keyword_difficulty', (row) => metrics(row)?.keyword_difficulty ?? null, {
         header: t('difficulty'),

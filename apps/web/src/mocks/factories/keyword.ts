@@ -37,6 +37,7 @@ type KeywordGroupNode = Schemas['KeywordGroupNode'];
 type CompetitorOverride = Schemas['CompetitorOverride'];
 type ConfigVersion = Schemas['ConfigVersion'];
 type LocationRef = Schemas['LocationRef'];
+type GscBlock = Schemas['GscBlock'];
 
 export type Include =
   | 'metrics'
@@ -46,6 +47,7 @@ export type Include =
   | 'sparkline'
   | 'competitor_ranks'
   | 'ranking_urls'
+  | 'gsc'
   | 'features'
   | 'aio';
 
@@ -386,6 +388,22 @@ export function effectiveCompetitors(
     );
 }
 
+/**
+ * The mocked Search Console numbers of a keyword in the last 28 days, from its search volume so they are the
+ * same on every read: a share of the volume as impressions, a few percent of those as clicks, mobile with
+ * the smaller part of both. A keyword with no volume reading has 0, which is a count.
+ */
+export function gscOf(world: KeywordWorld, row: StoredTracked): GscBlock {
+  const volume = readingOf(world, row.keyword_id, row.location_id, row.language_code)?.reading.volume ?? 0;
+  const impressions = { desktop: Math.round(volume * 0.6), mobile: Math.round(volume * 0.3) };
+  return {
+    state: 'ok',
+    clicks: { desktop: Math.round(impressions.desktop * 0.04), mobile: Math.round(impressions.mobile * 0.02) },
+    impressions,
+    window: { start: '2026-10-07', end: '2026-11-03' },
+  };
+}
+
 export function trackedKeywordRowView(
   world: KeywordWorld,
   entities: EntityWorld,
@@ -413,6 +431,7 @@ export function trackedKeywordRowView(
     ranking_urls: include.has('ranking_urls')
       ? rankingUrlsOf(row.tracked_keyword_id, row.created_at, rank.now, rank.domain, stoppedAtOf(row))
       : null,
+    gsc: include.has('gsc') ? gscOf(world, row) : null,
     features: null,
     aio: null,
     state: stateOf(row, rank),

@@ -1019,6 +1019,19 @@ describe('tracked keywords: rank filters, sorts and includes', () => {
     }
   });
 
+  it('gives include=gsc the Search Console counts, and sorts by them on the keyword own device', async () => {
+    const viewer = mockBrowser('viewer');
+    const rows = await listOf(viewer, 'include=gsc');
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) expect(row.gsc?.state).toBe('ok');
+    expect((await listOf(viewer, 'limit=5')).every((row) => row.gsc === null)).toBe(true);
+
+    const sorted = await listOf(viewer, 'sort=-gsc_clicks&include=gsc');
+    const clicks = sorted.map((row) => row.gsc?.clicks?.[row.device] ?? 0);
+    expect(clicks).toEqual([...clicks].sort((a, b) => b - a));
+    expect(Math.max(...clicks)).toBeGreaterThan(0);
+  });
+
   it('accepts include=features,aio and answers null for each block', async () => {
     const viewer = mockBrowser('viewer');
     for (const query of ['include=features,aio', 'include=aio&include=metrics']) {

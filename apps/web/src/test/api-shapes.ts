@@ -468,9 +468,20 @@ export const COMPETITOR_RANK: z.ZodType<CompetitorRank> = z.object({
   change: RANK_CHANGE,
 });
 
+const DEVICE_COUNTS = z.object({ desktop: z.number().int(), mobile: z.number().int() });
+
+/** `include=gsc`: the 28 days of Search Console counts of a keyword, per device. */
+const GSC_BLOCK = z.object({
+  state: z.enum(['ok', 'pending', 'not_connected']),
+  clicks: DEVICE_COUNTS.nullable().exactOptional(),
+  impressions: DEVICE_COUNTS.nullable().exactOptional(),
+  window: z.object({ start: z.string(), end: z.string() }).nullable().exactOptional(),
+});
+
 export const TRACKED_KEYWORD_ROW: z.ZodType<TrackedKeywordRow> = z.object({
   ...TRACKED_KEYWORD_FIELDS,
   metrics: KEYWORD_METRICS.nullable().exactOptional(),
+  gsc: GSC_BLOCK.nullable().exactOptional(),
   groups: z.array(GROUP_REF).nullable().exactOptional(),
   terms: z.array(TERM_REF).nullable().exactOptional(),
   competitors: z.array(COMPETITOR_OVERRIDE).nullable().exactOptional(),

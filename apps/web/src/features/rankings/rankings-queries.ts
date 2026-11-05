@@ -50,7 +50,14 @@ export const MAX_FILTER_VALUES = 100;
 const PAGE = 200;
 // The Trend column reads the monthly volumes that come with `metrics`, so the rows ask for no rank sparkline.
 // Competitor ranks are always asked for (small payload per row) to avoid re-reading the list when toggling columns.
-const INCLUDE: NonNullable<ListQuery['include']> = ['metrics', 'groups', 'terms', 'competitor_ranks', 'ranking_urls'];
+const INCLUDE: NonNullable<ListQuery['include']> = [
+  'metrics',
+  'groups',
+  'terms',
+  'competitor_ranks',
+  'ranking_urls',
+  'gsc',
+];
 /** The most pages an export reads: 50 of 200 are the 10 000 keywords the table itself holds. */
 const EXPORT_PAGES_MAX = 50;
 
@@ -72,7 +79,7 @@ export async function readAllKeywords(
       {
         ...filters,
         sort: LOAD_SORT,
-        include: ['metrics', 'groups'],
+        include: ['metrics', 'groups', 'gsc'],
         limit: PAGE,
         ...(search.trim() === '' ? {} : { 'filter[q]': search.trim() }),
         ...(cursor === null ? {} : { cursor }),

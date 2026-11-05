@@ -1,4 +1,5 @@
 import type { RankCell, TrackedKeywordRow } from '@/lib/api/types';
+import { gscCount } from '../gsc-counts';
 import type { Device, PairedRow } from '../keyword-pairs';
 
 /** A cell of the exported table: text, a number, or nothing. */
@@ -11,7 +12,18 @@ export interface ExportKpi {
 
 /** What a column holds, so the workbook can align, format and size it without reading its header. */
 export type ExportColumnKind =
-  'keyword' | 'rank' | 'url' | 'volume' | 'difficulty' | 'cpc' | 'intent' | 'priority' | 'groups' | 'checked';
+  | 'keyword'
+  | 'rank'
+  | 'url'
+  | 'volume'
+  | 'clicks'
+  | 'impressions'
+  | 'difficulty'
+  | 'cpc'
+  | 'intent'
+  | 'priority'
+  | 'groups'
+  | 'checked';
 
 /** The words of the file, from the catalog, so the model itself holds no text a person reads. */
 export interface ExportLabels {
@@ -21,6 +33,8 @@ export interface ExportLabels {
   mobile: string;
   url: string;
   volume: string;
+  clicks: string;
+  impressions: string;
   difficulty: string;
   cpc: string;
   intent: string;
@@ -99,6 +113,8 @@ export function buildExport(rows: readonly PairedRow[], device: Device, labels: 
     ['rank', `${labels.rank} (${labels[device]})`],
     ['url', labels.url],
     ['volume', labels.volume],
+    ['clicks', labels.clicks],
+    ['impressions', labels.impressions],
     ['difficulty', labels.difficulty],
     ['cpc', labels.cpc],
     ['intent', labels.intent],
@@ -115,6 +131,8 @@ export function buildExport(rows: readonly PairedRow[], device: Device, labels: 
       rankCell(current),
       current?.state === 'ranked' ? (current.url?.canonical_url ?? null) : null,
       number(row.metrics?.search_volume.value),
+      gscCount(row, 'clicks'),
+      gscCount(row, 'impressions'),
       row.metrics?.keyword_difficulty ?? null,
       number(row.metrics?.cpc_usd),
       labels.intents[row.intent] ?? null,
