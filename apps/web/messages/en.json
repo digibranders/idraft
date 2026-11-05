@@ -2236,6 +2236,20 @@
       "archivedChip": "Archived keywords",
       "backToActive": "Show active keywords"
     },
+    "grouped": {
+      "inTop10": "{count, number} in top 10",
+      "cited": "{count, number} cited",
+      "unknown": "Unknown",
+      "showAll": "Show all {count, number}",
+      "notGrouped": "Not grouped",
+      "expand": "Expand {label} group, {count, plural, one {# keyword} other {# keywords}}",
+      "collapse": "Collapse {label} group, {count, plural, one {# keyword} other {# keywords}}",
+      "keywordCount": "{count, plural, one {# keyword} other {# keywords}}",
+      "viewLabel": "View",
+      "byGroup": "By group",
+      "allKeywords": "All keywords",
+      "needsClientMode": "By group needs every keyword loaded, which works up to 10,000 keywords. Narrow the list with a filter."
+    },
     "error": {
       "title": "The keywords did not load",
       "reason": "The list could not be loaded. Your filters are kept."

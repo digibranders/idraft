@@ -20,7 +20,7 @@ import type { SortKey } from '@/lib/tables/table-state';
 
 /**
  * The columns of Rankings (24-page-templates.md section 9.3), in the template's order: Keyword, Country (only while more than one country is in view), Rank (with its Change, of the device shown),
- * Ranking URL, Volume, KD, CPC, Intent, SERP features, AI Overview, Priority, Group, Tags, Best rank (in the column chooser only),
+ * Ranking URL, Volume, KD, Intent, SERP features, AI Overview, CPC, Priority, Group, Tags, Best rank (in the column chooser only),
  * Updated (the last successful check) and Added. The rank, SERP feature and AI Overview columns are built in `rank-columns.tsx`.
  * Waiting for their own plans are the template's sparkline and competitor columns. The ids of
  * the sortable columns are the API's sort fields, so server mode sends them as they are.
@@ -143,6 +143,7 @@ export function useKeywordColumns(
       ),
       ranks.rank,
       ranks.url,
+      // The Search Console columns (Clicks, Impressions) go right after Volume
       col.volume<TrackedKeywordRow>('search_volume', (row) => metrics(row)?.search_volume.value ?? null, {
         header: t('volume'),
         priority: 2,
@@ -156,14 +157,6 @@ export function useKeywordColumns(
         width: 72,
         unknown: missing,
       }),
-      col.currency<TrackedKeywordRow>(
-        'cpc_usd',
-        (row) => {
-          const cpc = metrics(row)?.cpc_usd ?? null;
-          return cpc === null ? null : Number(cpc);
-        },
-        { header: t('cpc'), priority: 2, width: 112, unknown: missing },
-      ),
       col.text<TrackedKeywordRow>('intent', (row) => (row.intent === 'unknown' ? null : t(`intents.${row.intent}`)), {
         header: t('intent'),
         priority: 3,
@@ -173,6 +166,14 @@ export function useKeywordColumns(
       }),
       ranks.features,
       ranks.aio,
+      col.currency<TrackedKeywordRow>(
+        'cpc_usd',
+        (row) => {
+          const cpc = metrics(row)?.cpc_usd ?? null;
+          return cpc === null ? null : Number(cpc);
+        },
+        { header: t('cpc'), priority: 2, width: 112, unknown: missing },
+      ),
       ...competitorColumns,
       ranks.trend,
       col.count<TrackedKeywordRow>('priority', (row) => row.priority, {
