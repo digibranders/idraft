@@ -8,6 +8,7 @@ import {
   groupMeasures,
   NOT_GROUPED,
   selectionOf,
+  shownIdsOf,
   toggleGroupIds,
   trackedIdsOf,
   type GroupedRow,
@@ -19,7 +20,8 @@ import type { TrackedKeywordRow } from '@/lib/api/types';
 interface Options {
   device?: 'desktop' | 'mobile';
   location?: number;
-  groups?: readonly string[];
+  /** Group ids, `null` for a row the API sent with `groups: null`; a repeated id is a repeated reference. */
+  groups?: readonly string[] | null;
   rank?: number | null;
   volume?: number | null;
   cpc?: string | null;
@@ -27,16 +29,32 @@ interface Options {
   seen?: string | null;
 }
 
-/** Only what the grouped model reads of a row. */
-const tracked = (id: string, keyword: string, over: Options = {}): TrackedKeywordRow =>
-  ({
+/** The fields of a row the grouped model reads, typed against the API's row. */
+interface Fixture extends Pick<TrackedKeywordRow, 'tracked_keyword_id' | 'device' | 'location_id' | 'language_code'> {
+  search_engine: 'google';
+  keyword: { keyword_id: string; text: string };
+  groups: { group_id: string; name: string; path: string }[] | null;
+  metrics: { search_volume: { value: number | null }; cpc_usd: string | null };
+  state: {
+    current: { state: 'ranked' | 'not_checked'; rank: number | null };
+    aio: { state: 'present_cited' | 'absent' };
+    last_observed_at: string | null;
+  };
+}
+
+/** A row with only the fields above; the one place the fixture is taken for the API's full row. */
+const tracked = (id: string, keyword: string, over: Options = {}): TrackedKeywordRow => {
+  const fixture: Fixture = {
     tracked_keyword_id: id,
     keyword: { keyword_id: `k-${keyword}`, text: keyword },
     device: over.device ?? 'desktop',
     location_id: over.location ?? 2356,
     language_code: 'en',
     search_engine: 'google',
-    groups: (over.groups ?? []).map((group) => ({ group_id: group, name: group, path: `Path / ${group}` })),
+    groups:
+      over.groups === null
+        ? null
+        : (over.groups ?? []).map((group) => ({ group_id: group, name: group, path: `Path / ${group}` })),
     metrics: { search_volume: { value: over.volume ?? null }, cpc_usd: over.cpc ?? null },
     state: {
       current:
@@ -46,7 +64,9 @@ const tracked = (id: string, keyword: string, over: Options = {}): TrackedKeywor
       aio: { state: over.aio ?? 'absent' },
       last_observed_at: over.seen ?? null,
     },
-  }) as unknown as TrackedKeywordRow;
+  };
+  return fixture as unknown as TrackedKeywordRow;
+};
 
 const paired = (rows: readonly TrackedKeywordRow[]): PairedRow[] => pairRows(rows, 'desktop');
 
@@ -80,13 +100,25 @@ describe('buildGroups', () => {
     ]);
   });
 
-  it('puts a keyword with no groups list in Not grouped', () => {
-    const bare = { ...tracked('x-d', 'xray'), groups: undefined } as unknown as TrackedKeywordRow;
+  it('puts a keyword whose groups list is null, or empty, in Not grouped', () => {
+    const rows = paired([tracked('x-d', 'xray', { groups: null }), tracked('y-d', 'yankee', { groups: [] })]);
 
-    expect(buildGroups(paired([bare]), 'None').map((g) => g.groupId)).toEqual([NOT_GROUPED]);
+    const groups = buildGroups(rows, 'None');
+
+    expect(groups.map((g) => [g.groupId, g.label, g.rows.length])).toEqual([[NOT_GROUPED, 'None', 2]]);
   });
 
-  it('counts a keyword tracked in two countries once', () => {
+  it('lists a keyword once under a group that its row names twice', () => {
+    const rows = paired([tracked('a-d', 'alpha', { groups: ['G1', 'G1'], volume: 10 })]);
+
+    const [group] = buildGroups(rows, 'Not grouped');
+
+    expect(group?.rows).toHaveLength(1);
+    expect(group?.measures).toMatchObject({ size: 1, volume: 10 });
+    expect(idsOf(build(rows, { expanded: ['G1'] }))).toEqual(['group:G1', 'G1:a-d']);
+  });
+
+  it('counts a keyword tracked in two countries once, by the place it ranks best in', () => {
     const rows = paired([
       tracked('a-d', 'alpha', { groups: ['G1'], rank: 9 }),
       tracked('a-d-us', 'alpha', { groups: ['G1'], rank: 3, location: 2840 }),
@@ -140,6 +172,59 @@ describe('groupMeasures', () => {
   it('has no CPC and no check time when none of the keywords has one', () => {
     expect(groupMeasures(paired([tracked('a-d', 'alpha')]))).toMatchObject({ cpc: null, updated: null, volume: 0 });
   });
+
+  it('skips a CPC of zero, an empty one and one that is not a number', () => {
+    const rows = paired([
+      tracked('a-d', 'alpha', { cpc: '0.00' }),
+      tracked('b-d', 'bravo', { cpc: '' }),
+      tracked('c-d', 'charlie', { cpc: 'n/a' }),
+      tracked('d-d', 'delta', { cpc: '4.00' }),
+    ]);
+
+    expect(groupMeasures(rows).cpc).toBe(4);
+    expect(groupMeasures(rows.slice(0, 3)).cpc).toBeNull();
+  });
+
+  describe('a keyword tracked in two countries', () => {
+    const rank = (best: 'uk' | 'us'): PairedRow[] =>
+      paired([
+        tracked('a-uk', 'alpha', {
+          rank: best === 'uk' ? 2 : 30,
+          volume: 1000,
+          cpc: '1.00',
+          location: 2826,
+          seen: '2026-11-01T10:00:00Z',
+        }),
+        tracked('a-us', 'alpha', {
+          rank: best === 'us' ? 2 : 30,
+          volume: 50000,
+          cpc: '3.00',
+          aio: 'present_cited',
+          location: 2840,
+          seen: '2026-11-04T10:00:00Z',
+        }),
+      ]);
+
+    it.each(['uk', 'us'] as const)('sums its volume over both countries whichever ranks better (%s)', (best) => {
+      expect(groupMeasures(rank(best))).toMatchObject({ size: 1, volume: 51000 });
+    });
+
+    it('counts the keyword once in a rank bucket, at the place it ranks best in', () => {
+      expect(groupMeasures(rank('uk'))).toMatchObject({ top3: 1, top10: 1, top20: 1 });
+      expect(groupMeasures(rank('us'))).toMatchObject({ top3: 1, top10: 1, top20: 1 });
+    });
+
+    it('counts it as cited when any country cites the site, once', () => {
+      expect(groupMeasures(rank('uk')).cited).toBe(1);
+      expect(
+        groupMeasures(paired([tracked('a-uk', 'alpha'), tracked('a-us', 'alpha', { location: 2840 })])).cited,
+      ).toBe(0);
+    });
+
+    it('averages the CPC over both countries and takes the newest check over both', () => {
+      expect(groupMeasures(rank('uk'))).toMatchObject({ cpc: 2, updated: '2026-11-04T10:00:00Z' });
+    });
+  });
 });
 
 describe('groupedRows', () => {
@@ -183,6 +268,21 @@ describe('groupedRows', () => {
 
       expect(list).toHaveLength(1 + GROUP_PREVIEW + 1);
       expect(list.at(-1)).toEqual({ kind: 'more', id: 'more:G1', groupId: 'G1', hidden: 3 });
+    });
+
+    it('counts rows (places) in what is hidden, while the group counts keywords', () => {
+      const places = paired([
+        ...Array.from({ length: GROUP_PREVIEW }, (_, at) =>
+          tracked(`p${String(at)}-d`, `p ${String(at)}`, { groups: ['G'], rank: at + 1 }),
+        ),
+        tracked('q-uk', 'q', { groups: ['G'], location: 2826 }),
+        tracked('q-us', 'q', { groups: ['G'], location: 2840 }),
+      ]);
+
+      const list = build(places, { expanded: ['G'] });
+
+      expect(list.at(-1)).toMatchObject({ kind: 'more', hidden: 2 });
+      expect(list[0]).toMatchObject({ kind: 'group', group: { measures: { size: GROUP_PREVIEW + 1 } } });
     });
 
     it('shows them all, and no such row, once the group is in showAll', () => {
@@ -331,14 +431,21 @@ describe('selection', () => {
     });
   });
 
+  describe('shownIdsOf', () => {
+    it('gives the shown id of each keyword row of the group, one per row', () => {
+      expect(shownIdsOf(group('G1').group).toSorted()).toEqual(['a-d', 'b-d']);
+    });
+  });
+
   describe('toggleGroupIds', () => {
-    it('adds all the members of a group that is not all chosen', () => {
+    it('adds the shown id of each keyword of a group that is not all chosen, not the other device', () => {
       const next = toggleGroupIds(new Set(['b-d']), group('G1').group);
 
-      expect([...next].toSorted()).toEqual(['a-d', 'a-m', 'b-d']);
+      expect([...next].toSorted()).toEqual(['a-d', 'b-d']);
+      expect([...toggleGroupIds(new Set(), group('G1').group)].toSorted()).toEqual(['a-d', 'b-d']);
     });
 
-    it('removes all the members of a group that is all chosen, and nothing else', () => {
+    it('removes both devices of every keyword of a group that is all chosen, and nothing else', () => {
       const next = toggleGroupIds(new Set(['a-d', 'a-m', 'b-d', 'c-d']), group('G1').group);
 
       expect([...next]).toEqual(['c-d']);
@@ -361,12 +468,18 @@ describe('selection', () => {
       expect([...next]).toEqual(['a-d']);
     });
 
-    it('adds all the members of a ticked group row, also the keywords not shown', () => {
+    it('adds the shown id of each keyword of a ticked group row, also the keywords not shown', () => {
       const closed = build(rows);
 
       const next = applySelectionChange(none, none, new Set(['group:G1']), closed);
 
-      expect([...next].toSorted()).toEqual(['a-d', 'a-m', 'b-d']);
+      expect([...next].toSorted()).toEqual(['a-d', 'b-d']);
+    });
+
+    it('keeps the chosen ids a count of keyword rows: a group tick adds one id per row', () => {
+      const next = applySelectionChange(none, none, new Set(['group:G1']), open);
+
+      expect(next.size).toBe(group('G1').group.rows.length);
     });
 
     it('removes a keyword on both devices when its row is unticked', () => {
@@ -378,7 +491,7 @@ describe('selection', () => {
       expect([...applySelectionChange(chosen, previous, nextRows, open)]).toEqual(['c-d']);
     });
 
-    it('removes all the members of an unticked group row', () => {
+    it('removes both devices of every keyword of an unticked group row', () => {
       const chosen = new Set(['a-d', 'a-m', 'b-d']);
       const previous = selectionOf(open, chosen).selectedIds;
       const nextRows = new Set(previous);

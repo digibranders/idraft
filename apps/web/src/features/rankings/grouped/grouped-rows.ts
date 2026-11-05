@@ -1,4 +1,4 @@
-import { memberIds, type PairedRow } from '../keyword-pairs';
+import { idsOfPair, type PairedRow } from '../keyword-pairs';
 
 export const NOT_GROUPED = '__none';
 export const GROUP_PREVIEW = 8;
@@ -6,13 +6,15 @@ export const GROUP_PREVIEW = 8;
 export interface GroupMeasures {
   /** Distinct keywords. */
   size: number;
+  /** Distinct keywords ranked this high, each at the place (country) it ranks best in. */
   top3: number;
   top10: number;
   top20: number;
+  /** Search volume summed over every place of every keyword (a keyword in two countries adds both). */
   volume: number;
-  /** Mean CPC of the keywords that have one, in USD; null when none has. */
+  /** Mean CPC over the places that have one above zero, in USD; null when none has. */
   cpc: number | null;
-  /** Keywords the site is cited for in the AI Overview. */
+  /** Distinct keywords the site is cited for in the AI Overview in any of their places. */
   cited: number;
   /** The newest check time among the keywords, ISO; null when none was checked. */
   updated: string | null;
@@ -28,6 +30,11 @@ export interface GroupData {
   memberIds: readonly string[];
 }
 
+/**
+ * A row of the table. A keyword row is one place (country, language) of a keyword, so a keyword in two
+ * countries has two; a group's `size` counts keywords, while the `hidden` of a `more` row counts the keyword
+ * rows (places) not yet shown.
+ */
 export type GroupedRow =
   | { kind: 'group'; id: string; group: GroupData; expanded: boolean }
   | { kind: 'keyword'; id: string; groupId: string; row: PairedRow }
@@ -52,45 +59,41 @@ const byRank = (a: number | null, b: number | null): number => {
   return a - b;
 };
 
-/** Every tracked id behind a shown row: both devices. */
-const idsOfRow = (row: PairedRow): readonly string[] => memberIds([row]).get(row.tracked_keyword_id) ?? [];
-
 /**
- * The figures of a group's rows. A keyword tracked in several places counts once, by the place it ranks best
- * in (the first when none ranks); the newest check time is read over every row.
+ * The figures of a group's rows. Keywords are counted once however many places (countries) they are tracked
+ * in: `size` and the rank buckets by the place a keyword ranks best in (the first when none ranks). Volume,
+ * CPC and the AI Overview citation are read over every place, and the newest check time over every row.
  */
 export function groupMeasures(rows: readonly PairedRow[]): GroupMeasures {
   const best = new Map<string, PairedRow>();
+  const citedKeywords = new Set<string>();
+  let volume = 0;
+  let cpcSum = 0;
+  let cpcCount = 0;
+  let updated: string | null = null;
   for (const row of rows) {
     const held = best.get(row.keyword.keyword_id);
     if (held === undefined || byRank(rankOf(row), rankOf(held)) < 0) best.set(row.keyword.keyword_id, row);
+    volume += row.metrics?.search_volume.value ?? 0;
+    const cpc = Number(row.metrics?.cpc_usd);
+    // Number(null) is 0 and Number(undefined) is NaN: neither passes, nor does "", "0.00" or a word
+    if (Number.isFinite(cpc) && cpc > 0) {
+      cpcSum += cpc;
+      cpcCount += 1;
+    }
+    if (row.state.aio.state === 'present_cited') citedKeywords.add(row.keyword.keyword_id);
+    const seen = row.state.last_observed_at;
+    if (seen !== null && (updated === null || Date.parse(seen) > Date.parse(updated))) updated = seen;
   }
   let top3 = 0;
   let top10 = 0;
   let top20 = 0;
-  let volume = 0;
-  let cited = 0;
-  let cpcSum = 0;
-  let cpcCount = 0;
   for (const row of best.values()) {
     const rank = rankOf(row);
-    if (rank !== null) {
-      if (rank <= 3) top3 += 1;
-      if (rank <= 10) top10 += 1;
-      if (rank <= 20) top20 += 1;
-    }
-    volume += row.metrics?.search_volume.value ?? 0;
-    const cpc = row.metrics?.cpc_usd == null ? Number.NaN : Number(row.metrics.cpc_usd);
-    if (Number.isFinite(cpc)) {
-      cpcSum += cpc;
-      cpcCount += 1;
-    }
-    if (row.state.aio.state === 'present_cited') cited += 1;
-  }
-  let updated: string | null = null;
-  for (const row of rows) {
-    const seen = row.state.last_observed_at;
-    if (seen !== null && (updated === null || Date.parse(seen) > Date.parse(updated))) updated = seen;
+    if (rank === null) continue;
+    if (rank <= 3) top3 += 1;
+    if (rank <= 10) top10 += 1;
+    if (rank <= 20) top20 += 1;
   }
   return {
     size: best.size,
@@ -99,7 +102,7 @@ export function groupMeasures(rows: readonly PairedRow[]): GroupMeasures {
     top20,
     volume,
     cpc: cpcCount === 0 ? null : cpcSum / cpcCount,
-    cited,
+    cited: citedKeywords.size,
     updated,
   };
 }
@@ -127,7 +130,7 @@ export function buildGroups(rows: readonly PairedRow[], notGroupedLabel: string)
     label: group.label,
     rows: group.rows,
     measures: groupMeasures(group.rows),
-    memberIds: [...new Set(group.rows.flatMap(idsOfRow))],
+    memberIds: [...new Set(group.rows.flatMap(idsOfPair))],
   }));
   return [...built.filter((g) => g.groupId !== NOT_GROUPED), ...built.filter((g) => g.groupId === NOT_GROUPED)];
 }
@@ -139,6 +142,9 @@ const bestRankOf = (group: GroupData): number | null =>
 /** Groups in the order asked, "Not grouped" always last; a group without a rank is last by rank, either way. */
 function sortGroups(groups: readonly GroupData[], sort: GroupSort): GroupData[] {
   const direction = sort.desc ? -1 : 1;
+  // Once per group, not inside the comparator
+  const bestRanks = new Map<string, number | null>();
+  if (sort.by === 'rank') for (const group of groups) bestRanks.set(group.groupId, bestRankOf(group));
   const compare = (a: GroupData, b: GroupData): number => {
     switch (sort.by) {
       case 'size':
@@ -148,7 +154,8 @@ function sortGroups(groups: readonly GroupData[], sort: GroupSort): GroupData[] 
       case 'name':
         return direction * a.label.localeCompare(b.label);
       case 'rank': {
-        const [x, y] = [bestRankOf(a), bestRankOf(b)];
+        const x = bestRanks.get(a.groupId) ?? null;
+        const y = bestRanks.get(b.groupId) ?? null;
         return x === null || y === null ? byRank(x, y) : direction * (x - y);
       }
     }
@@ -201,7 +208,7 @@ export function groupedRows({
 }
 
 /** A keyword is chosen when any tracked id behind it is, so a choice made on the other device still counts. */
-const isChosen = (row: PairedRow, chosen: ReadonlySet<string>): boolean => idsOfRow(row).some((id) => chosen.has(id));
+const isChosen = (row: PairedRow, chosen: ReadonlySet<string>): boolean => idsOfPair(row).some((id) => chosen.has(id));
 
 /**
  * The table's selected and partly selected row ids for the chosen tracked ids: a keyword row is selected when
@@ -223,24 +230,33 @@ export function selectionOf(rows: readonly GroupedRow[], chosen: ReadonlySet<str
   return { selectedIds, indeterminateIds };
 }
 
-/** Every tracked id behind a group's keywords, both devices, not only the rows the table shows. */
+/**
+ * Every tracked id behind a group's keywords, both devices, not only the rows the table shows: what an action
+ * on the group reaches, and what unticking it removes.
+ */
 export const trackedIdsOf = (group: GroupData): readonly string[] => group.memberIds;
 
-/** The chosen ids with the whole group added, or removed when all of it was chosen already. */
+/**
+ * The tracked id each keyword row of the group shows, one per row: what ticking the group adds, so the chosen
+ * ids stay a count of keyword rows as in the flat view (the other device's id is added when an action runs).
+ */
+export const shownIdsOf = (group: GroupData): readonly string[] => group.rows.map((row) => row.tracked_keyword_id);
+
+/** The chosen ids with the whole group added (its shown ids), or removed (both devices) when all was chosen. */
 export function toggleGroupIds(chosen: ReadonlySet<string>, group: GroupData): Set<string> {
   const next = new Set(chosen);
-  const all = group.rows.every((row) => isChosen(row, chosen));
-  for (const id of trackedIdsOf(group)) {
-    if (all) next.delete(id);
-    else next.add(id);
+  if (group.rows.every((row) => isChosen(row, chosen))) {
+    for (const id of trackedIdsOf(group)) next.delete(id);
+  } else {
+    for (const id of shownIdsOf(group)) next.add(id);
   }
   return next;
 }
 
 /**
  * The chosen tracked ids after the table changed its selected row ids from `previous` to `next`. An added
- * group row adds all its keywords, an added keyword row adds that keyword (the id of the row it shows); a
- * removed group row removes all its keywords, a removed keyword row removes that keyword on both devices.
+ * group row adds the shown id of each of its keyword rows, an added keyword row adds the id of the row it
+ * shows; a removed group row or keyword row removes the keywords on both devices.
  * A keyword is one choice however many groups list it: unticking any copy unchooses it, and when one change
  * adds one copy and removes another, the removal wins.
  */
@@ -255,14 +271,14 @@ export function applySelectionChange(
   for (const id of next) {
     if (previous.has(id)) continue;
     const entry = byId.get(id);
-    if (entry?.kind === 'group') for (const memberId of trackedIdsOf(entry.group)) result.add(memberId);
+    if (entry?.kind === 'group') for (const shownId of shownIdsOf(entry.group)) result.add(shownId);
     else if (entry?.kind === 'keyword') result.add(entry.row.tracked_keyword_id);
   }
   for (const id of previous) {
     if (next.has(id)) continue;
     const entry = byId.get(id);
     if (entry?.kind === 'group') for (const memberId of trackedIdsOf(entry.group)) result.delete(memberId);
-    else if (entry?.kind === 'keyword') for (const memberId of idsOfRow(entry.row)) result.delete(memberId);
+    else if (entry?.kind === 'keyword') for (const memberId of idsOfPair(entry.row)) result.delete(memberId);
   }
   return result;
 }

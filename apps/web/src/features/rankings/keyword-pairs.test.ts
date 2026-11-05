@@ -83,4 +83,12 @@ describe('expandIds', () => {
     // An id the table does not hold stays: it may be on a page not loaded
     expect([...expandIds(new Set(['far-away']), members)]).toEqual(['far-away']);
   });
+
+  it('reaches both devices whichever device’s id is chosen, also after the shown device changed', () => {
+    const onMobile = memberIds(pairRows(LIST, 'mobile'));
+
+    expect([...expandIds(new Set(['a-d']), onMobile)].sort()).toEqual(['a-d', 'a-m']);
+    expect([...expandIds(new Set(['a-m']), onMobile)].sort()).toEqual(['a-d', 'a-m']);
+    expect(onMobile.get('a-d')).toEqual(onMobile.get('a-m'));
+  });
 });
