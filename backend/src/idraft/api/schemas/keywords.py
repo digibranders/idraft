@@ -552,6 +552,11 @@ class TrackedKeywordFilter(Body):
         description="A country's location id: the keywords tracked in that country or anywhere "
         "inside it (a region, a city).",
     )
+    country_id_in: FilterList[int] | None = Field(
+        default=None,
+        description="Any of these countries' location ids: the keywords tracked in one of them "
+        "or anywhere inside one.",
+    )
     language_code: LanguageCode | None = None
     search_engine: Literal["google", "bing"] | None = None
     intent_in: FilterList[Intent] | None = None

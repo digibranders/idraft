@@ -163,6 +163,52 @@ async def test_the_country_filter_takes_the_country_and_every_place_inside_it(
     assert _texts(exact) == ["crm"]
 
 
+async def test_the_country_in_filter_takes_every_country_named_and_the_places_inside_them(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    city = 990002
+    third = 990003
+    await execute(
+        migrated,
+        "INSERT INTO core.locations (id, name, country_iso, location_type) VALUES "
+        "($1, 'Germany', 'DE', 'Country') ON CONFLICT (id) DO NOTHING",
+        third,
+    )
+    await execute(
+        migrated,
+        "INSERT INTO core.locations (id, name, country_iso, location_type, parent_id) "
+        "VALUES ($1, 'London', 'GB', 'City', $2) ON CONFLICT (id) DO NOTHING",
+        city,
+        OTHER_LOCATION,
+    )
+    await tracked_id(api, workspace, project, owner, "crm")
+    await tracked_id(api, workspace, project, owner, "london crm", location_id=city)
+    await tracked_id(api, workspace, project, owner, "erp", location_id=third)
+
+    both = await _list(
+        api,
+        workspace,
+        project,
+        owner,
+        **{"filter[country_id_in]": f"{LOCATION},{OTHER_LOCATION}"},
+    )
+    one = await _list(api, workspace, project, owner, **{"filter[country_id_in]": third})
+    scoped = await _list(
+        api,
+        workspace,
+        project,
+        owner,
+        **{"filter[country_id_in]": f"{LOCATION},{third}", "filter[country_id]": third},
+    )
+
+    assert sorted(_texts(both)) == ["crm", "london crm"]
+    assert both.json()["page"]["total"] == 2
+    assert _texts(one) == ["erp"]
+    # Both country filters apply: the keyword must match each
+    assert _texts(scoped) == ["erp"]
+
+
 async def test_group_and_term_filters_include_what_is_under_them(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

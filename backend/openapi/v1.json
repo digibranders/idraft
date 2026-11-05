@@ -2427,6 +2427,14 @@
         "minItems": 1,
         "type": "array"
       },
+      "FilterList_int_": {
+        "items": {
+          "type": "integer"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
       "GroupMembers": {
         "additionalProperties": false,
         "properties": {
@@ -10686,6 +10694,17 @@
             "description": "A country's location id: the keywords tracked in that country or anywhere inside it (a region, a city).",
             "title": "Country Id"
           },
+          "country_id_in": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FilterList_int_"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Any of these countries' location ids: the keywords tracked in one of them or anywhere inside one."
+          },
           "declined": {
             "anyOf": [
               {
@@ -18730,6 +18749,27 @@
               ],
               "description": "A country's location id: tracked in it or anywhere inside it.",
               "title": "Filter[Country Id]"
+            }
+          },
+          {
+            "description": "Any of these countries (comma separated location ids): tracked in one of them or anywhere inside one.",
+            "in": "query",
+            "name": "filter[country_id_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Any of these countries (comma separated location ids): tracked in one of them or anywhere inside one.",
+              "title": "Filter[Country Id In]"
             }
           },
           {

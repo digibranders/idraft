@@ -13,6 +13,7 @@ from idraft.api.resources import Resources
 from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import (
+    OTHER_LOCATION,
     errors,
     group,
     keyword_project,
@@ -149,6 +150,27 @@ async def test_bulk_update_by_filter_adds_and_removes_groups_and_terms(
     assert sorted((row["id"], row["link"]) for row in links) == sorted(
         [(mobile, new_group), (mobile, new_term), (desktop, old_group), (desktop, old_term)]
     )
+
+
+async def test_bulk_archive_by_countries_archives_only_those_countries(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    await tracked_id(api, workspace, project, owner, "crm")
+    await tracked_id(api, workspace, project, owner, "erp", location_id=OTHER_LOCATION)
+
+    response = await _bulk(
+        api,
+        workspace,
+        project,
+        owner,
+        "bulk-archive",
+        {"filter": {"country_id_in": [OTHER_LOCATION]}, "archive": True},
+    )
+
+    assert response.json()["data"] == {"matched": 1, "updated": 1}
+    rows = await _rows(migrated, project)
+    assert {text: r["is_active"] for text, r in rows.items()} == {"crm": True, "erp": False}
 
 
 async def test_a_single_valued_term_added_in_bulk_replaces_the_one_there(

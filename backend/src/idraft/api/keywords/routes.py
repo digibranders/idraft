@@ -294,6 +294,15 @@ async def list_tracked_keywords(
             description="A country's location id: tracked in it or anywhere inside it.",
         ),
     ] = None,
+    country_id_in: Annotated[
+        list[int] | None,
+        Commas,
+        Query(
+            alias="filter[country_id_in]",
+            description="Any of these countries (comma separated location ids): tracked in one "
+            "of them or anywhere inside one.",
+        ),
+    ] = None,
     language_code: Annotated[LanguageCode | None, Query(alias="filter[language_code]")] = None,
     search_engine: Annotated[
         Literal["google", "bing"] | None, Query(alias="filter[search_engine]")
@@ -348,6 +357,7 @@ async def list_tracked_keywords(
             "device": device,
             "location_id": location_id,
             "country_id": country_id,
+            "country_id_in": country_id_in,
             "language_code": language_code,
             "search_engine": search_engine,
             "intent_in": intent_in,
