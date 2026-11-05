@@ -160,7 +160,8 @@ export function DataTable<TRow extends RowData>({
   selection,
   rowTree,
   onToggleGroup,
-  toolbarStart,
+  toolbarEnd,
+  identityCap = false,
   bulkActions,
   rowActions,
   rowName,
@@ -286,7 +287,7 @@ export function DataTable<TRow extends RowData>({
       flex: identity,
     };
   });
-  const widths = resolveWidths(sized, regionSize.width);
+  const widths = resolveWidths(sized, regionSize.width, { capIdentity: identityCap });
   const identityIndex = grid.findIndex((column) => column.kind === 'data' && column.column.identity === true);
   const identityColumn = grid.find((column) => column.kind === 'data' && column.column.identity === true);
   const identityId = identityColumn?.kind === 'data' ? identityColumn.column.id : null;
@@ -923,7 +924,7 @@ export function DataTable<TRow extends RowData>({
           updating={showUpdating}
           density={density}
           onDensityChange={onDensityChange}
-          start={toolbarStart}
+          end={toolbarEnd}
           columns={(trigger) => (
             <ColumnChooser
               trigger={trigger}

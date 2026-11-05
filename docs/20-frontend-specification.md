@@ -1334,7 +1334,7 @@ The browser needs no API URL: it calls the relative `/api/v1`. `NEXT_PUBLIC_*` v
 
 ### 9.3 Preview deployments
 
-None. V1 has one environment and no staging API ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). Pull requests build the `web` image and run Vitest, the Playwright E2E suite against the Compose stack (8.4), Lighthouse CI and `size-limit` in CI; reviewers run the app locally when they need to click through a change.
+None. V1 has one environment and no staging API ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). (Since 2026-11-05 no CI runs on pull requests: the checks run on the owner's Mac through `infra/ship.sh`, see [ops/release-and-deploy.md](ops/release-and-deploy.md). The rest of this paragraph is the target design.) Pull requests build the `web` image and run Vitest, the Playwright E2E suite against the Compose stack (8.4), Lighthouse CI and `size-limit` in CI; reviewers run the app locally when they need to click through a change.
 
 ### 9.4 Caching
 

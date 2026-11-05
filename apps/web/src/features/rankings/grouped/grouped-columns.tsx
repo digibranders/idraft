@@ -70,7 +70,10 @@ export function useGroupedColumns(
     const figureCell = (id: string, group: GroupData): ReactNode => {
       const figure = figureOf(id, group);
       return figure === null ? null : (
-        <span className={cn(figure.number && 'num', figure.muted && 'text-foreground-tertiary')}>{figure.text}</span>
+        // One line, as a keyword row's cells are: a narrow column cuts the figure rather than doubling the row
+        <span className={cn('block truncate', figure.number && 'num', figure.muted && 'text-foreground-tertiary')}>
+          {figure.text}
+        </span>
       );
     };
     return keywordColumns.map((column): DataTableColumn<GroupedRow> => {

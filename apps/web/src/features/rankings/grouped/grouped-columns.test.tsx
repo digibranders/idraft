@@ -142,6 +142,18 @@ describe('useGroupedColumns', () => {
     expect(columnById('keyword').identity).toBe(true);
   });
 
+  it('sizes each column as the All keywords view does: same type, width, minimum and priority', () => {
+    const sizing = (column: DataTableColumn<GroupedRow> | DataTableColumn<PairedRow>) => [
+      column.id,
+      column.type,
+      column.width,
+      column.minWidth,
+      column.priority,
+      column.defaultVisible,
+    ];
+    expect(columnsOf().map(sizing)).toEqual(KEYWORD_COLUMNS.map(sizing));
+  });
+
   it('sorts by none of them: the table is in group order', () => {
     expect(columnsOf().every((column) => column.sortValue === undefined)).toBe(true);
   });

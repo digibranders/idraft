@@ -9,7 +9,8 @@
 #
 # Environment:
 #   SHIP_ALL=1        check and deploy every part, changed or not
-#   PYTEST_WORKERS=n  backend test workers (default 4, as many as Colima has CPUs)
+#   PYTEST_WORKERS=n  backend test workers (default 8; Colima runs with 10 CPUs and 16 GiB since
+#                     2026-11-05: 6m20s for the suite beside the web tests, against 8m37s on 4)
 #   VITEST_WORKERS=n  web unit test workers (default 6). The two suites run at once: on 14 cores, full
 #                     width vitest beside the backend run timed out DOM tests that pass alone.
 #   SHIP_HOST         ssh target (default root@187.126.121.25)
@@ -45,7 +46,9 @@ export DOCKER_HOST="${DOCKER_HOST:-unix://$HOME/.colima/default/docker.sock}"
 export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE="${TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE:-/var/run/docker.sock}"
 docker info >/dev/null 2>&1 || die "Docker does not answer (colima start?)"
 
-repo="$(cd "$(git -C "$(dirname "$0")" rev-parse --git-common-dir)/.." && pwd)"
+self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+# Absolute: from the main checkout git answers a path relative to infra/, from a worktree an absolute one.
+repo="$(dirname "$(git -C "$(dirname "$self")" rev-parse --path-format=absolute --git-common-dir)")"
 work="$repo/.claude/worktrees/release"
 
 say "Merging $source_ref into main"
@@ -64,6 +67,13 @@ git clean -ffdq -e node_modules -e .venv -e .next
 git checkout --quiet --detach origin/main
 git merge --quiet --no-edit "$source_ref" || { git merge --abort 2>/dev/null || true; die "$source_ref does not merge cleanly into main"; }
 sha="$(git rev-parse HEAD)"
+
+# The checkout this was started from may hold an older copy of this script (the main checkout's develop
+# often lags origin). The release's own copy decides how the release is made.
+if [ -z "${SHIP_REEXEC:-}" ] && ! cmp -s "$self" "$work/infra/ship.sh"; then
+  say "Handing over to the infra/ship.sh of the release being made"
+  SHIP_REEXEC=1 exec "$work/infra/ship.sh" "$source_ref"
+fi
 
 # What to check: what is new on main. What to deploy: what the VPS does not serve yet, so a deploy that
 # failed after its push is retried by the next run.
@@ -94,7 +104,7 @@ logs="$(mktemp -d "${TMPDIR:-/tmp}/idraft-ship.XXXXXX")"
 
 # Each check is one && chain: it runs inside `if` below, where bash ignores set -e.
 check_backend() {
-  (cd backend && uv sync --frozen --quiet && ./check.sh -n "${PYTEST_WORKERS:-4}")
+  (cd backend && uv sync --frozen --quiet && ./check.sh -n "${PYTEST_WORKERS:-8}")
 }
 
 check_web() {
@@ -169,7 +179,10 @@ fi
 if [ "$deploy_web" = 1 ]; then
   # COPYFILE_DISABLE keeps macOS ._ files out. The build runs on Linux as is (no native module is loaded:
   # the app does not use next/image); sharp's macOS binaries are left out as dead weight.
-  COPYFILE_DISABLE=1 tar -czf - --exclude '._*' --exclude '.env*' --exclude 'sharp-darwin*' \
+  # --no-xattrs and --no-mac-metadata keep macOS attributes (com.apple.provenance) out, which GNU tar
+  # on the VPS otherwise warns about once per file.
+  COPYFILE_DISABLE=1 tar -czf - --no-xattrs --no-mac-metadata \
+    --exclude '._*' --exclude '.env*' --exclude 'sharp-darwin*' \
     --exclude 'sharp-libvips-darwin*' -C apps/web/.next/standalone . | remote "cat > '$stage/web.tar.gz'"
 fi
 

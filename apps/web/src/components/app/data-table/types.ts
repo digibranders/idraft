@@ -187,8 +187,13 @@ export interface DataTableProps<TRow> {
   rowTree?: ((row: TRow) => RowTree | undefined) | undefined;
   /** Called to open or close a group row. */
   onToggleGroup?: ((row: TRow) => void) | undefined;
-  /** A slot at the start of the toolbar: the view switch. */
-  toolbarStart?: ReactNode;
+  /** A slot at the end of the toolbar, before density and columns: the view switch. */
+  toolbarEnd?: ReactNode;
+  /**
+   * Hold the identity column at its type maximum while the other columns can still widen toward theirs
+   * (`resolveWidths` with `capIdentity`): for a table that shows few columns, the By group view.
+   */
+  identityCap?: boolean;
   bulkActions?: readonly RecordAction<TRow>[] | undefined;
   /**
    * The actions of a row's menu: one list for every row, or a function of the row for actions that not

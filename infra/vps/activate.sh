@@ -128,7 +128,7 @@ migrate() {
   # The units' own environment file and user; nothing secret reaches a command line.
   systemd-run --wait --pipe --collect --quiet \
     -p User=idraft -p EnvironmentFile=/etc/idraft/migrator.env -p RuntimeMaxSec=600 \
-    -p WorkingDirectory="$1" -E PYTHONUNBUFFERED=1 \
+    -p WorkingDirectory="$1" -E PYTHONUNBUFFERED=1 -E RELEASE_SHA="$(basename "$1")" \
     "$1/.venv/bin/python" -m idraft.db.migrate
 }
 

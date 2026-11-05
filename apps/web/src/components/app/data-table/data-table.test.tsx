@@ -1366,13 +1366,13 @@ describe('DataTable tree mode', () => {
   function TreeHarness({
     sort = [],
     selection = {},
-    toolbarStart,
+    toolbarEnd,
     rows = TREE_ROWS,
     tree = TREE,
   }: {
     sort?: readonly SortKey[];
     selection?: Partial<Selection>;
-    toolbarStart?: ReactElement;
+    toolbarEnd?: ReactElement;
     rows?: Row[];
     tree?: Readonly<Record<string, RowTree>>;
   }): ReactElement {
@@ -1401,7 +1401,7 @@ describe('DataTable tree mode', () => {
           onRowOpen={onOpen}
           rowTree={(row) => tree[row.id]}
           onToggleGroup={toggle}
-          toolbarStart={toolbarStart}
+          toolbarEnd={toolbarEnd}
           status="ready"
           errorState={<p>The keywords did not load.</p>}
           emptyState={<p>No keywords yet.</p>}
@@ -1612,11 +1612,27 @@ describe('DataTable tree mode', () => {
     expect(screen.getByRole('searchbox', { name: 'Search in table' })).toBeInTheDocument();
   });
 
-  it('renders toolbarStart at the start of the toolbar, before the search field', () => {
-    renderWithProviders(<TreeHarness toolbarStart={<button type="button">By group</button>} />);
-    const start = screen.getByRole('button', { name: 'By group' });
+  it('renders toolbarEnd after the search field and before the density and column controls', () => {
+    renderWithProviders(<TreeHarness toolbarEnd={<button type="button">By group</button>} />);
+    const end = screen.getByRole('button', { name: 'By group' });
     const search = screen.getByRole('searchbox', { name: 'Search in table' });
-    expect(start.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const controls = screen.getByRole('toolbar', { name: /Keywords/ });
+    expect(search.compareDocumentPosition(end) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(end.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(controls).not.toContainElement(end);
+  });
+
+  it('wraps the toolbar on a narrow table: the switch and the controls drop to a second line together', () => {
+    renderWithProviders(<TreeHarness toolbarEnd={<button type="button">By group</button>} />);
+    const controls = screen.getByRole('toolbar', { name: /Keywords/ });
+    const endGroup = controls.parentElement;
+    expect(endGroup).toContainElement(screen.getByRole('button', { name: 'By group' }));
+    expect(endGroup?.parentElement).toHaveClass('flex-wrap', 'min-h-12');
+    // The search field may narrow to nothing rather than push the bar wider than the table
+    expect(screen.getByRole('searchbox', { name: 'Search in table' }).closest('[data-slot="input-group"]')).toHaveClass(
+      'min-w-0',
+      'max-w-full',
+    );
   });
 
   describe('selecting rows in a tree', () => {
