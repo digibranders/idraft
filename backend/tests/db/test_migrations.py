@@ -11,6 +11,7 @@ from alembic import command
 from alembic.script import ScriptDirectory
 
 from idraft.db.migrate import (
+    ADVISORY_LOCK_KEY,
     MigrationState,
     alembic_config,
     main,
@@ -323,6 +324,35 @@ def test_concurrent_migrators_take_turns(pg: PostgresServer) -> None:
     outcomes = [(process.communicate(timeout=60), process.returncode) for process in processes]
 
     assert [code for _, code in outcomes] == [0, 0, 0, 0], [err for (_, err), _ in outcomes]
+    assert _version(url) == [migration_state().head]
+
+
+def test_a_migrator_waits_its_turn_longer_than_the_role_lock_timeout(pg: PostgresServer) -> None:
+    """The migrator role's lock_timeout (2 s, 10-roles.sh) is for its DDL. Waiting for another
+    migrator to finish is not DDL: with that limit, a first migrator slower than 2 s failed the
+    others instead of queueing them."""
+    url = _fresh_database(pg, "migrate_wait")
+    command = [sys.executable, "-m", "idraft.db.migrate"]
+    environment = {**os.environ, "DATABASE_URL": url}
+
+    async def scenario() -> subprocess.CompletedProcess[bytes]:
+        holder = await asyncpg.connect(url)
+        try:
+            await holder.execute("SELECT pg_advisory_lock($1)", ADVISORY_LOCK_KEY)
+            migrator = asyncio.create_task(
+                asyncio.to_thread(
+                    subprocess.run, command, env=environment, capture_output=True, timeout=60
+                )
+            )
+            await asyncio.sleep(3)  # longer than the role's lock_timeout
+            await holder.execute("SELECT pg_advisory_unlock($1)", ADVISORY_LOCK_KEY)
+            return await migrator
+        finally:
+            await holder.close()
+
+    result = asyncio.run(scenario())
+
+    assert result.returncode == 0, result.stderr.decode()
     assert _version(url) == [migration_state().head]
 
 

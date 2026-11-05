@@ -9,7 +9,8 @@
 #
 # Environment:
 #   SHIP_ALL=1        check and deploy every part, changed or not
-#   PYTEST_WORKERS=n  backend test workers (default 4, as many as Colima has CPUs)
+#   PYTEST_WORKERS=n  backend test workers (default 8; Colima runs with 10 CPUs and 16 GiB since
+#                     2026-11-05: 6m20s for the suite beside the web tests, against 8m37s on 4)
 #   VITEST_WORKERS=n  web unit test workers (default 6). The two suites run at once: on 14 cores, full
 #                     width vitest beside the backend run timed out DOM tests that pass alone.
 #   SHIP_HOST         ssh target (default root@187.126.121.25)
@@ -94,7 +95,7 @@ logs="$(mktemp -d "${TMPDIR:-/tmp}/idraft-ship.XXXXXX")"
 
 # Each check is one && chain: it runs inside `if` below, where bash ignores set -e.
 check_backend() {
-  (cd backend && uv sync --frozen --quiet && ./check.sh -n "${PYTEST_WORKERS:-4}")
+  (cd backend && uv sync --frozen --quiet && ./check.sh -n "${PYTEST_WORKERS:-8}")
 }
 
 check_web() {
