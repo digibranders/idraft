@@ -35,13 +35,19 @@ export const cleanstart = fixtureProject(1);
 type ScreenProps = Partial<Pick<RankingsScreenProps, 'importOpen' | 'onImportOpenChange' | 'depth'>> & {
   /** The table opens on the project's own country instead of on every country. */
   opensOnOwnCountry?: boolean;
+  /**
+   * The table opens on the view the screen picks by default (By group when the project has groups and the
+   * list is read whole) instead of All keywords. Off by default, so the tests written for the flat table keep
+   * it; the URL's `view` wins either way.
+   */
+  opensOnDefaultView?: boolean;
 };
 
 /** Rankings of `projectId` for a member of `role`, signed in through the mock session cookie. */
 export function rankingsAs(
   role: Role,
   projectId: string = fynix.project_id,
-  { opensOnOwnCountry = false, ...screenProps }: ScreenProps = {},
+  { opensOnOwnCountry = false, opensOnDefaultView = false, ...screenProps }: ScreenProps = {},
   /** The projects a member limited to some may open; `null` is every project. */
   projectIds: readonly string[] | null = null,
 ): ReactElement {
@@ -69,6 +75,7 @@ export function rankingsAs(
           }}
           // The mock keywords are tracked in several countries: the table opens on all of them
           {...(opensOnOwnCountry ? {} : { scopeOpensOn: ALL_COUNTRIES })}
+          {...(opensOnDefaultView ? {} : { viewOpensOn: 'flat' as const })}
           {...screenProps}
         />
       </Suspense>

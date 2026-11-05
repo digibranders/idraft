@@ -2248,7 +2248,15 @@
       "viewLabel": "View",
       "byGroup": "By group",
       "allKeywords": "All keywords",
-      "needsClientMode": "By group needs every keyword loaded, which works up to 10,000 keywords. Narrow the list with a filter."
+      "needsClientMode": "By group needs every keyword loaded, which works up to 10,000 keywords. Narrow the list with a filter.",
+      "sortLabel": "Sort groups",
+      "sort": {
+        "size": "Most keywords",
+        "name": "Name",
+        "volume": "Volume",
+        "rank": "Best rank"
+      },
+      "loading": "Groups are complete when all keywords have loaded: {loaded} of {total} so far."
     },
     "error": {
       "title": "The keywords did not load",

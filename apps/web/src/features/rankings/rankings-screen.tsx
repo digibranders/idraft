@@ -4,12 +4,17 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Archive, Download, FolderTree, MoreHorizontal, Plus, Upload, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useLocale, useTranslations } from 'next-intl';
-import { parseAsBoolean, parseAsString, useQueryStates } from 'nuqs';
+import { parseAsBoolean, parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { AddKeywordsDialog, type ProjectDefaults } from './add-keywords/add-keywords-dialog';
 import { useBulkActions } from './bulk/bulk-actions';
 import { ManageGroupsDialog } from './groups/manage-groups-dialog';
+import { useGroupedColumns } from './grouped/grouped-columns';
+import type { GroupedRow } from './grouped/grouped-rows';
+import { keywordActions, useGroupedTable } from './grouped/use-grouped-table';
+import { hiddenInGroups, mergeHidden, visibleForView, type KeywordsView } from './grouped/view-columns';
+import { ViewSwitch } from './grouped/view-switch';
 import { ImportProgress } from './import/import-progress';
 import { forgetWritingImport, useWritingImport } from './import/import-queries';
 import {
@@ -40,6 +45,7 @@ import {
 import { usePendingMetrics } from './refresh/pending-metrics';
 import { useMetricsRefresh } from './refresh/use-metrics-refresh';
 import { useCheckNow } from './check-now/use-check-now';
+import { useKeywordGroups } from './taxonomy-queries';
 import { RankStrip } from './strip/rank-strip';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { RecordAction, TableStatus } from '@/components/app/data-table/types';
@@ -103,7 +109,10 @@ const VIEW_STATE = {
   sort: parseAsString,
   cols: parseAsString,
   density: parseAsString,
+  view: parseAsStringLiteral(['groups', 'flat'] as const),
 };
+const NO_ROWS: readonly PairedRow[] = [];
+const groupedRowId = (row: GroupedRow): string => row.id;
 
 export interface RankingsScreenProps extends ProjectScope {
   /** The project's time zone, for the Added column. */
@@ -112,6 +121,8 @@ export interface RankingsScreenProps extends ProjectScope {
   defaults: ProjectDefaults;
   /** A country (or `ALL_COUNTRIES`) the table opens on instead of the project's own; the URL's `loc` wins. */
   scopeOpensOn?: number;
+  /** A view the table opens on instead of the default (By group when the project has groups); the URL's `view` wins. */
+  viewOpensOn?: KeywordsView;
   /** Whether the import dialog is open over the screen; the route says so (`/seo/rankings/import`). Default `false`. */
   importOpen?: boolean;
   /** Asks the route to open or close the import dialog. */
@@ -133,6 +144,7 @@ export function RankingsScreen({
   timeZone,
   defaults,
   scopeOpensOn,
+  viewOpensOn,
   importOpen = false,
   onImportOpenChange,
   depth,
@@ -145,6 +157,7 @@ export function RankingsScreen({
   const rankT = useTranslations('rankings.rank');
   const exportColumnsT = useTranslations('rankings.export.columns');
   const stripT = useTranslations('rankings.strip');
+  const groupedT = useTranslations('rankings.grouped');
   const locale = useLocale();
   const canWrite = useCan('keywords:write');
   const canImport = useCan('imports:write');
@@ -266,6 +279,14 @@ export function RankingsScreen({
     }),
     [rawList, pairedRows],
   );
+  // By group reads every keyword, so a list in server mode is flat whatever the URL says; without a choice
+  // in the URL, a project with groups opens on them
+  const projectGroups = useKeywordGroups(scope);
+  const groupsAllowed = list.mode !== 'server';
+  const shownView: KeywordsView = groupsAllowed
+    ? (view.view ?? viewOpensOn ?? ((projectGroups.data?.data.length ?? 0) > 0 ? 'groups' : 'flat'))
+    : 'flat';
+  const byGroup = shownView === 'groups';
   const tracked = useTrackedCount(scope);
   const writingNow = useWritingImport(scope, canImport).data?.import_id ?? null;
   const followedImports = [...startedImports, ...(writingNow === null ? [] : [writingNow])].filter(
@@ -303,14 +324,32 @@ export function RankingsScreen({
   const chosen = selection.key === selectionKey ? selection : emptySelection;
   // The table may set both in one event (untick a row: no longer all matching, and fewer ids), so each
   // setter changes its own part of the latest state
-  const setChosenIds = (ids: ReadonlySet<string>): void => setSelection((current) => ({ ...current, ids }));
+  const setChosenIds = useCallback(
+    (ids: ReadonlySet<string>): void => setSelection((current) => ({ ...current, ids })),
+    [],
+  );
   const setAllMatching = (allMatching: boolean): void => setSelection((current) => ({ ...current, allMatching }));
   const clearSelection = (): void => setSelection(emptySelection);
   // Keywords that left the list are not chosen any more
   // The chosen keywords with their other device's tracked keyword: what an action is asked about
+  // By group holds every keyword, so it never stands for "every matching keyword"
+  const allMatchingNow = chosen.allMatching && !byGroup;
   const reached = useMemo(
-    () => ({ ids: expandIds(chosen.ids, members), allMatching: chosen.allMatching }),
-    [chosen.ids, chosen.allMatching, members],
+    () => ({ ids: expandIds(chosen.ids, members), allMatching: allMatchingNow }),
+    [chosen.ids, allMatchingNow, members],
+  );
+  const grouped = useGroupedTable({
+    rows: byGroup ? pairedRows : NO_ROWS,
+    search,
+    chosen: chosen.ids,
+    onChosenChange: setChosenIds,
+    members,
+  });
+  const groupColumnSource = useMemo(() => columns.filter((column) => !hiddenInGroups(column.id)), [columns]);
+  const groupedColumns = useGroupedColumns(groupColumnSource, { timeZone, onShowAll: grouped.onShowAll });
+  const flatDefaults = useMemo(
+    () => columns.filter((column) => column.defaultVisible !== false).map((column) => column.id),
+    [columns],
   );
   const dropChosen = useCallback((gone: ReadonlySet<string>): void => {
     setSelection((current) => ({ ...current, ids: new Set([...current.ids].filter((id) => !gone.has(id))) }));
@@ -376,6 +415,7 @@ export function RankingsScreen({
       }),
   });
   const bulkActions = [...nonDestructive, ...checkNowBar, ...refreshBar, ...destructive].map(expandAction);
+  const groupedBulkActions = keywordActions(bulkActions, pairedRows, chosen.ids);
   const menuItems: MenuItemDef[] = [
     ...(refresh.menuItem === null ? [] : [refresh.menuItem]),
     ...(canWrite
@@ -390,7 +430,12 @@ export function RankingsScreen({
       onSelect: () => void setView({ archived: view.archived ? null : true }),
     },
   ];
-  const status = statusOf(list, filtered || view.archived || (list.mode === 'server' && search.trim() !== ''));
+  const listStatus = statusOf(list, filtered || view.archived || (list.mode === 'server' && search.trim() !== ''));
+  // The tree does not search itself: a search that leaves no group is the search's empty state
+  const status =
+    byGroup && (listStatus === 'ready' || listStatus === 'refetching') && grouped.rows.length === 0
+      ? 'filtered-empty'
+      : listStatus;
   const updated = newestFetch(list.rows);
   const updatedText = updated === null ? null : t('updated', { time: formatRelative(updated, timeZone) });
   // The summary strip counts the keywords the table shows; the project's tracked keywords (a keyword on each
@@ -426,7 +471,9 @@ export function RankingsScreen({
     guarded(() => inspector.step(direction, order));
   };
   const openRow = openId === null ? null : (rawList.rows.find((row) => row.tracked_keyword_id === openId) ?? null);
-  const hiddenByFilters = openId !== null && listComplete && !order.includes(openId);
+  // In By group the keyword may sit in a closed group: it is hidden only when the search or filters leave it out
+  const hiddenByFilters =
+    openId !== null && listComplete && !(byGroup ? grouped.inView(openId) : order.includes(openId));
   const onRowOpen = (row: TrackedKeywordRow, intent: 'inspector' | 'new-tab'): void => {
     const target = { type: 'keyword' as const, id: row.tracked_keyword_id };
     if (intent === 'new-tab') {
@@ -438,6 +485,11 @@ export function RankingsScreen({
     }
     if (row.tracked_keyword_id === openId) return;
     guarded(() => inspector.open(target));
+  };
+  // A group row only toggles (the table does that); a "Show all" row, wherever it is clicked, shows the rest
+  const onGroupedRowOpen = (row: GroupedRow, intent: 'inspector' | 'new-tab'): void => {
+    if (row.kind === 'keyword') onRowOpen(row.row, intent);
+    else if (row.kind === 'more') grouped.onShowAll(row.groupId);
   };
   const onEditStateChange = useCallback((state: InspectorEditState) => setEditState(state), []);
 
@@ -659,6 +711,58 @@ export function RankingsScreen({
       />
     );
 
+  const setColumns = (next: readonly string[] | null): void => {
+    // The table cannot offer a column that is out of view, so a change to the others keeps it chosen:
+    // it is in the explicit list when the person had it there, and in the default one
+    const kept =
+      next !== null && !severalCountries && (visible === null || visible.includes(COUNTRY_COLUMN))
+        ? [...next.slice(0, 1), COUNTRY_COLUMN, ...next.slice(1)]
+        : next;
+    void setView({ cols: kept === null ? null : formatColumns(kept) });
+  };
+  const groupedRowName = (row: GroupedRow): string => {
+    if (row.kind === 'keyword') return rowName(row.row);
+    if (row.kind === 'more') return groupedT('showAll', { count: row.hidden });
+    return `${row.group.label}, ${groupedT('keywordCount', { count: row.group.measures.size })}`;
+  };
+  // What both views' tables share; the view switch is the same element in both, so switching keeps the table
+  const tableProps = {
+    caption: t('caption'),
+    itemNoun: { one: t('noun.one'), other: t('noun.other') },
+    loadProgress: list.loadProgress,
+    sort,
+    onSortChange: setSort,
+    defaultSort: DEFAULT_SORT,
+    density,
+    onDensityChange: setDensity,
+    search: view.q,
+    onSearchChange: (next: string) => void setView({ q: next === '' ? null : next }),
+    searchPlaceholder: t('search'),
+    status,
+    errorState: (
+      <InlineError
+        title={t('error.title')}
+        reason={t('error.reason')}
+        errorId={errorId}
+        onRetry={list.refetch}
+        retrying={list.fetching}
+        retryLabel={common('retry')}
+        live
+      />
+    ),
+    emptyState,
+    filteredEmptyState: filteredEmpty,
+    toolbarStart: (
+      <ViewSwitch
+        view={shownView}
+        onViewChange={(next) => void setView({ view: next })}
+        groupsDisabled={!groupsAllowed}
+        sort={grouped.sort}
+        onSortChange={grouped.setSort}
+      />
+    ),
+  };
+
   return (
     <InspectorLayout inspector={keywordInspector}>
       <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
@@ -736,86 +840,92 @@ export function RankingsScreen({
             }
           />
         )}
-        <div className="flex min-h-0 flex-1 flex-col">
-          <DataTable<PairedRow>
-            caption={t('caption')}
-            itemNoun={{ one: t('noun.one'), other: t('noun.other') }}
-            columns={columns}
-            getRowId={rowId}
-            rows={list.rows}
-            total={list.total}
-            server={
-              list.server === null
-                ? undefined
-                : {
-                    rangeText: t('range', {
-                      from: list.server.offset + 1,
-                      to: list.server.offset + rawList.rows.length,
-                      total: list.total ?? 0,
-                    }),
-                    offset: list.server.offset,
-                    hasPrevious: list.server.hasPrevious,
-                    hasNext: list.server.hasNext,
-                    onPrevious: list.server.previous,
-                    onNext: list.server.next,
-                    pageSize: list.server.pageSize,
-                    onPageSizeChange: list.server.setPageSize,
-                    pageSizes: PAGE_SIZE_CHOICES,
-                  }
-            }
-            loadProgress={list.loadProgress}
-            sort={sort}
-            onSortChange={setSort}
-            defaultSort={DEFAULT_SORT}
-            density={density}
-            onDensityChange={setDensity}
-            columnState={{
-              visible,
-              onChange: (next) => {
-                // The table cannot offer a column that is out of view, so a change to the others keeps it chosen:
-                // it is in the explicit list when the person had it there, and in the default one
-                const kept =
-                  next !== null && !severalCountries && (visible === null || visible.includes(COUNTRY_COLUMN))
-                    ? [...next.slice(0, 1), COUNTRY_COLUMN, ...next.slice(1)]
-                    : next;
-                void setView({ cols: kept === null ? null : formatColumns(kept) });
-              },
-            }}
-            search={view.q}
-            onSearchChange={(next) => void setView({ q: next === '' ? null : next })}
-            searchPlaceholder={t('search')}
-            searchText={list.mode === 'server' ? undefined : keywordText}
-            rowName={rowName}
-            status={status}
-            errorState={
-              <InlineError
-                title={t('error.title')}
-                reason={t('error.reason')}
-                errorId={errorId}
-                onRetry={list.refetch}
-                retrying={list.fetching}
-                retryLabel={common('retry')}
-                live
-              />
-            }
-            emptyState={emptyState}
-            filteredEmptyState={filteredEmpty}
-            onRowOpen={onRowOpen}
-            activeRowId={openId}
-            onRowOrderChange={setOrder}
-            selection={
-              canWrite
-                ? {
-                    selectedIds: chosen.ids,
-                    onChange: setChosenIds,
-                    matchingTotal,
-                    allMatching: chosen.allMatching,
-                    onAllMatchingChange: setAllMatching,
-                  }
-                : undefined
-            }
-            bulkActions={canWrite ? bulkActions : undefined}
+        {byGroup && list.loadProgress !== null ? (
+          <Banner
+            tone="info"
+            placement="region"
+            message={t('grouped.loading', {
+              loaded: formatInteger(list.loadProgress.loaded),
+              total: formatInteger(list.loadProgress.total),
+            })}
           />
+        ) : null}
+        <div className="flex min-h-0 flex-1 flex-col">
+          {byGroup ? (
+            <DataTable<GroupedRow>
+              {...tableProps}
+              columns={groupedColumns}
+              getRowId={groupedRowId}
+              rows={grouped.rows}
+              total={grouped.keywordCount}
+              columnState={{
+                visible: visibleForView(visible, 'groups'),
+                onChange: (next) => setColumns(mergeHidden(visible, next, flatDefaults, 'groups')),
+              }}
+              rowTree={grouped.rowTree}
+              onToggleGroup={grouped.onToggleGroup}
+              rowName={groupedRowName}
+              onRowOpen={onGroupedRowOpen}
+              activeRowId={grouped.rowIdOf(openId)}
+              onRowOrderChange={(ids) => setOrder(grouped.keywordOrder(ids))}
+              selection={
+                canWrite
+                  ? {
+                      ...grouped.selection,
+                      matchingTotal: null,
+                      allMatching: false,
+                      onAllMatchingChange: setAllMatching,
+                    }
+                  : undefined
+              }
+              bulkActions={canWrite ? groupedBulkActions : undefined}
+            />
+          ) : (
+            <DataTable<PairedRow>
+              {...tableProps}
+              columns={columns}
+              getRowId={rowId}
+              rows={list.rows}
+              total={list.total}
+              server={
+                list.server === null
+                  ? undefined
+                  : {
+                      rangeText: t('range', {
+                        from: list.server.offset + 1,
+                        to: list.server.offset + rawList.rows.length,
+                        total: list.total ?? 0,
+                      }),
+                      offset: list.server.offset,
+                      hasPrevious: list.server.hasPrevious,
+                      hasNext: list.server.hasNext,
+                      onPrevious: list.server.previous,
+                      onNext: list.server.next,
+                      pageSize: list.server.pageSize,
+                      onPageSizeChange: list.server.setPageSize,
+                      pageSizes: PAGE_SIZE_CHOICES,
+                    }
+              }
+              columnState={{ visible, onChange: setColumns }}
+              searchText={list.mode === 'server' ? undefined : keywordText}
+              rowName={rowName}
+              onRowOpen={onRowOpen}
+              activeRowId={openId}
+              onRowOrderChange={setOrder}
+              selection={
+                canWrite
+                  ? {
+                      selectedIds: chosen.ids,
+                      onChange: setChosenIds,
+                      matchingTotal,
+                      allMatching: chosen.allMatching,
+                      onAllMatchingChange: setAllMatching,
+                    }
+                  : undefined
+              }
+              bulkActions={canWrite ? bulkActions : undefined}
+            />
+          )}
         </div>
       </div>
       {refresh.dialog}
