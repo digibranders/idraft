@@ -18,7 +18,14 @@ from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Final
 
-VERSION: Final = 1
+# Version 2 (2026-11-05): the numbers are pulled without the page dimension, so a state of version 1
+# reads as a pull not begun and every day is fetched again in the new shape.
+VERSION: Final = 2
+# The `url_id` of every stored row: the numbers of a query over all the pages of the property, as
+# Search Console counts them. With the page dimension a search that shows two pages of the site
+# counts an impression for each page, so summing pages overstates impressions (verified 2026-11-05
+# against `searchAnalytics.query`: one query summed to 330 by page and is 92 without it).
+ALL_PAGES: Final = 0
 # The Rankings columns sum this many final days (docs/18 section 4.9).
 WINDOW_DAYS: Final = 28
 # A later run looks this far back for days that have become final since the last one.

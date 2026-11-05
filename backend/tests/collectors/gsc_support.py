@@ -42,7 +42,6 @@ def today() -> date:
 @dataclass(frozen=True)
 class Row:
     query: str
-    page: str
     country: str
     device: str
     clicks: int
@@ -51,14 +50,14 @@ class Row:
 
 
 def crm_rows(extra: int = 0) -> list[Row]:
-    """A day of detail: one query written two ways, two devices, two countries, and a second
-    query. `extra` raises the clicks, so two days differ."""
+    """A day of detail, over all pages: one query written two ways, two devices, two countries,
+    and a second query. `extra` raises the clicks, so two days differ."""
     return [
-        Row("crm software", "https://acme.example/crm", "usa", "DESKTOP", 3 + extra, 40, 4.0),
-        Row("CRM  Software", "https://acme.example/crm-2", "usa", "DESKTOP", 1, 10, 6.0),
-        Row("crm software", "https://acme.example/crm", "usa", "MOBILE", 2, 30, 5.0),
-        Row("crm software", "https://acme.example/crm", "gbr", "DESKTOP", 0, 5, 9.0),
-        Row("erp", "https://acme.example/erp", "usa", "DESKTOP", 7, 90, 2.5),
+        Row("crm software", "usa", "DESKTOP", 3 + extra, 40, 4.0),
+        Row("CRM  Software", "usa", "DESKTOP", 1, 10, 6.0),
+        Row("crm software", "usa", "MOBILE", 2, 30, 5.0),
+        Row("crm software", "gbr", "DESKTOP", 0, 5, 9.0),
+        Row("erp", "usa", "DESKTOP", 7, 90, 2.5),
     ]
 
 
@@ -134,7 +133,7 @@ class FakeSearchConsole(FakeGoogle):
         else:
             rows = [
                 {
-                    "keys": [day.isoformat(), r.query, r.page, r.country, r.device],
+                    "keys": [day.isoformat(), r.query, r.country, r.device],
                     "clicks": float(r.clicks),
                     "impressions": float(r.impressions),
                     "ctr": 0.1,

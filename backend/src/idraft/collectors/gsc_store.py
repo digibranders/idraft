@@ -19,10 +19,8 @@ from sqlalchemy import CursorResult, delete, select, update
 from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from idraft.db import dictionaries
 from idraft.db.tables import connections, gsc_queries, gsc_search_analytics, integrations
-from idraft.domain.gsc_pull import PullState
-from idraft.extraction.urls import CanonicalUrl
+from idraft.domain.gsc_pull import ALL_PAGES, PullState
 
 SEARCH_TYPE = "web"
 DEVICES = frozenset({"DESKTOP", "MOBILE", "TABLET"})
@@ -55,12 +53,11 @@ class IntegrationFacts:
 
 @dataclass(frozen=True, slots=True)
 class DayRow:
-    """One row of shape B, as Search Console returned it, before its page has a `core.urls` row."""
+    """One row of shape B, as Search Console returned it: a query's numbers over all pages."""
 
     query_hash: bytes
     query_text: str
     normalized_text: str
-    url: CanonicalUrl
     country: str
     device: str
     clicks: int
@@ -72,7 +69,7 @@ class DayRow:
 class Replaced:
     removed: int
     written: int
-    # Pages that collapsed into one canonical URL for the same key, and were summed.
+    # Rows that repeated a key (query, country, device) and were summed.
     collapsed: int
 
 
@@ -124,13 +121,15 @@ async def load_integration(
 async def stored_days(
     db: AsyncSession, facts: IntegrationFacts, start: date, end: date
 ) -> set[date]:
-    """The days between `start` and `end` that have final rows."""
+    """The days between `start` and `end` that have final rows over all pages. A day stored per
+    page by the first version of the pull does not count: it is fetched again."""
     rows = await db.execute(
         select(gsc_search_analytics.c.metric_date)
         .where(
             gsc_search_analytics.c.workspace_id == facts.workspace_id,
             gsc_search_analytics.c.integration_id == facts.integration_id,
             gsc_search_analytics.c.search_type == SEARCH_TYPE,
+            gsc_search_analytics.c.url_id == ALL_PAGES,
             gsc_search_analytics.c.data_state == "final",
             gsc_search_analytics.c.metric_date.between(start, end),
         )
@@ -145,25 +144,27 @@ async def replace_day(
     """Make `rows` the day's final rows: delete what the day had, insert the new ones. Running it
     again with the same rows changes nothing (docs/18 section 4.4, the documented exception to
     append-only). The caller holds the transaction and saves the progress in it."""
-    url_rows = await dictionaries.urls_for(db, [row.url for row in rows])
-    merged: dict[tuple[bytes, int, str, str], tuple[int, int, Decimal]] = {}
+    merged: dict[tuple[bytes, str, str], tuple[int, int, Decimal]] = {}
     for row in rows:
-        url_id = url_rows[row.url.url_hash].id
-        key = (row.query_hash, url_id, row.country, row.device)
+        key = (row.query_hash, row.country, row.device)
         clicks, impressions, position = merged.get(key, (0, 0, Decimal(0)))
         merged[key] = (
             clicks + row.clicks,
             impressions + row.impressions,
             position + row.position_sum,
         )
-    deleted = await db.execute(
-        delete(gsc_search_analytics).where(
-            gsc_search_analytics.c.workspace_id == facts.workspace_id,
-            gsc_search_analytics.c.integration_id == facts.integration_id,
-            gsc_search_analytics.c.metric_date == day,
-            gsc_search_analytics.c.search_type == SEARCH_TYPE,
-        )
+    day_rows_of = (
+        gsc_search_analytics.c.workspace_id == facts.workspace_id,
+        gsc_search_analytics.c.integration_id == facts.integration_id,
+        gsc_search_analytics.c.metric_date == day,
+        gsc_search_analytics.c.search_type == SEARCH_TYPE,
     )
+    # Rows per page, from the first version of the pull, go without being counted as a replaced
+    # day: the day was not stored in this shape before.
+    await db.execute(
+        delete(gsc_search_analytics).where(*day_rows_of, gsc_search_analytics.c.url_id != ALL_PAGES)
+    )
+    deleted = await db.execute(delete(gsc_search_analytics).where(*day_rows_of))
     removed = cast("CursorResult[Any]", deleted).rowcount
     queries = {
         row.query_hash: {
@@ -192,7 +193,7 @@ async def replace_day(
                 "metric_date": day,
                 "search_type": SEARCH_TYPE,
                 "query_hash": query_hash,
-                "url_id": url_id,
+                "url_id": ALL_PAGES,
                 "country_iso3": country,
                 "device": device,
                 "workspace_id": facts.workspace_id,
@@ -202,7 +203,7 @@ async def replace_day(
                 "position_sum": position.quantize(Decimal("0.01")),
                 "data_state": "final",
             }
-            for (query_hash, url_id, country, device), (
+            for (query_hash, country, device), (
                 clicks,
                 impressions,
                 position,

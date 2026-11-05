@@ -47,7 +47,8 @@ def test_a_state_not_begun_has_no_window() -> None:
 def test_a_state_that_is_not_of_this_version_reads_as_not_begun() -> None:
     for junk in (
         {"gsc": "x"},
-        {"gsc": {"version": 2, "recent_done": True}},
+        {"gsc": {"version": 1, "recent_done": True}},
+        {"gsc": {"version": 3, "recent_done": True}},
         {"gsc": {"version": 1, "window_end": "not a date", "days_stored": -4, "failures": True}},
     ):
         state = PullState.read(junk)
