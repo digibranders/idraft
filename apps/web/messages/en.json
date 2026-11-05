@@ -1687,8 +1687,6 @@
       "tags": "Add tags",
       "group": "Move to group",
       "targetUrl": "Set target URL",
-      "priority": "Set priority",
-      "archive": "Archive",
       "unarchive": "Unarchive",
       "delete": "Delete",
       "failed": "The change was not made. Try again.",
@@ -1728,17 +1726,6 @@
         "set": "Target URL set for {count}",
         "cleared": "Target URL cleared for {count}",
         "versions": "{count, plural, one {# configuration version started} other {# configuration versions started}}"
-      },
-      "priorityDialog": {
-        "title": "Priority for {count}",
-        "priority": "Priority",
-        "submit": "Set for {count}",
-        "set": "Priority {priority} set for {count}"
-      },
-      "archiveConfirm": {
-        "title": "Archive {count}?",
-        "description": "Archived keywords are no longer checked and do not count against the plan. Their history is kept, and you can unarchive them.",
-        "confirm": "Archive {count}"
       },
       "unarchiveConfirm": {
         "title": "Unarchive {count}?",

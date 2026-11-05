@@ -25,19 +25,12 @@ import { RefreshProgress } from './refresh-progress';
 import { refreshKeywords, type KeywordList, type ProjectScope } from '../rankings-queries';
 import type { MenuItemDef } from '@/components/ui/menu';
 import { toast } from '@/components/ui/toast';
-import type { RecordAction } from '@/components/app/data-table/types';
 import { announce } from '@/lib/a11y/announcer';
 import type { Run, TrackedKeywordRow } from '@/lib/api/types';
 import { formatInteger } from '@/lib/format';
 import { useMe } from '@/lib/session/use-me';
 
-/** What opens the dialog: the More actions menu, or the bulk bar over the chosen keywords. */
-type Source = 'menu' | 'bar';
-
 const NO_ROWS: readonly TrackedKeywordRow[] = [];
-
-/** No element to return focus to: the default applies, which is the bulk bar's button that opened it. */
-const NO_FOCUS: RefObject<HTMLElement | null> = { current: null };
 
 /** What the dialog shows before it has ever opened: nothing to refresh but the stale keywords. */
 const CLOSED: RefreshTargets = { selection: null, matching: null, narrowed: false, allChosen: false };
@@ -66,8 +59,6 @@ export interface MetricsRefresh {
   menuHeader: ReactNode;
   /** Reads the day's count again whenever the menu opens. */
   onMenuOpenChange: (open: boolean) => void;
-  /** The bulk bar's action, or `null` outside the active view. */
-  barAction: RecordAction<TrackedKeywordRow> | null;
   /** The runs the header follows, one bar each. */
   progress: ReactNode;
   dialog: ReactNode;
@@ -175,8 +166,6 @@ export function useMetricsRefresh({
     }
     wasChosenRef.current = isChosen;
   }, [chosen.ids.size, enabled, refetch]);
-  // What opened the dialog last: kept after it closes, since the close is when focus goes back
-  const [from, setFrom] = useState<Source>('menu');
   // A member who may not refresh keeps no index
   const keywordOf = useKeywordIndex(enabled ? list.rows : NO_ROWS);
   const live = useMemo((): RefreshTargets | null => {
@@ -238,12 +227,8 @@ export function useMetricsRefresh({
     if (gone.length > 0) onDrop(new Set(gone));
   }, [answers, list, chosen.ids, onDrop]);
 
-  // Focus goes back to the More actions button after a dialog opened from its menu; the bulk bar stays where
-  // it is, so the default applies to a dialog opened from there
-  const finalFocus = from === 'menu' ? menuButton : NO_FOCUS;
-  const openFrom = (source: Source) => (): void => {
+  const openFromMenu = (): void => {
     void refetch();
-    setFrom(source);
     setOpened(true);
   };
 
@@ -262,7 +247,7 @@ export function useMetricsRefresh({
             : limitText !== null
               ? { detail: limitText }
               : {}),
-        onSelect: openFrom('menu'),
+        onSelect: openFromMenu,
       }
     : null;
 
@@ -272,17 +257,6 @@ export function useMetricsRefresh({
     onMenuOpenChange: (isOpen) => {
       if (isOpen && enabled) void refetch();
     },
-    barAction:
-      enabled && !archived
-        ? {
-            id: 'refresh-metrics',
-            label: t('menuItem'),
-            icon: RefreshCw,
-            group: 'object',
-            disabledReason: exhausted ? t('limitReached') : null,
-            onSelect: openFrom('bar'),
-          }
-        : null,
     progress: followed.map((runId) => (
       <RefreshProgress key={runId} scope={scope} runId={runId} workload="keyword_metrics" onSettled={onSettled} />
     )),
@@ -291,7 +265,7 @@ export function useMetricsRefresh({
         scope={scope}
         open={opened}
         onOpenChange={setOpened}
-        finalFocus={finalFocus}
+        finalFocus={menuButton}
         targets={targets}
         manual={manual}
         onStart={() => void refetch()}
