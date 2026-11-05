@@ -168,6 +168,8 @@ describe('groupMeasures', () => {
       updated: '2026-11-03T10:00:00Z',
       clicks: null,
       impressions: null,
+      clicksTrend: null,
+      impressionsTrend: null,
       // The rows were listed without the Search Console block, so its counts are still to come
       gscState: 'pending',
     });
@@ -192,7 +194,39 @@ describe('groupMeasures', () => {
     expect(groupMeasures(paired([notConnected('a-d', 'alpha')]))).toMatchObject({
       clicks: null,
       impressions: null,
+      clicksTrend: null,
+      impressionsTrend: null,
       gscState: 'not_connected',
+    });
+  });
+
+  it('sums the trend buckets of its keywords bucket by bucket, so they add up to the sums', () => {
+    const withTrend = (id: string, keyword: string, clicks: number[], impressions: number[]): TrackedKeywordRow => {
+      const total = (values: number[]): number => values.reduce((sum, value) => sum + value, 0);
+      return {
+        ...tracked(id, keyword),
+        gsc: {
+          state: 'ok',
+          clicks: { desktop: total(clicks), mobile: 99 },
+          impressions: { desktop: total(impressions), mobile: 99 },
+          window: { start: '2026-10-07', end: '2026-11-03' },
+          trend: { bucket_days: 4, clicks, impressions },
+        },
+      };
+    };
+    const rows = paired([
+      withTrend('a-d', 'alpha', [1, 0, 0, 0, 0, 0, 2], [10, 0, 0, 0, 0, 0, 20]),
+      withTrend('b-d', 'bravo', [0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0]),
+      withTrend('c-d', 'charlie', [0, 3, 0, 0, 0, 1, 0], [0, 30, 0, 0, 0, 5, 0]),
+    ]);
+
+    const measures = groupMeasures(rows);
+
+    expect(measures).toMatchObject({
+      clicks: 7,
+      impressions: 65,
+      clicksTrend: [1, 3, 0, 0, 0, 1, 2],
+      impressionsTrend: [10, 30, 0, 0, 0, 5, 20],
     });
   });
 

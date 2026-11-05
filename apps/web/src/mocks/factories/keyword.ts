@@ -396,12 +396,41 @@ export function effectiveCompetitors(
 export function gscOf(world: KeywordWorld, row: StoredTracked): GscBlock {
   const volume = readingOf(world, row.keyword_id, row.location_id, row.language_code)?.reading.volume ?? 0;
   const impressions = { desktop: Math.round(volume * 0.6), mobile: Math.round(volume * 0.3) };
+  const clicks = { desktop: Math.round(impressions.desktop * 0.04), mobile: Math.round(impressions.mobile * 0.02) };
+  const shape = TREND_SHAPES[[...row.tracked_keyword_id].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 4];
   return {
     state: 'ok',
-    clicks: { desktop: Math.round(impressions.desktop * 0.04), mobile: Math.round(impressions.mobile * 0.02) },
+    clicks,
     impressions,
     window: { start: '2026-10-07', end: '2026-11-03' },
+    trend: {
+      bucket_days: 4,
+      clicks: spread(clicks[row.device], shape ?? FLAT),
+      impressions: spread(impressions[row.device], shape ?? FLAT),
+    },
   };
+}
+
+// The shapes of the mocked 4-day buckets, oldest first: rising, falling, flat and an uneven but level one
+const FLAT = [1, 1, 1, 1, 1, 1, 1] as const;
+const TREND_SHAPES: readonly (readonly number[])[] = [
+  [1, 1, 2, 2, 3, 4, 5],
+  [5, 4, 3, 3, 2, 1, 1],
+  FLAT,
+  [2, 4, 3, 4, 3, 4, 3],
+];
+
+/** `total` over the buckets in proportion to `weights`, adding up to `total` exactly (largest remainders first). */
+function spread(total: number, weights: readonly number[]): number[] {
+  const weight = weights.reduce((sum, value) => sum + value, 0);
+  const shares = weights.map((value) => (total * value) / weight);
+  const parts = shares.map(Math.floor);
+  const rest = total - parts.reduce((sum, value) => sum + value, 0);
+  const order = shares
+    .map((share, index) => ({ index, left: share - Math.floor(share) }))
+    .sort((a, b) => b.left - a.left);
+  for (const { index } of order.slice(0, rest)) parts[index] = (parts[index] ?? 0) + 1;
+  return parts;
 }
 
 export function trackedKeywordRowView(

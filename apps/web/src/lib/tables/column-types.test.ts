@@ -234,7 +234,37 @@ const MEASURED_HEADER_NEED: readonly [type: keyof typeof COLUMN_TYPES, label: st
   ['rank', 'Rank', 78],
   ['rankDelta', 'Change', 95],
   ['url', 'Ranking URL', 127],
+  // Measured on 2026-11-05: 86 px of label, plus the column menu's 24 px beside the arrow
+  ['volumeTrend', 'Impressions', 152],
 ];
+
+describe('the count-with-graph column type', () => {
+  it('leaves the sizes of every other type as they were', () => {
+    const { volumeTrend, ...others } = COLUMN_TYPES;
+    expect(volumeTrend).toEqual({ width: 160, min: 152, max: 200, align: 'left', defaultDesc: true, flex: false });
+    expect(
+      Object.fromEntries(Object.entries(others).map(([type, spec]) => [type, [spec.width, spec.min, spec.max]])),
+    ).toEqual({
+      select: [40, 40, 40],
+      keyword: [280, 200, 480],
+      text: [160, 104, 240],
+      count: [88, 72, 120],
+      volume: [96, 96, 120],
+      currency: [128, 112, 144],
+      date: [120, 104, 160],
+      badge: [120, 88, 180],
+      status: [120, 96, 180],
+      rank: [80, 80, 136],
+      rankDelta: [96, 96, 96],
+      url: [260, 160, 480],
+      features: [140, 112, 220],
+      aiOverview: [112, 96, 140],
+      sparkline: [88, 88, 120],
+      competitor: [160, 120, 240],
+      actions: [40, 40, 40],
+    });
+  });
+});
 
 describe('minimum widths hold the capital header labels (owner decision of 2026-10-29)', () => {
   it('lets a column with a longer header name its own minimum, which the width resolver then respects', () => {

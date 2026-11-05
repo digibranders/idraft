@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SparklineCell } from './sparkline-cell';
+import * as tokens from '@/lib/design/read-tokens';
 
 describe('SparklineCell', () => {
   const contextSpies = {
@@ -61,5 +62,16 @@ describe('SparklineCell', () => {
     const emptyWrapper = screen.getByRole('img', { name: 'Search volume trend: no monthly volumes yet' });
     expect(emptyWrapper.tagName.toLowerCase()).toBe('span');
     expect(container.querySelector('.border-border')).toBeInTheDocument();
+  });
+
+  it.each([
+    [undefined, '--chart-reference'],
+    ['reference', '--chart-reference'],
+    ['positive', '--positive-solid'],
+    ['negative', '--negative-solid'],
+  ] as const)('draws tone %s in %s', (tone, token) => {
+    const read = vi.spyOn(tokens, 'readColorToken').mockReturnValue('');
+    render(<SparklineCell values={[1, 2, 3]} label="Clicks trend" tone={tone} />);
+    expect(read).toHaveBeenCalledWith(token);
   });
 });

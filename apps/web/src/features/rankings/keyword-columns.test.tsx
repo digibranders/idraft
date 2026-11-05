@@ -46,6 +46,63 @@ describe('the keyword columns', () => {
     expect(text(null)).toBe('Pending');
   });
 
+  it.each([
+    [
+      'clicks',
+      [4, 4, 4, 0, 6, 6, 5],
+      'Clicks up 42 percent over the last 28 days',
+      'First 12 days: 12. Last 12 days: 17',
+    ],
+    [
+      'clicks',
+      [6, 6, 5, 0, 4, 4, 4],
+      'Clicks down 29 percent over the last 28 days',
+      'First 12 days: 17. Last 12 days: 12',
+    ],
+    ['clicks', [4, 4, 4, 9, 4, 4, 5], 'Clicks flat over the last 28 days', 'First 12 days: 12. Last 12 days: 13'],
+    [
+      'clicks',
+      [0, 0, 0, 0, 0, 0, 0],
+      'Too few clicks in the last 28 days to show a trend',
+      'First 12 days: 0. Last 12 days: 0',
+    ],
+    [
+      'impressions',
+      [0, 0, 0, 0, 7, 7, 7],
+      'Impressions up from none over the last 28 days',
+      'First 12 days: 0. Last 12 days: 21',
+    ],
+    [
+      'impressions',
+      [2, 2, 2, 2, 2, 2, 2],
+      'Too few impressions in the last 28 days to show a trend',
+      'First 12 days: 6. Last 12 days: 6',
+    ],
+  ] as const)('draw the %s count with a graph named by its movement: %j', (metric, buckets, label, halves) => {
+    const { result } = renderHook(() => useKeywordColumns('UTC'), { wrapper });
+    const column = result.current.find((candidate) => candidate.id === `gsc_${metric}`);
+    const total = buckets.reduce((sum: number, value) => sum + value, 0);
+    const counts = { desktop: total, mobile: 0 };
+    const row = {
+      device: 'desktop',
+      keyword: { text: 'soc' },
+      devices: { desktop: null, mobile: null },
+      gsc: {
+        state: 'ok',
+        clicks: counts,
+        impressions: counts,
+        window: { start: '2026-10-07', end: '2026-11-03' },
+        trend: { bucket_days: 4, clicks: [...buckets], impressions: [...buckets] },
+      },
+    } as PairedRow;
+
+    const { getByRole, container } = render(<>{column?.cell(row)}</>);
+
+    expect(getByRole('img', { name: label })).toBeInTheDocument();
+    expect(container.textContent).toBe(String(total));
+    expect(column?.cellTip?.(row)).toEqual({ content: label, detail: halves });
+  });
+
   it('follow the order of the page template: CPC after AI Overview, the competitors after CPC', () => {
     const { result } = renderHook(() => useKeywordColumns('UTC', [COMPETITOR]), { wrapper });
     expect(result.current.map((column) => column.id)).toEqual([

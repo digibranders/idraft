@@ -192,6 +192,36 @@ export const col = {
     return numeric(id, 'volume', value, options, (number) => formatInteger(number));
   },
 
+  /**
+   * A count with a graph beside it, sorted high to low first: the screen draws a known count's cell (the number and
+   * its graph) and tooltip; a missing count shows the column's word for it, as a count column does.
+   */
+  volumeTrend<TRow>(
+    id: string,
+    value: (row: TRow) => number | null,
+    options: Options & {
+      unknown?: ((row: TRow) => UnknownValue) | undefined;
+      known: (row: TRow, value: number) => ReactNode;
+      knownTip?: ((row: TRow) => CellTip | undefined) | undefined;
+    },
+  ): DataTableColumn<TRow> {
+    return base(
+      id,
+      'volumeTrend',
+      options,
+      (row) => {
+        const number = value(row);
+        return number === null ? (
+          <Unknown value={options.unknown?.(row) ?? NOT_AVAILABLE} />
+        ) : (
+          options.known(row, number)
+        );
+      },
+      value,
+      (row) => (value(row) === null ? reasonTip(options.unknown?.(row)) : options.knownTip?.(row)),
+    );
+  },
+
   /** A cost in US dollars, two decimals. */
   currency<TRow>(
     id: string,
