@@ -30,6 +30,8 @@ export function bodyFilterOf(filters: KeywordFilters, search: string): BodyFilte
     ...given('term', filters['filter[term]']),
     ...given('device', filters['filter[device]']),
     ...given('location_id', filters['filter[location_id]']),
+    ...given('country_id', filters['filter[country_id]']),
+    ...given('country_id_in', filters['filter[country_id_in]']),
     ...given('language_code', filters['filter[language_code]']),
     ...given('intent_in', filters['filter[intent_in]']),
     ...given('funnel_stage_in', filters['filter[funnel_stage_in]']),

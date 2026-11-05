@@ -25,6 +25,24 @@ describe('the filters sent to the API', () => {
     });
   });
 
+  it('sends the countries of the Country chip as whole location ids, and only those', () => {
+    expect(
+      keywordFilters({ country: { kind: 'enum', values: ['2276', '2840'] } }, false)['filter[country_id_in]'],
+    ).toEqual([2276, 2840]);
+    expect(
+      keywordFilters({ country: { kind: 'enum', values: ['nonsense', '12.5', '2276'] } }, false)[
+        'filter[country_id_in]'
+      ],
+    ).toEqual([2276]);
+    expect(keywordFilters({ country: { kind: 'enum', values: ['nonsense'] } }, false)).not.toHaveProperty(
+      'filter[country_id_in]',
+    );
+    const many = Array.from({ length: 150 }, (_, index) => String(1000 + index));
+    expect(keywordFilters({ country: { kind: 'enum', values: many } }, false)['filter[country_id_in]']).toHaveLength(
+      100,
+    );
+  });
+
   it('sends the values of a hand-edited link that are ids, and leaves the rest out', () => {
     const [first] = [mockId('term', 1)];
     expect(keywordFilters({ tag: { kind: 'enum', values: ['nonsense', first ?? ''] } }, false)['filter[term]']).toEqual(

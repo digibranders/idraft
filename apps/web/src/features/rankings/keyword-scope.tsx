@@ -8,11 +8,13 @@ import { useMemo, type ReactElement } from 'react';
 
 import type { Device } from './keyword-pairs';
 import type { ProjectDefaults } from './add-keywords/add-keywords-dialog';
+import type { KeywordCountry } from './keyword-countries';
 import { readCountries, type Country } from './keyword-filters';
 import { buttonVariants } from '@/components/ui/button-variants';
 import { Combobox } from '@/components/ui/combobox';
 import { Icon } from '@/components/ui/icon';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { cn } from '@/lib/utils';
 
 /**
  * The scope of the Rankings table (13-filters-search.md section 2): which device the table shows, and which
@@ -41,15 +43,19 @@ export interface KeywordScope {
 }
 
 /**
- * The scope read from the URL. Without a choice the table shows the country of the project's default
- * location (the location itself when it is a country, the country of a city by its ISO code once the list of
- * countries is in) and India when the project has none.
+ * The scope read from the URL. Without a choice the table shows the project's own country when it has
+ * keywords there, else the country with most keywords, else the country of the project's default location
+ * (the location itself when it is a country, the country of a city by its ISO code), else India. A `loc` in
+ * the URL is kept whatever the project tracks: a country without keywords shows an empty table.
  */
 export function useKeywordScope(
   projectLocation: ProjectDefaults['location'],
-  countries: readonly Country[],
+  /** The countries the project has keywords in. */
+  inUse: readonly KeywordCountry[],
   /** A country (or `ALL_COUNTRIES`) the table opens on instead of the project's own. */
   opensOn?: number | undefined,
+  /** Every country, which names the country of a project whose default location is a city and has no keywords. */
+  known: readonly Country[] = [],
 ): KeywordScope {
   const [state, setState] = useQueryStates(SCOPE_STATE, { history: 'replace' });
   const own =
@@ -57,8 +63,14 @@ export function useKeywordScope(
       ? undefined
       : projectLocation.location_type === 'Country'
         ? projectLocation.location_id
-        : countries.find((country) => country.country_iso === projectLocation.country_iso)?.location_id;
-  const fallback = opensOn ?? own ?? DEFAULT_COUNTRY_ID;
+        : (inUse.find((country) => country.countryIso === projectLocation.country_iso)?.locationId ??
+          known.find((country) => country.country_iso === projectLocation.country_iso)?.location_id);
+  const biggest = inUse.reduce<KeywordCountry | undefined>(
+    (most, country) => (most === undefined || country.keywordCount > most.keywordCount ? country : most),
+    undefined,
+  );
+  const ownHasKeywords = own !== undefined && inUse.some((country) => country.locationId === own);
+  const fallback = opensOn ?? (ownHasKeywords ? own : (biggest?.locationId ?? own ?? DEFAULT_COUNTRY_ID));
   return {
     device: state.dev ?? 'desktop',
     countryId: state.loc ?? fallback,
@@ -78,52 +90,71 @@ export function useCountries(): readonly Country[] {
   return countries.data ?? [];
 }
 
-/** The two controls, side by side. */
+/** A country as the combobox holds it, with only what the control uses. */
+const countryOf = (locationId: number, name: string, countryIso: string): Country => ({
+  location_id: locationId,
+  name,
+  country_iso: countryIso,
+  location_type: 'Country',
+  parent_id: null,
+  supports: ['serp'],
+});
+
+/**
+ * The two controls, side by side. The country control lists the countries the project has keywords in, with
+ * "All countries" when there is more than one; with one or none it is a label, as there is nothing to choose.
+ */
 export function KeywordScopeControls({
   scope,
+  inUse,
   countries,
 }: {
   scope: KeywordScope;
+  inUse: readonly KeywordCountry[];
+  /** Every country, for the name of the scope country when the project has no keywords in it. */
   countries: readonly Country[];
 }): ReactElement {
   const t = useTranslations('rankings.scope');
   const columns = useTranslations('rankings.columns');
-  const everywhere = useMemo(
-    (): Country => ({
-      location_id: ALL_COUNTRIES,
-      name: t('allCountries'),
-      country_iso: '',
-      location_type: 'Country',
-      parent_id: null,
-      supports: ['serp'],
-    }),
-    [t],
+  const everywhere = useMemo((): Country => countryOf(ALL_COUNTRIES, t('allCountries'), ''), [t]);
+  const used = useMemo(
+    (): readonly Country[] =>
+      inUse.map(
+        (entry) =>
+          countries.find((country) => country.location_id === entry.locationId) ??
+          countryOf(entry.locationId, entry.name, entry.countryIso),
+      ),
+    [countries, inUse],
   );
   const current = useMemo(
     (): Country =>
       scope.countryId === ALL_COUNTRIES
         ? everywhere
-        : (countries.find((country) => country.location_id === scope.countryId) ?? {
-            location_id: scope.countryId,
-            name: scope.countryId === DEFAULT_COUNTRY_ID ? t('defaultCountry') : String(scope.countryId),
-            country_iso: '',
-            location_type: 'Country',
-            parent_id: null,
-            supports: ['serp'],
-          }),
-    [countries, everywhere, scope.countryId, t],
+        : (used.find((country) => country.location_id === scope.countryId) ??
+          countries.find((country) => country.location_id === scope.countryId) ??
+          countryOf(
+            scope.countryId,
+            scope.countryId === DEFAULT_COUNTRY_ID ? t('defaultCountry') : String(scope.countryId),
+            '',
+          )),
+    [countries, everywhere, scope.countryId, t, used],
   );
-  // "All countries" first, then the countries; the current one alone until the list is in
-  const options = useMemo(
-    (): readonly Country[] => [everywhere, ...(countries.length === 0 ? [current] : countries)],
-    [countries, current, everywhere],
-  );
+  const options = useMemo((): readonly Country[] => [everywhere, ...used], [everywhere, used]);
   const trigger = (
     <button type="button" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
       <Icon icon={MapPin} size="sm" className="text-foreground-tertiary" />
       <span className="max-w-40 truncate">{current.name}</span>
       <Icon icon={ChevronDown} size="sm" className="text-foreground-tertiary" />
     </button>
+  );
+  const label = (
+    <span className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'pointer-events-none')}>
+      <Icon icon={MapPin} size="sm" className="text-foreground-tertiary" />
+      <span className="sr-only">{t('country', { country: current.name })}</span>
+      <span aria-hidden className="max-w-40 truncate">
+        {current.name}
+      </span>
+    </span>
   );
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -139,21 +170,25 @@ export function KeywordScopeControls({
           { value: 'mobile', label: columns('mobile'), icon: Smartphone },
         ]}
       />
-      <Combobox<Country>
-        value={current}
-        onValueChange={(country) => {
-          if (country !== null) scope.setCountry(country.location_id);
-        }}
-        items={options}
-        itemToString={(country) => country.name}
-        itemKey={(country) => String(country.location_id)}
-        emptyText={(query) => t('countryEmpty', { query })}
-        placeholder={t('countrySearch')}
-        clearLabel={t('clear')}
-        openLabel={t('open')}
-        trigger={trigger}
-        triggerLabel={t('country', { country: current.name })}
-      />
+      {inUse.length > 1 ? (
+        <Combobox<Country>
+          value={current}
+          onValueChange={(country) => {
+            if (country !== null) scope.setCountry(country.location_id);
+          }}
+          items={options}
+          itemToString={(country) => country.name}
+          itemKey={(country) => String(country.location_id)}
+          emptyText={(query) => t('countryEmpty', { query })}
+          placeholder={t('countrySearch')}
+          clearLabel={t('clear')}
+          openLabel={t('open')}
+          trigger={trigger}
+          triggerLabel={t('country', { country: current.name })}
+        />
+      ) : (
+        label
+      )}
     </div>
   );
 }

@@ -176,6 +176,10 @@ export function keywordFilters(values: FilterValues, archived: boolean): Keyword
   const intents = enumOf(values.intent, INTENTS);
   const stages = enumOf(values.stage, FUNNEL_STAGES);
   const sources = enumOf(values.src, SOURCES);
+  const countries = idsOf(values.country)
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id > 0)
+    .slice(0, MAX_FILTER_VALUES);
   const depths = enumOf(values.depth, DEPTH_PROFILES);
   const priority = maxOf(values.prio);
   const volume = minOf(values.vol);
@@ -193,6 +197,7 @@ export function keywordFilters(values: FilterValues, archived: boolean): Keyword
     ...(intents.length === 0 ? {} : { 'filter[intent_in]': intents }),
     ...(stages.length === 0 ? {} : { 'filter[funnel_stage_in]': stages }),
     ...(sources.length === 0 ? {} : { 'filter[source_in]': sources }),
+    ...(countries.length === 0 ? {} : { 'filter[country_id_in]': countries }),
     ...(depths.length === 0 ? {} : { 'filter[depth_profile_in]': depths }),
     ...(priority === null ? {} : { 'filter[priority_lte]': priority }),
     ...(volume === null ? {} : { 'filter[search_volume_gte]': volume }),

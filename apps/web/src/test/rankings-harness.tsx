@@ -32,13 +32,16 @@ export const fynix = fixtureProject(0);
 export const cleanstart = fixtureProject(1);
 
 /** What the route or test tells the screen about the import dialog or settings. */
-type ScreenProps = Partial<Pick<RankingsScreenProps, 'importOpen' | 'onImportOpenChange' | 'depth'>>;
+type ScreenProps = Partial<Pick<RankingsScreenProps, 'importOpen' | 'onImportOpenChange' | 'depth'>> & {
+  /** The table opens on the project's own country instead of on every country. */
+  opensOnOwnCountry?: boolean;
+};
 
 /** Rankings of `projectId` for a member of `role`, signed in through the mock session cookie. */
 export function rankingsAs(
   role: Role,
   projectId: string = fynix.project_id,
-  screenProps: ScreenProps = {},
+  { opensOnOwnCountry = false, ...screenProps }: ScreenProps = {},
   /** The projects a member limited to some may open; `null` is every project. */
   projectIds: readonly string[] | null = null,
 ): ReactElement {
@@ -65,7 +68,7 @@ export function rankingsAs(
             languageCode: 'en',
           }}
           // The mock keywords are tracked in several countries: the table opens on all of them
-          scopeOpensOn={ALL_COUNTRIES}
+          {...(opensOnOwnCountry ? {} : { scopeOpensOn: ALL_COUNTRIES })}
           {...screenProps}
         />
       </Suspense>

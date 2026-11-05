@@ -12,7 +12,16 @@ import { useBulkActions } from './bulk/bulk-actions';
 import { ManageGroupsDialog } from './groups/manage-groups-dialog';
 import { ImportProgress } from './import/import-progress';
 import { forgetWritingImport, useWritingImport } from './import/import-queries';
-import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns, useKeywordRowName } from './keyword-columns';
+import {
+  COUNTRY_COLUMN,
+  DEFAULT_SORT,
+  SORT_FIELDS,
+  keywordText,
+  rowId,
+  useKeywordColumns,
+  useKeywordRowName,
+} from './keyword-columns';
+import { useKeywordCountries } from './keyword-countries';
 import { useKeywordFilterFields } from './keyword-filters';
 import { expandIds, memberIds, memberRows, pairRows, type PairedRow } from './keyword-pairs';
 import { ALL_COUNTRIES, KeywordScopeControls, useCountries, useKeywordScope } from './keyword-scope';
@@ -172,7 +181,8 @@ export function RankingsScreen({
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
   // Which devices show a rank column, and the country the keywords are tracked in
   const countries = useCountries();
-  const keywordScope = useKeywordScope(defaults.location, countries, scopeOpensOn);
+  const countriesInUse = useKeywordCountries(scope).countries;
+  const keywordScope = useKeywordScope(defaults.location, countriesInUse, scopeOpensOn, countries);
   const entitiesQuery = useQuery(projectEntitiesQuery(scope));
   const competitors = useMemo((): EntityRef[] => {
     if (entitiesQuery.data) {
@@ -197,9 +207,10 @@ export function RankingsScreen({
     }
     return [];
   }, [entitiesQuery.data, view.cols]);
-  const columns = useKeywordColumns(timeZone, competitors, keywordScope.device);
+  const allColumns = useKeywordColumns(timeZone, competitors, keywordScope.device);
   const rowName = useKeywordRowName(defaults.languageCode);
-  const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
+  // The Country column is a known id even while it is not shown, so a person's choice of it stays in the URL
+  const columnIds = useMemo(() => new Set(allColumns.map((column) => column.id)), [allColumns]);
   const sort = useMemo((): readonly SortKey[] => {
     const parsed = parseSort(view.sort, SORT_FIELDS);
     return parsed.length === 0 ? DEFAULT_SORT : parsed;
@@ -235,6 +246,15 @@ export function RankingsScreen({
   );
   // A keyword is one row with the rank of the device shown, however many tracked keywords stand behind it
   const pairedRows = useMemo(() => pairRows(rawList.rows, keywordScope.device), [rawList.rows, keywordScope.device]);
+  // The Country column shows only while more than one country is in view
+  const severalCountries = useMemo(
+    () => new Set(pairedRows.map((row) => row.location.country_iso)).size > 1,
+    [pairedRows],
+  );
+  const columns = useMemo(
+    () => (severalCountries ? allColumns : allColumns.filter((column) => column.id !== COUNTRY_COLUMN)),
+    [allColumns, severalCountries],
+  );
   const members = useMemo(() => memberIds(pairedRows), [pairedRows]);
   const list = useMemo(
     (): PairedList => ({
@@ -653,7 +673,7 @@ export function RankingsScreen({
                   <RankStrip scope={scope} filters={stripFilters} total={list.total ?? list.rows.length} />
                 </div>
               ) : null}
-              <KeywordScopeControls scope={keywordScope} countries={countries} />
+              <KeywordScopeControls scope={keywordScope} inUse={countriesInUse} countries={countries} />
               {view.archived ? (
                 <Button
                   variant="secondary"
@@ -745,7 +765,14 @@ export function RankingsScreen({
             onDensityChange={setDensity}
             columnState={{
               visible,
-              onChange: (next) => void setView({ cols: next === null ? null : formatColumns(next) }),
+              onChange: (next) => {
+                // The table cannot offer a column that is out of view, so a change to the others keeps the choice of it
+                const kept =
+                  next !== null && !severalCountries && visible?.includes(COUNTRY_COLUMN) === true
+                    ? [...next.slice(0, 1), COUNTRY_COLUMN, ...next.slice(1)]
+                    : next;
+                void setView({ cols: kept === null ? null : formatColumns(kept) });
+              },
             }}
             search={view.q}
             onSearchChange={(next) => void setView({ q: next === '' ? null : next })}
