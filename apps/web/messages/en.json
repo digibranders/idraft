@@ -1989,9 +1989,20 @@
         "keywordTooLong": "use at most {max} characters",
         "searchOperatorNotAllowed": "search operators such as site: or a minus before a word are not tracked"
       },
-      "counter": "{count, plural, =0 {No keywords yet} one {# keyword} other {# keywords}}{repeats, plural, =0 {} one { · # repeat left out} other { · # repeats left out}}{rows, plural, =0 {} other { · # tracked keywords, one per device}}",
-      "location": "Location",
-      "locationRequired": "Choose a location",
+      "counter": "{count, plural, =0 {No keywords yet} one {# keyword} other {# keywords}}{repeats, plural, =0 {} one { · # repeat left out} other { · # repeats left out}}",
+      "countries": "Countries",
+      "countriesHint": "A keyword is tracked in each country you choose, on each device",
+      "countriesPlaceholder": "Choose countries",
+      "countriesEmpty": "No countries match “{query}”",
+      "countriesRequired": "Choose at least one country",
+      "countriesTooMany": "Choose at most {max} countries in one add",
+      "plan": {
+        "empty": "Each keyword is checked once a day in every country and on every device chosen.",
+        "checks": "{keywords, plural, one {# keyword} other {# keywords}} × {devices, plural, one {# device} other {# devices}} × {countries, plural, one {# country} other {# countries}} = {checks, plural, one {# check} other {# checks}} a day",
+        "cost": "Up to {day} a day, {month} a month",
+        "quota": "Plan: {used} of {limit} tracked keywords used, {after} after this add",
+        "over": "Over the plan by {count, plural, one {# tracked keyword} other {# tracked keywords}}"
+      },
       "language": "Language",
       "device": "Device",
       "devices": {
@@ -2027,6 +2038,7 @@
         "skipped": "Already tracked",
         "skippedReason": "{count, plural, one {The project tracks this keyword already.} other {The project tracks these # keywords already.}}",
         "rejected": "Not added",
+        "keywordCountry": "{keyword} ({country})",
         "keywordDevice": "{keyword} · {device}",
         "archived": "Archived",
         "show": "Show it: {keyword}",

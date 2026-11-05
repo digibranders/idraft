@@ -3,19 +3,23 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocale, useTranslations } from 'next-intl';
-import { useEffect, useEffectEvent, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useEffectEvent, useId, useMemo, useState, type ReactElement } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
 import { AddKeywordsResult, type AddOutcome } from './add-keywords-result';
+import { addPlan, chunkKeywords, costOf, MAX_ADD_COUNTRIES, type AddDevice } from './add-plan';
+import { useCheckPrice, useTrackedKeywordQuota } from './add-queries';
+import { createInChunks } from './add-submit';
 import { useEnsureGroups, useGroupMessages, useGroupPathCheck, type GroupChoice } from '../groups/group-choices';
 import { GroupPicker } from '../groups/group-picker';
+import type { Country } from '../keyword-filters';
+import { useCountries } from '../keyword-scope';
 import { PRIORITIES } from '../keyword-values';
 import { refreshKeywords, type ProjectScope } from '../rankings-queries';
 import { refreshGroups } from '../taxonomy-queries';
 import { useTermChoices } from '../term-choices';
 import { FormField } from '@/components/app/forms/form-field';
-import { LocationCombobox } from '@/components/app/forms/location-combobox';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
 import { useMultiSelectHints } from '@/components/app/forms/use-multi-select-hints';
 import { Button } from '@/components/ui/button';
@@ -29,15 +33,13 @@ import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation, apiQuery } from '@/lib/api/query';
 import type { components } from '@/lib/api/schema';
-import { formatInteger, formatList } from '@/lib/format';
+import { formatCurrency, formatInteger, formatList } from '@/lib/format';
 import { LANGUAGE_CODES, languageName } from '@/lib/format/language';
 import { MAX_KEYWORDS_PER_ADD, readKeywordLines, type KeywordLines } from '@/lib/keywords/keyword-lines';
 import { MAX_KEYWORD_LENGTH, type KeywordTextProblem } from '@/lib/keywords/keyword-text';
 import { quotaFacts } from '@/lib/keywords/quota';
-import { useLocationSearch } from '@/lib/locations/use-location-search';
 
 type LocationRef = components['schemas']['LocationRef'];
-type Device = 'desktop' | 'mobile' | 'both';
 
 const BULK_CREATE = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-create';
 const SETTINGS = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/settings';
@@ -57,10 +59,11 @@ const isKeywordProblem = (code: string): code is KeywordTextProblem => Object.ha
 
 interface AddValues {
   keywords: string;
-  location: LocationRef | null;
+  /** Each keyword is tracked in every one of them. */
+  countries: Country[];
   language_code: string;
   /** `null` until the project's default arrives (or when it cannot be read): the API then applies it. */
-  device: Device | null;
+  device: AddDevice | null;
   /** Groups that exist, and paths typed to be created when the form is saved. */
   groups: GroupChoice[];
   term_ids: string[];
@@ -90,10 +93,12 @@ export interface AddKeywordsDialogProps {
 
 /**
  * Add keywords (24-page-templates.md section 9.3, 16-drawers-dialogs-popovers.md section 4.6): a 560 px
- * dialog with the keywords one per line and what they share: location, language, device, groups, tags and
+ * dialog with the keywords one per line and what they share: countries, language, device, groups, tags and
  * priority. The list is read as the API reads it before it is sent, so a refused line is named by its
- * number. Over the plan's keyword limit nothing is added and the dialog says by how much. When some
- * keywords were tracked already or refused, the dialog shows which, with "Show it" and "Unarchive".
+ * number. Under the fields the plan of the add: the checks a day, their cost and the plan's keyword limit
+ * before and after; over the limit Add is refused, and the API still has the last word. Each keyword is
+ * sent once per country, in requests of at most 1,000 items. When some keywords were tracked already or
+ * refused, the dialog shows which, with "Show it" and "Unarchive".
  */
 export function AddKeywordsDialog({
   scope,
@@ -110,9 +115,12 @@ export function AddKeywordsDialog({
   const multiSelectHints = useMultiSelectHints();
   const locale = useLocale();
   const queryClient = useQueryClient();
-  const locations = useLocationSearch();
+  const allCountries = useCountries();
   const projectPath = { workspace_id: scope.workspaceId, project_id: scope.projectId };
   const settings = useQuery({ ...apiQuery(SETTINGS, { params: { path: projectPath } }), enabled: open });
+  const quota = useTrackedKeywordQuota(scope, open);
+  const checkPrice = useCheckPrice(scope, open);
+  const planId = useId();
   const ensureGroups = useEnsureGroups(scope);
   const checkGroupPaths = useGroupPathCheck();
   const groupMessages = useGroupMessages();
@@ -148,16 +156,19 @@ export function AddKeywordsDialog({
       const error = listError(readKeywordLines(text));
       if (error !== null) context.addIssue({ code: 'custom', message: error });
     }),
-    location: z.custom<LocationRef | null>().refine((location) => location !== null, { error: t('locationRequired') }),
+    countries: z
+      .array(z.custom<Country>())
+      .min(1, { error: t('countriesRequired') })
+      .max(MAX_ADD_COUNTRIES, { error: t('countriesTooMany', { max: MAX_ADD_COUNTRIES }) }),
     language_code: z.string(),
     device: z.enum(['desktop', 'mobile', 'both']).nullable(),
     groups: z.array(z.custom<GroupChoice>()),
     term_ids: z.array(z.string()),
     priority: z.string(),
   });
-  const initialValues = (device: Device | null): AddValues => ({
+  const initialValues = (device: AddDevice | null, country: Country | null): AddValues => ({
     keywords: '',
-    location: defaults.location,
+    countries: country === null ? [] : [country],
     language_code: defaults.languageCode ?? 'en',
     device,
     groups: [],
@@ -168,31 +179,50 @@ export function AddKeywordsDialog({
     resolver: zodResolver(schema),
     mode: 'onTouched',
     reValidateMode: 'onChange',
-    defaultValues: initialValues(null),
+    defaultValues: initialValues(null, null),
   });
-  // The project's default device arrives with its settings; a person who chose one already keeps it. The
-  // settings may already be cached when the dialog is first rendered, before its fields exist, and
+  // The project's default device arrives with its settings, and its country with the list of countries (a
+  // city stands for its country, found by its ISO code); a person who chose either already keeps it. The
+  // defaults may already be cached when the dialog is first rendered, before its fields exist, and
   // `resetField` does nothing for a field that is not there: `reset` sets the default of every field
   const defaultDevice = settings.data?.data.seo?.default_device ?? null;
-  const startOnDevice = useEffectEvent((next: Device): void => {
-    if (!form.getFieldState('device').isDirty) {
-      form.reset(initialValues(next), { keepDirtyValues: true, keepDirty: true });
-    }
+  const projectLocation = defaults.location;
+  const defaultCountry = useMemo(
+    () =>
+      projectLocation === null
+        ? null
+        : (allCountries.find((country) =>
+            projectLocation.location_type === 'Country'
+              ? country.location_id === projectLocation.location_id
+              : country.country_iso === projectLocation.country_iso,
+          ) ?? null),
+    [allCountries, projectLocation],
+  );
+  const startOnDefaults = useEffectEvent((device: AddDevice | null, country: Country | null): void => {
+    form.reset(initialValues(device, country), { keepDirtyValues: true, keepDirty: true });
   });
   useEffect(() => {
-    if (defaultDevice !== null) startOnDevice(defaultDevice);
-  }, [defaultDevice]);
+    if (defaultDevice !== null || defaultCountry !== null) startOnDefaults(defaultDevice, defaultCountry);
+  }, [defaultDevice, defaultCountry]);
 
   const text = useWatch({ control: form.control, name: 'keywords' });
   const device = useWatch({ control: form.control, name: 'device' });
+  const countries = useWatch({ control: form.control, name: 'countries' });
   const lines = useMemo(() => readKeywordLines(text), [text]);
   const keywordCount = lines.keywords.length;
   const create = useMutation(apiMutation('post', BULK_CREATE));
 
+  // Each check a day is one tracked keyword, so the plan's use after the add grows by the checks
+  const plan = addPlan({ keywords: keywordCount, device, countries: countries.length });
+  const cost = costOf(plan.checksPerDay, checkPrice);
+  const after = quota === null ? null : quota.used + plan.checksPerDay;
+  const overPlan = quota === null || after === null ? 0 : Math.max(after - quota.limit, 0);
+  const blocked = overPlan > 0 || countries.length > MAX_ADD_COUNTRIES;
+
   const { choices: terms, byId: termById, keepOnePerSingleVocabulary } = useTermChoices(scope);
 
   const close = (): void => {
-    form.reset(initialValues(defaultDevice));
+    form.reset(initialValues(defaultDevice, defaultCountry));
     setAlert(null);
     setOutcome(null);
     onOpenChange(false);
@@ -200,6 +230,8 @@ export function AddKeywordsDialog({
 
   const submit = useSubmitOnce(
     form.handleSubmit(async (values) => {
+      // Add is refused while the add goes over the plan; Enter in a field still submits the form
+      if (blocked) return;
       setAlert(null);
       // A typed path that cannot become a group is named before anything is created or sent
       const pathError = checkGroupPaths(values.groups);
@@ -224,28 +256,55 @@ export function AddKeywordsDialog({
         return note === null ? text : `${text} ${note}`;
       };
       const read = readKeywordLines(values.keywords);
-      // Created counts tracked keywords: with both devices, two of each keyword
-      const both = values.device === 'both' ? 'yes' : 'no';
-      const items = read.keywords.map(({ keyword }) => ({
-        keyword,
+      const perCountry = values.countries.length;
+      const checks = addPlan({ keywords: read.keywords.length, device: values.device, countries: perCountry });
+      // Created counts tracked keywords: one per keyword, country and device
+      const both = checks.devices * checks.countries > 1 ? 'yes' : 'no';
+      const shared = {
         search_engine: 'google' as const,
         funnel_stage: 'unknown' as const,
-        location_id: values.location?.location_id ?? null,
         language_code: values.language_code,
         ...(values.device === null ? {} : { device: values.device }),
         priority: Number(values.priority),
         ...(groupIds.length === 0 ? {} : { group_ids: groupIds }),
         ...(values.term_ids.length === 0 ? {} : { term_ids: values.term_ids }),
-      }));
+      };
+      // Where the request being sent starts in the list, so a refused item is named by its line
+      let firstKeyword = 0;
+      let nextKeyword = 0;
       try {
-        const answer = await create.mutateAsync({
-          params: { path: projectPath },
-          body: { items, on_duplicate: 'skip' },
+        const answer = await createInChunks({
+          chunks: chunkKeywords(
+            read.keywords.map(({ keyword }) => keyword),
+            perCountry,
+          ),
+          countries: values.countries,
+          send: async (items) => {
+            firstKeyword = nextKeyword;
+            nextKeyword += items.length / perCountry;
+            const sent = await create.mutateAsync({
+              params: { path: projectPath },
+              body: {
+                items: items.map(({ keyword, country }) => ({ ...shared, keyword, location_id: country.location_id })),
+                on_duplicate: 'skip',
+              },
+            });
+            return sent.data;
+          },
         });
+        const { created, restored, skipped, rejected, stoppedBy } = answer;
+        const stopped =
+          stoppedBy === null
+            ? null
+            : common('quota', { ...quotaFacts(stoppedBy, checks.checksPerDay - created.length) });
+        // Over the plan before anything was added: the form stays, with the reason
+        if (stopped !== null && created.length === 0) {
+          setAlert(withLeftover(stopped));
+          return;
+        }
         void refreshKeywords(queryClient, scope);
         void refreshGroups(queryClient, scope);
-        const { created, restored, skipped, rejected } = answer.data;
-        if (skipped.length === 0 && rejected.length === 0) {
+        if (stopped === null && skipped.length === 0 && rejected.length === 0) {
           // A deleted keyword comes back with its old settings and history, which the person is told (D3)
           toast({
             type: 'success',
@@ -262,22 +321,23 @@ export function AddKeywordsDialog({
           added: created.length,
           restored: restored.length,
           both: both === 'yes',
-          skipped: skipped.map((item) => ({ id: item.existing_id, keyword: items[item.index]?.keyword ?? '' })),
+          skipped: skipped.map((item) => ({ id: item.id, keyword: item.keyword, country: item.country.name })),
           rejected: rejected.map((item) => ({
-            keyword: items[item.index]?.keyword ?? '',
+            keyword: item.keyword,
+            country: item.country.name,
             reason: isKeywordProblem(item.code) ? rejectedReason(item.code) : item.message,
           })),
+          stopped,
         });
       } catch (error) {
-        if (isApiProblem(error, 'quota_exceeded')) {
-          setAlert(withLeftover(common('quota', { ...quotaFacts(error, items.length * (both === 'yes' ? 2 : 1)) })));
-          return;
-        }
         if (isApiProblem(error, 'validation_failed')) {
-          // An item's keyword is named by its line, as the person typed it
+          // An item's keyword is named by its line, as the person typed it: each keyword is one item per country
           const keywordErrors = error.errors.flatMap((item) => {
             const index = /^items\.(\d+)\.keyword$/.exec(item.path)?.[1];
-            const line = index === undefined ? undefined : read.keywords[Number(index)]?.line;
+            const line =
+              index === undefined
+                ? undefined
+                : read.keywords[firstKeyword + Math.floor(Number(index) / perCountry)]?.line;
             return line === undefined || !isKeywordProblem(item.code)
               ? []
               : [t('lineProblem', { line, problem: problemText(item.code) })];
@@ -309,12 +369,7 @@ export function AddKeywordsDialog({
     value: String(priority),
     label: tracking('priorityValue', { priority: String(priority) }),
   }));
-  // Both devices make two tracked keywords of each, and the quota counts both (backend plan D4)
-  const counter = t('counter', {
-    count: keywordCount,
-    repeats: lines.repeats,
-    rows: device === 'both' ? keywordCount * 2 : 0,
-  });
+  const counter = t('counter', { count: keywordCount, repeats: lines.repeats });
 
   return (
     <Dialog
@@ -355,20 +410,24 @@ export function AddKeywordsDialog({
             />
             <FormField
               control={form.control}
-              name="location"
-              label={t('location')}
+              name="countries"
+              label={t('countries')}
+              description={t('countriesHint')}
               render={(field) => (
-                <LocationCombobox
-                  name={field.controlProps.name}
-                  inputRef={field.controlProps.ref}
-                  onBlur={field.controlProps.onBlur}
-                  disabled={field.controlProps.disabled}
-                  aria-required={field.controlProps['aria-required']}
+                <MultiSelect<Country>
+                  inputRef={field.ref}
+                  onBlur={field.onBlur}
+                  aria-required={field.required}
                   value={field.value}
-                  onValueChange={field.onChange}
-                  items={locations.items}
-                  loading={locations.loading}
-                  onQueryChange={locations.onQueryChange}
+                  onValueChange={(chosen) => field.onChange([...chosen])}
+                  items={allCountries}
+                  itemToString={(country) => country.name}
+                  itemKey={(country) => String(country.location_id)}
+                  placeholder={t('countriesPlaceholder')}
+                  emptyText={(query) => t('countriesEmpty', { query })}
+                  chipsLabel={t('chips', { field: t('countries') })}
+                  removeLabel={(value) => t('remove', { value })}
+                  {...multiSelectHints}
                 />
               )}
             />
@@ -392,7 +451,7 @@ export function AddKeywordsDialog({
               label={t('device')}
               kind="group"
               render={(field) => (
-                <RadioGroup<Device>
+                <RadioGroup<AddDevice>
                   legend={field.label}
                   name={field.controlProps.name}
                   value={field.value}
@@ -453,6 +512,40 @@ export function AddKeywordsDialog({
                 />
               )}
             />
+            <div id={planId} className="flex flex-col gap-0.5 type-meta">
+              {plan.checksPerDay === 0 ? (
+                <p>{t('plan.empty')}</p>
+              ) : (
+                <>
+                  <p>
+                    {t('plan.checks', {
+                      keywords: plan.keywords,
+                      devices: plan.devices,
+                      countries: plan.countries,
+                      checks: plan.checksPerDay,
+                    })}
+                  </p>
+                  {cost === null ? null : (
+                    <p>
+                      {t('plan.cost', {
+                        day: formatCurrency(cost.day, { locale }),
+                        month: formatCurrency(cost.month, { locale }),
+                      })}
+                    </p>
+                  )}
+                  {quota === null || after === null ? null : (
+                    <p className={overPlan > 0 ? 'text-negative-text' : undefined}>
+                      {t('plan.quota', {
+                        used: formatInteger(quota.used, { locale }),
+                        limit: formatInteger(quota.limit, { locale }),
+                        after: formatInteger(after, { locale }),
+                      })}
+                    </p>
+                  )}
+                  {overPlan > 0 ? <p className="text-negative-text">{t('plan.over', { count: overPlan })}</p> : null}
+                </>
+              )}
+            </div>
           </DialogBody>
           <DialogFooter
             secondary={
@@ -463,7 +556,14 @@ export function AddKeywordsDialog({
               </DialogClose>
             }
             primary={
-              <Button type="submit" variant="primary" loading={create.isPending}>
+              <Button
+                type="submit"
+                variant="primary"
+                loading={create.isPending}
+                disabled={blocked}
+                focusableWhenDisabled
+                aria-describedby={planId}
+              >
                 {t('submit', { count: keywordCount })}
               </Button>
             }
