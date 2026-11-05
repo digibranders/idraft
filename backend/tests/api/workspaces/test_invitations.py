@@ -1102,7 +1102,9 @@ async def test_a_huge_address_is_refused_without_being_normalised(
             "message": "String should have at most 254 characters",
         }
     ]
-    assert elapsed < 1.0
+    # Wall time through the API, on CPUs shared with parallel test workers: generous next to
+    # the minute that normalising would take.
+    assert elapsed < 5.0
 
 
 @pytest.mark.parametrize(
