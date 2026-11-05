@@ -20,7 +20,12 @@
 - The Caddyfile answers 404 for all of `/api/internal/*`, which hides `GET /api/internal/health` (token protected, `backend/src/idraft/api/health.py`).
 - `infra/compose/postgres/initdb/10-roles.sh` creates the roles `migrator`, `app_api`, `app_worker`, `backup` and the extension `pg_stat_statements` when the volume is first initialised. The dump therefore excludes that extension.
 - The `deploy` user (uid 1000) is left over from firstfold: `/etc/sudoers.d/firstfold-deploy` lets it run `/usr/local/sbin/firstfold-ci-sandbox` and other firstfold scripts as root, and its `authorized_keys` holds three keys (the owner's Mac Studio, `siddiqueahmed@Siddiques-Mac-mini.local`, an expired Hostinger key). Root has the same three keys. `bootstrap.sh` replaces the deploy user's `authorized_keys` with the CI key only.
-- ufw still allows 7881/tcp, 7882/udp and 3478/udp (old LiveKit) and a list of Cloudflare ranges on 80 and 443. `bootstrap.sh` adds rules but removes none.
+- ufw still allows 7881/tcp, 7882/udp and 3478/udp (old LiveKit) and a list of Cloudflare ranges on 80 and 443, besides `80/tcp` and `443/tcp` from anywhere. `bootstrap.sh` adds rules but removes none. `app.idraft.ai` is DNS only at Cloudflare (A record straight to the host, no AAAA), so the Cloudflare rules do nothing and Caddy sees real client addresses.
+- `pg_dump` on the host is the Ubuntu wrapper, which runs version 16. Every dump in this plan calls `/usr/lib/postgresql/18/bin/pg_dump` (needed for a PG 18 server and for `--exclude-extension`).
+- `EMAIL_FROM` in `api.env` is wrapped in quotes (systemd strips them; the Compose env checker refuses them) and holds a display name with spaces, which the checker allows. No other value is quoted. `worker.env` and `api.env` hold identical provider, bucket, installation and secrets-key values.
+- Measured on the live database: the PG 18 `pg_dump` with `--exclude-extension=pg_stat_statements` works (custom format 6 MB), schema dumps carry two `\restrict` lines with a random key (filtered before any diff), and the exact-count script covers 114 tables.
+- Leftover nginx site files `/etc/nginx/sites-available/firstfold*` (not enabled).
+- Inside the Postgres container, `pg_hba.conf` allows the `postgres` user over the local socket by peer authentication only, so every `docker compose exec` into Postgres runs with `-u postgres`.
 
 ## Decisions for the owner (answer before Task 6)
 
@@ -251,7 +256,9 @@ Opening paragraph: the VPS runs idraft only. At the top of "Shared host" add: "N
 
 - [ ] **Step 2: Gates, review, PR**
 
-Run every `infra.yml` step locally (shellcheck, `bash infra/test/resolve-release.sh`, `docker compose ... config -q`, `bash infra/test/compose-env.sh`, Caddy validate, actionlint) and `bash infra/test/deploy-dryrun.sh`. Independent review of the branch (Sonnet). Open a PR to `develop`, then the release PR to `main` on the owner's word. The images used in Task 10 come from the `main` CI run of that release.
+Run every `infra.yml` step locally (shellcheck, `bash infra/test/resolve-release.sh`, `docker compose ... config -q`, `bash infra/test/compose-env.sh`, Caddy validate, actionlint) and `bash infra/test/deploy-dryrun.sh`. Independent review of the branch (Sonnet). Open a PR to `develop`, then the release PR to `main` on the owner's word.
+
+This release touches only `infra/` and `.github/`, so it builds no images. The images for Tasks 9 and 10 are the newest successful `backend` and `web` push runs on `main` (Task 5 Step 6).
 
 ```bash
 git add infra/README.md
@@ -270,19 +277,46 @@ gh api -X POST repos/digibranders/idraft/environments/production/deployment-bran
 
 - [ ] **Step 2: Deploy key.** On the owner's Mac, outside the repo: `ssh-keygen -t ed25519 -N '' -C idraft-deploy -f ~/.ssh/idraft-deploy`. The public half goes to the host in Task 7.
 
-- [ ] **Step 3: Host key.** `ssh-keyscan -t ed25519 187.126.121.25` and compare its fingerprint with `ssh root@187.126.121.25 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`.
+- [ ] **Step 3: Host key, verified once.** Save the scan and compare it with the host's own fingerprint:
 
-- [ ] **Step 4: Secrets (owner).**
+```bash
+ssh-keyscan -t ed25519 187.126.121.25 2>/dev/null > ~/.ssh/idraft-known-hosts
+ssh-keygen -lf ~/.ssh/idraft-known-hosts
+ssh root@187.126.121.25 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+```
+
+The two SHA256 fingerprints must be equal. Step 4 uses this file, not a second scan.
+
+- [ ] **Step 4: Pause automatic deploys.** Once the secrets exist, any backend or web push to `main` would run `deploy.yml` against a host that is not ready. `gh workflow disable deploy.yml` now; Task 11 enables it.
+
+- [ ] **Step 5: Secrets (owner).**
 
 ```bash
 gh secret set DEPLOY_HOST --env production --body 187.126.121.25
 gh secret set DEPLOY_SSH_KEY --env production < ~/.ssh/idraft-deploy
-ssh-keyscan -t ed25519 187.126.121.25 2>/dev/null | gh secret set DEPLOY_KNOWN_HOSTS --env production
+gh secret set DEPLOY_KNOWN_HOSTS --env production < ~/.ssh/idraft-known-hosts
 ```
 
 `ENV_FILE` is set in Task 11, from the host, once the env exists.
 
-- [ ] **Step 5: (D3) Packages public.** For `idraft-api`, `idraft-worker`, `idraft-web` under the digibranders organisation: Package settings, Change visibility, Public. Check from any machine: `docker pull ghcr.io/digibranders/idraft-api@<digest>` without a login.
+- [ ] **Step 6: Pick the release images.** The newest successful push runs of `backend` and `web` on `main`:
+
+```bash
+b=$(gh run list -w backend -b main -e push -s success -L 1 --json databaseId,headSha --jq '.[0]')
+w=$(gh run list -w web -b main -e push -s success -L 1 --json databaseId,headSha --jq '.[0]')
+mkdir -p ~/idraft-release && cd ~/idraft-release && rm -f ./*.json
+gh run download "$(jq -r .databaseId <<<"$b")" -n backend-digests
+gh run download "$(jq -r .databaseId <<<"$w")" -n web-digests
+```
+
+The release commit `sha` is the newer of the two `headSha` values, and the other must be its ancestor (`git merge-base --is-ancestor <older> <newer>`); otherwise wait for a commit where both are green. Then:
+
+```bash
+jq -n --slurpfile b backend-digests.json --slurpfile w web-digests.json --arg sha <newer headSha> \
+  '{api: $b[0].api, worker: $b[0].worker, web: $w[0].web, sha: $sha}' > digests.json
+```
+
+- [ ] **Step 7: (D3) Packages public.** For `idraft-api`, `idraft-worker`, `idraft-web` under the digibranders organisation: Package settings, Change visibility, Public. Check from any machine: `docker pull ghcr.io/digibranders/idraft-api@<digest>` without a login.
 
 ### Task 6: Safety copies before touching the host
 
@@ -290,36 +324,39 @@ ssh-keyscan -t ed25519 187.126.121.25 2>/dev/null | gh secret set DEPLOY_KNOWN_H
 - [ ] **Step 2:** Off-host database copy:
 
 ```bash
-ssh root@187.126.121.25 'sudo -u postgres pg_dump -p 5433 -Fc -d idraft' > ~/idraft-backups/idraft-pre-cutover-$(date -u +%Y%m%dT%H%MZ).dump
+umask 077; mkdir -p -m 700 ~/idraft-backups
+ssh root@187.126.121.25 'sudo -u postgres /usr/lib/postgresql/18/bin/pg_dump -p 5433 -Fc -d idraft' > ~/idraft-backups/idraft-pre-cutover-$(date -u +%Y%m%dT%H%MZ).dump
 ssh root@187.126.121.25 'tar -C /etc -czf - idraft' > ~/idraft-backups/etc-idraft-pre-cutover.tgz
-chmod 600 ~/idraft-backups/*
 ```
+
+The tarball holds every production secret: it stays in that 0700 folder and is deleted once the cutover has held for 7 days.
 
 Expected: a dump of about 30 to 80 MB, and `pg_restore -l` on it lists tables in `auth`, `core`, `fp`, `ops`, `seo`.
 
 ### Task 7: Clean the host and install Docker (no downtime)
 
-- [ ] **Step 1: Remove firstfold leftovers.**
+- [ ] **Step 1: Bootstrap.** From the worktree on the release commit:
+
+```bash
+scp -r infra ~/.ssh/idraft-deploy.pub root@187.126.121.25:/root/
+ssh root@187.126.121.25 'bash /root/infra/bootstrap.sh --deploy-key /root/idraft-deploy.pub && systemctl reload fail2ban'
+```
+
+No `--harden-ssh`: `sshd -T` already shows key-only login. `systemctl reload fail2ban` applies the new jail (bootstrap's `enable --now` does not reload a running fail2ban). Expected: Docker installed, `/srv/idraft/{releases,infra,shared,incoming}` created, `/etc/idraft` "Left alone", the five sudo commands in `/etc/sudoers.d/idraft-deploy`, `ufw` allowing 80/tcp, 443/tcp and 443/udp.
+
+- [ ] **Step 2: Remove firstfold leftovers.** After bootstrap, so 80 and 443 are allowed throughout:
 
 ```bash
 ssh root@187.126.121.25 'set -e
 rm -f /etc/sudoers.d/firstfold-deploy && visudo -c
-rm -f /usr/local/sbin/firstfold-*
+rm -f /usr/local/sbin/firstfold-* /etc/nginx/sites-available/firstfold*
 rm -f /home/deploy/.ssh/github-firstfold-* /home/deploy/.ssh/config /home/deploy/.ssh/known_hosts
 for r in "7881/tcp" "7882/udp" "3478/udp"; do ufw delete allow "$r" || true; done
-ufw status numbered | grep -c cloudflare-web'
+while n="$(ufw status numbered | sed -n "s/^\[ *\([0-9]*\)\].*cloudflare-web.*/\1/p" | tail -n 1)"; [ -n "$n" ]; do ufw --force delete "$n"; done
+ufw status'
 ```
 
-Then delete the Cloudflare-range rules by number, highest number first (`ufw --force delete N`), until `ufw status | grep -c cloudflare` prints 0. Leave `22/tcp`, `80/tcp`, `443/tcp`. `/var/backups/firstfold` and `/root/backup-old-projects-*` stay until the owner says otherwise.
-
-- [ ] **Step 2: Bootstrap.** From the worktree on the release commit:
-
-```bash
-scp -r infra ~/.ssh/idraft-deploy.pub root@187.126.121.25:/root/
-ssh root@187.126.121.25 'bash /root/infra/bootstrap.sh --deploy-key /root/idraft-deploy.pub'
-```
-
-No `--harden-ssh`: `sshd -T` already shows key-only login. Expected: Docker installed, `/srv/idraft/{releases,infra,shared,incoming}` created, `/etc/idraft` "Left alone", the five sudo commands in `/etc/sudoers.d/idraft-deploy`.
+Expected `ufw status`: 22/tcp, 80/tcp, 443/tcp, 443/udp (v4 and v6) and nothing else. `/var/backups/firstfold` and `/root/backup-old-projects-*` stay until the owner says otherwise.
 
 - [ ] **Step 3: Install infra the way the pipeline does.** From the worktree on the release commit, as the deploy user:
 
@@ -330,7 +367,7 @@ ssh -i ~/.ssh/idraft-deploy deploy@187.126.121.25 'sudo /usr/local/sbin/idraft-i
 
 Expected: `/srv/idraft/infra/deploy.sh` and `/srv/idraft/infra/compose/` exist, root-owned.
 
-- [ ] **Step 4: Check.** `ssh -i ~/.ssh/idraft-deploy deploy@187.126.121.25 sudo -l` lists only the idraft commands. `docker version` on the host works. `curl -sI https://app.idraft.ai/login` is still 200 (nginx untouched). `ufw status` shows only 22, 80, 443 (tcp, and 443/udp from bootstrap).
+- [ ] **Step 4: Check.** `ssh -i ~/.ssh/idraft-deploy deploy@187.126.121.25 sudo -l` lists only the idraft commands. `docker version` on the host works. `curl -sI https://app.idraft.ai/login` is still 200 (nginx untouched).
 
 ### Task 8: Build /etc/idraft/.env on the host
 
@@ -342,7 +379,13 @@ Secrets stay on the host. The database and Redis are new, so their passwords are
 ssh root@187.126.121.25 'bash -s' <<'EOF'
 set -euo pipefail
 umask 077
-get() { sed -n "s/^$2=//p" "/etc/idraft/$1.env" | head -n 1; }
+# The last assignment wins, as in systemd, and one pair of surrounding quotes is dropped, as systemd does.
+get() {
+  local v
+  v="$(sed -n "s/^$2=//p" "/etc/idraft/$1.env" | tail -n 1)"
+  case "$v" in \"*\") v="${v#\"}"; v="${v%\"}" ;; \'*\') v="${v#\'}"; v="${v%\'}" ;; esac
+  printf '%s' "$v"
+}
 gen() { openssl rand -hex 24; }
 pg_api="$(gen)" pg_worker="$(gen)" pg_migrator="$(gen)" r_app="$(gen)"
 ex=/srv/idraft/infra/compose/.env.example
@@ -370,85 +413,180 @@ ex=/srv/idraft/infra/compose/.env.example
            EMAIL_PROVIDER EMAIL_API_KEY EMAIL_FROM HEALTH_TOKEN; do echo "$k=$(get api "$k")"; done
   for k in DATAFORSEO_LOGIN DATAFORSEO_PASSWORD R2_RAW_ENDPOINT R2_RAW_BUCKET R2_RAW_ACCESS_KEY_ID \
            R2_RAW_SECRET_ACCESS_KEY INSTALLATION_ID; do echo "$k=$(get worker "$k")"; done
-  echo "LOG_LEVEL=$(get worker LOG_LEVEL)"
+  lvl="$(get worker LOG_LEVEL)"; echo "LOG_LEVEL=${lvl:-info}"
   echo "REGISTRATION=invited"
   echo "BREACHED_PASSWORD_CHECK=true"
 } > /etc/idraft/.env.new
 chmod 600 /etc/idraft/.env.new
-/usr/local/sbin/idraft-check-env < /etc/idraft/.env.new && echo "env accepted"
+/usr/local/sbin/idraft-check-env /etc/idraft/.env.new && echo "env accepted"
 EOF
 ```
 
-If the checker refuses `EMAIL_FROM` (the live value is a display name and an address, with spaces and `<>`), set `EMAIL_FROM=hello@idraft.ai` and tell the owner the sender name drops until the checker allows it.
+Expected: `env accepted`. The checker takes the file as its argument (`infra/host/idraft-check-env`).
 
-- [ ] **Step 2: Check without printing values.** `grep -o '^[A-Z0-9_]*=$' /etc/idraft/.env.new` prints the keys whose value is empty. Expected: none, or `LOG_LEVEL=` (then set `LOG_LEVEL=info`). Compare `TOTP_ENCRYPTION_KEY` and `SECRETS_ENCRYPTION_KEY` with `api.env` by hash: `sha256sum` of each extracted value must match. Losing either key makes stored 2FA secrets and Google tokens unreadable.
+- [ ] **Step 2: Check without printing values.**
+
+```bash
+ssh root@187.126.121.25 'bash -s' <<'EOF'
+cd /etc/idraft
+echo "empty keys:"; grep -o '^[A-Z0-9_]*=$' .env.new
+echo "keys of the old files missing from the new one:"
+comm -23 <(cat api.env worker.env | sed -n 's/^\([A-Z0-9_]*\)=.*/\1/p' | sort -u) \
+         <(sed -n 's/^\([A-Z0-9_]*\)=.*/\1/p' .env.new | sort -u)
+for k in TOTP_ENCRYPTION_KEY SECRETS_ENCRYPTION_KEY; do
+  old="$(sed -n "s/^$k=//p" api.env | tail -n 1 | sed "s/^[\"']//; s/[\"']\$//" | sha256sum)"
+  new="$(sed -n "s/^$k=//p" .env.new | sha256sum)"
+  [ "$old" = "$new" ] && echo "$k carried over" || echo "$k DIFFERS: stop"
+done
+EOF
+```
+
+Expected: no empty keys; the missing list holds only `DATABASE_URL`, `REDIS_URL`, `PROCESS_ROLE` and `HEARTBEAT_FILE` (Compose sets those per service); both keys "carried over". Losing either key makes stored 2FA secrets and Google tokens unreadable.
 - [ ] **Step 3:** `mv /etc/idraft/.env.new /etc/idraft/.env` (root, 0600). The old `*.env` files stay as they are: the systemd install keeps running from them until Task 10.
 
 ### Task 9: Rehearse the restore beside the live install
 
-A second Compose project on other ports and subnets, with a copy of today's data and no provider credentials, so nothing is spent and nothing touches production. It runs the real `deploy.sh` with the overrides `infra/test/parallel-stack.sh` uses.
+A second Compose project on other ports and subnets, with a copy of today's data, so the restore and the first deploy are proven before the window. It runs the real `deploy.sh` with the overrides `infra/test/parallel-stack.sh` uses. It holds production data, so it runs as a local install with no outside keys (no provider spend, no mail, no Google, no R2), its ports are closed to the internet, and it is removed the same hour.
 
-- [ ] **Step 1: Prepare.** On the host, as root. `/srv/idraft/incoming/digests.json` holds the release from Task 4: `api` and `worker` from the `backend-digests` artifact, `web` from `web-digests`, `sha` the release commit (`gh run download <run id> -n backend-digests` on the Mac, then `scp`).
+- [ ] **Step 1: Check the host database has nothing the dump leaves out.** Roles and per-database settings are not in a `pg_dump` without `--create`; `10-roles.sh` makes the roles on the new side.
 
 ```bash
-mkdir -p /root/rehearsal && chmod 700 /root/rehearsal
+sudo -u postgres psql -p 5433 -Atc "select rolname from pg_roles where rolname !~ '^pg_' order by 1"
+sudo -u postgres psql -p 5433 -Atc "select coalesce(d.datname,'*'), coalesce(r.rolname,'*'), s.setconfig from pg_db_role_setting s left join pg_database d on d.oid = s.setdatabase left join pg_roles r on r.oid = s.setrole"
+```
+
+Expected: the roles `app_api`, `app_worker`, `backup`, `migrator`, `postgres`; settings only the per-role ones `10-roles.sh` sets too (`migrator` lock and statement timeouts, `app_api` and `app_worker` statement timeouts). Anything else is copied to the new side by hand in Step 3 and in the cutover.
+
+- [ ] **Step 2: Prepare.** On the host, as root. Copy `~/idraft-release/digests.json` (Task 5 Step 6) to `/srv/idraft/incoming/digests.json` with `scp`.
+
+```bash
+mkdir -p -m 700 /root/rehearsal
 sed -e 's/^HTTP_PORT=.*/HTTP_PORT=18080/' -e 's/^HTTPS_PORT=.*/HTTPS_PORT=18443/' \
     -e 's#^EDGE_SUBNET=.*#EDGE_SUBNET=172.31.20.0/24#' -e 's#^BACKEND_SUBNET=.*#BACKEND_SUBNET=172.31.10.0/24#' \
-    -e 's/^DATAFORSEO_LOGIN=.*/DATAFORSEO_LOGIN=/' -e 's/^DATAFORSEO_PASSWORD=.*/DATAFORSEO_PASSWORD=/' \
+    -e 's/^DOMAIN=.*/DOMAIN=localhost/' -e 's/^APP_ENV=.*/APP_ENV=local/' -e 's#^APP_ORIGIN=.*#APP_ORIGIN=https://localhost:18443#' \
+    -e 's/^EMAIL_PROVIDER=.*/EMAIL_PROVIDER=console/' -e 's/^EMAIL_API_KEY=.*/EMAIL_API_KEY=/' \
+    -e 's/^\(DATAFORSEO_LOGIN\|DATAFORSEO_PASSWORD\|GOOGLE_OAUTH_CLIENT_ID\|GOOGLE_OAUTH_CLIENT_SECRET\|R2_RAW_ENDPOINT\|R2_RAW_ACCESS_KEY_ID\|R2_RAW_SECRET_ACCESS_KEY\|HEALTH_TOKEN\)=.*/\1=/' \
     -e 's/^INSTALLATION_ID=.*/INSTALLATION_ID=rehearsal/' \
     -e 's#^REDIS_ACL_DIR=.*#REDIS_ACL_DIR=/root/rehearsal/redis#' /etc/idraft/.env > /root/rehearsal/rehearsal.env
 chmod 600 /root/rehearsal/rehearsal.env
+# Docker publishes on 0.0.0.0 and bypasses ufw: drop outside traffic to the rehearsal ports. Removed in Step 7.
+pub="$(ip route get 1.1.1.1 | awk '{for (i=1;i<NF;i++) if ($i=="dev") print $(i+1)}')"
+for p in 18080 18443; do
+  iptables -I DOCKER-USER -i "$pub" -p tcp -m conntrack --ctorigdstport "$p" -j DROP
+  iptables -I DOCKER-USER -i "$pub" -p udp -m conntrack --ctorigdstport "$p" -j DROP
+done
 export COMPOSE_PROJECT_NAME=idraft-rehearsal IDRAFT_RELEASES_DIR=/root/rehearsal/releases \
   IDRAFT_LOCK_FILE=/root/rehearsal/deploy.lock IDRAFT_REDIS_ACL_DIR=/root/rehearsal/redis
-export API_IMAGE="$(jq -r .api /srv/idraft/incoming/digests.json)" WORKER_IMAGE="$(jq -r .worker /srv/idraft/incoming/digests.json)" WEB_IMAGE="$(jq -r .web /srv/idraft/incoming/digests.json)"
+d=/srv/idraft/incoming/digests.json
+export API_IMAGE="$(jq -r .api $d)" WORKER_IMAGE="$(jq -r .worker $d)" WEB_IMAGE="$(jq -r .web $d)"
 dc() { docker compose -f /srv/idraft/infra/compose/docker-compose.yml --env-file /root/rehearsal/rehearsal.env "$@"; }
 dc up -d postgres
 ```
 
-Wait until `dc ps postgres` shows `healthy`. Only Postgres starts here: Redis needs the ACL file, which `deploy.sh` renders in Step 4.
+Wait until `dc ps postgres` shows `healthy`. Only Postgres starts here: Redis needs the ACL file, which `deploy.sh` renders in Step 5. From the Mac, `curl -m 5 -k https://187.126.121.25:18443/` must time out once Caddy runs (Step 5).
 
-- [ ] **Step 2: Restore.**
+- [ ] **Step 3: Restore.**
 
 ```bash
-sudo -u postgres pg_dump -p 5433 -Fc -d idraft --exclude-extension=pg_stat_statements > /root/rehearsal/idraft.dump
-dc exec -T postgres pg_restore -U postgres -d idraft --exit-on-error --single-transaction < /root/rehearsal/idraft.dump
+sudo -u postgres /usr/lib/postgresql/18/bin/pg_dump -p 5433 -Fc -d idraft --exclude-extension=pg_stat_statements > /root/rehearsal/idraft.dump
+dc exec -T -u postgres postgres pg_restore -d idraft --exit-on-error --single-transaction < /root/rehearsal/idraft.dump
 ```
 
 Expected: exit 0. If it fails, the message names the object; fix the dump flags here, not during the cutover.
 
-- [ ] **Step 3: Compare.** Row counts per table on both sides must match:
+- [ ] **Step 4: Compare data and schema.** Exact counts per table, and the schema with owners and grants:
 
 ```bash
-count='select schemaname||'"'"'.'"'"'||relname||'"'"' '"'"'||n_live_tup from pg_stat_user_tables order by 1'
-sudo -u postgres psql -p 5433 -d idraft -Atc "ANALYZE" >/dev/null; sudo -u postgres psql -p 5433 -d idraft -Atc "$count" > /root/rehearsal/host.counts
-dc exec -T postgres psql -U postgres -d idraft -Atc "ANALYZE" >/dev/null; dc exec -T postgres psql -U postgres -d idraft -Atc "$count" > /root/rehearsal/compose.counts
+# Kept outside /root/rehearsal: the cutover uses it again.
+cat > /root/counts.sql <<'SQL'
+select format('select %L || '' '' || count(*) from %I.%I', schemaname || '.' || relname, schemaname, relname)
+from pg_stat_user_tables order by schemaname, relname
+\gexec
+SQL
+chmod 644 /root/counts.sql
+sudo -u postgres psql -p 5433 -d idraft -At < /root/counts.sql > /root/rehearsal/host.counts
+dc exec -T -u postgres postgres psql -d idraft -At < /root/counts.sql > /root/rehearsal/compose.counts
 diff /root/rehearsal/host.counts /root/rehearsal/compose.counts && echo "counts match"
+sudo -u postgres /usr/lib/postgresql/18/bin/pg_dump -p 5433 -s -d idraft --exclude-extension=pg_stat_statements > /root/rehearsal/host.schema
+dc exec -T -u postgres postgres pg_dump -s -d idraft --exclude-extension=pg_stat_statements > /root/rehearsal/compose.schema
+strip() { grep -vE '^(-- Dumped|\\(un)?restrict )' "$1"; }   # version lines and the per-dump random \restrict key
+diff <(strip /root/rehearsal/host.schema) <(strip /root/rehearsal/compose.schema) && echo "schema, owners and grants match"
 ```
 
-`n_live_tup` is an estimate; for any line that differs, compare `select count(*)` on that table.
+Expected: both "match" lines. This runs before the migrator, so both sides are at 0016.
 
-- [ ] **Step 4: Run the release on it.** In the same shell: `/srv/idraft/infra/deploy.sh /root/rehearsal/rehearsal.env /srv/idraft/incoming/digests.json`. Expected: Redis ACL rendered, migrator applies 0017, api, worker, web and caddy healthy, "/api/v1/me 401" and "/api/readyz 200" through the rehearsal Caddy. Then `curl -ksS -o /dev/null -w '%{http_code}\n' --resolve app.idraft.ai:18443:127.0.0.1 https://app.idraft.ai:18443/login` → 200. Caddy cannot get a certificate on port 18443 and serves its internal one; `-k` covers that. The live site on 443 must still answer 200 throughout.
-- [ ] **Step 5: Remove it.** `dc down -v`, `rm -rf /root/rehearsal`, `unset COMPOSE_PROJECT_NAME IDRAFT_RELEASES_DIR IDRAFT_LOCK_FILE IDRAFT_REDIS_ACL_DIR`.
+- [ ] **Step 5: Run the release on it.** In the same shell: `/srv/idraft/infra/deploy.sh /root/rehearsal/rehearsal.env /srv/idraft/incoming/digests.json`. Expected: Redis ACL rendered, migrator applies 0017, api, worker, web and caddy healthy, "/api/v1/me 401" and "/api/readyz 200" through the rehearsal Caddy (on `localhost`, Caddy issues from its internal CA). Then `curl -ksS -o /dev/null -w '%{http_code}\n' --resolve localhost:18443:127.0.0.1 https://localhost:18443/login` → 200. The live site on 443 must still answer 200 throughout.
+- [ ] **Step 6: Note the timings.** How long Step 3 and the migrator in Step 5 took: the cutover window is about those plus five minutes.
+- [ ] **Step 7: Remove it.**
+
+```bash
+dc down -v
+for p in 18080 18443; do
+  iptables -D DOCKER-USER -i "$pub" -p tcp -m conntrack --ctorigdstport "$p" -j DROP
+  iptables -D DOCKER-USER -i "$pub" -p udp -m conntrack --ctorigdstport "$p" -j DROP
+done
+rm -rf /root/rehearsal
+unset COMPOSE_PROJECT_NAME IDRAFT_RELEASES_DIR IDRAFT_LOCK_FILE IDRAFT_REDIS_ACL_DIR
+docker ps -a --filter label=com.docker.compose.project=idraft-rehearsal -q | wc -l   # 0
+```
 
 ### Task 10: Cutover (maintenance window, about 15 minutes)
 
 Pick a quiet time. The site is down from Step 2 to Step 6.
 
-- [ ] **Step 1: Ready.** Digests file `/srv/idraft/incoming/digests.json` with `api`, `worker`, `web` and `sha` of the release. `docker pull` of the three digests succeeded (so the window does not wait on downloads).
+All commands run on the host as root, in one fresh shell (no rehearsal variables), which starts with:
+
+```bash
+d=/srv/idraft/incoming/digests.json
+export API_IMAGE="$(jq -r .api $d)" WORKER_IMAGE="$(jq -r .worker $d)" WEB_IMAGE="$(jq -r .web $d)"
+dc() { docker compose -f /srv/idraft/infra/compose/docker-compose.yml --env-file /etc/idraft/.env "$@"; }
+dump=/root/cutover-$(date -u +%Y%m%dT%H%MZ).dump
+```
+
+- [ ] **Step 1: Ready.** `docker pull "$API_IMAGE" "$WORKER_IMAGE" "$WEB_IMAGE"` succeeded (one at a time if your Docker takes one), so the window does not wait on downloads. `dc config -q` passes. Tell users the site is down for about 15 minutes.
 - [ ] **Step 2: Stop writers.** `systemctl stop idraft-worker idraft-api idraft-web`. Check nothing holds a connection: `sudo -u postgres psql -p 5433 -Atc "select count(*) from pg_stat_activity where datname='idraft'"` → 0.
-- [ ] **Step 3: Final dump.** `sudo -u postgres pg_dump -p 5433 -Fc -d idraft --exclude-extension=pg_stat_statements > /root/cutover-$(date -u +%Y%m%dT%H%MZ).dump` and the host row counts as in Task 9 Step 3.
-- [ ] **Step 4: Free the ports.** `systemctl stop nginx`.
-- [ ] **Step 5: Database.** In a fresh root shell (no rehearsal variables), with `API_IMAGE`, `WORKER_IMAGE`, `WEB_IMAGE` exported from the digests file: `docker compose -f /srv/idraft/infra/compose/docker-compose.yml --env-file /etc/idraft/.env up -d postgres`, wait for healthy, `pg_restore` the Step 3 dump as in Task 9 Step 2, and the counts diff as in Task 9 Step 3: they must match. Redis is left to `deploy.sh`.
-- [ ] **Step 6: Deploy.** `/srv/idraft/infra/deploy.sh /etc/idraft/.env /srv/idraft/incoming/digests.json`. Expected: migrator applies 0017, api, worker, web and caddy healthy, "/api/v1/me 401" and "/api/readyz 200" through Caddy, release recorded in `/srv/idraft/releases/current.json`.
+- [ ] **Step 3: Final dump.** `sudo -u postgres /usr/lib/postgresql/18/bin/pg_dump -p 5433 -Fc -d idraft --exclude-extension=pg_stat_statements > "$dump"`.
+- [ ] **Step 4: Free the ports, for good.** `systemctl disable --now nginx`. Disabled, not only stopped: an unattended reboot (D5) would otherwise start nginx on 80 and 443 before Caddy.
+- [ ] **Step 5: Database.** Redis is left to `deploy.sh`.
+
+```bash
+dc up -d postgres
+until [ "$(dc ps --format '{{.Health}}' postgres)" = healthy ]; do sleep 2; done
+dc exec -T -u postgres postgres pg_restore -d idraft --exit-on-error --single-transaction < "$dump"
+mkdir -p -m 700 /root/cutover
+sudo -u postgres psql -p 5433 -d idraft -At < /root/counts.sql > /root/cutover/host.counts
+dc exec -T -u postgres postgres psql -d idraft -At < /root/counts.sql > /root/cutover/compose.counts
+diff /root/cutover/host.counts /root/cutover/compose.counts && echo "counts match"
+sudo -u postgres /usr/lib/postgresql/18/bin/pg_dump -p 5433 -s -d idraft --exclude-extension=pg_stat_statements | grep -vE '^(-- Dumped|\\(un)?restrict )' > /root/cutover/host.schema
+dc exec -T -u postgres postgres pg_dump -s -d idraft --exclude-extension=pg_stat_statements | grep -vE '^(-- Dumped|\\(un)?restrict )' > /root/cutover/compose.schema
+diff /root/cutover/host.schema /root/cutover/compose.schema && echo "schema, owners and grants match"
+```
+
+Both "match" lines, or go to Step 8.
+- [ ] **Step 6: Deploy.** `/srv/idraft/infra/deploy.sh /etc/idraft/.env "$d"`. Expected: migrator applies 0017, api, worker, web and caddy healthy, "/api/v1/me 401" and "/api/readyz 200" through Caddy, release recorded in `/srv/idraft/releases/current.json`. Caddy gets its certificate from Let's Encrypt on first start (HTTP-01 on port 80); the probe allows 60 s.
 - [ ] **Step 7: Verify from outside.** From the Mac: `curl -sS -o /dev/null -w '%{http_code}\n' https://app.idraft.ai/api/healthz` → 200; `https://app.idraft.ai/login` → 200 with a Let's Encrypt certificate (`curl -vI` shows the issuer); `GET /api/internal/health` with the token → 200, `"release"` is the release sha, migrations `0017`, worker reporting. The owner signs in and opens a project.
-- [ ] **Step 8: If any step from 5 on fails: go back.** `cd /srv/idraft/infra/compose && docker compose --env-file /etc/idraft/.env down` (volumes kept), `systemctl start nginx idraft-api idraft-worker idraft-web`, check `https://app.idraft.ai/api/healthz`. The host database was not written after Step 2, and 0017 ran only inside the container, so the old install comes back as it was.
+- [ ] **Step 8: If any step from 5 on fails: go back.** In the same shell:
+
+```bash
+dc down -v            # the new volumes hold nothing the host database does not; a retry needs them empty
+systemctl enable --now nginx
+systemctl start idraft-api idraft-worker idraft-web
+curl -sS -o /dev/null -w '%{http_code}\n' https://app.idraft.ai/api/healthz   # 200
+```
+
+The host database was not written after Step 2, and 0017 ran only inside the container, so the old install comes back as it was. Find the cause from `/srv/idraft/releases/deploy.log` and `dc logs`, fix it, and redo the window from Step 2.
 - [ ] **Step 9: Retire the old install** (only after Step 7 passed):
 
 ```bash
-systemctl disable --now idraft-api idraft-web idraft-worker nginx redis-server postgresql@18-main postgresql@16-main certbot.timer
+systemctl disable --now idraft-api idraft-web idraft-worker redis-server certbot.timer
+for v in 16 18; do
+  systemctl disable --now "postgresql@$v-main"
+  echo manual > "/etc/postgresql/$v/main/start.conf"   # the cluster wrapper otherwise starts it at boot
+done
+systemctl disable --now postgresql
 ```
 
-Keep `/srv/idraft/backend`, `/srv/idraft/web`, `/srv/idraft/web.prev`, `/var/lib/postgresql/18`, `/etc/idraft/*.env` and the cutover dump for 7 days, then delete them on the owner's word.
+After a reboot, only Docker's containers should listen on 80 and 443: `ss -ltnp | grep -E ':(80|443) '` shows `docker-proxy`. Keep `/srv/idraft/backend`, `/srv/idraft/web`, `/srv/idraft/web.prev`, `/var/lib/postgresql/18`, `/etc/idraft/*.env` and the cutover dump for 7 days, then delete them on the owner's word.
 
 ### Task 11: First deploy through GitHub Actions
 
@@ -458,8 +596,9 @@ Keep `/srv/idraft/backend`, `/srv/idraft/web`, `/srv/idraft/web.prev`, `/var/lib
 ssh root@187.126.121.25 'cat /etc/idraft/.env' | gh secret set ENV_FILE --env production
 ```
 
-- [ ] **Step 2: Run the pipeline.** `gh workflow run deploy.yml -f api_image=<api digest> -f worker_image=<worker digest> -f web_image=<web digest>` (the same release, so nothing changes). Expected: the job passes; `/srv/idraft/releases/history.log` gets a second line.
-- [ ] **Step 3: Rollback works.** `gh workflow run deploy.yml -f rollback=true`, then deploy the same digests again. Both pass and the site stays up.
+- [ ] **Step 2: Run the pipeline.** `gh workflow enable deploy.yml`, then `gh workflow run deploy.yml -f api_image=<api digest> -f worker_image=<worker digest> -f web_image=<web digest>` (the same release, so nothing changes). Expected: the job passes; `/srv/idraft/releases/history.log` gets a second line.
+- [ ] **Step 3: The rollback command path runs.** `gh workflow run deploy.yml -f rollback=true` passes and the site stays up. Both records hold the same release at this point, so this proves the path (SSH, sudo rule, env handling), not a version change; the first real rollback test is after the next release.
+- [ ] **Step 4: Drop the local deploy key.** It is root on the host in effect (`infra/README.md`, "What the guards do and do not cover"). Once the secret works: `rm ~/.ssh/idraft-deploy`. Keep `~/.ssh/idraft-deploy.pub` and `~/.ssh/idraft-known-hosts`.
 
 ### Task 12: Close out
 
