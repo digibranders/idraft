@@ -1,7 +1,7 @@
 'use client';
 
 import type { RowData } from '@tanstack/react-table';
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, ChevronDown, Ellipsis } from 'lucide-react';
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, ChevronDown, ChevronRight, Ellipsis } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import {
   useEffect,
@@ -22,7 +22,7 @@ import { BulkActionBar } from './bulk-action-bar';
 import { ColumnChooser } from './column-chooser';
 import { TableFooter } from './table-footer';
 import { DataTableToolbar } from './toolbar';
-import type { ActionScope, CellTip, DataTableColumn, DataTableProps, RecordAction, RowActions } from './types';
+import type { ActionScope, CellTip, DataTableColumn, DataTableProps, RecordAction, RowActions, RowTree } from './types';
 import { useSortedRows } from './use-sorted-rows';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Icon } from '@/components/ui/icon';
@@ -58,6 +58,10 @@ const GROUP_ORDER: Readonly<Record<RecordAction<unknown>['group'], number>> = {
 /** The actions of one row's menu. */
 const actionsOf = <TRow,>(rowActions: RowActions<TRow> | undefined, row: TRow): readonly RecordAction<TRow>[] =>
   rowActions === undefined ? [] : typeof rowActions === 'function' ? rowActions(row) : rowActions;
+
+/** A group row has rows to show or hide; a level 1 row without an expanded state is an ordinary row. */
+const isGroup = (tree: RowTree | undefined): tree is RowTree & { expanded: boolean } =>
+  tree?.level === 1 && tree.expanded !== undefined;
 
 /** The identity cell is the row header (20-accessibility.md section 6.2, rule 1). */
 const cellTag = (identity: boolean): 'th' | 'td' => (identity ? 'th' : 'td');
@@ -136,6 +140,9 @@ export function DataTable<TRow extends RowData>({
   searchPlaceholder,
   searchText,
   selection,
+  rowTree,
+  onToggleGroup,
+  toolbarStart,
   bulkActions,
   rowActions,
   rowName,
@@ -183,17 +190,25 @@ export function DataTable<TRow extends RowData>({
       : [{ kind: 'actions' as const }]),
   ];
 
-  // Rows: searched and sorted here in client mode, as given in server mode
+  // Rows: searched and sorted here in client mode, as given in server mode and in tree mode (the caller
+  // sends group rows with their rows in display order, which a search or a sort here would break)
+  const treeMode = rowTree !== undefined;
   const needle = search.trim().toLocaleLowerCase();
   const serverMode = server !== undefined;
+  const asGiven = serverMode || treeMode;
   const searched = useMemo(
     () =>
-      serverMode || needle === '' || searchText === undefined
+      asGiven || needle === '' || searchText === undefined
         ? loaded
         : loaded.filter((row) => searchText(row).toLocaleLowerCase().includes(needle)),
-    [loaded, needle, searchText, serverMode],
+    [loaded, needle, searchText, asGiven],
   );
-  const rows = useSortedRows({ rows: searched, columns, sort, manual: serverMode, getRowId });
+  const rows = useSortedRows({ rows: searched, columns, sort, manual: asGiven, getRowId });
+  // The tree facts of the row at an index of the rows shown
+  const treeAt = (index: number): RowTree | undefined => {
+    const row = rows[index];
+    return row === undefined ? undefined : rowTree?.(row);
+  };
   const ids = useMemo(() => rows.map(getRowId), [rows, getRowId]);
   const indexOfId = useMemo(() => new Map(ids.map((id, index) => [id, index])), [ids]);
   const showRows = status === 'ready' || status === 'refetching';
@@ -427,18 +442,32 @@ export function DataTable<TRow extends RowData>({
   const selected = selection?.selectedIds ?? EMPTY_IDS;
   const [anchor, setAnchor] = useState<string | null>(null);
   const loadedSelected = useMemo(() => ids.filter((id) => selected.has(id)).length, [ids, selected]);
+  // Selected rows the table does not show, less those it was told it does not render at all (closed groups)
   const hiddenSelected = useMemo(() => {
     let hidden = 0;
     for (const id of selected) if (!indexOfId.has(id)) hidden += 1;
-    return hidden;
-  }, [indexOfId, selected]);
+    return Math.max(0, hidden - (selection?.unrenderedCount ?? 0));
+  }, [indexOfId, selected, selection?.unrenderedCount]);
+  const selectedCount = selection?.selectedCount ?? selected.size;
   const allLoadedSelected = allMatching || (ids.length > 0 && loadedSelected === ids.length);
   const setSelected = (next: ReadonlySet<string>): void => {
     if (selection === undefined) return;
     if (allMatching) selection.onAllMatchingChange(false);
     selection.onChange(next);
-    announce(t('selected', { count: formatInteger(next.size) }), { key: selectionKey, debounceMs: 250 });
+    // With a count of its own the caller knows what was chosen (keywords, not rows) only after the change
+    if (selection.selectedCount === undefined) {
+      announce(t('selected', { count: formatInteger(next.size) }), { key: selectionKey, debounceMs: 250 });
+    }
   };
+  const countedSelection = selection?.selectedCount;
+  const announcedSelection = useRef(countedSelection);
+  useEffect(() => {
+    if (countedSelection === announcedSelection.current) return;
+    announcedSelection.current = countedSelection;
+    if (countedSelection !== undefined && countedSelection > 0) {
+      announce(t('selected', { count: formatInteger(countedSelection) }), { key: selectionKey, debounceMs: 250 });
+    }
+  }, [countedSelection, selectionKey, t]);
   const effectiveSelected = (): Set<string> => new Set(allMatching ? [...selected, ...ids] : selected);
   const toggleRow = (id: string, range: boolean): void => {
     const next = effectiveSelected();
@@ -569,6 +598,39 @@ export function DataTable<TRow extends RowData>({
       setMenu({ kind: 'column', id: column.column.id });
       return;
     }
+    // Tree keys (20-accessibility.md section 6.7), on a row's first cell: Right opens a closed group row, or
+    // moves from an open one to its first row; Left closes an open group row, or moves from a row to its group
+    // row. Any other cell, and any other case, moves between cells as in a grid.
+    if (
+      row !== undefined &&
+      current.column === 0 &&
+      plain &&
+      !event.shiftKey &&
+      (event.key === 'ArrowRight' || event.key === 'ArrowLeft')
+    ) {
+      const tree = treeAt(current.row);
+      const right = event.key === 'ArrowRight';
+      let destination: number | null = null;
+      if (isGroup(tree)) {
+        if (tree.expanded === right) {
+          // Right on an open group row: its first row, when it has one
+          if (right && treeAt(current.row + 1)?.level === 2) destination = current.row + 1;
+        } else {
+          event.preventDefault();
+          onToggleGroup?.(row);
+          return;
+        }
+      } else if (tree?.level === 2 && !right) {
+        for (let index = current.row - 1; index >= 0 && destination === null; index -= 1) {
+          if (isGroup(treeAt(index))) destination = index;
+        }
+      }
+      if (destination !== null) {
+        event.preventDefault();
+        moveTo({ row: destination, column: 0 });
+        return;
+      }
+    }
     const moved = event.altKey ? null : moveFocus(current, event.key, size, { ctrl: event.ctrlKey || event.metaKey });
     if (moved !== null) {
       event.preventDefault();
@@ -605,6 +667,7 @@ export function DataTable<TRow extends RowData>({
         // A row without actions has no menu to open, as with Shift+F10
         if (actionsOf(rowActions, row).length > 0) setMenu({ kind: 'row', id: getRowId(row) });
       } else if (column?.kind === 'select' && selection !== undefined) toggleRow(getRowId(row), false);
+      else if (isGroup(treeAt(current.row))) onToggleGroup?.(row);
       else openRow(row, event);
     }
   };
@@ -620,7 +683,7 @@ export function DataTable<TRow extends RowData>({
 
   const primarySort = sort[0];
   // A search narrows the loaded rows here in client mode, so the count is of what it left
-  const shownCount = serverMode || needle === '' ? (total ?? rows.length) : rows.length;
+  const shownCount = asGiven || needle === '' ? (total ?? rows.length) : rows.length;
   // The noun's form is the message's to choose (ICU plural), so a language with more forms can have them
   const nouns = { nounOne: itemNoun.one, nounOther: itemNoun.other };
   const countText = t('count', { count: shownCount, ...nouns });
@@ -790,7 +853,7 @@ export function DataTable<TRow extends RowData>({
       </p>
       {selecting && selection !== undefined ? (
         <BulkActionBar
-          selectedCount={selected.size}
+          selectedCount={selectedCount}
           matchingTotal={selection.matchingTotal}
           allLoadedSelected={allLoadedSelected}
           allMatching={allMatching}
@@ -824,6 +887,7 @@ export function DataTable<TRow extends RowData>({
           updating={showUpdating}
           density={density}
           onDensityChange={onDensityChange}
+          start={toolbarStart}
           columns={(trigger) => (
             <ColumnChooser
               trigger={trigger}
@@ -841,8 +905,9 @@ export function DataTable<TRow extends RowData>({
         // Rounded down, so scrolling renders again every SCROLL_STEP pixels rather than on every event
         onScroll={(event) => setScrollTop(Math.floor(event.currentTarget.scrollTop / SCROLL_STEP) * SCROLL_STEP)}
       >
+        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Both roles are interactive; the rule reads only a literal role */}
         <table
-          role="grid"
+          role={treeMode ? 'treegrid' : 'grid'}
           id={gridId}
           aria-labelledby={captionId}
           aria-describedby={hintId}
@@ -998,21 +1063,32 @@ export function DataTable<TRow extends RowData>({
                         const isSelected = allMatching || selected.has(id);
                         const isActive = activeRowId === id;
                         const name = rowName(row);
+                        const tree = rowTree?.(row);
+                        const groupTree = isGroup(tree) ? tree : undefined;
                         return (
                           <tr
                             key={id}
                             role="row"
                             aria-rowindex={rowOffset + index + 2}
+                            aria-level={tree?.level}
+                            aria-setsize={tree?.setSize}
+                            aria-posinset={tree?.posInSet}
+                            aria-expanded={groupTree?.expanded}
                             aria-selected={selection === undefined ? undefined : isSelected}
                             aria-current={isActive ? 'true' : undefined}
                             data-selected={isSelected ? '' : undefined}
                             data-active={isActive ? '' : undefined}
+                            data-group-row={groupTree === undefined ? undefined : ''}
                             className={cn('group cursor-default', density === 'compact' ? 'h-row-compact' : 'h-row')}
                             onClick={(event: MouseEvent<HTMLTableRowElement>) => {
-                              if (isRowClick(event)) openRow(row, event);
+                              if (!isRowClick(event)) return;
+                              if (groupTree === undefined) openRow(row, event);
+                              else onToggleGroup?.(row);
                             }}
                             onAuxClick={(event: MouseEvent<HTMLTableRowElement>) => {
-                              if (event.button === 1 && isRowClick(event)) openRow(row, event);
+                              if (event.button === 1 && groupTree === undefined && isRowClick(event)) {
+                                openRow(row, event);
+                              }
                             }}
                           >
                             {grid.map((column, columnIndex) => {
@@ -1026,7 +1102,13 @@ export function DataTable<TRow extends RowData>({
                                   key={keyOf(column)}
                                   role={identity ? 'rowheader' : 'gridcell'}
                                   scope={identity ? ROW_SCOPE : undefined}
-                                  aria-label={column.kind === 'data' ? column.column.cellLabel?.(row) : undefined}
+                                  aria-label={
+                                    column.kind !== 'data'
+                                      ? undefined
+                                      : (column.column.cellLabel?.(row) ??
+                                        // The disclosure button's name is not the group row header's
+                                        (identity && groupTree !== undefined ? name : undefined))
+                                  }
                                   aria-describedby={
                                     tip === undefined
                                       ? undefined
@@ -1036,7 +1118,9 @@ export function DataTable<TRow extends RowData>({
                                   style={left === null ? undefined : { left }}
                                   className={cn(
                                     // `group/cell`: what a control in the cell shows for the cell's own hover and focus
-                                    'group/cell border-b border-border-subtle bg-surface px-3 font-normal outline-none focus-visible:focus-ring-inset',
+                                    'group/cell border-b border-border-subtle px-3 font-normal outline-none focus-visible:focus-ring-inset',
+                                    // A group row is a band of the header's tone; hover, selected and active read over it
+                                    groupTree === undefined ? 'bg-surface' : 'bg-surface-subtle',
                                     'group-hover:bg-surface-hover group-data-active:bg-surface-selected group-data-selected:bg-surface-selected',
                                     left !== null && 'sticky z-(--z-pinned-cell)',
                                     first && 'group-data-active:row-active-edge',
@@ -1045,11 +1129,19 @@ export function DataTable<TRow extends RowData>({
                                     column.kind === 'data' && ALIGN[COLUMN_TYPES[column.column.type].align],
                                     identity &&
                                       'group-data-active:text-primary-text group-data-selected:text-primary-text',
+                                    // The rows of a group sit under its name, past the disclosure button
+                                    identity && tree?.level === 2 && 'pl-10',
                                   )}
                                 >
                                   {column.kind === 'select' ? (
                                     <Checkbox
-                                      checked={isSelected}
+                                      checked={
+                                        isSelected
+                                          ? true
+                                          : selection?.indeterminateIds?.has(id)
+                                            ? 'indeterminate'
+                                            : false
+                                      }
                                       label={t('selectRow', { name })}
                                       labelDisplay="visually-hidden"
                                       tabIndex={-1}
@@ -1086,6 +1178,23 @@ export function DataTable<TRow extends RowData>({
                                           )}
                                       />
                                     )
+                                  ) : identity && groupTree !== undefined ? (
+                                    <span className="flex min-w-0 items-center gap-2">
+                                      <button
+                                        type="button"
+                                        tabIndex={-1}
+                                        aria-label={t(groupTree.expanded ? 'collapseGroup' : 'expandGroup', { name })}
+                                        onClick={() => onToggleGroup?.(row)}
+                                        className="flex size-5 shrink-0 items-center justify-center rounded-sm text-foreground-tertiary outline-none hover:text-foreground focus-visible:focus-ring"
+                                      >
+                                        <Icon
+                                          icon={ChevronRight}
+                                          size="sm"
+                                          className={cn('transition-transform', groupTree.expanded && 'rotate-90')}
+                                        />
+                                      </button>
+                                      <span className="min-w-0 flex-1">{column.column.cell(row)}</span>
+                                    </span>
                                   ) : (
                                     column.column.cell(row)
                                   )}

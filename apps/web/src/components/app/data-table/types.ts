@@ -120,6 +120,23 @@ export interface Selection {
   /** Every row the filters match is selected, loaded or not; bulk actions then send the filters. */
   allMatching: boolean;
   onAllMatchingChange: (allMatching: boolean) => void;
+  /** Rows drawn as partly selected (a group with some of its keywords chosen). */
+  indeterminateIds?: ReadonlySet<string> | undefined;
+  /** What the bulk bar counts when it is not the number of ids (keywords chosen, not rows). */
+  selectedCount?: number | undefined;
+  /** Selectable rows the table does not render (the keywords of closed groups): they are not "hidden by filters". */
+  unrenderedCount?: number | undefined;
+}
+
+/** The place of a row in a tree table (`DataTableProps.rowTree`). */
+export interface RowTree {
+  /** 1 for a group row, 2 for a row inside one. */
+  level: 1 | 2;
+  /** Group rows only: whether its rows are shown. A level 1 row without it has no rows to show, and is an ordinary row. */
+  expanded?: boolean | undefined;
+  /** Rows at this level in the group it belongs to, and this row's place among them (aria-setsize, aria-posinset). */
+  setSize: number;
+  posInSet: number;
 }
 
 export type TableStatus = 'loading' | 'ready' | 'refetching' | 'error' | 'empty' | 'filtered-empty';
@@ -154,6 +171,17 @@ export interface DataTableProps<TRow> {
   /** Client mode: the text a search looks in. */
   searchText?: ((row: TRow) => string) | undefined;
   selection?: Selection | undefined;
+  /**
+   * The tree facts of a row. A table with this prop is a `treegrid`: it shows the rows in the order given
+   * (no sorting and no search of its own, the caller sends group rows and their rows already in display
+   * order), toggles a group row on click, Enter, and Right and Left Arrow from the row's first cell, and
+   * draws a disclosure button in the identity cell of a group row.
+   */
+  rowTree?: ((row: TRow) => RowTree | undefined) | undefined;
+  /** Called to open or close a group row. */
+  onToggleGroup?: ((row: TRow) => void) | undefined;
+  /** A slot at the start of the toolbar: the view switch. */
+  toolbarStart?: ReactNode;
   bulkActions?: readonly RecordAction<TRow>[] | undefined;
   /**
    * The actions of a row's menu: one list for every row, or a function of the row for actions that not

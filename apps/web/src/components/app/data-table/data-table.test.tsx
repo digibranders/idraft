@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 
 import { col } from './columns';
 import { DataTable } from './data-table';
-import type { DataTableColumn, RecordAction, RowActions, ServerPaging, TableStatus } from './types';
+import type { DataTableColumn, RecordAction, RowActions, RowTree, Selection, ServerPaging, TableStatus } from './types';
 import { CopyButton } from '@/components/app/cells/copy-button';
 import { InspectorOverlayContext } from '@/components/app/inspector/inspector-layout';
 import { CELL_CONTROL } from '@/lib/tables/grid-focus';
@@ -1303,6 +1303,210 @@ describe('DataTable controls in cells', () => {
 
   it('passes the accessibility check with the controls in the rows', async () => {
     const { container } = renderControlled();
+    expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('DataTable tree mode', () => {
+  const TREE_ROWS: Row[] = [
+    { id: 'g1', keyword: 'Group A', volume: 50, difficulty: 1 },
+    { id: 'c1', keyword: 'alpha one', volume: 20, difficulty: 2 },
+    { id: 'c2', keyword: 'alpha two', volume: 30, difficulty: 3 },
+    { id: 'g2', keyword: 'Group B', volume: 90, difficulty: 4 },
+  ];
+  const TREE: Readonly<Record<string, RowTree>> = {
+    g1: { level: 1, expanded: true, setSize: 2, posInSet: 1 },
+    c1: { level: 2, setSize: 2, posInSet: 1 },
+    c2: { level: 2, setSize: 2, posInSet: 2 },
+    g2: { level: 1, expanded: false, setSize: 2, posInSet: 2 },
+  };
+  const treeOf = (row: Row): RowTree | undefined => TREE[row.id];
+  const toggle = vi.fn<(row: Row) => void>();
+  const BASE_SELECTION: Selection = {
+    selectedIds: new Set(),
+    onChange: vi.fn(),
+    matchingTotal: null,
+    allMatching: false,
+    onAllMatchingChange: vi.fn(),
+  };
+
+  function TreeHarness({
+    sort = [],
+    selection = {},
+    toolbarStart,
+  }: {
+    sort?: readonly SortKey[];
+    selection?: Partial<Selection>;
+    toolbarStart?: ReactElement;
+  }): ReactElement {
+    const [search, setSearch] = useState('');
+    const [density, setDensity] = useState<Density>(parseDensity(null));
+    return (
+      <div className="flex h-200 flex-col">
+        <DataTable<Row>
+          caption="Keywords"
+          itemNoun={{ one: 'keyword', other: 'keywords' }}
+          columns={COLUMNS}
+          getRowId={rowId}
+          rows={TREE_ROWS}
+          total={3}
+          sort={sort}
+          onSortChange={vi.fn()}
+          defaultSort={DEFAULT_SORT}
+          density={density}
+          onDensityChange={setDensity}
+          columnState={{ visible: null, onChange: vi.fn() }}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search keywords"
+          selection={{ ...BASE_SELECTION, ...selection }}
+          rowName={keywordOf}
+          onRowOpen={onOpen}
+          rowTree={treeOf}
+          onToggleGroup={toggle}
+          toolbarStart={toolbarStart}
+          status="ready"
+          errorState={<p>The keywords did not load.</p>}
+          emptyState={<p>No keywords yet.</p>}
+          filteredEmptyState={<p>No keywords match.</p>}
+        />
+      </div>
+    );
+  }
+
+  const treeGrid = (): HTMLElement => screen.getByRole('treegrid', { name: 'Keywords' });
+  const bodyRows = (): HTMLElement[] => within(treeGrid()).getAllByRole('row').slice(1);
+  const cellAt = (row: number, column: number): HTMLElement => {
+    const cell = treeGrid().querySelector<HTMLElement>(`[data-cell="${String(row)}:${String(column)}"]`);
+    if (cell === null) throw new Error(`No cell ${String(row)}:${String(column)}`);
+    return cell;
+  };
+  const focusedCell = (): string | undefined => (document.activeElement as HTMLElement | null)?.dataset.cell;
+
+  beforeEach(() => {
+    toggle.mockReset();
+  });
+
+  it('is a treegrid whose group rows carry the level, set and expanded state, and whose children carry no expanded state', () => {
+    renderWithProviders(<TreeHarness />);
+    const [first, child, , second] = bodyRows();
+    expect(first).toHaveAttribute('aria-expanded', 'true');
+    expect(first).toHaveAttribute('aria-level', '1');
+    expect(first).toHaveAttribute('aria-setsize', '2');
+    expect(first).toHaveAttribute('aria-posinset', '1');
+    expect(first).toHaveAttribute('data-group-row');
+    expect(second).toHaveAttribute('aria-expanded', 'false');
+    expect(second).toHaveAttribute('aria-posinset', '2');
+    expect(child).toHaveAttribute('aria-level', '2');
+    expect(child).toHaveAttribute('aria-setsize', '2');
+    expect(child).not.toHaveAttribute('aria-expanded');
+    expect(child).not.toHaveAttribute('data-group-row');
+  });
+
+  it('names the disclosure button of a group row by its state and name, and toggles the group from it', async () => {
+    const { user } = renderWithProviders(<TreeHarness />);
+    await user.click(screen.getByRole('button', { name: 'Collapse Group A' }));
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g1' }));
+    expect(screen.getByRole('button', { name: 'Expand Group B' })).toBeInTheDocument();
+    expect(within(bodyRows()[1] as HTMLElement).queryByRole('button', { name: /(Expand|Collapse)/ })).toBeNull();
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('shows the rows in the order given, whatever the sort names', () => {
+    renderWithProviders(<TreeHarness sort={[{ id: 'keyword', desc: true }]} />);
+    expect(
+      within(treeGrid())
+        .getAllByRole('rowheader')
+        .map((cell) => cell.textContent),
+    ).toEqual(['Group A', 'alpha one', 'alpha two', 'Group B']);
+  });
+
+  it('toggles a group row on a click and on Enter, and opens a child row as before', async () => {
+    const { user } = renderWithProviders(<TreeHarness />);
+    await user.click(within(bodyRows()[0] as HTMLElement).getByText('Group A'));
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g1' }));
+    expect(onOpen).not.toHaveBeenCalled();
+    toggle.mockClear();
+    act(() => cellAt(3, 1).focus());
+    await user.keyboard('{Enter}');
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g2' }));
+    expect(onOpen).not.toHaveBeenCalled();
+    await user.click(within(bodyRows()[1] as HTMLElement).getByText('alpha one'));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'c1' }), 'inspector');
+  });
+
+  it('opens a collapsed group with Right Arrow and closes an expanded one with Left Arrow', async () => {
+    const { user } = renderWithProviders(<TreeHarness />);
+    act(() => cellAt(3, 0).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(toggle).not.toHaveBeenCalled();
+    await user.keyboard('{ArrowRight}');
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g2' }));
+    toggle.mockClear();
+    act(() => cellAt(0, 0).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g1' }));
+  });
+
+  it('moves from an expanded group to its first child with Right Arrow, and from a child to its group with Left Arrow', async () => {
+    const { user } = renderWithProviders(<TreeHarness />);
+    act(() => cellAt(0, 0).focus());
+    await user.keyboard('{ArrowRight}');
+    expect(toggle).not.toHaveBeenCalled();
+    expect(focusedCell()).toBe('1:0');
+    // On a child the arrows move between cells, except Left from its first cell
+    await user.keyboard('{ArrowRight}');
+    expect(focusedCell()).toBe('1:1');
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('1:0');
+    act(() => cellAt(2, 0).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('0:0');
+    expect(toggle).not.toHaveBeenCalled();
+  });
+
+  it('keeps Space selecting a group row', async () => {
+    const onChange = vi.fn<(ids: ReadonlySet<string>) => void>();
+    const { user } = renderWithProviders(<TreeHarness selection={{ onChange }} />);
+    act(() => cellAt(0, 0).focus());
+    await user.keyboard(' ');
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(new Set(['g1']));
+    expect(toggle).not.toHaveBeenCalled();
+  });
+
+  it('draws a group checkbox as mixed when its id is in indeterminateIds and checked when it is selected', () => {
+    renderWithProviders(
+      <TreeHarness selection={{ selectedIds: new Set(['g2']), indeterminateIds: new Set(['g1']) }} />,
+    );
+    expect(screen.getByRole('checkbox', { name: 'Select Group A' })).toHaveAttribute('aria-checked', 'mixed');
+    expect(screen.getByRole('checkbox', { name: 'Select Group B' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select alpha one' })).not.toBeChecked();
+  });
+
+  it('counts the chosen keywords in the bulk bar, and does not call the rows of closed groups hidden', () => {
+    const hidden = new Set(['g1', 'c1', 'c2', 'x1', 'x2', 'x3', 'x4']);
+    const { rerender } = renderWithProviders(
+      <TreeHarness selection={{ selectedIds: new Set(['g1', 'c1', 'c2']), selectedCount: 7 }} />,
+    );
+    expect(within(bulkBar()).getByText('7 selected')).toBeInTheDocument();
+    expect(within(bulkBar()).queryByText('3 selected')).toBeNull();
+    rerender(<TreeHarness selection={{ selectedIds: hidden }} />);
+    expect(within(bulkBar()).getByText(/4 selected rows are hidden by filters/)).toBeInTheDocument();
+    rerender(<TreeHarness selection={{ selectedIds: hidden, unrenderedCount: 4 }} />);
+    expect(within(bulkBar()).queryByText(/hidden by filters/)).toBeNull();
+    rerender(<TreeHarness selection={{ selectedIds: hidden, unrenderedCount: 10 }} />);
+    expect(within(bulkBar()).queryByText(/hidden by filters/)).toBeNull();
+  });
+
+  it('renders toolbarStart at the start of the toolbar, before the search field', () => {
+    renderWithProviders(<TreeHarness toolbarStart={<button type="button">By group</button>} />);
+    const start = screen.getByRole('button', { name: 'By group' });
+    const search = screen.getByRole('searchbox', { name: 'Search in table' });
+    expect(start.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('passes the accessibility check', async () => {
+    const { container } = renderWithProviders(<TreeHarness />);
     expect(await axe(container)).toHaveNoViolations();
   });
 });

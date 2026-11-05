@@ -29,6 +29,8 @@ export interface DataTableToolbarProps {
   onDensityChange: (density: Density) => void;
   /** The column chooser, opened from its own trigger. */
   columns: (trigger: ReactElement) => ReactNode;
+  /** The view switch, before the search field. */
+  start?: ReactNode;
 }
 
 /**
@@ -46,6 +48,7 @@ export function DataTableToolbar({
   density,
   onDensityChange,
   columns,
+  start,
 }: DataTableToolbarProps): ReactElement {
   const t = useTranslations('dataTable');
   const input = useRef<HTMLInputElement>(null);
@@ -59,6 +62,7 @@ export function DataTableToolbar({
   );
   return (
     <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border-subtle px-3">
+      {start}
       <InputGroup leadingIcon={Search} size="sm" className="w-64 max-w-full">
         <Input
           ref={input}
