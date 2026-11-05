@@ -286,6 +286,10 @@
       "unverified": "Your email address is not verified yet. Open the verification link we sent you, then open the invitation link again.",
       "failed": "The request did not go through. Open the invitation link again to retry.",
       "continueTo": "Continue to {workspace}"
+    },
+    "integrationNotice": {
+      "title": "The Google connection did not finish",
+      "description": "The link was already used, has expired, or belongs to another session. Open Integrations in your project and connect Google again."
     }
   },
   "navigation": {
@@ -2441,8 +2445,7 @@
     "aio": {
       "column": "AI Overview",
       "columnTooltip": "Whether Google showed an AI Overview at the latest check, and whether it cites your site.",
-      "cited": "Cited #{position}",
-      "citedNoPosition": "Cited",
+      "cited": "#{position}",
       "absent": "No AIO",
       "notLoaded": "Not loaded",
       "unknown": "n/a",
@@ -2475,13 +2478,10 @@
     },
     "trend": {
       "column": "Trend",
-      "label": "Rank trend, last {checks, plural, one {check} other {# checks}}: from {first} to {last}, best {best}",
-      "labelBeyond": "{count, plural, one {1 check} other {# checks}} beyond the depth checked",
-      "labelNone": "Rank trend: not ranked within the depth in the last {checks, plural, one {check} other {# checks}}",
-      "labelEmpty": "Rank trend: no checks yet",
-      "labelFailed": "Rank trend: checks failed",
-      "tipTitle": "Last checks",
-      "tipPoint": "{date}: {rank}"
+      "label": "Search volume trend, last {months, plural, one {month} other {# months}}: from {first} to {last}, peak {peak}",
+      "labelEmpty": "Search volume trend: no monthly volumes yet",
+      "tipTitle": "Monthly search volume",
+      "tipPoint": "{month}: {volume}"
     },
     "strip": {
       "label": "Summary for the filtered keywords",
@@ -2772,5 +2772,163 @@
     "noOptions": "No option matches",
     "clear": "Clear",
     "apply": "Apply"
+  },
+  "integrations": {
+    "pageTitle": "Google Search Console",
+    "title": "Google Search Console",
+    "accountUnknown": "a Google account",
+    "tabs": {
+      "label": "Data sources",
+      "gsc": "Search Console",
+      "bing": "Bing",
+      "ga4": "GA4",
+      "cloudflare": "Cloudflare",
+      "imports": "Imports",
+      "unavailable": "Not available yet"
+    },
+    "meta": {
+      "notConnected": "Not connected. Nothing is imported from Google.",
+      "chooseProperty": "Connected as {account}. No property chosen yet.",
+      "connected": "Connected as {account}. Property {property}. No sync yet.",
+      "reauth": "Reconnect needed for {account}.",
+      "problem": "Connected as {account}, but Google is reporting an error."
+    },
+    "actions": {
+      "more": "More actions for Google Search Console",
+      "reconnect": "Reconnect",
+      "reconnectItem": "Reconnect Google",
+      "changeProperty": "Change property",
+      "disconnect": "Disconnect Google"
+    },
+    "loadFailed": "Could not load Search Console",
+    "loadFailedReason": "The server returned an error. Nothing was changed.",
+    "connectionLoadFailed": "Could not load the Google connection",
+    "forbidden": "Your role cannot see integrations.",
+    "readOnlyLead": "Read only:",
+    "readOnly": "Connections belong to the whole workspace. Connecting Google or changing the property needs the owner or admin role with access to every project.",
+    "empty": {
+      "title": "Search Console is not connected",
+      "reason": "Connect the Google account that can read this site's property in Search Console.",
+      "reasonReadOnly": "Ask an owner or admin to connect the Google account that can read this site's property.",
+      "note": "Clicks and impressions are not imported yet. Connecting now saves the property for when they are.",
+      "connect": "Connect Google"
+    },
+    "errors": {
+      "lead": "Google was not connected.",
+      "invalidState": "The link expired, was already used, or was opened in another session. Connect again.",
+      "scopeDenied": "Google did not give idraft permission to read Search Console. Connect again and leave the Search Console box ticked.",
+      "noRefreshToken": "Google did not return the sign-in idraft needs to stay connected. Connect again. If it repeats, remove idraft from the third-party access of your Google account first.",
+      "exchangeFailed": "Google could not finish the sign-in. Connect again.",
+      "googleUnavailable": "Google did not answer. Try again in a few minutes.",
+      "integrationNotConfigured": "Google sign-in is not set up on this installation. Ask the person who runs idraft to add the Google OAuth client.",
+      "unknown": "The connection did not finish. Try again.",
+      "connectAgain": "Connect again",
+      "dismiss": "Dismiss"
+    },
+    "authorizeFailed": "Could not start the connection. Nothing was changed. Try again.",
+    "authorizeNotConfigured": "Google sign-in is not set up on this installation. Ask the person who runs idraft to add the Google OAuth client.",
+    "opening": "Opening Google to ask for permission",
+    "reauth": {
+      "lead": "Reconnect needed:",
+      "message": "Google no longer accepts the saved sign-in for {account}. Reconnect to keep using this property."
+    },
+    "connection": {
+      "title": "Connection",
+      "status": "Status",
+      "account": "Account",
+      "connectedBy": "Connected by",
+      "since": "Since",
+      "property": "Property",
+      "noProperty": "None chosen yet",
+      "change": "Change property",
+      "unknown": "Not shown",
+      "statuses": {
+        "active": "Connected",
+        "reauthRequired": "Reconnect needed",
+        "error": "Error",
+        "revoked": "Disconnected"
+      }
+    },
+    "propertyTypes": {
+      "domain": "Domain",
+      "urlPrefix": "URL prefix"
+    },
+    "access": {
+      "title": "Access",
+      "description": "What idraft may do with the connected Google account.",
+      "listLabel": "Access granted to idraft",
+      "webmasters": "Read search performance for the property",
+      "openid": "Identify the Google account that connected",
+      "email": "Read the email address of the account, to name the connection",
+      "other": "Other access granted by Google",
+      "readOnly": "Cannot modify properties, sitemaps or settings"
+    },
+    "chooser": {
+      "title": "Choose a property",
+      "description": "Choose the Search Console property to read for this project. Domain properties cover every subdomain and both http and https, so they come first.",
+      "account": "Reading as {account}.",
+      "reload": "Reload list",
+      "tableLabel": "Search Console properties of the connected account",
+      "columns": {
+        "property": "Property",
+        "access": "Access",
+        "actions": "Actions"
+      },
+      "suggested": "Suggested",
+      "suggestedNote": "Matches this project's domain.",
+      "unverified": "Search Console does not let an unverified user read numbers. Verify the site in Search Console, then reload the list.",
+      "linked": "Already linked to another project.",
+      "overlap": "Overlaps {property}, which is linked to a project. The two are never added together.",
+      "choose": "Choose",
+      "chooseProperty": "Choose {property}",
+      "emptyTitle": "This account sees no Search Console properties",
+      "emptyReason": "Add the site in Search Console with this Google account, then reload the list, or disconnect and connect another account.",
+      "loadFailed": "Could not load the properties",
+      "loadFailedReason": "Google or the server did not answer. Nothing was changed.",
+      "chosen": "Property chosen",
+      "chosenDetail": "{property} is saved for this project.",
+      "notAccessible": "This account cannot read that property. The list was reloaded.",
+      "taken": "That property, or this project, is already linked. The list was reloaded.",
+      "googleUnavailable": "Google did not answer. Try again in a few minutes.",
+      "failed": "Could not save the property. Try again.",
+      "reconnect": "Reconnect"
+    },
+    "sync": {
+      "stripLabel": "Sync status",
+      "lastSync": "Last sync",
+      "never": "Never",
+      "coverage": "Coverage",
+      "notStarted": "Not started",
+      "rows": "Rows imported",
+      "none": "None yet",
+      "next": "Next sync",
+      "notScheduled": "Not scheduled",
+      "historyTitle": "Sync history",
+      "emptyTitle": "No sync yet",
+      "emptyBeforeProperty": "The first sync starts after a property is chosen.",
+      "emptyAfterProperty": "The property is saved. Importing its numbers is not available yet, so nothing has been synced."
+    },
+    "disconnect": {
+      "title": "Disconnect Google?",
+      "description": "idraft revokes its access at Google and deletes the saved sign-in. Properties stop syncing, and the numbers already stored are kept.",
+      "descriptionShared": "idraft revokes its access at Google and deletes the saved sign-in. {count, plural, one {# project uses} other {# projects use}} this connection and stop syncing. The numbers already stored are kept.",
+      "confirm": "Disconnect",
+      "failed": "Could not disconnect. Nothing was changed. Try again.",
+      "done": "Google disconnected",
+      "doneDetail": "The numbers already stored are kept."
+    },
+    "change": {
+      "title": "Change the property?",
+      "description": "{property} is switched off for this project. The numbers already stored are kept, and you can choose a property again right away.",
+      "confirm": "Switch off property",
+      "failed": "Could not switch off the property. Nothing was changed. Try again.",
+      "done": "Property switched off"
+    },
+    "permissions": {
+      "siteOwner": "Owner",
+      "siteFullUser": "Full user",
+      "siteRestrictedUser": "Restricted user",
+      "siteUnverifiedUser": "Unverified user"
+    }
   }
 }

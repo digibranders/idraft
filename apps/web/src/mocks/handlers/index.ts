@@ -3,6 +3,7 @@ import type { HttpHandler } from 'msw';
 import { authHandlers } from './auth';
 import { entityHandlers } from './entities';
 import { costHandlers } from './costs';
+import { integrationHandlers } from './integrations';
 import { invitationHandlers } from './invitations';
 import { keywordGroupHandlers } from './keyword-groups';
 import { keywordImportHandlers } from './keyword-imports';
@@ -47,6 +48,7 @@ export const handlers: readonly HttpHandler[] = [
   ...scheduleHandlers,
   ...runHandlers,
   ...costHandlers,
+  ...integrationHandlers,
   ...pendingHandlers,
 ];
 

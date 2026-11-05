@@ -831,7 +831,7 @@ interface TermInput { name?: string; parent_id?: Uuid; path?: string; slug?: str
 | GET | `{W}/keywords/{keyword_id}/metrics-history` | `data:read` | `location_id`, `language_code`, `source?` (default `dataforseo_labs`), `from?`, `to?` | `One<KeywordMetricsHistory>` | no | | 3 |
 | GET | `{W}/keywords/{keyword_id}/ai-demand` | `data:read` | `location_id`, `language_code` | `One<{ snapshots: Array<{ fetched_at, ai_demand_estimate, monthly_estimates, method_note }>, latest: MetricValue }>` with `is_estimate: true`, labeled "Modeled AI demand" (doc 11 section 7) | no | | 11 |
 | POST | `{P}/keyword-metrics/refresh` | `runs:trigger` | `{ keyword_ids?: Uuid[] (max 1,000), stale_days?: number }`; Idempotency-Key required | `202 One<Run>` (workload `keyword_metrics`) | no | `429 manual_run_limit` | 3 |
-| GET | `{P}/tracked-keywords` | `data:read` | Filters and sorts below; `include?` (`sparkline`, `competitors`, `features`, `metrics`, `groups`, `terms`, `aio`); `date?` (state as of a past date, from history) | `Page<TrackedKeywordRow>` with `page.total` | cursor | | 3 |
+| GET | `{P}/tracked-keywords` | `data:read` | Filters and sorts below; `include?` (`sparkline`, `competitors`, `features`, `metrics`, `groups`, `terms`, `aio`, `gsc`); `sort` includes `gsc_clicks` and `gsc_impressions` (the 28 days of `include=gsc` on the keyword's own device; a keyword with no rows is 0); `date?` (state as of a past date, from history) | `Page<TrackedKeywordRow>` with `page.total` | cursor | | 3 |
 | GET | `{P}/tracked-keywords/countries` | `data:read` | none | `{ data: Array<{ location: LocationRef, keyword_count }> }`: the countries with active tracked keywords (a city counts for its country), most keywords first; `keyword_count` counts distinct keywords | no | | 3 |
 | POST | `{P}/tracked-keywords` | `keywords:write` | `TrackedKeywordCreate` | `201 { data: TrackedKeyword[] }` (two rows when `device = 'both'`) | no | `409 duplicate` (`existing_id`), `422 quota_exceeded`, `422 search_operator_not_allowed`, `422 keyword_too_long` (over 700 chars) | 3 |
 | POST | `{P}/tracked-keywords/bulk-create` | `keywords:write` | `{ items: TrackedKeywordCreate[] (max 1,000), on_duplicate: 'skip' \| 'merge_terms' }`; Idempotency-Key required | `200 { data: { created: Uuid[], skipped: Array<{ index, existing_id }>, rejected: Array<{ index, code, message }> } }`; larger sets use imports (3.6.3) | no | `422 quota_exceeded` (whole batch, nothing written) | 3 |
@@ -868,6 +868,7 @@ interface KeywordMetrics {                       // from seo.keyword_metrics_cur
   cpc_usd: Usd | null; competition: number | null; competition_level: 'LOW' | 'MEDIUM' | 'HIGH' | null;
   keyword_difficulty: number | null;             // provider metric, doc 09 section 8
   intent_main: string | null; trend_pct_per_month: number | null; is_seasonal: boolean | null;
+  monthly_searches: Array<{ year: number; month: number; search_volume: number | null }>;   // the provider's months behind the trend, oldest first; [] when it sent none. The table's Trend column draws these
 }
 interface KeywordMetricsHistory {
   snapshots: Array<{ snapshot_id: BigId; fetched_at: Iso; data_month: Day | null; search_volume: number | null;
@@ -914,6 +915,11 @@ interface TrackedKeywordRow extends TrackedKeyword {
   // from seo.domain_rank_observations (`all_url_ids` with `all_organic_ranks`, doc 04). Behind the popup on the arrow beside
   // a keyword. `shares_rank` marks a sub-result (a sitelink at the rank of the page above it).
   ranking_urls?: Array<{ url: UrlRef; rank: number; shares_rank: boolean }>;
+  // include=gsc (built; doc 18 section 4.9). `pending` until the pull has stored the 28 final days that end on the latest final day;
+  // then `ok`, with the sums of that window for the keyword's normalized text and country, for both devices (the table picks the
+  // one it shows; a keyword with no rows is 0). A property waiting for a new sign-in counts as `not_connected`.
+  gsc?: { state: 'ok' | 'pending' | 'not_connected'; clicks: { desktop: number; mobile: number } | null;
+          impressions: { desktop: number; mobile: number } | null; window: { start: string; end: string } | null };
   groups?: Array<{ group_id: Uuid; name: string; path: string }>;
   terms?: Array<{ term_id: Uuid; vocabulary_kind: string; name: string; path: string }>;
   cannibalization_class?: 'likely_cannibalization' | 'co_ranking' | 'unstable_url' | 'none' | null;
@@ -1441,12 +1447,12 @@ interface DiscoveryJobCreate {
 
 ### 3.10 First-party integrations (GSC basic Phase 11; full Phase 12; logs V1.5)
 
-A **connection** is one credential grant; an **integration** is one property on a connection (doc 18 section 3.1). Only `owner` and `admin` connect or disconnect (`integrations:manage`), and both actions are audit-logged.
+A **connection** is one credential grant; an **integration** is one property on a connection (doc 18 section 3.1). Only `owner` and `admin` connect or disconnect (`integrations:manage`), and both actions are audit-logged. A connection is a credential of the whole workspace, so an admin limited to some projects neither lists, uses nor changes connections: the routes that do need an admin of every project.
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
 |---|---|---|---|---|---|---|---|
-| POST | `{P}/integrations/{kind}/authorize` | `integrations:manage` fresh, session only | `kind` in `gsc`, `ga4`, `bing_wmt`; body `{ return_to? }` | `{ authorization_url, state_expires_at }`; state and PKCE verifier stored in Redis for 10 minutes, bound to session, workspace and project | no | | 11 |
-| GET | `/api/v1/oauth/{provider}/callback` | public (state must match the caller's session) | `code`, `state`; `provider` in `google`, `bing` | `302` to `https://<domain>/.../integrations/select?connection_id=...`; creates or updates `fp.connections`, stores the refresh token in `ops.secrets` | no | `400 invalid_state` (redirect with error), `409 scope_denied` | 11 |
+| POST | `{P}/integrations/{kind}/authorize` | `integrations:manage` fresh, session only | `kind` in `gsc` (built; `ga4`, `bing_wmt` later); no body (`return_to` is not built: the callback always returns to the project's integrations page) | `{ authorization_url, state_expires_at }`; state and PKCE verifier stored in Redis for 10 minutes, bound to session, workspace and project | no | | 11 |
+| GET | `/api/v1/oauth/{provider}/callback` | public (state must match the caller's session) | `code`, `state`; `provider` in `google`, `bing` | `302` to `https://<domain>/<workspace>/<project>/integrations/gsc?connection_id=...` (`?error=<code>` on failure; `/?integration_error=invalid_state` when the project cannot be known); creates or updates `fp.connections`, stores the refresh token in `ops.secrets` | no | `400 invalid_state` (redirect with error), `409 scope_denied` | 11 |
 | GET | `{W}/connections` | `integrations:manage` | `filter[product]?`, `filter[status]?` | `Page<Connection>` | offset | | 11 |
 | POST | `{W}/connections` | `integrations:manage` fresh, session only | `{ product: 'cloudflare', api_token }` or `{ product: 'bing_wmt', api_key }` | `201 One<Connection>`; token validated (Cloudflare `settings` node, Bing `GetUserSites`) | no | `422 credential_invalid` | 12 |
 | GET | `{W}/connections/{connection_id}/properties` | `integrations:manage` | none | `{ data: Array<{ external_property, label, property_type, permission_level, is_selectable, suggested_project_id, overlap_warning }> }` | no | `409 integration_reauth_required` | 11 |
@@ -1489,7 +1495,11 @@ interface Connection { connection_id: Uuid; product: 'gsc' | 'ga4' | 'bing_wmt' 
                        connected_by: UserRef | null; connected_at: Iso; last_refresh_at: Iso | null; last_error_code: string | null; integration_count: number }
 interface Integration { integration_id: Uuid; connection_id: Uuid | null; kind: 'gsc' | 'bing_wmt' | 'ga4' | 'cloudflare' | 'server_logs';
                         external_property: string; status: 'active' | 'reauth_required' | 'disabled' | 'error'; last_success_at: Iso | null;
-                        last_error: string | null; backfill_state: Record<string, unknown>; sync_paused_since: Iso | null; created_at: Iso }
+                        last_error: string | null; backfill_state: Record<string, unknown>; sync_paused_since: Iso | null; created_at: Iso;
+                        // built: the pull's progress, for `kind = 'gsc'` (null for other kinds); read by the sync strip
+                        sync: { phase: 'pending' | 'backfilling' | 'synced'; window_start: Day | null; window_end: Day | null; covered_from: Day | null;
+                                days_stored: number; rows_stored: number; consecutive_failures: number; retry_after: Iso | null;
+                                next_sync_at: Iso | null } | null }
 interface FileImport { import_id: Uuid; report_kind: string; origin: 'upload' | 'logpush' | 'agent' | 'api'; external_property: string;
                        report_view: string | null; period_start: Day | null; period_end: Day | null; filters: Record<string, unknown>;
                        filter_hash: string; filter_source: 'file_metadata' | 'user_declared' | 'both_matched' | 'not_applicable';
@@ -1772,7 +1782,8 @@ Ids are shortened for readability where marked `...`; everything else is a liter
                            "filters": { "location_id": 2840, "language_code": "en" }, "is_estimate": true,
                            "method": "Provider-reported average monthly search volume (DataForSEO Labs), annual average", "method_version": 1 },
         "cpc_usd": "14.2300", "competition": 0.67, "competition_level": "HIGH", "keyword_difficulty": 58,
-        "intent_main": "commercial", "trend_pct_per_month": 1.8, "is_seasonal": false
+        "intent_main": "commercial", "trend_pct_per_month": 1.8, "is_seasonal": false,
+        "monthly_searches": [ { "year": 2025, "month": 9, "search_volume": 1700 }, "... 10 more ...", { "year": 2026, "month": 8, "search_volume": 1900 } ]
       },
       "competitors": [
         { "entity": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color_index": 2 },

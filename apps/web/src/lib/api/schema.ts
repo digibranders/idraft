@@ -441,6 +441,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/oauth/google/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where Google returns the person after consent
+         * @description Public, but the single-use `state` must belong to the caller's session. Always a 302 to the project's integrations page: `.../integrations/gsc?connection_id=...` on success, `...?error=<code>` otherwise, with `invalid_state`, `scope_denied`, `no_refresh_token`, `exchange_failed`, `google_unavailable` or `integration_not_configured`. When the project cannot be known (a wrong or reused state) it goes to the app's front page with `?integration_error=invalid_state`.
+         */
+        get: operations["google_callback_api_v1_oauth_google_callback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces": {
         parameters: {
             query?: never;
@@ -492,6 +512,63 @@ export interface paths {
          * @description `month` is `YYYY-MM` (UTC; this month when left out). `spent_usd` is read from the cost events; `committed_estimate_usd` is what runs under way are still expected to spend, this month only. `state` is `hard_exceeded` from the limit and `soft_exceeded` from its soft share. A member limited to some projects sees their budgets only.
          */
         get: operations["budget_status_api_v1_workspaces__workspace_id__budgets_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The workspace's connections */
+        get: operations["list_connections_api_v1_workspaces__workspace_id__connections_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/connections/{connection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Disconnect a Google account
+         * @description Revokes the token at Google (best effort), deletes the stored credential, marks the connection revoked and switches off its properties. The numbers already stored are kept. Disconnecting a revoked connection changes nothing.
+         */
+        delete: operations["disconnect_api_v1_workspaces__workspace_id__connections__connection_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/connections/{connection_id}/properties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Search Console properties of a connection
+         * @description Asks Google, so it can answer `google_unavailable` or `google_rate_limited` (503). `suggested_project_id` names the project whose primary domain the property matches, a Domain property before a URL prefix. `integration_reauth_required` (409) when the account must connect again.
+         */
+        get: operations["list_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -909,6 +986,67 @@ export interface paths {
         head?: never;
         /** Change an entity's role in the project */
         patch: operations["update_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities__entity_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The properties linked to a project */
+        get: operations["list_project_integrations_api_v1_workspaces__workspace_id__projects__project_id__integrations_get"];
+        put?: never;
+        /**
+         * Link a Search Console property to the project
+         * @description The connection must be active and its account must be able to read the property (`property_not_accessible`, 422). A project has one live property and a property belongs to one project of the workspace (`duplicate`, 409). Nothing is pulled yet.
+         */
+        post: operations["choose_property_api_v1_workspaces__workspace_id__projects__project_id__integrations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations/{integration_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Stop using a property for the project
+         * @description The property is switched off and the numbers already stored are kept.
+         */
+        delete: operations["disable_integration_api_v1_workspaces__workspace_id__projects__project_id__integrations__integration_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations/{kind}/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start connecting a Google account
+         * @description Answers Google's consent address; the web app sends the person there. The address carries a single-use state and a PKCE challenge, both valid for 10 minutes and bound to the caller, the workspace and the project. Google returns the person to `GET /api/v1/oauth/google/callback`. `integration_not_configured` (503) when this installation has no Google OAuth client.
+         */
+        post: operations["authorize_api_v1_workspaces__workspace_id__projects__project_id__integrations__kind__authorize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups": {
@@ -1431,7 +1569,7 @@ export interface paths {
         };
         /**
          * The project's tracked keywords
-         * @description Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, `current_rank`, `rank_change`, `best_rank` and `last_observed_at`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric or a rank sorts keywords without one (beyond the depth, or never checked) last in both directions. Every row carries its rank `state`; `include` adds `sparkline`, `competitor_ranks`, `ranking_urls`, `features` and `aio`. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).
+         * @description Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, `current_rank`, `rank_change`, `best_rank`, `last_observed_at`, `gsc_clicks` and `gsc_impressions`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric or a rank sorts keywords without one (beyond the depth, or never checked) last in both directions. The Search Console sorts use the 28 days of `include=gsc` on the keyword's own device, and count a keyword with no rows as 0 (every row is 0 while the project is `pending` or `not_connected`). Every row carries its rank `state`; `include` adds `sparkline`, `competitor_ranks`, `ranking_urls`, `gsc`, `features` and `aio`. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).
          */
         get: operations["list_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get"];
         put?: never;
@@ -2103,6 +2241,10 @@ export interface components {
             /** Requires Context */
             requires_context?: boolean;
         };
+        /** AuthorizationResponse */
+        AuthorizationResponse: {
+            data: components["schemas"]["OAuthStart"];
+        };
         /** Body_upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post */
         Body_upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post: {
             /**
@@ -2329,6 +2471,61 @@ export interface components {
             /** Valid To */
             valid_to: string | null;
         };
+        /** Connection */
+        Connection: {
+            /**
+             * Auth Method
+             * @enum {string}
+             */
+            auth_method: "oauth" | "api_key" | "api_token" | "service_account";
+            /**
+             * Connected At
+             * Format: date-time
+             */
+            connected_at: string;
+            connected_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Connection Id
+             * Format: uuid
+             */
+            connection_id: string;
+            /**
+             * Integration Count
+             * @description Properties linked to projects, not disabled.
+             */
+            integration_count: number;
+            /** Last Error Code */
+            last_error_code: string | null;
+            /** Last Refresh At */
+            last_refresh_at: string | null;
+            /**
+             * Product
+             * @enum {string}
+             */
+            product: "gsc" | "ga4" | "bing_wmt" | "cloudflare";
+            /** Scopes */
+            scopes: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "reauth_required" | "revoked" | "error";
+            /**
+             * Subject Label
+             * @description The connected account, for display.
+             */
+            subject_label: string | null;
+        };
+        /** ConnectionPage */
+        ConnectionPage: {
+            /** Data */
+            data: components["schemas"]["Connection"][];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** ConnectionResponse */
+        ConnectionResponse: {
+            data: components["schemas"]["Connection"];
+        };
         /** CostList */
         CostList: {
             /** Data */
@@ -2394,6 +2591,13 @@ export interface components {
             limit: number;
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /** DeviceCounts */
+        DeviceCounts: {
+            /** Desktop */
+            desktop: number;
+            /** Mobile */
+            mobile: number;
         };
         /** DomainCategory */
         DomainCategory: {
@@ -2737,6 +2941,34 @@ export interface components {
             /** Path */
             path: string;
         };
+        /**
+         * GscBlock
+         * @description Clicks and impressions from Search Console (docs/18 section 4.9): counts, not estimates.
+         */
+        GscBlock: {
+            clicks?: components["schemas"]["DeviceCounts"] | null;
+            impressions?: components["schemas"]["DeviceCounts"] | null;
+            /**
+             * State
+             * @description `ok`: the counts are the last 28 days of final data (0 is a count). `pending`: the first pull of the property is running. `not_connected`: the project has no Search Console connection.
+             * @enum {string}
+             */
+            state: "ok" | "pending" | "not_connected";
+            window?: components["schemas"]["GscWindow"] | null;
+        };
+        /** GscWindow */
+        GscWindow: {
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+        };
         /** Health */
         Health: {
             /**
@@ -3005,6 +3237,123 @@ export interface components {
             /** Data */
             data: components["schemas"]["ImportRow"][];
             page: components["schemas"]["CursorPageInfo"];
+        };
+        /** Integration */
+        Integration: {
+            /** Backfill State */
+            backfill_state: {
+                [key: string]: unknown;
+            };
+            /** Connection Id */
+            connection_id: string | null;
+            /** Connection Status */
+            connection_status: ("active" | "reauth_required" | "revoked" | "error") | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** External Account */
+            external_account: string | null;
+            /** External Property */
+            external_property: string;
+            /**
+             * Integration Id
+             * Format: uuid
+             */
+            integration_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "gsc" | "bing_wmt" | "ga4" | "cloudflare" | "server_logs";
+            /** Last Error */
+            last_error: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
+            /** Project Id */
+            project_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "reauth_required" | "disabled" | "error";
+            /** @description The pull's progress, for a Search Console property; null for other kinds. */
+            sync: components["schemas"]["IntegrationSync"] | null;
+        };
+        /** IntegrationCreate */
+        IntegrationCreate: {
+            /**
+             * Connection Id
+             * Format: uuid
+             */
+            connection_id: string;
+            /** External Property */
+            external_property: string;
+            /**
+             * Kind
+             * @constant
+             */
+            kind: "gsc";
+        };
+        /** IntegrationPage */
+        IntegrationPage: {
+            /** Data */
+            data: components["schemas"]["Integration"][];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** IntegrationResponse */
+        IntegrationResponse: {
+            data: components["schemas"]["Integration"];
+        };
+        /**
+         * IntegrationSync
+         * @description Where the Search Console pull of a property has got to: what the sync strip shows.
+         */
+        IntegrationSync: {
+            /**
+             * Consecutive Failures
+             * @description Passes in a row that ended in an error.
+             */
+            consecutive_failures: number;
+            /**
+             * Covered From
+             * @description The oldest day stored.
+             */
+            covered_from: string | null;
+            /**
+             * Days Stored
+             * @description Days that have rows.
+             */
+            days_stored: number;
+            /**
+             * Next Sync At
+             * @description The next daily sync, from the property's schedule; null when it has none or it is paused.
+             */
+            next_sync_at: string | null;
+            /**
+             * Phase
+             * @description `pending`: the first 28 days are not all stored yet. `backfilling`: they are, and older days are still coming. `synced`: the history is complete and each day adds the days that became final.
+             * @enum {string}
+             */
+            phase: "pending" | "backfilling" | "synced";
+            /**
+             * Retry After
+             * @description When a failed pass is tried again; the sync waits until then.
+             */
+            retry_after: string | null;
+            /** Rows Stored */
+            rows_stored: number;
+            /**
+             * Window End
+             * @description The latest final day the pull has reached.
+             */
+            window_end: string | null;
+            /**
+             * Window Start
+             * @description The 28 final days the Rankings columns sum, once they are stored.
+             */
+            window_start: string | null;
         };
         /** Invitation */
         Invitation: {
@@ -3374,6 +3723,11 @@ export interface components {
             language_code: string;
             /** Location Id */
             location_id: number;
+            /**
+             * Monthly Searches
+             * @description The provider's monthly volumes behind the trend, oldest first; empty when the provider sent none.
+             */
+            monthly_searches: components["schemas"]["MonthlySearches"][];
             search_volume: components["schemas"]["MetricValue"];
             /**
              * Source
@@ -3695,6 +4049,19 @@ export interface components {
             /** Year */
             year: number;
         };
+        /** OAuthStart */
+        OAuthStart: {
+            /**
+             * Authorization Url
+             * @description Where to send the person: Google's consent page.
+             */
+            authorization_url: string;
+            /**
+             * State Expires At
+             * Format: date-time
+             */
+            state_expires_at: string;
+        };
         /** OffsetPageInfo */
         OffsetPageInfo: {
             /** Limit */
@@ -3739,6 +4106,20 @@ export interface components {
             result?: string | null;
             /** Self */
             self: string;
+        };
+        /**
+         * OverlapWarning
+         * @description Another property of the same site is already linked to a project. The two are never
+         *     added together, so the person must pick one.
+         */
+        OverlapWarning: {
+            /** External Property */
+            external_property: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
         };
         /** OwnEntityInput */
         OwnEntityInput: {
@@ -5073,6 +5454,47 @@ export interface components {
              */
             status: "signed_in" | "totp_required";
         };
+        /** SiteProperty */
+        SiteProperty: {
+            /**
+             * External Property
+             * @description `sc-domain:example.com` or a URL prefix.
+             */
+            external_property: string;
+            /**
+             * Is Selectable
+             * @description False for an unverified user: Search Console refuses to read its numbers.
+             */
+            is_selectable: boolean;
+            /** Label */
+            label: string;
+            /**
+             * Linked Project Id
+             * @description The project this property is already linked to. It cannot be linked twice.
+             */
+            linked_project_id: string | null;
+            overlap_warning: components["schemas"]["OverlapWarning"] | null;
+            /**
+             * Permission Level
+             * @description `siteOwner`, `siteFullUser`, `siteRestrictedUser` or `siteUnverifiedUser`.
+             */
+            permission_level: string;
+            /**
+             * Property Type
+             * @enum {string}
+             */
+            property_type: "domain" | "url_prefix";
+            /**
+             * Suggested Project Id
+             * @description The project whose primary domain this property matches; a Domain property is suggested before a URL-prefix one.
+             */
+            suggested_project_id: string | null;
+        };
+        /** SitePropertyList */
+        SitePropertyList: {
+            /** Data */
+            data: components["schemas"]["SiteProperty"][];
+        };
         /** Sparkline */
         Sparkline: {
             /**
@@ -5836,6 +6258,8 @@ export interface components {
              * @description `include=groups`.
              */
             groups?: components["schemas"]["GroupRef"][] | null;
+            /** @description `include=gsc`: clicks and impressions from Search Console. */
+            gsc?: components["schemas"]["GscBlock"] | null;
             /**
              * Intent
              * @enum {string}
@@ -6928,6 +7352,45 @@ export interface operations {
             };
         };
     };
+    google_callback_api_v1_oauth_google_callback_get: {
+        parameters: {
+            query?: {
+                code?: string | null;
+                state?: string | null;
+                error?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Redirect to the web app. */
+            302: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_workspaces_api_v1_workspaces_get: {
         parameters: {
             query?: never;
@@ -7077,6 +7540,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BudgetStatusList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_connections_api_v1_workspaces__workspace_id__connections_get: {
+        parameters: {
+            query?: {
+                "filter[product]"?: ("gsc" | "ga4" | "bing_wmt" | "cloudflare") | null;
+                "filter[status]"?: ("active" | "reauth_required" | "revoked" | "error") | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    disconnect_api_v1_workspaces__workspace_id__connections__connection_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connection_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connection_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SitePropertyList"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -8216,6 +8779,143 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectEntityResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_project_integrations_api_v1_workspaces__workspace_id__projects__project_id__integrations_get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    choose_property_api_v1_workspaces__workspace_id__projects__project_id__integrations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntegrationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    disable_integration_api_v1_workspaces__workspace_id__projects__project_id__integrations__integration_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                integration_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    authorize_api_v1_workspaces__workspace_id__projects__project_id__integrations__kind__authorize_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "gsc";
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthorizationResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -9417,7 +10117,7 @@ export interface operations {
             query?: {
                 sort?: string | null;
                 /** @description Blocks to fill: a comma list, or the parameter repeated. */
-                include?: ("metrics" | "groups" | "terms" | "competitors" | "sparkline" | "competitor_ranks" | "ranking_urls" | "features" | "aio")[] | null;
+                include?: ("metrics" | "groups" | "terms" | "competitors" | "sparkline" | "competitor_ranks" | "ranking_urls" | "gsc" | "features" | "aio")[] | null;
                 "filter[q]"?: string | null;
                 /** @description The group or one under it. */
                 "filter[group]"?: string | null;
@@ -10387,6 +11087,8 @@ type ReadonlyArray<T> = [
     unknown[]
 ] ? Readonly<Exclude<T, undefined>> : Readonly<Exclude<T, undefined>[]>;
 export const pathsApiV1LocationsGetParametersQueryFilterSupportsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/locations"]["get"]["parameters"]["query"]["filter[supports]"]> = ["serp", "ai_mode", "llm_scraper"];
+export const pathsApiV1WorkspacesWorkspace_idConnectionsGetParametersQueryFilterProductAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/connections"]["get"]["parameters"]["query"]["filter[product]"]> = ["gsc", "ga4", "bing_wmt", "cloudflare"];
+export const pathsApiV1WorkspacesWorkspace_idConnectionsGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/connections"]["get"]["parameters"]["query"]["filter[status]"]> = ["active", "reauth_required", "revoked", "error"];
 export const pathsApiV1WorkspacesWorkspace_idCostsGetParametersQueryGroup_byAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/costs"]["get"]["parameters"]["query"]["group_by"]> = ["project", "workload", "provider", "endpoint", "engine", "day", "channel"];
 export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterEntity_typeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[entity_type]"]> = ["brand", "product", "organization", "person", "other"];
 export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
@@ -10401,7 +11103,7 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParameters
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterTrigger_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[trigger_in]"]> = ["schedule", "manual", "backfill", "retry"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idSchedulesGetParametersQueryFilterWorkloadAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules"]["get"]["parameters"]["query"]["filter[workload]"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["include"]> = ["metrics", "groups", "terms", "competitors", "sparkline", "competitor_ranks", "ranking_urls", "features", "aio"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["include"]> = ["metrics", "groups", "terms", "competitors", "sparkline", "competitor_ranks", "ranking_urls", "gsc", "features", "aio"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[device]"]> = ["desktop", "mobile"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterSearch_engineAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[search_engine]"]> = ["google", "bing"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterIntent_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[intent_in]"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
@@ -10429,6 +11131,9 @@ export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<component
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
 export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
 export const configVersionDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ConfigVersion"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const connectionAuth_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["auth_method"]> = ["oauth", "api_key", "api_token", "service_account"];
+export const connectionProductValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["product"]> = ["gsc", "ga4", "bing_wmt", "cloudflare"];
+export const connectionStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["status"]> = ["active", "reauth_required", "revoked", "error"];
 export const costWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CostWorkload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync", "ai_overview", "extraction_llm", "keyword_research", "first_party"];
 export const domainInputMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainInput"]["match_scope"]> = ["path_prefix", "host", "registrable"];
 export const domainRefCategory_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainRef"]["category_source"]> = ["seed_list", "rule", "llm", "manual", "tenant_override"];
@@ -10446,6 +11151,7 @@ export const filterList_Literal__light____standard____deep____full____weekly____
 export const filterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
 export const filterList_Literal__numeric____new____lost____unchanged_beyond____consistent_beyond____first_check___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__numeric____new____lost____unchanged_beyond____consistent_beyond____first_check___"]> = ["numeric", "new", "lost", "unchanged_beyond", "consistent_beyond", "first_check"];
 export const filterList_Literal__tofu____mofu____bofu____retention____unknown___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__tofu____mofu____bofu____retention____unknown___"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const gscBlockStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["GscBlock"]["state"]> = ["ok", "pending", "not_connected"];
 export const historyColumnsStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["HistoryColumns"]["state"]> = ["ranked", "beyond_depth", "failed"];
 export const historyPointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["HistoryPoint"]["state"]> = ["ranked", "beyond_depth", "failed"];
 export const importDefaultsDepth_profileAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportDefaults"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
@@ -10453,6 +11159,10 @@ export const importDefaultsDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequir
 export const importFieldValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportField"]> = ["keyword", "country", "location", "language", "device", "tags", "topic", "group", "intent", "funnel_stage", "priority", "target_url", "depth_profile"];
 export const importRowActionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportRow"]["action"]> = ["create", "skip", "merge", "force_separate"];
 export const importRowOutcomeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportRow"]["outcome"]> = ["new", "duplicate", "variant", "conflict", "invalid"];
+export const integrationConnection_statusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Integration"]["connection_status"]> = ["active", "reauth_required", "revoked", "error"];
+export const integrationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Integration"]["kind"]> = ["gsc", "bing_wmt", "ga4", "cloudflare", "server_logs"];
+export const integrationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Integration"]["status"]> = ["active", "reauth_required", "disabled", "error"];
+export const integrationSyncPhaseValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IntegrationSync"]["phase"]> = ["pending", "backfilling", "synced"];
 export const invitationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Invitation"]["status"]> = ["pending", "accepted", "declined", "cancelled", "expired"];
 export const keywordCheckStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordCheck"]["status"]> = ["idle", "queued", "processing", "completed", "inconclusive", "failed"];
 export const keywordImportSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImport"]["source"]> = ["upload", "paste", "api"];
@@ -10510,6 +11220,7 @@ export const serpSnapshotDetailAi_overview_stateAnyOf0Values: ReadonlyArray<Flat
 export const serpSnapshotDetailTitles_sourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotDetail"]["titles_source"]> = ["domain_rank_observations", "serp_current_results", "unavailable"];
 export const serpSnapshotSummaryAi_overview_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotSummary"]["ai_overview_state"]> = ["absent", "present", "present_async_loaded", "present_not_loaded"];
 export const signInResponseStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SignInResponse"]["status"]> = ["signed_in", "totp_required"];
+export const sitePropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SiteProperty"]["property_type"]> = ["domain", "url_prefix"];
 export const sparklinePointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SparklinePoint"]["state"]> = ["ranked", "beyond_depth"];
 export const termSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Term"]["source"]> = ["manual", "import", "auto_cluster", "ai_suggestion"];
 export const termAssignmentOpValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["op"]> = ["add", "remove", "replace"];

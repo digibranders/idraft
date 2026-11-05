@@ -111,5 +111,12 @@ export type HistorySeries = Schemas['HistorySeries'];
 export type HistoryPoint = Schemas['HistoryPoint'];
 export type HistoryBand = Schemas['HistoryBand'];
 
+// Integrations: Google Search Console connections and the properties linked to projects
+export type Connection = Schemas['Connection'];
+export type ConnectionStatus = Connection['status'];
+export type SiteProperty = Schemas['SiteProperty'];
+export type Integration = Schemas['Integration'];
+export type OverlapWarning = Schemas['OverlapWarning'];
+
 /** Runtime lists from the OpenAPI enums: a form checks a slug against them before it asks the API. */
 export { reservedProjectSlugValues, reservedWorkspaceSlugValues, roleValues } from './schema';

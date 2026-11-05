@@ -453,7 +453,7 @@ Formatters in `@/lib/format` ([22-content-formatting.md](22-content-formatting.m
 | Not applicable | `No AIO` in cells; `No AI Overview in window` in tiles and the inspector | "Not applicable, no AI Overview in window" |
 | AI Overview cell | `Cited #2` | "AI Overview present, cited at position 2" |
 | SERP features | Icons | List named "SERP features": "Featured snippet, owned. People also ask. Video" |
-| Sparkline | Line | `role="img"`, "Rank trend, last 30 checks: from 9 to 4, best 3, 2 checks not in top 20" |
+| Sparkline | Line | `role="img"`, "Search volume trend, last 12 months: from 1,300 to 1,900, peak 2,400" |
 | Relative time | `2h ago` | "2 hours ago" with the absolute time in the tooltip |
 | Minus sign | `−3` (U+2212) | Read as "minus 3" by VoiceOver and NVDA; no extra handling |
 

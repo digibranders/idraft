@@ -682,7 +682,7 @@ describe('Rankings rank columns', () => {
     expect(within(cell).getByText(/^SERP features:/)).toHaveClass('sr-only');
   });
 
-  it('shows Cited #n for a keyword cited in the AI Overview', async () => {
+  it('shows #n with a check for a keyword cited in the AI Overview', async () => {
     const withAioCited = fixtureStates().find(
       ({ state }) => state.aio.state === 'present_cited' && state.aio.citation_position !== null,
     );
@@ -696,10 +696,11 @@ describe('Rankings rank columns', () => {
     if (row === null || row === undefined) throw new Error(`No row for ${withAioCited.text}`);
     const cell = row.cells[columnIndex(grid, /^AI Overview$/)];
     if (cell === undefined) throw new Error('No AI Overview cell');
-    expect(within(cell).getByText(`Cited #${withAioCited.state.aio.citation_position}`)).toBeInTheDocument();
+    expect(within(cell).getByText(`#${withAioCited.state.aio.citation_position}`)).toBeInTheDocument();
+    expect(within(cell).queryByText(/Cited/)).toBeNull();
   });
 
-  it('shows the rank trend sparkline for checked and pending keywords, and requests include=sparkline', async () => {
+  it('shows the search volume trend of each keyword from its metrics, and asks for no rank sparkline', async () => {
     const asked: string[] = [];
     const listener = ({ request }: { request: Request }): void => {
       if (request.url.includes('/tracked-keywords')) {
@@ -712,7 +713,8 @@ describe('Rankings rank columns', () => {
       renderWithProviders(as('viewer'));
       const grid = await loadedGrid();
       expect(within(grid).getByRole('columnheader', { name: /^Trend/ })).toBeInTheDocument();
-      await waitFor(() => expect(asked).toContain('sparkline'));
+      await waitFor(() => expect(asked).toContain('metrics'));
+      expect(asked).not.toContain('sparkline');
 
       const checked = fixtureStates().find(({ state }) => state.current.state === 'ranked');
       if (checked === undefined) throw new Error('No checked keyword');
@@ -725,10 +727,11 @@ describe('Rankings rank columns', () => {
       if (checkedCell === undefined) throw new Error('No Trend cell on checked row');
       expect(
         within(checkedCell).getByRole('img', {
-          name: 'Rank trend, last 30 checks: from 19 to 12, best 8, 1 check beyond the depth checked',
+          name: /^Search volume trend, last 12 months: from [\d,]+ to [\d,]+, peak [\d,]+$/,
         }),
       ).toBeInTheDocument();
 
+      // A keyword that is still waiting for its first rank check has its own volumes all the same
       const pendingRow = within(grid)
         .getAllByRole('rowheader')
         .find((candidate) => named(candidate, 'generative engine optimization'))
@@ -736,7 +739,7 @@ describe('Rankings rank columns', () => {
       if (!pendingRow) throw new Error('No row for pending keyword');
       const pendingCell = pendingRow.cells[columnIndex(grid, /^Trend$/)];
       if (pendingCell === undefined) throw new Error('No Trend cell on pending row');
-      expect(within(pendingCell).getByRole('img', { name: 'Rank trend: no checks yet' })).toBeInTheDocument();
+      expect(within(pendingCell).getByRole('img', { name: /^Search volume trend/ })).toBeInTheDocument();
     } finally {
       server.events.removeListener('request:start', listener);
     }

@@ -6,6 +6,7 @@ import {
   Can,
   can,
   canCreateProjects,
+  canManageIntegrations,
   canOpenProject,
   canWriteEntities,
   PermissionProvider,
@@ -76,6 +77,15 @@ describe('canWriteEntities', () => {
     expect(canWriteEntities(membershipFactory('editor'))).toBe(true);
     expect(canWriteEntities({ ...membershipFactory('editor'), project_ids: [] })).toBe(false);
     expect(canWriteEntities(membershipFactory('analyst'))).toBe(false);
+  });
+});
+
+describe('canManageIntegrations', () => {
+  it('lets owners and admins manage connections only while they see every project', () => {
+    expect(canManageIntegrations(membershipFactory('owner'))).toBe(true);
+    expect(canManageIntegrations(membershipFactory('admin'))).toBe(true);
+    expect(canManageIntegrations({ ...membershipFactory('admin'), project_ids: [] })).toBe(false);
+    expect(canManageIntegrations(membershipFactory('editor'))).toBe(false);
   });
 });
 

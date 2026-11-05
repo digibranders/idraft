@@ -470,7 +470,7 @@ In the drawing, `[]` stands for a SERP feature icon slot, intent badges are shor
 | 8 | AI Overview | `aiOverview` | 104 / 96 | 2 | `AIOverviewStatus` |
 | 9 | CPC | `currency` | 112 / 96 | 2 | Cost per click in US dollars, two decimals; a provider value for the keyword and country |
 | 10 | Competitor | `competitor` | 120 / 120 | 4 | First selected competitor's rank; more competitors via the column chooser |
-| 11 | Trend | `sparkline` | 96 / 88 | 2 | 30 checks, inverted, depth breaks |
+| 11 | Trend | `sparkline` | 96 / 88 | 2 | Monthly search volume, last 12 months, higher is up, on the row's own scale; a month without a volume breaks the line |
 | 12 | Updated | `date` | 104 / 104 | 4 | Stale badge after threshold |
 | 13 | (actions) | `actions` | 40 / 40 | always | Row "More" menu |
 

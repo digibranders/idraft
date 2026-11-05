@@ -1,7 +1,7 @@
 import { render, renderHook } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import en from '../../../messages/en.json';
 import { useCompetitorColumns, useRankColumns } from './rank-columns';
@@ -36,119 +36,65 @@ function makeRow(overrides: Record<string, unknown>): TrackedKeywordRow {
   } as unknown as TrackedKeywordRow;
 }
 
-describe('useRankColumns trend label branches', () => {
-  it('returns labelFailed when check failed', () => {
-    const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
-    const row = makeRow({
-      state: {
-        ...makeRow({}).state,
-        current: { rank: null, observed_at: '2026-10-29T10:00:00Z', depth_requested: 20, url: null, state: 'failed' },
-      },
-      sparkline: { depth_mode: 'daily_depth', points: [] },
-    });
-    const cell = result.current.trend.cell(row);
-    const { getByRole } = render(cell);
-    expect(getByRole('img', { name: 'Rank trend: checks failed' })).toBeInTheDocument();
+/** A row whose metrics hold these monthly volumes, oldest first, ending in September 2026. */
+function withVolumes(volumes: readonly (number | null)[]): TrackedKeywordRow {
+  const monthly_searches = volumes.map((search_volume, index) => {
+    const offset = index - (volumes.length - 1);
+    const at = new Date(Date.UTC(2026, 8 + offset, 1));
+    return { year: at.getUTCFullYear(), month: at.getUTCMonth() + 1, search_volume };
   });
+  return makeRow({ metrics: { monthly_searches } });
+}
 
-  it('returns labelEmpty when not checked yet', () => {
+describe('useRankColumns trend column', () => {
+  it('names the volumes the line shows: first, last and the peak', () => {
     const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
-    const row = makeRow({
-      state: {
-        ...makeRow({}).state,
-        current: { rank: null, observed_at: null, depth_requested: 20, url: null, state: 'not_checked' },
-      },
-      sparkline: { depth_mode: 'daily_depth', points: [] },
-    });
-    const cell = result.current.trend.cell(row);
-    const { getByRole } = render(cell);
-    expect(getByRole('img', { name: 'Rank trend: no checks yet' })).toBeInTheDocument();
-  });
-
-  it('returns labelEmpty when sparkline points are empty', () => {
-    const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
-    const row = makeRow({
-      sparkline: { depth_mode: 'daily_depth', points: [] },
-    });
-    const cell = result.current.trend.cell(row);
-    const { getByRole } = render(cell);
-    expect(getByRole('img', { name: 'Rank trend: no checks yet' })).toBeInTheDocument();
-  });
-
-  it('returns labelNone when all checks were beyond depth', () => {
-    const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
-    const row = makeRow({
-      sparkline: {
-        depth_mode: 'daily_depth',
-        points: [
-          { t: '2026-10-27T10:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
-          { t: '2026-10-28T10:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
-        ],
-      },
-    });
-    const cell = result.current.trend.cell(row);
-    const { getByRole } = render(cell);
+    const { getByRole } = render(result.current.trend.cell(withVolumes([1300, 2400, 1900])));
     expect(
-      getByRole('img', { name: 'Rank trend: not ranked within the depth in the last 2 checks' }),
+      getByRole('img', { name: 'Search volume trend, last 3 months: from 1,300 to 1,900, peak 2,400' }),
     ).toBeInTheDocument();
   });
 
-  it('uses >depth for latest rank when latest check is beyond depth', () => {
+  it('reads the first and the last month that has a volume when the ends have none', () => {
     const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
-    const row = makeRow({
-      sparkline: {
-        depth_mode: 'daily_depth',
-        points: [
-          { t: '2026-10-27T10:00:00Z', rank: 9, depth: 20, state: 'ranked' },
-          { t: '2026-10-28T10:00:00Z', rank: 4, depth: 20, state: 'ranked' },
-          { t: '2026-10-29T10:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
-        ],
-      },
-    });
-    const cell = result.current.trend.cell(row);
-    const { getByRole } = render(cell);
+    const { getByRole } = render(result.current.trend.cell(withVolumes([null, 500, 700, null])));
     expect(
-      getByRole('img', {
-        name: 'Rank trend, last 3 checks: from 9 to >20, best 4, 1 check beyond the depth checked',
-      }),
+      getByRole('img', { name: 'Search volume trend, last 4 months: from 500 to 700, peak 700' }),
     ).toBeInTheDocument();
   });
 
-  it('returns standard label when latest check is ranked', () => {
+  it('says there are no monthly volumes yet when the keyword has no metrics, or none for any month', () => {
     const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
-    const row = makeRow({
-      sparkline: {
-        depth_mode: 'daily_depth',
-        points: [
-          { t: '2026-10-27T10:00:00Z', rank: 9, depth: 20, state: 'ranked' },
-          { t: '2026-10-28T10:00:00Z', rank: 4, depth: 20, state: 'ranked' },
-        ],
-      },
-    });
-    const cell = result.current.trend.cell(row);
-    const { getByRole } = render(cell);
-    expect(getByRole('img', { name: 'Rank trend, last 2 checks: from 9 to 4, best 4' })).toBeInTheDocument();
-  });
-
-  it('formats cell tip dates and ranks using locale formatters without hardcoded formats', () => {
-    vi.setSystemTime(new Date('2026-10-29T12:00:00Z'));
-    try {
-      const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
-      const row = makeRow({
-        sparkline: {
-          depth_mode: 'daily_depth',
-          points: [
-            { t: '2026-10-27T10:00:00Z', rank: 3, depth: 20, state: 'ranked' },
-            { t: '2026-10-28T10:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
-          ],
-        },
-      });
-      const tip = result.current.trend.cellTip?.(row);
-      expect(tip?.content).toBe('Last checks');
-      expect(tip?.detail).toBe('Oct 27: 3, Oct 28: >20');
-    } finally {
-      vi.useRealTimers();
+    for (const row of [makeRow({}), makeRow({ metrics: null }), withVolumes([]), withVolumes([null, null])]) {
+      const { getByRole, unmount } = render(result.current.trend.cell(row));
+      expect(getByRole('img', { name: 'Search volume trend: no monthly volumes yet' })).toBeInTheDocument();
+      unmount();
     }
+  });
+
+  it('does not depend on the rank checks: a keyword whose check failed still shows its volumes', () => {
+    const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
+    const failed = withVolumes([100, 200]);
+    const row = {
+      ...failed,
+      state: { ...failed.state, current: { ...failed.state.current, state: 'failed' as const, rank: null } },
+    } as TrackedKeywordRow;
+    const { getByRole } = render(result.current.trend.cell(row));
+    expect(
+      getByRole('img', { name: 'Search volume trend, last 2 months: from 100 to 200, peak 200' }),
+    ).toBeInTheDocument();
+  });
+
+  it('lists the last six months in the cell tip, a month without a volume as n/a', () => {
+    const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
+    const tip = result.current.trend.cellTip?.(withVolumes([1, 2, 3, 4, 5, 1200, null]));
+    expect(tip?.content).toBe('Monthly search volume');
+    expect(tip?.detail).toBe('Apr 2026: 2, May 2026: 3, Jun 2026: 4, Jul 2026: 5, Aug 2026: 1,200, Sep 2026: n/a');
+  });
+
+  it('has no tip where there are no months', () => {
+    const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
+    expect(result.current.trend.cellTip?.(makeRow({}))).toBeUndefined();
   });
 });
 

@@ -285,6 +285,9 @@ services:
       SENTRY_DSN: ${SENTRY_DSN_BACKEND:?}
       EMAIL_API_KEY: ${EMAIL_API_KEY:?}
       TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?}   # base64 of 32 random bytes; see section 7
+      SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY:-}   # same shape; required in production (doc 24 section 5.2)
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}   # both or neither; connecting Google is off without them
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/readyz', timeout=3).status == 200 else 1)"]
       interval: 10s
@@ -1039,10 +1042,12 @@ Each service gets the minimum it needs. This map is the `environment:` blocks of
 
 ```yaml
 web:       [SENTRY_DSN_WEB]
-api:       [DATABASE_URL_API, REDIS_URL_APP, SENTRY_DSN_BACKEND, EMAIL_API_KEY, TOTP_ENCRYPTION_KEY]
+api:       [DATABASE_URL_API, REDIS_URL_APP, SENTRY_DSN_BACKEND, EMAIL_API_KEY, TOTP_ENCRYPTION_KEY,
+            SECRETS_ENCRYPTION_KEY, GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET]
 worker:    [DATABASE_URL_WORKER, REDIS_URL_APP, DATAFORSEO_LOGIN, DATAFORSEO_PASSWORD,
             R2_RAW_ENDPOINT, R2_RAW_ACCESS_KEY_ID, R2_RAW_SECRET_ACCESS_KEY, HC_PLANNER_URL, HC_MAINTENANCE_URL,
-            HC_OPS_HEALTH_URL, SENTRY_DSN_BACKEND, EMAIL_API_KEY]
+            HC_OPS_HEALTH_URL, SENTRY_DSN_BACKEND, EMAIL_API_KEY, SECRETS_ENCRYPTION_KEY,
+            GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET]
 migrator:  [DATABASE_URL_MIGRATOR]
 postgres:  [PG_SUPERUSER_PASSWORD, PG_API_PASSWORD, PG_WORKER_PASSWORD, PG_MIGRATOR_PASSWORD]
 redis:     [REDIS_PASSWORD_HEALTHCHECK]                     # container healthcheck only

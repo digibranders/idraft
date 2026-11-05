@@ -27,6 +27,7 @@ export async function ProjectRoot({
     slug: candidate.slug,
     name: candidate.name,
     timeZone: candidate.timezone,
+    domain: candidate.primary_domain?.host ?? null,
   }));
   const current = projects.find((candidate) => candidate.slug === project);
   if (current === undefined) notFound();

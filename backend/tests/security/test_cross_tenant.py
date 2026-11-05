@@ -23,6 +23,8 @@ from idraft.api.main import create_app
 from idraft.api.openapi import placeholder_settings
 from idraft.api.resources import Resources
 from idraft.storage.raw import compress, digest
+from idraft.vault.envelope import EnvelopeCipher
+from idraft.vault.store import REFRESH_TOKEN
 from tests.api.auth.support import (
     User,
     Workspace,
@@ -40,6 +42,7 @@ from tests.api.test_route_access import PATH_PARAMETER
 from tests.api.workspaces.support import make_project
 from tests.conftest import PostgresServer
 from tests.db.support import seed_rank
+from tests.providers.google.fake_google import FakeGoogle
 from tests.security.cross_tenant_exceptions import NOT_PATH_SCOPED
 
 _W = "/api/v1/workspaces/{workspace_id}"
@@ -167,10 +170,26 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("PATCH", _W + "/projects/{project_id}/keyword-imports/{import_id}"): {
         "row_actions": [{"row_no": 1, "action": "skip"}],
     },
+    ("POST", _W + "/projects/{project_id}/integrations"): {
+        "connection_id": "{connection_id}",
+        "kind": "gsc",
+        "external_property": "sc-domain:acme.example",
+    },
+    ("POST", _W + "/projects/{project_id}/integrations/{kind}/authorize"): {},
     ("POST", _W + "/projects/{project_id}/keyword-imports/{import_id}/cancel"): {},
     ("POST", _W + "/projects/{project_id}/keyword-imports/{import_id}/confirm"): {
         "duplicate_action": "merge_terms",
     },
+}
+# A path parameter that is a word, not an id of the tenant: it must not count as one of its
+# secrets, since every response would then seem to hold it.
+WORDS = {"kind": "gsc"}
+# Routes that a member limited to some projects is refused even inside their own project: they
+# change the workspace's credentials, which belong to no one project (docs/24 section 3.2).
+EVERY_PROJECT_ONLY = {
+    ("POST", _W + "/projects/{project_id}/integrations"),
+    ("POST", _W + "/projects/{project_id}/integrations/{kind}/authorize"),
+    ("DELETE", _W + "/projects/{project_id}/integrations/{integration_id}"),
 }
 # Routes that take a file instead of JSON.
 UPLOADS = {("POST", _W + "/projects/{project_id}/keyword-imports/upload")}
@@ -218,6 +237,10 @@ class Tenant:
     import_id: uuid.UUID
     # A SERP snapshot of the tracked keyword, with its raw answer registered.
     serp_snapshot_id: int
+    # A Google account connected to the workspace, and a property of it once linked to the
+    # project and switched off (so that linking it again succeeds).
+    connection_id: uuid.UUID
+    integration_id: uuid.UUID
 
     def ids(self) -> dict[str, str]:
         return {
@@ -239,6 +262,8 @@ class Tenant:
             "budget_id": str(self.budget_id),
             "import_id": str(self.import_id),
             "serp_snapshot_id": str(self.serp_snapshot_id),
+            "connection_id": str(self.connection_id),
+            "integration_id": str(self.integration_id),
         }
 
     def secrets(self) -> list[str]:
@@ -253,7 +278,7 @@ class Tenant:
         ]
 
 
-async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenant:
+async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: FakeGoogle) -> Tenant:
     """One workspace with an owner, a second member, a project and a pending invitation. The two
     tenants collide where they can: same names, same project slug."""
     workspace = await make_workspace(pg, name="Acme")
@@ -471,6 +496,47 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
             digest(answer),
             snapshot_id,
         )
+    # A real connection of the same Google account in both: its refresh token is sealed as the
+    # application seals one, and the fake Google accepts it.
+    account = fake.account(f"{label}@client.example", [("sc-domain:acme.example", "siteOwner")])
+    cipher = EnvelopeCipher({1: resources.settings.secrets_key})
+    secret_id = uuid.uuid4()
+    sealed = cipher.seal(
+        account.refresh_token, secret_id=secret_id, workspace_id=workspace.id, kind=REFRESH_TOKEN
+    )
+    await execute(
+        pg,
+        "INSERT INTO ops.secrets (id, workspace_id, kind, ciphertext, dek_wrapped, kek_version, "
+        "fingerprint) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        secret_id,
+        workspace.id,
+        REFRESH_TOKEN,
+        sealed.ciphertext,
+        sealed.dek_wrapped,
+        sealed.kek_version,
+        sealed.fingerprint,
+    )
+    connection = await fetchrow(
+        pg,
+        "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
+        "subject_label, credential_ref, scopes, connected_by) VALUES ($1, 'gsc', 'oauth', $2, $3, "
+        "$4, '{openid}', $5) RETURNING id",
+        workspace.id,
+        account.sub,
+        account.email,
+        secret_id,
+        owner.id,
+    )
+    integration = await fetchrow(
+        pg,
+        "INSERT INTO fp.integrations (workspace_id, project_id, kind, external_account, "
+        "external_property, connection_id, scopes, status) VALUES ($1, $2, 'gsc', $3, "
+        "'sc-domain:acme.example', $4, '{openid}', 'disabled') RETURNING id",
+        workspace.id,
+        project_id,
+        account.email,
+        connection["id"],
+    )
     # Fresh, so that a route wanting a recent credential is not refused for that instead.
     token, _ = await open_session(resources, owner, fresh=True)
     return Tenant(
@@ -495,12 +561,19 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         budget_id=budget["id"],
         import_id=keyword_import["id"],
         serp_snapshot_id=snapshot_id,
+        connection_id=connection["id"],
+        integration_id=integration["id"],
     )
 
 
 @pytest.fixture
-async def tenants(resources: Resources, migrated: PostgresServer) -> tuple[Tenant, Tenant]:
-    return await _tenant(resources, migrated, "a"), await _tenant(resources, migrated, "b")
+async def tenants(
+    resources: Resources, migrated: PostgresServer, fake_google: FakeGoogle
+) -> tuple[Tenant, Tenant]:
+    return (
+        await _tenant(resources, migrated, "a", fake_google),
+        await _tenant(resources, migrated, "b", fake_google),
+    )
 
 
 def _nowhere(ids: dict[str, str]) -> dict[str, str]:
@@ -515,6 +588,8 @@ def _nowhere(ids: dict[str, str]) -> dict[str, str]:
 def _fill(path: str, ids: dict[str, str]) -> str:
     def value(match: re.Match[str]) -> str:
         name = match.group(1)
+        if name in WORDS:
+            return WORDS[name]
         assert name in ids, f"the cross-tenant suite has no id for the path parameter {name!r}"
         return ids[name]
 
@@ -592,6 +667,9 @@ _TENANT_ROWS = {
     "ops.cost_daily": "workspace_id",
     "ops.collection_runs": "workspace_id",
     "ops.audit_logs": "workspace_id",
+    "ops.secrets": "workspace_id",
+    "fp.connections": "workspace_id",
+    "fp.integrations": "workspace_id",
 }
 
 
@@ -674,7 +752,7 @@ async def test_a_project_outside_the_members_scope_is_not_found(
     a, _ = tenants
     hidden = await make_project(migrated, a.workspace.id, name="Hidden", slug="hidden")
     limited = await make_user(migrated, name="Limited")
-    await add_member(migrated, a.workspace, limited, "editor", [a.project_id])
+    await add_member(migrated, a.workspace, limited, "admin", [a.project_id])
     token, _ = await open_session(resources, limited, fresh=True)
 
     outside = await _call(api, method, path, {**a.ids(), "project_id": str(hidden)}, cookie(token))
@@ -685,7 +763,10 @@ async def test_a_project_outside_the_members_scope_is_not_found(
 
     assert _problem(outside) == _problem(nowhere) == (404, "not_found")
     assert _without_request_details(outside) == _without_request_details(nowhere)
-    assert inside.status_code < 300, inside.text
+    if (method, path) in EVERY_PROJECT_ONLY:
+        assert _problem(inside) == (403, "forbidden")
+    else:
+        assert inside.status_code < 300, inside.text
     row = await fetchrow(migrated, "SELECT name FROM core.projects WHERE id = $1", hidden)
     assert row["name"] == "Hidden"
 

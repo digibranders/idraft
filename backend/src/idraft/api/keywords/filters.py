@@ -35,6 +35,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.types import TypeEngine
 
+from idraft.api.keywords.gsc_repository import GscScope, sorted_total
 from idraft.api.keywords.repository import LABS_CURRENT
 from idraft.api.pagination import KeyValue, invalid_cursor
 from idraft.api.schemas.keywords import TrackedKeywordFilter
@@ -60,6 +61,8 @@ SortField = Literal[
     "rank_change",
     "best_rank",
     "last_observed_at",
+    "gsc_clicks",
+    "gsc_impressions",
 ]
 SORT_FIELDS: Final[tuple[SortField, ...]] = (
     "keyword",
@@ -72,6 +75,8 @@ SORT_FIELDS: Final[tuple[SortField, ...]] = (
     "rank_change",
     "best_rank",
     "last_observed_at",
+    "gsc_clicks",
+    "gsc_impressions",
 )
 _EPOCH: Final = datetime(1970, 1, 1, tzinfo=UTC)
 STATE = tracked_keyword_state.c
@@ -324,7 +329,7 @@ class Component:
     kind: Kind
 
 
-def _sorted_column(field: SortField) -> tuple[ColumnElement[Any], Kind, bool]:
+def _sorted_column(field: SortField, gsc: GscScope) -> tuple[ColumnElement[Any], Kind, bool]:
     """The column, its kind and whether it may be null (a metric)."""
     t = tracked_keywords.c
     match field:
@@ -349,12 +354,19 @@ def _sorted_column(field: SortField) -> tuple[ColumnElement[Any], Kind, bool]:
             return STATE.best_rank, "int", True
         case "last_observed_at":
             return STATE.last_observed_at, "time", True
+        # Search Console sums are counts: a keyword with no rows has 0, so none is null.
+        case "gsc_clicks":
+            return sorted_total("clicks", gsc), "int", False
+        case "gsc_impressions":
+            return sorted_total("impressions", gsc), "int", False
 
 
-def components(keys: Sequence[SortKey]) -> list[Component]:
+def components(keys: Sequence[SortKey], gsc: GscScope | None = None) -> list[Component]:
+    """The sort as ordered components. `gsc` is where the Search Console sorts read from; without
+    it they sort every row as 0."""
     found: list[Component] = []
     for key in keys:
-        column, kind, nullable = _sorted_column(key.field)
+        column, kind, nullable = _sorted_column(key.field, gsc or GscScope("not_connected"))
         if nullable:
             # Nulls last both ways: the flag sorts ascending whatever the direction, and a null's
             # value is a constant, so rows without the metric compare equal on it.

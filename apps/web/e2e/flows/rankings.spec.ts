@@ -958,11 +958,11 @@ test.describe('rankings', () => {
     await page.getByRole('dialog').getByRole('button', { name: 'Apply' }).click();
     await expect(page).toHaveURL(/[?&]aio=present_cited/);
     await expect(page.getByRole('button', { name: 'AI Overview: Cited. Edit filter' })).toBeVisible();
-    // The rows are refetched after Apply: poll until every shown cell is Cited rather than read them once
+    // The rows are refetched after Apply: poll until every shown cell is a cited one (its "#N") rather than read them once
     await expect
       .poll(async () => {
         const aioCells = await columnOf(grid, 'AI Overview');
-        return aioCells.length > 0 && aioCells.every((text) => text.includes('Cited'));
+        return aioCells.length > 0 && aioCells.every((text) => /^#\d+$/.test(text));
       })
       .toBe(true);
 

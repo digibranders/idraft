@@ -709,6 +709,18 @@
         "title": "AliasUpdate",
         "type": "object"
       },
+      "AuthorizationResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OAuthStart"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AuthorizationResponse",
+        "type": "object"
+      },
       "Body_upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post": {
         "properties": {
           "file": {
@@ -1303,6 +1315,154 @@
         "title": "ConfigVersion",
         "type": "object"
       },
+      "Connection": {
+        "properties": {
+          "auth_method": {
+            "enum": [
+              "oauth",
+              "api_key",
+              "api_token",
+              "service_account"
+            ],
+            "title": "Auth Method",
+            "type": "string"
+          },
+          "connected_at": {
+            "format": "date-time",
+            "title": "Connected At",
+            "type": "string"
+          },
+          "connected_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "connection_id": {
+            "format": "uuid",
+            "title": "Connection Id",
+            "type": "string"
+          },
+          "integration_count": {
+            "description": "Properties linked to projects, not disabled.",
+            "title": "Integration Count",
+            "type": "integer"
+          },
+          "last_error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Code"
+          },
+          "last_refresh_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Refresh At"
+          },
+          "product": {
+            "enum": [
+              "gsc",
+              "ga4",
+              "bing_wmt",
+              "cloudflare"
+            ],
+            "title": "Product",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scopes",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "reauth_required",
+              "revoked",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subject_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The connected account, for display.",
+            "title": "Subject Label"
+          }
+        },
+        "required": [
+          "connection_id",
+          "product",
+          "auth_method",
+          "subject_label",
+          "scopes",
+          "status",
+          "connected_by",
+          "connected_at",
+          "last_refresh_at",
+          "last_error_code",
+          "integration_count"
+        ],
+        "title": "Connection",
+        "type": "object"
+      },
+      "ConnectionPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Connection"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/OffsetPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "ConnectionPage",
+        "type": "object"
+      },
+      "ConnectionResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Connection"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ConnectionResponse",
+        "type": "object"
+      },
       "CostList": {
         "properties": {
           "data": {
@@ -1463,6 +1623,24 @@
           "has_more"
         ],
         "title": "CursorPageInfo",
+        "type": "object"
+      },
+      "DeviceCounts": {
+        "properties": {
+          "desktop": {
+            "title": "Desktop",
+            "type": "integer"
+          },
+          "mobile": {
+            "title": "Mobile",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "desktop",
+          "mobile"
+        ],
+        "title": "DeviceCounts",
         "type": "object"
       },
       "DomainCategory": {
@@ -2481,6 +2659,76 @@
         "title": "GroupRef",
         "type": "object"
       },
+      "GscBlock": {
+        "description": "Clicks and impressions from Search Console (docs/18 section 4.9): counts, not estimates.",
+        "properties": {
+          "clicks": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "impressions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "description": "`ok`: the counts are the last 28 days of final data (0 is a count). `pending`: the first pull of the property is running. `not_connected`: the project has no Search Console connection.",
+            "enum": [
+              "ok",
+              "pending",
+              "not_connected"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GscWindow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "GscBlock",
+        "type": "object"
+      },
+      "GscWindow": {
+        "properties": {
+          "end": {
+            "format": "date",
+            "title": "End",
+            "type": "string"
+          },
+          "start": {
+            "format": "date",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "GscWindow",
+        "type": "object"
+      },
       "Health": {
         "properties": {
           "status": {
@@ -3309,6 +3557,320 @@
           "page"
         ],
         "title": "ImportRowPage",
+        "type": "object"
+      },
+      "Integration": {
+        "properties": {
+          "backfill_state": {
+            "additionalProperties": true,
+            "title": "Backfill State",
+            "type": "object"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id"
+          },
+          "connection_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "reauth_required",
+                  "revoked",
+                  "error"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Status"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "external_account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Account"
+          },
+          "external_property": {
+            "title": "External Property",
+            "type": "string"
+          },
+          "integration_id": {
+            "format": "uuid",
+            "title": "Integration Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "gsc",
+              "bing_wmt",
+              "ga4",
+              "cloudflare",
+              "server_logs"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "reauth_required",
+              "disabled",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "sync": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IntegrationSync"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The pull's progress, for a Search Console property; null for other kinds."
+          }
+        },
+        "required": [
+          "integration_id",
+          "project_id",
+          "connection_id",
+          "kind",
+          "external_property",
+          "external_account",
+          "status",
+          "connection_status",
+          "last_success_at",
+          "last_error",
+          "backfill_state",
+          "sync",
+          "created_at"
+        ],
+        "title": "Integration",
+        "type": "object"
+      },
+      "IntegrationCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "connection_id": {
+            "format": "uuid",
+            "title": "Connection Id",
+            "type": "string"
+          },
+          "external_property": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "External Property",
+            "type": "string"
+          },
+          "kind": {
+            "const": "gsc",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "connection_id",
+          "kind",
+          "external_property"
+        ],
+        "title": "IntegrationCreate",
+        "type": "object"
+      },
+      "IntegrationPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Integration"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/OffsetPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "IntegrationPage",
+        "type": "object"
+      },
+      "IntegrationResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Integration"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "IntegrationResponse",
+        "type": "object"
+      },
+      "IntegrationSync": {
+        "description": "Where the Search Console pull of a property has got to: what the sync strip shows.",
+        "properties": {
+          "consecutive_failures": {
+            "description": "Passes in a row that ended in an error.",
+            "title": "Consecutive Failures",
+            "type": "integer"
+          },
+          "covered_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The oldest day stored.",
+            "title": "Covered From"
+          },
+          "days_stored": {
+            "description": "Days that have rows.",
+            "title": "Days Stored",
+            "type": "integer"
+          },
+          "next_sync_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The next daily sync, from the property's schedule; null when it has none or it is paused.",
+            "title": "Next Sync At"
+          },
+          "phase": {
+            "description": "`pending`: the first 28 days are not all stored yet. `backfilling`: they are, and older days are still coming. `synced`: the history is complete and each day adds the days that became final.",
+            "enum": [
+              "pending",
+              "backfilling",
+              "synced"
+            ],
+            "title": "Phase",
+            "type": "string"
+          },
+          "retry_after": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When a failed pass is tried again; the sync waits until then.",
+            "title": "Retry After"
+          },
+          "rows_stored": {
+            "title": "Rows Stored",
+            "type": "integer"
+          },
+          "window_end": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The latest final day the pull has reached.",
+            "title": "Window End"
+          },
+          "window_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The 28 final days the Rankings columns sum, once they are stored.",
+            "title": "Window Start"
+          }
+        },
+        "required": [
+          "phase",
+          "window_start",
+          "window_end",
+          "covered_from",
+          "days_stored",
+          "rows_stored",
+          "consecutive_failures",
+          "retry_after",
+          "next_sync_at"
+        ],
+        "title": "IntegrationSync",
         "type": "object"
       },
       "Invitation": {
@@ -4251,6 +4813,14 @@
             "title": "Location Id",
             "type": "integer"
           },
+          "monthly_searches": {
+            "description": "The provider's monthly volumes behind the trend, oldest first; empty when the provider sent none.",
+            "items": {
+              "$ref": "#/components/schemas/MonthlySearches"
+            },
+            "title": "Monthly Searches",
+            "type": "array"
+          },
           "search_volume": {
             "$ref": "#/components/schemas/MetricValue"
           },
@@ -4288,7 +4858,8 @@
           "keyword_difficulty",
           "intent_main",
           "trend_pct_per_month",
-          "is_seasonal"
+          "is_seasonal",
+          "monthly_searches"
         ],
         "title": "KeywordMetrics",
         "type": "object"
@@ -5154,6 +5725,26 @@
         "title": "MonthlySearches",
         "type": "object"
       },
+      "OAuthStart": {
+        "properties": {
+          "authorization_url": {
+            "description": "Where to send the person: Google's consent page.",
+            "title": "Authorization Url",
+            "type": "string"
+          },
+          "state_expires_at": {
+            "format": "date-time",
+            "title": "State Expires At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorization_url",
+          "state_expires_at"
+        ],
+        "title": "OAuthStart",
+        "type": "object"
+      },
       "OffsetPageInfo": {
         "properties": {
           "limit": {
@@ -5305,6 +5896,26 @@
           "self"
         ],
         "title": "OperationLinks",
+        "type": "object"
+      },
+      "OverlapWarning": {
+        "description": "Another property of the same site is already linked to a project. The two are never\nadded together, so the person must pick one.",
+        "properties": {
+          "external_property": {
+            "title": "External Property",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "external_property",
+          "project_id"
+        ],
+        "title": "OverlapWarning",
         "type": "object"
       },
       "OwnEntityInput": {
@@ -9111,6 +9722,101 @@
         "title": "SignInResponse",
         "type": "object"
       },
+      "SiteProperty": {
+        "properties": {
+          "external_property": {
+            "description": "`sc-domain:example.com` or a URL prefix.",
+            "title": "External Property",
+            "type": "string"
+          },
+          "is_selectable": {
+            "description": "False for an unverified user: Search Console refuses to read its numbers.",
+            "title": "Is Selectable",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "linked_project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The project this property is already linked to. It cannot be linked twice.",
+            "title": "Linked Project Id"
+          },
+          "overlap_warning": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverlapWarning"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "permission_level": {
+            "description": "`siteOwner`, `siteFullUser`, `siteRestrictedUser` or `siteUnverifiedUser`.",
+            "title": "Permission Level",
+            "type": "string"
+          },
+          "property_type": {
+            "enum": [
+              "domain",
+              "url_prefix"
+            ],
+            "title": "Property Type",
+            "type": "string"
+          },
+          "suggested_project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The project whose primary domain this property matches; a Domain property is suggested before a URL-prefix one.",
+            "title": "Suggested Project Id"
+          }
+        },
+        "required": [
+          "external_property",
+          "label",
+          "property_type",
+          "permission_level",
+          "is_selectable",
+          "suggested_project_id",
+          "linked_project_id",
+          "overlap_warning"
+        ],
+        "title": "SiteProperty",
+        "type": "object"
+      },
+      "SitePropertyList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SiteProperty"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SitePropertyList",
+        "type": "object"
+      },
       "Sparkline": {
         "properties": {
           "depth_mode": {
@@ -11446,6 +12152,17 @@
             "description": "`include=groups`.",
             "title": "Groups"
           },
+          "gsc": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GscBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`include=gsc`: clicks and impressions from Search Console."
+          },
           "intent": {
             "enum": [
               "informational",
@@ -13317,6 +14034,94 @@
         ]
       }
     },
+    "/api/v1/oauth/google/callback": {
+      "get": {
+        "description": "Public, but the single-use `state` must belong to the caller's session. Always a 302 to the project's integrations page: `.../integrations/gsc?connection_id=...` on success, `...?error=<code>` otherwise, with `invalid_state`, `scope_denied`, `no_refresh_token`, `exchange_failed`, `google_unavailable` or `integration_not_configured`. When the project cannot be known (a wrong or reused state) it goes to the app's front page with `?integration_error=invalid_state`.",
+        "operationId": "google_callback_api_v1_oauth_google_callback_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "error",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "302": {
+            "description": "Redirect to the web app.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Where Google returns the person after consent",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
     "/api/v1/workspaces": {
       "get": {
         "operationId": "list_workspaces_api_v1_workspaces_get",
@@ -13542,6 +14347,225 @@
         "summary": "Each budget's spend in a month",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/connections": {
+      "get": {
+        "operationId": "list_connections_api_v1_workspaces__workspace_id__connections_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[product]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "gsc",
+                    "ga4",
+                    "bing_wmt",
+                    "cloudflare"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Product]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[status]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "active",
+                    "reauth_required",
+                    "revoked",
+                    "error"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Status]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The workspace's connections",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/connections/{connection_id}": {
+      "delete": {
+        "description": "Revokes the token at Google (best effort), deletes the stored credential, marks the connection revoked and switches off its properties. The numbers already stored are kept. Disconnecting a revoked connection changes nothing.",
+        "operationId": "disconnect_api_v1_workspaces__workspace_id__connections__connection_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Disconnect a Google account",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/connections/{connection_id}/properties": {
+      "get": {
+        "description": "Asks Google, so it can answer `google_unavailable` or `google_rate_limited` (503). `suggested_project_id` names the project whose primary domain the property matches, a Domain property before a URL prefix. `integration_reauth_required` (409) when the account must connect again.",
+        "operationId": "list_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitePropertyList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The Search Console properties of a connection",
+        "tags": [
+          "integrations"
         ]
       }
     },
@@ -15898,6 +16922,273 @@
         "summary": "Change an entity's role in the project",
         "tags": [
           "entities"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations": {
+      "get": {
+        "operationId": "list_project_integrations_api_v1_workspaces__workspace_id__projects__project_id__integrations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The properties linked to a project",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "post": {
+        "description": "The connection must be active and its account must be able to read the property (`property_not_accessible`, 422). A project has one live property and a property belongs to one project of the workspace (`duplicate`, 409). Nothing is pulled yet.",
+        "operationId": "choose_property_api_v1_workspaces__workspace_id__projects__project_id__integrations_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Link a Search Console property to the project",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations/{integration_id}": {
+      "delete": {
+        "description": "The property is switched off and the numbers already stored are kept.",
+        "operationId": "disable_integration_api_v1_workspaces__workspace_id__projects__project_id__integrations__integration_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "integration_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Integration Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Stop using a property for the project",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations/{kind}/authorize": {
+      "post": {
+        "description": "Answers Google's consent address; the web app sends the person there. The address carries a single-use state and a PKCE challenge, both valid for 10 minutes and bound to the caller, the workspace and the project. Google returns the person to `GET /api/v1/oauth/google/callback`. `integration_not_configured` (503) when this installation has no Google OAuth client.",
+        "operationId": "authorize_api_v1_workspaces__workspace_id__projects__project_id__integrations__kind__authorize_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "const": "gsc",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Start connecting a Google account",
+        "tags": [
+          "integrations"
         ]
       }
     },
@@ -18619,7 +19910,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords": {
       "get": {
-        "description": "Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, `current_rank`, `rank_change`, `best_rank` and `last_observed_at`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric or a rank sorts keywords without one (beyond the depth, or never checked) last in both directions. Every row carries its rank `state`; `include` adds `sparkline`, `competitor_ranks`, `ranking_urls`, `features` and `aio`. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).",
+        "description": "Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, `current_rank`, `rank_change`, `best_rank`, `last_observed_at`, `gsc_clicks` and `gsc_impressions`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric or a rank sorts keywords without one (beyond the depth, or never checked) last in both directions. The Search Console sorts use the 28 days of `include=gsc` on the keyword's own device, and count a keyword with no rows as 0 (every row is 0 while the project is `pending` or `not_connected`). Every row carries its rank `state`; `include` adds `sparkline`, `competitor_ranks`, `ranking_urls`, `gsc`, `features` and `aio`. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).",
         "operationId": "list_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get",
         "parameters": [
           {
@@ -18676,6 +19967,7 @@
                       "sparkline",
                       "competitor_ranks",
                       "ranking_urls",
+                      "gsc",
                       "features",
                       "aio"
                     ],

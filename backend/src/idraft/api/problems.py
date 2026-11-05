@@ -311,6 +311,25 @@ class ServiceUnavailableError(ProblemError):
     status, code, title = 503, "service_unavailable", "Service unavailable"
 
 
+class IntegrationNotConfiguredError(ProblemError):
+    """This installation has no Google OAuth client (or the one it has is refused), so nothing
+    can be connected. The rest of the application is unaffected."""
+
+    status, code, title = 503, "integration_not_configured", "The integration is not set up"
+
+
+class IntegrationReauthRequiredError(ProblemError):
+    """The connection's credential no longer works. The person connects the account again."""
+
+    status, code, title = 409, "integration_reauth_required", "The connection needs to be renewed"
+
+
+class PropertyNotAccessibleError(ProblemError):
+    """The connected account cannot read the property, or it is not one of its properties."""
+
+    status, code, title = 422, "property_not_accessible", "The account cannot read this property"
+
+
 class ProviderPausedError(ProblemError):
     """A data provider that is refusing everyone is not asked for now; the pause ends by itself."""
 

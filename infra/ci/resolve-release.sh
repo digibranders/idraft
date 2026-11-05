@@ -187,7 +187,9 @@ case "$MODE" in
     api="${INPUT_API:-}"
     worker="${INPUT_WORKER:-}"
     web="${INPUT_WEB:-}"
-    [ -n "$api" ] && [ -n "$worker" ] && [ -n "$web" ] || die "a manual deploy needs all three image references"
+    if [ -z "$api" ] || [ -z "$worker" ] || [ -z "$web" ]; then
+      die "a manual deploy needs all three image references"
+    fi
     # Separate assignments: a failure inside an argument's command substitution would not stop the script.
     api_commit="$(image_commit "$api")"
     worker_commit="$(image_commit "$worker")"

@@ -626,6 +626,103 @@ async def test_a_keyword_that_never_ranked_lists_no_pages(
     assert by_id[beyond]["ranking_urls"] == []
 
 
+async def _search_console(
+    pg: PostgresServer,
+    workspace: Workspace,
+    project_id: uuid.UUID,
+    status: str,
+    *,
+    property_name: str = "sc-domain:example.com",
+) -> None:
+    """A property linked to the project, written directly: what choosing one leaves behind."""
+    secret = await fetch(
+        pg,
+        "INSERT INTO ops.secrets (workspace_id, kind, ciphertext, dek_wrapped, kek_version, "
+        "fingerprint) VALUES ($1, 'oauth_refresh_token', '\\x00', '\\x00', 1, 'abcd') "
+        "RETURNING id",
+        workspace.id,
+    )
+    connection = await fetch(
+        pg,
+        "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
+        "credential_ref, scopes) VALUES ($1, 'gsc', 'oauth', $2, $3, '{}') RETURNING id",
+        workspace.id,
+        uuid.uuid4().hex,
+        secret[0]["id"],
+    )
+    await execute(
+        pg,
+        "INSERT INTO fp.integrations (workspace_id, project_id, kind, external_property, "
+        "connection_id, scopes, status) VALUES ($1, $2, 'gsc', $3, $4, '{}', $5)",
+        workspace.id,
+        project_id,
+        property_name,
+        connection[0]["id"],
+        status,
+    )
+
+
+NOT_CONNECTED = {"state": "not_connected", "clicks": None, "impressions": None, "window": None}
+
+
+async def test_search_console_clicks_say_not_connected_until_a_property_is_linked(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, _ = await _world(resources, migrated)
+    await tracked_id(api, workspace, project, owner, "crm")
+
+    (plain,) = await _list(api, workspace, project, owner)
+    (row,) = await _list(api, workspace, project, owner, include="gsc")
+
+    assert plain["gsc"] is None
+    # Nothing is linked: the answer is the true one, never an estimate
+    assert row["gsc"] == NOT_CONNECTED
+
+
+async def test_search_console_clicks_say_pending_once_a_property_is_linked(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, _ = await _world(resources, migrated)
+    await tracked_id(api, workspace, project, owner, "crm")
+    await tracked_id(api, workspace, project, owner, "seo tools")
+    await _search_console(migrated, workspace, project, "active")
+
+    rows = await _list(api, workspace, project, owner, include="gsc")
+
+    # Nothing is pulled yet, so no keyword has a number to show
+    assert [row["gsc"] for row in rows] == [
+        {"state": "pending", "clicks": None, "impressions": None, "window": None}
+    ] * 2
+
+
+@pytest.mark.parametrize("status", ["disabled", "reauth_required", "error"])
+async def test_a_property_that_is_not_working_is_not_a_connection(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, status: str
+) -> None:
+    workspace, project, owner, _ = await _world(resources, migrated)
+    await tracked_id(api, workspace, project, owner, "crm")
+    await _search_console(migrated, workspace, project, status)
+
+    (row,) = await _list(api, workspace, project, owner, include="gsc")
+
+    assert row["gsc"] == NOT_CONNECTED
+
+
+async def test_a_property_of_another_project_or_workspace_does_not_connect_this_one(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, _ = await _world(resources, migrated)
+    other_workspace, other_project, _, _ = await _world(resources, migrated)
+    sibling = await keyword_project(migrated, workspace)
+    await tracked_id(api, workspace, project, owner, "crm")
+    await _search_console(migrated, other_workspace, other_project, "active")
+    await _search_console(migrated, workspace, sibling, "active", property_name="sc-domain:b.com")
+
+    (row,) = await _list(api, workspace, project, owner, include="gsc")
+
+    assert row["gsc"] == NOT_CONNECTED
+
+
 async def test_the_detail_carries_the_state(
     api: httpx.AsyncClient,
     resources: Resources,
