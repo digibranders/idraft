@@ -104,6 +104,29 @@ async def test_archived_keywords_do_not_count_and_an_empty_project_has_none(
     assert _summary(await _countries(api, workspace, project, owner)) == [(OTHER_LOCATION, 1)]
 
 
+async def test_deleted_keywords_do_not_count(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    deleted = await tracked_id(api, workspace, project, owner, "crm")
+    await api.delete(
+        project_url(workspace, project, "tracked-keywords", deleted), headers=owner.headers
+    )
+    await tracked_id(api, workspace, project, owner, "erp", location_id=OTHER_LOCATION)
+
+    assert _summary(await _countries(api, workspace, project, owner)) == [(OTHER_LOCATION, 1)]
+
+
+async def test_a_deleted_project_has_no_countries(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    await tracked_id(api, workspace, project, owner, "crm")
+    await execute(migrated, "UPDATE core.projects SET deleted_at = now() WHERE id = $1", project)
+
+    assert problem(await _countries(api, workspace, project, owner)) == (404, "not_found")
+
+
 async def test_another_workspaces_project_is_not_found(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

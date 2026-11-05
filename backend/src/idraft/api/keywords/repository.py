@@ -574,6 +574,8 @@ async def countries_in_use(
 ) -> list[CountryRecord]:
     """The countries the project's active tracked keywords sit in, a place inside a country
     counting for it, most keywords first."""
+    # A keyword whose location's ISO code has no `Country` row is left out, and the join assumes
+    # one `Country` row per ISO code.
     t = tracked_keywords.c
     place = locations.alias("place")
     country = locations.alias("country")

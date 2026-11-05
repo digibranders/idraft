@@ -2323,6 +2323,16 @@
         "title": "FeaturePresence",
         "type": "object"
       },
+      "FilterList_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_1___Le_le_2147483647_____": {
+        "items": {
+          "maximum": 2147483647.0,
+          "minimum": 1.0,
+          "type": "integer"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
       "FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___": {
         "items": {
           "enum": [
@@ -2422,14 +2432,6 @@
         "items": {
           "format": "uuid",
           "type": "string"
-        },
-        "maxItems": 100,
-        "minItems": 1,
-        "type": "array"
-      },
-      "FilterList_int_": {
-        "items": {
-          "type": "integer"
         },
         "maxItems": 100,
         "minItems": 1,
@@ -10325,6 +10327,8 @@
           "location_id": {
             "anyOf": [
               {
+                "maximum": 2147483647.0,
+                "minimum": 1.0,
                 "type": "integer"
               },
               {
@@ -10720,6 +10724,8 @@
           "country_id": {
             "anyOf": [
               {
+                "maximum": 2147483647.0,
+                "minimum": 1.0,
                 "type": "integer"
               },
               {
@@ -10732,7 +10738,7 @@
           "country_id_in": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/FilterList_int_"
+                "$ref": "#/components/schemas/FilterList_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_1___Le_le_2147483647_____"
               },
               {
                 "type": "null"
@@ -10897,6 +10903,8 @@
           "location_id": {
             "anyOf": [
               {
+                "maximum": 2147483647.0,
+                "minimum": 1.0,
                 "type": "integer"
               },
               {
@@ -11253,7 +11261,7 @@
             "type": "integer"
           },
           "used": {
-            "description": "Active tracked keywords of every live project of the workspace.",
+            "description": "Active tracked keywords of every project of the workspace that is not deleted.",
             "title": "Used",
             "type": "integer"
           }
@@ -20801,7 +20809,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/tracked-keyword-quota": {
       "get": {
-        "description": "`used` counts the active tracked keywords of every live project of the workspace, the figure `quota_exceeded` carries. The full quota report stays deferred.",
+        "description": "`used` counts the active tracked keywords of every project of the workspace that is not deleted, the figure `quota_exceeded` carries. The full quota report stays deferred.",
         "operationId": "get_tracked_keyword_quota_api_v1_workspaces__workspace_id__tracked_keyword_quota_get",
         "parameters": [
           {

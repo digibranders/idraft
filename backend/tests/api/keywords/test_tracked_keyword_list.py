@@ -209,6 +209,35 @@ async def test_the_country_in_filter_takes_every_country_named_and_the_places_in
     assert _texts(scoped) == ["erp"]
 
 
+@pytest.mark.parametrize(
+    ("name", "value", "parameter"),
+    [
+        ("country_id_in", "abc", "filter[country_id_in]"),
+        ("country_id_in", "", "filter[country_id_in]"),
+        ("country_id_in", ",".join(str(n) for n in range(1, 102)), "filter[country_id_in]"),
+        ("country_id_in", "3000000000", "filter[country_id_in]"),
+        ("country_id_in", "0", "filter[country_id_in]"),
+        ("country_id", "3000000000", "filter[country_id]"),
+        ("location_id", "3000000000", "filter[location_id]"),
+    ],
+)
+async def test_a_bad_location_filter_is_a_validation_error(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    name: str,
+    value: str,
+    parameter: str,
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+
+    response = await _list(api, workspace, project, owner, **{parameter: value})
+
+    assert problem(response) == (422, "validation_failed"), name
+    # A list names the item that is wrong: `filter[country_id_in].0`
+    assert response.json()["errors"][0]["path"].startswith(parameter)
+
+
 async def test_group_and_term_filters_include_what_is_under_them(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

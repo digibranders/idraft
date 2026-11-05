@@ -24,8 +24,9 @@ Quotas = Annotated[QuotaService, Depends(get_quota_service)]
 @router.get(
     "/tracked-keyword-quota",
     summary="The workspace's tracked keyword limit and use",
-    description="`used` counts the active tracked keywords of every live project of the "
-    "workspace, the figure `quota_exceeded` carries. The full quota report stays deferred.",
+    description="`used` counts the active tracked keywords of every project of the "
+    "workspace that is not deleted, the figure `quota_exceeded` carries. The full quota report "
+    "stays deferred.",
 )
 async def get_tracked_keyword_quota(
     access: MemberAccess, quotas: Quotas

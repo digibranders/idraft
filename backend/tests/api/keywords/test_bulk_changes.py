@@ -173,6 +173,33 @@ async def test_bulk_archive_by_countries_archives_only_those_countries(
     assert {text: r["is_active"] for text, r in rows.items()} == {"crm": True, "erp": False}
 
 
+@pytest.mark.parametrize(
+    "filter_body",
+    [
+        {"country_id_in": ["abc"]},
+        {"country_id_in": []},
+        {"country_id_in": list(range(1, 102))},
+        {"country_id_in": [2**40]},
+        {"country_id_in": [0]},
+        {"country_id": 2**40},
+        {"location_id": 2**40},
+    ],
+)
+async def test_a_bad_location_in_a_body_filter_is_a_validation_error(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    filter_body: dict[str, Any],
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+
+    response = await _bulk(
+        api, workspace, project, owner, "bulk-archive", {"filter": filter_body, "archive": True}
+    )
+
+    assert problem(response) == (422, "validation_failed")
+
+
 async def test_a_single_valued_term_added_in_bulk_replaces_the_one_there(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
