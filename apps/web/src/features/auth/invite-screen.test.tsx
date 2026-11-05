@@ -77,8 +77,8 @@ describe('InviteScreen', () => {
 
   it('puts the reason the API refuses a password on the password field, keeping the name', async () => {
     const rendered = await openInvitation();
-    await register(rendered, 'lena-2026-password');
-    expect(await screen.findByText('Do not use your email address in the password.')).toBeInTheDocument();
+    await register(rendered, 'short');
+    expect(await screen.findByText(/^Use at least \d+ characters\.$/)).toBeInTheDocument();
     expect(screen.getByLabelText('Your name')).toHaveValue('Lena Vogel');
   });
 

@@ -62,15 +62,16 @@ export function RankingPagesCard({ trigger, pages, checkedAt, timeZone }: Rankin
   const t = useTranslations('rankings.pages');
   const rank = useTranslations('rankings.rank');
   return (
-    <PreviewCard trigger={trigger} label={t('label')} className="w-auto max-w-(--size-popover-max) min-w-80 gap-2">
+    <PreviewCard trigger={trigger} label={t('label')} className="w-(--size-popover-max) max-w-full gap-2">
       <p className="type-meta text-foreground-secondary">{t('title', { count: pages.length })}</p>
-      <table className="w-full border-collapse">
+      {/* A fixed layout keeps a long path inside the card: the page column takes what the rank leaves and truncates */}
+      <table className="w-full table-fixed border-collapse">
         <thead>
           <tr>
             <th scope="col" className="pb-1 text-left type-table-header text-foreground-tertiary">
               {t('page')}
             </th>
-            <th scope="col" className="pb-1 pl-4 text-right type-table-header text-foreground-tertiary">
+            <th scope="col" className="w-14 pb-1 pl-4 text-right type-table-header text-foreground-tertiary">
               {rank('rank')}
             </th>
           </tr>
@@ -78,11 +79,12 @@ export function RankingPagesCard({ trigger, pages, checkedAt, timeZone }: Rankin
         <tbody>
           {pages.map((page, index) => (
             <tr key={page.url.url_id} className="border-t border-border-subtle align-top">
-              <td className="max-w-72 py-1.5">
+              <td className="py-1.5">
                 <a
                   href={page.url.canonical_url}
                   target="_blank"
                   rel="noopener noreferrer"
+                  title={page.url.path}
                   className="block truncate type-body text-link hover:underline"
                 >
                   {page.url.path}
