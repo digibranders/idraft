@@ -1,15 +1,25 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { delay, http, HttpResponse } from 'msw';
 import type { UrlUpdateEvent } from 'nuqs/adapters/testing';
+import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DETAIL, TERM_ASSIGNMENTS } from './inspector-queries';
+import { useKeywordCountries } from '../keyword-countries';
+import { MOCK_WORKSPACE } from '@/mocks/fixtures';
 import { mockId } from '@/mocks/mock-ids';
 import { invalidField, mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { readChartTokens, type ChartTokens } from '@/lib/design/read-tokens';
 import { server } from '@/test/msw';
-import { keywordsIn, loadedGrid, rankingsAs as as, restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
+import {
+  fynix,
+  keywordsIn,
+  loadedGrid,
+  rankingsAs as as,
+  restoreWideScreen,
+  stubWideScreen,
+} from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
 // jsdom has no canvas: the chart's frame, legend and table view are what these tests read
@@ -74,6 +84,12 @@ function priorityInRow(keyword: string): string | undefined {
   return [...row.children][index]?.textContent ?? undefined;
 }
 
+/** The keyword counts of the countries in use, as a screen that shows them reads them. */
+function CountryCounts(): ReactElement {
+  const { countries } = useKeywordCountries({ workspaceId: MOCK_WORKSPACE.workspace_id, projectId: fynix.project_id });
+  return <p data-testid="country-counts">{countries.map((country) => country.keywordCount).join(',')}</p>;
+}
+
 const inspectorOf = (keyword: string): Promise<HTMLElement> =>
   screen.findByRole('complementary', { name: keyword }, { timeout: 3000 });
 const section = (inspector: HTMLElement, title: string): HTMLElement => {
@@ -105,7 +121,7 @@ describe('The keyword inspector', () => {
     await waitFor(() => expect(url.latest().get('inspect')).toMatch(/^keyword:/));
     expect(within(inspector).getByText('United States · Desktop')).toBeInTheDocument();
     expect(within(inspector).getByText('Google · English')).toBeInTheDocument();
-    expect(within(inspector).getByText('1 of 58')).toBeInTheDocument();
+    expect(within(inspector).getByText('1 of 57')).toBeInTheDocument();
     const metrics = within(inspector).getByRole('group', { name: 'Metrics for this keyword' });
     expect(await within(metrics).findByText('33,100')).toBeInTheDocument();
     expect(within(metrics).getByText('$24.10')).toBeInTheDocument();
@@ -125,7 +141,7 @@ describe('The keyword inspector', () => {
     await openFromRow(user, 'seo agency');
     await user.keyboard('j');
     const next = await inspectorOf('backlink checker');
-    expect(within(next).getByText('2 of 58')).toBeInTheDocument();
+    expect(within(next).getByText('2 of 57')).toBeInTheDocument();
     await user.keyboard('k');
     expect(await inspectorOf('seo agency')).toBeInTheDocument();
   });
@@ -304,6 +320,24 @@ describe('The keyword inspector', () => {
     await user.click(screen.getByRole('button', { name: 'Undo' }));
     expect(await screen.findByText('1 keyword unarchived')).toBeInTheDocument();
     await waitFor(() => expect(within(inspector).queryByText('Archived')).toBeNull());
+  });
+
+  it('reads the countries in use again after an archive and after its undo', async () => {
+    const countsOf = (): string => screen.getByTestId('country-counts').textContent ?? '';
+    const { user } = renderWithProviders(
+      <>
+        {as('editor')}
+        <CountryCounts />
+      </>,
+    );
+    const inspector = await openFromRow(user, 'seo agency');
+    await waitFor(() => expect(countsOf()).not.toBe(''));
+    const before = countsOf();
+    await user.click(within(inspector).getByRole('button', { name: 'More actions for seo agency' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Archive keyword' }));
+    await waitFor(() => expect(countsOf()).not.toBe(before));
+    await user.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(countsOf()).toBe(before));
   });
 
   it('says what to do when archiving fails: try again', async () => {

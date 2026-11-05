@@ -208,6 +208,15 @@ class ScheduleRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class CountryRecord:
+    location_id: int
+    name: str
+    country_iso: str
+    location_type: str
+    keyword_count: int
+
+
+@dataclass(frozen=True, slots=True)
 class VariantRecord:
     tracked_keyword_id: UUID
     project_id: UUID
@@ -558,6 +567,43 @@ async def count_tracked(
         )
     ).scalar_one()
     return count
+
+
+async def countries_in_use(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID
+) -> list[CountryRecord]:
+    """The countries the project's active tracked keywords sit in, a place inside a country
+    counting for it, most keywords first."""
+    # A keyword whose location's ISO code has no `Country` row is left out, and the join assumes
+    # one `Country` row per ISO code.
+    t = tracked_keywords.c
+    place = locations.alias("place")
+    country = locations.alias("country")
+    count = func.count(t.keyword_id.distinct()).label("keyword_count")
+    rows = await db.execute(
+        select(country.c.id, country.c.name, country.c.country_iso, country.c.location_type, count)
+        .select_from(
+            tracked_keywords.join(place, place.c.id == t.location_id).join(
+                country,
+                and_(
+                    country.c.country_iso == place.c.country_iso,
+                    country.c.location_type == "Country",
+                ),
+            )
+        )
+        .where(
+            t.workspace_id == workspace_id,
+            t.project_id == project_id,
+            t.is_active,
+            t.deleted_at.is_(None),
+        )
+        .group_by(country.c.id, country.c.name, country.c.country_iso, country.c.location_type)
+        .order_by(count.desc(), country.c.name, country.c.id)
+    )
+    return [
+        CountryRecord(row.id, row.name, row.country_iso, row.location_type, row.keyword_count)
+        for row in rows
+    ]
 
 
 async def lock_subjects(

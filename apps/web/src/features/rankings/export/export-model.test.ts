@@ -6,6 +6,7 @@ import { buildExport, rankCell, safeText, toCsv, type ExportLabels } from './exp
 
 const LABELS: ExportLabels = {
   keyword: 'Keyword',
+  rank: 'Rank',
   desktop: 'Desktop',
   mobile: 'Mobile',
   url: 'Ranking URL',
@@ -79,33 +80,34 @@ describe('buildExport', () => {
     paired(cell({}), null, 'lonely'),
   ];
 
-  it('counts the tracked keywords of both devices, as the strip does', () => {
-    const { kpis } = buildExport(rows, 'both', LABELS);
+  it('counts the tracked keywords of the device chosen, as the strip does', () => {
+    const { kpis } = buildExport(rows, 'desktop', LABELS);
     expect(kpis).toEqual([
-      { label: 'Keywords', value: 5 },
-      { label: 'Top 3', value: 2 },
-      { label: 'Top 10', value: 3 },
-      { label: 'Top 20', value: 3 },
+      { label: 'Keywords', value: 3 },
+      { label: 'Top 3', value: 1 },
+      { label: 'Top 10', value: 2 },
+      { label: 'Top 20', value: 2 },
     ]);
   });
 
-  it('counts only the device chosen, and drops the other device’s column', () => {
+  it('counts only the device chosen, and names it in the one rank column', () => {
     const mobile = buildExport(rows, 'mobile', LABELS);
     expect(mobile.kpis.map((kpi) => kpi.value)).toEqual([2, 1, 1, 1]);
+    expect(mobile.header).toContain('Rank (Mobile)');
     expect(mobile.header).not.toContain('Desktop');
-    expect(mobile.header).toContain('Mobile');
+    expect(mobile.header).not.toContain('Mobile');
     const desktop = buildExport(rows, 'desktop', LABELS);
-    expect(desktop.kpis[0]?.value).toBe(3);
+    expect(desktop.header).toContain('Rank (Desktop)');
+    expect(desktop.header).not.toContain('Desktop');
     expect(desktop.header).not.toContain('Mobile');
   });
 
-  it('writes a row for each keyword with a rank for each device, the volume and the ranking address', () => {
-    const { header, rows: body } = buildExport(rows, 'both', LABELS);
-    expect(header.slice(0, 3)).toEqual(['Keyword', 'Desktop', 'Mobile']);
+  it('writes a row for each keyword with the rank on the device shown, the volume and the ranking address', () => {
+    const { header, rows: body } = buildExport(rows, 'desktop', LABELS);
+    expect(header.slice(0, 2)).toEqual(['Keyword', 'Rank (Desktop)']);
     expect(body[0]).toEqual([
       'soc service',
       1,
-      '>100',
       'https://eventussecurity.com/soc',
       8100,
       13,
@@ -115,20 +117,21 @@ describe('buildExport', () => {
       'Cybersecurity',
       '2026-11-04 05:00 UTC',
     ]);
-    expect(body[2]?.slice(0, 3)).toEqual(['lonely', '>100', null]);
+    expect(body[2]?.slice(0, 2)).toEqual(['lonely', '>100']);
   });
 
   it('names the kind of each column in the order of the header, for the workbook to format by', () => {
-    const both = buildExport(rows, 'both', LABELS);
-    expect(both.kinds).toHaveLength(both.header.length);
-    expect(both.kinds.slice(0, 4)).toEqual(['keyword', 'rank', 'rank', 'url']);
+    const desktop = buildExport(rows, 'desktop', LABELS);
+    expect(desktop.kinds).toHaveLength(desktop.header.length);
+    expect(desktop.kinds.slice(0, 3)).toEqual(['keyword', 'rank', 'url']);
+    expect(desktop.kinds.filter((kind) => kind === 'rank')).toHaveLength(1);
     expect(buildExport(rows, 'mobile', LABELS).kinds.filter((kind) => kind === 'rank')).toHaveLength(1);
   });
 
   it('leaves the intent empty when it has no name', () => {
     const unnamed = paired(ranked(1), null);
     unnamed.intent = 'unknown';
-    expect(buildExport([unnamed], 'both', LABELS).rows[0]?.[7]).toBeNull();
+    expect(buildExport([unnamed], 'desktop', LABELS).rows[0]?.[6]).toBeNull();
   });
 });
 

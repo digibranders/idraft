@@ -735,6 +735,14 @@ class KeywordService:
             next_cursor = encode_cursor(filters.encode_key(parts, shown[-1][1]), scope=bound)
         return TrackedPageResult(rows=rows, next_cursor=next_cursor, total=total)
 
+    async def countries_in_use(
+        self, access: WorkspaceAccess, project_id: UUID
+    ) -> list[repository.CountryRecord]:
+        """The countries the project has active tracked keywords in."""
+        async with self._transaction(access) as db:
+            await self._defaults(db, access, project_id)
+            return await repository.countries_in_use(db, access.workspace_id, project_id)
+
     async def bulk_update(
         self,
         access: WorkspaceAccess,

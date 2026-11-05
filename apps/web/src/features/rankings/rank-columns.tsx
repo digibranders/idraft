@@ -8,7 +8,6 @@ import { SerpFeatureListView, AioStatusView, CompetitorRankView } from './featur
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
 import { SparklineCell } from '@/components/app/sparkline/sparkline-cell';
-import type { PairedRow } from './keyword-pairs';
 import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { sparklineSummary } from '@/lib/charts/sparkline';
 import {
@@ -24,9 +23,8 @@ import { featureListDisplay, isFeatureType, FEATURE_MESSAGE_KEYS } from '@/lib/k
 
 /** The ids of the rank columns: the API's sort fields, except the ranking URL, which does not sort. */
 export const RANK_COLUMN_IDS = {
-  /** The desktop rank keeps the API's sort field, so a link with `sort=current_rank` still sorts. */
+  /** The rank column keeps the API's sort field, so a link with `sort=current_rank` still sorts. */
   rank: 'current_rank',
-  rankMobile: 'rank_mobile',
   url: 'ranking_url',
   best: 'best_rank',
   updated: 'last_observed_at',
@@ -35,9 +33,15 @@ export const RANK_COLUMN_IDS = {
   trend: 'trend',
 } as const;
 
+/** What a row's rank cell shows, from its state. */
+export const rankDisplayOf = (row: TrackedKeywordRow): ReturnType<typeof rankDisplay> =>
+  rankDisplay(row.state.current, row.state.is_stale, row.state.consecutive_failures, {
+    dropUnconfirmed: row.state.drop_unconfirmed,
+    check: row.state.check,
+  });
+
 export interface RankColumns {
-  rankDesktop: DataTableColumn<PairedRow>;
-  rankMobile: DataTableColumn<PairedRow>;
+  rank: DataTableColumn<TrackedKeywordRow>;
   url: DataTableColumn<TrackedKeywordRow>;
   best: DataTableColumn<TrackedKeywordRow>;
   updated: DataTableColumn<TrackedKeywordRow>;
@@ -61,11 +65,7 @@ export function useRankColumns(timeZone: string): RankColumns {
   const tips = useRankTips(timeZone);
   return useMemo((): RankColumns => {
     const pending: UnknownValue = { label: t('pending'), tooltip: t('pendingTooltip') };
-    const display = (row: TrackedKeywordRow): ReturnType<typeof rankDisplay> =>
-      rankDisplay(row.state.current, row.state.is_stale, row.state.consecutive_failures, {
-        dropUnconfirmed: row.state.drop_unconfirmed,
-        check: row.state.check,
-      });
+    const display = rankDisplayOf;
     // The AI Overview cell says what it shows; only its failure is an icon that needs words
     const aioTip = (row: TrackedKeywordRow): CellTip | undefined =>
       row.state.current.state === 'failed' ? { content: aioT('failedTooltip') } : undefined;
@@ -84,38 +84,28 @@ export function useRankColumns(timeZone: string): RankColumns {
           : undefined;
       return { content, detail };
     };
-    /** A device's rank and its change, from the row of that device; "Not tracked" where there is none. */
-    const rankColumn = (device: 'desktop' | 'mobile'): DataTableColumn<PairedRow> =>
-      col.rank<PairedRow>(
-        device === 'desktop' ? RANK_COLUMN_IDS.rank : RANK_COLUMN_IDS.rankMobile,
+    return {
+      rank: col.rank<TrackedKeywordRow>(
+        RANK_COLUMN_IDS.rank,
         (row) => {
-          const own = row.devices[device];
-          const shown = own === null ? null : display(own);
-          return shown !== null && shown.kind === 'ranked' ? shown.rank : null;
+          const shown = display(row);
+          return shown.kind === 'ranked' ? shown.rank : null;
         },
         {
-          header: t(device === 'desktop' ? 'rankDesktop' : 'rankMobile'),
+          header: t('rank'),
           priority: 1,
-          // "Desktop" with its sort arrow and the column menu needs more than a rank's usual width
+          // The rank and its change slot beside it
           width: 128,
           minWidth: 128,
-          cell: (row) => {
-            const own = row.devices[device];
-            return own === null ? (
-              <span className="text-foreground-tertiary">{t('notTracked')}</span>
-            ) : (
-              <RankCellView
-                display={display(own)}
-                change={rowChangeDisplay(own.state.current, own.state.change)}
-                timeZone={timeZone}
-              />
-            );
-          },
+          cell: (row) => (
+            <RankCellView
+              display={display(row)}
+              change={rowChangeDisplay(row.state.current, row.state.change)}
+              timeZone={timeZone}
+            />
+          ),
         },
-      );
-    return {
-      rankDesktop: rankColumn('desktop'),
-      rankMobile: rankColumn('mobile'),
+      ),
       url: col.url<TrackedKeywordRow>(RANK_COLUMN_IDS.url, () => null, {
         header: t('rankingUrl'),
         priority: 2,

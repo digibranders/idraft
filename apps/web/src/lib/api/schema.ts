@@ -1684,6 +1684,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/countries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The countries the project has keywords in
+         * @description One entry for each country with active tracked keywords, a keyword tracked in a city counting for the city's country, most keywords first. `keyword_count` counts distinct keywords: one tracked on both devices counts once.
+         */
+        get: operations["list_tracked_keyword_countries_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_countries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}": {
         parameters: {
             query?: never;
@@ -1871,6 +1891,26 @@ export interface paths {
          * @description A new `slug` or `parent_id` rewrites the paths of the whole subtree. The name keeps its slug unless a slug is given. `422 cycle_detected` for a parent under the term.
          */
         patch: operations["update_term_api_v1_workspaces__workspace_id__terms__term_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/tracked-keyword-quota": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The workspace's tracked keyword limit and use
+         * @description `used` counts the active tracked keywords of every project of the workspace that is not deleted, the figure `quota_exceeded` carries. The full quota report stays deferred.
+         */
+        get: operations["get_tracked_keyword_quota_api_v1_workspaces__workspace_id__tracked_keyword_quota_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/workspaces/{workspace_id}/vocabularies": {
@@ -2953,6 +2993,7 @@ export interface components {
             own_ownership_rate: components["schemas"]["MetricValue"];
             presence_rate: components["schemas"]["MetricValue"];
         };
+        FilterList_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_1___Le_le_2147483647_____: number[];
         FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___: ("absent" | "present_not_cited" | "present_cited" | "not_loaded" | "unknown")[];
         FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown")[];
         FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___: ("light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100")[];
@@ -5912,6 +5953,21 @@ export interface components {
             remove_term_ids?: string[];
             set?: components["schemas"]["TrackedKeywordPatch"] | null;
         };
+        /** TrackedKeywordCountries */
+        TrackedKeywordCountries: {
+            /** Data */
+            data: components["schemas"]["TrackedKeywordCountry"][];
+        };
+        /** TrackedKeywordCountry */
+        TrackedKeywordCountry: {
+            /**
+             * Keyword Count
+             * @description Distinct keywords tracked in it or anywhere inside it, devices counted once.
+             */
+            keyword_count: number;
+            /** @description The country itself. */
+            location: components["schemas"]["LocationRef"];
+        };
         /**
          * TrackedKeywordCreate
          * @description Defaults come from the project: its location and language, and its settings
@@ -6079,6 +6135,8 @@ export interface components {
              * @description A country's location id: the keywords tracked in that country or anywhere inside it (a region, a city).
              */
             country_id?: number | null;
+            /** @description Any of these countries' location ids: the keywords tracked in one of them or anywhere inside one. */
+            country_id_in?: components["schemas"]["FilterList_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_1___Le_le_2147483647_____"] | null;
             /**
              * Declined
              * @description Ranked lower than the check before.
@@ -6198,6 +6256,23 @@ export interface components {
             schedule_id?: string | null;
             /** Target Url */
             target_url?: string | null;
+        };
+        /** TrackedKeywordQuota */
+        TrackedKeywordQuota: {
+            /**
+             * Limit
+             * @description The most active tracked keywords the workspace may hold.
+             */
+            limit: number;
+            /**
+             * Used
+             * @description Active tracked keywords of every project of the workspace that is not deleted.
+             */
+            used: number;
+        };
+        /** TrackedKeywordQuotaResponse */
+        TrackedKeywordQuotaResponse: {
+            data: components["schemas"]["TrackedKeywordQuota"];
         };
         /** TrackedKeywordResponse */
         TrackedKeywordResponse: {
@@ -10162,6 +10237,8 @@ export interface operations {
                 "filter[location_id]"?: number | null;
                 /** @description A country's location id: tracked in it or anywhere inside it. */
                 "filter[country_id]"?: number | null;
+                /** @description Any of these countries (comma separated location ids): tracked in one of them or anywhere inside one. */
+                "filter[country_id_in]"?: number[] | null;
                 "filter[language_code]"?: string | null;
                 "filter[search_engine]"?: ("google" | "bing") | null;
                 "filter[intent_in]"?: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown")[] | null;
@@ -10385,6 +10462,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BulkUpdateResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_tracked_keyword_countries_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_countries_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackedKeywordCountries"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -10822,6 +10931,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TermResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_tracked_keyword_quota_api_v1_workspaces__workspace_id__tracked_keyword_quota_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackedKeywordQuotaResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */

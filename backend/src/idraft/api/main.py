@@ -49,6 +49,8 @@ from idraft.api.operations.settings_routes import router as settings_routes_rout
 from idraft.api.problems import register_problem_handlers
 from idraft.api.projects.routes import router as projects_router
 from idraft.api.projects.service import ProjectService
+from idraft.api.quotas.routes import router as quotas_router
+from idraft.api.quotas.service import QuotaService
 from idraft.api.ranks.routes import event_router as rank_events_router
 from idraft.api.ranks.routes import keyword_router as rank_history_router
 from idraft.api.ranks.routes import snapshot_router as serp_snapshots_router
@@ -201,6 +203,7 @@ def create_app(
                 costs=CostService(sessions=sessions),
                 imports=ImportService(sessions=sessions, store=sources),
                 ranks=RankService(sessions=sessions, raw_store=sources),
+                quotas=QuotaService(sessions=sessions),
                 integrations=IntegrationService(
                     sessions=sessions,
                     states=OAuthStateStore(redis),
@@ -256,6 +259,7 @@ def create_app(
     app.include_router(settings_routes_router)
     app.include_router(cost_routes_router)
     app.include_router(imports_router)
+    app.include_router(quotas_router)
     app.include_router(integrations_router)
     app.include_router(connections_router)
     app.include_router(oauth_router)

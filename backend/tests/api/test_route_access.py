@@ -47,6 +47,7 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("POST", "/api/v1/workspaces"): "authenticated",
     ("GET", "/api/v1/workspaces/{workspace_id}"): "member",
     ("PATCH", "/api/v1/workspaces/{workspace_id}"): "workspace:update",
+    ("GET", "/api/v1/workspaces/{workspace_id}/tracked-keyword-quota"): "member",
     ("GET", "/api/v1/workspaces/{workspace_id}/members"): "member",
     ("PATCH", "/api/v1/workspaces/{workspace_id}/members/{user_id}"): "members:manage fresh",
     ("DELETE", "/api/v1/workspaces/{workspace_id}/members/{user_id}"): "members:manage fresh",
@@ -249,6 +250,10 @@ EXPECTED: dict[tuple[str, str], str] = {
     (
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/countries",
     ): "data:read",
     # Google (Search Console and GA4). Connections are the workspace's credentials, so a manager
     # limited to some projects neither manages them nor links one to a project.

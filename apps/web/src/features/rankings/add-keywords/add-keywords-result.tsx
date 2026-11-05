@@ -9,6 +9,7 @@ import { refreshKeywords, type ProjectScope } from '../rankings-queries';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DialogBody, DialogFooter, DialogHeader } from '@/components/ui/dialog';
+import { FormAlert } from '@/components/ui/form-alert';
 import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
@@ -19,15 +20,18 @@ const SHOWN = 20;
 
 /** What an add did, when it did not simply add everything. */
 export interface AddOutcome {
-  /** Tracked keywords written: with both devices, two of each keyword. */
+  /** Tracked keywords written: one per keyword, country and device. */
   added: number;
   /** Of `added`, the ones that were deleted and came back with their old settings. */
   restored: number;
+  /** One keyword makes more than one tracked keyword (several countries, or both devices). */
   both: boolean;
-  /** Keywords the project tracks already, with the tracked keyword each one is. */
-  skipped: readonly { id: string; keyword: string }[];
-  /** Keywords the API refused, with why. */
-  rejected: readonly { keyword: string; reason: string }[];
+  /** Keywords the project tracks already in a country, with the tracked keyword each one is. */
+  skipped: readonly { id: string; keyword: string; country: string }[];
+  /** Keywords the API refused in a country, with why. */
+  rejected: readonly { keyword: string; country: string; reason: string }[];
+  /** Why the add stopped before every keyword was sent (the plan's limit), or `null`. */
+  stopped: string | null;
 }
 
 type Unarchive = 'pending' | 'done' | { failed: string };
@@ -93,6 +97,7 @@ export function AddKeywordsResult({
         closeLabel={common('close')}
       />
       <DialogBody>
+        {outcome.stopped === null ? null : <FormAlert message={outcome.stopped} />}
         {outcome.restored === 0 ? null : <p className="type-body">{add('restored', { count: outcome.restored })}</p>}
         {outcome.skipped.length === 0 ? null : (
           <section aria-labelledby={skippedId} className="flex flex-col gap-2">
@@ -105,10 +110,11 @@ export function AddKeywordsResult({
                 const detail = details[index]?.data?.data ?? null;
                 const archived = detail !== null && !detail.is_active;
                 const state = unarchived.get(item.id);
+                const named = t('keywordCountry', { keyword: item.keyword, country: item.country });
                 const label =
                   detail === null
-                    ? item.keyword
-                    : t('keywordDevice', { keyword: item.keyword, device: add(`devices.${detail.device}`) });
+                    ? named
+                    : t('keywordDevice', { keyword: named, device: add(`devices.${detail.device}`) });
                 return (
                   <li key={item.id} className="flex flex-col gap-1 py-2">
                     <div className="flex min-w-0 items-center gap-2">
@@ -161,7 +167,9 @@ export function AddKeywordsResult({
             <ul className="flex flex-col divide-y divide-border-subtle">
               {outcome.rejected.slice(0, SHOWN).map((item, index) => (
                 <li key={`${String(index)}:${item.keyword}`} className="flex flex-col gap-0.5 py-2">
-                  <span className="type-body wrap-anywhere">{item.keyword}</span>
+                  <span className="type-body wrap-anywhere">
+                    {t('keywordCountry', { keyword: item.keyword, country: item.country })}
+                  </span>
                   <span className="type-meta">{item.reason}</span>
                 </li>
               ))}

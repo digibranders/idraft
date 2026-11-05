@@ -2599,6 +2599,16 @@
         "title": "FeaturePresence",
         "type": "object"
       },
+      "FilterList_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_1___Le_le_2147483647_____": {
+        "items": {
+          "maximum": 2147483647.0,
+          "minimum": 1.0,
+          "type": "integer"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
       "FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___": {
         "items": {
           "enum": [
@@ -10944,6 +10954,41 @@
         "title": "TrackedKeywordBulkUpdate",
         "type": "object"
       },
+      "TrackedKeywordCountries": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TrackedKeywordCountry"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "TrackedKeywordCountries",
+        "type": "object"
+      },
+      "TrackedKeywordCountry": {
+        "properties": {
+          "keyword_count": {
+            "description": "Distinct keywords tracked in it or anywhere inside it, devices counted once.",
+            "title": "Keyword Count",
+            "type": "integer"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationRef",
+            "description": "The country itself."
+          }
+        },
+        "required": [
+          "location",
+          "keyword_count"
+        ],
+        "title": "TrackedKeywordCountry",
+        "type": "object"
+      },
       "TrackedKeywordCreate": {
         "additionalProperties": false,
         "description": "Defaults come from the project: its location and language, and its settings\n(`seo.default_device`, `default_depth_profile`, `default_frequency`).",
@@ -11089,6 +11134,8 @@
           "location_id": {
             "anyOf": [
               {
+                "maximum": 2147483647.0,
+                "minimum": 1.0,
                 "type": "integer"
               },
               {
@@ -11484,6 +11531,8 @@
           "country_id": {
             "anyOf": [
               {
+                "maximum": 2147483647.0,
+                "minimum": 1.0,
                 "type": "integer"
               },
               {
@@ -11492,6 +11541,17 @@
             ],
             "description": "A country's location id: the keywords tracked in that country or anywhere inside it (a region, a city).",
             "title": "Country Id"
+          },
+          "country_id_in": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FilterList_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_1___Le_le_2147483647_____"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Any of these countries' location ids: the keywords tracked in one of them or anywhere inside one."
           },
           "declined": {
             "anyOf": [
@@ -11650,6 +11710,8 @@
           "location_id": {
             "anyOf": [
               {
+                "maximum": 2147483647.0,
+                "minimum": 1.0,
                 "type": "integer"
               },
               {
@@ -11996,6 +12058,38 @@
           }
         },
         "title": "TrackedKeywordPatch",
+        "type": "object"
+      },
+      "TrackedKeywordQuota": {
+        "properties": {
+          "limit": {
+            "description": "The most active tracked keywords the workspace may hold.",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "used": {
+            "description": "Active tracked keywords of every project of the workspace that is not deleted.",
+            "title": "Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "used"
+        ],
+        "title": "TrackedKeywordQuota",
+        "type": "object"
+      },
+      "TrackedKeywordQuotaResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TrackedKeywordQuota"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "TrackedKeywordQuotaResponse",
         "type": "object"
       },
       "TrackedKeywordResponse": {
@@ -20169,6 +20263,27 @@
             }
           },
           {
+            "description": "Any of these countries (comma separated location ids): tracked in one of them or anywhere inside one.",
+            "in": "query",
+            "name": "filter[country_id_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Any of these countries (comma separated location ids): tracked in one of them or anywhere inside one.",
+              "title": "Filter[Country Id In]"
+            }
+          },
+          {
             "in": "query",
             "name": "filter[language_code]",
             "required": false,
@@ -20973,6 +21088,60 @@
           }
         },
         "summary": "Change tracked keywords by ids or by filter",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/countries": {
+      "get": {
+        "description": "One entry for each country with active tracked keywords, a keyword tracked in a city counting for the city's country, most keywords first. `keyword_count` counts distinct keywords: one tracked on both devices counts once.",
+        "operationId": "list_tracked_keyword_countries_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_countries_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackedKeywordCountries"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The countries the project has keywords in",
         "tags": [
           "keywords"
         ]
@@ -22071,6 +22240,50 @@
         "summary": "Change or move a term",
         "tags": [
           "taxonomy"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/tracked-keyword-quota": {
+      "get": {
+        "description": "`used` counts the active tracked keywords of every project of the workspace that is not deleted, the figure `quota_exceeded` carries. The full quota report stays deferred.",
+        "operationId": "get_tracked_keyword_quota_api_v1_workspaces__workspace_id__tracked_keyword_quota_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackedKeywordQuotaResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The workspace's tracked keyword limit and use",
+        "tags": [
+          "workspaces"
         ]
       }
     },

@@ -40,8 +40,10 @@ vi.mock('next/navigation', () => ({
 
 const TRACKED = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords';
 const ACTIVE = KEYWORD_TABLE.filter((row) => row.archived !== true);
-/** Rows on screen: a keyword tracked on both devices is one row. */
-const SHOWN = new Set(ACTIVE.map((row) => [row.text, row.location, row.language].join('|'))).size;
+/** The active keywords tracked on desktop, the device the table opens on. */
+const DESKTOP = ACTIVE.filter((row) => row.device === 'desktop');
+/** Rows on screen: a keyword tracked on both devices is one row, and one tracked on mobile only is not listed. */
+const SHOWN = new Set(DESKTOP.map((row) => [row.text, row.location, row.language].join('|'))).size;
 
 beforeEach(stubWideScreen);
 afterEach(restoreWideScreen);
@@ -85,29 +87,35 @@ describe('Rankings', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows a rank column for each device, and hides the other device’s column when one is chosen', async () => {
+  it('shows one rank column for the device chosen, and the other device’s figures when it is switched', async () => {
     const { user } = renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
-    expect(within(grid).getByRole('columnheader', { name: /^Desktop$/ })).toBeInTheDocument();
-    expect(within(grid).getByRole('columnheader', { name: /^Mobile$/ })).toBeInTheDocument();
+    // Desktop is the default: one Rank column, no Desktop or Mobile column
+    expect(within(grid).getByRole('columnheader', { name: /^Rank$/ })).toBeInTheDocument();
+    expect(within(grid).queryByRole('columnheader', { name: /^Desktop$/ })).toBeNull();
+    expect(within(grid).queryByRole('columnheader', { name: /^Mobile$/ })).toBeNull();
     // The device and location are not columns: they are the controls beside the filters
     expect(within(grid).queryByRole('columnheader', { name: /^Device$/ })).toBeNull();
     expect(within(grid).queryByRole('columnheader', { name: /^Location$/ })).toBeNull();
-
-    await user.click(screen.getByRole('radio', { name: 'Desktop' }));
-    await waitFor(() => expect(within(grid).queryByRole('columnheader', { name: /^Mobile$/ })).toBeNull());
-    expect(within(grid).getByRole('columnheader', { name: /^Desktop$/ })).toBeInTheDocument();
-
+    // Two options only
+    expect(screen.queryByRole('radio', { name: 'Desktop and mobile' })).toBeNull();
+    expect(screen.getByRole('radio', { name: 'Desktop' })).toBeChecked();
+    // seo agency berlin is tracked on both devices, with a different rank on each. The cell reads the rank, then its change.
+    const rankOf = (keyword: string): string => {
+      const index = keywordsIn(grid).indexOf(keyword);
+      if (index < 0) throw new Error(`No row for ${keyword}`);
+      return (visibleColumnTexts(grid, /^Rank$/)[index] ?? '').split(' ')[0] ?? '';
+    };
+    const onDesktop = rankOf('seo agency berlin');
+    expect(onDesktop).toMatch(/^\d+$/);
     await user.click(screen.getByRole('radio', { name: 'Mobile' }));
-    await waitFor(() => expect(within(grid).queryByRole('columnheader', { name: /^Desktop$/ })).toBeNull());
-    expect(within(grid).getByRole('columnheader', { name: /^Mobile$/ })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('radio', { name: 'Desktop and mobile' }));
-    await waitFor(() => expect(within(grid).getByRole('columnheader', { name: /^Desktop$/ })).toBeInTheDocument());
-    expect(within(grid).getByRole('columnheader', { name: /^Mobile$/ })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Mobile' })).toBeChecked());
+    expect(within(grid).getByRole('columnheader', { name: /^Rank$/ })).toBeInTheDocument();
+    await waitFor(() => expect(rankOf('seo agency berlin')).not.toBe(onDesktop));
+    expect(rankOf('seo agency berlin')).toMatch(/^\d+$/);
   });
 
-  it('puts one row for a keyword tracked on both devices, with a rank in each column', async () => {
+  it('puts one row for a keyword tracked on both devices', async () => {
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
     const row = within(grid)
@@ -116,8 +124,6 @@ describe('Rankings', () => {
       ?.closest('tr');
     if (row === null || row === undefined) throw new Error('No row for seo agency berlin');
     expect(within(row).getAllByRole('gridcell').length).toBeGreaterThan(2);
-    // Both devices are tracked, so neither rank column says Not tracked
-    expect(within(row).queryByText('Not tracked')).toBeNull();
   });
 
   it('opens on the country asked for in the URL and sends it to the API', async () => {
@@ -137,7 +143,7 @@ describe('Rankings', () => {
     const header = within(grid).getAllByRole('rowheader')[0];
     expect(header).not.toHaveAccessibleDescription();
     // The rank headers say what they are, so they have no description either
-    expect(screen.getByRole('columnheader', { name: /Desktop/ })).not.toHaveAccessibleDescription();
+    expect(screen.getByRole('columnheader', { name: /^Rank$/ })).not.toHaveAccessibleDescription();
     expect(screen.getByRole('columnheader', { name: /KD/ })).toHaveAccessibleDescription(
       'Keyword difficulty, from 0 to 100',
     );
@@ -243,12 +249,15 @@ describe('Rankings', () => {
       onUrlUpdate: url.onUrlUpdate,
     });
     const grid = await loadedGrid();
-    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(6));
+    const commercialLoud = DESKTOP.filter(
+      (row) => row.metrics?.intent === 'commercial' && (row.metrics.volume ?? 0) >= 5000,
+    ).length;
+    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(commercialLoud));
     expect(screen.getByRole('button', { name: 'Volume: at least 5,000. Edit filter' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Remove filter Intent: Commercial' }));
     await waitFor(() => expect(url.latest().has('intent')).toBe(false));
     expect(url.latest().get('vol')).toBe('5000..');
-    const louder = ACTIVE.filter((row) => (row.metrics?.volume ?? 0) >= 5000).length;
+    const louder = DESKTOP.filter((row) => (row.metrics?.volume ?? 0) >= 5000).length;
     await waitFor(() => expect(keywordsIn(grid)).toHaveLength(louder));
   });
 
@@ -433,8 +442,9 @@ describe('Rankings', () => {
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     const grid = await loadedGrid();
     // Above 100 rows the table renders the rows near the view, so the count tells how many it holds
-    await waitFor(() => expect(grid).toHaveAttribute('aria-rowcount', '117'));
-    expect(screen.getAllByText(/^116 keywords/).length).toBeGreaterThan(0);
+    // Each of the two pages holds the fixture rows, so the keywords tracked on desktop come twice
+    await waitFor(() => expect(grid).toHaveAttribute('aria-rowcount', String(2 * DESKTOP.length + 1)));
+    expect(screen.getAllByText(new RegExp(`^${String(2 * DESKTOP.length)} keywords`)).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Some keywords did not load/)).toBeNull();
   });
 
@@ -443,18 +453,7 @@ describe('Rankings', () => {
     const grid = await loadedGrid();
     const headers = within(grid).getAllByRole('columnheader');
     const headerTexts = headers.map((h) => h.textContent?.replace(/[\s\n]+/g, ' ').trim()).filter(Boolean);
-    for (const expected of [
-      'Desktop',
-      'Mobile',
-      'Volume',
-      'KD',
-      'CPC (USD)',
-      'Intent',
-      'Group',
-      'Tags',
-      'Updated',
-      'Added',
-    ]) {
+    for (const expected of ['Rank', 'Volume', 'KD', 'CPC (USD)', 'Intent', 'Group', 'Tags', 'Updated', 'Added']) {
       expect(headerTexts.some((t) => t?.includes(expected))).toBe(true);
     }
     expect(headerTexts.some((t) => t?.includes('Ranking URL'))).toBe(false);
@@ -479,7 +478,7 @@ describe('Rankings', () => {
     const headerTexts = headers.map((h) => h.textContent?.replace(/[\s\n]+/g, ' ').trim()).filter(Boolean);
     expect(headerTexts.some((t) => t?.toLowerCase().includes('change'))).toBe(false);
     expect(within(grid).queryByRole('columnheader', { name: /change/i })).toBeNull();
-    expect(headerTexts.some((t) => t?.includes('Desktop'))).toBe(true);
+    expect(headerTexts.some((t) => t?.includes('Rank'))).toBe(true);
     expect(headerTexts.some((t) => t?.includes('Volume'))).toBe(true);
   });
 
@@ -552,7 +551,7 @@ describe('Rankings rank columns', () => {
     const row = header?.closest('tr');
     if (row === null || row === undefined || header === undefined) throw new Error(`No row for ${moved.text}`);
     const change = moved.state.change.value ?? 0;
-    const rankCell = row.cells[columnIndex(grid, /^Desktop$/)];
+    const rankCell = row.cells[columnIndex(grid, /^Rank$/)];
     if (rankCell === undefined) throw new Error('No Rank cell');
     expect(within(rankCell).getByText(String(moved.state.current.rank))).toHaveClass('num');
     expect(within(rankCell).getByText(`${change > 0 ? '↑' : '↓'}${String(Math.abs(change))}`)).toHaveClass(
@@ -612,7 +611,7 @@ describe('Rankings rank columns', () => {
     expect(stale).toBeGreaterThan(0);
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
-    const ranks = visibleColumnTexts(grid, /^Desktop$/);
+    const ranks = visibleColumnTexts(grid, /^Rank$/);
     expect(ranks.filter((text) => text.startsWith('>'))).toHaveLength(beyond);
     expect(ranks.filter((text) => text === 'Pending')).toHaveLength(
       states.filter(({ current }) => current.state === 'not_checked').length,
@@ -634,7 +633,7 @@ describe('Rankings rank columns', () => {
     const grid = await loadedGrid();
     await waitFor(() => expect(keywordsIn(grid)).toContain('rank tracker api'));
     const at = keywordsIn(grid).indexOf('rank tracker api');
-    expect(columnTexts(grid, /^Desktop$/)[at]).toBe('Pending');
+    expect(columnTexts(grid, /^Rank$/)[at]).toBe('Pending');
   }, 15_000);
 
   /** The cells of the row at a place in the grid, found by their column. */
@@ -654,13 +653,11 @@ describe('Rankings rank columns', () => {
     const stale = fixtureStates().filter(({ state }) => state.is_stale);
     expect(stale.length).toBeGreaterThan(1);
     // The Rank cell speaks "stale" for exactly the keywords the API flags, whatever columns the width shows
-    expect(columnTexts(grid, /^Desktop$/).filter((text) => text.includes('stale'))).toHaveLength(stale.length);
-    const failing = columnTexts(grid, /^Desktop$/).flatMap((text, at) =>
-      text.includes('last check failed') ? [at] : [],
-    );
+    expect(columnTexts(grid, /^Rank$/).filter((text) => text.includes('stale'))).toHaveLength(stale.length);
+    const failing = columnTexts(grid, /^Rank$/).flatMap((text, at) => (text.includes('last check failed') ? [at] : []));
     expect(failing).toHaveLength(FAILING_IDS.size);
     for (const at of failing) {
-      const cell = rowCells(grid, at)(/^Desktop$/);
+      const cell = rowCells(grid, at)(/^Rank$/);
       expect(within(cell).getByText('last check failed')).toHaveClass('sr-only');
       expect(within(cell).getByText('stale')).toHaveClass('sr-only');
       // The rank of the last good check is still there
@@ -753,8 +750,8 @@ describe('Rankings rank columns', () => {
     const grid = await loadedGrid();
     for (const id of FAILED_IDS) {
       const cells = rowCells(grid, keywordsIn(grid).indexOf(textOfKeyword(id)));
-      expect(within(cells(/^Desktop$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
-      expect(within(cells(/^Desktop$/)).getByText('stale')).toHaveClass('sr-only');
+      expect(within(cells(/^Rank$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
+      expect(within(cells(/^Rank$/)).getByText('stale')).toHaveClass('sr-only');
       expect(within(cells(/^SERP features$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
       expect(within(cells(/^SERP features$/)).getByText('stale')).toHaveClass('sr-only');
       expect(within(cells(/^AI Overview$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
@@ -769,19 +766,19 @@ describe('Rankings rank columns', () => {
     const url = urlWrites();
     const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
     const grid = await loadedGrid();
-    await user.click(within(grid).getByRole('button', { name: 'Desktop' }));
+    await user.click(within(grid).getByRole('button', { name: 'Rank' }));
     await waitFor(() => expect(url.latest().get('sort')).toBe('current_rank'));
     const parseRank = (text: string): number | null => {
       const match = text.match(/^(\d+)/);
       return match ? Number(match[1]) : null;
     };
-    const places = (): string[] => visibleColumnTexts(grid, /^Desktop$/);
+    const places = (): string[] => visibleColumnTexts(grid, /^Rank$/);
     const asc = places();
     const ranked = asc.map(parseRank).filter((val): val is number => val !== null);
     expect(ranked.length).toBeGreaterThan(5);
     expect(ranked).toEqual([...ranked].sort((a, b) => a - b));
     expect(asc.slice(0, ranked.length).every((text) => parseRank(text) !== null)).toBe(true);
-    await user.click(within(grid).getByRole('button', { name: 'Desktop' }));
+    await user.click(within(grid).getByRole('button', { name: 'Rank' }));
     await waitFor(() => expect(url.latest().get('sort')).toBe('-current_rank'));
     const desc = places();
     expect(desc.slice(0, ranked.length).map(parseRank)).toEqual([...ranked].reverse());
@@ -803,7 +800,7 @@ describe('Rankings rank columns', () => {
     const asked = answerAsMany({ total: 12_000 });
     const { user } = renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
-    await user.click(within(grid).getByRole('button', { name: 'Desktop' }));
+    await user.click(within(grid).getByRole('button', { name: 'Rank' }));
     await waitFor(() => expect(asked.some((params) => params.get('sort') === 'current_rank')).toBe(true));
   });
 
@@ -975,7 +972,7 @@ describe('Rankings rank filters', () => {
     );
     expect(within4to10.length).toBeGreaterThan(0);
     await waitFor(() => expect(keywordsIn(grid)).toHaveLength(within4to10.length));
-    const places = visibleColumnTexts(grid, /^Desktop$/).map((text) => parseInt(text, 10));
+    const places = visibleColumnTexts(grid, /^Rank$/).map((text) => parseInt(text, 10));
     expect(places.every((place) => place >= 4 && place <= 10)).toBe(true);
     expect(screen.getByRole('button', { name: 'Rank: 4 to 10. Edit filter' })).toBeInTheDocument();
   });
@@ -1041,7 +1038,7 @@ describe('Rankings rank filters', () => {
     expect(updated).toHaveLength(stale.length);
     for (const text of updated) expect(text).toContain('Stale');
     // The Rank cell of each says it too
-    for (const text of columnTexts(grid, /^Desktop$/)) expect(text).toContain('stale');
+    for (const text of columnTexts(grid, /^Rank$/)) expect(text).toContain('stale');
   });
 
   it('applies a rank filter from a link, and sends no filter it does not have', async () => {
@@ -1194,6 +1191,27 @@ describe('Rankings summary strip', () => {
         stripAsked.some((query) => query.get('filter[device]') === 'mobile' && query.get('filter[rank_lte]') === '10'),
       ).toBe(true);
     });
+  });
+
+  it('counts the device shown, while the list reads both devices of every keyword', async () => {
+    const listAsked: URLSearchParams[] = [];
+    const stripAsked: URLSearchParams[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (request.method !== 'GET' || !url.pathname.endsWith('/tracked-keywords')) return;
+      // The project's own count (one row, no filter) is not the strip's
+      if (url.searchParams.get('limit') === '1') {
+        if ([...url.searchParams.keys()].some((key) => key.startsWith('filter['))) stripAsked.push(url.searchParams);
+      } else if (url.searchParams.get('sort') !== '-created_at') listAsked.push(url.searchParams);
+    });
+
+    renderWithProviders(as('viewer'), { searchParams: '?dev=mobile' });
+    await loadedGrid();
+
+    await waitFor(() => expect(stripAsked.length).toBeGreaterThanOrEqual(6));
+    expect(stripAsked.every((query) => query.get('filter[device]') === 'mobile')).toBe(true);
+    expect(listAsked.length).toBeGreaterThan(0);
+    expect(listAsked.every((query) => !query.has('filter[device]'))).toBe(true);
   });
 
   it('ignores the search query in server mode and reads its counts from the strip', async () => {

@@ -370,10 +370,12 @@ async def test_the_worker_cannot_connect_or_choose_a_property(
             )
         async with refused(db, asyncpg.InsufficientPrivilegeError):
             await db.execute("UPDATE fp.connections SET subject_id = 'other'")
-        # What a failed refresh records
+        # What a failed refresh records, for this tenant's connection only: a revoked connection of
+        # another test (no secret) cannot become `reauth_required`
         await db.execute(
             "UPDATE fp.connections SET status = 'reauth_required', "
-            "last_error_code = 'invalid_grant'"
+            "last_error_code = 'invalid_grant' WHERE workspace_id = $1",
+            alpha.workspace_id,
         )
 
 

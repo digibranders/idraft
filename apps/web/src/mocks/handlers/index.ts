@@ -7,6 +7,7 @@ import { integrationHandlers } from './integrations';
 import { invitationHandlers } from './invitations';
 import { keywordGroupHandlers } from './keyword-groups';
 import { keywordImportHandlers } from './keyword-imports';
+import { keywordQuotaHandlers } from './keyword-quota';
 import { keywordHandlers } from './keywords';
 import { meHandlers } from './me';
 import { pendingHandlers } from './pending';
@@ -39,6 +40,7 @@ export const handlers: readonly HttpHandler[] = [
   ...registryHandlers,
   ...keywordHandlers,
   ...trackedKeywordHandlers,
+  ...keywordQuotaHandlers,
   ...rankHistoryHandlers,
   ...keywordGroupHandlers,
   ...termAssignmentHandlers,

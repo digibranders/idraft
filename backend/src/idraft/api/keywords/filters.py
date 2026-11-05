@@ -223,6 +223,17 @@ def conditions(
                 )
             )
         )
+    if given.country_id_in is not None:
+        country = locations.c.country_iso
+        found.append(
+            t.location_id.in_(
+                select(locations.c.id).where(
+                    country.in_(
+                        select(country).where(locations.c.id.in_(list(given.country_id_in)))
+                    )
+                )
+            )
+        )
     among: tuple[tuple[ColumnElement[Any], Sequence[str] | None], ...] = (
         (t.intent, given.intent_in),
         (t.funnel_stage, given.funnel_stage_in),

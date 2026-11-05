@@ -129,6 +129,117 @@ describe('tracked keywords: the list', () => {
       'filter[priority_lte]:less_than_equal',
     ]);
   });
+
+  it('filters by several countries at once and keeps none for a country without keywords', async () => {
+    const viewer = mockBrowser('viewer');
+    expect(await listOf(viewer, 'filter[country_id_in]=2276,2840')).toHaveLength(ACTIVE.length);
+    expect(await listOf(viewer, 'filter[country_id_in]=2840')).toHaveLength(
+      ACTIVE.filter((row) => row.location === 2840).length,
+    );
+    expect(await listOf(viewer, 'filter[country_id_in]=2356')).toEqual([]);
+    expect(fieldCodes(await viewer.call('GET', `${TK}?filter[country_id_in]=de`))).toEqual([
+      'filter[country_id_in]:int_parsing',
+    ]);
+  });
+
+  it('answers 422 for a country id below 1, above the 32-bit bound or in a list of more than 100', async () => {
+    const viewer = mockBrowser('viewer');
+    const codes = async (value: string): Promise<string[]> =>
+      fieldCodes(await viewer.call('GET', `${TK}?filter[country_id_in]=${value}`));
+    expect(await codes('0')).toEqual(['filter[country_id_in]:greater_than_equal']);
+    expect(await codes('-5')).toEqual(['filter[country_id_in]:greater_than_equal']);
+    expect(await codes('2147483647')).toEqual([]);
+    expect(await codes('2147483648')).toEqual(['filter[country_id_in]:less_than_equal']);
+    expect(await codes(Array.from({ length: 101 }, (_, index) => String(index + 1)).join(','))).toEqual([
+      'filter[country_id_in]:too_long',
+    ]);
+  });
+});
+
+describe('tracked keywords: the countries in use', () => {
+  const COUNTRIES = z.array(
+    z.object({
+      location: z.object({
+        location_id: z.number(),
+        name: z.string(),
+        country_iso: z.string(),
+        location_type: z.string(),
+      }),
+      keyword_count: z.number(),
+    }),
+  );
+  const QUOTA = z.object({ limit: z.number(), used: z.number() });
+  /** Distinct keywords (text and language) of the active seed rows at a location. */
+  const keywordsAt = (location: number): number =>
+    new Set(ACTIVE.filter((row) => row.location === location).map((row) => `${row.text}|${row.language}`)).size;
+
+  it('lists each country with its distinct keywords, the larger count first', async () => {
+    const countries = dataOf(await mockBrowser('viewer').call('GET', `${TK}/countries`), COUNTRIES);
+    expect(countries.map((entry) => [entry.location.name, entry.location.location_type, entry.keyword_count])).toEqual([
+      ['Germany', 'Country', keywordsAt(2276)],
+      ['United States', 'Country', keywordsAt(2840)],
+    ]);
+    expect(keywordsAt(2276)).toBeGreaterThan(keywordsAt(2840));
+  });
+
+  it('answers the workspace quota with the limit and the active tracked keywords', async () => {
+    const quota = dataOf(await mockBrowser('viewer').call('GET', `${W}/tracked-keyword-quota`), QUOTA);
+    expect(quota).toEqual({ limit: MAX_TRACKED_KEYWORDS, used: ACTIVE.length });
+  });
+
+  it('opens the quota to every member, a billing member included, and hides it from a stranger', async () => {
+    const billing = mockBrowser('billing');
+    expect(dataOf(await billing.call('GET', `${W}/tracked-keyword-quota`), QUOTA)).toEqual({
+      limit: MAX_TRACKED_KEYWORDS,
+      used: ACTIVE.length,
+    });
+    expect(await billing.call('GET', `${TK}/countries`)).toMatchObject({ status: 403, code: 'forbidden' });
+    const stranger = `/api/v1/workspaces/${mockId('entity', 99)}/tracked-keyword-quota`;
+    expect(await billing.call('GET', stranger)).toMatchObject({ status: 404, code: 'not_found' });
+  });
+
+  it('rolls a keyword tracked in a city up to its country, and leaves archived keywords out', async () => {
+    const editor = mockBrowser('editor');
+    const london = 1006886;
+    const created = await editor.call('POST', TK, {
+      keyword: 'seo agency london',
+      location_id: london,
+      device: 'desktop',
+    });
+    expect(created.status).toBe(201);
+    const countries = async (): Promise<(string | number)[][]> =>
+      dataOf(await editor.call('GET', `${TK}/countries`), COUNTRIES).map((entry) => [
+        entry.location.name,
+        entry.keyword_count,
+      ]);
+    expect(await countries()).toEqual([
+      ['Germany', keywordsAt(2276)],
+      ['United States', keywordsAt(2840)],
+      ['United Kingdom', 1],
+    ]);
+    // The country filter takes the city's row for its country
+    expect(await textsOf(editor, 'filter[country_id_in]=2826')).toEqual(['seo agency london']);
+    expect(await listOf(editor, 'filter[country_id_in]=2826,2840')).toHaveLength(
+      1 + ACTIVE.filter((row) => row.location === 2840).length,
+    );
+    // A body filter takes it too: only that country's keywords are archived
+    const archived = await editor.call('POST', `${TK}/bulk-archive`, {
+      filter: { country_id_in: [2826] },
+      archive: true,
+    });
+    expect(dataOf(archived, BULK_ARCHIVE_RESULT)).toEqual({ matched: 1, updated: 1 });
+    expect(await listOf(editor, 'filter[country_id_in]=2826')).toEqual([]);
+    expect(await listOf(editor, 'filter[country_id_in]=2276,2840')).toHaveLength(ACTIVE.length);
+    // An archived row no longer counts for its country
+    expect(await countries()).toEqual([
+      ['Germany', keywordsAt(2276)],
+      ['United States', keywordsAt(2840)],
+    ]);
+    // A body list holds 1 to 100 values, each within the location id range
+    expect(
+      fieldCodes(await editor.call('POST', `${TK}/bulk-archive`, { filter: { country_id_in: [0] }, archive: true })),
+    ).toEqual(['filter.country_id_in:greater_than_equal']);
+  });
 });
 
 describe('tracked keywords: tracking', () => {

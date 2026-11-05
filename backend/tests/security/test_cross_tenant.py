@@ -205,6 +205,8 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
 # Lists under a workspace's path that hold the platform's data, the same for every workspace:
 # they have no tenant data of their own to show.
 PLATFORM_LISTS = {_W + "/price-book"}
+# Reads that answer the workspace's own numbers and no ids, so they show nothing of A to find.
+COUNT_ROUTES = {_W + "/tracked-keyword-quota"}
 
 
 @dataclass(frozen=True)
@@ -804,7 +806,7 @@ async def test_a_list_holds_nothing_of_another_workspace(
     for secret in b.secrets():
         assert secret not in response.text, f"{path} shows {secret} of another workspace"
     # The list is not empty for a trivial reason: it shows A's own data.
-    if path not in PLATFORM_LISTS:
+    if path not in PLATFORM_LISTS | COUNT_ROUTES:
         assert any(own in response.text for own in [*a.ids().values(), str(a.owner.id)])
 
 

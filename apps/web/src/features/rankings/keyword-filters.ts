@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
+import { useKeywordCountries } from './keyword-countries';
 import { FUNNEL_STAGES, INTENTS, OFFERED_DEPTH_PROFILES, SOURCE_KEY, SOURCES } from './keyword-values';
 import {
   CHANGE_CHOICES,
@@ -23,7 +24,7 @@ import { useDepthLabel } from '@/lib/keywords/use-depth-label';
 
 /**
  * The filters of Rankings as chips (backend plan D15, 13-filters-search.md section 4), each under its URL
- * key of section 5: group, tag (a term of any vocabulary the project sees), rank bucket, change, device,
+ * key of section 5: group, country (of those the project has keywords in), tag (a term of any vocabulary the project sees), rank bucket, change, device,
  * location, language, intent, funnel stage, priority at most, source, depth profile, volume at least, KD at
  * most and stale. Groups, terms and locations come from the API; the rest are the API's own values.
  */
@@ -75,6 +76,17 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
       })),
     [groups.data],
   );
+  const inUse = useKeywordCountries(scope);
+  const countriesLoading = inUse.loading || inUse.failed;
+  const countryOptions = useMemo(
+    (): FilterOption[] =>
+      inUse.countries.map(({ locationId, name, keywordCount }) => ({
+        value: String(locationId),
+        label: name,
+        count: keywordCount,
+      })),
+    [inUse.countries],
+  );
   const termOptions = useMemo(
     (): FilterOption[] =>
       vocabularies.loaded.flatMap(({ vocabulary, terms }) =>
@@ -96,6 +108,15 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
         multi: false,
         options: groupOptions,
         optionsLoading: groupsLoading,
+      },
+      {
+        id: 'country',
+        kind: 'enum',
+        label: t('country'),
+        multi: true,
+        options: countryOptions,
+        // A list that failed keeps a value from a link, as the groups and tags do
+        optionsLoading: countriesLoading,
       },
       { id: 'tag', kind: 'enum', label: t('tag'), multi: true, options: termOptions, optionsLoading: termsLoading },
       // One range of places and one change at a time: the API joins its rank filters with AND (rank-filters.ts)
@@ -198,8 +219,10 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
     locale,
     depthLabel,
     groupOptions,
+    countryOptions,
     termOptions,
     groupsLoading,
+    countriesLoading,
     termsLoading,
   ]);
 }

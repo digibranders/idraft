@@ -5,10 +5,11 @@ import { expect, vi } from 'vitest';
 import { z } from 'zod';
 
 import messages from '../../messages/en.json';
+import { TopBarSlotProvider, TopBarSlotTarget } from '@/components/app/shell/top-bar-slot';
 import { ALL_COUNTRIES } from '@/features/rankings/keyword-scope';
 import { RankingsScreen, type RankingsScreenProps } from '@/features/rankings/rankings-screen';
 import type { Role } from '@/lib/api/types';
-import { PermissionProvider } from '@/lib/permissions';
+import { PermissionProvider, type Permission } from '@/lib/permissions';
 import { MOCK_LOCATIONS } from '@/mocks/entity-fixtures';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
@@ -32,43 +33,64 @@ export const fynix = fixtureProject(0);
 export const cleanstart = fixtureProject(1);
 
 /** What the route or test tells the screen about the import dialog or settings. */
-type ScreenProps = Partial<Pick<RankingsScreenProps, 'importOpen' | 'onImportOpenChange' | 'depth'>>;
+type ScreenProps = Partial<Pick<RankingsScreenProps, 'importOpen' | 'onImportOpenChange' | 'depth'>> & {
+  /** The table opens on the project's own country instead of on every country. */
+  opensOnOwnCountry?: boolean;
+  /**
+   * The table opens on the view the screen picks by default (By group when the project has groups and the
+   * list is read whole) instead of All keywords. Off by default, so the tests written for the flat table keep
+   * it; the URL's `view` wins either way.
+   */
+  opensOnDefaultView?: boolean;
+  /** Permissions the role holds that this member is not given. */
+  withoutPermissions?: readonly Permission[];
+};
 
 /** Rankings of `projectId` for a member of `role`, signed in through the mock session cookie. */
 export function rankingsAs(
   role: Role,
   projectId: string = fynix.project_id,
-  screenProps: ScreenProps = {},
+  { opensOnOwnCountry = false, opensOnDefaultView = false, withoutPermissions = [], ...screenProps }: ScreenProps = {},
   /** The projects a member limited to some may open; `null` is every project. */
   projectIds: readonly string[] | null = null,
 ): ReactElement {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   const locationId = MOCK_PROJECTS.find((candidate) => candidate.project_id === projectId)?.location_id ?? null;
   const location = MOCK_LOCATIONS.find((candidate) => candidate.location_id === locationId) ?? null;
+  const membership = membershipFactory(role, { projectIds });
+  const without = new Set<string>(withoutPermissions);
+  const permissions = membership.permissions.filter((key) => !without.has(key));
   return (
-    <PermissionProvider membership={membershipFactory(role, { projectIds })}>
-      <Suspense fallback={null}>
-        <RankingsScreen
-          workspaceId={MOCK_WORKSPACE.workspace_id}
-          projectId={projectId}
-          timeZone="Europe/Berlin"
-          defaults={{
-            location:
-              location === null
-                ? null
-                : {
-                    location_id: location.location_id,
-                    name: location.name,
-                    location_type: location.location_type,
-                    country_iso: location.country_iso,
-                  },
-            languageCode: 'en',
-          }}
-          // The mock keywords are tracked in several countries: the table opens on all of them
-          scopeOpensOn={ALL_COUNTRIES}
-          {...screenProps}
-        />
-      </Suspense>
+    <PermissionProvider membership={{ ...membership, permissions }}>
+      {/* The shell's top bar holds the country control: a stand-in banner gives the screen its slot */}
+      <TopBarSlotProvider>
+        <header>
+          <TopBarSlotTarget />
+        </header>
+        <Suspense fallback={null}>
+          <RankingsScreen
+            workspaceId={MOCK_WORKSPACE.workspace_id}
+            projectId={projectId}
+            timeZone="Europe/Berlin"
+            defaults={{
+              location:
+                location === null
+                  ? null
+                  : {
+                      location_id: location.location_id,
+                      name: location.name,
+                      location_type: location.location_type,
+                      country_iso: location.country_iso,
+                    },
+              languageCode: 'en',
+            }}
+            // The mock keywords are tracked in several countries: the table opens on all of them
+            {...(opensOnOwnCountry ? {} : { scopeOpensOn: ALL_COUNTRIES })}
+            {...(opensOnDefaultView ? {} : { viewOpensOn: 'flat' as const })}
+            {...screenProps}
+          />
+        </Suspense>
+      </TopBarSlotProvider>
     </PermissionProvider>
   );
 }
@@ -127,6 +149,7 @@ export function answerTrackedAsMany({
   slow = () => false,
   withoutGroups = false,
   rowsPerPage = null,
+  desktopOnly = false,
 }: {
   total: number;
   pages?: number;
@@ -138,6 +161,11 @@ export function answerTrackedAsMany({
   withoutGroups?: boolean;
   /** Rows in each page, the fixture rows repeated (their ids made unique), instead of the fixture's own few. */
   rowsPerPage?: number | null;
+  /**
+   * Every row is a desktop row, so the table (which shows one device) lists all of them: a test that counts
+   * the rows it selects then counts every row the page holds.
+   */
+  desktopOnly?: boolean;
 }): URLSearchParams[] {
   const asked: URLSearchParams[] = [];
   server.use(
@@ -172,6 +200,7 @@ export function answerTrackedAsMany({
         ).map((row, at) => ({
           ...row,
           ...(withoutGroups ? { groups: undefined } : {}),
+          ...(desktopOnly ? { device: 'desktop' } : {}),
           tracked_keyword_id:
             rowsPerPage === null
               ? `${row.tracked_keyword_id.slice(0, -6)}${String(index).padStart(3, '0')}${row.tracked_keyword_id.slice(-3)}`

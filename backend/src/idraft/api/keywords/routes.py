@@ -74,6 +74,8 @@ from idraft.api.schemas.keywords import (
     TrackedKeywordBulkCreate,
     TrackedKeywordBulkDelete,
     TrackedKeywordBulkUpdate,
+    TrackedKeywordCountries,
+    TrackedKeywordCountry,
     TrackedKeywordCreate,
     TrackedKeywordDetail,
     TrackedKeywordDetailResponse,
@@ -297,6 +299,15 @@ async def list_tracked_keywords(
             description="A country's location id: tracked in it or anywhere inside it.",
         ),
     ] = None,
+    country_id_in: Annotated[
+        list[int] | None,
+        Commas,
+        Query(
+            alias="filter[country_id_in]",
+            description="Any of these countries (comma separated location ids): tracked in one "
+            "of them or anywhere inside one.",
+        ),
+    ] = None,
     language_code: Annotated[LanguageCode | None, Query(alias="filter[language_code]")] = None,
     search_engine: Annotated[
         Literal["google", "bing"] | None, Query(alias="filter[search_engine]")
@@ -351,6 +362,7 @@ async def list_tracked_keywords(
             "device": device,
             "location_id": location_id,
             "country_id": country_id,
+            "country_id_in": country_id_in,
             "language_code": language_code,
             "search_engine": search_engine,
             "intent_in": intent_in,
@@ -416,6 +428,32 @@ async def list_tracked_keywords(
             has_more=result.next_cursor is not None,
             total=result.total,
         ),
+    )
+
+
+@router.get(
+    "/countries",
+    summary="The countries the project has keywords in",
+    description="One entry for each country with active tracked keywords, a keyword tracked "
+    "in a city counting for the city's country, most keywords first. `keyword_count` counts "
+    "distinct keywords: one tracked on both devices counts once.",
+)
+async def list_tracked_keyword_countries(
+    project_id: UUID, access: ReadData, keywords: Keywords
+) -> TrackedKeywordCountries:
+    return TrackedKeywordCountries(
+        data=[
+            TrackedKeywordCountry(
+                location=LocationRef(
+                    location_id=country.location_id,
+                    name=country.name,
+                    country_iso=country.country_iso,
+                    location_type=country.location_type,
+                ),
+                keyword_count=country.keyword_count,
+            )
+            for country in await keywords.countries_in_use(access, project_id)
+        ]
     )
 
 

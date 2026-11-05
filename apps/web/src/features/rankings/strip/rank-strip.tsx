@@ -14,6 +14,8 @@ export interface RankStripProps {
   scope: ProjectScope;
   filters: KeywordFilters;
   total: number;
+  /** False while the scope is a guess: no count is read, and the strip shows as loading. */
+  enabled?: boolean;
 }
 
 /**
@@ -21,10 +23,10 @@ export interface RankStripProps {
  * Four counts of tracked keywords (a keyword on each device is two): Keywords (with checked count), Top 3, Top 10
  * and Top 20 (each of checked count). The device chosen narrows all four.
  */
-export function RankStrip({ scope, filters, total }: RankStripProps): ReactElement {
+export function RankStrip({ scope, filters, total, enabled = true }: RankStripProps): ReactElement {
   const t = useTranslations('rankings.strip');
   const common = useTranslations('common');
-  const { counts, itemErrors, loading, fetching, error, refetch } = useStripCounts(scope, filters, true);
+  const { counts, itemErrors, loading, fetching, error, refetch } = useStripCounts(scope, filters, enabled);
 
   const status = loading ? 'loading' : fetching ? 'refetching' : 'ready';
 

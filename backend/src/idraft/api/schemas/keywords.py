@@ -87,6 +87,9 @@ TargetUrl = Annotated[
 BusinessValue = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=2)]
 Priority = Annotated[int, Field(ge=1, le=5)]
 Links = Annotated[list[UUID], Field(max_length=LINKS_MAX)]
+# `core.locations.id` is a 4-byte integer: a larger id names no location, and reaching the
+# database it would overflow instead of being refused.
+LocationId = Annotated[int, Field(ge=1, le=2**31 - 1)]
 # A filter's list of values: one at least, so an empty list never reads as "no filter".
 type FilterList[T] = Annotated[list[T], Field(min_length=1, max_length=LINKS_MAX)]
 
@@ -125,7 +128,7 @@ class TrackedKeywordCreate(Body):
     (`seo.default_device`, `default_depth_profile`, `default_frequency`)."""
 
     keyword: KeywordText
-    location_id: int | None = None
+    location_id: LocationId | None = None
     language_code: LanguageCode | None = None
     device: DeviceChoice | None = Field(default=None, description="`both` makes two rows.")
     search_engine: Literal["google"] = Field(
@@ -525,6 +528,17 @@ class TrackedKeywordPage(BaseModel):
     page: TrackedKeywordPageInfo
 
 
+class TrackedKeywordCountry(BaseModel):
+    location: LocationRef = Field(description="The country itself.")
+    keyword_count: int = Field(
+        description="Distinct keywords tracked in it or anywhere inside it, devices counted once."
+    )
+
+
+class TrackedKeywordCountries(BaseModel):
+    data: list[TrackedKeywordCountry]
+
+
 class ScheduleRef(BaseModel):
     schedule_id: UUID
     name: str
@@ -585,11 +599,16 @@ class TrackedKeywordFilter(Body):
         default=None, description="Any of these terms or one under them."
     )
     device: Device | None = None
-    location_id: int | None = None
-    country_id: int | None = Field(
+    location_id: LocationId | None = None
+    country_id: LocationId | None = Field(
         default=None,
         description="A country's location id: the keywords tracked in that country or anywhere "
         "inside it (a region, a city).",
+    )
+    country_id_in: FilterList[LocationId] | None = Field(
+        default=None,
+        description="Any of these countries' location ids: the keywords tracked in one of them "
+        "or anywhere inside one.",
     )
     language_code: LanguageCode | None = None
     search_engine: Literal["google", "bing"] | None = None

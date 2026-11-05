@@ -10,15 +10,17 @@ import { Icon } from '@/components/ui/icon';
 import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { languageName } from '@/lib/format/language';
 import { TargetMismatchMarker } from './feature-cells';
-import type { DeviceScope, PairedRow } from './keyword-pairs';
+import type { Device, PairedRow } from './keyword-pairs';
+import type { KeywordCountry } from './keyword-countries';
+import { useCountries } from './keyword-scope';
 import { RankingPagesCard, rankingPages } from './ranking-pages';
 import { useCompetitorColumns, useRankColumns } from './rank-columns';
 import { CELL_CONTROL } from '@/lib/tables/grid-focus';
 import type { SortKey } from '@/lib/tables/table-state';
 
 /**
- * The columns of Rankings (24-page-templates.md section 9.3), in the template's order: Keyword, Desktop rank and Mobile rank (each with its Change),
- * Ranking URL, Volume, KD, CPC, Intent, SERP features, AI Overview, Priority, Group, Tags, Best rank (in the column chooser only),
+ * The columns of Rankings (24-page-templates.md section 9.3), in the template's order: Keyword, Country (only while more than one country is in view), Rank (with its Change, of the device shown),
+ * Ranking URL, Volume, KD, Intent, SERP features, AI Overview, CPC, Priority, Group, Tags, Best rank (in the column chooser only),
  * Updated (the last successful check) and Added. The rank, SERP feature and AI Overview columns are built in `rank-columns.tsx`.
  * Waiting for their own plans are the template's sparkline and competitor columns. The ids of
  * the sortable columns are the API's sort fields, so server mode sends them as they are.
@@ -40,6 +42,9 @@ export const SORT_FIELDS: ReadonlySet<string> = new Set([
   'priority',
   'created_at',
 ]);
+
+/** The id of the Country column, which the table shows only while more than one country is in view. */
+export const COUNTRY_COLUMN = 'country';
 
 export const rowId = (row: TrackedKeywordRow): string => row.tracked_keyword_id;
 export const keywordText = (row: TrackedKeywordRow): string => row.keyword.text;
@@ -66,13 +71,25 @@ export function useKeywordRowName(projectLanguage: string | null): (row: Tracked
 export function useKeywordColumns(
   timeZone: string,
   competitors: readonly EntityRef[] = [],
-  device: DeviceScope = 'both',
+  device: Device = 'desktop',
+  /** The countries the project has keywords in, which name a row's country before the list of every country is in. */
+  inUse: readonly KeywordCountry[] = [],
 ): readonly DataTableColumn<PairedRow>[] {
   const t = useTranslations('rankings.columns');
   const common = useTranslations('common');
   const targetT = useTranslations('rankings.target');
   const ranks = useRankColumns(timeZone);
   const competitorColumns = useCompetitorColumns(competitors);
+  const countries = useCountries();
+  // The countries in use come last, so their names win; a row's own location name is the last resort
+  const countryNames = useMemo(
+    (): ReadonlyMap<string, string> =>
+      new Map([
+        ...countries.map((country): [string, string] => [country.country_iso, country.name]),
+        ...inUse.map((country): [string, string] => [country.countryIso, country.name]),
+      ]),
+    [countries, inUse],
+  );
   return useMemo(() => {
     // Before Labs answers there is nothing; after an empty answer there is no data (12-tables.md 7.3)
     const pending: UnknownValue = { label: t('pending'), tooltip: t('pendingTooltip') };
@@ -114,19 +131,19 @@ export function useKeywordColumns(
           return pages.length === 0 ? (
             link
           ) : (
-            <RankingPagesCard
-              trigger={link}
-              pages={pages}
-              scope={device}
-              checkedAt={row.state.last_observed_at}
-              timeZone={timeZone}
-            />
+            <RankingPagesCard trigger={link} pages={pages} checkedAt={row.state.last_observed_at} timeZone={timeZone} />
           );
         },
       }),
-      ranks.rankDesktop,
-      ranks.rankMobile,
+      // The name by ISO code, as a keyword's location may be a city of the country
+      col.text<TrackedKeywordRow>(
+        COUNTRY_COLUMN,
+        (row) => countryNames.get(row.location.country_iso) ?? row.location.name,
+        { header: t('country'), priority: 2, width: 120, sortable: false },
+      ),
+      ranks.rank,
       ranks.url,
+      // The Search Console columns (Clicks, Impressions) go right after Volume
       col.volume<TrackedKeywordRow>('search_volume', (row) => metrics(row)?.search_volume.value ?? null, {
         header: t('volume'),
         priority: 2,
@@ -140,14 +157,6 @@ export function useKeywordColumns(
         width: 72,
         unknown: missing,
       }),
-      col.currency<TrackedKeywordRow>(
-        'cpc_usd',
-        (row) => {
-          const cpc = metrics(row)?.cpc_usd ?? null;
-          return cpc === null ? null : Number(cpc);
-        },
-        { header: t('cpc'), priority: 2, width: 112, unknown: missing },
-      ),
       col.text<TrackedKeywordRow>('intent', (row) => (row.intent === 'unknown' ? null : t(`intents.${row.intent}`)), {
         header: t('intent'),
         priority: 3,
@@ -157,6 +166,14 @@ export function useKeywordColumns(
       }),
       ranks.features,
       ranks.aio,
+      col.currency<TrackedKeywordRow>(
+        'cpc_usd',
+        (row) => {
+          const cpc = metrics(row)?.cpc_usd ?? null;
+          return cpc === null ? null : Number(cpc);
+        },
+        { header: t('cpc'), priority: 2, width: 112, unknown: missing },
+      ),
       ...competitorColumns,
       ranks.trend,
       col.count<TrackedKeywordRow>('priority', (row) => row.priority, {
@@ -195,5 +212,5 @@ export function useKeywordColumns(
       }),
     ];
     return columns;
-  }, [t, targetT, common, timeZone, ranks, competitorColumns, device]);
+  }, [t, targetT, common, timeZone, ranks, competitorColumns, device, countryNames]);
 }

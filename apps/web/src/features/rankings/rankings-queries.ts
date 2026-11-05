@@ -15,7 +15,7 @@ import { rankFilterParams } from './rank-filters';
 import type { PageSize } from '@/components/app/data-table/types';
 import type { FilterValues } from '@/components/app/filters/types';
 import { api, unwrap } from '@/lib/api/client';
-import { projectKey, type QueryKey } from '@/lib/api/keys';
+import { projectKey, queryKey, type QueryKey } from '@/lib/api/keys';
 import type { paths } from '@/lib/api/schema';
 import type { TrackedKeywordRow, TrackedKeywordState } from '@/lib/api/types';
 import type { FilterValue } from '@/lib/filters/filter-values';
@@ -119,12 +119,27 @@ export const pageListKey = (scope: ProjectScope, filters: KeywordFilters, query:
 ];
 export const countKey = (scope: ProjectScope): QueryKey => [...keywordsKey(scope), 'count'];
 
+/** The countries the project has keywords in (`useKeywordCountries`), under `keywordsKey`. */
+export const keywordCountriesKey = (scope: ProjectScope): QueryKey =>
+  queryKey('/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/countries', {
+    workspace_id: scope.workspaceId,
+    project_id: scope.projectId,
+  });
+
+/** The workspace's tracked keyword quota (`useTrackedKeywordQuota`), which every add, archive and delete changes. */
+export const trackedKeywordQuotaKey = (workspaceId: string): QueryKey =>
+  queryKey('/api/v1/workspaces/{workspace_id}/tracked-keyword-quota', { workspace_id: workspaceId });
+
 /**
- * After any change to tracked keywords: the list, its counts, every page and the open keyword. Resolves
- * once the queries on screen have read again.
+ * After any change to tracked keywords: the list, its counts, every page, the countries in use (all under
+ * `keywordsKey`), the open keyword and the workspace's quota. Resolves once the queries on screen have read
+ * again.
  */
-export function refreshKeywords(queryClient: QueryClient, scope: ProjectScope): Promise<void> {
-  return queryClient.invalidateQueries({ queryKey: keywordsKey(scope) });
+export async function refreshKeywords(queryClient: QueryClient, scope: ProjectScope): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: keywordsKey(scope) }),
+    queryClient.invalidateQueries({ queryKey: trackedKeywordQuotaKey(scope.workspaceId) }),
+  ]);
 }
 
 // The URL keys of the filters (13-filters-search.md section 5) and what each sends
@@ -153,6 +168,10 @@ export function keywordFilters(values: FilterValues, archived: boolean): Keyword
   const intents = enumOf(values.intent, INTENTS);
   const stages = enumOf(values.stage, FUNNEL_STAGES);
   const sources = enumOf(values.src, SOURCES);
+  const countries = idsOf(values.country)
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id > 0)
+    .slice(0, MAX_FILTER_VALUES);
   const depths = enumOf(values.depth, DEPTH_PROFILES);
   const priority = maxOf(values.prio);
   const volume = minOf(values.vol);
@@ -170,6 +189,7 @@ export function keywordFilters(values: FilterValues, archived: boolean): Keyword
     ...(intents.length === 0 ? {} : { 'filter[intent_in]': intents }),
     ...(stages.length === 0 ? {} : { 'filter[funnel_stage_in]': stages }),
     ...(sources.length === 0 ? {} : { 'filter[source_in]': sources }),
+    ...(countries.length === 0 ? {} : { 'filter[country_id_in]': countries }),
     ...(depths.length === 0 ? {} : { 'filter[depth_profile_in]': depths }),
     ...(priority === null ? {} : { 'filter[priority_lte]': priority }),
     ...(volume === null ? {} : { 'filter[search_volume_gte]': volume }),
@@ -234,6 +254,8 @@ interface ListArgs {
   sort: readonly SortKey[];
   /** The search, which server mode sends as `filter[q]` (already debounced). */
   search: string;
+  /** False while the filters are not settled: nothing is read, and the list reports that it is loading. */
+  enabled?: boolean;
 }
 
 type AllPages = UseInfiniteQueryResult<InfiniteData<ListPage, string | null>>;
@@ -248,9 +270,10 @@ export function hasPendingCheck(row: { state?: Pick<TrackedKeywordState, 'check'
 }
 
 /** The rows of Rankings in the mode their count calls for. */
-export function useKeywordList({ scope, filters, sort, search }: ListArgs): KeywordList {
+export function useKeywordList({ scope, filters, sort, search, enabled = true }: ListArgs): KeywordList {
   const all: AllPages = useInfiniteQuery({
     queryKey: allListKey(scope, filters),
+    enabled,
     queryFn: ({ pageParam, signal }) =>
       readPage(
         scope,

@@ -136,6 +136,8 @@ A parent group (SEO, AI Visibility) is a label, not a link. Child items are alwa
 
 The controls on the right are right-aligned in this order: search, date range, location, notifications, theme, help, user menu. They are 36 px tall (the avatar 32 px) and 12 px apart (`gap-3`).
 
+As built (2026-11-05): the top bar has a slot before the theme switch that a page can draw its own controls into (`top-bar-slot.tsx`: the shell provides it, `TopBarPortal` fills it, and nothing is drawn where no top bar is above the page). Keywords puts its country control there, so Desktop and Mobile stay in the table toolbar and the country sits beside the theme switch, help and account menu. The control shows the country's name from 1024 px and its ISO code below (the pin alone for All countries); its accessible name is "Country: name" at every width. Search, date range and notifications are not built yet.
+
 Date range and location are project-wide scope: they sit in the top bar on every page, keep their value across pages, and are hidden (not disabled) on pages where they do not apply: Settings, Integrations, and the screens that [13-filters-search.md](13-filters-search.md) section 4 lists without them. Screen-specific scope controls (Compare, Device, Engine) and filters stay in the filter bar ([13-filters-search.md](13-filters-search.md) section 2). The URL keys do not change with the placement. Behavior of each element at narrower widths, including which controls collapse first, is defined in [19-responsive-behavior.md](19-responsive-behavior.md) section 3.2.
 
 ## 5. Settings navigation

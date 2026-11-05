@@ -5,7 +5,7 @@ import { RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { checkNowRefusal, checkNowTarget } from './check-now-model';
+import { checkNowRefusal, checkNowTarget, type CheckNowTarget } from './check-now-model';
 import { RefreshProgress } from '../refresh/refresh-progress';
 import {
   endedRefreshes,
@@ -42,6 +42,14 @@ export interface CheckNowResult {
   barAction: RecordAction<TrackedKeywordRow> | null;
   inspectorAction: (trackedId: string, active: boolean) => ReactNode;
   progress: ReactNode;
+  /** Whether Check now is offered at all (the person may trigger runs). */
+  enabled: boolean;
+  /** Why Check now waits for these tracked ids (both devices), in the bar's words, or `null` when it can run. */
+  reasonFor: (ids: ReadonlySet<string>) => string | null;
+  /** Checks these tracked ids, when `reasonFor` has nothing against them. */
+  check: (ids: ReadonlySet<string>) => void;
+  /** A check is being asked for. */
+  checking: boolean;
 }
 
 export function useCheckNow({ scope, enabled, archived, chosen, pendingIds, onDrop }: UseCheckNowArgs): CheckNowResult {
@@ -140,14 +148,25 @@ export function useCheckNow({ scope, enabled, archived, chosen, pendingIds, onDr
     [scope, queryClient, refetch, t, onDrop],
   );
 
+  const reasonOf = (target: CheckNowTarget): string | null =>
+    inFlight
+      ? t('inProgress')
+      : exhausted
+        ? t('blocked.noneLeft')
+        : target.kind === 'blocked'
+          ? t(`blocked.${target.reason}`)
+          : null;
   const target = checkNowTarget(chosen, archived, pendingIds);
-  const disabledReason = inFlight
-    ? t('inProgress')
-    : exhausted
-      ? t('blocked.noneLeft')
-      : target.kind === 'blocked'
-        ? t(`blocked.${target.reason}`)
-        : null;
+  const disabledReason = reasonOf(target);
+  // A set of keywords that is not the selection, such as a group's: the same checks and limit
+  const targetOf = (ids: ReadonlySet<string>): CheckNowTarget =>
+    checkNowTarget({ ids, allMatching: false }, archived, pendingIds);
+  const reasonFor = (ids: ReadonlySet<string>): string | null => (enabled ? reasonOf(targetOf(ids)) : null);
+  const check = (ids: ReadonlySet<string>): void => {
+    const asked = targetOf(ids);
+    if (!enabled || inFlightRef.current || asked.kind !== 'ids') return;
+    void triggerCheck(asked.ids);
+  };
 
   const barAction: RecordAction<TrackedKeywordRow> | null = enabled
     ? {
@@ -196,5 +215,5 @@ export function useCheckNow({ scope, enabled, archived, chosen, pendingIds, onDr
     <RefreshProgress key={runId} scope={scope} runId={runId} workload="seo_rank" onSettled={onSettled} />
   ));
 
-  return { barAction, inspectorAction, progress };
+  return { barAction, inspectorAction, progress, enabled, reasonFor, check, checking: inFlight };
 }

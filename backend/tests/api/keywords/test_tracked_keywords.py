@@ -268,6 +268,18 @@ async def test_a_keyword_that_cannot_be_tracked_is_refused(
     assert errors(response) == [("keyword", code)]
 
 
+@pytest.mark.parametrize("location_id", [0, 2**31, 2**40])
+async def test_a_location_id_outside_the_database_range_is_a_validation_error(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, location_id: int
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+
+    response = await track(api, workspace, project, owner, "crm", location_id=location_id)
+
+    assert problem(response) == (422, "validation_failed")
+    assert errors(response)[0][0] == "location_id"
+
+
 @pytest.mark.parametrize(
     ("body", "accepted"),
     [

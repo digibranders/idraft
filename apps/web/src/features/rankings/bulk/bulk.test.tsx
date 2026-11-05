@@ -197,7 +197,7 @@ describe('Bulk actions', () => {
     }
 
     it('sends batches of at most 4,000 keywords when 50 groups are named and the groups of the rows are not known', async () => {
-      answerTrackedAsMany({ total: 5_000, pages: 25, rowsPerPage: 200, withoutGroups: true });
+      answerTrackedAsMany({ total: 5_000, pages: 25, rowsPerPage: 200, withoutGroups: true, desktopOnly: true });
       fiftyGroups();
       const updates = recordUpdates();
       const { user } = renderWithProviders(as('editor'));
@@ -211,7 +211,7 @@ describe('Bulk actions', () => {
     }, 40_000);
 
     it('names only the groups the chosen keywords are in, so 5,000 keywords go in one request', async () => {
-      answerTrackedAsMany({ total: 5_000, pages: 25, rowsPerPage: 200 });
+      answerTrackedAsMany({ total: 5_000, pages: 25, rowsPerPage: 200, desktopOnly: true });
       fiftyGroups();
       const updates = recordUpdates();
       const { user } = renderWithProviders(as('editor'));

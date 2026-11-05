@@ -16,6 +16,20 @@ describe('bulk targets', () => {
     expect(bodyFilterOf({}, '')).toEqual({ is_active: true });
   });
 
+  it('keeps the country of the scope and the countries of the Country chip, so a bulk change never leaves them', () => {
+    expect(bodyFilterOf({ 'filter[country_id]': 2276 }, '')).toEqual({ is_active: true, country_id: 2276 });
+    expect(bodyFilterOf({ 'filter[country_id_in]': [2276, 2840] }, '')).toEqual({
+      is_active: true,
+      country_id_in: [2276, 2840],
+    });
+    expect(
+      bodyFilterOf(
+        { ...keywordFilters({ country: { kind: 'enum', values: ['2840'] } }, false), 'filter[country_id]': 2276 },
+        '',
+      ),
+    ).toEqual({ is_active: true, country_id: 2276, country_id_in: [2840] });
+  });
+
   it('sends every rank filter of the list in the body, with the list’s own values, and no other', () => {
     const chosen = (values: FilterValues): ReturnType<typeof bodyFilterOf> =>
       bodyFilterOf(keywordFilters(values, false), '');

@@ -6,9 +6,11 @@ import { applyKeywordWrite } from './keyword-cache';
 import {
   allListKey,
   countKey,
+  keywordCountriesKey,
   keywordsKey,
   pageListKey,
   refreshKeywords,
+  trackedKeywordQuotaKey,
   type KeywordFilters,
   type ListPage,
   type ListQuery,
@@ -123,6 +125,32 @@ describe('a write to one keyword reaches the lists in the cache', () => {
     expect(
       client.getQueryState(pageListKey(SCOPE, { ...ACTIVE, 'filter[priority_lte]': 5 }, byPriority))?.isInvalidated,
     ).toBe(true);
+  });
+
+  it('reads the countries in use and the quota again when a write archives or restores a keyword', () => {
+    seedAll(ACTIVE);
+    client.setQueryData(keywordCountriesKey(SCOPE), { data: [] });
+    client.setQueryData(trackedKeywordQuotaKey(SCOPE.workspaceId), { data: { limit: 5000, used: 3 } });
+    applyKeywordWrite(client, SCOPE, { ...detail, is_active: false });
+    expect(client.getQueryState(keywordCountriesKey(SCOPE))?.isInvalidated).toBe(true);
+    expect(client.getQueryState(trackedKeywordQuotaKey(SCOPE.workspaceId))?.isInvalidated).toBe(true);
+  });
+
+  it('leaves the countries in use and the quota alone when a write does not change who is tracked', () => {
+    seedAll(ACTIVE);
+    client.setQueryData(keywordCountriesKey(SCOPE), { data: [] });
+    client.setQueryData(trackedKeywordQuotaKey(SCOPE.workspaceId), { data: { limit: 5000, used: 3 } });
+    applyKeywordWrite(client, SCOPE, { ...detail, priority: detail.priority === 9 ? 8 : 9 });
+    expect(client.getQueryState(keywordCountriesKey(SCOPE))?.isInvalidated).toBe(false);
+    expect(client.getQueryState(trackedKeywordQuotaKey(SCOPE.workspaceId))?.isInvalidated).toBe(false);
+  });
+
+  it('reads the countries in use and the quota again when the keyword is in no list to compare with', () => {
+    client.setQueryData(keywordCountriesKey(SCOPE), { data: [] });
+    client.setQueryData(trackedKeywordQuotaKey(SCOPE.workspaceId), { data: { limit: 5000, used: 3 } });
+    applyKeywordWrite(client, SCOPE, { ...detail, is_active: false });
+    expect(client.getQueryState(keywordCountriesKey(SCOPE))?.isInvalidated).toBe(true);
+    expect(client.getQueryState(trackedKeywordQuotaKey(SCOPE.workspaceId))?.isInvalidated).toBe(true);
   });
 
   it('invalidates strip count queries when write changes membership', async () => {
