@@ -21,6 +21,7 @@ from idraft.api.operations.runs import RunService
 from idraft.api.operations.schedules import ScheduleService
 from idraft.api.operations.settings import SettingsService
 from idraft.api.projects.service import ProjectService
+from idraft.api.quotas.service import QuotaService
 from idraft.api.ranks.service import RankService
 from idraft.api.taxonomy.service import TaxonomyService
 from idraft.api.workspaces.invitations import InvitationService
@@ -60,6 +61,7 @@ class Resources:
     costs: CostService
     imports: ImportService
     ranks: RankService
+    quotas: QuotaService
 
 
 def get_resources(request: Request) -> Resources:

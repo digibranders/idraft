@@ -11245,6 +11245,38 @@
         "title": "TrackedKeywordPatch",
         "type": "object"
       },
+      "TrackedKeywordQuota": {
+        "properties": {
+          "limit": {
+            "description": "The most active tracked keywords the workspace may hold.",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "used": {
+            "description": "Active tracked keywords of every live project of the workspace.",
+            "title": "Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "used"
+        ],
+        "title": "TrackedKeywordQuota",
+        "type": "object"
+      },
+      "TrackedKeywordQuotaResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TrackedKeywordQuota"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "TrackedKeywordQuotaResponse",
+        "type": "object"
+      },
       "TrackedKeywordResponse": {
         "properties": {
           "data": {
@@ -20764,6 +20796,50 @@
         "summary": "Change or move a term",
         "tags": [
           "taxonomy"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/tracked-keyword-quota": {
+      "get": {
+        "description": "`used` counts the active tracked keywords of every live project of the workspace, the figure `quota_exceeded` carries. The full quota report stays deferred.",
+        "operationId": "get_tracked_keyword_quota_api_v1_workspaces__workspace_id__tracked_keyword_quota_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackedKeywordQuotaResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The workspace's tracked keyword limit and use",
+        "tags": [
+          "workspaces"
         ]
       }
     },

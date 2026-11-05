@@ -637,6 +637,7 @@ interface ApiKey { api_key_id: Uuid; name: string; prefix: string; scopes: strin
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
 |---|---|---|---|---|---|---|---|
 | GET | `{W}/quotas` | member | none | `One<QuotaUsage>` | no | | deferred |
+| GET | `{W}/tracked-keyword-quota` | member | none | `One<{ limit, used }>`: the workspace's tracked keyword limit (the default when no quota row is stored) and its active tracked keywords in live projects, the figures `quota_exceeded` carries | no | | 5 |
 | PUT | `/api/v1/admin/workspaces/{workspace_id}/quotas` | platform_operator | `{ max_projects, max_tracked_keywords, max_active_prompts, max_ai_observations_per_month, max_serp_checks_per_month }` | `One<QuotaUsage>` | no | | deferred |
 | GET | `{W}/audit-logs` | `audit:read` | `from?`, `to?`, `filter[actor_type]?`, `filter[actor_id]?`, `filter[action]?` (prefix match, e.g. `panel.`), `filter[target_type]?`, `filter[target_id]?` | `Page<AuditLog>` sorted `-occurred_at` | cursor | | deferred |
 | GET | `/api/v1/locations` | authenticated | `filter[q]?` (left out: all, by name, so `filter[location_type]=Country` lists countries; active locations only, sorted by name then id; `supports` is every surface any provider can collect there), `filter[country_iso]?`, `filter[location_type]?`, `filter[supports]?` (`serp`, `ai_mode`, `llm_scraper`) | `Page<Location>` | cursor | | 2 |
@@ -644,6 +645,8 @@ interface ApiKey { api_key_id: Uuid; name: string; prefix: string; scopes: strin
 | GET | `/api/v1/serp-feature-types` | authenticated | none | `{ data: Array<{ code, label, ownable, tracked_by_default }> }` | no | | 4 |
 | GET | `/api/v1/domain-categories` | authenticated | none | `{ data: Array<{ code, label, description }> }` | no | | 2 |
 | GET | `/api/v1/component-versions` | authenticated | `filter[component]?` | `{ data: Array<{ component, version, released_at, notes, is_breaking }> }` (no `git_sha`) | no | | 1 |
+
+`GET {W}/tracked-keyword-quota` is the first piece of `GET {W}/quotas`: the Add keywords dialog needs the tracked keyword limit and use before it submits. The full `QuotaUsage` below stays deferred.
 
 ```ts
 interface QuotaUsage {
