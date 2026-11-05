@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { groupedRows } from './grouped-rows';
-import { chosenCount, keywordActions, keywordOrder, treeOf, unrenderedCount } from './use-grouped-table';
+import { chosenCount, keywordActions, keywordOrder, treeOf, unrenderedCount, viewToShow } from './use-grouped-table';
 import { memberIds, pairRows, type PairedRow } from '../keyword-pairs';
 import type { RecordAction } from '@/components/app/data-table/types';
 import type { TrackedKeywordRow } from '@/lib/api/types';
@@ -61,5 +61,14 @@ describe('the By group table', () => {
     const [grouped] = keywordActions([action], rows, new Set(['t3']));
     grouped?.onSelect(list(['g2']), { ids: new Set(['group:g2']), allMatching: true });
     expect(onSelect).toHaveBeenCalledWith([rows[2]], { ids: new Set(['t3']), allMatching: false });
+  });
+
+  it('waits for the groups and the list mode before it picks the default view', () => {
+    expect(viewToShow({ chosen: null, mode: 'client', groupCount: null })).toBeNull();
+    expect(viewToShow({ chosen: null, mode: null, groupCount: 3 })).toBeNull();
+    expect(viewToShow({ chosen: null, mode: 'client', groupCount: 3 })).toBe('groups');
+    expect(viewToShow({ chosen: null, mode: 'client', groupCount: 0 })).toBe('flat');
+    expect(viewToShow({ chosen: 'groups', mode: 'server', groupCount: 3 })).toBe('flat');
+    expect(viewToShow({ chosen: 'flat', mode: null, groupCount: null })).toBe('flat');
   });
 });

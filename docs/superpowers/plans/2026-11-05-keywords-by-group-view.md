@@ -17,6 +17,7 @@
 - Counting is by **distinct keyword** (`keyword.keyword_id`), never by the API's `keyword_count` (which counts tracked rows on both devices, ignores filters).
 - By group works in **client mode only** (every row loaded, at most 10,000 keywords). In server mode the switch shows "All keywords" and the By group option is disabled with the reason; the URL `view=groups` then falls back to the flat view.
 - Default view: By group when the project has at least one group and the table is in client mode, otherwise All keywords; an explicit `view` in the URL wins.
+- While a search is on, every group with a match is open (the "Show more" limit still applies), and the open groups from before come back when it is cleared. J and K step over the keyword rows shown, so they are idle while the open keyword's group is closed.
 - Not in this plan: "Export this group", nested group rows, drag to move a keyword between groups.
 
 Work in `/Users/a12345/Desktop/AI/idraft/platform/.claude/worktrees/keywords-grouped`; commands from `apps/web`. The three known failing vitest tests (rank trend sparkline, two rank-strip tests) and four failing e2e tests are not yours.

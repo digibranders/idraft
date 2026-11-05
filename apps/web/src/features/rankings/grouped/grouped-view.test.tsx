@@ -1,5 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { getResponse, http, HttpResponse } from 'msw';
+import { delay, getResponse, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
@@ -25,6 +25,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 const TRACKED = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords';
+const GROUPS = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups';
 const LIST_BODY = z.object({
   data: z.array(
     z
@@ -255,5 +256,112 @@ describe('Keywords By group', () => {
     expect(screen.queryByRole('treegrid')).toBeNull();
     expect(screen.getByRole('radio', { name: 'By group' })).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByRole('radio', { name: 'All keywords' })).toBeChecked();
+  });
+
+  it('never shows the flat table before By group when the project has groups', async () => {
+    // The groups answer comes after the keywords, so the default must wait for it
+    server.use(
+      http.get(mswPath(GROUPS), async ({ request }) => {
+        await delay(300);
+        return getResponse([...handlers], request.clone());
+      }),
+    );
+    const flatFirst = { seen: false };
+    const observer = new MutationObserver(() => {
+      if (document.querySelector('table[role="grid"] [role="rowheader"]') !== null) flatFirst.seen = true;
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    renderWithProviders(byDefault());
+    await loadedTree();
+    observer.disconnect();
+    expect(flatFirst.seen).toBe(false);
+  });
+
+  it('opens on All keywords when the project has no groups', async () => {
+    server.use(http.get(mswPath(GROUPS), () => HttpResponse.json({ data: [] })));
+    renderWithProviders(byDefault());
+    await loadedGrid();
+    expect(screen.queryByRole('treegrid')).toBeNull();
+    expect(screen.getByRole('radio', { name: 'All keywords' })).toBeChecked();
+  });
+
+  it('keeps the chosen keywords across a switch of view', async () => {
+    const { user } = renderWithProviders(byDefault());
+    const tree = await loadedTree();
+    const first = keywordsUnder(tree, /SEO audits/)[0] ?? '';
+    await user.click(screen.getByRole('checkbox', { name: new RegExp(`^Select ${first},`) }));
+    // A closed group still holds the choice, and the toolbar with the switch comes back
+    await user.click(screen.getByRole('button', { name: /^Collapse .*SEO audits group/ }));
+    await user.click(await screen.findByRole('radio', { name: 'All keywords' }));
+    await loadedGrid();
+    expect(within(screen.getByRole('group', { name: /Bulk actions/ })).getByText('1 selected')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: new RegExp(`^Select ${first},`) })).toBeChecked();
+  });
+
+  it('drops "every matching keyword" once the view changes, so an untick in By group counts', async () => {
+    answerTrackedAsMany({ total: 118, pages: 2, failSecond: () => true });
+    const seen: unknown[] = [];
+    server.events.on('request:start', ({ request }) => {
+      if (request.method !== 'POST' || !request.url.endsWith('/bulk-archive')) return;
+      void request
+        .clone()
+        .json()
+        .then((body: unknown) => seen.push(body));
+    });
+    const { user, rerender } = renderWithProviders(rankingsAs('editor'));
+    await loadedGrid();
+    await user.click(screen.getByRole('checkbox', { name: /^Select all/ }));
+    await user.click(
+      within(screen.getByRole('group', { name: /Bulk actions/ })).getByRole('button', {
+        name: 'Select all 118 matching',
+      }),
+    );
+    rerender(byDefault());
+    const tree = await loadedTree();
+    const first = keywordsUnder(tree, /SEO audits/)[0] ?? '';
+    await user.click(screen.getByRole('checkbox', { name: new RegExp(`^Select ${first},`) }));
+    rerender(rankingsAs('editor'));
+    await loadedGrid();
+    await user.click(
+      within(screen.getByRole('group', { name: /Bulk actions/ })).getByRole('button', { name: 'Archive' }),
+    );
+    await waitFor(() => expect(seen).toHaveLength(1));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(seen[0]).toEqual({ ids: expect.any(Array), archive: true });
+  });
+
+  it('opens every group with a match while searching, and shows the search empty state when none is left', async () => {
+    const { user } = renderWithProviders(byDefault());
+    const tree = await loadedTree();
+    expect(groupRow(tree, /Content/)).toHaveAttribute('aria-expanded', 'false');
+    await user.type(screen.getByRole('searchbox', { name: /Search/ }), 'audit');
+    await waitFor(() => expect(tree.querySelectorAll('tr[data-group-row]')).toHaveLength(2));
+    for (const row of tree.querySelectorAll('tr[data-group-row]')) expect(row).toHaveAttribute('aria-expanded', 'true');
+    expect(keywordsUnder(tree, /Content/)).toEqual(['content audit']);
+    await user.clear(screen.getByRole('searchbox', { name: /Search/ }));
+    await waitFor(() => expect(groupRow(tree, /Content/)).toHaveAttribute('aria-expanded', 'false'));
+    await user.type(screen.getByRole('searchbox', { name: /Search/ }), 'zzzz');
+    expect(await screen.findByText('No keywords match “zzzz”')).toBeInTheDocument();
+  });
+
+  it('steps the inspector with J and K over keyword rows only', async () => {
+    const { user } = renderWithProviders(byDefault('viewer'));
+    const tree = await loadedTree();
+    const [first, second] = keywordsUnder(tree, /SEO audits/);
+    const cell = within(tree)
+      .getAllByRole('rowheader')
+      .find((header) => header.querySelector('.truncate')?.textContent === first);
+    if (cell === undefined || first === undefined || second === undefined) {
+      throw new Error('No keyword rows under SEO audits');
+    }
+    await user.click(cell);
+    // Eight keyword rows are shown; the five group rows and the Show more row are not steps
+    const inspector = await screen.findByRole('complementary', { name: first }, { timeout: 3000 });
+    expect(within(inspector).getByText('1 of 8')).toBeInTheDocument();
+    await user.keyboard('j');
+    const next = await screen.findByRole('complementary', { name: second }, { timeout: 3000 });
+    expect(within(next).getByText('2 of 8')).toBeInTheDocument();
+    await user.keyboard('k');
+    expect(await screen.findByRole('complementary', { name: first }, { timeout: 3000 })).toBeInTheDocument();
   });
 });

@@ -10,10 +10,9 @@ import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AddKeywordsDialog, type ProjectDefaults } from './add-keywords/add-keywords-dialog';
 import { useBulkActions } from './bulk/bulk-actions';
 import { ManageGroupsDialog } from './groups/manage-groups-dialog';
-import { useGroupedColumns } from './grouped/grouped-columns';
 import type { GroupedRow } from './grouped/grouped-rows';
-import { keywordActions, useGroupedTable } from './grouped/use-grouped-table';
-import { hiddenInGroups, mergeHidden, visibleForView, type KeywordsView } from './grouped/view-columns';
+import { keywordActions, useGroupedTable, viewToShow } from './grouped/use-grouped-table';
+import type { KeywordsView } from './grouped/view-columns';
 import { ViewSwitch } from './grouped/view-switch';
 import { ImportProgress } from './import/import-progress';
 import { forgetWritingImport, useWritingImport } from './import/import-queries';
@@ -112,8 +111,6 @@ const VIEW_STATE = {
   view: parseAsStringLiteral(['groups', 'flat'] as const),
 };
 const NO_ROWS: readonly PairedRow[] = [];
-const groupedRowId = (row: GroupedRow): string => row.id;
-
 export interface RankingsScreenProps extends ProjectScope {
   /** The project's time zone, for the Added column. */
   timeZone: string;
@@ -157,7 +154,6 @@ export function RankingsScreen({
   const rankT = useTranslations('rankings.rank');
   const exportColumnsT = useTranslations('rankings.export.columns');
   const stripT = useTranslations('rankings.strip');
-  const groupedT = useTranslations('rankings.grouped');
   const locale = useLocale();
   const canWrite = useCan('keywords:write');
   const canImport = useCan('imports:write');
@@ -280,12 +276,14 @@ export function RankingsScreen({
     [rawList, pairedRows],
   );
   // By group reads every keyword, so a list in server mode is flat whatever the URL says; without a choice
-  // in the URL, a project with groups opens on them
+  // in the URL, a project with groups opens on them, once its groups and the list's mode are known
   const projectGroups = useKeywordGroups(scope);
   const groupsAllowed = list.mode !== 'server';
-  const shownView: KeywordsView = groupsAllowed
-    ? (view.view ?? viewOpensOn ?? ((projectGroups.data?.data.length ?? 0) > 0 ? 'groups' : 'flat'))
-    : 'flat';
+  const shownView = viewToShow({
+    chosen: view.view ?? viewOpensOn ?? null,
+    mode: list.mode,
+    groupCount: projectGroups.isPending ? null : (projectGroups.data?.data.length ?? 0),
+  });
   const byGroup = shownView === 'groups';
   const tracked = useTrackedCount(scope);
   const writingNow = useWritingImport(scope, canImport).data?.import_id ?? null;
@@ -329,27 +327,22 @@ export function RankingsScreen({
     [],
   );
   const setAllMatching = (allMatching: boolean): void => setSelection((current) => ({ ...current, allMatching }));
-  const clearSelection = (): void => setSelection(emptySelection);
-  // Keywords that left the list are not chosen any more
-  // The chosen keywords with their other device's tracked keyword: what an action is asked about
-  // By group holds every keyword, so it never stands for "every matching keyword"
-  const allMatchingNow = chosen.allMatching && !byGroup;
-  const reached = useMemo(
-    () => ({ ids: expandIds(chosen.ids, members), allMatching: allMatchingNow }),
-    [chosen.ids, allMatchingNow, members],
+  // By group never stands for "every matching keyword": a choice there is of keywords, and so is the choice
+  // that comes back from it
+  const chooseInGroups = useCallback(
+    (ids: ReadonlySet<string>): void => setSelection((current) => ({ ...current, ids, allMatching: false })),
+    [],
   );
-  const grouped = useGroupedTable({
-    rows: byGroup ? pairedRows : NO_ROWS,
-    search,
-    chosen: chosen.ids,
-    onChosenChange: setChosenIds,
-    members,
-  });
-  const groupColumnSource = useMemo(() => columns.filter((column) => !hiddenInGroups(column.id)), [columns]);
-  const groupedColumns = useGroupedColumns(groupColumnSource, { timeZone, onShowAll: grouped.onShowAll });
-  const flatDefaults = useMemo(
-    () => columns.filter((column) => column.defaultVisible !== false).map((column) => column.id),
-    [columns],
+  const [selectionView, setSelectionView] = useState(shownView);
+  if (selectionView !== shownView) {
+    setSelectionView(shownView);
+    if (selection.allMatching) setAllMatching(false);
+  }
+  const clearSelection = (): void => setSelection(emptySelection);
+  // The chosen keywords with their other device's tracked keyword: what an action is asked about
+  const reached = useMemo(
+    () => ({ ids: expandIds(chosen.ids, members), allMatching: chosen.allMatching }),
+    [chosen.ids, chosen.allMatching, members],
   );
   const dropChosen = useCallback((gone: ReadonlySet<string>): void => {
     setSelection((current) => ({ ...current, ids: new Set([...current.ids].filter((id) => !gone.has(id))) }));
@@ -430,12 +423,6 @@ export function RankingsScreen({
       onSelect: () => void setView({ archived: view.archived ? null : true }),
     },
   ];
-  const listStatus = statusOf(list, filtered || view.archived || (list.mode === 'server' && search.trim() !== ''));
-  // The tree does not search itself: a search that leaves no group is the search's empty state
-  const status =
-    byGroup && (listStatus === 'ready' || listStatus === 'refetching') && grouped.rows.length === 0
-      ? 'filtered-empty'
-      : listStatus;
   const updated = newestFetch(list.rows);
   const updatedText = updated === null ? null : t('updated', { time: formatRelative(updated, timeZone) });
   // The summary strip counts the keywords the table shows; the project's tracked keywords (a keyword on each
@@ -471,9 +458,6 @@ export function RankingsScreen({
     guarded(() => inspector.step(direction, order));
   };
   const openRow = openId === null ? null : (rawList.rows.find((row) => row.tracked_keyword_id === openId) ?? null);
-  // In By group the keyword may sit in a closed group: it is hidden only when the search or filters leave it out
-  const hiddenByFilters =
-    openId !== null && listComplete && !(byGroup ? grouped.inView(openId) : order.includes(openId));
   const onRowOpen = (row: TrackedKeywordRow, intent: 'inspector' | 'new-tab'): void => {
     const target = { type: 'keyword' as const, id: row.tracked_keyword_id };
     if (intent === 'new-tab') {
@@ -486,11 +470,42 @@ export function RankingsScreen({
     if (row.tracked_keyword_id === openId) return;
     guarded(() => inspector.open(target));
   };
-  // A group row only toggles (the table does that); a "Show all" row, wherever it is clicked, shows the rest
-  const onGroupedRowOpen = (row: GroupedRow, intent: 'inspector' | 'new-tab'): void => {
-    if (row.kind === 'keyword') onRowOpen(row.row, intent);
-    else if (row.kind === 'more') grouped.onShowAll(row.groupId);
+  const setColumns = (next: readonly string[] | null): void => {
+    // The table cannot offer a column that is out of view, so a change to the others keeps it chosen:
+    // it is in the explicit list when the person had it there, and in the default one
+    const kept =
+      next !== null && !severalCountries && (visible === null || visible.includes(COUNTRY_COLUMN))
+        ? [...next.slice(0, 1), COUNTRY_COLUMN, ...next.slice(1)]
+        : next;
+    void setView({ cols: kept === null ? null : formatColumns(kept) });
   };
+  const grouped = useGroupedTable({
+    rows: byGroup ? pairedRows : NO_ROWS,
+    search,
+    chosen: chosen.ids,
+    onChosenChange: chooseInGroups,
+    members,
+    keywordColumns: columns,
+    timeZone,
+    visible,
+    onColumnsChange: setColumns,
+    keywordRowName: rowName,
+    onKeywordOpen: onRowOpen,
+    openId,
+    onOrderChange: setOrder,
+  });
+  // In By group the keyword may sit in a closed group: it is hidden only when the search or filters leave it out
+  const hiddenByFilters =
+    openId !== null && listComplete && !(byGroup ? grouped.inView(openId) : order.includes(openId));
+  const listStatus = statusOf(list, filtered || view.archived || (list.mode === 'server' && search.trim() !== ''));
+  // The table waits for the view to be known; the tree does not search itself, so a search that leaves no
+  // group is the search's empty state
+  const status =
+    shownView === null && listStatus !== 'error'
+      ? 'loading'
+      : byGroup && (listStatus === 'ready' || listStatus === 'refetching') && grouped.table.rows.length === 0
+        ? 'filtered-empty'
+        : listStatus;
   const onEditStateChange = useCallback((state: InspectorEditState) => setEditState(state), []);
 
   const setSort = (next: readonly SortKey[]): void => {
@@ -711,20 +726,6 @@ export function RankingsScreen({
       />
     );
 
-  const setColumns = (next: readonly string[] | null): void => {
-    // The table cannot offer a column that is out of view, so a change to the others keeps it chosen:
-    // it is in the explicit list when the person had it there, and in the default one
-    const kept =
-      next !== null && !severalCountries && (visible === null || visible.includes(COUNTRY_COLUMN))
-        ? [...next.slice(0, 1), COUNTRY_COLUMN, ...next.slice(1)]
-        : next;
-    void setView({ cols: kept === null ? null : formatColumns(kept) });
-  };
-  const groupedRowName = (row: GroupedRow): string => {
-    if (row.kind === 'keyword') return rowName(row.row);
-    if (row.kind === 'more') return groupedT('showAll', { count: row.hidden });
-    return `${row.group.label}, ${groupedT('keywordCount', { count: row.group.measures.size })}`;
-  };
   // What both views' tables share; the view switch is the same element in both, so switching keeps the table
   const tableProps = {
     caption: t('caption'),
@@ -754,7 +755,7 @@ export function RankingsScreen({
     filteredEmptyState: filteredEmpty,
     toolbarStart: (
       <ViewSwitch
-        view={shownView}
+        view={shownView ?? 'flat'}
         onViewChange={(next) => void setView({ view: next })}
         groupsDisabled={!groupsAllowed}
         sort={grouped.sort}
@@ -854,20 +855,7 @@ export function RankingsScreen({
           {byGroup ? (
             <DataTable<GroupedRow>
               {...tableProps}
-              columns={groupedColumns}
-              getRowId={groupedRowId}
-              rows={grouped.rows}
-              total={grouped.keywordCount}
-              columnState={{
-                visible: visibleForView(visible, 'groups'),
-                onChange: (next) => setColumns(mergeHidden(visible, next, flatDefaults, 'groups')),
-              }}
-              rowTree={grouped.rowTree}
-              onToggleGroup={grouped.onToggleGroup}
-              rowName={groupedRowName}
-              onRowOpen={onGroupedRowOpen}
-              activeRowId={grouped.rowIdOf(openId)}
-              onRowOrderChange={(ids) => setOrder(grouped.keywordOrder(ids))}
+              {...grouped.table}
               selection={
                 canWrite
                   ? {
