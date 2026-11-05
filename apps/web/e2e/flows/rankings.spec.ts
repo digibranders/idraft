@@ -249,11 +249,12 @@ test.describe('rankings', () => {
     await expect(grid.getByRole('rowheader').first()).toBeVisible();
 
     // Inspect change slot horizontal offset and clipping relative to the rank cell across table rows
-    const rowMeasurements = await grid.locator('tbody tr[role="row"]').evaluateAll((rows) => {
+    const rankAt = await indexOf(grid, 'Rank');
+    const rowMeasurements = await grid.locator('tbody tr[role="row"]').evaluateAll((rows, at) => {
       return rows
         .slice(0, 15)
         .map((tr) => {
-          const rankCell = (tr as HTMLTableRowElement).cells[2];
+          const rankCell = (tr as HTMLTableRowElement).cells[at];
           if (!rankCell) return null;
           const cellRect = rankCell.getBoundingClientRect();
           const container = rankCell.firstElementChild as HTMLElement | null;
@@ -271,7 +272,7 @@ test.describe('rankings', () => {
           };
         })
         .filter((v): v is NonNullable<typeof v> => v !== null);
-    });
+    }, rankAt);
 
     expect(rowMeasurements.length).toBeGreaterThan(0);
     const firstOffset = rowMeasurements[0]?.slotOffset;
@@ -957,9 +958,13 @@ test.describe('rankings', () => {
     await page.getByRole('dialog').getByRole('button', { name: 'Apply' }).click();
     await expect(page).toHaveURL(/[?&]aio=present_cited/);
     await expect(page.getByRole('button', { name: 'AI Overview: Cited. Edit filter' })).toBeVisible();
-    const aioCells = await columnOf(grid, 'AI Overview');
-    expect(aioCells.length).toBeGreaterThan(0);
-    expect(aioCells.every((text) => text.includes('Cited'))).toBe(true);
+    // The rows are refetched after Apply: poll until every shown cell is Cited rather than read them once
+    await expect
+      .poll(async () => {
+        const aioCells = await columnOf(grid, 'AI Overview');
+        return aioCells.length > 0 && aioCells.every((text) => text.includes('Cited'));
+      })
+      .toBe(true);
 
     // 4. Filter "SERP feature: Video"
     await page.getByRole('button', { name: 'Remove filter AI Overview: Cited' }).click();
