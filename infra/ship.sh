@@ -10,6 +10,8 @@
 # Environment:
 #   SHIP_ALL=1        check and deploy every part, changed or not
 #   PYTEST_WORKERS=n  backend test workers (default 4, as many as Colima has CPUs)
+#   VITEST_WORKERS=n  web unit test workers (default 6). The two suites run at once: on 14 cores, full
+#                     width vitest beside the backend run timed out DOM tests that pass alone.
 #   SHIP_HOST         ssh target (default root@187.126.121.25)
 #
 # Works in its own worktree (.claude/worktrees/release), so it never touches another checkout.
@@ -97,7 +99,8 @@ check_backend() {
 
 check_web() {
   pnpm install --frozen-lockfile --prefer-offline --silent &&
-    (cd apps/web && pnpm lint && pnpm typecheck && pnpm test && pnpm format:check &&
+    (cd apps/web && pnpm lint && pnpm typecheck &&
+      pnpm exec vitest run --maxWorkers="${VITEST_WORKERS:-6}" && pnpm format:check &&
       NEXT_PUBLIC_APP_ENV=production NEXT_PUBLIC_API_MOCKING=off NEXT_PUBLIC_RELEASE="$sha" \
       API_INTERNAL_ORIGIN=http://127.0.0.1:8000 pnpm build && node scripts/prepare-standalone.mjs)
 }
