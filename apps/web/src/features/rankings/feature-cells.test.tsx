@@ -79,8 +79,9 @@ describe('AioStatusView', () => {
     expect(badge).toBeInTheDocument();
     expect(badge).toHaveAccessibleName('AI Overview present, cited at position 2');
     expect(badge).toHaveClass('bg-positive-subtle', 'text-positive-text');
-    // The check and the position, with no word "Cited"
+    // The position alone: no check icon and no word "Cited"
     expect(badge).toHaveTextContent(/^#2$/);
+    expect(badge.querySelector('svg')).toBeNull();
   });
 
   it('renders a cited status with no position as the check alone', () => {

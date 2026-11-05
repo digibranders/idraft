@@ -145,7 +145,7 @@ export interface AioStatusViewProps {
 }
 
 /**
- * AI Overview cell: badge when cited, check icon when present but not cited,
+ * AI Overview cell: badge with the position when cited, check icon when present but not cited,
  * tertiary text otherwise (12-tables.md section 6, `AIOverviewStatus`).
  */
 export function AioStatusView({ display, state, stale, lastSuccessfulCheck }: AioStatusViewProps): ReactElement {
@@ -163,13 +163,17 @@ export function AioStatusView({ display, state, stale, lastSuccessfulCheck }: Ai
   const content = (() => {
     switch (display.kind) {
       case 'cited': {
-        // The check and the position; the word "Cited" is the accessible name, not a visible label
-        const text = display.position === null ? '' : t('cited', { position: display.position });
-        const speech =
-          display.position === null ? t('speech.citedNoPosition') : t('speech.cited', { position: display.position });
+        // The position alone ("#1"), or the check when the citation has none; "Cited" is the accessible name
+        if (display.position === null) {
+          return (
+            <Badge tone="positive" icon={Check} role="img" aria-label={t('speech.citedNoPosition')}>
+              {''}
+            </Badge>
+          );
+        }
         return (
-          <Badge tone="positive" icon={Check} role="img" aria-label={speech}>
-            {text}
+          <Badge tone="positive" role="img" aria-label={t('speech.cited', { position: display.position })}>
+            {t('cited', { position: display.position })}
           </Badge>
         );
       }
