@@ -1411,6 +1411,8 @@
     "resetWidth": "Reset width",
     "selectAll": "Select all {count, plural, one {# {nounOne}} other {# {nounOther}}} loaded",
     "selectRow": "Select {name}",
+    "expandGroup": "Expand {name}",
+    "collapseGroup": "Collapse {name}",
     "rowActions": "Actions for {name}",
     "actionsColumn": "Actions",
     "selected": "{count} selected",

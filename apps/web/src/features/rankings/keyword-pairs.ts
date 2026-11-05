@@ -48,16 +48,25 @@ export function pairRows(rows: readonly TrackedKeywordRow[], device: Device): Pa
   return paired;
 }
 
-/** The tracked keyword ids behind each shown row, by the shown row's id. */
+/** The tracked ids of both devices of a shown row. */
+export function idsOfPair(row: PairedRow): readonly string[] {
+  const ids: string[] = [];
+  if (row.devices.desktop !== null) ids.push(row.devices.desktop.tracked_keyword_id);
+  if (row.devices.mobile !== null) ids.push(row.devices.mobile.tracked_keyword_id);
+  return ids;
+}
+
+/**
+ * The tracked keyword ids behind each row, under every one of them: whichever device's id is chosen, the map
+ * gives both (the Device scope control keeps the chosen ids while the shown id changes).
+ */
 export function memberIds(rows: readonly PairedRow[]): ReadonlyMap<string, readonly string[]> {
-  return new Map(
-    rows.map((row) => [
-      row.tracked_keyword_id,
-      [row.devices.desktop, row.devices.mobile]
-        .filter((member): member is TrackedKeywordRow => member !== null)
-        .map((member) => member.tracked_keyword_id),
-    ]),
-  );
+  const members = new Map<string, readonly string[]>();
+  for (const row of rows) {
+    const ids = idsOfPair(row);
+    for (const id of ids) members.set(id, ids);
+  }
+  return members;
 }
 
 /** The chosen ids with the other device's id of every chosen keyword added: an action reaches both. */
