@@ -279,7 +279,7 @@ test.describe('rankings', () => {
     expect(rowMeasurements.length).toBeGreaterThan(0);
     const firstOffset = rowMeasurements[0]?.slotOffset;
     for (const m of rowMeasurements) {
-      expect(m.rankBoxWidth).toBe(32);
+      expect(m.rankBoxWidth).toBe(28);
       expect(m.slotOffset).toBe(firstOffset);
       expect(m.rankBoxClipped).toBe(false);
       expect(m.slotClipped).toBe(false);
@@ -292,7 +292,7 @@ test.describe('rankings', () => {
       host.style.cssText = 'position:absolute;left:0;top:0;visibility:hidden;font-size:12px;';
       document.body.append(host);
 
-      const ranks = ['1', '9', '10', '100', '>100'];
+      const ranks = ['1', '9', '10', '100', '-'];
       const markConditions = [
         { stale: false, failing: false },
         { stale: true, failing: false },
@@ -304,10 +304,10 @@ test.describe('rankings', () => {
       for (const rankText of ranks) {
         for (const marks of markConditions) {
           const wrapper = document.createElement('div');
-          wrapper.className = 'flex items-center gap-2';
+          wrapper.className = 'flex items-center gap-1.5';
 
           const rankBox = document.createElement('span');
-          rankBox.className = 'inline-flex w-8 shrink-0 items-center justify-start text-left';
+          rankBox.className = 'inline-flex w-7 shrink-0 items-center justify-end text-right';
           const textSpan = document.createElement('span');
           textSpan.className = 'num text-foreground';
           textSpan.textContent = rankText;
@@ -359,11 +359,11 @@ test.describe('rankings', () => {
     expect(renderedVariants.length).toBe(20);
     const expectedSlotOffset = renderedVariants[0]?.slotOffset;
     for (const v of renderedVariants) {
-      expect(v.rankBoxWidth).toBe(32);
+      expect(v.rankBoxWidth).toBe(28);
       expect(v.slotOffset).toBe(expectedSlotOffset);
       expect(v.rankBoxClipped).toBe(false);
       expect(v.slotClipped).toBe(false);
-      expect(v.textWidth).toBeLessThanOrEqual(32);
+      expect(v.textWidth).toBeLessThanOrEqual(28);
     }
   });
 

@@ -58,7 +58,7 @@ const LEGACY_SETS: readonly (readonly SizedColumn[])[] = [
   [
     sized('select', 'select'),
     sized('keyword', 'keyword'),
-    own('rank', 'rank', 128, 128),
+    own('rank', 'rank', 112, 112),
     own('volume', 'volume', 96),
     own('kd', 'count', 72),
     own('intent', 'text', 96),

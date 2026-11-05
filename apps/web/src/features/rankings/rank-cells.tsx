@@ -14,7 +14,6 @@ import type { RankCell } from '@/lib/api/types';
 import {
   formatDetailDateTime,
   formatInteger,
-  formatRankCell,
   webHref,
   type ChangeDisplay,
   type CheckMark,
@@ -112,9 +111,15 @@ function Marks({
   );
 }
 
+/** The text of a keyword that is not ranked within the checked depth: a plain hyphen, never a dash character. */
+export const NOT_RANKED_MARK = '-';
+/** The rank's box: three digits wide, so the change slots line up across rows; the number ends next to the change. */
+const RANK_BOX = 'inline-flex w-7 shrink-0 items-center justify-end text-right';
+
 /**
- * The rank and its change in one cell: the rank number in a fixed-width box (~32 px, `w-8 shrink-0`),
- * then the change and marks in a slot to its right.
+ * The rank and its change in one cell, read as one unit: the rank number in a fixed-width box sized for three
+ * digits (`w-7 shrink-0`, tabular numerals, right-aligned so the number ends where the change begins), then
+ * a small gap (`gap-1.5`) and the change and marks. The box keeps the change slots aligned across rows.
  */
 export function RankCellView({
   display,
@@ -153,8 +158,8 @@ export function RankCellView({
   switch (display.kind) {
     case 'ranked':
       return (
-        <span className="flex items-center gap-2">
-          <span className="inline-flex w-8 shrink-0 items-center justify-start text-left">
+        <span className="flex items-center gap-1.5">
+          <span className={RANK_BOX}>
             <span className="num text-foreground">{formatInteger(display.rank)}</span>
           </span>
           {changeSlot}
@@ -162,10 +167,10 @@ export function RankCellView({
       );
     case 'beyond':
       return (
-        <span className="flex items-center gap-2">
-          <span className="inline-flex w-8 shrink-0 items-center justify-start text-left">
+        <span className="flex items-center gap-1.5">
+          <span className={RANK_BOX}>
             <span aria-hidden="true" className="num text-foreground-tertiary">
-              {formatRankCell({ rank: null, depth: display.depth })}
+              {NOT_RANKED_MARK}
             </span>
             <span className="sr-only">{t('speech.beyond', { depth: display.depth })}</span>
           </span>
@@ -180,8 +185,8 @@ export function RankCellView({
       );
     case 'failed':
       return (
-        <span className="flex items-center gap-2">
-          <span className="inline-flex w-8 shrink-0 items-center justify-start text-left">
+        <span className="flex items-center gap-1.5">
+          <span className={RANK_BOX}>
             <Icon icon={TriangleAlert} size="sm" label={t('failed')} className="text-warning-text" />
           </span>
           {changeSlot}
@@ -351,6 +356,8 @@ export function StaleMarker(): ReactElement {
 }
 
 export interface RankTips {
+  /** Why a hyphen stands in the Rank cell: the keyword is not in the top results of the depth that was checked. */
+  notRanked: (display: RankDisplay) => CellTip | undefined;
   /** The whole address of a ranking URL, which the cell shortens; nothing when there is no URL. */
   url: (display: UrlDisplay) => CellTip | undefined;
   /** What the Stale marker of the Updated column means, with the last good check. */
@@ -366,6 +373,8 @@ export function useRankTips(timeZone: string): RankTips {
   const t = useTranslations('rankings.rank');
   return useMemo(
     (): RankTips => ({
+      notRanked: (display) =>
+        display.kind === 'beyond' ? { content: t('notInTop', { depth: display.depth }) } : undefined,
       url: (display) => (display.kind === 'url' ? { content: display.full } : undefined),
       stale: (observedAt) => ({
         content: t('staleTooltip'),

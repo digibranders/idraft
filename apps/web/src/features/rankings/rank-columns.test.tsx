@@ -146,11 +146,15 @@ describe('useCompetitorColumns', () => {
     expect(cols[3]?.defaultVisible).toBe(false);
   });
 
-  it('gives the rank column no tooltip of its own: the cell and its markers say what there is to say', () => {
+  it('gives the rank column a cell tip only for a hyphen, which says the checked depth', () => {
     const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
     const rank = makeRow({});
     expect(result.current.rank.headerTooltip).toBeUndefined();
-    expect(result.current.rank.cellTip).toBeUndefined();
+    expect(result.current.rank.cellTip?.(rank)).toBeUndefined();
+    expect(result.current.rank.width).toBe(112);
+    const beyond = makeRow({});
+    beyond.state.current = { ...beyond.state.current, state: 'beyond_depth', rank: null, depth_requested: 20 };
+    expect(result.current.rank.cellTip?.(beyond)?.content).toBe('Not in the top 20');
     expect(result.current.best.headerTooltip).toBeUndefined();
     expect(result.current.trend.headerTooltip).toBeUndefined();
     expect(result.current.best.cellTip?.(rank)).toBeUndefined();

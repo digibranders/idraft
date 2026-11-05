@@ -613,7 +613,8 @@ describe('Rankings rank columns', () => {
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
     const ranks = visibleColumnTexts(grid, /^Rank$/);
-    expect(ranks.filter((text) => text.startsWith('>'))).toHaveLength(beyond);
+    // A hyphen is what shows; the depth is in hidden words
+    expect(ranks.filter((text) => text.startsWith('-'))).toHaveLength(beyond);
     expect(ranks.filter((text) => text === 'Pending')).toHaveLength(
       states.filter(({ current }) => current.state === 'not_checked').length,
     );
