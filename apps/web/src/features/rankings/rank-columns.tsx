@@ -95,8 +95,9 @@ export function useRankColumns(timeZone: string): RankColumns {
           header: t('rank'),
           priority: 1,
           // The rank and its change slot beside it
-          width: 128,
-          minWidth: 128,
+          width: 112,
+          minWidth: 112,
+          cellTip: (row) => tips.notRanked(display(row)),
           cell: (row) => (
             <RankCellView
               display={display(row)}

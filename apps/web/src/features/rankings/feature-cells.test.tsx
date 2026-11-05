@@ -210,7 +210,8 @@ describe('CompetitorRankView', () => {
     const { container } = renderWithProviders(<CompetitorRankView entry={entry} name="Northlight" />);
     const swatch = container.querySelector('.rounded-2xs');
     expect(swatch).toHaveStyle({ backgroundColor: 'var(--chart-4)' });
-    expect(screen.getByText('>20')).toBeInTheDocument();
+    expect(screen.getByText('-')).toBeInTheDocument();
+    expect(screen.getByText('not in top 20')).toHaveClass('sr-only');
   });
 
   it('renders n/a in tertiary when entry is missing or null', () => {

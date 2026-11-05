@@ -2362,7 +2362,8 @@
     },
     "rank": {
       "rank": "Rank",
-      "rankTooltip": "Organic rank at the latest check and how it moved since the previous check. A keyword beyond the depth that was checked shows the depth, such as >20.",
+      "rankTooltip": "Organic rank at the latest check and how it moved since the previous check. A hyphen means the keyword was not found within the depth that was checked.",
+      "notInTop": "Not in the top {depth}",
       "rankingUrl": "Ranking URL",
       "openUrl": "Open {path} in a new tab",
       "copyUrl": "Copy ranking URL",
