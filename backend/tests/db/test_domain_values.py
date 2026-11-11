@@ -11,6 +11,7 @@ import pytest
 
 from idraft.collectors import ledger
 from idraft.collectors.ledger import CostSource, Priority, Trigger
+from idraft.domain.ai_engines import ObservationClass
 from idraft.domain.retries import RetryStatus
 from idraft.domain.schedules import Cadence
 from idraft.domain.workloads import BudgetGroup, CostChannel, CostWorkload, TaskWorkload
@@ -49,6 +50,8 @@ async def _allowed(pg: PostgresServer, table: str, column: str) -> set[str]:
         ("ops.budgets", "workload", set(BudgetGroup)),
         ("ops.schedules", "priority", set(get_args(Priority))),
         ("ops.collection_runs", "trigger", set(get_args(Trigger))),
+        ("ai.engines", "observation_class", set(ObservationClass)),
+        ("ai.observations", "observation_class", set(ObservationClass)),
     ],
 )
 async def test_the_code_and_the_database_list_the_same_names(

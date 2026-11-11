@@ -37,7 +37,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, INET, JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, INET, INT4RANGE, JSONB
 
 metadata = MetaData()
 
@@ -1378,4 +1378,326 @@ gsc_search_analytics = Table(
         ondelete="CASCADE",
     ),
     schema="fp",
+)
+
+
+# AI prompt tracking (migration 0018; docs/04-data-model.md section 8). The answer tables are
+# partitioned by month on `observed_at`, which is part of every key that names an answer.
+ai_engines = Table(
+    "engines",
+    metadata,
+    Column("code", Text, primary_key=True),
+    Column("label", Text, nullable=False),
+    Column("observation_class", Text, nullable=False),
+    Column("vendor", Text, nullable=False),
+    Column("exposes_citations", Boolean, nullable=False),
+    Column("exposes_fanout", Boolean, nullable=False),
+    Column("is_active", Boolean, nullable=False, server_default=FetchedValue()),
+    schema="ai",
+)
+
+ai_project_engines = Table(
+    "project_engines",
+    metadata,
+    Column("project_id", Uuid, primary_key=True),
+    Column("engine_code", Text, ForeignKey(ai_engines.c.code), primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("location_ids", ARRAY(Integer), nullable=False),
+    Column("replicates", SmallInteger, nullable=False, server_default=FetchedValue()),
+    Column("provider_code", Text, ForeignKey(providers.c.code), nullable=False),
+    Column("provider_params", JSONB, nullable=False, server_default=FetchedValue()),
+    Column("is_enabled", Boolean, nullable=False, server_default=FetchedValue()),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"],
+        [projects.c.id, projects.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="ai",
+)
+
+ai_prompts = Table(
+    "prompts",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("current_version_id", Uuid),
+    Column("language_code", Text, nullable=False),
+    Column("country_iso", CHAR(2)),
+    Column("intent", Text, nullable=False, server_default=FetchedValue()),
+    Column("funnel_stage", Text, nullable=False, server_default=FetchedValue()),
+    Column("is_branded", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("prompt_type", Text, nullable=False, server_default=FetchedValue()),
+    Column("importance", SmallInteger, nullable=False, server_default=FetchedValue()),
+    Column("expected_frequency", Text, nullable=False, server_default=FetchedValue()),
+    Column("source", Text, nullable=False, server_default=FetchedValue()),
+    Column("creation_method", Text, nullable=False, server_default=FetchedValue()),
+    Column("persona_term_id", Uuid),
+    Column("is_active", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("created_by", Uuid, ForeignKey(users.c.id)),
+    _created_at(),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    Column("deleted_at", DateTime(timezone=True)),
+    UniqueConstraint("id", "workspace_id", name="prompts_id_workspace_id_key"),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"],
+        [projects.c.id, projects.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+        ["persona_term_id", "workspace_id"], [taxonomy_terms.c.id, taxonomy_terms.c.workspace_id]
+    ),
+    # Checked at commit: a prompt and its first version are written in one transaction.
+    ForeignKeyConstraint(
+        ["current_version_id", "id", "workspace_id"],
+        [
+            "ai.prompt_versions.id",
+            "ai.prompt_versions.prompt_id",
+            "ai.prompt_versions.workspace_id",
+        ],
+        name="prompts_current_version_fk",
+        use_alter=True,
+        deferrable=True,
+        initially="DEFERRED",
+    ),
+    schema="ai",
+)
+
+ai_prompt_versions = Table(
+    "prompt_versions",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("prompt_id", Uuid, nullable=False),
+    Column("version_no", Integer, nullable=False),
+    Column("text", Text, nullable=False),
+    Column("text_hash", LargeBinary, nullable=False),
+    Column("context_preamble", Text),
+    _created_at(),
+    Column("created_by", Uuid, ForeignKey(users.c.id)),
+    Column("change_kind", Text, nullable=False),
+    Column("change_reason", Text),
+    UniqueConstraint("prompt_id", "version_no", name="prompt_versions_prompt_id_version_no_key"),
+    UniqueConstraint("prompt_id", "text_hash", name="prompt_versions_prompt_id_text_hash_key"),
+    UniqueConstraint("id", "workspace_id", name="prompt_versions_id_workspace_id_key"),
+    UniqueConstraint(
+        "id", "prompt_id", "workspace_id", name="prompt_versions_id_prompt_id_workspace_id_key"
+    ),
+    ForeignKeyConstraint(
+        ["prompt_id", "workspace_id"],
+        [ai_prompts.c.id, ai_prompts.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="ai",
+)
+
+ai_prompt_terms = Table(
+    "prompt_terms",
+    metadata,
+    Column("prompt_id", Uuid, primary_key=True),
+    Column("term_id", Uuid, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("assigned_by", Text, nullable=False, server_default=FetchedValue()),
+    ForeignKeyConstraint(
+        ["prompt_id", "workspace_id"],
+        [ai_prompts.c.id, ai_prompts.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+        ["term_id", "workspace_id"],
+        [taxonomy_terms.c.id, taxonomy_terms.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="ai",
+)
+
+ai_observations = Table(
+    "observations",
+    metadata,
+    Column("id", BigInteger, primary_key=True, server_default=FetchedValue()),
+    Column("observed_at", DateTime(timezone=True), primary_key=True),
+    Column("observed_date", Date, nullable=False),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("engine_code", Text, ForeignKey(ai_engines.c.code), nullable=False),
+    Column("observation_class", Text, nullable=False),
+    Column("prompt_id", Uuid),
+    Column("prompt_version_id", Uuid),
+    Column("serp_snapshot_id", BigInteger),
+    Column("serp_observed_at", DateTime(timezone=True)),
+    Column("tracked_keyword_id", Uuid),
+    Column("query_text", Text, nullable=False),
+    Column("collection_run_id", Uuid),
+    Column("collection_task_id", BigInteger),
+    Column("replicate_index", SmallInteger, nullable=False, server_default=FetchedValue()),
+    Column("location_id", Integer),
+    Column("language_code", Text),
+    Column("device", Text),
+    Column("provider_code", Text, nullable=False),
+    Column("provider_endpoint", Text, nullable=False),
+    Column("provider_task_id", Text),
+    Column("model_reported", Text),
+    Column("model_requested", Text),
+    Column("status", Text, nullable=False),
+    Column("answer_text", Text),
+    Column("answer_markdown", Text),
+    Column("answer_html_available", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("answer_char_count", Integer),
+    Column("answer_hash", LargeBinary),
+    Column("has_citations", Boolean, nullable=False),
+    Column("citation_count", SmallInteger, nullable=False, server_default=FetchedValue()),
+    Column("fanout_count", SmallInteger, nullable=False, server_default=FetchedValue()),
+    Column("raw_payload_id", BigInteger, ForeignKey(raw_payloads.c.id), nullable=False),
+    Column("adapter_version", SmallInteger, nullable=False),
+    Column("normalizer_version", SmallInteger, nullable=False),
+    Column("canonicalizer_version", SmallInteger, nullable=False),
+    Column("latency_ms", Integer),
+    Column("cost_usd", Numeric(14, 6)),
+    Column("retry_count", SmallInteger, nullable=False, server_default=FetchedValue()),
+    Column("error_code", Text),
+    Column("served_from_cache", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("provider_extras", JSONB),
+    Column("superseded_by", BigInteger),
+    UniqueConstraint(
+        "id", "observed_at", "workspace_id", name="observations_id_observed_at_workspace_id_key"
+    ),
+    UniqueConstraint("collection_task_id", "observed_at", name="observations_one_per_task"),
+    schema="ai",
+)
+
+
+def _answer_key() -> ForeignKeyConstraint:
+    """The answer a row of a child table belongs to, in the row's own workspace."""
+    return ForeignKeyConstraint(
+        ["observation_id", "observed_at", "workspace_id"],
+        [ai_observations.c.id, ai_observations.c.observed_at, ai_observations.c.workspace_id],
+        ondelete="CASCADE",
+    )
+
+
+ai_citations = Table(
+    "citations",
+    metadata,
+    Column("observation_id", BigInteger, primary_key=True),
+    Column("observed_at", DateTime(timezone=True), primary_key=True),
+    Column("citation_index", SmallInteger, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("engine_code", Text, nullable=False),
+    Column("url_id", BigInteger, nullable=False),
+    Column("domain_id", Integer, nullable=False),
+    Column("raw_url", Text, nullable=False),
+    Column("title", Text),
+    Column("source_name", Text),
+    Column("citation_kind", Text, nullable=False),
+    Column("first_char_offset", Integer),
+    Column("answer_block_index", SmallInteger),
+    Column("occurrences", SmallInteger, nullable=False, server_default=FetchedValue()),
+    Column("domain_role", Text, nullable=False),
+    Column("role_entity_id", Uuid),
+    Column("referral_tag", Text),
+    Column("flags", ARRAY(Text), nullable=False, server_default=FetchedValue()),
+    _answer_key(),
+    schema="ai",
+)
+
+ai_derivations = Table(
+    "derivations",
+    metadata,
+    Column("id", Integer, primary_key=True, server_default=FetchedValue()),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("extractor_version", SmallInteger, nullable=False),
+    Column("entity_config_version", Integer, nullable=False),
+    Column("recommendation_version", SmallInteger, nullable=False),
+    Column("sentiment_version", SmallInteger, nullable=False),
+    _created_at(),
+    UniqueConstraint(
+        "project_id",
+        "extractor_version",
+        "entity_config_version",
+        "recommendation_version",
+        "sentiment_version",
+        name="derivations_identity",
+    ),
+    UniqueConstraint("id", "workspace_id", name="derivations_id_workspace_id_key"),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"],
+        [projects.c.id, projects.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="ai",
+)
+
+ai_entity_mentions = Table(
+    "entity_mentions",
+    metadata,
+    Column("observation_id", BigInteger, primary_key=True),
+    Column("observed_at", DateTime(timezone=True), primary_key=True),
+    Column("entity_id", Uuid, primary_key=True),
+    Column("derivation_id", Integer, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("engine_code", Text, nullable=False),
+    Column("role", Text, nullable=False),
+    Column("mention_count", SmallInteger, nullable=False),
+    Column("first_char_offset", Integer, nullable=False),
+    Column("mention_order", SmallInteger, nullable=False),
+    Column("prominence", Numeric(5, 4), nullable=False),
+    Column("structured_rank", SmallInteger),
+    Column("structured_list_size", SmallInteger),
+    Column("is_recommended", Boolean),
+    Column("recommendation_method", Text),
+    Column("sentiment", Text),
+    Column("sentiment_method", Text),
+    Column("match_method", Text, nullable=False),
+    Column("mention_status", Text, nullable=False, server_default=FetchedValue()),
+    Column("structured_list_index", SmallInteger),
+    Column("confidence", Numeric(4, 3), nullable=False),
+    Column("evidence_spans", ARRAY(INT4RANGE), nullable=False),
+    Column("is_current", Boolean, nullable=False, server_default=FetchedValue()),
+    _answer_key(),
+    ForeignKeyConstraint(
+        ["derivation_id", "workspace_id"], [ai_derivations.c.id, ai_derivations.c.workspace_id]
+    ),
+    schema="ai",
+)
+
+ai_observation_facts = Table(
+    "observation_facts",
+    metadata,
+    Column("observation_id", BigInteger, primary_key=True),
+    Column("observed_at", DateTime(timezone=True), primary_key=True),
+    Column("derivation_id", Integer, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("observed_date", Date, nullable=False),
+    Column("engine_code", Text, nullable=False),
+    Column("observation_class", Text, nullable=False),
+    Column("prompt_id", Uuid),
+    Column("prompt_version_id", Uuid),
+    Column("tracked_keyword_id", Uuid),
+    Column("replicate_index", SmallInteger, nullable=False),
+    Column("location_id", Integer),
+    Column("is_valid", Boolean, nullable=False),
+    Column("own_mentioned", Boolean, nullable=False),
+    Column("own_domain_cited", Boolean, nullable=False),
+    Column("own_recommended", Boolean),
+    Column("own_structured_rank", SmallInteger),
+    Column("own_prominence", Numeric(5, 4)),
+    Column("own_mention_order", SmallInteger),
+    Column("own_sentiment", Text),
+    Column("own_citation_count", SmallInteger, nullable=False),
+    Column("total_citation_count", SmallInteger, nullable=False),
+    Column("tracked_entities_mentioned", SmallInteger, nullable=False),
+    Column("competitor_mentions", ARRAY(Uuid), nullable=False, server_default=FetchedValue()),
+    Column("competitor_cited", ARRAY(Uuid), nullable=False, server_default=FetchedValue()),
+    Column("had_structured_list", Boolean, nullable=False),
+    Column("is_current", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("computed_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    _answer_key(),
+    ForeignKeyConstraint(
+        ["derivation_id", "workspace_id"], [ai_derivations.c.id, ai_derivations.c.workspace_id]
+    ),
+    schema="ai",
 )

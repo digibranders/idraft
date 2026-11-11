@@ -109,9 +109,10 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     ),
     "core.locations": (READ, access("SELECT, INSERT, UPDATE")),
     "core.provider_location_map": (READ, access("SELECT, INSERT, UPDATE")),
-    # Rank ingest resolves a SERP against the entities of the project (migration 0013).
+    # Rank ingest resolves a SERP against the entities of the project (migration 0013); AI
+    # extraction matches their aliases (migration 0018).
     "core.entities": (CRUD, READ),
-    "core.entity_aliases": (CRUD, NONE),
+    "core.entity_aliases": (CRUD, READ),
     "core.entity_domains": (access("SELECT, INSERT, DELETE"), READ),
     "core.project_entities": (access("SELECT, INSERT, UPDATE"), READ),
     # Imports file keywords under terms, creating the missing ones.
@@ -343,6 +344,35 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "fp.gsc_queries": (READ, access("SELECT, INSERT", UPDATE=("matched_keyword_ids",))),
     # The worker replaces a day of numbers: a DELETE and an INSERT (docs/18 section 4.4).
     "fp.gsc_search_analytics": (READ, access("SELECT, INSERT, DELETE")),
+    # AI prompt tracking (migration 0018): the API keeps prompts and engines, the worker writes
+    # answers and what extraction found in them and never changes them; each reads the other's.
+    "ai.engines": (READ, READ),
+    "ai.project_engines": (
+        access("SELECT, INSERT, DELETE", UPDATE=("location_ids", "is_enabled")),
+        READ,
+    ),
+    "ai.prompts": (
+        access(
+            "SELECT, INSERT",
+            UPDATE=(
+                "intent",
+                "funnel_stage",
+                "is_branded",
+                "prompt_type",
+                "importance",
+                "is_active",
+                "updated_at",
+            ),
+        ),
+        READ,
+    ),
+    "ai.prompt_versions": (access("SELECT, INSERT"), READ),
+    "ai.prompt_terms": (access("SELECT, INSERT, DELETE"), NONE),
+    "ai.derivations": (READ, access("SELECT, INSERT")),
+    "ai.observations": (READ, access("SELECT, INSERT")),
+    "ai.citations": (READ, access("SELECT, INSERT")),
+    "ai.entity_mentions": (READ, access("SELECT, INSERT")),
+    "ai.observation_facts": (READ, access("SELECT, INSERT")),
 }
 
 _TABLES = """
@@ -457,6 +487,8 @@ FUNCTIONS: dict[str, frozenset[str]] = {
     "auth.invitation_by_token(bytea)": frozenset({"app_api"}),
     # The raw payload of a snapshot of the current workspace (review log F8).
     "seo.serp_snapshot_raw(bigint)": frozenset({"app_api"}),
+    # The raw payload of an answer of the current workspace (migration 0018).
+    "ai.observation_raw(bigint)": frozenset({"app_api"}),
     "ops.maintain_partitions()": frozenset({"app_worker"}),
     "ops.ensure_monthly_partitions(regclass,integer,integer,boolean)": frozenset(),
     "ops.record_auth_event(text,uuid,text,text,inet,text,text,jsonb)": frozenset({"app_api"}),
