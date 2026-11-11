@@ -21,7 +21,7 @@ releases=/srv/idraft/releases
 backups=/srv/idraft/backups
 keep_releases=5
 keep_backups=10
-api_ready=http://127.0.0.1:8000/api/readyz
+api_ready=http://127.0.0.1:8010/api/readyz
 web_ready=http://127.0.0.1:3010/login
 heartbeat=/run/idraft-worker/heartbeat
 
