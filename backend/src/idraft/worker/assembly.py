@@ -15,6 +15,8 @@ import structlog
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from idraft.collectors.ai_prompt import AiPromptWorkload
+from idraft.collectors.ai_prompt_ingest import ingest as ingest_ai_answers
 from idraft.collectors.costs import DAILY_DAYS, HOURLY_DAYS, roll_up_costs
 from idraft.collectors.dispatcher import SubmitBatch, dispatch
 from idraft.collectors.fetching import FETCH_JOB, FetchTask, fetch_task, poll_ready
@@ -113,8 +115,8 @@ def dataforseo_client(
 def production_registry(context: WorkerContext) -> Registry:
     """The workloads and providers of this worker. DataForSEO is registered when its
     credentials are set, and keyword metrics with it; without them the worker plans and
-    spends nothing. Rank checks are registered only where their answers can be kept and read
-    (raw storage), so a worker never pays for a check it could not ingest."""
+    spends nothing. Rank checks and AI answers are registered only where their answers can be
+    kept and read (raw storage), so a worker never pays for an answer it could not ingest."""
     registry = Registry()
     client = dataforseo_client(context.settings, context.http, context.redis)
     if client is not None:
@@ -122,6 +124,7 @@ def production_registry(context: WorkerContext) -> Registry:
         registry.add_workload(KeywordMetricsWorkload())
         if context.raw_store is not None:
             registry.add_workload(SeoRankWorkload())
+            registry.add_workload(AiPromptWorkload())
     return registry
 
 
@@ -369,6 +372,13 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
         if not report.quiet:
             _log.info("rank checks ingested", **asdict(report))
 
+    async def ingest_ai_prompt_answers() -> None:
+        if context.raw_store is None:
+            return
+        report = await ingest_ai_answers(context.sessions, context.raw_store)
+        if not report.quiet:
+            _log.info("AI answers ingested", **asdict(report))
+
     async def keyword_imports() -> None:
         """Previews of uploaded imports, and the end of those nobody confirmed."""
         if context.raw_store is None:
@@ -435,6 +445,12 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
             name="rank_ingest",
             interval=INGEST_EVERY,
             action=ingest_rank_checks,
+            lock_ttl=INGEST_LOCK,
+        ),
+        Tick(
+            name="ai_prompt_ingest",
+            interval=INGEST_EVERY,
+            action=ingest_ai_prompt_answers,
             lock_ttl=INGEST_LOCK,
         ),
         Tick(
