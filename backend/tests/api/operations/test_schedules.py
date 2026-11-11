@@ -149,6 +149,25 @@ async def test_a_rank_schedule_takes_the_task_queues_and_not_the_live_call(
     assert priority.json()["data"]["provider_mode"] == "priority_queue"
 
 
+async def test_an_ai_answer_schedule_takes_every_prompt_on_a_task_queue(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    body = _body(workload="ai_prompt", cadence="weekly", weekday=1, selector={"all": True})
+    del body["provider_mode"]
+
+    created = await _create(api, workspace, project, owner, body)
+    live = await _create(api, workspace, project, owner, {**body, "provider_mode": "live"})
+    by_term = await _create(
+        api, workspace, project, owner, {**body, "selector": {"terms": [str(uuid.uuid4())]}}
+    )
+
+    assert created.status_code == 201, created.text
+    assert created.json()["data"]["provider_mode"] == "standard_queue"
+    assert errors(live) == [("provider_mode", "provider_mode_not_supported")]
+    assert errors(by_term) == [("selector.terms", "selector_not_supported")]
+
+
 async def test_weekly_and_monthly_schedules_run_on_their_day(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -167,7 +186,7 @@ async def test_weekly_and_monthly_schedules_run_on_their_day(
     ("changes", "path", "code"),
     [
         ({"cadence": "cron", "cron_expr": "0 3 * * *"}, "cadence", "cadence_not_supported"),
-        ({"workload": "ai_prompt"}, "workload", "workload_not_available"),
+        ({"workload": "ai_mode_keyword"}, "workload", "workload_not_available"),
         ({"timezone": "Mars/Olympus_Mons"}, "timezone", "timezone_unknown"),
         ({"provider_mode": "standard_queue"}, "provider_mode", "provider_mode_not_supported"),
         ({"selector": {"priority_lte": 2}}, "selector.priority_lte", "selector_not_supported"),

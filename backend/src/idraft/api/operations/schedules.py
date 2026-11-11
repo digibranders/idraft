@@ -37,6 +37,7 @@ from idraft.api.schemas.operations import ScheduleInput, SchedulePause, Schedule
 from idraft.api.timezones import check_timezone
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
+from idraft.domain.ai_engines import BASE_PLAN
 from idraft.domain.schedules import (
     Cadence,
     ScheduleRule,
@@ -73,6 +74,14 @@ WORKLOADS: Final[Mapping[str, WorkloadRules]] = {
         # workspace's monthly live checks; a schedule's tasks go to the task queue.
         provider_modes=frozenset({"standard_queue", "priority_queue"}),
         default_mode="standard_queue",
+        needs_selector=True,
+    ),
+    # AI answers (spec 2026-11-11 section 4.3): every active prompt of the project, on the task
+    # queues. `idraft.ai.schedule` makes the two default schedules when an engine is turned on.
+    "ai_prompt": WorkloadRules(
+        selectors=frozenset({"all"}),
+        provider_modes=frozenset({"standard_queue", "priority_queue"}),
+        default_mode=BASE_PLAN.provider_mode,
         needs_selector=True,
     ),
 }
