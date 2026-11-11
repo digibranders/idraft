@@ -3259,5 +3259,58 @@
     "turnedOn": "{engine} is on",
     "turnedOnHint": "The first answers arrive after the next Monday or Thursday run.",
     "turnedOff": "{engine} is off"
+  },
+  "prompts": {
+    "addPrompts": "Add prompts",
+    "add": {
+      "title": "Add prompts",
+      "description": "One prompt per line, written as a buyer would ask it. The prompts of one add share their topic, language and country.",
+      "prompts": "Prompts",
+      "promptsHint": "One prompt per line, up to {max} at once.",
+      "counter": "{count, plural, one {# prompt} other {# prompts}}",
+      "textRequired": "Enter at least one prompt.",
+      "tooMany": "Add at most {max} prompts at once. This list has {count}.",
+      "findingsLabel": "Checks of the list",
+      "moreFindings": "And {count, number} more.",
+      "findings": {
+        "repeat": "Line {line} repeats line {first} and is left out.",
+        "tracked": "Line {line} is already tracked and is left out.",
+        "branded": "Line {line} names {brand}, so it counts as branded and stays out of the rates unless branded prompts are included.",
+        "engineLimit": "Line {line} is too long for {engine}, which skips it.",
+        "tooLong": "Line {line} is longer than {max} characters and cannot be added.",
+        "unsupported": "Line {line} has a character that cannot be saved."
+      },
+      "topic": "Topic",
+      "noTopic": "No topic",
+      "language": "Language",
+      "languageRequired": "Choose a language.",
+      "country": "Country",
+      "countryHint": "The market the prompts stand for. Only countries every enabled engine asks in are offered.",
+      "countryRequired": "Choose a country.",
+      "quota": "Adds {count, plural, one {# prompt} other {# prompts}} of your remaining {remaining, number}.",
+      "quotaOver": "That is {count, plural, one {# prompt} other {# prompts}}, and the workspace has room for {remaining, number}. Remove lines or archive prompts you no longer need.",
+      "fixLines": "Some lines cannot be added. Fix or remove them first.",
+      "allTracked": "Every line is already tracked.",
+      "submit": "{count, plural, =0 {Add prompts} one {Add # prompt} other {Add # prompts}}",
+      "added": "{count, plural, one {# prompt added} other {# prompts added}}",
+      "discardDescription": "The prompts you typed will be lost.",
+      "quotaExceeded": "The workspace has {used} of {limit} active prompts, so these do not fit. Archive prompts you no longer need, then try again.",
+      "invalid": "Some prompts could not be read. Check the lines and try again.",
+      "forbidden": "You do not have permission to add prompts to this project.",
+      "failed": "The prompts were not added. Try again in a moment.",
+      "resultTitle": "Prompts added",
+      "resultCreated": "{count, plural, =0 {No prompt was added.} one {# prompt was added.} other {# prompts were added.}}",
+      "resultSkipped": "{count, plural, one {# was already tracked.} other {# were already tracked.}}",
+      "rejectedTitle": "{count, plural, one {# line could not be added} other {# lines could not be added}}",
+      "rejectedLine": "Line {line}: {reason}",
+      "rejected": {
+        "locationNotSupported": "an enabled engine does not ask in this country.",
+        "termUnknown": "the topic cannot be used in this project.",
+        "singleValuedVocabulary": "the topic belongs to a vocabulary that takes one term.",
+        "duplicateInRequest": "the same prompt is in the list twice.",
+        "duplicate": "the project already tracks this prompt."
+      },
+      "done": "Done"
+    }
   }
 }
