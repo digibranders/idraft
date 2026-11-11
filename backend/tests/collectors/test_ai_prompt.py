@@ -3,9 +3,10 @@ provider and what that costs. As `app_worker`."""
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import uuid
-from datetime import timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -16,6 +17,8 @@ from idraft.collectors.ai_prompt import (
     MANUAL_PROMPTS_MAX,
     SUBJECT_TYPE,
     AiPromptWorkload,
+    Subject,
+    estimate,
     queue_of,
 )
 from idraft.collectors.ledger import LedgerTask, NewRun, NewTask, TaskRef
@@ -24,6 +27,7 @@ from idraft.domain.workloads import TaskWorkload
 from idraft.providers.dataforseo.ai import (
     AI_MODE,
     CHATGPT_SCRAPER,
+    ENGINE_ENDPOINTS,
     GEMINI_SCRAPER,
     AiAnswerParams,
 )
@@ -31,7 +35,7 @@ from tests.api.auth.support import execute
 from tests.api.keywords.support import LOCATION, OTHER_LOCATION
 from tests.collectors.ai_support import AiWorld, Prompt, add_prompt, enable_engine, make_ai_world
 from tests.collectors.rank_support import Ledger
-from tests.collectors.support import NOW, Project, make_schedule
+from tests.collectors.support import NOW, Project, another_project, make_schedule
 from tests.conftest import PostgresServer
 
 WORKLOAD = AiPromptWorkload()
@@ -377,3 +381,126 @@ async def test_a_request_asks_the_prompt_as_saved_at_its_location_and_queue(
     )
     assert (request.task_id, request.run_id, request.priority) == ("1", run_id, "high")
     assert WORKLOAD.batch_key(tasks[0]) == ""
+
+
+# What the plan may spend: these tests guard the money and the tenant boundary.
+
+BEFORE_THE_PRICE_BOOK = date(2000, 1, 1)
+
+
+async def test_without_a_price_nothing_is_planned_and_no_cost_is_estimated(
+    worker_db: Ledger, migrated: PostgresServer, world: AiWorld
+) -> None:
+    project = world.project
+    await add_prompt(migrated, project, QUESTION)
+    await _all_engines(migrated, project)
+    # A window that opens before the price book's first row: no endpoint has a price.
+    opens = datetime(2000, 1, 1, tzinfo=UTC)
+    window = dataclasses.replace(
+        _window(project, schedule_id=uuid.uuid4()),
+        window_start=opens,
+        window_end=opens + timedelta(hours=12),
+    )
+
+    async with worker_db() as db:
+        subjects = [
+            Subject(uuid.uuid4(), uuid.uuid4(), "google_ai_mode", LOCATION),
+            Subject(uuid.uuid4(), uuid.uuid4(), "chatgpt_web", LOCATION),
+        ]
+        guessed = await estimate(db, subjects, queue="standard", on=BEFORE_THE_PRICE_BOOK)
+        plan = await WORKLOAD.plan(db, window)
+
+    assert guessed is None
+    assert plan.tasks == []
+    assert plan.estimated_cost_usd == Decimal(0)
+    assert plan.config_snapshot["queue"] == "standard"
+
+
+async def test_only_the_live_prompts_of_the_planned_project_are_asked(
+    worker_db: Ledger, migrated: PostgresServer, world: AiWorld
+) -> None:
+    project = world.project
+    live = await add_prompt(migrated, project, QUESTION)
+    archived = await add_prompt(migrated, project, "An archived prompt about SOC pricing?")
+    deleted = await add_prompt(migrated, project, "A deleted prompt about SOC pricing?")
+    await execute(migrated, "UPDATE ai.prompts SET is_active = false WHERE id = $1", archived.id)
+    await execute(migrated, "UPDATE ai.prompts SET deleted_at = now() WHERE id = $1", deleted.id)
+    sibling = await another_project(migrated, project)
+    await add_prompt(migrated, sibling, "A prompt of the second project in the workspace?")
+    stranger = (await make_ai_world(migrated)).project
+    await add_prompt(migrated, stranger, "A prompt of another workspace entirely?")
+    # Only the others turn on AI Mode, so an engine read across projects would show.
+    for code in ("chatgpt_web", "gemini_web"):
+        await enable_engine(migrated, project, code)
+    for each in (sibling, stranger):
+        await _all_engines(migrated, each)
+
+    plan = await _plan(worker_db, _window(project, schedule_id=uuid.uuid4()))
+    # The project's id with another workspace's id names no project: nothing is read.
+    crossed = await _plan(
+        worker_db,
+        dataclasses.replace(
+            _window(project, schedule_id=uuid.uuid4()), workspace_id=stranger.workspace_id
+        ),
+    )
+
+    assert _asked(plan) == {(str(live.version_id), code) for code in ENGINES[:2]}
+    assert crossed.tasks == []
+
+
+async def test_an_engine_the_catalogue_has_turned_off_is_not_asked(
+    worker_db: Ledger, migrated: PostgresServer, world: AiWorld
+) -> None:
+    project = world.project
+    prompt = await add_prompt(migrated, project, QUESTION)
+    await _all_engines(migrated, project)
+    await execute(migrated, "UPDATE ai.engines SET is_active = false WHERE code = 'gemini_web'")
+    try:
+        plan = await _plan(worker_db, _window(project, schedule_id=uuid.uuid4()))
+    finally:
+        await execute(migrated, "UPDATE ai.engines SET is_active = true WHERE code = 'gemini_web'")
+
+    assert _asked(plan) == {
+        (str(prompt.version_id), "chatgpt_web"),
+        (str(prompt.version_id), "google_ai_mode"),
+    }
+
+
+async def test_a_full_plan_costs_fifty_four_cents(worker_db: Ledger) -> None:
+    """The base plan (150 prompts on 3 engines, standard queue): 450 tasks at 0.0012 USD."""
+    subjects = [
+        Subject(uuid.uuid4(), uuid.uuid4(), engine, LOCATION)
+        for _ in range(150)
+        for engine in ENGINE_ENDPOINTS
+    ]
+
+    async with worker_db() as db:
+        cost = await estimate(db, subjects, queue="standard", on=NOW.date())
+
+    assert len(subjects) == 450
+    assert cost == Decimal("0.54")
+
+
+async def test_an_engine_with_two_locations_in_the_prompts_country_asks_it_at_both(
+    worker_db: Ledger, migrated: PostgresServer, world: AiWorld
+) -> None:
+    """Plan decision A5 as built: every enabled location of the prompt's country is asked, and
+    paid for. Pinned so a change to one answer per engine is a decision, not an accident."""
+    project = world.project
+    second_us = 9990001
+    await execute(
+        migrated,
+        "INSERT INTO core.locations (id, name, country_iso, location_type) "
+        "VALUES ($1, 'United States (second)', 'US', 'Country') ON CONFLICT (id) DO NOTHING",
+        second_us,
+    )
+    prompt = await add_prompt(migrated, project, QUESTION)
+    await enable_engine(migrated, project, "chatgpt_web", location_ids=[LOCATION, second_us])
+
+    plan = await _plan(worker_db, _window(project, schedule_id=uuid.uuid4()))
+
+    assert {(task.subject_id, task.location_id) for task in plan.tasks} == {
+        (str(prompt.version_id), LOCATION),
+        (str(prompt.version_id), second_us),
+    }
+    assert plan.estimated_cost_usd == Decimal("0.0024")

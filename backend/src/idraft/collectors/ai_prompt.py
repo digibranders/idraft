@@ -57,7 +57,7 @@ ADAPTER: Final = "dataforseo_ai_answers@1"
 MANUAL_PROMPTS_MAX: Final = 100
 # How many skipped subjects a run's snapshot lists; `skipped_total` always counts them all.
 SKIPPED_KEPT: Final = 200
-# A task the provider has not answered, or that no one has read yet.
+# A task the provider has not answered, or that no one has read yet. For the ingest and Run now.
 UNSETTLED: Final = ("pending", "submit_unknown", "submitted", "ready", "fetched")
 # A task of another run that has not asked, and will not ask, its prompt.
 _NOT_ASKED: Final = ("cancelled", "failed", "dead")

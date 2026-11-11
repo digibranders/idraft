@@ -5,8 +5,9 @@ resolver, the role of each entity, and the entity configuration version all of i
 The API builds the same matcher for the alias test (`api/entities/project_service.py`); this is
 the worker's copy of those reads, which names the workspace in every query because the worker
 bypasses row-level security. Only entities the project tracks in AI answers (`track_ai`) are
-matched. Every attached entity's domains are rules, as for rank checks, so the site of an entity
-that is not tracked does not fall through to a broader rule of another.
+matched. The domains of every entity with a live role in the project are rules, as for rank
+checks, so the site of an entity that is not tracked does not fall through to a broader rule of
+another.
 """
 
 from __future__ import annotations
