@@ -37,6 +37,7 @@ from idraft.collectors.seo_rank_ingest import (
     NOT_WRITTEN,
     repeats,
 )
+from idraft.collectors.seo_rank_rows import snapshot_time
 from idraft.db import dictionaries
 from idraft.db.tables import (
     ai_citations,
@@ -174,9 +175,10 @@ async def _keep(db: AsyncSession, task: FetchedTask, body: bytes, contexts: AiCo
     except AiSchemaMismatchError as error:
         _log.warning("AI answer of another shape", task=task.ref.id, path=error.path)
         answer = unreadable(SCHEMA_MISMATCH)
-    # The answer's own time, and the task's ready time when it has none: neither changes between
-    # reads, so a second ingest meets `observations_one_per_task`. Never the wall clock.
-    observed_at = answer.observed_at or task.fetched_at
+    # The answer's own time when it is believable (inside the window the SERP ingest uses, so
+    # inside the partitions), else the task's ready time: neither changes between reads, so a
+    # second ingest meets `observations_one_per_task`. Never the wall clock.
+    observed_at = snapshot_time(answer.observed_at, task.fetched_at)
     kept = [source for source in answer.sources if source.url is not None]
     facts = _facts(answer, kept, context, task)
     observation_id = await _insert_observation(db, task, subject, answer, observed_at, facts)

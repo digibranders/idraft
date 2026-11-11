@@ -4,13 +4,16 @@
 from __future__ import annotations
 
 import uuid
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
 import pytest
 
+from idraft.collectors import ai_prompt_ingest
 from idraft.collectors.ai_prompt_ingest import current_derivation, ingest
 from idraft.collectors.ingest_waits import IngestReport
+from idraft.extraction import aliases
 from tests.api.auth.support import execute, fetch, fetchrow
 from tests.collectors.ai_support import (
     AiWorld,
@@ -22,6 +25,7 @@ from tests.collectors.ai_support import (
     make_ai_world,
 )
 from tests.collectors.rank_support import Ledger, _entity
+from tests.collectors.support import NOW
 from tests.collectors.test_fetching import MemoryStore
 from tests.conftest import PostgresServer
 from tests.providers.dataforseo.support import FIXTURES
@@ -197,6 +201,89 @@ async def test_an_answer_without_a_time_is_observed_when_its_task_was_ready(
         task_id,
     )
     assert [row["observed_at"] for row in rows] == [ready]
+
+
+@pytest.mark.parametrize("offset", [timedelta(days=-400), timedelta(days=1)], ids=["old", "future"])
+async def test_an_answer_time_outside_the_partitions_falls_back_to_the_fetched_time(
+    worker_db: Ledger, migrated: PostgresServer, world: AiWorld, offset: timedelta
+) -> None:
+    store = MemoryStore()
+    prompt = await add_prompt(migrated, world.project, QUESTION)
+    text = "Eventus Security runs a managed SOC for banks and telecom operators in India."
+    body = chatgpt_answer(text, when=NOW + offset)
+    task_id = await fetched_ai_task(worker_db, migrated, world.project, prompt, body, store)
+
+    report = await ingest(worker_db, store)
+    await execute(
+        migrated, "UPDATE ops.collection_tasks SET status = 'fetched' WHERE id = $1", task_id
+    )
+    again = await ingest(worker_db, store)
+
+    assert (report, again) == (IngestReport(ingested=1), IngestReport(ingested=1))
+    rows = await fetch(
+        migrated, "SELECT observed_at FROM ai.observations WHERE collection_task_id = $1", task_id
+    )
+    assert [row["observed_at"] for row in rows] == [NOW]
+    assert await _task_status(migrated, task_id) == "ingested"
+
+
+async def test_a_text_that_matches_too_often_keeps_its_citations_and_counts_in_no_rate(
+    worker_db: Ledger,
+    migrated: PostgresServer,
+    world: AiWorld,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(aliases, "MAX_HITS", 2)
+    store = MemoryStore()
+    prompt = await add_prompt(migrated, world.project, QUESTION)
+    text = "Eventus Security, Eventus Security and again Eventus Security lead the Indian market."
+    body = chatgpt_answer(text, ["https://eventussecurity.com/soc"])
+    task_id = await fetched_ai_task(worker_db, migrated, world.project, prompt, body, store)
+
+    report = await ingest(worker_db, store)
+
+    assert report == IngestReport(ingested=1)
+    observation = await _observation(migrated, task_id)
+    assert await _count(migrated, "ai.citations", observation["id"]) == 1
+    assert await _count(migrated, "ai.entity_mentions", observation["id"]) == 0
+    facts = await _facts(migrated, observation["id"])
+    assert (facts["is_valid"], facts["own_mentioned"], facts["own_domain_cited"]) == (
+        False,
+        False,
+        True,
+    )
+    assert await _task_status(migrated, task_id) == "ingested"
+
+
+async def test_an_answer_that_fails_half_way_leaves_nothing_and_waits(
+    worker_db: Ledger,
+    migrated: PostgresServer,
+    world: AiWorld,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def refuse(*_: object, **__: object) -> None:
+        raise RuntimeError("the fact row cannot be written now")
+
+    monkeypatch.setattr(ai_prompt_ingest, "_insert_fact", refuse)
+    store = MemoryStore()
+    _, task_id = await _gemini(worker_db, migrated, world, store)
+
+    report = await ingest(worker_db, store)
+
+    assert report == IngestReport(waiting=1)
+    for table in ("ai.observations", "ai.citations", "ai.entity_mentions"):
+        row = await fetchrow(
+            migrated,
+            f"SELECT count(*) AS n FROM {table} WHERE workspace_id = $1",
+            world.project.workspace_id,
+        )
+        assert row["n"] == 0, table
+    task = await fetchrow(
+        migrated,
+        "SELECT status, last_error_code FROM ops.collection_tasks WHERE id = $1",
+        task_id,
+    )
+    assert (task["status"], task["last_error_code"]) == ("fetched", "answer_not_written")
 
 
 @pytest.mark.parametrize(
