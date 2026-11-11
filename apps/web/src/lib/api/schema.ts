@@ -4428,7 +4428,13 @@ export interface components {
         /**
          * MetricCell
          * @description One count of answers over another, with every answer of the cell: "5 of 8". The
-         *     compact form of `MetricValue` (docs/19 section 2.6); the window is the response's.
+         *     compact form of `MetricValue` (docs/19 section 2.6); the window is the response's, and
+         *     `metric_context` says how each kind of cell is aggregated.
+         *
+         *     In a row of one prompt `numerator` and `denominator` are counts of answers. In a topic row,
+         *     a prompt weighted cell has the sum of its prompts' rates as `numerator` and the number of
+         *     prompts with a valid answer as `denominator` (`pooled` holds the counts of answers); Share
+         *     of voice stays counts of answers.
          */
         MetricCell: {
             /** Denominator */
@@ -4440,11 +4446,38 @@ export interface components {
             n_observations: number;
             /** Numerator */
             numerator: number;
+            /** @description Set on a prompt weighted cell: the answers behind it. */
+            pooled?: components["schemas"]["Pooled"] | null;
             /**
              * Value
              * @description numerator / denominator; null when it is 0.
              */
             value: number | null;
+        };
+        /**
+         * MetricContext
+         * @description What is true of every cell of one metric in the response (docs/19 section 2.6 rule 10).
+         */
+        MetricContext: {
+            /** Method */
+            method: string;
+            /**
+             * Metric
+             * @description The registry key of docs/16 section 2.1.
+             */
+            metric: string;
+            /**
+             * Prompt Rows
+             * @description How the cells of a prompt row are weighted.
+             * @enum {string}
+             */
+            prompt_rows: "observation_weighted" | "prompt_weighted";
+            /**
+             * Topic Rows
+             * @description How the cells of a topic row are weighted.
+             * @enum {string}
+             */
+            topic_rows: "observation_weighted" | "prompt_weighted";
         };
         /**
          * MetricValue
@@ -4807,6 +4840,16 @@ export interface components {
             new_password: string;
             /** Token */
             token: string;
+        };
+        /**
+         * Pooled
+         * @description The raw counts behind a prompt weighted rate: "2 of 5 answers".
+         */
+        Pooled: {
+            /** Successes */
+            successes: number;
+            /** Trials */
+            trials: number;
         };
         /** Price */
         Price: {
@@ -5528,6 +5571,7 @@ export interface components {
             entity_config_versions: number[];
             /** Include Branded */
             include_branded: boolean;
+            metric_context: components["schemas"]["SummaryMetricContext"];
             /** Prompts */
             prompts: components["schemas"]["PromptSummaryRow"][];
             /** Topics */
@@ -6584,6 +6628,13 @@ export interface components {
              * @enum {string}
              */
             role: "own" | "competitor";
+        };
+        /** SummaryMetricContext */
+        SummaryMetricContext: {
+            cited: components["schemas"]["MetricContext"];
+            mentioned: components["schemas"]["MetricContext"];
+            outcomes: components["schemas"]["MetricContext"];
+            share_of_voice: components["schemas"]["MetricContext"];
         };
         /** Term */
         Term: {
@@ -12824,6 +12875,8 @@ export const lintWarningSeverityValues: ReadonlyArray<FlattenedDeepRequired<comp
 export const meWorkspaceStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MeWorkspace"]["status"]> = ["active", "suspended", "deleting"];
 export const mentionOutMention_statusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MentionOut"]["mention_status"]> = ["accepted", "uncertain"];
 export const mentionOutRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MentionOut"]["role"]> = ["own", "competitor", "watch", "untracked"];
+export const metricContextPrompt_rowsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricContext"]["prompt_rows"]> = ["observation_weighted", "prompt_weighted"];
+export const metricContextTopic_rowsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricContext"]["topic_rows"]> = ["observation_weighted", "prompt_weighted"];
 export const metricValueUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricValue"]["unit"]> = ["ratio", "count", "rank", "score", "usd", "clicks"];
 export const observationClassValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationClass"]> = ["consumer_ui", "official_api", "serp_ai"];
 export const observationDetailStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationDetail"]["status"]> = ["complete", "partial", "empty", "refused", "error"];

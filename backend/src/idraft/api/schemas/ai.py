@@ -443,14 +443,30 @@ class ObservationResponse(BaseModel):
     data: ObservationDetail
 
 
+class Pooled(BaseModel):
+    """The raw counts behind a prompt weighted rate: "2 of 5 answers"."""
+
+    successes: int
+    trials: int
+
+
 class MetricCell(BaseModel):
     """One count of answers over another, with every answer of the cell: "5 of 8". The
-    compact form of `MetricValue` (docs/19 section 2.6); the window is the response's."""
+    compact form of `MetricValue` (docs/19 section 2.6); the window is the response's, and
+    `metric_context` says how each kind of cell is aggregated.
+
+    In a row of one prompt `numerator` and `denominator` are counts of answers. In a topic row,
+    a prompt weighted cell has the sum of its prompts' rates as `numerator` and the number of
+    prompts with a valid answer as `denominator` (`pooled` holds the counts of answers); Share
+    of voice stays counts of answers."""
 
     value: float | None = Field(description="numerator / denominator; null when it is 0.")
     numerator: float
     denominator: int
     n_observations: int = Field(description="Every answer of the cell, valid or not.")
+    pooled: Pooled | None = Field(
+        default=None, description="Set on a prompt weighted cell: the answers behind it."
+    )
 
 
 class OutcomeCells(BaseModel):
@@ -490,10 +506,30 @@ class SummaryEntity(BaseModel):
     role: Literal["own", "competitor"]
 
 
+Aggregation = Literal["observation_weighted", "prompt_weighted"]
+
+
+class MetricContext(BaseModel):
+    """What is true of every cell of one metric in the response (docs/19 section 2.6 rule 10)."""
+
+    metric: str = Field(description="The registry key of docs/16 section 2.1.")
+    prompt_rows: Aggregation = Field(description="How the cells of a prompt row are weighted.")
+    topic_rows: Aggregation = Field(description="How the cells of a topic row are weighted.")
+    method: str
+
+
+class SummaryMetricContext(BaseModel):
+    mentioned: MetricContext
+    cited: MetricContext
+    outcomes: MetricContext
+    share_of_voice: MetricContext
+
+
 class PromptsSummary(BaseModel):
     window: MetricWindow
     include_branded: bool
     engine_codes: list[str]
+    metric_context: SummaryMetricContext
     entities: list[SummaryEntity] = Field(
         description="The tracked entity set Share of voice is computed over now: the own brand "
         "and the competitors (watched entities are not in it)."

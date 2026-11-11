@@ -3,19 +3,21 @@ the tracked entity set, and counts of current fact rows by prompt or topic and e
 security keeps every read in the caller's workspace; each query names the workspace and the
 project as well.
 
-A fact counts when it is current and its answer is not superseded (docs/16 rule 3). Each
-level (prompts, topics, prompts without a topic) is one grouped query over the facts, whatever
-the number of prompts."""
+A fact counts when it is current and its answer is not superseded (docs/16 rule 3). The counts
+are one grouped query over the facts, by prompt and engine, whatever the number of prompts; the
+topic rows are sums of these (the service), and `topic_rollup` says which prompts a topic holds.
+The window bounds the answers' own table and the facts' date column too, so the partitions of
+other months are not read and the partial index on (project, date, engine) can be used."""
 
 from __future__ import annotations
 
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Float, and_, cast, func, select
+from sqlalchemy import Float, and_, cast, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.db.tables import (
@@ -33,15 +35,6 @@ from idraft.db.tables import (
 )
 
 _F, _O = ai_observation_facts.c, ai_observations.c
-# The facts with the answer they belong to, so a superseded answer can be left out.
-_FACTS = ai_observation_facts.join(
-    ai_observations,
-    and_(
-        _O.id == _F.observation_id,
-        _O.observed_at == _F.observed_at,
-        _O.workspace_id == _F.workspace_id,
-    ),
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,7 +47,7 @@ class Counts:
     mentioned_only: int = 0
     cited_only: int = 0
     neither: int = 0
-    # Valid answers that name at least one tracked entity, and the own brand's share of them.
+    # Valid answers that name at least one tracked entity, and the own brands' shares of them.
     sov_answers: int = 0
     sov_share: float = 0.0
 
@@ -90,12 +83,18 @@ def _counts_columns() -> list[Any]:
         count(valid, ~_F.own_mentioned, _F.own_domain_cited).label("cited_only"),
         count(valid, ~_F.own_mentioned, ~_F.own_domain_cited).label("neither"),
         count(valid, _F.tracked_entities_mentioned >= 1).label("sov_answers"),
-        # sov_o(own) = 1 / |M_o| for an answer that names the own brand among |M_o| tracked
-        # entities (docs/16 section 5); the answers naming others only add 0.
+        # The own share of an answer is the sum of sov_o(e) over the own entities (docs/16
+        # section 5): each one named is 1 / |M_o|, and |M_o| counts every tracked entity named,
+        # so the own entities are the tracked ones that are not competitors. A project may own
+        # several brands. The filter keeps |M_o| at 1 or more, so the division is safe.
         func.coalesce(
-            func.sum(1.0 / func.nullif(cast(_F.tracked_entities_mentioned, Float), 0)).filter(
-                and_(valid, _F.own_mentioned, _F.tracked_entities_mentioned >= 1)
-            ),
+            func.sum(
+                cast(
+                    _F.tracked_entities_mentioned - func.cardinality(_F.competitor_mentions),
+                    Float,
+                )
+                / _F.tracked_entities_mentioned
+            ).filter(and_(valid, _F.tracked_entities_mentioned >= 1)),
             0.0,
         ).label("sov_share"),
     ]
@@ -206,6 +205,15 @@ async def tracked_entities(
     return [TrackedEntity(row.id, row.canonical_name, row.role) for row in rows]
 
 
+def _shifted(instant: datetime, days: int) -> date:
+    """The UTC date of `instant`, moved by `days`; the calendar's ends stay where they are."""
+    day = instant.astimezone(UTC).date()
+    try:
+        return day + timedelta(days=days)
+    except OverflowError:
+        return day
+
+
 def _window(
     workspace_id: UUID,
     project_id: UUID,
@@ -218,10 +226,27 @@ def _window(
         _F.workspace_id == workspace_id,
         _F.project_id == project_id,
         _F.is_current,
-        _O.superseded_by.is_(None),
         _F.observed_at >= since,
         _F.observed_at < until,
+        # A fact's date is its answer's UTC date: a day either side of the instants is safe, and
+        # it is what the (project, date, engine) index is searched with.
+        _F.observed_date >= _shifted(since, -1),
+        _F.observed_date <= _shifted(until, 1),
         _F.prompt_id.in_(list(prompt_ids)),
+        # A superseded answer is left out. Looked up as an anti-join over the few superseded
+        # answers of the window, with the same bounds on the answers' table: a join of every
+        # fact to every answer is read as a nested loop when the planner has no statistics.
+        ~exists().where(
+            _O.id == _F.observation_id,
+            _O.observed_at == _F.observed_at,
+            _O.workspace_id == workspace_id,
+            _O.project_id == project_id,
+            _O.observed_at >= since,
+            _O.observed_at < until,
+            _O.observed_date >= _shifted(since, -1),
+            _O.observed_date <= _shifted(until, 1),
+            _O.superseded_by.is_not(None),
+        ),
     ]
     if engine_codes is not None:
         conditions.append(_F.engine_code.in_(list(engine_codes)))
@@ -242,56 +267,48 @@ async def counts_by_prompt(
         return {}
     rows = await db.execute(
         select(_F.prompt_id, _F.engine_code, *_counts_columns())
-        .select_from(_FACTS)
         .where(*_window(workspace_id, project_id, prompt_ids, since, until, engine_codes))
         .group_by(_F.prompt_id, _F.engine_code)
     )
     return {(row.prompt_id, row.engine_code): _counts(row) for row in rows}
 
 
-async def counts_by_topic(
-    db: AsyncSession,
-    workspace_id: UUID,
-    project_id: UUID,
-    prompt_ids: Collection[UUID],
-    *,
-    since: datetime,
-    until: datetime,
-    engine_codes: Sequence[str] | None,
-) -> dict[tuple[UUID, str], Counts]:
-    """Counts by topic term: an answer to a prompt of two topics counts in both."""
+async def topic_rollup(
+    db: AsyncSession, workspace_id: UUID, prompt_ids: Collection[UUID]
+) -> dict[UUID, set[UUID]]:
+    """The prompts each topic term holds: the prompts given the term or any term below it (the
+    terms whose path starts with its path, docs/16 section 4), each prompt once however many
+    terms below it it was given."""
     if not prompt_ids:
         return {}
-    topics = _topic_terms().subquery()
+    pt, v = ai_prompt_terms.c, taxonomy_vocabularies.c
+    given_terms, above_terms = taxonomy_terms.alias("given"), taxonomy_terms.alias("above")
+    given, above = given_terms.c, above_terms.c
     rows = await db.execute(
-        select(topics.c.term_id, _F.engine_code, *_counts_columns())
-        .select_from(_FACTS.join(topics, topics.c.prompt_id == _F.prompt_id))
-        .where(*_window(workspace_id, project_id, prompt_ids, since, until, engine_codes))
-        .group_by(topics.c.term_id, _F.engine_code)
+        select(pt.prompt_id, above.id)
+        .select_from(ai_prompt_terms)
+        .join(given_terms, and_(given.id == pt.term_id, given.workspace_id == pt.workspace_id))
+        .join(
+            taxonomy_vocabularies,
+            and_(
+                v.id == given.vocabulary_id, v.workspace_id == given.workspace_id, v.kind == "topic"
+            ),
+        )
+        .join(
+            above_terms,
+            and_(
+                above.vocabulary_id == given.vocabulary_id,
+                above.workspace_id == given.workspace_id,
+                or_(above.id == given.id, func.starts_with(given.path, above.path + "/")),
+            ),
+        )
+        .where(pt.workspace_id == workspace_id, pt.prompt_id.in_(list(prompt_ids)))
+        .distinct()
     )
-    return {(row.term_id, row.engine_code): _counts(row) for row in rows}
-
-
-async def counts_of_prompts(
-    db: AsyncSession,
-    workspace_id: UUID,
-    project_id: UUID,
-    prompt_ids: Collection[UUID],
-    *,
-    since: datetime,
-    until: datetime,
-    engine_codes: Sequence[str] | None,
-) -> dict[str, Counts]:
-    """Counts of a set of prompts together, by engine: the row of prompts without a topic."""
-    if not prompt_ids:
-        return {}
-    rows = await db.execute(
-        select(_F.engine_code, *_counts_columns())
-        .select_from(_FACTS)
-        .where(*_window(workspace_id, project_id, prompt_ids, since, until, engine_codes))
-        .group_by(_F.engine_code)
-    )
-    return {row.engine_code: _counts(row) for row in rows}
+    held: dict[UUID, set[UUID]] = {}
+    for row in rows:
+        held.setdefault(row.id, set()).add(row.prompt_id)
+    return held
 
 
 async def entity_config_versions(
@@ -311,7 +328,7 @@ async def entity_config_versions(
     rows = await db.execute(
         select(d.entity_config_version)
         .select_from(
-            _FACTS.join(
+            ai_observation_facts.join(
                 ai_derivations,
                 and_(d.id == _F.derivation_id, d.workspace_id == _F.workspace_id),
             )

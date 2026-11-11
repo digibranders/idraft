@@ -5977,7 +5977,7 @@
         "type": "object"
       },
       "MetricCell": {
-        "description": "One count of answers over another, with every answer of the cell: \"5 of 8\". The\ncompact form of `MetricValue` (docs/19 section 2.6); the window is the response's.",
+        "description": "One count of answers over another, with every answer of the cell: \"5 of 8\". The\ncompact form of `MetricValue` (docs/19 section 2.6); the window is the response's, and\n`metric_context` says how each kind of cell is aggregated.\n\nIn a row of one prompt `numerator` and `denominator` are counts of answers. In a topic row,\na prompt weighted cell has the sum of its prompts' rates as `numerator` and the number of\nprompts with a valid answer as `denominator` (`pooled` holds the counts of answers); Share\nof voice stays counts of answers.",
         "properties": {
           "denominator": {
             "title": "Denominator",
@@ -5991,6 +5991,17 @@
           "numerator": {
             "title": "Numerator",
             "type": "number"
+          },
+          "pooled": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Pooled"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set on a prompt weighted cell: the answers behind it."
           },
           "value": {
             "anyOf": [
@@ -6012,6 +6023,46 @@
           "n_observations"
         ],
         "title": "MetricCell",
+        "type": "object"
+      },
+      "MetricContext": {
+        "description": "What is true of every cell of one metric in the response (docs/19 section 2.6 rule 10).",
+        "properties": {
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "metric": {
+            "description": "The registry key of docs/16 section 2.1.",
+            "title": "Metric",
+            "type": "string"
+          },
+          "prompt_rows": {
+            "description": "How the cells of a prompt row are weighted.",
+            "enum": [
+              "observation_weighted",
+              "prompt_weighted"
+            ],
+            "title": "Prompt Rows",
+            "type": "string"
+          },
+          "topic_rows": {
+            "description": "How the cells of a topic row are weighted.",
+            "enum": [
+              "observation_weighted",
+              "prompt_weighted"
+            ],
+            "title": "Topic Rows",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric",
+          "prompt_rows",
+          "topic_rows",
+          "method"
+        ],
+        "title": "MetricContext",
         "type": "object"
       },
       "MetricValue": {
@@ -7148,6 +7199,25 @@
           "new_password"
         ],
         "title": "PasswordResetConfirmRequest",
+        "type": "object"
+      },
+      "Pooled": {
+        "description": "The raw counts behind a prompt weighted rate: \"2 of 5 answers\".",
+        "properties": {
+          "successes": {
+            "title": "Successes",
+            "type": "integer"
+          },
+          "trials": {
+            "title": "Trials",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "successes",
+          "trials"
+        ],
+        "title": "Pooled",
         "type": "object"
       },
       "Price": {
@@ -8869,6 +8939,9 @@
             "title": "Include Branded",
             "type": "boolean"
           },
+          "metric_context": {
+            "$ref": "#/components/schemas/SummaryMetricContext"
+          },
           "prompts": {
             "items": {
               "$ref": "#/components/schemas/PromptSummaryRow"
@@ -8891,6 +8964,7 @@
           "window",
           "include_branded",
           "engine_codes",
+          "metric_context",
           "entities",
           "entity_config_versions",
           "prompts",
@@ -11945,6 +12019,30 @@
           "role"
         ],
         "title": "SummaryEntity",
+        "type": "object"
+      },
+      "SummaryMetricContext": {
+        "properties": {
+          "cited": {
+            "$ref": "#/components/schemas/MetricContext"
+          },
+          "mentioned": {
+            "$ref": "#/components/schemas/MetricContext"
+          },
+          "outcomes": {
+            "$ref": "#/components/schemas/MetricContext"
+          },
+          "share_of_voice": {
+            "$ref": "#/components/schemas/MetricContext"
+          }
+        },
+        "required": [
+          "mentioned",
+          "cited",
+          "outcomes",
+          "share_of_voice"
+        ],
+        "title": "SummaryMetricContext",
         "type": "object"
       },
       "Term": {

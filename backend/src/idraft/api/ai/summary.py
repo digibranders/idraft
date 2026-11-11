@@ -3,7 +3,7 @@ prompt and engine, and per topic and engine, over a window of project-local days
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from datetime import date, datetime, timedelta
 from typing import Any, Final, Literal, cast
@@ -21,10 +21,13 @@ from idraft.api.ranks.service import instants
 from idraft.api.schemas.ai import (
     EngineSummary,
     MetricCell,
+    MetricContext,
     OutcomeCells,
+    Pooled,
     PromptsSummary,
     PromptSummaryRow,
     SummaryEntity,
+    SummaryMetricContext,
     TopicSummaryRow,
 )
 from idraft.api.schemas.metrics import MetricWindow
@@ -87,8 +90,93 @@ def _engine(engine_code: str, counts: Counts) -> EngineSummary:
     )
 
 
-def _engines(engine_codes: Sequence[str], counts: Mapping[str, Counts]) -> list[EngineSummary]:
-    return [_engine(code, counts.get(code, _NONE)) for code in engine_codes]
+def _weighted(members: Sequence[Counts], pick: Callable[[Counts], int]) -> MetricCell:
+    """The prompt weighted rate of a topic (docs/16 section 3, docs/17 section 4.1): each prompt
+    with a valid answer counts once, as `pick(counts) / n_valid`. The numerator is the sum of
+    those rates, the denominator the number of such prompts, and `pooled` the answers."""
+    rated = [counts for counts in members if counts.n_valid > 0]
+    numerator = sum(pick(counts) / counts.n_valid for counts in rated)
+    cell = _cell(numerator, len(rated), sum(counts.n_observations for counts in members))
+    return cell.model_copy(
+        update={
+            "pooled": Pooled(
+                successes=sum(pick(counts) for counts in rated),
+                trials=sum(counts.n_valid for counts in rated),
+            )
+        }
+    )
+
+
+def _topic_engine(engine_code: str, members: Sequence[Counts]) -> EngineSummary:
+    """The cells of a topic and engine from the counts of the topic's prompts. Share of voice
+    stays one answer one weight (docs/16 section 5), so it is the sum over the answers."""
+    return EngineSummary(
+        engine_code=engine_code,
+        mentioned=_weighted(members, lambda counts: counts.mentioned),
+        cited=_weighted(members, lambda counts: counts.cited),
+        outcomes=OutcomeCells(
+            mentioned_and_cited=_weighted(members, lambda counts: counts.mentioned_and_cited),
+            mentioned_only=_weighted(members, lambda counts: counts.mentioned_only),
+            cited_only=_weighted(members, lambda counts: counts.cited_only),
+            neither=_weighted(members, lambda counts: counts.neither),
+        ),
+        share_of_voice=_cell(
+            sum(counts.sov_share for counts in members),
+            sum(counts.sov_answers for counts in members),
+            sum(counts.n_observations for counts in members),
+        ),
+    )
+
+
+def _topic_engines(
+    engine_codes: Sequence[str],
+    prompt_ids: Collection[UUID],
+    by_prompt: Mapping[tuple[UUID, str], Counts],
+) -> list[EngineSummary]:
+    return [
+        _topic_engine(
+            code,
+            [by_prompt[(prompt, code)] for prompt in prompt_ids if (prompt, code) in by_prompt],
+        )
+        for code in engine_codes
+    ]
+
+
+def _context() -> SummaryMetricContext:
+    per_prompt = "Counts of valid answers to one prompt, so each answer weighs the same."
+    topic = (
+        "Prompt weighted: the mean over the topic's prompts of each prompt's share of valid "
+        "answers (prompts with no valid answer are left out); `pooled` holds the answers."
+    )
+    return SummaryMetricContext(
+        mentioned=MetricContext(
+            metric="ai.mention_rate",
+            prompt_rows="observation_weighted",
+            topic_rows="prompt_weighted",
+            method=f"Valid answers that name the own brand. {per_prompt} {topic}",
+        ),
+        cited=MetricContext(
+            metric="ai.citation_rate",
+            prompt_rows="observation_weighted",
+            topic_rows="prompt_weighted",
+            method=f"Valid answers that cite the own domain. {per_prompt} {topic}",
+        ),
+        outcomes=MetricContext(
+            metric="ai.outcome_mix",
+            prompt_rows="observation_weighted",
+            topic_rows="prompt_weighted",
+            method=f"The four outcomes of valid answers, which add up to the denominator. "
+            f"{per_prompt} {topic}",
+        ),
+        share_of_voice=MetricContext(
+            metric="ai.share_of_voice",
+            prompt_rows="observation_weighted",
+            topic_rows="observation_weighted",
+            method="Per answer that names a tracked entity, the own brands' share of the "
+            "entities it names (docs/16 section 5), summed over those answers; also in a topic "
+            "row, where every answer weighs the same.",
+        ),
+    )
 
 
 class SummaryService:
@@ -125,14 +213,11 @@ class SummaryService:
             ids = [prompt.id for prompt in prompts]
             window: dict[str, Any] = {"since": since, "until": until, "engine_codes": engine_codes}
             by_prompt = await repository.counts_by_prompt(db, ws, project_id, ids, **window)
-            by_topic = await repository.counts_by_topic(db, ws, project_id, ids, **window)
-            untopiced = [prompt.id for prompt in prompts if not prompt.topic_term_ids]
-            no_topic = await repository.counts_of_prompts(db, ws, project_id, untopiced, **window)
+            held = await repository.topic_rollup(db, ws, ids)
             versions = await repository.entity_config_versions(db, ws, project_id, ids, **window)
             enabled = await repository.enabled_engine_codes(db, ws, project_id)
             tracked = await repository.tracked_entities(db, ws, project_id)
-            term_ids = {term for prompt in prompts for term in prompt.topic_term_ids}
-            names = await repository.topic_names(db, ws, term_ids)
+            names = await repository.topic_names(db, ws, held.keys())
         seen = {engine for _, engine in by_prompt}
         shown = sorted(
             code for code in set(enabled) | seen if engine_codes is None or code in engine_codes
@@ -143,40 +228,29 @@ class SummaryService:
                 text=prompt.text,
                 is_branded=prompt.is_branded,
                 topic_term_ids=list(prompt.topic_term_ids),
-                engines=_engines(
-                    shown,
-                    {
-                        code: by_prompt[(prompt.id, code)]
-                        for code in shown
-                        if (prompt.id, code) in by_prompt
-                    },
-                ),
+                engines=[_engine(code, by_prompt.get((prompt.id, code), _NONE)) for code in shown],
             )
             for prompt in prompts
         ]
+        # Topic rows are sums of the prompts' counts. Each topic row holds the prompts given the
+        # term or a term below it, each once; the last row holds the prompts given no topic.
         topic_rows = [
             TopicSummaryRow(
                 term_id=term_id,
                 name=names.get(term_id),
-                prompt_count=sum(term_id in prompt.topic_term_ids for prompt in prompts),
-                engines=_engines(
-                    shown,
-                    {
-                        code: by_topic[(term_id, code)]
-                        for code in shown
-                        if (term_id, code) in by_topic
-                    },
-                ),
+                prompt_count=len(held[term_id]),
+                engines=_topic_engines(shown, held[term_id], by_prompt),
             )
-            for term_id in sorted(term_ids, key=lambda term: (names.get(term, ""), str(term)))
+            for term_id in sorted(held, key=lambda term: (names.get(term, ""), str(term)))
         ]
+        untopiced = [prompt.id for prompt in prompts if not prompt.topic_term_ids]
         if untopiced:
             topic_rows.append(
                 TopicSummaryRow(
                     term_id=None,
                     name=None,
                     prompt_count=len(untopiced),
-                    engines=_engines(shown, no_topic),
+                    engines=_topic_engines(shown, untopiced, by_prompt),
                 )
             )
         return PromptsSummary(
@@ -185,6 +259,7 @@ class SummaryService:
             ),
             include_branded=include_branded,
             engine_codes=shown,
+            metric_context=_context(),
             entities=[
                 SummaryEntity(
                     entity_id=entity.id,
