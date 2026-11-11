@@ -7389,3 +7389,9 @@ git commit -m "As built notes and the first real run for AI prompts slice 1, pla
 - `ai.observation_raw(bigint)` filters by workspace only, not by project: `ObservationService.raw_answer(access, project_id, ...)` must first check that the observation belongs to `project_id` (404 otherwise) before it calls the function.
 - The worker's grants on the answer tables are append only: the `is_current` flip and `superseded_by` need column UPDATE grants, and "a newer observation from raw" collides with `observations_one_per_task`. Slice 1 does neither; settle both in the plan that adds re-derivation (slice 2).
 - `ai.entity_mentions` and `ai.observation_facts` reference `ai.derivations` with NO ACTION and carry no project FK, so a purge of a project that has extraction rows must delete the answer rows first (nothing hard-deletes projects today).
+
+## Notes carried forward from the review of plan B task 1
+
+- Unknown to settle before the first real run: `serp.as_sent` escapes `%` and `+` in SERP keywords because DataForSEO decodes them there. Nobody knows whether the AI endpoints (ChatGPT scraper, Gemini scraper, AI Mode) decode them the same way; none of the spike prompts contained either. Task 10's first-run guide must include one probe prompt containing `+` and `%41` on each engine (about 0.0036 USD), read the echoed `keyword` in the stored raw answer, and only then decide whether the AI task bodies need escaping (escaping would also change the as-sent length against the 700 and 2,000 limits). None of the 150 Eventus prompts contains `%` or `+`.
+- The `id_list` paths of the three AI endpoints (`/v3/ai_optimization/id_list`, `/v3/serp/id_list`) were never called by the spike: the first live recovery of a lost task is their first test.
+- Minor: `ai.py` repeats the 2,000 limit as a literal; it could read `PROMPT_TEXT_MAX` from `idraft.domain.ai_engines`. The Gemini limit of 2,000 is inferred from doc 07, not measured.
