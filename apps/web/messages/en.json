@@ -3470,6 +3470,63 @@
       "restored": "Prompt restored",
       "restoreFailed": "The prompt was not brought back. Try again in a moment.",
       "restoreQuota": "The workspace has {used, number} of {limit, number} active prompts. Archive another one to bring this one back."
+    },
+    "answer": {
+      "type": "Answer",
+      "noun": "answer",
+      "title": "{engine} answer, {date}",
+      "back": "Back to Topics & Prompts",
+      "backToPrompt": "Back to the prompt",
+      "loadFailed": "The answer could not be loaded.",
+      "loadFailedReason": "The server did not answer. Try again in a moment.",
+      "text": "Answer",
+      "failed": "The answer could not be read",
+      "failedReasons": {
+        "missing": "The provider sent no result for this question. The answer is left out of every count.",
+        "providerError": "The provider had an error while it answered. The answer is left out of every count.",
+        "unknown": "The provider’s reply could not be read. The answer is left out of every count."
+      },
+      "empty": "The engine gave no answer",
+      "emptyReason": "An empty answer is left out of every count.",
+      "refusedTitle": "The engine declined to answer",
+      "refusedReason": "A refused answer is left out of every count.",
+      "refused": "The engine declined to answer. The answer is left out of every count.",
+      "partial": "The answer was cut off. It counts with what it holds.",
+      "adsNote": "Ads in the answer are left out of the mentions and the sources.",
+      "ownMatch": "own brand",
+      "competitorMatch": "tracked brand",
+      "mentions": "Mentions",
+      "noMentions": "No tracked brand is named",
+      "noMentionsReason": "The answer names none of the project’s brands or competitors.",
+      "mentionsPending": "Mentions are not read yet",
+      "mentionsPendingReason": "They appear once the answer has been read.",
+      "mentionCount": "{count, plural, one {Named once} other {Named # times}}",
+      "mentionOrder": "Order {order, number}",
+      "uncertain": "Uncertain",
+      "roles": {
+        "own": "Own",
+        "competitor": "Competitor",
+        "watch": "Watched",
+        "untracked": "Untracked"
+      },
+      "sources": "Sources",
+      "noSources": "No source cited",
+      "noSourcesReason": "The answer lists no source.",
+      "sourcesCaption": "Sources cited in this answer",
+      "sourceRoles": {
+        "own": "Own",
+        "competitor": "Competitor",
+        "thirdParty": "Third party"
+      },
+      "details": "Details",
+      "engine": "Engine",
+      "observed": "Answered",
+      "model": "Model",
+      "outcome": "Outcome",
+      "check": "Open the answer at the provider",
+      "checkLabel": "At the provider",
+      "raw": "Open the raw answer",
+      "rawLabel": "Raw answer"
     }
   }
 }

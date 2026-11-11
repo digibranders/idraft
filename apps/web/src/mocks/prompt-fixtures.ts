@@ -391,7 +391,8 @@ function makeAnswer(index: number, languageCode: string, engine: EngineCode, day
       ...base,
       status: 'error',
       answer_text: null,
-      error_code: 'provider_error',
+      // The provider's task status code as text, which is what the backend stores (`missing` when it sent none)
+      error_code: '50000',
       model_reported: null,
       check_url: null,
       mentions: [],

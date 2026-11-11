@@ -8,6 +8,7 @@ import { parseAsString, useQueryStates } from 'nuqs';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
 import { AddPromptsDialog } from './add-prompts-dialog';
+import { AnswerInspector } from './answer-inspector';
 import { DEFAULT_SORT, usePromptColumns, type PromptRow } from './prompt-columns';
 import { PromptInspector, type PromptCounts } from './prompt-inspector';
 import {
@@ -288,6 +289,10 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // The inspector: a prompt opened from either tab, stepping in the order of the table on screen
   const inspector = useInspector();
   const openPrompt = inspector.target?.type === 'prompt' ? inspector.target.id : null;
+  // An answer opens from a prompt's answers and takes the inspector's place until it goes back to the prompt
+  const openAnswer = inspector.target?.type === 'answer' ? inspector.target.id : null;
+  // The time of the row the answer was opened from, which the API finds the answer's month by; a link has none
+  const [answerRow, setAnswerRow] = useState<{ id: string; observedAt: string } | null>(null);
   const [order, setOrder] = useState<readonly string[]>([]);
   const at = inspector.position(order);
   const step = (direction: 'next' | 'previous'): void => {
@@ -594,11 +599,29 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         }
         onStep={at === null ? undefined : step}
         onClose={() => inspector.close()}
+        onOpenAnswer={(observationId, observedAt) => {
+          setAnswerRow({ id: observationId, observedAt });
+          inspector.open({ type: 'answer', id: observationId });
+        }}
+      />
+    );
+  const answerInspector =
+    openAnswer === null ? null : (
+      <AnswerInspector
+        // Another answer, or another project's, is another inspector
+        key={`${project.id}:${openAnswer}`}
+        scope={scope}
+        observationId={openAnswer}
+        observedAt={answerRow?.id === openAnswer ? answerRow.observedAt : undefined}
+        timeZone={project.timeZone}
+        engines={engines.data?.data ?? []}
+        onBack={(promptId) => inspector.open({ type: 'prompt', id: promptId })}
+        onClose={() => inspector.close()}
       />
     );
 
   return (
-    <InspectorLayout inspector={promptInspector}>
+    <InspectorLayout inspector={promptInspector ?? answerInspector}>
       <TopBarPortal>
         <div className="w-44">
           <Select<string>

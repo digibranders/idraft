@@ -5,7 +5,7 @@ import { ClipboardList, ListChecks, MessageSquareText, Play } from 'lucide-react
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, type ReactElement } from 'react';
 
-import { asksIn, countText, fitsEngine, topicTermsOf, type DateRange } from './prompt-model';
+import { asksIn, countText, fitsEngine, outcomeKey, topicTermsOf, type DateRange } from './prompt-model';
 import {
   ARCHIVE_PROMPT,
   isPromptId,
@@ -36,14 +36,6 @@ import { EMPTY_VALUE, formatDetailDateTime, formatInteger, formatList, formatTab
 import { languageName } from '@/lib/format/language';
 import { useCountries } from '@/lib/locations/countries';
 import { useCan } from '@/lib/permissions';
-
-/** The catalog key of each outcome: the API's values are snake case, catalog keys camel case. */
-const OUTCOME_KEYS = {
-  mentioned_and_cited: 'mentionedAndCited',
-  mentioned_only: 'mentionedOnly',
-  cited_only: 'citedOnly',
-  neither: 'neither',
-} as const;
 
 /** The catalog key of each reason Run now refuses an engine (`422 validation_failed`, one item per engine). */
 const REFUSAL_KEYS = {
@@ -82,8 +74,11 @@ export interface PromptInspectorProps {
   navigation: InspectorNavigation | null;
   onStep: ((direction: 'next' | 'previous') => void) | undefined;
   onClose: () => void;
-  /** Opens the answer in the answer viewer; without it the dates of the answers are plain text. */
-  onOpenAnswer?: ((observationId: string) => void) | undefined;
+  /**
+   * Opens the answer in the answer viewer; without it the dates of the answers are plain text. `observedAt` is
+   * the time of the answer's row, which the viewer hands the API to find the answer's month.
+   */
+  onOpenAnswer?: ((observationId: string, observedAt: string) => void) | undefined;
 }
 
 /**
@@ -251,14 +246,7 @@ export function PromptInspector({
       : t('engineCounts', { mentioned: cellText(cells.mentioned), cited: cellText(cells.cited) });
   const countryName = (iso: string | null): string =>
     iso === null ? EMPTY_VALUE : (countries.find((country) => country.country_iso === iso)?.name ?? iso);
-  const outcomeLabel = (row: ObservationSummary): string => {
-    // An answer that came back has its facts read a moment later; one that failed or was refused never does
-    if (row.facts === null)
-      return t(row.status === 'complete' || row.status === 'partial' ? 'outcomes.pending' : 'outcomes.notCounted');
-    return !row.facts.is_valid || row.facts.outcome === null
-      ? t('outcomes.notCounted')
-      : t(`outcomes.${OUTCOME_KEYS[row.facts.outcome]}`);
-  };
+  const outcomeLabel = (row: ObservationSummary): string => t(`outcomes.${outcomeKey(row.status, row.facts)}`);
   const answerColumns: PlainColumn<ObservationSummary>[] = [
     {
       id: 'date',
@@ -271,7 +259,7 @@ export function PromptInspector({
           <Button
             variant="link"
             aria-label={t('openAnswer', { engine: labelOf(row.engine_code), date })}
-            onClick={() => onOpenAnswer(row.observation_id)}
+            onClick={() => onOpenAnswer(row.observation_id, row.observed_at)}
           >
             <span className="num">{date}</span>
           </Button>

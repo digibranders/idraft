@@ -97,7 +97,7 @@ describe('answer fixtures', () => {
       expect(answer.citations).toEqual([]);
     }
     const failed = CASES.find((found) => found.answer.status === 'error')?.answer;
-    expect(failed).toMatchObject({ answer_text: null, error_code: 'provider_error', model_reported: null });
+    expect(failed).toMatchObject({ answer_text: null, error_code: '50000', model_reported: null });
     const refused = CASES.find((found) => found.answer.status === 'refused')?.answer;
     expect(refused?.answer_text).not.toBeNull();
     expect(CASES.find((found) => found.answer.status === 'empty')?.answer.answer_text).toBeNull();

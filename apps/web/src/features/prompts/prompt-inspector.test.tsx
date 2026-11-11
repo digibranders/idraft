@@ -356,6 +356,25 @@ describe('the prompt inspector: the address and the answers', () => {
     expect(screen.queryByRole('table', { name: 'Answers to this prompt' })).toBeNull();
   });
 
+  it('opens an answer from its date, naming its engine and date, and puts it in the address', async () => {
+    const urls: string[] = [];
+    const { user } = renderWithProviders(promptsAs('viewer'), {
+      searchParams: opened,
+      onUrlUpdate: ({ queryString }) => {
+        urls.push(queryString);
+      },
+    });
+    const answers = await within(await panel()).findByRole('table', { name: 'Answers to this prompt' });
+    const buttons = await within(answers).findAllByRole('button', { name: /^Open the (ChatGPT|Gemini) answer of / });
+    expect(buttons).toHaveLength(16);
+    const [newest] = buttons;
+    expect(newest?.getAttribute('aria-label')).toMatch(/^Open the (ChatGPT|Gemini) answer of \S+/);
+    await user.click(newest as HTMLElement);
+    expect(await screen.findByRole('complementary', { name: /^(ChatGPT|Gemini) answer, / })).toBeInTheDocument();
+    expect(decodeURIComponent(urls.at(-1) ?? '')).toMatch(/inspect=answer:\d+/);
+    expect(screen.queryByRole('complementary', { name: first.text })).toBeNull();
+  });
+
   const answer = (overrides: Partial<ObservationSummary>): ObservationSummary => ({
     answer_char_count: 100,
     citation_count: 0,

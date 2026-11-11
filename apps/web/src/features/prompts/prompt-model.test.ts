@@ -8,6 +8,7 @@ import {
   collectTopicTerms,
   hasAnswers,
   matchesTopics,
+  outcomeKey,
   parseTab,
   parseWindow,
   PROMPT_TEXT_MAX,
@@ -22,7 +23,10 @@ import {
   WINDOW_DAYS,
   windowRange,
 } from './prompt-model';
+import type { ObservationDetail } from '@/lib/api/types';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
+
+type Facts = NonNullable<ObservationDetail['facts']>;
 import type { MetricCell, ProjectEngine, Prompt, PromptsSummary, PromptSummaryRow } from '@/lib/api/types';
 import type { Country } from '@/lib/locations/countries';
 
@@ -439,5 +443,34 @@ describe('engines', () => {
     expect(asksIn(chatgpt, all, 'US')).toBe(false);
     expect(asksIn(chatgpt, all, 'FR')).toBe(false);
     expect(asksIn(chatgpt, all, null)).toBe(true);
+  });
+
+  it('names the outcome of an answer: its own, being read for one whose facts are to come, not counted otherwise', () => {
+    const facts = (outcome: Facts['outcome'], isValid = true): Facts => ({
+      derivation_id: 1,
+      is_valid: isValid,
+      outcome,
+      own_mentioned: false,
+      own_domain_cited: false,
+      own_mention_order: null,
+      own_prominence: null,
+      own_citation_count: 0,
+      total_citation_count: 0,
+      tracked_entities_mentioned: 0,
+      competitor_mentions: [],
+      competitor_cited: [],
+      had_structured_list: false,
+    });
+    expect(outcomeKey('complete', facts('mentioned_and_cited'))).toBe('mentionedAndCited');
+    expect(outcomeKey('partial', facts('mentioned_only'))).toBe('mentionedOnly');
+    expect(outcomeKey('complete', facts('cited_only'))).toBe('citedOnly');
+    expect(outcomeKey('complete', facts('neither'))).toBe('neither');
+    expect(outcomeKey('complete', null)).toBe('pending');
+    expect(outcomeKey('partial', null)).toBe('pending');
+    expect(outcomeKey('refused', null)).toBe('notCounted');
+    expect(outcomeKey('error', null)).toBe('notCounted');
+    expect(outcomeKey('empty', null)).toBe('notCounted');
+    expect(outcomeKey('complete', facts(null, false))).toBe('notCounted');
+    expect(outcomeKey('complete', facts('neither', false))).toBe('notCounted');
   });
 });

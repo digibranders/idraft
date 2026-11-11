@@ -1,4 +1,11 @@
-import type { MetricCell, ProjectEngine, Prompt, PromptsSummary, PromptSummaryRow } from '@/lib/api/types';
+import type {
+  MetricCell,
+  ObservationSummary,
+  ProjectEngine,
+  Prompt,
+  PromptsSummary,
+  PromptSummaryRow,
+} from '@/lib/api/types';
 import { formatIsoDate, formatSampleCount } from '@/lib/format';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 import type { Country } from '@/lib/locations/countries';
@@ -249,4 +256,25 @@ export function countriesForEngines(
       ),
   );
   return countries.filter((country) => reach.every((isos) => isos.has(country.country_iso)));
+}
+
+/** The catalog key of each outcome: the API's values are snake case, catalog keys camel case. */
+const OUTCOME_KEYS = {
+  mentioned_and_cited: 'mentionedAndCited',
+  mentioned_only: 'mentionedOnly',
+  cited_only: 'citedOnly',
+  neither: 'neither',
+} as const;
+
+/**
+ * The catalog key (`prompts.inspector.outcomes`) of what an answer came to. An answer that came back has its
+ * facts read a moment later, so it is `pending` until then; one that failed or was refused never has any, and
+ * an answer that is not valid is in no bucket: both are `notCounted`.
+ */
+export function outcomeKey(
+  status: ObservationSummary['status'],
+  facts: ObservationSummary['facts'],
+): (typeof OUTCOME_KEYS)[keyof typeof OUTCOME_KEYS] | 'pending' | 'notCounted' {
+  if (facts === null) return status === 'complete' || status === 'partial' ? 'pending' : 'notCounted';
+  return !facts.is_valid || facts.outcome === null ? 'notCounted' : OUTCOME_KEYS[facts.outcome];
 }

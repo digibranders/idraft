@@ -41,6 +41,8 @@ const ENTITIES = `${P}/entities` as const;
 
 type PromptPage = ApiResponse<'get', typeof PROMPTS>;
 export type LintAnswer = ApiResponse<'post', typeof LINT>;
+/** An answer as the read gives it (`ObservationDetail`, with the spans as lists of numbers, not pairs). */
+export type ObservationAnswer = ApiResponse<'get', typeof OBSERVATION>['data'];
 
 /** The prompts asked for in one page. */
 const PAGE = 200;
