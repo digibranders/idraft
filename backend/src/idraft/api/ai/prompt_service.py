@@ -323,6 +323,9 @@ class PromptService:
         given = body.model_fields_set
         async with self._transaction(access) as db:
             await live_project(db, access, project_id)
+            # Same order as create: the workspace lock, then the prompt row.
+            if body.is_active is True:
+                await prompts.lock_prompt_writes(db, access.workspace_id)
             current = await prompts.get_prompt(
                 db, access.workspace_id, project_id, prompt_id, lock=True
             )
@@ -340,7 +343,6 @@ class PromptService:
                 )
             values = {name: getattr(body, name) for name in given & _COLUMNS}
             if values.get("is_active") is True and not current.is_active:
-                await prompts.lock_prompt_writes(db, access.workspace_id)
                 limit, used = await prompts.quota_usage(db, access.workspace_id)
                 if used + 1 > limit:
                     raise quota_error(limit, used, 1)

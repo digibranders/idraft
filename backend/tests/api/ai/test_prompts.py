@@ -3,6 +3,7 @@ and A7)."""
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import uuid
@@ -30,6 +31,18 @@ from tests.api.keywords.support import (
     vocabulary,
 )
 from tests.conftest import PostgresServer
+
+# Built from code points so the file stays ASCII: the composed spelling is "cafe" with
+# e-acute, the decomposed one "cafe" with a combining acute accent after a plain "e".
+E_ACUTE = chr(0xE9)
+COMBINING_ACUTE = chr(0x301)
+CAFE = "Which caf" + E_ACUTE + " suits a meeting?"
+CAFE_DECOMPOSED = "Which cafe" + COMBINING_ACUTE + " suits a meeting?"
+
+
+def problem_or_created(response: httpx.Response) -> tuple[int, str]:
+    """`(201, "created")`, or the problem's status and code."""
+    return (201, "created") if response.status_code == 201 else problem(response)
 
 
 async def test_an_editor_adds_a_prompt_with_its_first_version(
@@ -109,19 +122,60 @@ async def test_the_same_prompt_twice_is_a_duplicate_archived_or_not(
     workspace = await make_workspace(migrated)
     editor = await member(resources, migrated, workspace, "editor")
     project = await ai_project(migrated, workspace)
-    first = await added(api, workspace, project, editor, "Which café suits a meeting?")
+    first = await added(api, workspace, project, editor, CAFE)
 
-    again = await add_prompt(api, workspace, project, editor, "Which café suits a meeting?")
+    again = await add_prompt(api, workspace, project, editor, CAFE)
+    decomposed = await add_prompt(api, workspace, project, editor, CAFE_DECOMPOSED)
     await api.delete(project_url(workspace, project, "prompts", first), headers=editor.headers)
-    archived = await add_prompt(api, workspace, project, editor, " Which café suits a meeting? ")
-    elsewhere = await add_prompt(
-        api, workspace, project, editor, "Which café suits a meeting?", country_iso="GB"
-    )
-    other_case = await add_prompt(api, workspace, project, editor, "which café suits a meeting?")
+    archived = await add_prompt(api, workspace, project, editor, f" {CAFE} ")
+    elsewhere = await add_prompt(api, workspace, project, editor, CAFE, country_iso="GB")
+    other_case = await add_prompt(api, workspace, project, editor, CAFE.lower())
 
-    assert problem(again) == problem(archived) == (409, "duplicate")
-    assert again.json()["existing_id"] == archived.json()["existing_id"] == first
+    assert problem(again) == problem(decomposed) == problem(archived) == (409, "duplicate")
+    assert (
+        again.json()["existing_id"]
+        == decomposed.json()["existing_id"]
+        == archived.json()["existing_id"]
+        == first
+    )
     assert elsewhere.status_code == other_case.status_code == 201
+
+
+async def test_two_writers_adding_the_same_prompt_at_once_make_one_and_a_duplicate(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+
+    responses = await asyncio.gather(
+        *(add_prompt(api, workspace, project, editor, "Best CRM?") for _ in range(2))
+    )
+
+    assert sorted(problem_or_created(response) for response in responses) == [
+        (201, "created"),
+        (409, "duplicate"),
+    ]
+
+
+async def test_two_writers_taking_the_last_places_at_once_fit_only_one(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    await set_prompt_quota(migrated, workspace, 2)
+    await seed_prompts(migrated, workspace, project, 1)
+
+    responses = await asyncio.gather(
+        add_prompt(api, workspace, project, editor, "First new?"),
+        add_prompt(api, workspace, project, editor, "Second new?"),
+    )
+
+    assert sorted(problem_or_created(response) for response in responses) == [
+        (201, "created"),
+        (422, "quota_exceeded"),
+    ]
 
 
 async def test_a_prompt_is_in_a_country_every_enabled_engine_runs_in(
