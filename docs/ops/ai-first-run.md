@@ -1,6 +1,8 @@
 # First real run of AI prompt tracking (Eventus Security)
 
-This is the acceptance run of spec section 6 for slice 1. It puts the 150 prompts of `docs/ops/eventus-ai-prompts.csv` on the Eventus Security project and asks them on ChatGPT, Gemini and Google AI Mode. It goes in small steps, so you can stop after any of them.
+This is the acceptance run of spec section 6 for slice 1. It puts the prompts of `docs/ops/eventus-ai-prompts.csv` on the Eventus Security project and asks them on ChatGPT, Gemini and Google AI Mode. The first run takes the 134 prompts for India; the 16 prompts for four other countries are an optional step afterwards ("Adding the other countries"). It goes in small steps, so you can stop after any of them.
+
+**Until the web screens ship, every step is an API request that an engineer sends for you.** Where this guide names a screen (the Add prompts dialog, project settings, the Runs page, the Costs page), read it as the request next to it. Nothing here needs a screen.
 
 **This guide never deploys anything.** The release with AI prompts goes live only when you say "ship it" and `infra/ship.sh` runs. **No step spends money by itself.** Every step that can spend says its cost first. Wait for your yes before you send it.
 
@@ -17,7 +19,7 @@ This is the acceptance run of spec section 6 for slice 1. It puts the 150 prompt
 | Probe | A tiny test with two odd prompts, to learn how the engines read the characters `+` and `%`. |
 | `{P}` | `/api/v1/workspaces/{workspace_id}/projects/{project_id}` of the Eventus Security project. |
 
-Requests are written as `METHOD {P}/path`. If your release has a screen for a step (the Add prompts dialog, project settings, the Runs page, the Costs page), you can use it. Otherwise ask your engineer or assistant to send the request. The result is the same.
+Requests are written as `METHOD {P}/path`. Ask your engineer or assistant to send them. When a screen for a step ships later, it does the same thing.
 
 ## What it costs
 
@@ -26,16 +28,18 @@ Requests are written as `METHOD {P}/path`. If your release has a screen for a st
 | C: the probe, 2 prompts on 3 engines | 6 | 0.0072 USD, once |
 | 2: Run now, 5 prompts on 3 engines | 15 | 0.018 USD, once |
 | Everything before step 3 (C and 2) | 21 | 0.0252 USD |
-| Step 3: a check of the 4 other countries, 4 prompts on 3 engines | 12 | 0.0144 USD, once |
-| Step 3: one window, 150 prompts on 3 engines | 450 | 0.54 USD |
-| Step 3: a week, two windows | 900 | 1.08 USD |
-| Step 3: a month, two windows a week | about 3,900 | about 4.68 USD |
+| Step 3: one window, 134 prompts on 3 engines | 402 | 0.4824 USD |
+| Step 3: a week, two windows | 804 | 0.9648 USD |
+| Step 3: a month, two windows a week | about 3,500 | about 4.18 USD |
+| Optional, other countries: a check of the 4 countries, 4 prompts on 3 engines | 12 | 0.0144 USD, once |
+| Optional, other countries: one window with all 150 prompts | 450 | 0.54 USD |
+| Optional, other countries: a month with all 150 prompts | about 3,900 | about 4.68 USD |
 
 The monthly budget of 10 USD (step A) leaves room for all of it and stops anything that goes wrong.
 
 ## Before you start
 
-1. The release with AI prompts is live on the VPS. It has migrations 0018 and 0019, the `ai_prompt_ingest` worker tick and the answer routes. Ask your engineer to confirm that the serving commit is the one that holds them and that the health report (`GET https://app.idraft.ai/api/internal/health`) says `ok` for the database, Redis, the raw bucket and the worker. If it is not live, stop here. Shipping is your call, and it is not part of this guide.
+1. The release with AI prompts is live on the VPS. It has migrations 0018, 0019 and 0020, the `ai_prompt_ingest` worker tick and the answer routes. Ask your engineer to confirm that the serving commit is the one that holds them and that the health report (`GET https://app.idraft.ai/api/internal/health`) says `ok` for the database, Redis, the raw bucket and the worker. If it is not live, stop here. Shipping is your call, and it is not part of this guide.
 2. The project Eventus Security exists. Its own brand is the entity Eventus Security with the site `eventussecurity.com` and the name as an alias, and its competitors are added with their sites. Each one is tracked in AI answers (that is on by default). Without this the answers are stored, but no mention or citation is marked as ours or a competitor's.
 3. The DataForSEO balance covers at least 10 USD. Check it on the DataForSEO dashboard.
 4. You are the owner, or you hold the permissions the steps need: project settings, prompts, schedules, running prompts, budgets and reading raw answers. A `403` on a step means a permission is missing. Do not work around it.
@@ -45,16 +49,25 @@ The monthly budget of 10 USD (step A) leaves room for all of it and stops anythi
 
 Do this before anything is turned on.
 
-1. Ask your engineer to run this on the VPS as the migrator role. It sets a 10 USD monthly limit for AI answers on this project only:
+1. Look up the project once. Ask your engineer to run this on the VPS as the migrator role:
+
+   ```sql
+   SELECT p.id AS project_id, p.workspace_id, w.name AS workspace, p.created_at
+   FROM core.projects p JOIN auth.workspaces w ON w.id = p.workspace_id
+   WHERE p.name = 'Eventus Security' AND p.deleted_at IS NULL;
+   ```
+
+   It must return exactly one row. Two rows mean another workspace has a project of that name: pick the one of your workspace by its name. Copy `project_id` and `workspace_id`. Every later statement uses these two ids, never the project name, so it cannot touch another project. `{workspace_id}` and `{project_id}` in `{P}` are these ids.
+
+2. Ask your engineer to run this as the migrator role, with the two ids pasted in. It sets a 10 USD monthly limit for AI answers on this project only:
 
    ```sql
    INSERT INTO ops.budgets (workspace_id, project_id, workload, period, limit_usd)
-   SELECT p.workspace_id, p.id, 'ai_prompt', 'month', 10.00
-   FROM core.projects p WHERE p.name = 'Eventus Security' AND p.deleted_at IS NULL
+   VALUES ('<workspace_id>', '<project_id>', 'ai_prompt', 'month', 10.00)
    ON CONFLICT (workspace_id, project_id, workload, period) DO UPDATE SET limit_usd = 10.00;
    ```
 
-2. Check it: `GET /api/v1/workspaces/{workspace_id}/budgets/status` lists the `ai_prompt` budget of the project with `spent_usd` 0 and `state` `ok`.
+3. Check it: `GET /api/v1/workspaces/{workspace_id}/budgets/status` lists the `ai_prompt` budget of the project with `spent_usd` 0 and `state` `ok`.
 
 If the budget is not listed, stop. Do not go on without it.
 
@@ -101,7 +114,7 @@ A paused schedule stays in place. Switching engines on again later does not make
 ## Step 2: ask the five by hand, and check the answers (costs 0.018 USD)
 
 1. **Cost: 5 prompts x 3 engines = 15 answers = 0.018 USD.** Wait for your yes. Then, for each of the 5 prompts, send `POST {P}/prompts/{prompt_id}/run-now` with `{"engine_codes": ["chatgpt_web", "gemini_web", "google_ai_mode"]}`. Each answers `202`. A project may start at most 20 manual runs in a day, probes included, so do not repeat it needlessly.
-2. Within a minute each run is `running`. Open it: `GET {P}/runs/{run_id}` (the Runs page) shows the estimated cost of 0.0036 USD and the number of tasks. `GET /api/v1/workspaces/{workspace_id}/budgets/status` shows the same cost as committed.
+2. Within a minute each run is `running`. Open it: `GET {P}/runs/{run_id}` (the Runs page) shows the estimated cost of 0.0036 USD and the number of tasks. `GET /api/v1/workspaces/{workspace_id}/budgets/status` shows `committed_estimate_usd`, which is what the runs under way are still expected to spend: each run's estimate less what its tasks have cost so far. It starts near 0.0036 USD per run and falls toward 0 as the provider accepts the tasks and their cost is booked. The money actually spent moves to `spent_usd`. `state` stays `ok`.
 3. Within a few minutes every task is `ingested`. List the answers: `GET {P}/ai/observations?filter[prompt_id]={prompt_id}`.
 4. Open each answer: `GET {P}/ai/observations/{observation_id}` (the answer viewer). It shows the text, the cited sources and the names it found.
 5. Ask the same prompt by hand in chatgpt.com, in gemini.google.com and in Google AI Mode, signed out, from India, in English. Keep a table, one row per prompt and engine:
@@ -116,7 +129,7 @@ A paused schedule stays in place. Switching engines on again later does not make
    - **Competitors.** The ones the stored answer marks as named are really named in its text.
 
    Answers differ from one asking to the next. This is normal. What matters is that our marks match our stored answer, and that the stored answer reads like what the product shows.
-6. Ask your engineer to check the database agrees with the screens (the cost should be 0.006 USD per engine for 5 answers):
+6. Ask your engineer to check the database agrees with the screens (the cost should be 0.006 USD per engine for 5 answers). Paste the `project_id` copied in step A:
 
    ```sql
    SELECT o.engine_code, o.status, count(*) AS answers,
@@ -126,8 +139,7 @@ A paused schedule stays in place. Switching engines on again later does not make
    FROM ai.observations o
    JOIN ai.observation_facts f
      ON f.observation_id = o.id AND f.observed_at = o.observed_at AND f.is_current
-   JOIN core.projects p ON p.id = o.project_id
-   WHERE p.name = 'Eventus Security' AND o.observed_at > now() - interval '1 day'
+   WHERE o.project_id = '<project_id>' AND o.observed_at > now() - interval '1 day'
    GROUP BY 1, 2 ORDER BY 1, 2;
    ```
 
@@ -149,32 +161,50 @@ A paused schedule stays in place. Switching engines on again later does not make
 
 **Stop here if the marks do not match the answers, or if most answers fail.** Switch the engines off (below). Nothing more is asked.
 
-## Step 3: the other 145 prompts, and the schedule (0.0144 USD for a check, then 0.54 USD a window)
+## Step 3: the rest of the India prompts, and the schedule (0.4824 USD a window)
 
-1. Add rows 6 to 123 and 140 to 150 of the CSV the same way (country `IN`). If the quota says no, an active prompt is left over: check that both probe prompts are archived.
-2. **Rows 124 to 139 are not for India.** They are 4 prompts each for Saudi Arabia (`SA`), the UAE (`AE`), Singapore (`SG`) and the United States (`US`). A prompt is asked only where an engine has a location in its country, and adding one is refused (`422 location_not_supported`) until all three engines have it. Ask your engineer to find the location ids of the four countries in the project's location list, then send `PUT {P}/engines/{engine_code}` again for each engine with `location_ids` holding India and the four countries, and `"is_enabled": true`. Then add rows 124 to 139. The cost does not change: a prompt is asked once per engine, in its own country.
-3. The AI providers' location lists are not synced yet, so a country they do not serve fails only when asked. **Cost of the check: 1 prompt of each of the four countries x 3 engines = 12 answers = 0.0144 USD.** Wait for your yes, then send Run now for those 4 prompts as in step 2. If a country fails (`error` answers), archive its 4 prompts, or take the country out of the engines' `location_ids` and archive them. Do not leave a failing country in the schedule.
-4. Read `GET {P}/engines`: it now estimates about 1.56 USD a month for each engine, 4.68 USD for the three. The summary hides the branded prompts (rows 140 to 150, 11 of them) unless you ask for them, so it shows fewer prompts than you added.
-5. **Cost: 150 prompts x 3 engines = 450 answers = 0.54 USD for each window. The schedules run twice a week (Monday and Thursday, 01:00 project time): 1.08 USD a week, about 4.68 USD a month.** The prompts asked by hand are asked again, because a schedule asks every active prompt, whatever was asked by hand. Wait for your yes.
-6. Resume the two schedules: `POST {P}/schedules/{schedule_id}/resume`, one by one. Read `next_run_at` of each (`GET {P}/schedules?filter[workload]=ai_prompt`). This is when the money is first spent. Windows missed while a schedule was paused are not caught up.
-7. Before it sends anything, the planner checks the run's estimate against the budget. A run over the budget is `budget_blocked` and spends nothing.
-8. After the first window (it lasts 8 hours), ask your engineer to run the SQL of step 2 again with `interval '2 days'`. Expected: about 150 answers per engine, cost about 0.18 USD per engine. `GET {P}/ai/prompts-summary` shows each prompt's counts per engine ("1 of 1" after the first window, up to about 8 of 8 after four weeks, over valid answers only).
+This step uses only the 134 prompts of the CSV with country `IN` (rows 1 to 123 and 140 to 150). The 16 prompts of other countries (rows 124 to 139) stay out of the first run: see "Adding the other countries".
+
+1. Add rows 6 to 123 and 140 to 150 of the CSV the same way (country `IN`): 129 prompts, 134 active with the five of step 1. If the quota says no, an active prompt is left over: check that both probe prompts are archived.
+2. Read `GET {P}/engines`: it now estimates about 1.39 USD a month for each engine, 4.18 USD for the three. The summary hides the branded prompts (rows 140 to 150, 11 of them) unless you ask for them, so it shows fewer prompts than you added.
+3. **Cost: 134 prompts x 3 engines = 402 answers = 0.4824 USD for each window. The schedules run twice a week (Monday and Thursday, 01:00 project time): 0.9648 USD a week, about 4.18 USD a month.** The prompts asked by hand are asked again, because a schedule asks every active prompt, whatever was asked by hand. Wait for your yes.
+4. Resume the two schedules: `POST {P}/schedules/{schedule_id}/resume`, one by one. Read `next_run_at` of each (`GET {P}/schedules?filter[workload]=ai_prompt`). This is when the money is first spent. Windows missed while a schedule was paused are not caught up.
+5. Before it sends anything, the planner checks the run's estimate against the budget. A run over the budget is `budget_blocked` and spends nothing.
+6. After the first window (it lasts 8 hours), ask your engineer to run the SQL of step 2 again with `interval '2 days'`. Expected: about 134 answers per engine, cost about 0.16 USD per engine. `GET {P}/ai/prompts-summary` shows each prompt's counts per engine ("1 of 1" after the first window, up to about 8 of 8 after four weeks, over valid answers only).
+
+## Adding the other countries (optional, after the first window looked right)
+
+Rows 124 to 139 of the CSV are 4 prompts each for Saudi Arabia (`SA`), the UAE (`AE`), Singapore (`SG`) and the United States (`US`). They add location work and a paid check, so they are not part of the first run. Do this only when you want them.
+
+1. A prompt is asked only where an engine has a location in its country, and adding one is refused (`422 location_not_supported`) until all three engines have it. Ask your engineer to find the location ids of the four countries (do not guess them) with this query, as the migrator role:
+
+   ```sql
+   SELECT id, name, country_iso FROM core.locations
+   WHERE location_type = 'Country' AND country_iso IN ('SA', 'AE', 'SG', 'US') AND is_active
+   ORDER BY country_iso;
+   ```
+
+   It must return one row per country. A country with no row cannot be used yet.
+2. Send `PUT {P}/engines/{engine_code}` again for each of the three engines with `location_ids` holding `2356` (India) and the four ids from the query, and `"is_enabled": true`. A `422 location_not_supported` means the provider does not serve that country: stop and tell your engineer. The engines must have all four countries before a prompt of that country can be added.
+3. Add one prompt of each country first: rows 124, 128, 132 and 136 (their own countries). A prompt is asked once per engine, in its own country.
+4. The AI providers' location lists are not synced yet, so a country they do not serve fails only when asked. **Cost of the check: 1 prompt of each of the four countries x 3 engines = 12 answers = 0.0144 USD.** Wait for your yes, then send Run now for those 4 prompts as in step 2. If a country fails (`error` answers), archive its prompt, or take the country out of the engines' `location_ids`. Do not leave a failing country in the schedule.
+5. When all four answered, add the other 12 rows (125 to 127, 129 to 131, 133 to 135 and 137 to 139). **From the next window the schedules ask all 150 prompts: 450 answers = 0.54 USD a window, 1.08 USD a week, about 4.68 USD a month.** The schedules are already running, so the new prompts are spent on at the next Monday or Thursday window, and `GET {P}/engines` now estimates about 1.56 USD a month for each engine. Wait for your yes before you add them.
 
 ## How to switch everything off
 
 Do these in this order. Each one is enough to stop new spending on its own, and together they are safe.
 
-1. **Turn the engines off.** `PUT {P}/engines/{engine_code}` with the engine's current `location_ids` (`[2356]` before step 3) and `"is_enabled": false` for each of the three. A schedule then plans nothing, and Run now answers `422 engine_not_enabled`.
+1. **Turn the engines off.** `PUT {P}/engines/{engine_code}` with the engine's current `location_ids` (`[2356]` unless you added the other countries) and `"is_enabled": false` for each of the three. A schedule then plans nothing, and Run now answers `422 engine_not_enabled`.
 2. **Pause the schedules.** `POST {P}/schedules/{schedule_id}/pause` for both.
 3. **Archive prompts you do not want asked.** `DELETE {P}/prompts/{prompt_id}`. The answers stay. `PATCH {P}/prompts/{prompt_id}` with `{"is_active": true}` brings one back.
 4. **Cancel a run under way.** `POST {P}/runs/{run_id}/cancel` (the Runs page). Tasks already sent to the provider are paid for. The rest are not sent.
-5. **The emergency brake.** Ask your engineer to set the budget to 0: `UPDATE ops.budgets SET limit_usd = 0 WHERE workload = 'ai_prompt' AND project_id = (SELECT id FROM core.projects WHERE name = 'Eventus Security' AND deleted_at IS NULL);`. A limit of 0 blocks every run.
+5. **The emergency brake.** Ask your engineer to set the budget to 0: `UPDATE ops.budgets SET limit_usd = 0 WHERE workload = 'ai_prompt' AND project_id = '<project_id>';` with the `project_id` copied in step A. A limit of 0 blocks every run.
 
 The schedules stay in place when you switch the engines off, and they plan nothing. Pause them rather than delete them.
 
 ## What NOT to do
 
-- Never edit the migrations 0018 or 0019 once they are shipped. A change to the tables is a new migration.
+- Never edit the migrations 0018, 0019 or 0020 once they are shipped. A change to the tables is a new migration.
 - Do not turn an engine on in production before the budget of step A is set.
 - Do not resume the schedules before the answers of step 2 look right.
 - Do not leave a probe prompt active.
@@ -198,8 +228,8 @@ The schedules stay in place when you switch the engines off, and they plan nothi
 | 8 | | Step 1: 5 prompts are added | 0 |
 | 9 | | Step 2: Run now ran after your yes, 15 answers are ingested, and each is compared by hand | 0.018 USD |
 | 10 | | The SQL check agrees with the screens, and the failures (if any) are understood | 0 |
-| 11 | | Step 3: 145 prompts are added (the 16 prompts of other countries after the engines have those countries), 150 are active | 0 |
-| 12 | | Step 3: the check of the four other countries ran after your yes, and each country answered | 0.0144 USD |
-| 13 | | Step 3: the schedules are resumed after your yes, the first `next_run_at` is noted | 0.54 USD a window |
-| 14 | | After the first window: about 150 answers per engine, cost about 0.18 USD per engine, the summary shows "1 of 1" | |
-| 15 | | You know how to switch everything off | |
+| 11 | | Step 3: 129 more India prompts are added, 134 are active | 0 |
+| 12 | | Step 3: the schedules are resumed after your yes, the first `next_run_at` is noted | 0.4824 USD a window |
+| 13 | | After the first window: about 134 answers per engine, cost about 0.16 USD per engine, the summary shows "1 of 1" | |
+| 14 | | You know how to switch everything off | |
+| 15 | | Optional: the other countries are added (location ids looked up, check run after your yes, each country answered) | 0.0144 USD, then 0.54 USD a window |
