@@ -4,11 +4,18 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CircleAlert, Info, TriangleAlert } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
-import { BULK_MAX, countriesForEngines, promptKeyOf, PROMPT_TEXT_MAX, readPromptLines } from './prompt-model';
+import {
+  BULK_MAX,
+  countriesForEngines,
+  promptKeyOf,
+  PROMPT_TEXT_MAX,
+  readPromptLines,
+  type PromptLine,
+} from './prompt-model';
 import { BULK_CREATE_PROMPTS, refreshPrompts, usePromptLint, type PromptScope } from './prompt-queries';
 import { FormField } from '@/components/app/forms/form-field';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
@@ -19,6 +26,7 @@ import { Icon } from '@/components/ui/icon';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/toast';
+import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
 import type { ProjectEngine, Prompt, PromptBulkResult } from '@/lib/api/types';
 import { useDebouncedValue } from '@/lib/dom/use-debounced-value';
@@ -69,6 +77,23 @@ const refusalOf = (text: string): 'tooLong' | 'unsupported' | null => {
   if (textLength(text) > PROMPT_TEXT_MAX) return 'tooLong';
   return UNSAVABLE.test(text) ? 'unsupported' : null;
 };
+
+/** The lines of a text that are new to the project for a language and a country: these are the items sent. */
+const freshLines = (
+  value: string,
+  languageCode: string,
+  countryIso: string,
+  tracked: ReadonlySet<string>,
+): PromptLine[] =>
+  readPromptLines(value).lines.filter((line) => !tracked.has(promptKeyOf(line.text, languageCode, countryIso)));
+
+/** Messages about one thing share a key, so the announcer speaks the newest once (20-accessibility.md section 10.1). */
+const QUOTA_KEY = 'add-prompts-quota';
+const ERRORS_KEY = 'add-prompts-errors';
+const WARNINGS_KEY = 'add-prompts-warnings';
+const RESULT_KEY = 'add-prompts-result';
+/** Typing and the lint settle before the quota and the problems are spoken. */
+const ANNOUNCE_DELAY_MS = 800;
 
 /** The catalog key of each code `bulk-create` rejects an item with (plan A task 8). */
 const REJECT_KEYS = {
@@ -145,23 +170,40 @@ export function AddPromptsDialog({
     [locale],
   );
 
-  const schema = z.object({
-    text: z.string().superRefine((text, context) => {
-      const { lines } = readPromptLines(text);
-      if (lines.length === 0) context.addIssue({ code: 'custom', message: t('textRequired') });
-      else if (lines.length > BULK_MAX) {
+  const tracked = useMemo(
+    () =>
+      new Set(
+        existing.map((prompt) =>
+          promptKeyOf(prompt.current_version.text, prompt.language_code, prompt.country_iso ?? ''),
+        ),
+      ),
+    [existing],
+  );
+
+  const schema = z
+    .object({
+      text: z.string(),
+      term_id: z.string(),
+      language_code: z.string().min(1, { error: t('languageRequired') }),
+      country_iso: z
+        .string()
+        .refine((value) => countryOptions.some((option) => option.value === value), { error: t('countryRequired') }),
+    })
+    .superRefine((values, context) => {
+      if (readPromptLines(values.text).lines.length === 0) {
+        context.addIssue({ code: 'custom', path: ['text'], message: t('textRequired') });
+        return;
+      }
+      // The API counts the items sent: the lines the project tracks are not among them
+      const sent = freshLines(values.text, values.language_code, values.country_iso, tracked).length;
+      if (sent > BULK_MAX) {
         context.addIssue({
           code: 'custom',
-          message: t('tooMany', { max: formatInteger(BULK_MAX), count: formatInteger(lines.length) }),
+          path: ['text'],
+          message: t('tooMany', { max: formatInteger(BULK_MAX), count: formatInteger(sent) }),
         });
       }
-    }),
-    term_id: z.string(),
-    language_code: z.string().min(1, { error: t('languageRequired') }),
-    country_iso: z
-      .string()
-      .refine((value) => countryOptions.some((option) => option.value === value), { error: t('countryRequired') }),
-  });
+    });
   const initialValues = (): AddValues => ({
     text: '',
     term_id: NO_TOPIC,
@@ -178,34 +220,15 @@ export function AddPromptsDialog({
   const language = useWatch({ control: form.control, name: 'language_code' });
   const country = useWatch({ control: form.control, name: 'country_iso' });
 
-  const tracked = useMemo(
-    () =>
-      new Set(
-        existing.map((prompt) =>
-          promptKeyOf(prompt.current_version.text, prompt.language_code, prompt.country_iso ?? ''),
-        ),
-      ),
-    [existing],
-  );
-  /** The lines of a field's text that are new to the project, for a language and a country. */
-  const freshLines = (
-    value: string,
-    languageCode: string,
-    countryIso: string,
-  ): ReturnType<typeof readPromptLines>['lines'] =>
-    readPromptLines(value).lines.filter((line) => !tracked.has(promptKeyOf(line.text, languageCode, countryIso)));
-
   const read = useMemo(() => readPromptLines(text), [text]);
-  const fresh = freshLines(text, language, country);
+  const fresh = useMemo(() => freshLines(text, language, country, tracked), [text, language, country, tracked]);
   const isFresh = new Set(fresh.map((line) => line.line));
-  // The lint takes what the API accepts: a line it would refuse fails the whole request, and so does a list
-  // longer than one add takes. Those are named here, without it
+  // The lint takes the lines that would be sent, as far as the API accepts them: a line it would refuse fails
+  // the whole request, and so does a list longer than one add takes. Those are named here, without it
   const lintTexts = useMemo(
     () =>
-      read.lines.length > BULK_MAX
-        ? []
-        : read.lines.filter((line) => refusalOf(line.text) === null).map((line) => line.text),
-    [read],
+      fresh.length > BULK_MAX ? [] : fresh.filter((line) => refusalOf(line.text) === null).map((line) => line.text),
+    [fresh],
   );
   const lint = usePromptLint(
     scope,
@@ -252,6 +275,34 @@ export function AddPromptsDialog({
   const remaining = quota === null ? null : Math.max(0, quota.limit - quota.used);
   // Only a note: the API has the last word, and a prompt it skips does not take a place
   const over = remaining !== null && fresh.length > remaining;
+  const quotaText =
+    remaining === null || fresh.length === 0
+      ? null
+      : over
+        ? t('quotaOver', { count: fresh.length, remaining })
+        : t('quota', { count: fresh.length, remaining });
+
+  // What changes under the field is spoken once, a moment after the typing and the lint have settled
+  const checking = open && outcome === null;
+  const errorCount = findings.filter((finding) => finding.tone === 'error').length;
+  const warningCount = findings.filter((finding) => finding.tone === 'warning').length;
+  const errorsText = errorCount === 0 ? null : t('announce.errors', { count: errorCount });
+  const warningsText = warningCount === 0 ? null : t('announce.warnings', { count: warningCount });
+  useEffect(() => {
+    if (checking && quotaText !== null) announce(quotaText, { key: QUOTA_KEY, debounceMs: ANNOUNCE_DELAY_MS });
+  }, [checking, quotaText]);
+  useEffect(() => {
+    if (checking && errorsText !== null) announce(errorsText, { key: ERRORS_KEY, debounceMs: ANNOUNCE_DELAY_MS });
+  }, [checking, errorsText]);
+  useEffect(() => {
+    if (checking && warningsText !== null) announce(warningsText, { key: WARNINGS_KEY, debounceMs: ANNOUNCE_DELAY_MS });
+  }, [checking, warningsText]);
+
+  // The form is gone when the result takes its place, and the focus with it: it goes to Done
+  const doneRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (outcome !== null) doneRef.current?.focus();
+  }, [outcome]);
 
   const close = (): void => {
     form.reset(initialValues());
@@ -266,7 +317,7 @@ export function AddPromptsDialog({
         setAlert(t('fixLines'));
         return;
       }
-      const lines = freshLines(values.text, values.language_code, values.country_iso);
+      const lines = freshLines(values.text, values.language_code, values.country_iso, tracked);
       if (lines.length === 0) {
         setAlert(t('allTracked'));
         return;
@@ -337,7 +388,18 @@ export function AddPromptsDialog({
         close();
         return;
       }
-      setOutcome({ created: result.created.length, skipped: result.skipped.length, rejected });
+      const done = { created: result.created.length, skipped: result.skipped.length, rejected };
+      announce(
+        [
+          t('resultCreated', { count: done.created }),
+          done.skipped === 0 ? '' : t('resultSkipped', { count: done.skipped }),
+          rejected.length === 0 ? '' : t('rejectedTitle', { count: rejected.length }),
+        ]
+          .filter((part) => part !== '')
+          .join(' '),
+        { key: RESULT_KEY },
+      );
+      setOutcome(done);
     }),
   );
 
@@ -379,24 +441,22 @@ export function AddPromptsDialog({
                 />
               )}
             />
-            <div aria-live="polite">
-              {findings.length === 0 ? null : (
-                <ul aria-label={t('findingsLabel')} className="flex flex-col gap-1">
-                  {findings.slice(0, SHOWN_FINDINGS).map((finding) => (
-                    <li
-                      key={`${String(finding.line)} ${finding.text}`}
-                      className={cn('flex items-start gap-1.5 type-meta', FINDING_CLASS[finding.tone])}
-                    >
-                      <Icon icon={FINDING_ICON[finding.tone]} size="sm" className="mt-0.5" />
-                      {finding.text}
-                    </li>
-                  ))}
-                  {findings.length > SHOWN_FINDINGS ? (
-                    <li className="type-meta">{t('moreFindings', { count: findings.length - SHOWN_FINDINGS })}</li>
-                  ) : null}
-                </ul>
-              )}
-            </div>
+            {findings.length === 0 ? null : (
+              <ul aria-label={t('findingsLabel')} className="flex flex-col gap-1">
+                {findings.slice(0, SHOWN_FINDINGS).map((finding) => (
+                  <li
+                    key={`${String(finding.line)} ${finding.text}`}
+                    className={cn('flex items-start gap-1.5 type-meta', FINDING_CLASS[finding.tone])}
+                  >
+                    <Icon icon={FINDING_ICON[finding.tone]} size="sm" className="mt-0.5" />
+                    {finding.text}
+                  </li>
+                ))}
+                {findings.length > SHOWN_FINDINGS ? (
+                  <li className="type-meta">{t('moreFindings', { count: findings.length - SHOWN_FINDINGS })}</li>
+                ) : null}
+              </ul>
+            )}
             <FormField
               control={form.control}
               name="term_id"
@@ -442,15 +502,7 @@ export function AddPromptsDialog({
                 />
               )}
             />
-            <div aria-live="polite">
-              {remaining === null ? null : (
-                <p className={cn('type-meta', over && 'text-negative-text')}>
-                  {over
-                    ? t('quotaOver', { count: fresh.length, remaining })
-                    : t('quota', { count: fresh.length, remaining })}
-                </p>
-              )}
-            </div>
+            {quotaText === null ? null : <p className={cn('type-meta', over && 'text-negative-text')}>{quotaText}</p>}
           </DialogBody>
           <DialogFooter
             primary={
@@ -488,7 +540,7 @@ export function AddPromptsDialog({
           </DialogBody>
           <DialogFooter
             primary={
-              <Button variant="primary" onClick={close}>
+              <Button ref={doneRef} variant="primary" onClick={close}>
                 {t('done')}
               </Button>
             }

@@ -3298,7 +3298,11 @@
       "invalid": "Some prompts could not be read. Check the lines and try again.",
       "forbidden": "You do not have permission to add prompts to this project.",
       "failed": "The prompts were not added. Try again in a moment.",
-      "resultTitle": "Prompts added",
+      "announce": {
+        "errors": "{count, plural, one {# line cannot be added.} other {# lines cannot be added.}}",
+        "warnings": "{count, plural, one {# line is too long for an engine, which skips it.} other {# lines are too long for an engine, which skips them.}}"
+      },
+      "resultTitle": "Result of the add",
       "resultCreated": "{count, plural, =0 {No prompt was added.} one {# prompt was added.} other {# prompts were added.}}",
       "resultSkipped": "{count, plural, one {# was already tracked.} other {# were already tracked.}}",
       "rejectedTitle": "{count, plural, one {# line could not be added} other {# lines could not be added}}",
