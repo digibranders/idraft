@@ -496,7 +496,7 @@ def _fixture_mentions(engine: str, name: str, domain: str) -> tuple[str, int, An
 @pytest.mark.parametrize(
     ("engine", "name", "domain"),
     [
-        ("ai_mode", "ai_mode_answer", "embee.co.in"),
+        ("google_ai_mode", "ai_mode_answer", "embee.co.in"),
         ("gemini_web", "gemini_scraper_answer", "factosecure.com"),
         ("gemini_web", "gemini_scraper_answer", "netnxt.com"),
     ],
@@ -508,3 +508,35 @@ def test_citation_links_on_the_captured_answers_are_not_mentions(
 
     assert text.count(domain) > written  # the fixture does cite it in links
     assert sum(m.mention_count for m in facts.mentions) == written
+
+
+def test_the_captured_ai_mode_sources_become_citations_with_their_roles() -> None:
+    fixture = Path(__file__).parents[1] / "fixtures/dataforseo/captured/ai_mode_answer.json"
+    answer = parse_ai_answer("google_ai_mode", fixture.read_bytes())
+    own = uuid.UUID("00000000-0000-0000-0000-0000000000a3")
+    sources = [
+        SourceIn(url=s.url, raw_url=s.raw_url, kind=s.kind, occurrences=s.occurrences)
+        for s in answer.sources
+        if s.url is not None
+    ]
+
+    facts = extract_answer_facts(
+        answer.answer_text,
+        sources,
+        matcher=AliasMatcher([EntityRule(own, "Zzyzx Unmatched Co")], []),
+        resolver=DomainResolver(
+            [DomainRule(own, "own", "registrable", normalize_host("techmahindra.com"))]
+        ),
+        roles={own: "own"},
+        is_valid=True,
+    )
+
+    assert len(facts.citations) == len(answer.sources) == 12
+    own_cited = [c for c in facts.citations if c.domain_role == "own"]
+    assert len(own_cited) == sum(
+        s.url is not None and s.url.host.registrable_domain == "techmahindra.com"
+        for s in answer.sources
+    )
+    assert len(own_cited) == 2
+    assert facts.fact.own_citation_count == 2
+    assert facts.fact.total_citation_count == 12

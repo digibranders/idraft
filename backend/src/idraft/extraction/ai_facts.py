@@ -14,7 +14,10 @@ level of brackets (AI Mode's `[[1]](url)`) and the target may sit in `<...>`. An
 as `[Acme](...)` still counts, and so do an autolink `<https://acme.io>`, a reference definition
 `[1]: https://acme.io` and a bare URL, which are domains written in the text. Known limit:
 anchor text that looks like a host, `[Node.js](https://nodejs.org)`, is blanked and so is not
-counted as a mention of an entity named that way.
+counted as a mention of an entity named that way. Another: anchor or image alt text that
+repeats a brand name next to prose naming it can count twice in `mention_count`
+(`Embee[Embee](url)`); Mentioned and the share of voice set are unaffected, only the
+mention-count share.
 
 Mention order and the share of voice set (doc 13 stage 7, doc 16 section 5): only accepted
 mentions of own and competitor entities are numbered, by the first offset of their accepted
