@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { enginesKey } from './prompt-queries';
 import { PromptsScreen, type PromptsProject } from './prompts-screen';
 import { TopBarSlotProvider, TopBarSlotTarget } from '@/components/app/shell/top-bar-slot';
-import type { Prompt, Role } from '@/lib/api/types';
+import type { Prompt, Role, TermNode } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
@@ -169,6 +169,33 @@ const NO_PROMPTS_TITLE = 'No prompts yet';
 const SUMMARY_PATH = mswPath(`${P}/ai/prompts-summary`);
 const LIST_PATH = mswPath(`${P}/prompts`);
 const ENGINES_PATH = mswPath(`${P}/engines`);
+const TOPICS_STALE = 'The topic counts could not be refreshed. The last counts loaded are shown.';
+const W = '/api/v1/workspaces/{workspace_id}';
+const VOCABULARIES_PATH = mswPath(`${W}/vocabularies`);
+const TERMS_PATH = mswPath(`${W}/vocabularies/{vocabulary_id}/terms`);
+const treeNode = (term_id: string, name: string, parent_id: string | null, children: TermNode[]): TermNode =>
+  ({ term_id, name, parent_id, children }) as TermNode;
+/** One topic vocabulary with this tree, in place of the fixture's. */
+const serveVocabulary = (nodes: TermNode[]): void =>
+  server.use(
+    http.get(VOCABULARIES_PATH, () =>
+      HttpResponse.json({
+        data: [
+          {
+            vocabulary_id: idOf(4, 1),
+            kind: 'topic',
+            name: 'Topics',
+            is_hierarchical: true,
+            is_single_valued: false,
+            project_id: null,
+            term_count: nodes.length,
+          },
+        ],
+        page: { has_more: false, next_cursor: null },
+      }),
+    ),
+    http.get(TERMS_PATH, () => HttpResponse.json({ data: nodes })),
+  );
 const EMPTY_SUMMARY = {
   data: {
     window: { from: '2026-10-16', to: '2026-11-12', timezone: 'Europe/Berlin' },
@@ -515,7 +542,12 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
         http.get(SUMMARY_PATH, () => HttpResponse.json(summary)),
       );
 
-    it('finds a prompt given a term below the chosen one, by path, and not one whose path only starts alike', async () => {
+    it('finds a prompt given a term below the chosen one, by the tree, and not one whose name only starts alike', async () => {
+      serveVocabulary([
+        treeNode(ids.seo, 'SEO', null, [treeNode(ids.technical, 'Technical SEO', ids.seo, [])]),
+        treeNode(ids.paid, 'SEO tools', null, []),
+        treeNode(ids.toolsA, 'Paid search', null, []),
+      ]);
       serveList([
         withTerms(1, termOf(ids.seo, 'SEO', 'seo')),
         withTerms(2, termOf(ids.technical, 'Technical SEO', 'seo/technical-seo')),
@@ -592,14 +624,16 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
   });
 
   it('tells which filters of a link were left out when the project has nothing for them', async () => {
+    const writes: string[] = [];
     renderOnPrompts(promptsAs('viewer'), {
       searchParams: `?topic=${idOf(3, 9)}&country=ZZ&branded=nope`,
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
-    // The Branded filter's one option is known at once; the topics and countries are judged when the list is in
-    expect(await screen.findByText('A filter from the link was left out')).toBeInTheDocument();
-    expect(screen.getByText(/^Branded prompts:/)).toBeInTheDocument();
-    expect(await screen.findByText('2 filters from the link were left out')).toBeInTheDocument();
-    expect(screen.getByText(/^Topic and Country:/)).toBeInTheDocument();
+    // The Branded filter's one option is known at once; the countries are judged when the list is in and the
+    // topics when the vocabularies are read too, so each is told when it is judged (a toast gives way to the next)
+    expect(await screen.findByText(/^Branded prompts:/)).toBeInTheDocument();
+    await vi.waitFor(() => expect(writes.at(-1)).toBe('?tab=prompts'));
+    expect(writes.join(' ')).toMatch(/topic=/);
     const table = await grid();
     expect(await within(table).findByText(FIRST_TEXT)).toBeInTheDocument();
     expect(within(table).queryByText(BRANDED_TEXT)).toBeNull();
@@ -1027,6 +1061,89 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(screen.queryByRole('button', { name: 'Add prompts' })).toBeNull();
   });
 
+  it('shows only the engines the Engine filter names', async () => {
+    renderWithProviders(promptsAs('viewer'), { searchParams: '?engine=gemini_web' });
+    const tree = await treegrid();
+    expect(await within(tree).findByRole('columnheader', { name: /^Gemini mentioned/ })).toBeInTheDocument();
+    expect(within(tree).queryByRole('columnheader', { name: /^ChatGPT mentioned/ })).toBeNull();
+  });
+
+  it('says each prompt counts once in the header of a topic count, and not in the Prompts table', async () => {
+    const first = renderWithProviders(promptsAs('viewer'));
+    const header = await within(await treegrid()).findByRole('columnheader', { name: /^ChatGPT mentioned/ });
+    expect(header).toHaveAccessibleDescription(/Each prompt counts once, whatever the number of its answers\.$/);
+    first.unmount();
+    renderOnPrompts(promptsAs('viewer'));
+    const column = await within(await grid()).findByRole('columnheader', { name: /^ChatGPT mentioned/ });
+    expect(column).not.toHaveAccessibleDescription(/Each prompt counts once/);
+  });
+
+  it('clears the filters from the empty state and brings the topics back', async () => {
+    const { user } = renderWithProviders(promptsAs('viewer'), {
+      searchParams: `?topic=${MOCK_TERM_IDS.paidSearch}&q=seo`,
+    });
+    const heading = await screen.findByRole('heading', { name: NO_MATCH_TITLE });
+    await user.click(within(heading.parentElement as HTMLElement).getByRole('button', { name: 'Clear filters' }));
+    await vi.waitFor(async () => expect(await names()).toContain('Technical SEO'));
+    expect(screen.queryByRole('heading', { name: NO_MATCH_TITLE })).toBeNull();
+  });
+
+  it('moves between the two tabs with the arrow keys', async () => {
+    const { user } = renderWithProviders(promptsAs('viewer'));
+    await treegrid();
+    screen.getByRole('tab', { name: 'Topics' }).focus();
+    await user.keyboard('{ArrowRight}');
+    expect(await grid()).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Prompts' })).toHaveAttribute('aria-selected', 'true');
+    await user.keyboard('{ArrowLeft}');
+    expect(await treegrid()).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Topics' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('makes a history entry of a change of tab, so Back returns to the other one, and none of a search', async () => {
+    const writes: { query: string; history: string | undefined }[] = [];
+    const { user } = renderWithProviders(promptsAs('viewer'), {
+      onUrlUpdate: ({ queryString, options }) => writes.push({ query: queryString, history: options.history }),
+    });
+    await treegrid();
+    await user.click(screen.getByRole('tab', { name: 'Prompts' }));
+    expect(writes.at(-1)).toEqual({ query: '?tab=prompts', history: 'push' });
+    await user.type(await screen.findByRole('searchbox'), 'seo');
+    expect(writes.at(-1)?.history).toBe('replace');
+    await user.click(screen.getByRole('tab', { name: 'Topics' }));
+    expect(writes.at(-1)).toEqual({ query: '?q=seo', history: 'push' });
+  });
+
+  it('says the topic counts could not be refreshed, keeps the last ones, and reads them again on Try again', async () => {
+    let calls = 0;
+    server.use(
+      http.get(SUMMARY_PATH, () => {
+        calls += 1;
+        return calls === 2
+          ? HttpResponse.json({ code: 'boom' }, { status: 500 })
+          : HttpResponse.json({
+              data: {
+                ...EMPTY_SUMMARY.data,
+                topics: [{ term_id: null, name: null, prompt_count: 1, engines: [topicCells('chatgpt_web', [])] }],
+              },
+            });
+      }),
+    );
+    const { queryClient, user } = renderWithProviders(promptsAs('viewer'));
+    await within(await treegrid()).findByText('No topic');
+    expect(screen.queryByText(TOPICS_STALE)).toBeNull();
+    await queryClient.refetchQueries({
+      predicate: (query) => JSON.stringify(query.queryKey).includes('prompts-summary'),
+    });
+    expect(await screen.findByText(TOPICS_STALE)).toBeInTheDocument();
+    expect(within(await treegrid()).getByText('No topic')).toBeInTheDocument();
+    // The Prompts table says it in its own words
+    expect(screen.queryByText('The topics could not be loaded.')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    await vi.waitFor(() => expect(screen.queryByText(TOPICS_STALE)).toBeNull());
+    expect(calls).toBe(3);
+  });
+
   describe('with a topic tree and counts the test sets', () => {
     const ids = { seo: idOf(3, 1), technical: idOf(3, 2), paid: idOf(3, 3), above: idOf(3, 9) };
     const termOf = (term_id: string, name: string, path: string): Prompt['terms'][number] => ({
@@ -1108,7 +1225,13 @@ describe('Topics & Prompts: the Topics tab', () => {
       );
     });
 
-    it('lists a prompt of two topics under each, and does not open a topic whose prompts cannot be told', async () => {
+    /** The topic vocabulary as the API sends it: SEO (given to no prompt) above Technical SEO, and Paid search. */
+    const serveTree = (): void =>
+      serveVocabulary([
+        treeNode(ids.above, 'SEO', null, [treeNode(ids.technical, 'Technical SEO', ids.above, [])]),
+        treeNode(ids.paid, 'Paid search', null, []),
+      ]);
+    const serveBoth = (): void =>
       serve(
         [carrying(1, TECHNICAL), carrying(2, TECHNICAL, PAID)],
         [promptRow(1, [ids.technical], counted(4, 1)), promptRow(2, [ids.technical, ids.paid], counted(4, 2))],
@@ -1118,15 +1241,54 @@ describe('Topics & Prompts: the Topics tab', () => {
           topicRow(ids.paid, 'Paid search', [counted(4, 2)]),
         ],
       );
+
+    it('opens a topic that only a topic below it is given, and lists a prompt of two topics under each', async () => {
+      serveBoth();
+      serveTree();
       const { user } = renderWithProviders(promptsAs('viewer'));
       const tree = await treegrid();
-      await within(tree).findByText('Paid search');
-      // No prompt carries SEO itself, so where it sits is not known: it is a row with counts only
-      expect(within(tree).queryByRole('button', { name: /^Expand SEO,/ })).toBeNull();
+      // No prompt is given SEO itself, but the tree tells what is below it
+      const seo = await within(tree).findByRole('button', { name: 'Expand SEO, 2 prompts' });
+      await user.click(seo);
+      expect(await within(tree).findAllByText(/^Question number \d\?$/)).toHaveLength(2);
+      await user.click(within(tree).getByRole('button', { name: 'Collapse SEO, 2 prompts' }));
       await user.click(within(tree).getByRole('button', { name: 'Expand Technical SEO, 2 prompts' }));
       await user.click(within(tree).getByRole('button', { name: 'Expand Paid search, 1 prompt' }));
       expect(await within(tree).findAllByText('Question number 2?')).toHaveLength(2);
       expect(within(tree).getAllByText('Question number 1?')).toHaveLength(1);
+    });
+
+    it('keeps a topic no prompt is given and the topics below it under a filter on it', async () => {
+      serveBoth();
+      serveTree();
+      renderWithProviders(promptsAs('viewer'), { searchParams: `?topic=${ids.above}` });
+      await vi.waitFor(async () => expect(await names()).toEqual(['SEO', 'Technical SEO']));
+    });
+
+    it('offers a topic no prompt is given in the filter, and filters the Prompts tab by it', async () => {
+      serveBoth();
+      serveTree();
+      const writes: string[] = [];
+      renderOnPrompts(promptsAs('viewer'), {
+        searchParams: `?topic=${ids.above}`,
+        onUrlUpdate: ({ queryString }) => writes.push(queryString),
+      });
+      const table = await grid();
+      expect(await within(table).findByText('Question number 1?')).toBeInTheDocument();
+      expect(within(table).getByText('Question number 2?')).toBeInTheDocument();
+      expect(await screen.findByRole('button', { name: 'Topic: SEO. Edit filter' })).toBeInTheDocument();
+      expect(screen.queryByText('A filter from the link was left out')).toBeNull();
+      expect(writes).toEqual([]);
+    });
+
+    it('keeps a topic of the link, and matches the prompts that carry it, while the topics are not read', async () => {
+      serveBoth();
+      server.use(http.get(VOCABULARIES_PATH, () => HttpResponse.json({ code: 'boom' }, { status: 500 })));
+      renderOnPrompts(promptsAs('viewer'), { searchParams: `?topic=${ids.paid}` });
+      const table = await grid();
+      expect(await within(table).findByText('Question number 2?')).toBeInTheDocument();
+      expect(within(table).queryByText('Question number 1?')).toBeNull();
+      expect(screen.queryByText('A filter from the link was left out')).toBeNull();
     });
 
     it('keeps a topic from the link while a later page of the list is on its way, and keeps its topics once it is in', async () => {

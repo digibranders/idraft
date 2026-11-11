@@ -3326,6 +3326,8 @@
       "search": "Search topics and prompts",
       "topic": "Topic",
       "prompts": "Prompts",
+      "weighted": "Each prompt counts once, whatever the number of its answers.",
+      "refreshFailed": "The topic counts could not be refreshed. The last counts loaded are shown.",
       "expand": "Expand {name}, {count, plural, one {# prompt} other {# prompts}}",
       "collapse": "Collapse {name}, {count, plural, one {# prompt} other {# prompts}}"
     },

@@ -12,13 +12,16 @@ import {
   PROMPT_TEXT_MAX,
   promptKeyOf,
   readPromptLines,
+  topicChoices,
+  topicDescendants,
   topicMembers,
   topicRowKept,
+  topicsBelow,
   topicTermsOf,
   WINDOW_DAYS,
   windowRange,
-  type TopicTerm,
 } from './prompt-model';
+import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 import type { MetricCell, ProjectEngine, Prompt, PromptsSummary, PromptSummaryRow } from '@/lib/api/types';
 import type { Country } from '@/lib/locations/countries';
 
@@ -121,56 +124,98 @@ describe('the topic filter', () => {
   });
   const SEO = term('seo', 'seo');
   const TECHNICAL = term('technical', 'seo/technical-seo');
-  const CRAWL = term('crawl', 'seo/technical-seo/crawling');
-  // Shares a prefix with `seo` as text, but is not below it
-  const AUDIT = term('audit', 'seo-audit');
-  const PAID = term('paid', 'paid-search');
   const carrying = (...terms: Prompt['terms']): Prompt => ({ terms }) as Prompt;
+  // SEO > Technical SEO > Crawling, and two topics of their own; the names are what the tree shows
+  const named = (termId: string, name: string, parentId: string | null, path: string): NamedTerm => ({
+    termId,
+    name,
+    parentId,
+    path,
+  });
+  const TREE: readonly NamedTerm[] = [
+    named('seo', 'SEO', null, 'SEO'),
+    named('technical', 'Technical SEO', 'seo', 'SEO / Technical SEO'),
+    named('crawl', 'Crawling', 'technical', 'SEO / Technical SEO / Crawling'),
+    named('audit', 'SEO audit', null, 'SEO audit'),
+    named('paid', 'Paid search', null, 'Paid search'),
+  ];
+  const below = topicDescendants(TREE, []);
+  const keptOf = (...chosen: string[]): ReadonlySet<string> => topicsBelow(chosen, below);
 
-  it('matches a prompt that carries the chosen term, or any term below it by path', () => {
-    expect(matchesTopics(carrying(SEO), [SEO])).toBe(true);
-    expect(matchesTopics(carrying(TECHNICAL), [SEO])).toBe(true);
-    expect(matchesTopics(carrying(CRAWL), [SEO])).toBe(true);
-    expect(matchesTopics(carrying(CRAWL), [TECHNICAL])).toBe(true);
+  it('holds in each topic the topic itself and every topic below it, by the tree and not by the names', () => {
+    expect([...(below.get('seo') ?? [])].sort()).toEqual(['crawl', 'seo', 'technical']);
+    expect([...(below.get('technical') ?? [])].sort()).toEqual(['crawl', 'technical']);
+    expect([...(below.get('audit') ?? [])]).toEqual(['audit']);
   });
 
-  it('does not match a parent, a sibling, or a term whose path only starts with the same letters', () => {
-    expect(matchesTopics(carrying(SEO), [TECHNICAL])).toBe(false);
-    expect(matchesTopics(carrying(AUDIT), [SEO])).toBe(false);
-    expect(matchesTopics(carrying(PAID), [SEO])).toBe(false);
-    expect(matchesTopics(carrying(), [SEO])).toBe(false);
+  it('knows a term the tree does not hold, as itself alone', () => {
+    const more = topicDescendants(TREE, ['loose']);
+    expect([...(more.get('loose') ?? [])]).toEqual(['loose']);
+    expect(more.has('missing')).toBe(false);
   });
 
-  it('matches any of several chosen topics, and every prompt when none is chosen', () => {
-    expect(matchesTopics(carrying(PAID), [SEO, PAID])).toBe(true);
-    expect(matchesTopics(carrying(CRAWL), [PAID, SEO])).toBe(true);
-    expect(matchesTopics(carrying(AUDIT), [PAID, SEO])).toBe(false);
-    expect(matchesTopics(carrying(), [])).toBe(true);
+  it('matches a prompt that carries a chosen topic, or any topic below it', () => {
+    expect(matchesTopics(carrying(SEO), keptOf('seo'))).toBe(true);
+    expect(matchesTopics(carrying(TECHNICAL), keptOf('seo'))).toBe(true);
+    expect(matchesTopics(carrying(term('crawl', 'x')), keptOf('technical'))).toBe(true);
   });
 
-  it('looks at topic terms only: another vocabulary with the same path is no topic', () => {
-    expect(matchesTopics(carrying(term('persona', 'seo/technical-seo', 'persona')), [SEO])).toBe(false);
+  it('does not match a parent, a sibling or an unrelated topic', () => {
+    expect(matchesTopics(carrying(SEO), keptOf('technical'))).toBe(false);
+    expect(matchesTopics(carrying(term('audit', 'x')), keptOf('seo'))).toBe(false);
+    expect(matchesTopics(carrying(term('paid', 'x')), keptOf('seo'))).toBe(false);
+    expect(matchesTopics(carrying(), keptOf('seo'))).toBe(false);
+  });
+
+  it('matches any of several chosen topics', () => {
+    expect(matchesTopics(carrying(term('paid', 'x')), keptOf('seo', 'paid'))).toBe(true);
+    expect(matchesTopics(carrying(term('audit', 'x')), keptOf('paid', 'seo'))).toBe(false);
+  });
+
+  it('keeps a chosen term the tree does not hold, as itself, until the tree is known', () => {
+    expect([...topicsBelow(['loose'], new Map())]).toEqual(['loose']);
+    expect(matchesTopics(carrying(term('loose', 'x')), topicsBelow(['loose'], new Map()))).toBe(true);
+  });
+
+  it('looks at topic terms only: a term of another vocabulary is no topic', () => {
+    expect(matchesTopics(carrying(term('crawl', 'x', 'persona')), keptOf('seo'))).toBe(false);
   });
 
   it('collects each topic term the prompts carry once, by id', () => {
     const terms = collectTopicTerms([carrying(SEO, TECHNICAL), carrying(TECHNICAL, term('p', 'x', 'persona'))]);
     expect([...terms.keys()]).toEqual(['seo', 'technical']);
   });
+
+  it('offers the topics the prompts carry and every topic above them, in the tree order', () => {
+    const carried = collectTopicTerms([carrying(term('crawl', 'seo/technical-seo/crawling'))]);
+    expect(topicChoices(TREE, carried).map((choice) => [choice.termId, choice.name, choice.path])).toEqual([
+      ['seo', 'SEO', 'SEO'],
+      ['technical', 'Technical SEO', 'SEO / Technical SEO'],
+      ['crawl', 'Crawling', 'SEO / Technical SEO / Crawling'],
+    ]);
+  });
+
+  it('offers a carried topic the tree does not hold by what the prompt says of it, after the tree ones', () => {
+    const carried = collectTopicTerms([carrying(term('loose', 'a/loose'), term('paid', 'paid'))]);
+    expect(topicChoices(TREE, carried).map((choice) => [choice.termId, choice.name, choice.path])).toEqual([
+      ['paid', 'Paid search', 'Paid search'],
+      ['loose', 'loose', 'a/loose'],
+    ]);
+  });
 });
 
 describe('the topic rows of the summary', () => {
-  const term = (term_id: string, path: string): TopicTerm => ({
-    term_id,
-    name: path.split('/').at(-1) ?? path,
-    path,
-    vocabulary_kind: 'topic',
+  const node = (termId: string, parentId: string | null): NamedTerm => ({
+    termId,
+    name: termId,
+    parentId,
+    path: termId,
   });
-  const SEO = term('seo', 'seo');
-  const TECHNICAL = term('technical', 'seo/technical-seo');
-  const CRAWL = term('crawl', 'seo/technical-seo/crawling');
-  const AUDIT = term('audit', 'seo-audit');
-  const PAID = term('paid', 'paid-search');
-  const terms = new Map([SEO, TECHNICAL, CRAWL, AUDIT, PAID].map((item) => [item.term_id, item]));
+  // Nothing carries `seo` itself in these prompts: it is above the terms they are given
+  const below = topicDescendants(
+    [node('seo', null), node('technical', 'seo'), node('crawl', 'technical'), node('audit', null), node('paid', null)],
+    [],
+  );
   const row = (prompt_id: string, ...topic_term_ids: string[]): PromptSummaryRow => ({
     prompt_id,
     text: prompt_id,
@@ -182,33 +227,39 @@ describe('the topic rows of the summary', () => {
     rows === null ? null : rows.map((item) => item.prompt_id);
 
   it('keeps a topic row that is a chosen topic or below one, as the Prompts tab does', () => {
-    expect(topicRowKept('seo', terms, [SEO])).toBe(true);
-    expect(topicRowKept('technical', terms, [SEO])).toBe(true);
-    expect(topicRowKept('crawl', terms, [SEO])).toBe(true);
-    expect(topicRowKept('seo', terms, [TECHNICAL])).toBe(false);
-    expect(topicRowKept('audit', terms, [SEO])).toBe(false);
-    expect(topicRowKept('paid', terms, [SEO, PAID])).toBe(true);
+    expect(topicRowKept('seo', topicsBelow(['seo'], below))).toBe(true);
+    expect(topicRowKept('technical', topicsBelow(['seo'], below))).toBe(true);
+    expect(topicRowKept('crawl', topicsBelow(['seo'], below))).toBe(true);
+    expect(topicRowKept('seo', topicsBelow(['technical'], below))).toBe(false);
+    expect(topicRowKept('audit', topicsBelow(['seo'], below))).toBe(false);
+    expect(topicRowKept('paid', topicsBelow(['seo', 'paid'], below))).toBe(true);
   });
 
-  it('drops the row of no topic, and a topic no prompt carries, while a topic is chosen', () => {
-    expect(topicRowKept(null, terms, [SEO])).toBe(false);
-    expect(topicRowKept('above-seo', terms, [SEO])).toBe(false);
+  it('drops the row of no topic while a topic is chosen', () => {
+    expect(topicRowKept(null, topicsBelow(['seo'], below))).toBe(false);
   });
 
-  it('lists under a topic the prompts given it or a term below it, each once', () => {
-    const prompts = [row('a', 'seo'), row('b', 'crawl'), row('c', 'technical', 'crawl'), row('d', 'audit'), row('e')];
-    expect(ids(topicMembers('seo', prompts, terms))).toEqual(['a', 'b', 'c']);
-    expect(ids(topicMembers('technical', prompts, terms))).toEqual(['b', 'c']);
-    expect(ids(topicMembers('paid', prompts, terms))).toEqual([]);
+  it('lists under a topic the prompts given it or a topic below it, each once, though none was given it', () => {
+    const prompts = [
+      row('a', 'technical'),
+      row('b', 'crawl'),
+      row('c', 'technical', 'crawl'),
+      row('d', 'audit'),
+      row('e'),
+    ];
+    expect(ids(topicMembers('seo', prompts, below))).toEqual(['a', 'b', 'c']);
+    expect(ids(topicMembers('technical', prompts, below))).toEqual(['a', 'b', 'c']);
+    expect(ids(topicMembers('crawl', prompts, below))).toEqual(['b', 'c']);
+    expect(ids(topicMembers('paid', prompts, below))).toEqual([]);
   });
 
   it('lists the prompts without a topic under no topic, and none of the others', () => {
     const prompts = [row('a', 'seo'), row('e'), row('f')];
-    expect(ids(topicMembers(null, prompts, terms))).toEqual(['e', 'f']);
+    expect(ids(topicMembers(null, prompts, below))).toEqual(['e', 'f']);
   });
 
-  it('cannot list the prompts of a topic whose place is not known, which only a term below it was given', () => {
-    expect(topicMembers('above-seo', [row('a', 'seo')], terms)).toBeNull();
+  it('cannot list the prompts of a topic the tree does not hold', () => {
+    expect(topicMembers('elsewhere', [row('a', 'seo')], below)).toBeNull();
   });
 });
 

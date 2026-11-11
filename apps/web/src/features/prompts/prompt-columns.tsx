@@ -43,7 +43,7 @@ const ENGINE_COLUMN_WIDTH = 176;
 export function useEngineColumns<TRow>(
   engines: readonly ProjectEngine[],
   cellsOf: (row: TRow) => readonly EngineSummary[] | undefined,
-  { sortable }: { sortable: boolean },
+  { sortable, note }: { sortable: boolean; note?: string },
 ): DataTableColumn<TRow>[] {
   const t = useTranslations('prompts.columns');
   return useMemo(
@@ -63,7 +63,7 @@ export function useEngineColumns<TRow>(
         return METRICS.map((metric) =>
           col.volumeTrend<TRow>(`${code}_${metric}`, (row) => cellOf(row, metric)?.value ?? null, {
             header: t(metric, { engine: label }),
-            headerTooltip: t(`${metric}Tip`),
+            headerTooltip: note === undefined ? t(`${metric}Tip`) : `${t(`${metric}Tip`)}. ${note}`,
             width: ENGINE_COLUMN_WIDTH,
             sortable,
             unknown: (row) => unknown(row, metric),
@@ -80,7 +80,7 @@ export function useEngineColumns<TRow>(
           }),
         );
       }),
-    [engines, cellsOf, sortable, t],
+    [engines, cellsOf, sortable, note, t],
   );
 }
 

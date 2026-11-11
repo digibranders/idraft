@@ -43,9 +43,12 @@ export function useKeywordGroups(scope: TaxonomyScope): UseQueryResult<GroupList
   return useQuery(keywordGroupsQuery(scope));
 }
 
-/** One term with its place by name, "SEO / Local SEO". */
+/** One term with its name, its parent and its place by name, "SEO / Local SEO". */
 export interface NamedTerm {
   termId: string;
+  name: string;
+  /** The term above it in its vocabulary; `null` for a root. */
+  parentId: string | null;
   path: string;
 }
 
@@ -66,10 +69,13 @@ export interface Vocabularies {
 }
 
 /** Each term's place by name, depth first. */
-function namedPaths(nodes: readonly TermNode[], above = ''): NamedTerm[] {
+export function namedPaths(nodes: readonly TermNode[], above = ''): NamedTerm[] {
   return nodes.flatMap((node) => {
     const path = above === '' ? node.name : `${above} / ${node.name}`;
-    return [{ termId: node.term_id, path }, ...namedPaths(node.children, path)];
+    return [
+      { termId: node.term_id, name: node.name, parentId: node.parent_id, path },
+      ...namedPaths(node.children, path),
+    ];
   });
 }
 

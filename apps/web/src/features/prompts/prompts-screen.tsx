@@ -17,6 +17,9 @@ import {
   parseTab,
   parseWindow,
   PROMPTS_TABS,
+  topicChoices,
+  topicDescendants,
+  topicsBelow,
   topicTermsOf,
   WINDOW_DAYS,
   windowRange,
@@ -44,6 +47,7 @@ import { useErrorId } from '@/lib/api/use-error-id';
 import { useUtcDay } from '@/lib/dom/use-utc-day';
 import { enumValuesOf } from '@/lib/filters/filter-values';
 import { formatBusinessDate, formatList } from '@/lib/format';
+import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { useCountries } from '@/lib/locations/countries';
 import { useCan } from '@/lib/permissions';
 import { projectPath } from '@/lib/routes/paths';
@@ -141,10 +145,19 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // The options are the topics and countries the prompts carry: a value from a link waits until every page is in
   const optionsPending = list.loading || list.fetching || list.hasMore || list.error !== null;
   const topicTerms = useMemo(() => collectTopicTerms(list.rows), [list.rows]);
+  // Where a topic sits comes from the topic vocabularies' trees, not from the prompts: the summary has a row for
+  // every topic above one a prompt is given too. Until the trees are read (or when they fail) a topic stands alone
+  const vocabularies = useVocabularies(scope);
+  const topicTree = useMemo(
+    () => vocabularies.loaded.filter((entry) => entry.vocabulary.kind === 'topic').flatMap((entry) => entry.terms),
+    [vocabularies.loaded],
+  );
+  const topicsUnknown = vocabularies.pending || vocabularies.error;
   const fields = useMemo((): FilterField[] => {
+    const choices = topicChoices(topicTree, topicTerms);
     // Two topics of one name under different parents are told apart by their paths
     const nameCounts = new Map<string, number>();
-    for (const term of topicTerms.values()) nameCounts.set(term.name, (nameCounts.get(term.name) ?? 0) + 1);
+    for (const choice of choices) nameCounts.set(choice.name, (nameCounts.get(choice.name) ?? 0) + 1);
     const isos = new Set(list.rows.flatMap((prompt) => (prompt.country_iso === null ? [] : [prompt.country_iso])));
     return [
       {
@@ -152,13 +165,13 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         kind: 'enum',
         label: t('filters.topic'),
         multi: true,
-        optionsLoading: optionsPending,
-        options: [...topicTerms.values()].map((term) => ({
-          value: term.term_id,
+        optionsLoading: optionsPending || topicsUnknown,
+        options: choices.map((choice) => ({
+          value: choice.termId,
           label:
-            (nameCounts.get(term.name) ?? 0) > 1
-              ? t('filters.topicWithPath', { name: term.name, path: term.path })
-              : term.name,
+            (nameCounts.get(choice.name) ?? 0) > 1
+              ? t('filters.topicWithPath', { name: choice.name, path: choice.path })
+              : choice.name,
         })),
       },
       // A topic's counts come from the API for all of its prompts, so the Topics tab takes no country filter. A
@@ -192,7 +205,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         options: [{ value: 'include', label: t('filters.brandedInclude') }],
       },
     ];
-  }, [t, tab, list.rows, optionsPending, topicTerms, countryName, enabled, engines.data]);
+  }, [t, tab, list.rows, optionsPending, topicsUnknown, topicTree, topicTerms, countryName, enabled, engines.data]);
   // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
   const [values, setValues] = useUrlFilters(fields, {
     onDropped: (dropped) =>
@@ -231,8 +244,12 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // Counts kept from another window or branded choice are not this one's: a prompt without a row in them is unknown
   const countsLoaded = summary.data !== undefined && !summary.isPlaceholderData;
   const topicIds = useMemo(() => enumValuesOf(values.topic), [values.topic]);
-  // A topic of the link that no prompt read so far carries matches nothing yet
-  const chosenTopics = useMemo(() => topicIds.flatMap((id) => topicTerms.get(id) ?? []), [topicIds, topicTerms]);
+  const descendants = useMemo(
+    () => topicDescendants(topicTree, [...topicTerms.keys(), ...topicIds]),
+    [topicTree, topicTerms, topicIds],
+  );
+  // The chosen topics and every topic below them: what both tabs keep
+  const kept = useMemo(() => topicsBelow(topicIds, descendants), [topicIds, descendants]);
   // Branded prompts stay out of the table and the counts until included (16-metrics-methodology.md rule 4)
   const rows = useMemo((): PromptRow[] => {
     const countries = enumValuesOf(values.country);
@@ -240,7 +257,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       .filter(
         (prompt) =>
           (includeBranded || !prompt.is_branded) &&
-          (topicIds.length === 0 || (chosenTopics.length > 0 && matchesTopics(prompt, chosenTopics))) &&
+          (topicIds.length === 0 || matchesTopics(prompt, kept)) &&
           (countries.length === 0 || (prompt.country_iso !== null && countries.includes(prompt.country_iso))),
       )
       .map((prompt) => {
@@ -253,17 +270,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           country: prompt.country_iso === null ? null : (countryName.get(prompt.country_iso) ?? prompt.country_iso),
         };
       });
-  }, [
-    list.rows,
-    includeBranded,
-    topicIds,
-    chosenTopics,
-    values.country,
-    summaryById,
-    countsLoaded,
-    countryName,
-    locale,
-  ]);
+  }, [list.rows, includeBranded, topicIds, kept, values.country, summaryById, countsLoaded, countryName, locale]);
 
   const { columns, sortFields, searchText, rowName } = usePromptColumns(shown);
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
@@ -280,7 +287,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     list.loading ||
     engines.isPending ||
     (enabled.length > 0 && summary.isPending) ||
-    (narrowed && rows.length === 0 && list.fetching);
+    (narrowed && rows.length === 0 && list.fetching) ||
+    // The topics below a chosen one are not known until the trees are read
+    (topicIds.length > 0 && vocabularies.pending);
   const status = ((): TableStatus => {
     if (list.error !== null && list.rows.length === 0) return 'error';
     if (waiting) return 'loading';
@@ -295,16 +304,17 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     summary.data !== undefined && !summary.isPlaceholderData && rows.length > 0 && !hasAnswers(summary.data.data);
 
   const summaryErrorId = useErrorId(summary.error);
-  // The Topics tab reads only the summary and the topics of the prompts; a topic of the link waits for the page that carries it
   const summaryFailed = summary.isError && summary.data === undefined;
+  // A topic of the link that neither a tree nor a prompt read so far holds may still be on a page on its way
+  const topicUnresolved = topicIds.some((id) => !topicTerms.has(id) && !topicTree.some((term) => term.termId === id));
   const topicsStatus = ((): TableStatus => {
     // Without the prompts the topics could not be opened, which is as good as not having loaded
     if (summaryFailed || (list.error !== null && list.rows.length === 0)) return 'error';
-    const waitingForTopic = topicIds.length > 0 && chosenTopics.length === 0 && list.fetching;
+    const waitingForTopic = topicIds.length > 0 && (vocabularies.pending || (topicUnresolved && list.fetching));
     if (list.loading || engines.isPending || (enabled.length > 0 && summary.isPending) || waitingForTopic) {
       return 'loading';
     }
-    return summary.isFetching ? 'refetching' : 'ready';
+    return summary.isFetching || list.fetching ? 'refetching' : 'ready';
   })();
 
   // Not before the engines are known: the dialog takes the enabled ones
@@ -415,16 +425,37 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           variant="underline"
           label={t('tabs.label')}
           value={tab}
-          onValueChange={(next: PromptsTab) => void setView({ tab: next === 'topics' ? null : next })}
+          // A tab is a place to go back to: it is the one change of the view that makes a history entry
+          onValueChange={(next: PromptsTab) =>
+            void setView({ tab: next === 'topics' ? null : next }, { history: 'push' })
+          }
           items={PROMPTS_TABS.map((value) => ({ value, label: t(`tabs.${value}`) }))}
           className="flex min-h-0 flex-1 flex-col"
         >
           <TabsPanel value="topics" className="flex min-h-0 flex-1 flex-col pt-3">
+            {summary.isError && summary.data !== undefined ? (
+              <Banner
+                tone="warning"
+                placement="region"
+                live
+                message={t('topics.refreshFailed')}
+                actions={
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void summary.refetch()}
+                    loading={summary.isFetching}
+                  >
+                    {common('retry')}
+                  </Button>
+                }
+              />
+            ) : null}
             <TopicsTable
               summary={summary.data?.data}
               engines={shown}
-              terms={topicTerms}
-              chosen={chosenTopics}
+              descendants={descendants}
+              kept={kept}
               filtering={topicIds.length > 0}
               status={topicsStatus}
               errorState={summaryFailed ? summaryError : listError}

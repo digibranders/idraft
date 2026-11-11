@@ -1,10 +1,10 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 
 import { useEngineColumns } from './prompt-columns';
-import { topicMembers, topicRowKept, type TopicTerm } from './prompt-model';
+import { topicMembers, topicRowKept, type TopicDescendants } from './prompt-model';
 import { col } from '@/components/app/data-table/columns';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { DataTableColumn, RowTree, TableStatus } from '@/components/app/data-table/types';
@@ -24,7 +24,7 @@ type TopicRow =
       promptCount: number;
       engines: readonly EngineSummary[];
       position: number;
-      /** Whether the topic's prompts can be listed: a topic no prompt carries has no place known. */
+      /** Whether the topic's prompts can be listed: a topic the vocabulary trees do not hold (not read yet) has no place known. */
       openable: boolean;
     }
   | {
@@ -52,11 +52,11 @@ export interface TopicsTableProps {
   summary: PromptsSummary | undefined;
   /** The engines shown, in order. */
   engines: readonly ProjectEngine[];
-  /** The topic terms the prompts carry, by id: where a topic sits in the tree. */
-  terms: ReadonlyMap<string, TopicTerm>;
-  /** The terms the topic filter names; with `filtering`, a topic stays when it is one of them or below one. */
-  chosen: readonly TopicTerm[];
-  /** Whether a topic filter is set, even when none of its terms is known yet. */
+  /** Each topic and the topics below it, from the vocabularies' trees: which prompts a topic holds. */
+  descendants: TopicDescendants;
+  /** With `filtering`, the topics the filter keeps: the chosen ones and those below them. */
+  kept: ReadonlySet<string>;
+  /** Whether a topic filter is set. */
   filtering: boolean;
   status: TableStatus;
   errorState: ReactNode;
@@ -81,8 +81,8 @@ export interface TopicsTableProps {
 export function TopicsTable({
   summary,
   engines,
-  terms,
-  chosen,
+  descendants,
+  kept,
   filtering,
   status,
   errorState,
@@ -94,9 +94,11 @@ export function TopicsTable({
   onDensityChange,
 }: TopicsTableProps): ReactElement {
   const t = useTranslations('prompts');
+  const locale = useLocale();
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
   const [visible, setVisible] = useState<readonly string[] | null>(null);
-  const engineColumns = useEngineColumns(engines, cellsOf, { sortable: false });
+  // The rates are prompt weighted while the counts shown are answers: the header says so
+  const engineColumns = useEngineColumns(engines, cellsOf, { sortable: false, note: t('topics.weighted') });
   const columns = useMemo(
     (): DataTableColumn<TopicRow>[] => [
       col.keyword<TopicRow>('topic', rowName, {
@@ -117,19 +119,19 @@ export function TopicsTable({
   const firstEngine = engines[0]?.engine.engine_code;
   const rows = useMemo((): TopicRow[] => {
     if (summary === undefined) return [];
-    const query = search.trim().toLocaleLowerCase();
+    const query = search.trim().toLocaleLowerCase(locale);
     const groups = summary.topics
-      .filter((topic) => !filtering || topicRowKept(topic.term_id, terms, chosen))
+      .filter((topic) => !filtering || topicRowKept(topic.term_id, kept))
       .map((topic) => ({
         topic,
         name: topic.name ?? t('columns.noTopic'),
-        members: topicMembers(topic.term_id, summary.prompts, terms),
+        members: topicMembers(topic.term_id, summary.prompts, descendants),
       }))
       .filter(
         ({ name, members }) =>
           query === '' ||
-          name.toLocaleLowerCase().includes(query) ||
-          (members ?? []).some((member) => member.text.toLocaleLowerCase().includes(query)),
+          name.toLocaleLowerCase(locale).includes(query) ||
+          (members ?? []).some((member) => member.text.toLocaleLowerCase(locale).includes(query)),
       )
       // The sort is stable: topics of one size stay in the order the API sent them
       .sort((a, b) => b.topic.prompt_count - a.topic.prompt_count);
@@ -146,6 +148,7 @@ export function TopicsTable({
         openable: members !== null,
       };
       if (members === null || !open.has(key)) return [head];
+      // shortcut: every prompt of an open topic, not the eight of ADR-DS-022 decision 2 with "Show all"; add the cap with the topic drawer
       const ordered = [...members].sort(
         (a, b) => mentionedOn(b.engines, firstEngine) - mentionedOn(a.engines, firstEngine),
       );
@@ -162,7 +165,7 @@ export function TopicsTable({
         })),
       ];
     });
-  }, [summary, terms, chosen, filtering, search, open, t, firstEngine]);
+  }, [summary, descendants, kept, filtering, search, locale, open, t, firstEngine]);
   const topicCount = rows.filter((row) => row.kind === 'topic').length;
   const rowTree = (row: TopicRow): RowTree => {
     if (row.kind === 'prompt') return { level: 2, setSize: row.siblings, posInSet: row.position };

@@ -1,5 +1,6 @@
 import type { MetricCell, ProjectEngine, Prompt, PromptsSummary, PromptSummaryRow } from '@/lib/api/types';
 import { formatIsoDate, formatSampleCount } from '@/lib/format';
+import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 import type { Country } from '@/lib/locations/countries';
 
 /**
@@ -62,55 +63,91 @@ export function collectTopicTerms(prompts: readonly Prompt[]): Map<string, Topic
   return terms;
 }
 
+/** A topic and the topics below it, by term id; each topic is in its own set. */
+export type TopicDescendants = ReadonlyMap<string, ReadonlySet<string>>;
+
 /**
- * Whether the prompt belongs to any of the chosen topics, as the summary's topic rows count it (backend
- * `topic_rollup`): it carries the term, or a term below it, that is one whose path starts with the chosen
- * term's path and a slash. Every prompt belongs when none is chosen.
+ * The topics below each topic of the vocabularies' trees (`tree`, from the topic vocabularies only), as the
+ * summary's rows roll a prompt up: a prompt given a term counts under it and under every term above it. A
+ * term in `extra` that the tree does not hold (one a prompt carries before the tree is read) stands alone.
  */
-export function matchesTopics(prompt: Prompt, chosen: readonly TopicTerm[]): boolean {
-  if (chosen.length === 0) return true;
-  return topicTermsOf(prompt).some((term) => isWithin(term, chosen));
+export function topicDescendants(tree: readonly NamedTerm[], extra: Iterable<string>): Map<string, Set<string>> {
+  const children = new Map<string, string[]>();
+  for (const term of tree) {
+    if (term.parentId !== null) children.set(term.parentId, [...(children.get(term.parentId) ?? []), term.termId]);
+  }
+  const below = new Map<string, Set<string>>();
+  const ids = [...tree.map((term) => term.termId), ...extra];
+  for (const id of ids) {
+    const found = new Set<string>();
+    const pending = [id];
+    for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+      if (found.has(next)) continue;
+      found.add(next);
+      pending.push(...(children.get(next) ?? []));
+    }
+    below.set(id, found);
+  }
+  return below;
 }
 
-/** Whether the term is one of the topics or below one of them (its path starts with theirs and a slash). */
-const isWithin = (
-  term: Pick<TopicTerm, 'term_id' | 'path'>,
-  topics: readonly Pick<TopicTerm, 'term_id' | 'path'>[],
-): boolean => topics.some((topic) => term.term_id === topic.term_id || term.path.startsWith(`${topic.path}/`));
-
-/**
- * Whether the summary's topic row stays under a topic filter: it is a chosen topic or below one, as
- * `matchesTopics` takes it. `terms` are the topic terms the prompts carry; a topic none carries (it is only
- * above a term that one carries) has no place known and stays out, as does the row of no topic.
- */
-export function topicRowKept(
-  termId: string | null,
-  terms: ReadonlyMap<string, TopicTerm>,
-  chosen: readonly TopicTerm[],
-): boolean {
-  const term = termId === null ? undefined : terms.get(termId);
-  return term !== undefined && isWithin(term, chosen);
+/** The chosen topics and every topic below them. A chosen topic the tree does not hold stands for itself. */
+export function topicsBelow(chosen: readonly string[], descendants: TopicDescendants): Set<string> {
+  const kept = new Set<string>();
+  for (const id of chosen) for (const below of descendants.get(id) ?? [id]) kept.add(below);
+  return kept;
 }
 
+/** Whether the prompt carries a topic of `kept` (the topics a filter keeps). The caller sends every prompt when none is chosen. */
+export const matchesTopics = (prompt: Prompt, kept: ReadonlySet<string>): boolean =>
+  topicTermsOf(prompt).some((term) => kept.has(term.term_id));
+
+/** Whether the summary's topic row stays under a topic filter: it is in `kept`. The row of no topic never is. */
+export const topicRowKept = (termId: string | null, kept: ReadonlySet<string>): boolean =>
+  termId !== null && kept.has(termId);
+
 /**
- * The prompts of the summary a topic row holds, as the API rolls them up: those given the topic or a term
- * below it, each once; `null` termId is the prompts without a topic. `null` when the topic's place is not
- * known (no prompt carries it), so its prompts cannot be told.
+ * The prompts of the summary a topic row holds, as the API rolls them up: those given the topic or a topic
+ * below it, each once, though no prompt carries the topic itself; `null` termId is the prompts without a
+ * topic. `null` when the tree does not hold the topic (it is not read yet), so its prompts cannot be told.
  */
 export function topicMembers(
   termId: string | null,
   prompts: readonly PromptSummaryRow[],
-  terms: ReadonlyMap<string, TopicTerm>,
+  descendants: TopicDescendants,
 ): PromptSummaryRow[] | null {
   if (termId === null) return prompts.filter((prompt) => prompt.topic_term_ids.length === 0);
-  const topic = terms.get(termId);
-  if (topic === undefined) return null;
-  return prompts.filter((prompt) =>
-    prompt.topic_term_ids.some((id) => {
-      const given = terms.get(id);
-      return given === undefined ? id === termId : isWithin(given, [topic]);
-    }),
-  );
+  const below = descendants.get(termId);
+  if (below === undefined) return null;
+  return prompts.filter((prompt) => prompt.topic_term_ids.some((id) => below.has(id)));
+}
+
+export interface TopicChoice {
+  termId: string;
+  name: string;
+  /** Where the topic sits, to tell two of one name apart. */
+  path: string;
+}
+
+/**
+ * The topics a filter offers: those the prompts carry and every topic above them, so a topic no prompt is
+ * given itself can be chosen (the summary has a row for it). The tree's order first; a carried topic the tree
+ * does not hold comes after, as the prompt describes it.
+ */
+export function topicChoices(tree: readonly NamedTerm[], carried: ReadonlyMap<string, TopicTerm>): TopicChoice[] {
+  const byId = new Map(tree.map((term) => [term.termId, term]));
+  const wanted = new Set<string>();
+  for (const id of carried.keys()) {
+    for (let at = byId.get(id); at !== undefined && !wanted.has(at.termId); at = byId.get(at.parentId ?? '')) {
+      wanted.add(at.termId);
+    }
+  }
+  return [
+    ...tree.filter((term) => wanted.has(term.termId)).map(({ termId, name, path }) => ({ termId, name, path })),
+    ...[...carried.values()]
+      .filter((term) => !byId.has(term.term_id))
+      .map((term) => ({ termId: term.term_id, name: term.name, path: term.path })),
+  ];
 }
 
 /** Whether any prompt has an answer on an engine in the window, valid or not: until one has, the page says when the first arrive. */
