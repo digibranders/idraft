@@ -41,7 +41,7 @@ Plan A is `docs/superpowers/plans/2026-11-11-ai-prompts-a-data-and-prompts-api.m
 | `idraft.api.schemas.ai` | the module | Plan B appends its models to it. |
 | `idraft.api.ai.prompt_routes` | `router` (prefix `/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts`, tag `ai`) | Plan B adds `POST /{prompt_id}/run-now`. |
 | `tests.db.support` | `insert_prompt(db, workspace_id, project_id, text, *, language_code="en", country_iso="US", is_active=True, created_by=None) -> tuple[UUID, UUID]` | The collector test helper `add_prompt` wraps it. |
-| BT/api/test_route_access.py, BT/security/test_cross_tenant.py | `prompt_id` in `PATH_PARAMETERS`; the ten `ai.*` tables in `_TENANT_ROWS` | Plan B adds `observation_id`. |
+| BT/api/test_route_access.py, BT/security/test_cross_tenant.py | `prompt_id` in `PATH_PARAMETERS`; four `ai.*` tables in `_TENANT_ROWS` (`project_engines`, `prompts`, `prompt_versions`, `prompt_terms`; `ai.engines` is global) | Plan B adds `observation_id`. |
 
 Plan A's archive is `is_active = false`; `deleted_at` stays unused in slice 1 (decision A7). Plan B reads both (`is_active AND deleted_at IS NULL`) so a later delete needs no change.
 
@@ -3082,6 +3082,7 @@ from idraft.ai.pricing import task_prices
 from idraft.collectors.ledger import LedgerTask, NewTask, TaskRef
 from idraft.collectors.registry import Plan, ScheduleWindow
 from idraft.collectors.seo_rank import location_codes, run_queues
+from idraft.domain.ai_engines import Queue
 from idraft.db.tables import (
     ai_engines,
     ai_project_engines,
@@ -3299,7 +3300,7 @@ def queue_of(provider_mode: str) -> Literal["standard", "priority"]:
 
 
 async def estimate(
-    db: AsyncSession, subjects: Sequence[Subject], *, queue: str, on: date
+    db: AsyncSession, subjects: Sequence[Subject], *, queue: Queue, on: date
 ) -> Decimal | None:
     """What the subjects cost by the price book (plan A's `task_prices`): each endpoint's task
     price at the queue. None,

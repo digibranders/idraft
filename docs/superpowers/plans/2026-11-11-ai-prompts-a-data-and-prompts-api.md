@@ -67,7 +67,7 @@ Other plans import these. Signatures are exact.
 - `idraft.ai.text.text_hash(text: str) -> bytes`
 - `idraft.ai.schedule.AiRun(weekday: int, name: str)`, `idraft.ai.schedule.AiScheduleRule(window_start_local: time, window_hours: int, runs: tuple[AiRun, ...])`, `idraft.ai.schedule.AI_SCHEDULE: Final[AiScheduleRule]`
 - `async idraft.ai.schedule.ensure_ai_schedule(db: AsyncSession, *, workspace_id: UUID, project_id: UUID, now: datetime) -> None`
-- `async idraft.ai.pricing.task_prices(db: AsyncSession, *, queue: str, on: date) -> dict[str, Decimal]` (by endpoint)
+- `async idraft.ai.pricing.task_prices(db: AsyncSession, *, queue: Queue, on: date) -> dict[str, Decimal]` (by endpoint)
 
 **API**
 
