@@ -173,9 +173,12 @@ ALTER ROLE app_api SET statement_timeout = '15s';
 CREATE ROLE app_worker LOGIN BYPASSRLS PASSWORD :'worker_password';
 ALTER ROLE app_worker SET statement_timeout = '120s';
 GRANT pg_read_all_stats TO app_worker;
+-- Migration 0002 requires it. Backups will connect as it over the Unix socket, so it has no password.
+CREATE ROLE backup LOGIN BYPASSRLS;
+GRANT pg_read_all_data TO backup;
 ALTER DATABASE idraft OWNER TO migrator;
 REVOKE ALL ON DATABASE idraft FROM PUBLIC;
-GRANT CONNECT ON DATABASE idraft TO app_api, app_worker;
+GRANT CONNECT ON DATABASE idraft TO app_api, app_worker, backup;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 SQL
