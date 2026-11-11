@@ -969,6 +969,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The AI engines and how the project runs them
+         * @description Every engine offered, configured or not. `estimated_monthly_cost_usd` is what the engine costs a month with the project's active prompts on the base plan (runs a week, one answer, standard queue), as if it were on.
+         */
+        get: operations["list_engines_api_v1_workspaces__workspace_id__projects__project_id__engines_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines/{engine_code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Turn an engine on or off for the project
+         * @description The first engine turned on makes the project's AI answer schedules (twice a week). `location_ids` must be active countries (`422 validation_failed` with `location_not_supported`). The provider is DataForSEO and the engine gives one answer per prompt and run.
+         */
+        put: operations["put_engine_api_v1_workspaces__workspace_id__projects__project_id__engines__engine_code__put"];
+        post?: never;
+        /** Remove the engine's settings; its answers stay */
+        delete: operations["delete_engine_api_v1_workspaces__workspace_id__projects__project_id__engines__engine_code__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities": {
         parameters: {
             query?: never;
@@ -2733,6 +2774,40 @@ export interface components {
             /** Email */
             email: string;
         };
+        /** Engine */
+        Engine: {
+            engine_code: components["schemas"]["EngineCode"];
+            /** Exposes Citations */
+            exposes_citations: boolean;
+            /** Exposes Fanout */
+            exposes_fanout: boolean;
+            /** Label */
+            label: string;
+            /** Max Prompt Chars */
+            max_prompt_chars: number;
+            observation_class: components["schemas"]["ObservationClass"];
+            /** Vendor */
+            vendor: string;
+        };
+        /**
+         * EngineCode
+         * @enum {string}
+         */
+        EngineCode: "chatgpt_web" | "gemini_web" | "google_ai_mode";
+        /** EngineUpdate */
+        EngineUpdate: {
+            /**
+             * Is Enabled
+             * @description On starts weekly spend; off keeps the settings.
+             * @default true
+             */
+            is_enabled: boolean;
+            /**
+             * Location Ids
+             * @description Active countries the engine runs the prompts in.
+             */
+            location_ids: number[];
+        };
         /** Entity */
         Entity: {
             /** Alias Count */
@@ -4156,6 +4231,12 @@ export interface components {
              */
             state_expires_at: string;
         };
+        /**
+         * ObservationClass
+         * @description `ai.engines.observation_class` and `ai.observations.observation_class` (doc 04 8.1).
+         * @enum {string}
+         */
+        ObservationClass: "consumer_ui" | "official_api" | "serp_ai";
         /** OffsetPageInfo */
         OffsetPageInfo: {
             /** Limit */
@@ -4441,6 +4522,42 @@ export interface components {
         ProjectDomainList: {
             /** Data */
             data: components["schemas"]["ProjectDomain"][];
+        };
+        /** ProjectEngine */
+        ProjectEngine: {
+            /**
+             * Active Prompts
+             * @description Active prompts that fit the engine's length limit: what one run asks it.
+             */
+            active_prompts: number;
+            engine: components["schemas"]["Engine"];
+            /**
+             * Estimated Monthly Cost Usd
+             * @description Active prompts x runs a week x 52 / 12 x the task price, as if the engine were on. Null when the price book has no price.
+             */
+            estimated_monthly_cost_usd: string | null;
+            /**
+             * Is Configured
+             * @description The project has settings for the engine.
+             */
+            is_configured: boolean;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Location Ids */
+            location_ids: number[];
+            /** Provider Code */
+            provider_code: string;
+            /** Replicates */
+            replicates: number;
+        };
+        /** ProjectEngineList */
+        ProjectEngineList: {
+            /** Data */
+            data: components["schemas"]["ProjectEngine"][];
+        };
+        /** ProjectEngineResponse */
+        ProjectEngineResponse: {
+            data: components["schemas"]["ProjectEngine"];
         };
         /** ProjectEntity */
         ProjectEntity: {
@@ -8777,6 +8894,106 @@ export interface operations {
             };
         };
     };
+    list_engines_api_v1_workspaces__workspace_id__projects__project_id__engines_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectEngineList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_engine_api_v1_workspaces__workspace_id__projects__project_id__engines__engine_code__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                engine_code: components["schemas"]["EngineCode"];
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngineUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectEngineResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_engine_api_v1_workspaces__workspace_id__projects__project_id__engines__engine_code__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                engine_code: components["schemas"]["EngineCode"];
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_project_entities_api_v1_workspaces__workspace_id__projects__project_id__entities_get: {
         parameters: {
             query?: {
@@ -11263,6 +11480,7 @@ export const connectionStatusValues: ReadonlyArray<FlattenedDeepRequired<compone
 export const costWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CostWorkload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync", "ai_overview", "extraction_llm", "keyword_research", "first_party"];
 export const domainInputMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainInput"]["match_scope"]> = ["path_prefix", "host", "registrable"];
 export const domainRefCategory_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainRef"]["category_source"]> = ["seed_list", "rule", "llm", "manual", "tenant_override"];
+export const engineCodeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineCode"]> = ["chatgpt_web", "gemini_web", "google_ai_mode"];
 export const entityEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Entity"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
 export const entityCreateEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityCreate"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
 export const entityDetailEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityDetail"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
@@ -11300,6 +11518,7 @@ export const keywordMetricsCompetition_levelAnyOf0Values: ReadonlyArray<Flattene
 export const keywordMetricsSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordMetrics"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
 export const meWorkspaceStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MeWorkspace"]["status"]> = ["active", "suspended", "deleting"];
 export const metricValueUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricValue"]["unit"]> = ["ratio", "count", "rank", "score", "usd", "clicks"];
+export const observationClassValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationClass"]> = ["consumer_ui", "official_api", "serp_ai"];
 export const operationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["kind"]> = ["collection_run", "keyword_import"];
 export const operationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["status"]> = ["queued", "running", "waiting_for_input", "succeeded", "succeeded_with_errors", "failed", "cancelled", "blocked"];
 export const progressUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Progress"]["unit"]> = ["tasks", "rows", "observations", "days", "items"];

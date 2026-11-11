@@ -9,6 +9,7 @@ from fastapi import Request
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from idraft.api.ai.engine_service import EngineService
 from idraft.api.auth.service import AuthService
 from idraft.api.auth.sessions import SessionStore
 from idraft.api.entities.project_service import ProjectEntityService
@@ -64,6 +65,7 @@ class Resources:
     ranks: RankService
     quotas: QuotaService
     integrations: IntegrationService
+    ai_engines: EngineService
 
 
 def get_resources(request: Request) -> Resources:

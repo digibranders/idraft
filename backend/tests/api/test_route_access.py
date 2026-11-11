@@ -352,6 +352,15 @@ EXPECTED: dict[tuple[str, str], str] = {
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/"
         "{tracked_keyword_id}/competitors",
     ): "keywords:write",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines"): "data:read",
+    (
+        "PUT",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines/{engine_code}",
+    ): "projects:write",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines/{engine_code}",
+    ): "projects:write",
 }
 
 
@@ -416,6 +425,8 @@ PATH_PARAMETERS = {
     "integration_id",
     # The product of an integration (`gsc`), not an id.
     "kind",
+    # An AI engine (`chatgpt_web`), a word and not an id, after `{project_id}`.
+    "engine_code",
 }
 # `{name}` or `{name:converter}`.
 PATH_PARAMETER = re.compile(r"\{(\w+)(?::\w+)?\}")

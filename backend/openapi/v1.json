@@ -1902,6 +1902,84 @@
         "title": "EmailRequest",
         "type": "object"
       },
+      "Engine": {
+        "properties": {
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "exposes_citations": {
+            "title": "Exposes Citations",
+            "type": "boolean"
+          },
+          "exposes_fanout": {
+            "title": "Exposes Fanout",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "max_prompt_chars": {
+            "title": "Max Prompt Chars",
+            "type": "integer"
+          },
+          "observation_class": {
+            "$ref": "#/components/schemas/ObservationClass"
+          },
+          "vendor": {
+            "title": "Vendor",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine_code",
+          "label",
+          "observation_class",
+          "vendor",
+          "exposes_citations",
+          "exposes_fanout",
+          "max_prompt_chars"
+        ],
+        "title": "Engine",
+        "type": "object"
+      },
+      "EngineCode": {
+        "enum": [
+          "chatgpt_web",
+          "gemini_web",
+          "google_ai_mode"
+        ],
+        "title": "EngineCode",
+        "type": "string"
+      },
+      "EngineUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "is_enabled": {
+            "default": true,
+            "description": "On starts weekly spend; off keeps the settings.",
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "location_ids": {
+            "description": "Active countries the engine runs the prompts in.",
+            "items": {
+              "maximum": 2147483647.0,
+              "minimum": 1.0,
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Location Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "location_ids"
+        ],
+        "title": "EngineUpdate",
+        "type": "object"
+      },
       "Entity": {
         "properties": {
           "alias_count": {
@@ -5888,6 +5966,16 @@
         "title": "OAuthStart",
         "type": "object"
       },
+      "ObservationClass": {
+        "description": "`ai.engines.observation_class` and `ai.observations.observation_class` (doc 04 8.1).",
+        "enum": [
+          "consumer_ui",
+          "official_api",
+          "serp_ai"
+        ],
+        "title": "ObservationClass",
+        "type": "string"
+      },
       "OffsetPageInfo": {
         "properties": {
           "limit": {
@@ -6662,6 +6750,98 @@
           "data"
         ],
         "title": "ProjectDomainList",
+        "type": "object"
+      },
+      "ProjectEngine": {
+        "properties": {
+          "active_prompts": {
+            "description": "Active prompts that fit the engine's length limit: what one run asks it.",
+            "title": "Active Prompts",
+            "type": "integer"
+          },
+          "engine": {
+            "$ref": "#/components/schemas/Engine"
+          },
+          "estimated_monthly_cost_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Active prompts x runs a week x 52 / 12 x the task price, as if the engine were on. Null when the price book has no price.",
+            "title": "Estimated Monthly Cost Usd"
+          },
+          "is_configured": {
+            "description": "The project has settings for the engine.",
+            "title": "Is Configured",
+            "type": "boolean"
+          },
+          "is_enabled": {
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "location_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Location Ids",
+            "type": "array"
+          },
+          "provider_code": {
+            "title": "Provider Code",
+            "type": "string"
+          },
+          "replicates": {
+            "title": "Replicates",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "engine",
+          "is_configured",
+          "is_enabled",
+          "location_ids",
+          "replicates",
+          "provider_code",
+          "active_prompts",
+          "estimated_monthly_cost_usd"
+        ],
+        "title": "ProjectEngine",
+        "type": "object"
+      },
+      "ProjectEngineList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectEngine"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ProjectEngineList",
+        "type": "object"
+      },
+      "ProjectEngineResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProjectEngine"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ProjectEngineResponse",
         "type": "object"
       },
       "ProjectEntity": {
@@ -16838,6 +17018,184 @@
         "summary": "The domains of the project's entities, with their roles",
         "tags": [
           "entities"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines": {
+      "get": {
+        "description": "Every engine offered, configured or not. `estimated_monthly_cost_usd` is what the engine costs a month with the project's active prompts on the base plan (runs a week, one answer, standard queue), as if it were on.",
+        "operationId": "list_engines_api_v1_workspaces__workspace_id__projects__project_id__engines_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEngineList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The AI engines and how the project runs them",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines/{engine_code}": {
+      "delete": {
+        "operationId": "delete_engine_api_v1_workspaces__workspace_id__projects__project_id__engines__engine_code__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "engine_code",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/EngineCode"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Remove the engine's settings; its answers stay",
+        "tags": [
+          "ai"
+        ]
+      },
+      "put": {
+        "description": "The first engine turned on makes the project's AI answer schedules (twice a week). `location_ids` must be active countries (`422 validation_failed` with `location_not_supported`). The provider is DataForSEO and the engine gives one answer per prompt and run.",
+        "operationId": "put_engine_api_v1_workspaces__workspace_id__projects__project_id__engines__engine_code__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "engine_code",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/EngineCode"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEngineResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Turn an engine on or off for the project",
+        "tags": [
+          "ai"
         ]
       }
     },

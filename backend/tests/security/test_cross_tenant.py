@@ -180,10 +180,11 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("POST", _W + "/projects/{project_id}/keyword-imports/{import_id}/confirm"): {
         "duplicate_action": "merge_terms",
     },
+    ("PUT", _W + "/projects/{project_id}/engines/{engine_code}"): {"location_ids": [LOCATION]},
 }
 # A path parameter that is a word, not an id of the tenant: it must not count as one of its
 # secrets, since every response would then seem to hold it.
-WORDS = {"kind": "gsc"}
+WORDS = {"kind": "gsc", "engine_code": "chatgpt_web"}
 # Routes that a member limited to some projects is refused even inside their own project: they
 # change the workspace's credentials, which belong to no one project (docs/24 section 3.2).
 EVERY_PROJECT_ONLY = {
@@ -419,6 +420,15 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         tracked["id"],
         term["id"],
         workspace.id,
+    )
+    # The same engine in both, on in the tracked keyword's country, so removing it succeeds.
+    await execute(
+        pg,
+        "INSERT INTO ai.project_engines (project_id, engine_code, workspace_id, location_ids, "
+        "provider_code) VALUES ($1, 'chatgpt_web', $2, ARRAY[$3::integer], 'dataforseo')",
+        project_id,
+        workspace.id,
+        LOCATION,
     )
     # The same schedule in both, and a run of it under way.
     schedule = await fetchrow(
@@ -723,6 +733,7 @@ _TENANT_ROWS = {
     "ops.secrets": "workspace_id",
     "fp.connections": "workspace_id",
     "fp.integrations": "workspace_id",
+    "ai.project_engines": "workspace_id",
 }
 
 
