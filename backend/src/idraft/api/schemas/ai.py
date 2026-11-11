@@ -343,7 +343,9 @@ class ObservationFacts(BaseModel):
 
     derivation_id: int
     is_valid: bool
-    outcome: Outcome
+    # Null for an answer that is not valid (a refusal, an empty or a failed answer): it is not
+    # in any bucket, and `filter[outcome_in]` leaves it out.
+    outcome: Outcome | None
     own_mentioned: bool
     own_domain_cited: bool
     own_mention_order: int | None
@@ -394,7 +396,9 @@ class ObservationPage(BaseModel):
 
 class CitationOut(BaseModel):
     citation_index: int
+    # The link to follow.
     url: str
+    # As the provider gave it: evidence, not a link, and no scheme is checked.
     raw_url: str
     host: str
     title: str | None
@@ -415,6 +419,8 @@ class MentionOut(BaseModel):
     role: Literal["own", "competitor", "watch", "untracked"]
     mention_count: int
     first_char_offset: int
+    # Null for an uncertain mention, a watched entity or a product counted as its brand: only
+    # the accepted mentions of own and competitor entities are numbered (migration 0019).
     mention_order: int | None
     match_method: str
     mention_status: Literal["accepted", "uncertain"]
@@ -426,6 +432,7 @@ class MentionOut(BaseModel):
 class ObservationDetail(ObservationSummary):
     answer_text: str | None
     error_code: str | None
+    # The provider's page to check the answer by; only an http or https address is given.
     check_url: str | None
     offsets_unit: Literal["utf16"]
     citations: list[CitationOut]

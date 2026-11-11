@@ -20,17 +20,20 @@ from idraft.db.tables import (
     ai_prompt_versions,
     domains,
     entities,
+    projects,
     urls,
 )
 
 _O, _F, _V = ai_observations.c, ai_observation_facts.c, ai_prompt_versions.c
 # An `observed_at` hint finds the month: the row is looked for this far either side of it.
 HINT_SLACK: Final = timedelta(days=1)
+# An outcome belongs to a valid answer: a refusal has both own flags false too, and must not
+# count as "neither" (the metrics count valid answers only).
 OUTCOMES: Final = {
-    "mentioned_and_cited": and_(_F.own_mentioned, _F.own_domain_cited),
-    "mentioned_only": and_(_F.own_mentioned, ~_F.own_domain_cited),
-    "cited_only": and_(~_F.own_mentioned, _F.own_domain_cited),
-    "neither": and_(~_F.own_mentioned, ~_F.own_domain_cited),
+    "mentioned_and_cited": and_(_F.is_valid, _F.own_mentioned, _F.own_domain_cited),
+    "mentioned_only": and_(_F.is_valid, _F.own_mentioned, ~_F.own_domain_cited),
+    "cited_only": and_(_F.is_valid, ~_F.own_mentioned, _F.own_domain_cited),
+    "neither": and_(_F.is_valid, ~_F.own_mentioned, ~_F.own_domain_cited),
 }
 _SUMMARY: Final = (
     _O.id,
@@ -138,19 +141,29 @@ async def get_observation(
     observation_id: int,
     observed_at: datetime | None,
 ) -> Any | None:
+    """An observation of a live project. `observed_at` is a hint; one so far from any answer that
+    the slack leaves the calendar finds nothing."""
     statement = (
         select(*_SUMMARY, _O.answer_text, _O.error_code, _O.provider_extras)
-        .select_from(_source())
+        .select_from(
+            _source().join(
+                projects,
+                and_(projects.c.id == _O.project_id, projects.c.workspace_id == _O.workspace_id),
+            )
+        )
         .where(
             _O.workspace_id == workspace_id,
             _O.project_id == project_id,
             _O.id == observation_id,
+            projects.c.deleted_at.is_(None),
         )
     )
     if observed_at is not None:
-        statement = statement.where(
-            _O.observed_at >= observed_at - HINT_SLACK, _O.observed_at <= observed_at + HINT_SLACK
-        )
+        try:
+            earliest, latest = observed_at - HINT_SLACK, observed_at + HINT_SLACK
+        except OverflowError:
+            return None
+        statement = statement.where(_O.observed_at >= earliest, _O.observed_at <= latest)
     return (await db.execute(statement)).one_or_none()
 
 

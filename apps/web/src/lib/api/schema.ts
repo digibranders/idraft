@@ -4588,11 +4588,8 @@ export interface components {
             had_structured_list: boolean;
             /** Is Valid */
             is_valid: boolean;
-            /**
-             * Outcome
-             * @enum {string}
-             */
-            outcome: "mentioned_and_cited" | "mentioned_only" | "cited_only" | "neither";
+            /** Outcome */
+            outcome: ("mentioned_and_cited" | "mentioned_only" | "cited_only" | "neither") | null;
             /** Own Citation Count */
             own_citation_count: number;
             /** Own Domain Cited */
@@ -12668,7 +12665,7 @@ export const mentionOutRoleValues: ReadonlyArray<FlattenedDeepRequired<component
 export const metricValueUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricValue"]["unit"]> = ["ratio", "count", "rank", "score", "usd", "clicks"];
 export const observationClassValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationClass"]> = ["consumer_ui", "official_api", "serp_ai"];
 export const observationDetailStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationDetail"]["status"]> = ["complete", "partial", "empty", "refused", "error"];
-export const observationFactsOutcomeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationFacts"]["outcome"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
+export const observationFactsOutcomeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationFacts"]["outcome"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
 export const observationSummaryStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationSummary"]["status"]> = ["complete", "partial", "empty", "refused", "error"];
 export const operationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["kind"]> = ["collection_run", "keyword_import"];
 export const operationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["status"]> = ["queued", "running", "waiting_for_input", "succeeded", "succeeded_with_errors", "failed", "cancelled", "blocked"];

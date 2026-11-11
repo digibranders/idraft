@@ -1232,6 +1232,8 @@ interface Derivation { derivation_id: number; extractor_version: number; entity_
                        recommendation_version: number; sentiment_version: number; created_at: Iso }
 ```
 
+**As built (step 8, slice 1, plan B, observation routes).** `ObservationFacts.outcome` is null for an answer that is not valid (a refusal, an empty or a failed answer), and `filter[outcome_in]` returns valid answers only, so `neither` never holds a refusal.
+
 #### 3.7.7 Citations, sources, fan-out (Phase 7 and 9; advanced source intelligence Phase 13)
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |

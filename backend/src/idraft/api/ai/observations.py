@@ -8,9 +8,11 @@ from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Final
+from urllib.parse import urlsplit
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.ai import observation_repository as repository
@@ -43,7 +45,9 @@ class ObservationPageResult:
     next_cursor: str | None
 
 
-def _outcome(mentioned: bool, cited: bool) -> Outcome:
+def _outcome(valid: bool, mentioned: bool, cited: bool) -> Outcome | None:
+    if not valid:
+        return None
     if mentioned:
         return "mentioned_and_cited" if cited else "mentioned_only"
     return "cited_only" if cited else "neither"
@@ -55,7 +59,7 @@ def _facts(row: Any) -> ObservationFacts | None:
     return ObservationFacts(
         derivation_id=row.derivation_id,
         is_valid=row.is_valid,
-        outcome=_outcome(row.own_mentioned, row.own_domain_cited),
+        outcome=_outcome(row.is_valid, row.own_mentioned, row.own_domain_cited),
         own_mentioned=row.own_mentioned,
         own_domain_cited=row.own_domain_cited,
         own_mention_order=row.own_mention_order,
@@ -98,6 +102,38 @@ def _summary_fields(row: Any) -> dict[str, Any]:
     }
 
 
+def _web_address(value: object) -> str | None:
+    """`value` when it is an http or https address: a provider's string is not trusted as a link."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return value if urlsplit(value).scheme.lower() in ("http", "https") else None
+    except ValueError:
+        return None
+
+
+def _out_of_range(field: str) -> RequestValidationError:
+    return RequestValidationError(
+        [{"loc": ("query", field), "type": "out_of_range", "msg": f"`{field}` is out of range."}]
+    )
+
+
+def _window(
+    start: datetime | date | None, end: datetime | date | None, zone: ZoneInfo
+) -> tuple[datetime, datetime]:
+    """The instants a request covers: `from` to `to` (now by default), or the 28 days before
+    `to`. A date so near the ends of the calendar that the arithmetic leaves it is a `422`."""
+    try:
+        since = request_bounds(start, None, zone)[0]
+    except (OverflowError, ValueError):
+        raise _out_of_range("from") from None
+    try:
+        until = request_bounds(None, end, zone)[1] or datetime.now(UTC)
+        return since or until - timedelta(days=OBSERVATIONS_DAYS), until
+    except (OverflowError, ValueError):
+        raise _out_of_range("to") from None
+
+
 def _utf16(text: str | None) -> Callable[[int], int]:
     """Code point offsets of `text` as UTF-16 code units: each character past U+FFFF is two."""
     if text is None or all(ord(char) <= 0xFFFF for char in text):
@@ -132,9 +168,7 @@ class ObservationService:
             zone = await project_zone(db, access.workspace_id, project_id)
         if zone is None:
             raise NotFoundError
-        since, until = request_bounds(start, end, ZoneInfo(zone.timezone))
-        until = until or datetime.now(UTC)
-        since = since or until - timedelta(days=OBSERVATIONS_DAYS)
+        since, until = _window(start, end, ZoneInfo(zone.timezone))
         if until - since > timedelta(days=OBSERVATIONS_MAX_DAYS):
             raise WindowTooLargeError(
                 f"A request covers at most {OBSERVATIONS_MAX_DAYS} days.",
@@ -203,12 +237,11 @@ class ObservationService:
             )
         units = _utf16(row.answer_text)
         extras = row.provider_extras or {}
-        check_url = extras.get("check_url")
         return ObservationDetail(
             **_summary_fields(row),
             answer_text=row.answer_text,
             error_code=row.error_code,
-            check_url=check_url if isinstance(check_url, str) else None,
+            check_url=_web_address(extras.get("check_url")),
             offsets_unit="utf16",
             citations=[
                 CitationOut(

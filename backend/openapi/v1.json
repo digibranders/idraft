@@ -6536,14 +6536,21 @@
             "type": "boolean"
           },
           "outcome": {
-            "enum": [
-              "mentioned_and_cited",
-              "mentioned_only",
-              "cited_only",
-              "neither"
+            "anyOf": [
+              {
+                "enum": [
+                  "mentioned_and_cited",
+                  "mentioned_only",
+                  "cited_only",
+                  "neither"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Outcome",
-            "type": "string"
+            "title": "Outcome"
           },
           "own_citation_count": {
             "title": "Own Citation Count",
