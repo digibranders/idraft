@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t('schedules') };
 }
 
-/** Project settings > Schedules: when the project's keyword metrics and rankings are collected. */
+/** Project settings > Schedules: when the project's keyword metrics, rankings and AI answers are collected. */
 export default async function SchedulesPage({
   params,
 }: PageProps<'/[workspace]/[project]/settings/schedules'>): Promise<ReactNode> {

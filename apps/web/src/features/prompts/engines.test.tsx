@@ -31,6 +31,8 @@ function enginesAs(role: Role, project: MockProject, country: string | null): Re
       <EnginesScreen
         workspaceId={MOCK_WORKSPACE.workspace_id}
         projectId={project.project_id}
+        workspaceSlug="digibranders"
+        projectSlug={project.slug}
         defaultCountryIso={country}
       />
     </PermissionProvider>
@@ -70,6 +72,15 @@ describe('Project settings > Engines', () => {
       expect(screen.getByText(`Countries of ${engine}`, { selector: 'label' })).toBeInTheDocument();
     }
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('says where the two weekly runs are paused and resumed: the Schedules section of the project', async () => {
+    renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    await screen.findByRole('switch', { name: 'ChatGPT' });
+    expect(screen.getByRole('link', { name: 'Schedules' })).toHaveAttribute(
+      'href',
+      `/digibranders/${fynix.slug}/settings/schedules`,
+    );
   });
 
   it('says 1 active prompt in the singular, on the row and in the question', async () => {

@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
+import Link from 'next/link';
 import { useState, type ReactElement, type ReactNode } from 'react';
 
 import { enginesQuery, PUT_ENGINE, refreshPrompts, type PromptScope } from './prompt-queries';
@@ -15,6 +16,7 @@ import { MultiSelect } from '@/components/ui/multi-select';
 import { SettingRow } from '@/components/ui/setting-row';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
@@ -24,10 +26,13 @@ import { formatCurrency } from '@/lib/format';
 import { money } from '@/lib/format/money';
 import { useCountries, type Country } from '@/lib/locations/countries';
 import { useCan } from '@/lib/permissions';
+import { projectPath } from '@/lib/routes/paths';
 
 export interface EnginesScreenProps {
   workspaceId: string;
   projectId: string;
+  workspaceSlug: string;
+  projectSlug: string;
   /** The country of the project's default location, which an engine never set up starts with. */
   defaultCountryIso: string | null;
 }
@@ -44,7 +49,13 @@ const refusedCountry = (failure: unknown): boolean =>
  * cost, since it starts scheduled spend; turning one off saves at once and keeps its countries. The countries
  * of an engine that is on save as they change; those of one that is off wait for it to be turned on.
  */
-export function EnginesScreen({ workspaceId, projectId, defaultCountryIso }: EnginesScreenProps): ReactNode {
+export function EnginesScreen({
+  workspaceId,
+  projectId,
+  workspaceSlug,
+  projectSlug,
+  defaultCountryIso,
+}: EnginesScreenProps): ReactNode {
   const t = useTranslations('aiEngines');
   const common = useTranslations('common');
   const scope: PromptScope = { workspaceId, projectId };
@@ -58,7 +69,18 @@ export function EnginesScreen({ workspaceId, projectId, defaultCountryIso }: Eng
         <h2 id="engines-title" className="type-section-title">
           {t('title')}
         </h2>
-        <p className="mt-1 type-meta">{t('description')}</p>
+        <p className="mt-1 type-meta">
+          {t.rich('description', {
+            link: (chunks) => (
+              <TextLink
+                variant="inline"
+                render={<Link href={projectPath(workspaceSlug, projectSlug, '/settings/schedules')} />}
+              >
+                {chunks}
+              </TextLink>
+            ),
+          })}
+        </p>
       </div>
       <Banner tone="info" placement="region" message={t('spendNote')} />
       {canWrite ? null : <Banner tone="info" placement="region" lead={t('readOnlyLead')} message={t('readOnly')} />}

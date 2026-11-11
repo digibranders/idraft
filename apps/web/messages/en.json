@@ -472,7 +472,7 @@
     },
     "schedules": {
       "title": "Schedules",
-      "description": "When this project's keyword metrics and rankings are collected. Each schedule keeps to its own time zone.",
+      "description": "When this project's keyword metrics, rankings and AI answers are collected. Each schedule keeps to its own time zone.",
       "newSchedule": "New schedule",
       "readOnlyLead": "Read only:",
       "readOnly": "Owners, admins and editors can change schedules.",
@@ -480,7 +480,7 @@
       "loadFailed": "The schedules could not be loaded.",
       "loadFailedReason": "The server did not answer. Try again in a moment.",
       "emptyTitle": "No schedules yet",
-      "emptyReason": "A schedule collects keyword metrics or rankings by itself, at the time you choose.",
+      "emptyReason": "A schedule collects keyword metrics, rankings or AI answers by itself, at the time you choose.",
       "emptyReasonReadOnly": "Owners, admins and editors can add schedules.",
       "tableLabel": "Schedules of this project",
       "columns": {
@@ -510,6 +510,7 @@
       "selector": {
         "join": "{first}; {second}",
         "all": "All keywords",
+        "allPrompts": "All active prompts",
         "stale": "Keywords not refreshed in {days, plural, one {# day} other {# days}}",
         "priority": "{max, select, 1 {Priority 1} other {Priority 1 to {max}}}",
         "groups": "Groups: {names}",
@@ -3233,7 +3234,7 @@
   },
   "aiEngines": {
     "title": "Engines",
-    "description": "The AI engines this project asks its prompts on, twice a week, on Monday and Thursday. Each engine is off until you turn it on.",
+    "description": "The AI engines this project asks its prompts on, twice a week, on Monday and Thursday. Each engine is off until you turn it on. Pause or resume those runs in <link>Schedules</link>.",
     "spendNote": "Turning an engine on starts scheduled spend: every active prompt is asked on it twice a week, at the price shown.",
     "readOnlyLead": "Read only:",
     "readOnly": "Owners, admins and editors can turn engines on and off.",

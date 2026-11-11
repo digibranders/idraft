@@ -24,6 +24,8 @@ export default async function EnginesPage({
     <EnginesScreen
       workspaceId={membership.workspace.workspace_id}
       projectId={current.project_id}
+      workspaceSlug={membership.workspace.slug}
+      projectSlug={current.slug}
       defaultCountryIso={current.default_location?.country_iso ?? null}
     />
   );
