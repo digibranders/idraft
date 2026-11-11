@@ -1,13 +1,14 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { http } from 'msw';
+import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { EnginesScreen } from './engines-screen';
-import type { Role } from '@/lib/api/types';
+import type { ProjectEngine, Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
+import { ENGINE_FACTS } from '@/mocks/prompt-fixtures';
 import { invalidField, mswPath, problem } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { axe } from '@/test/axe';
@@ -23,7 +24,7 @@ afterEach(() => {
   server.events.removeAllListeners();
 });
 
-function enginesAs(role: Role, project: MockProject, country: string): ReactElement {
+function enginesAs(role: Role, project: MockProject, country: string | null): ReactElement {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   return (
     <PermissionProvider membership={membershipFactory(role)}>
@@ -64,7 +65,35 @@ describe('Project settings > Engines', () => {
     const chatgptCountries = await screen.findByRole('toolbar', { name: 'Countries of ChatGPT' });
     expect(await within(chatgptCountries).findByText('Germany')).toBeInTheDocument();
     expect(within(chatgptCountries).getByText('India')).toBeInTheDocument();
+    // Each field of countries is named for its engine
+    for (const engine of ['ChatGPT', 'Gemini', 'Google AI Mode']) {
+      expect(screen.getByText(`Countries of ${engine}`, { selector: 'label' })).toBeInTheDocument();
+    }
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('says 1 active prompt in the singular, on the row and in the question', async () => {
+    const gemini: ProjectEngine = {
+      engine: ENGINE_FACTS.gemini_web,
+      is_configured: false,
+      is_enabled: false,
+      location_ids: [],
+      replicates: 1,
+      provider_code: 'dataforseo',
+      active_prompts: 1,
+      estimated_monthly_cost_usd: '0.010000',
+    };
+    server.use(
+      http.get(
+        mswPath(`/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${cleanstart.project_id}/engines`),
+        () => HttpResponse.json({ data: [gemini] }),
+      ),
+    );
+    const { user } = renderWithProviders(enginesAs('editor', cleanstart, 'US'));
+    expect(await screen.findByText('About $0.01 a month for 1 active prompt, twice a week')).toBeInTheDocument();
+    await user.click(screen.getByRole('switch', { name: 'Gemini' }));
+    const confirm = await screen.findByRole('alertdialog', { name: 'Turn on Gemini?' });
+    expect(within(confirm).getByText(/will ask your 1 active prompt twice a week/)).toBeInTheDocument();
   });
 
   it('asks before an engine is turned on, with the cost, then saves it with the country of the project', async () => {
@@ -114,6 +143,78 @@ describe('Project settings > Engines', () => {
     expect(screen.queryByText('Gemini is on')).not.toBeInTheDocument();
     await user.click(within(confirm).getByRole('button', { name: 'Cancel' }));
     expect(screen.getByRole('switch', { name: 'Gemini' })).not.toBeChecked();
+    // The refusal belonged to the question; it does not stay on the row once the question is closed
+    await waitFor(() =>
+      expect(screen.queryByText('One of the countries cannot be used. Choose another.')).not.toBeInTheDocument(),
+    );
+  });
+
+  it('saves the countries of an engine that is on as they change', async () => {
+    const puts = recordPuts();
+    const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    const chatgpt = await screen.findByRole('toolbar', { name: 'Countries of ChatGPT' });
+    await user.click(await within(chatgpt).findByRole('button', { name: 'Remove Germany' }));
+    await waitFor(() => expect(puts).toEqual([{ location_ids: [2356], is_enabled: true }]));
+  });
+
+  it('turns an engine off with the countries it holds, not with a field the person emptied', async () => {
+    const puts = recordPuts();
+    const { user } = renderWithProviders(enginesAs('editor', cleanstart, 'US'));
+    await user.click(await screen.findByRole('switch', { name: 'Gemini' }));
+    await user.click(await screen.findByRole('button', { name: 'Turn on Gemini' }));
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Gemini' })).toBeChecked());
+    const countries = await screen.findByRole('toolbar', { name: 'Countries of Gemini' });
+    await user.click(within(countries).getByRole('button', { name: 'Remove United States' }));
+    // Nothing is sent for an empty field, which says what is missing
+    expect(await screen.findByText('Choose at least one country.')).toBeInTheDocument();
+    expect(puts).toEqual([{ location_ids: [2840], is_enabled: true }]);
+    await user.click(screen.getByRole('switch', { name: 'Gemini' }));
+    expect(await screen.findByText('Gemini is off')).toBeInTheDocument();
+    expect(puts).toEqual([
+      { location_ids: [2840], is_enabled: true },
+      { location_ids: [2840], is_enabled: false },
+    ]);
+  });
+
+  it('turns an engine off with its saved countries after a country change was refused', async () => {
+    const puts = recordPuts();
+    server.use(
+      http.put(
+        enginePath(fynix),
+        ({ request }) =>
+          invalidField(request, 'location_ids', 'location_not_supported', 'ChatGPT runs in active countries only.'),
+        { once: true },
+      ),
+    );
+    const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    const chatgpt = await screen.findByRole('toolbar', { name: 'Countries of ChatGPT' });
+    await user.click(await within(chatgpt).findByRole('button', { name: 'Remove Germany' }));
+    expect(await screen.findByText('One of the countries cannot be used. Choose another.')).toBeInTheDocument();
+    await user.click(screen.getByRole('switch', { name: 'ChatGPT' }));
+    expect(await screen.findByText('ChatGPT is off')).toBeInTheDocument();
+    expect(puts).toEqual([
+      { location_ids: [2356], is_enabled: true },
+      { location_ids: [2276, 2356], is_enabled: false },
+    ]);
+  });
+
+  it('asks for a country only once the field was changed or turning on was tried', async () => {
+    const { user } = renderWithProviders(enginesAs('editor', cleanstart, null));
+    const gemini = await screen.findByRole('switch', { name: 'Gemini' });
+    // Opening the list of a field shows the countries have loaded; nothing was changed in it
+    const [field] = screen.getAllByRole('combobox');
+    if (field === undefined) throw new Error('No field of countries');
+    await user.click(field);
+    expect(await screen.findByRole('option', { name: 'Germany' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(gemini);
+    const confirm = await screen.findByRole('alertdialog', { name: 'Turn on Gemini?' });
+    expect(screen.queryByText('Choose at least one country.')).not.toBeInTheDocument();
+    await user.click(within(confirm).getByRole('button', { name: 'Turn on Gemini' }));
+    expect(await within(confirm).findByText('Choose at least one country.')).toBeInTheDocument();
+    await user.click(within(confirm).getByRole('button', { name: 'Cancel' }));
+    // The question is closed; the field itself now says what is missing, once per engine row
+    await waitFor(() => expect(screen.getAllByText('Choose at least one country.')).toHaveLength(1));
   });
 
   it('says why when turning an engine off is refused, and leaves the switch where it was', async () => {

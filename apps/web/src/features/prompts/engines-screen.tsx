@@ -20,7 +20,7 @@ import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
 import { useErrorId } from '@/lib/api/use-error-id';
 import type { ProjectEngine } from '@/lib/api/types';
-import { formatCurrency, formatInteger } from '@/lib/format';
+import { formatCurrency } from '@/lib/format';
 import { money } from '@/lib/format/money';
 import { useCountries, type Country } from '@/lib/locations/countries';
 import { useCan } from '@/lib/permissions';
@@ -128,6 +128,8 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
   const [draft, setDraft] = useState<readonly Country[] | null>(null);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The field is only said to be missing a country once it was changed, or turning the engine on was tried
+  const [touched, setTouched] = useState(false);
   const byId = new Map(countries.map((country) => [country.location_id, country]));
   const saved = engine.location_ids.flatMap((id) => byId.get(id) ?? []);
   const projectCountry = countries.filter((country) => country.country_iso === defaultCountryIso).slice(0, 1);
@@ -136,7 +138,8 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
   const ids =
     draft === null && engine.is_configured ? engine.location_ids : chosen.map((country) => country.location_id);
   const cost = engine.estimated_monthly_cost_usd === null ? null : money(engine.estimated_monthly_cost_usd);
-  const prompts = formatInteger(engine.active_prompts);
+  const prompts = engine.active_prompts;
+  const missingCountry = touched && chosen.length === 0;
 
   const fail = (message: string): void => {
     setError(message);
@@ -156,6 +159,7 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
       throw failure;
     }
     setDraft(null);
+    setTouched(false);
     await refreshPrompts(queryClient, scope);
   };
 
@@ -165,8 +169,9 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
       setAsking(true);
       return;
     }
-    // The API needs a country even to turn an engine off, so with none chosen it keeps the ones it holds
-    save(false, ids.length > 0 ? ids : engine.location_ids).then(
+    // Off keeps what the engine holds: the API needs a country even here, and a field the person emptied or a
+    // change the API refused must not stop the engine from being turned off
+    save(false, engine.location_ids).then(
       () => toast({ type: 'success', title: t('turnedOff', { engine: label }) }),
       // The row says why; the switch stays where it was
       () => undefined,
@@ -174,6 +179,7 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
   };
   const changeCountries = (next: readonly Country[]): void => {
     setDraft(next);
+    setTouched(true);
     // An engine that is on saves its countries at once, like its switch; with none chosen nothing is sent
     if (engine.is_enabled && next.length > 0) {
       save(
@@ -184,6 +190,7 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
   };
   const turnOn = async (): Promise<void> => {
     if (ids.length === 0) {
+      setTouched(true);
       fail(t('countriesRequired'));
       throw new Error('An engine needs a country before it is turned on');
     }
@@ -201,8 +208,8 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
           <Switch checked={engine.is_enabled} busy={put.isPending} disabled={!canWrite} onCheckedChange={turn} />
         }
       />
-      <Field invalid={chosen.length === 0 && countries.length > 0} disabled={!canWrite}>
-        <FieldLabel>{t('countries')}</FieldLabel>
+      <Field invalid={missingCountry} disabled={!canWrite}>
+        <FieldLabel>{t('countriesLabel', { engine: label })}</FieldLabel>
         <MultiSelect<Country>
           value={chosen}
           onValueChange={changeCountries}
@@ -216,7 +223,7 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
           disabled={!canWrite}
           {...hints}
         />
-        {chosen.length === 0 && countries.length > 0 ? (
+        {missingCountry ? (
           <FieldError message={t('countriesRequired')} />
         ) : (
           <FieldDescription>{t('countriesHint')}</FieldDescription>
@@ -224,7 +231,11 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
       </Field>
       <ConfirmDialog
         open={asking}
-        onOpenChange={setAsking}
+        onOpenChange={(open) => {
+          setAsking(open);
+          // A refusal belongs to the question: it does not stay on the row once the question is closed
+          if (!open) setError(null);
+        }}
         tone="neutral"
         title={t('confirmTitle', { engine: label })}
         description={
