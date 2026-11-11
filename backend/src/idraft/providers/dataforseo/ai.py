@@ -16,7 +16,7 @@ from typing import Final, Literal
 
 from pydantic import Field, field_validator
 
-from idraft.domain.ai_engines import ENGINES
+from idraft.domain.ai_engines import ENGINES, PROMPT_TEXT_MAX
 from idraft.providers.contract import CanonicalRequest, Contract
 from idraft.providers.dataforseo.endpoint import TaskBuilder, TaskEndpoint
 
@@ -38,7 +38,7 @@ PROMPT_MAX: Final[Mapping[str, int]] = MappingProxyType(
 
 
 class AiAnswerParams(Contract):
-    prompt: str = Field(min_length=1, max_length=2000)
+    prompt: str = Field(min_length=1, max_length=PROMPT_TEXT_MAX)
     location_code: int = Field(ge=1)
     # ISO 639-1, with a region or script where DataForSEO has one, as for SERP tasks.
     language_code: str = Field(pattern=r"^[a-z]{2,3}(-[A-Za-z]{2,4})?$")

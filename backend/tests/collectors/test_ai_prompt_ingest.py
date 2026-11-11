@@ -9,10 +9,12 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from sqlalchemy.exc import DBAPIError
 
 from idraft.collectors import ai_prompt_ingest
 from idraft.collectors.ai_prompt_ingest import current_derivation, ingest
 from idraft.collectors.ingest_waits import IngestReport
+from idraft.collectors.seo_rank_ingest import NOT_READ, NOT_STORABLE
 from idraft.extraction import aliases
 from tests.api.auth.support import execute, fetch, fetchrow
 from tests.collectors.ai_support import (
@@ -27,6 +29,7 @@ from tests.collectors.ai_support import (
 from tests.collectors.rank_support import Ledger, _entity
 from tests.collectors.support import NOW
 from tests.collectors.test_fetching import MemoryStore
+from tests.collectors.test_seo_rank_ingest import LosingStore
 from tests.conftest import PostgresServer
 from tests.providers.dataforseo.support import FIXTURES
 
@@ -393,6 +396,78 @@ async def test_the_task_of_a_deleted_prompt_is_ingested_into_nothing(
         migrated, "SELECT id FROM ai.observations WHERE collection_task_id = $1", task_id
     )
     assert rows == []
+
+
+async def _observations_of(pg: PostgresServer, world: AiWorld) -> int:
+    row = await fetchrow(
+        pg,
+        "SELECT count(*) AS n FROM ai.observations WHERE workspace_id = $1",
+        world.project.workspace_id,
+    )
+    count: int = row["n"]
+    return count
+
+
+async def test_a_missing_answer_waits_then_fails_after_a_day(
+    worker_db: Ledger, migrated: PostgresServer, world: AiWorld
+) -> None:
+    store = LosingStore()
+    _, task_id = await _gemini(worker_db, migrated, world, store)
+    store.lost = set(store.objects)
+
+    report = await ingest(worker_db, store)
+
+    assert report == IngestReport(waiting=1)
+    row = await fetchrow(
+        migrated,
+        "SELECT status, last_error_code, next_attempt_at FROM ops.collection_tasks WHERE id = $1",
+        task_id,
+    )
+    assert (row["status"], row["last_error_code"]) == ("fetched", NOT_READ)
+    assert row["next_attempt_at"] > NOW
+    assert (await ingest(worker_db, store)).quiet
+
+    # Fetched more than a day ago, and due again: now it fails, so its run can finish.
+    await execute(
+        migrated,
+        "UPDATE ops.collection_tasks SET ready_at = now() - interval '25 hours', "
+        "next_attempt_at = NULL WHERE id = $1",
+        task_id,
+    )
+    assert await ingest(worker_db, store) == IngestReport(failed=1)
+    assert await _task_status(migrated, task_id) == "failed"
+    assert await _observations_of(migrated, world) == 0
+
+
+class _OrigError(Exception):
+    def __init__(self, sqlstate: str) -> None:
+        super().__init__("the database refused the row")
+        self.sqlstate = sqlstate
+
+
+async def test_an_answer_the_database_will_always_refuse_fails_instead_of_waiting(
+    worker_db: Ledger,
+    migrated: PostgresServer,
+    world: AiWorld,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def refuse(*_: object, **__: object) -> None:
+        raise DBAPIError("insert", {}, _OrigError("22003"))
+
+    monkeypatch.setattr(ai_prompt_ingest, "_insert_fact", refuse)
+    store = MemoryStore()
+    _, task_id = await _gemini(worker_db, migrated, world, store)
+
+    report = await ingest(worker_db, store)
+
+    assert report == IngestReport(failed=1)
+    task = await fetchrow(
+        migrated, "SELECT status, last_error_code FROM ops.collection_tasks WHERE id = $1", task_id
+    )
+    assert (task["status"], task["last_error_code"]) == ("failed", NOT_STORABLE)
+    # The write was rolled back as a whole, and a failed task is not tried again.
+    assert await _observations_of(migrated, world) == 0
+    assert (await ingest(worker_db, store)).quiet
 
 
 async def test_a_new_entity_configuration_gets_its_own_derivation(
