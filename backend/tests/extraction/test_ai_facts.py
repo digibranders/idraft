@@ -414,3 +414,97 @@ def test_when_a_brand_and_its_product_both_match_the_brand_takes_the_earlier_ord
     assert own.first_char_offset == text.index("Acme XDR")
     assert (own.mention_order, facts.fact.own_mention_order) == (2, 2)
     assert facts.fact.tracked_entities_mentioned == 2
+
+
+def test_a_product_of_a_watched_brand_is_not_folded_into_it() -> None:
+    watch_only: Mapping[uuid.UUID, ProjectRole] = {OWN: "watch", PRODUCT: "own"}
+
+    facts = extract_answer_facts(
+        "We chose Acme XDR.",
+        [],
+        matcher=PRODUCT_MATCHER,
+        resolver=RESOLVER,
+        roles=watch_only,
+        is_valid=True,
+    )
+
+    by_entity = {m.entity_id: m for m in facts.mentions}
+    assert by_entity[OWN].mention_order is None
+    assert by_entity[PRODUCT].mention_order == 1
+    assert facts.fact.own_mentioned
+    assert facts.fact.own_mention_order == 1
+
+
+def test_a_citation_marker_link_is_not_a_mention() -> None:
+    raw = "https://acme-soc.example/pricing"
+    text = f"Pricing starts low [[1]]({raw}) and [[2]]({raw})."
+
+    facts = _facts(text, _source(raw, "inline"))
+
+    assert facts.mentions == ()
+    assert facts.fact.own_domain_cited
+    assert len(blank_link_targets(text)) == len(text)
+    assert raw not in blank_link_targets(text)
+
+
+def test_a_link_target_in_angle_brackets_is_blanked() -> None:
+    text = "Pricing [source](<https://acme-soc.example/a b>) now."
+
+    blanked = blank_link_targets(text)
+
+    assert _facts(text).mentions == ()
+    assert blanked == "Pricing [source](" + " " * len("<https://acme-soc.example/a b>") + ") now."
+
+
+def test_anchor_text_that_looks_like_a_host_is_blanked_a_known_limit() -> None:
+    node = uuid.UUID("00000000-0000-0000-0000-0000000000c1")
+    matcher = AliasMatcher([EntityRule(node, "Node.js")], [])
+
+    facts = extract_answer_facts(
+        "Use [Node.js](https://nodejs.org) today.",
+        [],
+        matcher=matcher,
+        resolver=RESOLVER,
+        roles={node: "competitor"},
+        is_valid=True,
+    )
+
+    assert facts.mentions == ()
+
+
+def _fixture_mentions(engine: str, name: str, domain: str) -> tuple[str, int, AnswerFacts]:
+    """The answer of a captured fixture read with an own entity that only has `domain`."""
+    fixture = Path(__file__).parents[1] / f"fixtures/dataforseo/captured/{name}.json"
+    answer = parse_ai_answer(engine, fixture.read_bytes())
+    assert answer.answer_text is not None
+    own = uuid.UUID("00000000-0000-0000-0000-0000000000a2")
+    matcher = AliasMatcher([EntityRule(own, "Zzyzx Unmatched Co", domains=(domain,))], [])
+    facts = extract_answer_facts(
+        answer.answer_text,
+        [],
+        matcher=matcher,
+        resolver=DomainResolver([]),
+        roles={own: "own"},
+        is_valid=True,
+    )
+    text = answer.answer_text
+    link = r"\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*\]\([^)\s]*\)"  # one level of brackets in the text
+    written = re.sub(link, "", text).count(domain)
+    return text, written, facts
+
+
+@pytest.mark.parametrize(
+    ("engine", "name", "domain"),
+    [
+        ("ai_mode", "ai_mode_answer", "embee.co.in"),
+        ("gemini_web", "gemini_scraper_answer", "factosecure.com"),
+        ("gemini_web", "gemini_scraper_answer", "netnxt.com"),
+    ],
+)
+def test_citation_links_on_the_captured_answers_are_not_mentions(
+    engine: str, name: str, domain: str
+) -> None:
+    text, written, facts = _fixture_mentions(engine, name, domain)
+
+    assert text.count(domain) > written  # the fixture does cite it in links
+    assert sum(m.mention_count for m in facts.mentions) == written

@@ -9,16 +9,21 @@ database, no I/O. Offsets are into the text as given, in code points.
 A mention the matcher is unsure of is kept as `uncertain` and left out of every rate (doc 13
 section 1, principle 4). A domain that is only a markdown link, its target or its host-only text
 (ChatGPT's `[www.acme.io](https://www.acme.io/x)` pill), is a citation, not a mention (doc 13
-principle 5): both are blanked before matching, offsets unchanged. Anchor text such as
-`[Acme](...)` still counts, and so do an autolink `<https://acme.io>`, a reference definition
-`[1]: https://acme.io` and a bare URL, which are domains written in the text.
+principle 5): both are blanked before matching, offsets unchanged. The link text may hold one
+level of brackets (AI Mode's `[[1]](url)`) and the target may sit in `<...>`. Anchor text such
+as `[Acme](...)` still counts, and so do an autolink `<https://acme.io>`, a reference definition
+`[1]: https://acme.io` and a bare URL, which are domains written in the text. Known limit:
+anchor text that looks like a host, `[Node.js](https://nodejs.org)`, is blanked and so is not
+counted as a mention of an entity named that way.
 
 Mention order and the share of voice set (doc 13 stage 7, doc 16 section 5): only accepted
 mentions of own and competitor entities are numbered, by the first offset of their accepted
 spans; an uncertain mention and a watched entity get no order and count in no rate. A product
 counts as its brand: the matcher already adds the product's spans to its parent (`via_product`),
 so the parent takes the product's earlier order, and the product's own row (kept, with no order)
-is not a member of the set. A product whose brand is not tracked counts as itself.
+is not a member of the set. A product whose brand is not tracked, or is only watched, counts as
+itself. A competitor's product with its own domain rule can split that competitor's citations
+across two ids (`competitor_cited`); share of voice is unaffected, it comes from mentions.
 Recommendation, sentiment, prominence beyond the first offset and structured lists are later
 slices: `had_structured_list` is always false.
 """
@@ -36,9 +41,11 @@ from idraft.extraction.domains import DomainResolver, DomainRole, ProjectRole
 from idraft.extraction.urls import CanonicalUrl
 
 EXTRACTOR_VERSION: Final = 1
-# `[text](target "title")`: a markdown link or image, the title in either kind of quote.
+# `[text](target "title")`: a markdown link or image. The text may hold one level of brackets
+# (AI Mode's `[[1]](url)`), the target may be `<...>`, the title may use either kind of quote.
 _LINK: Final = re.compile(
-    r"\[(?P<text>[^\]\n]*)\]\((?P<inner>[^)\s]+(?:\s+(?:\"[^\"]*\"|'[^']*'))?)\)"
+    r"\[(?P<text>(?:[^\[\]\n]|\[[^\[\]\n]*\])*)\]"
+    r"\((?P<inner>(?:<[^<>\n]+>|[^)\s]+)(?:\s+(?:\"[^\"]*\"|'[^']*'))?)\)"
 )
 # A link text that is only a host or a URL: `www.acme.io`, `acme.io/x`, `https://acme.io`.
 _HOST_TEXT: Final = re.compile(
@@ -185,11 +192,11 @@ def _mentions(
     text: str, matcher: AliasMatcher, roles: Mapping[uuid.UUID, ProjectRole]
 ) -> tuple[MentionFact, ...]:
     result = matcher.match(blank_link_targets(text))
-    # Products whose tracked brand carries their spans: they count as that brand.
+    # Products whose own or competitor brand carries their spans: they count as that brand.
     as_brand = {
         span.via_entity_id
         for mention in result.mentions
-        if mention.entity_id in roles
+        if roles.get(mention.entity_id) in ("own", "competitor")
         for span in mention.spans
         if span.via_entity_id is not None
     }
