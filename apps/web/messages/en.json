@@ -3261,6 +3261,38 @@
     "turnedOff": "{engine} is off"
   },
   "prompts": {
+    "title": "Topics & Prompts",
+    "meta": "Answers from {from} to {to}",
+    "window": "Window",
+    "windowOption": "Last {days, number} days",
+    "noAccessTitle": "You cannot see the prompts of this project",
+    "noAccessReason": "Viewing prompts needs read access to the project’s data. Ask an admin of this workspace.",
+    "enginesFailed": "The engines of this project could not be loaded.",
+    "loadFailed": "The prompts could not be loaded.",
+    "loadFailedReason": "The server did not answer. Try again in a moment.",
+    "summaryFailed": "The answer counts could not be loaded. The prompts are listed without them.",
+    "noEngineTitle": "No AI engine is on",
+    "noEngineReason": "Turn on ChatGPT, Gemini or Google AI Mode in the project settings to start asking your prompts.",
+    "toEngines": "Open the Engines settings",
+    "noPromptsTitle": "No prompts yet",
+    "noPromptsReason": "Add the questions your buyers ask AI assistants. Each prompt is asked twice a week.",
+    "noAnswers": "No data yet. Each prompt is asked twice a week, on Monday and Thursday, and its first answers arrive after the next run.",
+    "branded": "Branded",
+    "caption": "Prompts",
+    "noun": {
+      "one": "prompt",
+      "other": "prompts"
+    },
+    "search": "Search prompts",
+    "emptyFiltered": "No prompts match",
+    "emptyFilteredReason": "Change the search or the filters to see more prompts.",
+    "clearFilters": "Clear filters",
+    "columns": {
+      "prompt": "Prompt",
+      "topic": "Topic",
+      "country": "Country",
+      "noTopic": "No topic"
+    },
     "addPrompts": "Add prompts",
     "add": {
       "title": "Add prompts",
