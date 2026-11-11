@@ -802,13 +802,9 @@ def _statements(resources: Resources) -> Iterator[list[str]]:
         event.remove(engine, "before_cursor_execute", record)
 
 
-async def test_a_full_project_is_a_handful_of_statements(
-    api: httpx.AsyncClient,
-    resources: Resources,
-    migrated: PostgresServer,
-) -> None:
-    """The base plan: 150 prompts, three engines, eight answers each (twice a week for 28 days):
-    3,600 facts. The summary reads them with one grouped query per level, not one per prompt."""
+async def _full_project(resources: Resources, migrated: PostgresServer) -> Summary:
+    """The base plan: 150 prompts in one topic, three engines, eight answers each (twice a week
+    for 28 days): 3,600 facts, each naming the own brand, written straight into the tables."""
     workspace = await make_workspace(migrated)
     owner = await member(resources, migrated, workspace, "owner")
     await ensure_locations(migrated)
@@ -871,7 +867,17 @@ async def test_a_full_project_is_a_handful_of_statements(
         project.id,
         derivation["id"],
     )
-    world = Summary(workspace, project, owner, {}, {}, uuid.uuid4(), uuid.uuid4())
+    return Summary(workspace, project, owner, {}, {}, uuid.uuid4(), uuid.uuid4())
+
+
+async def test_a_full_project_is_a_handful_of_statements(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+) -> None:
+    """The summary reads the 3,600 facts of a full project with one grouped query per level,
+    not one per prompt."""
+    world = await _full_project(resources, migrated)
 
     with _statements(resources) as seen:
         response = await _summary(world, api)
@@ -887,4 +893,28 @@ async def test_a_full_project_is_a_handful_of_statements(
         assert _cell(engine["share_of_voice"]) == (1200, 1200, 1200)
     assert _cell(data["prompts"][0]["engines"][0]["mentioned"]) == (8, 8, 8)
     # The count does not depend on the number of prompts (a query per prompt would be 150 or more).
+    assert len(seen) <= 20, seen
+
+
+async def test_half_of_the_answers_superseded_are_all_left_out(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The four oldest of each prompt's eight answers (1,800 of 3,600) are superseded: the
+    summary counts the other four, and reads them as it reads a project without any."""
+    world = await _full_project(resources, migrated)
+    await execute(
+        migrated,
+        "UPDATE ai.observations SET superseded_by = id "
+        "WHERE project_id = $1 AND observed_at < now() - interval '10 days'",
+        world.project.id,
+    )
+
+    with _statements(resources) as seen:
+        response = await _summary(world, api)
+
+    data = response.json()["data"]
+    assert _cell(data["prompts"][0]["engines"][0]["mentioned"]) == (4, 4, 4)
+    for engine in data["topics"][0]["engines"]:
+        assert _cell(engine["mentioned"]) == (150, 150, 600)
+        assert _cell(engine["share_of_voice"]) == (600, 600, 600)
     assert len(seen) <= 20, seen

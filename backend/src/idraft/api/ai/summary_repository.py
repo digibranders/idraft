@@ -17,7 +17,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Float, and_, cast, exists, func, or_, select
+from sqlalchemy import Float, and_, cast, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.db.tables import (
@@ -233,19 +233,18 @@ def _window(
         _F.observed_date >= _shifted(since, -1),
         _F.observed_date <= _shifted(until, 1),
         _F.prompt_id.in_(list(prompt_ids)),
-        # A superseded answer is left out. Looked up as an anti-join over the few superseded
-        # answers of the window, with the same bounds on the answers' table: a join of every
-        # fact to every answer is read as a nested loop when the planner has no statistics.
-        ~exists().where(
-            _O.id == _F.observation_id,
-            _O.observed_at == _F.observed_at,
-            _O.workspace_id == workspace_id,
-            _O.project_id == project_id,
-            _O.observed_at >= since,
-            _O.observed_at < until,
-            _O.observed_date >= _shifted(since, -1),
-            _O.observed_date <= _shifted(until, 1),
-            _O.superseded_by.is_not(None),
+        # A superseded answer is left out: its facts are looked up in the set of the window's
+        # superseded answers, which is small and bounded like the facts (0020 indexes it).
+        tuple_(_F.observation_id, _F.observed_at).not_in(
+            select(_O.id, _O.observed_at).where(
+                _O.workspace_id == workspace_id,
+                _O.project_id == project_id,
+                _O.observed_at >= since,
+                _O.observed_at < until,
+                _O.observed_date >= _shifted(since, -1),
+                _O.observed_date <= _shifted(until, 1),
+                _O.superseded_by.is_not(None),
+            )
         ),
     ]
     if engine_codes is not None:

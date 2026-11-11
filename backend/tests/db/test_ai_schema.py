@@ -62,6 +62,35 @@ async def test_the_answer_tables_are_partitioned_by_month_and_registered(
             assert registered == 1, table
 
 
+async def test_superseded_answers_have_a_partial_index_in_every_partition(
+    migrated: PostgresServer,
+) -> None:
+    """The prompts summary leaves superseded answers out with an anti join over the few there
+    are (migration 0020): the index holds only those, on the parent so each partition has one,
+    and a partition made later (a PARTITION OF table inherits the parent's indexes) too."""
+    query = (
+        "SELECT count(*) FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid "
+        "WHERE i.inhparent = 'ai.observations'::regclass AND NOT EXISTS ("
+        "SELECT 1 FROM pg_indexes x WHERE x.schemaname = 'ai' AND x.tablename = c.relname "
+        "AND x.indexdef LIKE '%(project_id, observed_date) WHERE (superseded_by IS NOT NULL)')"
+    )
+    async with connection(migrated) as db:
+        parent = await db.fetchval(
+            "SELECT indexdef FROM pg_indexes WHERE schemaname = 'ai' "
+            "AND indexname = 'observations_superseded_idx'"
+        )
+        without = await db.fetchval(query)
+        await db.execute("SELECT ops.ensure_monthly_partitions('ai.observations', 1, 8)")
+        without_later = await db.fetchval(query)
+        partitions = await db.fetchval(
+            "SELECT count(*) FROM pg_inherits WHERE inhparent = 'ai.observations'::regclass"
+        )
+
+    assert parent is not None
+    assert (without, without_later) == (0, 0)
+    assert partitions >= 10
+
+
 async def test_the_engines_are_seeded_as_the_code_knows_them(migrated: PostgresServer) -> None:
     async with connection(migrated) as db:
         rows = await db.fetch(
