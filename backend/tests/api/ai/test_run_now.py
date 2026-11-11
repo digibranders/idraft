@@ -15,18 +15,27 @@ from idraft.api.resources import Resources
 from idraft.providers.dataforseo.provider import CODE as DATAFORSEO
 from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.entities.support import Caller, member, problem
-from tests.api.keywords.support import errors, project_url
+from tests.api.keywords.support import (
+    LOCATION,
+    OTHER_LOCATION,
+    ensure_locations,
+    errors,
+    project_url,
+)
 from tests.api.workspaces.support import make_project
 from tests.collectors.ai_support import Prompt, add_prompt, enable_engine
 from tests.collectors.support import Project, make_schedule
 from tests.conftest import PostgresServer
 
 QUESTION = "Which managed SOC providers work with mid-size banks?"
+# A second active location of the United States, for the tests that need two.
+SECOND_US_LOCATION = 2999001
 
 
 async def _setup(
     resources: Resources, pg: PostgresServer
 ) -> tuple[Workspace, Project, Caller, Prompt]:
+    await ensure_locations(pg)
     workspace = await make_workspace(pg)
     owner = await member(resources, pg, workspace, "owner")
     project = Project(workspace.id, await make_project(pg, workspace.id))
@@ -244,6 +253,120 @@ async def test_a_person_may_ask_again_what_a_schedule_already_answered(
     response = await _run_now(api, workspace, project, owner, prompt.id, ["chatgpt_web"])
 
     assert response.status_code == 202, response.text
+
+
+async def test_runs_that_ended_without_an_answer_do_not_block_a_new_one(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, prompt = await _setup(resources, migrated)
+    named = {"selector": {"prompt_ids": [str(prompt.id)], "engine_codes": ["chatgpt_web"]}}
+    for status in ("cancelled", "budget_blocked"):
+        await execute(
+            migrated,
+            "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
+            "window_end, trigger, status, created_by_type, config_snapshot) VALUES "
+            "($1, $2, 'ai_prompt', now(), now() + interval '1 hour', 'manual', $3, 'user', "
+            "$4::jsonb)",
+            workspace.id,
+            project.id,
+            status,
+            json.dumps(named),
+        )
+
+    response = await _run_now(api, workspace, project, owner, prompt.id, ["chatgpt_web"])
+
+    assert response.status_code == 202, response.text
+
+
+async def test_an_engine_with_no_location_in_the_prompts_country_is_refused(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, prompt = await _setup(resources, migrated)
+    await enable_engine(migrated, project, "gemini_web", location_ids=[OTHER_LOCATION])
+
+    refused = await _run_now(
+        api, workspace, project, owner, prompt.id, ["chatgpt_web", "gemini_web"]
+    )
+
+    assert problem(refused) == (422, "validation_failed")
+    assert errors(refused) == [("engine_codes", "location_not_enabled")]
+    assert await _runs(migrated, project) == []
+    taken = await _run_now(api, workspace, project, owner, prompt.id, ["chatgpt_web"])
+    assert taken.status_code == 202
+
+
+async def test_an_engine_the_catalogue_has_turned_off_is_refused(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, prompt = await _setup(resources, migrated)
+    await execute(migrated, "UPDATE ai.engines SET is_active = false WHERE code = 'gemini_web'")
+    try:
+        response = await _run_now(api, workspace, project, owner, prompt.id, ["gemini_web"])
+    finally:
+        await execute(migrated, "UPDATE ai.engines SET is_active = true WHERE code = 'gemini_web'")
+
+    assert errors(response) == [("engine_codes", "engine_not_enabled")]
+    assert await _runs(migrated, project) == []
+
+
+async def test_an_engine_without_a_price_is_refused(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, prompt = await _setup(resources, migrated)
+    book = "ops.provider_price_book"
+    gemini = "ai_optimization/gemini/llm_scraper"
+    # The price starts in the future: no price today, which the planner would plan nothing on.
+    original = await fetch(
+        migrated, f"SELECT id, valid_from FROM {book} WHERE endpoint = $1", gemini
+    )
+    await execute(
+        migrated, f"UPDATE {book} SET valid_from = current_date + 30 WHERE endpoint = $1", gemini
+    )
+    try:
+        response = await _run_now(api, workspace, project, owner, prompt.id, ["gemini_web"])
+    finally:
+        for row in original:
+            await execute(
+                migrated,
+                f"UPDATE {book} SET valid_from = $1 WHERE id = $2",
+                row["valid_from"],
+                row["id"],
+            )
+
+    assert errors(response) == [("engine_codes", "price_unavailable")]
+    assert await _runs(migrated, project) == []
+
+
+async def test_the_months_answers_count_each_location_of_an_engine(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, prompt = await _setup(resources, migrated)
+    await execute(
+        migrated,
+        "INSERT INTO core.locations (id, name, country_iso, location_type) VALUES "
+        "($1, 'Second US location', 'US', 'Country') ON CONFLICT (id) DO NOTHING",
+        SECOND_US_LOCATION,
+    )
+    try:
+        await execute(
+            migrated,
+            "INSERT INTO core.workspace_quotas (workspace_id, max_ai_observations_per_month) "
+            "VALUES ($1, 1) ON CONFLICT (workspace_id) DO UPDATE "
+            "SET max_ai_observations_per_month = 1",
+            workspace.id,
+        )
+        await enable_engine(
+            migrated, project, "chatgpt_web", location_ids=[LOCATION, SECOND_US_LOCATION]
+        )
+
+        over = await _run_now(api, workspace, project, owner, prompt.id, ["chatgpt_web"])
+        fits = await _run_now(api, workspace, project, owner, prompt.id, ["gemini_web"])
+    finally:
+        await execute(migrated, "DELETE FROM core.locations WHERE id = $1", SECOND_US_LOCATION)
+
+    assert problem(over) == (422, "quota_exceeded")
+    assert (over.json()["used"], over.json()["requested"]) == (0, 2)
+    assert fits.status_code == 202, fits.text
 
 
 async def test_the_days_manual_runs_and_the_months_answers_are_limited(

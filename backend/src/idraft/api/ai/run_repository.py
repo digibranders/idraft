@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.collectors.ai_prompt import SUBJECT_TYPE, UNSETTLED
 from idraft.db.tables import (
-    ai_project_engines,
     ai_prompt_versions,
     ai_prompts,
     collection_runs,
@@ -60,16 +59,6 @@ async def runnable_prompt(
     if row is None:
         return None
     return RunnablePrompt(prompt_id=row.id, version_id=row.version_id, text_length=row.length)
-
-
-async def enabled_engines(db: AsyncSession, workspace_id: UUID, project_id: UUID) -> set[str]:
-    e = ai_project_engines.c
-    rows = await db.execute(
-        select(e.engine_code).where(
-            e.workspace_id == workspace_id, e.project_id == project_id, e.is_enabled
-        )
-    )
-    return {row.engine_code for row in rows}
 
 
 async def pending_engines(

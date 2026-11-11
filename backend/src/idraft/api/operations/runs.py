@@ -33,6 +33,7 @@ from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
 from idraft.api.permissions import Permission
 from idraft.api.problems import (
     CheckPendingError,
+    FieldError,
     ForbiddenError,
     InvalidStateTransitionError,
     ManualRunLimitError,
@@ -40,14 +41,17 @@ from idraft.api.problems import (
     ProviderPausedError,
     QuotaExceededError,
     invalid_field,
+    invalid_fields,
 )
 from idraft.api.request_info import RequestInfo
 from idraft.api.schemas.ai import RunNow
 from idraft.api.schemas.keywords import MetricsRefresh
 from idraft.api.schemas.ranks import CheckNow
 from idraft.api.workspaces.access import WorkspaceAccess
+from idraft.collectors import ai_prompt
+from idraft.collectors.ai_prompt import Subject
+from idraft.collectors.registry import ScheduleWindow
 from idraft.db.engine import workspace_transaction
-from idraft.providers.dataforseo.ai import ENGINE_ENDPOINTS, PROMPT_MAX
 from idraft.providers.dataforseo.provider import CODE as DATAFORSEO
 from idraft.providers.pauses import RedisPauses
 
@@ -78,10 +82,15 @@ class RunDetail:
     tasks_by_status: dict[str, int]
 
 
+async def _now(db: AsyncSession) -> datetime:
+    """The database clock."""
+    now: datetime = (await db.execute(select(func.now()))).scalar_one()
+    return now
+
+
 async def _today(db: AsyncSession) -> datetime:
     """The start of the day (UTC) by the database clock."""
-    now: datetime = (await db.execute(select(func.now()))).scalar_one()
-    return now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    return (await _now(db)).astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 async def _month_start(db: AsyncSession) -> datetime:
@@ -93,6 +102,56 @@ async def _live_project(db: AsyncSession, access: WorkspaceAccess, project_id: U
     """A deleted project has no runs to show or cancel."""
     if await keywords.project_defaults(db, access.workspace_id, project_id) is None:
         raise NotFoundError
+
+
+_NOT_ASKED_WHY: Final = {
+    "engine_not_enabled": "The engine is not turned on for the project.",
+    "prompt_too_long": "The prompt is longer than this engine takes.",
+    "location_not_enabled": "The engine has no location in the prompt's country.",
+}
+
+
+async def _ai_subjects(
+    db: AsyncSession, access: WorkspaceAccess, project_id: UUID, prompt_id: UUID, engines: list[str]
+) -> list[Subject]:
+    """The tasks the planner will make for this run, by the planner's own rules. An engine that
+    would get none (not on, switched off, no location in the prompt's country, a prompt over its
+    limit) or an endpoint without a price is refused now, not planned into a run with nothing in
+    it."""
+    now = await _now(db)
+    window = ScheduleWindow(
+        schedule_id=None,
+        workspace_id=access.workspace_id,
+        project_id=project_id,
+        workload=ai_prompt.WORKLOAD,
+        provider_mode="live",
+        selector={"prompt_ids": [str(prompt_id)], "engine_codes": engines},
+        window_start=now,
+        window_end=now + MANUAL_WINDOW,
+        window_hours=1,
+    )
+    subjects, skipped = await ai_prompt.select_subjects(db, window)
+    asked = {subject.engine_code for subject in subjects}
+    why = {item.engine_code: item.reason for item in skipped}
+    refused = [
+        FieldError(
+            "engine_codes",
+            why.get(code, "engine_not_enabled"),
+            f"{code}: {_NOT_ASKED_WHY[why.get(code, 'engine_not_enabled')]}",
+        )
+        for code in engines
+        if code not in asked
+    ]
+    if refused:
+        raise invalid_fields(refused)
+    cost = await ai_prompt.estimate(db, subjects, queue="standard", on=now.astimezone(UTC).date())
+    if cost is None:
+        raise invalid_field(
+            "engine_codes",
+            code="price_unavailable",
+            message="The price book has no price for these engines today.",
+        )
+    return subjects
 
 
 def _scope(project_id: UUID, given: RunFilter) -> dict[str, object]:
@@ -332,19 +391,7 @@ class RunService:
             prompt = await ai_runs.runnable_prompt(db, access.workspace_id, project_id, prompt_id)
             if prompt is None:
                 raise NotFoundError
-            enabled = await ai_runs.enabled_engines(db, access.workspace_id, project_id)
-            if any(code not in enabled for code in engines):
-                raise invalid_field(
-                    "engine_codes",
-                    code="engine_not_enabled",
-                    message="An engine the project has not turned on.",
-                )
-            if any(prompt.text_length > PROMPT_MAX[ENGINE_ENDPOINTS[code]] for code in engines):
-                raise invalid_field(
-                    "engine_codes",
-                    code="prompt_too_long",
-                    message="The prompt is longer than one of these engines takes.",
-                )
+            subjects = await _ai_subjects(db, access, project_id, prompt_id, engines)
             await runs.lock_manual_runs(db, project_id)
             # Under the lock, so two requests cannot both pass: an answer on its way is not
             # paid for twice.
@@ -367,13 +414,13 @@ class RunService:
                 )
             limit = await ai_runs.lock_ai_observation_limit(db, access.workspace_id)
             asked = await ai_runs.ai_tasks_since(db, access.workspace_id, await _month_start(db))
-            if asked + len(engines) > limit:
+            if asked + len(subjects) > limit:
                 raise QuotaExceededError(
                     f"The workspace has asked for {asked} of its {limit} AI answers this month "
-                    f"(UTC); {len(engines)} more do not fit.",
+                    f"(UTC); {len(subjects)} more do not fit.",
                     limit=limit,
                     used=asked,
-                    requested=len(engines),
+                    requested=len(subjects),
                     quota="max_ai_observations_per_month",
                 )
             run_id = await runs.insert_manual_run(
