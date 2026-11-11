@@ -373,6 +373,7 @@
       "entities": "Entities and aliases",
       "domains": "Domains",
       "taxonomy": "Taxonomy",
+      "engines": "Engines",
       "schedules": "Schedules",
       "workspace": "General",
       "members": "Members and roles",
@@ -3229,5 +3230,34 @@
       "siteRestrictedUser": "Restricted user",
       "siteUnverifiedUser": "Unverified user"
     }
+  },
+  "aiEngines": {
+    "title": "Engines",
+    "description": "The AI engines this project asks its prompts on, twice a week, on Monday and Thursday. Each engine is off until you turn it on.",
+    "spendNote": "Turning an engine on starts scheduled spend: every active prompt is asked on it twice a week, at the price shown.",
+    "readOnlyLead": "Read only:",
+    "readOnly": "Owners, admins and editors can turn engines on and off.",
+    "loadFailed": "The engines could not be loaded.",
+    "loadFailedReason": "The server did not answer. Try again in a moment.",
+    "estimate": "About {cost} a month for {prompts} active prompts, twice a week",
+    "noPrice": "No price is on record for this engine yet.",
+    "countries": "Countries",
+    "countriesHint": "The engine asks each prompt in the country the prompt stands for.",
+    "countriesPlaceholder": "Add a country",
+    "countriesEmpty": "No country matches “{query}”",
+    "countriesRequired": "Choose at least one country.",
+    "countriesFailed": "The list of countries could not be loaded.",
+    "countriesRefused": "One of the countries cannot be used. Choose another.",
+    "chips": "Countries of {engine}",
+    "remove": "Remove {value}",
+    "forbidden": "You do not have permission to change the engines of this project.",
+    "saveFailed": "The change was not saved. Try again in a moment.",
+    "confirmTitle": "Turn on {engine}?",
+    "confirmDescription": "{engine} will ask your {prompts} active prompts twice a week, for about {cost} a month. This starts scheduled spend from the next run.",
+    "confirmNoPrice": "{engine} will ask your active prompts twice a week. This starts scheduled spend from the next run.",
+    "confirm": "Turn on {engine}",
+    "turnedOn": "{engine} is on",
+    "turnedOnHint": "The first answers arrive after the next Monday or Thursday run.",
+    "turnedOff": "{engine} is off"
   }
 }
