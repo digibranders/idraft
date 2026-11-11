@@ -2,16 +2,19 @@
 
 import {
   keepPreviousData,
+  queryOptions,
   useInfiniteQuery,
   useQuery,
   type QueryClient,
+  type QueryFunction,
   type UseQueryResult,
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 
 import type { DateRange } from './prompt-model';
 import { api, unwrap } from '@/lib/api/client';
-import { projectKey, type QueryKey } from '@/lib/api/keys';
+import { projectKey, queryKey, type QueryKey } from '@/lib/api/keys';
+import { ApiProblem } from '@/lib/api/problem';
 import { apiMutation, apiQuery, type ApiQueryOptions, type ApiResponse } from '@/lib/api/query';
 import type { EngineCode, Prompt } from '@/lib/api/types';
 
@@ -43,8 +46,12 @@ export type LintAnswer = ApiResponse<'post', typeof LINT>;
 const PAGE = 200;
 /** The list stops here whatever the API says: the base plan allows 150 active prompts a workspace. */
 export const MAX_PROMPTS = 1000;
-/** A prompt's answers in one read: 90 days hold at most 78 (twice a week on three engines). */
-const ANSWERS_PAGE = 100;
+/**
+ * A prompt's answers in one read, the most the API gives (200). Scheduled runs make 78 to 81 over 90 days
+ * (twice a week on three engines); manual runs add to them (up to 20 a day for the workspace), and the list does
+ * not read a second page.
+ */
+const ANSWERS_PAGE = 200;
 const FIRST_PAGE: string | null = null;
 
 const pathOf = (scope: PromptScope): { workspace_id: string; project_id: string } => ({
@@ -144,9 +151,27 @@ export const observationsQuery = (
   });
 
 /**
- * `GET {P}/ai/observations/{observation_id}`. The API sends the id as text and takes a 64-bit integer in the
- * path; the typed path wants a number, which holds an id exactly only up to 2^53. Ids come from a sequence and
- * stay far below that, so a larger one is refused here rather than read as another answer.
+ * Whether `id` is an observation id a path number holds exactly. The API sends the id as text and takes a
+ * 64-bit integer; the typed path wants a number, exact only up to 2^53. Ids come from a sequence and stay far
+ * below that, so a larger one is no answer of ours and is not looked up as another one.
+ */
+export const isObservationId = (id: string): boolean => /^[1-9]\d*$/.test(id) && Number.isSafeInteger(Number(id));
+
+const NOT_AN_ANSWER = (): ApiProblem =>
+  new ApiProblem({
+    status: 404,
+    code: 'not_found',
+    title: 'Not Found',
+    detail: null,
+    requestId: null,
+    errors: [],
+    retryAfterSeconds: null,
+    body: {},
+  });
+
+/**
+ * `GET {P}/ai/observations/{observation_id}`; an `observationId` that `isObservationId` refuses is not asked
+ * and rejects with a `not_found` `ApiProblem`, as the screens read a missing answer.
  * `observedAt` is the `observed_at` of the list row: the API finds the month of the answer with it.
  */
 export const observationQuery = (
@@ -154,15 +179,22 @@ export const observationQuery = (
   observationId: string,
   observedAt?: string,
 ): ApiQueryOptions<typeof OBSERVATION> => {
-  const id = Number(observationId);
-  if (!/^[1-9]\d*$/.test(observationId) || !Number.isSafeInteger(id)) {
-    throw new Error(`The observation id ${observationId} is not an integer a path can carry exactly`);
+  const query = observedAt === undefined ? {} : { observed_at: observedAt };
+  if (!isObservationId(observationId)) {
+    // An id typed into the address (`?inspect=answer:abc`) names no answer: nothing is asked, and the inspector
+    // reaches the same not found state as for an answer that does not exist
+    const queryFn: QueryFunction<ApiResponse<'get', typeof OBSERVATION>, QueryKey> = () =>
+      Promise.reject(NOT_AN_ANSWER());
+    return {
+      ...queryOptions({
+        queryKey: queryKey(OBSERVATION, { ...pathOf(scope), observation_id: observationId }, query),
+        queryFn,
+      }),
+      queryFn,
+    };
   }
   return apiQuery(OBSERVATION, {
-    params: {
-      path: { ...pathOf(scope), observation_id: id },
-      ...(observedAt === undefined ? {} : { query: { observed_at: observedAt } }),
-    },
+    params: { path: { ...pathOf(scope), observation_id: Number(observationId) }, query },
   });
 };
 

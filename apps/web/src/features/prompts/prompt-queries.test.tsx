@@ -11,6 +11,7 @@ import {
   enginesKey,
   enginesQuery,
   MAX_PROMPTS,
+  isObservationId,
   observationQuery,
   observationsQuery,
   projectEntitiesQuery,
@@ -47,6 +48,8 @@ const PAGE_TWO = '22222222-2222-4222-8222-222222222222';
 const LINTED = { data: [], quota: { limit: 150, used: 24 } };
 const RANGE = { from: '2026-10-16', to: '2026-11-12' };
 const DAY_MS = 86_400_000;
+/** 2^60 as the API would send it: a number no double holds exactly. */
+const TWO_TO_60 = '1152921504606846976';
 
 /** A prompt as the API sends it, for a page a test makes up. */
 const promptRow = (): Record<string, unknown> => ({
@@ -333,6 +336,18 @@ describe('the answers of a prompt', () => {
     expect(typeof answers.data[0]?.observation_id).toBe('string');
   });
 
+  it('are read in one page of the most the API gives, 200, since scheduled answers and manual runs both land here', async () => {
+    let limit: string | null = null;
+    server.use(
+      http.get(`${PROJECT}/ai/observations`, ({ request }) => {
+        limit = new URL(request.url).searchParams.get('limit');
+        return HttpResponse.json({ data: [], page: { limit: 200, next_cursor: null, has_more: false } });
+      }),
+    );
+    await client.fetchQuery(observationsQuery(scope, firstPrompt.prompt_id, lastMonth()));
+    expect(limit).toBe('200');
+  });
+
   it('open one by its id, with the hint of the month when the list gave it', async () => {
     const [row] = (await client.fetchQuery(observationsQuery(scope, firstPrompt.prompt_id, lastMonth()))).data;
     if (row === undefined) throw new Error('The prompt has no answer');
@@ -352,10 +367,33 @@ describe('the answers of a prompt', () => {
     expect(problem.code).toBe('not_found');
   });
 
-  it('refuse an id that a path number cannot hold exactly, rather than open another answer', () => {
-    expect(() => observationQuery(scope, '9223372036854775807')).toThrow('observation id');
-    expect(() => observationQuery(scope, 'abc')).toThrow('observation id');
-    expect(() => observationQuery(scope, '9007199254740991')).not.toThrow();
+  it('know an id a path number holds exactly', () => {
+    expect(['20400001', '9007199254740991'].map(isObservationId)).toEqual([true, true]);
+    expect(['', 'abc', '0', '-5', '1.5', '007', '9007199254740993', TWO_TO_60].map(isObservationId)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it('are not found, with no request, for an id that is no number or that a path number would change', async () => {
+    let asked = 0;
+    server.use(
+      http.get(`${PROJECT}/ai/observations/:id`, () => {
+        asked += 1;
+        return HttpResponse.json({});
+      }),
+    );
+    for (const id of ['abc', TWO_TO_60, '9223372036854775807']) {
+      const problem = await refusal(client.fetchQuery(observationQuery(scope, id)));
+      expect([problem.status, problem.code]).toEqual([404, 'not_found']);
+    }
+    expect(asked).toBe(0);
   });
 });
 

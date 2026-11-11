@@ -135,8 +135,8 @@ describe('a count cell', () => {
     expect(countText(topic)).toBe('3 of 5');
   });
 
-  it('keeps the counts of a topic cell that has no pooled answers, such as Share of voice', () => {
-    expect(countText(cell({ value: 0.25, numerator: 5, denominator: 20, n_observations: 21 }))).toBe('5 of 20');
+  it('is nothing for a fractional numerator without pooled answers: that is no count, and is not rounded into one', () => {
+    expect(countText(cell({ value: 0.58, numerator: 3.5, denominator: 6, n_observations: 7 }))).toBeNull();
   });
 
   it('is nothing where no valid answer counts, whatever else the cell holds', () => {

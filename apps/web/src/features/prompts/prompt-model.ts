@@ -36,17 +36,17 @@ export type PromptsTab = (typeof PROMPTS_TABS)[number];
 export const parseTab = (value: string | null): PromptsTab => (value === 'prompts' ? 'prompts' : 'topics');
 
 /**
- * "4 of 8": the valid answers that count over the valid answers of a cell; `null` where none is valid (the
- * API sends `value` null for a denominator of 0), never "0 of 0". A prompt's cell counts answers in
- * `numerator` and `denominator`. A topic's Mentioned, Cited and outcome cells are prompt weighted: their
- * numerator is a sum of rates (2.5 is possible) over the prompts with a valid answer, so they read the answers
- * from `pooled`. Share of voice stays counts of answers on both kinds of row and has no `pooled`.
+ * "4 of 8": the valid answers that count over the valid answers of a cell, for Mentioned, Cited and the
+ * outcome cells; `null` where none is valid (the API sends `value` null for a denominator of 0), never
+ * "0 of 0". A prompt's cell counts answers in `numerator` and `denominator`. A topic's cell is prompt weighted:
+ * its numerator is a sum of rates (2.5 is possible) over the prompts with a valid answer, so it reads the
+ * answers from `pooled`. Share of voice is not a count (its numerator is a sum of shares): it is not for this
+ * function, and a numerator that is no whole number without `pooled` gives `null` rather than a rounded count.
  */
 export function countText(cell: MetricCell | undefined): string | null {
   if (cell === undefined || cell.value === null) return null;
-  return cell.pooled == null
-    ? formatSampleCount(cell.numerator, cell.denominator)
-    : formatSampleCount(cell.pooled.successes, cell.pooled.trials);
+  if (cell.pooled != null) return formatSampleCount(cell.pooled.successes, cell.pooled.trials);
+  return Number.isInteger(cell.numerator) ? formatSampleCount(cell.numerator, cell.denominator) : null;
 }
 
 /** The prompt's topics: its terms of a topic vocabulary. */
