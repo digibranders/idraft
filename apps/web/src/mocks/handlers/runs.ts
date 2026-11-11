@@ -26,6 +26,7 @@ import {
 import { readingOf } from '../factories/keyword';
 import { labsMicros, runDetailView, runPath, runState, runView, RUN_WORKING_MS } from '../factories/operations';
 import { operationIdMinter, operationWorld, runTime, TRIGGERS, withRun, type StoredRun } from '../operations-state';
+import { runNowRunsToday } from '../prompts-state';
 import { recordManualCheck } from '../serp-world';
 import { invalid, mock, problem } from '../respond';
 import { projectList } from '../workspace-state';
@@ -170,6 +171,10 @@ function refreshReadings(
   return [...seen.values()];
 }
 
+/** The manual runs of the project today: every kind of manual run shares the 20, Run now's of AI prompts included. */
+const manualRunsUsed = (caller: OperationsProjectCaller, now: number): number =>
+  manualRunsToday(caller.operations, caller.project.project_id, now) + runNowRunsToday(caller.project.project_id, now);
+
 export const runHandlers: HttpHandler[] = [
   mock('get', `${P}/runs`, ({ request, cookies, params }) => {
     const caller = operationsProjectCaller(request, cookies, params.workspace_id, params.project_id, {
@@ -218,7 +223,7 @@ export const runHandlers: HttpHandler[] = [
       meta: {
         manual_runs_today: {
           limit: MANUAL_RUN_LIMIT,
-          used: manualRunsToday(caller.operations, caller.project.project_id, now),
+          used: manualRunsUsed(caller, now),
         },
       },
     });
@@ -310,7 +315,7 @@ export const runHandlers: HttpHandler[] = [
       ]);
     }
     const now = Date.now();
-    const used = manualRunsToday(caller.operations, caller.project.project_id, now);
+    const used = manualRunsUsed(caller, now);
     if (used >= MANUAL_RUN_LIMIT) {
       // The API carries only `limit` (api/problems.py `ManualRunLimitError`): no `used`, no wait, no Retry-After
       return problem(request, 'manual_run_limit', {
@@ -431,7 +436,7 @@ export const runHandlers: HttpHandler[] = [
     }
 
     const now = Date.now();
-    const used = manualRunsToday(caller.operations, caller.project.project_id, now);
+    const used = manualRunsUsed(caller, now);
     if (used >= MANUAL_RUN_LIMIT) {
       return problem(request, 'manual_run_limit', {
         detail: `This project has started ${String(MANUAL_RUN_LIMIT)} manual runs today. The count starts again at midnight UTC.`,

@@ -229,11 +229,39 @@ describe('answer fixtures', () => {
     expect(differs).toBe(true);
     // The provider's own string is evidence, not a link: the API checks no scheme on it
     expect(notAWebAddress).toBe(true);
-    expect(kinds).toContain('source_list');
-    expect(kinds).toContain('inline');
-    expect(kinds).toContain('product_card');
+    // The backend's only kinds: ChatGPT and Gemini give a source list or inline links
+    expect([...kinds].sort()).toEqual(['inline', 'source_list']);
     const own = WITH_TEXT.flatMap((found) => found.answer.citations).find((citation) => citation.domain_role === 'own');
     expect(own?.role_entity_id).toBe(MOCK_ENTITY_IDS.fynix);
+  });
+
+  it('never stores an advertisement as a source, and keeps a tracked address as an ordinary one', () => {
+    const citations = WITH_TEXT.flatMap((found) => found.answer.citations);
+    for (const citation of citations) {
+      expect(citation.raw_url).not.toMatch(/gclid|utm_medium=cpc/);
+      expect(citation.host).not.toBe('shop.example.com');
+    }
+    const tracked = citations.filter((citation) => citation.referral_tag === 'newsletter');
+    expect(tracked.length).toBeGreaterThan(0);
+    for (const citation of tracked) {
+      expect(citation).toMatchObject({ domain_role: 'third_party', citation_kind: 'source_list' });
+      expect(citation.raw_url).toContain('utm_source=newsletter');
+      expect(citation.url).not.toContain('utm_source');
+    }
+    expect(citations.some((citation) => citation.referral_tag === 'chatgpt.com')).toBe(true);
+  });
+
+  it('gives Google AI Mode reference cards, and every engine only the kinds the backend stores', () => {
+    const modes = [0, 1, 2, 3, 4, 5, 6, 7].flatMap((index) =>
+      [20_400, 20_401, 20_404, 20_408].flatMap((day) => answerOf(index, 'en', 'google_ai_mode', day).citations),
+    );
+    expect(modes.length).toBeGreaterThan(0);
+    expect(new Set(modes.map((citation) => citation.citation_kind))).toEqual(new Set(['reference_card']));
+    const all = [...CASES.flatMap((found) => found.answer.citations), ...modes];
+    for (const citation of all) {
+      expect(['source_list', 'inline', 'reference_card']).toContain(citation.citation_kind);
+      if (citation.citation_kind === 'reference_card') expect(modes).toContain(citation);
+    }
   });
 
   it('has a link to check the answer by only when the provider gave an http or https address', () => {

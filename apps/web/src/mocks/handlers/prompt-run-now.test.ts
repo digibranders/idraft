@@ -220,6 +220,58 @@ describe('run now', () => {
     expect((await runNow(mockBrowser('analyst'), promptAt(MANUAL_RUNS_PER_DAY), ['chatgpt_web'])).status).toBe(202);
   });
 
+  it('shares the 20 manual runs of a day with the other manual runs of the project, in both directions', async () => {
+    const analyst = mockBrowser('analyst');
+    // Keyword refreshes are manual runs too: 20 of them leave none for Run now
+    for (let n = 0; n < MANUAL_RUNS_PER_DAY; n += 1) {
+      expect((await analyst.call('POST', `${FYNIX}/keyword-metrics/refresh`, {})).status).toBe(202);
+    }
+    const over = await runNow(analyst, promptAt(0), ['chatgpt_web']);
+    expect(over.status).toBe(429);
+    expect(over.body).toMatchObject({ code: 'manual_run_limit', limit: MANUAL_RUNS_PER_DAY });
+    // And Run now's runs count against a keyword refresh, and show in the day's count of the runs list
+    const other = mockBrowser('analyst');
+    const used = async (): Promise<number> => {
+      const list = await other.call('GET', `${FYNIX}/runs`);
+      return z.object({ manual_runs_today: z.object({ used: z.number() }) }).parse(list.body.meta).manual_runs_today
+        .used;
+    };
+    const before = await used();
+    for (let n = 0; n < 3; n += 1) expect((await runNow(other, promptAt(n), ['chatgpt_web'])).status).toBe(202);
+    expect(await used()).toBe(before + 3);
+    for (let n = 3; n < MANUAL_RUNS_PER_DAY - before; n += 1) {
+      expect((await runNow(other, promptAt(n), ['chatgpt_web'])).status).toBe(202);
+    }
+    const refresh = await other.call('POST', `${FYNIX}/keyword-metrics/refresh`, {});
+    expect(refresh.status).toBe(429);
+    expect(refresh.code).toBe('manual_run_limit');
+  });
+
+  it('checks in the order of the API: the prompt, the engines, what is on its way, the runs of the day, then the answers of the month', async () => {
+    const analyst = mockBrowser('analyst');
+    const unknown = '0192d1a8-9a01-7b44-8c2d-1f0e9d8c7bff';
+    // A prompt the project does not collect is 404 whatever the engines say
+    expect((await runNow(analyst, unknown, ['google_ai_mode'])).code).toBe('not_found');
+    // A refused engine is 422 before what is on its way, and before the limits
+    expect((await runNow(analyst, promptAt(0), ['chatgpt_web'])).status).toBe(202);
+    const refusedFirst = await runNow(analyst, promptAt(0), ['chatgpt_web', 'google_ai_mode']);
+    expect(refusedFirst.status).toBe(422);
+    expect(fieldCodes(refusedFirst)).toEqual(['engine_codes:engine_not_enabled']);
+    // What is on its way is 409 before the day's runs
+    for (let n = 1; n < MANUAL_RUNS_PER_DAY; n += 1) {
+      expect((await runNow(analyst, promptAt(n), ['chatgpt_web'])).status).toBe(202);
+    }
+    expect((await runNow(analyst, promptAt(0), ['chatgpt_web'])).status).toBe(409);
+    expect(fieldCodes(await runNow(analyst, promptAt(MANUAL_RUNS_PER_DAY), ['google_ai_mode']))).toEqual([
+      'engine_codes:engine_not_enabled',
+    ]);
+    // The day's runs are 429 before the month's answers
+    promptsOf(fynix.project_id).answersAsked.set('2026-11', AI_ANSWER_QUOTA);
+    const limit = await runNow(analyst, promptAt(MANUAL_RUNS_PER_DAY), ['chatgpt_web']);
+    expect(limit.status).toBe(429);
+    expect(limit.code).toBe('manual_run_limit');
+  });
+
   it('stops when the answers of the month would pass the workspace limit, saying what was asked and what is requested', async () => {
     const analyst = mockBrowser('analyst');
     expect((await runNow(analyst, promptAt(2), ['chatgpt_web', 'gemini_web'])).status).toBe(202);

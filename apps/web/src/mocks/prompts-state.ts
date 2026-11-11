@@ -1,5 +1,5 @@
 import { FIRST_MINTED } from './mock-ids';
-import { FIXTURE_ENGINES, FIXTURE_PROMPTS, type StoredEngine, type StoredPrompt } from './prompt-fixtures';
+import { DAY_MS, FIXTURE_ENGINES, FIXTURE_PROMPTS, type StoredEngine, type StoredPrompt } from './prompt-fixtures';
 import { onMockReset } from './state';
 
 /**
@@ -55,6 +55,10 @@ export function mintPromptNumber(): number {
   minted += 1;
   return minted;
 }
+
+/** The manual runs Run now has made in the project today (UTC); they count against the day's 20 with the others. */
+export const runNowRunsToday = (projectId: string, now: number): number =>
+  promptsOf(projectId).manualRuns.get(Math.floor(now / DAY_MS)) ?? 0;
 
 /** Whether the data provider is refusing every request: Run now then answers `503 provider_paused`. */
 export const isProviderPaused = (): boolean => providerPaused;

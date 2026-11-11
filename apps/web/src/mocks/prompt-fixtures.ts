@@ -249,10 +249,15 @@ const PROVIDER_CHECK: Readonly<Record<EngineCode, string>> = {
   gemini_web: 'https://gemini.google.com/app',
   google_ai_mode: 'https://www.google.com/search?udm=50',
 };
+/**
+ * The kinds the backend stores (migration 0018 allows more, but the parser gives these): ChatGPT and Gemini give a
+ * source list or inline links, Google AI Mode reference cards. An advertisement is never stored as a source
+ * (providers/dataforseo/ai_parse.py drops them).
+ */
 const CITATION_KINDS: Readonly<Record<EngineCode, string>> = {
   chatgpt_web: 'source_list',
-  gemini_web: 'reference_card',
-  google_ai_mode: 'search_result',
+  gemini_web: 'source_list',
+  google_ai_mode: 'reference_card',
 };
 
 interface Party {
@@ -314,11 +319,11 @@ const GUIDE_SITE: Site = {
   role: 'third_party',
   entity_id: null,
 };
-const SHOP_SITE: Site = {
-  url: 'https://shop.example.com/seo-tools',
-  host: 'shop.example.com',
-  title: 'SEO tools for agencies',
-  source_name: 'Example Shop',
+const NEWSLETTER_SITE: Site = {
+  url: 'https://news.example.com/seo-digest',
+  host: 'news.example.com',
+  title: 'The SEO digest',
+  source_name: 'Example News',
   role: 'third_party',
   entity_id: null,
 };
@@ -436,7 +441,7 @@ function makeAnswer(index: number, languageCode: string, engine: EngineCode, day
   const utm = chatgptTag === null ? '' : `?utm_source=${chatgptTag}`;
   const ownCited = (index + 2 * day + e) % 4 === 0;
   const brightwaveCited = planned.some((item) => item.who === BRIGHTWAVE) && day % 2 === 0;
-  const inline = index % 3 === 1;
+  const inline = engine !== 'google_ai_mode' && index % 3 === 1;
   const kind = CITATION_KINDS[engine];
   const sources: { site: Site; raw: string; kind: string; tag: string | null; flags: string[] }[] = [
     ...(ownCited ? [{ site: OWN_SITE, raw: `${OWN_SITE.url}${utm}`, kind, tag: chatgptTag, flags: [] }] : []),
@@ -444,25 +449,27 @@ function makeAnswer(index: number, languageCode: string, engine: EngineCode, day
       ? [{ site: BRIGHTWAVE_SITE, raw: `${BRIGHTWAVE_SITE.url}${utm}`, kind, tag: chatgptTag, flags: [] }]
       : []),
     { site: GUIDE_SITE, raw: `${GUIDE_SITE.url}${utm}`, kind: inline ? 'inline' : kind, tag: chatgptTag, flags: [] },
-    // An advertiser's card: the provider's address carries the click and campaign tags the canonical address drops
+    // An ordinary source whose address carries a campaign tag: the canonical address drops it, the referral tag keeps it
     ...((index + day) % 6 === 2
       ? [
           {
-            site: SHOP_SITE,
-            raw: `${SHOP_SITE.url}?gclid=Cj0KCQiA&utm_source=google&utm_medium=cpc`,
-            kind: 'product_card',
-            tag: 'google',
+            site: NEWSLETTER_SITE,
+            raw: `${NEWSLETTER_SITE.url}?utm_source=newsletter&utm_medium=email`,
+            kind,
+            tag: 'newsletter',
             flags: [],
           },
         ]
       : []),
-    // A string that is no web address: evidence of what the provider sent, never a link
+    // A screen-hardening fixture, not something the API gives: the real backend never stores an address it cannot
+    // read as a web address (it keeps the source for the count only), but `raw_url` checks no scheme, so a screen
+    // must still never turn it into a link.
     ...(turn === 6
       ? [
           {
             site: REDIRECT_SITE,
             raw: 'javascript:void(0)',
-            kind: 'footnote',
+            kind,
             tag: null,
             flags: ['unresolved_redirect'],
           },

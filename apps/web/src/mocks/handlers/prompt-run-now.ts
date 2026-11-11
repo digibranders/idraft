@@ -1,7 +1,7 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
-import { projectCaller, type ProjectCaller } from './access';
-import { MANUAL_RUN_LIMIT } from './operations-rules';
+import { type ProjectCaller } from './access';
+import { MANUAL_RUN_LIMIT, manualRunsToday, operationsProjectCaller } from './operations-rules';
 import { countryOf, isoOf, workspaceProjects } from './prompts';
 import { bodyError, extraMembers, isOneOf, isRecord, notAnObject, uuidError } from './rules';
 import { mockId } from '../mock-ids';
@@ -14,7 +14,14 @@ import {
   DAY_MS,
   type StoredPrompt,
 } from '../prompt-fixtures';
-import { AI_ANSWER_QUOTA, isProviderPaused, mintPromptNumber, PENDING_MS, promptsOf } from '../prompts-state';
+import {
+  AI_ANSWER_QUOTA,
+  isProviderPaused,
+  mintPromptNumber,
+  PENDING_MS,
+  promptsOf,
+  runNowRunsToday,
+} from '../prompts-state';
 import { invalid, mock, problem } from '../respond';
 import type { EngineCode, Run, ValidationItem } from '@/lib/api/types';
 import { textLength } from '@/lib/text/length';
@@ -25,7 +32,8 @@ import { textLength } from '@/lib/text/length';
  * The checks are the API's, in its order: the provider is not paused, the prompt is one the project collects,
  * every engine can be asked (one field error for each that cannot), no answer is on its way, the project has
  * manual runs left today, and the month's answers of the workspace still fit.
- * shortcut: the run lives here, in memory, not in the project's runs (./runs.ts keeps those in a cookie), so
+ * The day's 20 manual runs are shared with every other manual run of the project (./runs.ts counts Run now's too).
+ * shortcut: the run itself lives here, in memory, not in the project's runs (./runs.ts keeps those in a cookie), so
  * `GET .../runs` does not list it and its own link answers `404`; its answers never arrive in the fixtures.
  */
 
@@ -114,7 +122,7 @@ function runOf(caller: ProjectCaller, now: number): Run {
 
 export const promptRunHandlers: HttpHandler[] = [
   mock('post', `${PROMPT}/run-now`, async ({ request, cookies, params }) => {
-    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+    const caller = operationsProjectCaller(request, cookies, params.workspace_id, params.project_id, {
       permission: 'runs:trigger',
     });
     if (caller instanceof Response) return caller;
@@ -171,7 +179,8 @@ export const promptRunHandlers: HttpHandler[] = [
       });
     }
     const today = Math.floor(now / DAY_MS);
-    const runsToday = state.manualRuns.get(today) ?? 0;
+    // Every manual run of the project counts (keyword refreshes and checks too), not only Run now's
+    const runsToday = manualRunsToday(caller.operations, projectId, now) + runNowRunsToday(projectId, now);
     if (runsToday >= MANUAL_RUN_LIMIT) {
       // The API carries only `limit`: no `used`, and no Retry-After
       return problem(request, 'manual_run_limit', {
@@ -197,7 +206,7 @@ export const promptRunHandlers: HttpHandler[] = [
         quota: 'max_ai_observations_per_month',
       });
     }
-    state.manualRuns.set(today, runsToday + 1);
+    state.manualRuns.set(today, runNowRunsToday(projectId, now) + 1);
     state.answersAsked.set(month(now), (state.answersAsked.get(month(now)) ?? 0) + requested);
     for (const code of engines) state.asked.set(`${prompt.prompt_id} ${code}`, now);
     return HttpResponse.json({ data: runOf(caller, now) }, { status: 202 });
