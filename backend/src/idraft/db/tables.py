@@ -1642,7 +1642,7 @@ ai_entity_mentions = Table(
     Column("role", Text, nullable=False),
     Column("mention_count", SmallInteger, nullable=False),
     Column("first_char_offset", Integer, nullable=False),
-    Column("mention_order", SmallInteger, nullable=False),
+    Column("mention_order", SmallInteger),
     Column("prominence", Numeric(5, 4), nullable=False),
     Column("structured_rank", SmallInteger),
     Column("structured_list_size", SmallInteger),

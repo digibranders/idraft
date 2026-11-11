@@ -270,6 +270,56 @@ async def test_an_answer_outside_the_partitions_is_refused(
         await _answer(db, alpha, observed_at=datetime.now(UTC) - timedelta(days=900))
 
 
+_UNORDERED_MENTION = (
+    "INSERT INTO ai.entity_mentions (observation_id, observed_at, entity_id, derivation_id, "
+    "workspace_id, project_id, engine_code, role, mention_count, first_char_offset, "
+    "mention_order, prominence, match_method, mention_status, confidence, evidence_spans) "
+    "VALUES ($1, $2, $3, $4, $5, $6, 'chatgpt_web', 'competitor', 1, 0, NULL, 1, "
+    "'alias_word', 'uncertain', 0.5, ARRAY['[0,4)'::int4range])"
+)
+
+
+async def test_a_mention_without_an_order_is_kept(
+    migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
+) -> None:
+    """Uncertain mentions, watch entities and products have no place in the order (migration
+    0019); the answer tables still refuse a row outside their partitions."""
+    alpha, _ = tenants
+    async with scoped(migrated, "superuser") as db:
+        answer = await db.fetchrow(
+            "SELECT observation_id, observed_at, derivation_id FROM ai.observation_facts "
+            "WHERE workspace_id = $1",
+            alpha.workspace_id,
+        )
+        assert answer is not None
+        await db.execute(
+            _UNORDERED_MENTION,
+            answer["observation_id"],
+            answer["observed_at"],
+            uuid.uuid4(),
+            answer["derivation_id"],
+            alpha.workspace_id,
+            alpha.project_id,
+        )
+        order = await db.fetchval(
+            "SELECT mention_order FROM ai.entity_mentions WHERE observation_id = $1 "
+            "AND mention_status = 'uncertain'",
+            answer["observation_id"],
+        )
+        assert order is None
+
+        async with refused(db, asyncpg.CheckViolationError, match="partition"):
+            await db.execute(
+                _UNORDERED_MENTION,
+                answer["observation_id"],
+                datetime.now(UTC) - timedelta(days=900),
+                uuid.uuid4(),
+                answer["derivation_id"],
+                alpha.workspace_id,
+                alpha.project_id,
+            )
+
+
 async def test_the_raw_payload_of_an_answer_is_read_through_its_own_workspace_only(
     migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
 ) -> None:
