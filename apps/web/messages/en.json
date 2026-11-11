@@ -3299,14 +3299,17 @@
       "citedTip": "Answers that cite your domain, of the valid answers in the window",
       "noAnswers": "No answers",
       "noAnswersTip": "No answer in this window yet. Each prompt is asked twice a week.",
-      "noValidTip": "{count, plural, one {# answer} other {# answers}} in this window, none of them valid"
+      "noValidTip": "{count, plural, one {# answer} other {# answers}} in this window, none of them valid",
+      "validOfTip": "{valid, number} valid of {all, number} answers",
+      "notLoadedTip": "The counts are not loaded yet."
     },
     "filters": {
       "topic": "Topic",
       "country": "Country",
       "engine": "Engine",
       "branded": "Branded prompts",
-      "brandedInclude": "Included"
+      "brandedInclude": "Included",
+      "topicWithPath": "{name} ({path})"
     },
     "droppedFilters": {
       "title": "{count, plural, one {A filter from the link was left out} other {# filters from the link were left out}}",

@@ -92,6 +92,8 @@ export interface PromptList {
   loading: boolean;
   error: unknown;
   fetching: boolean;
+  /** Another page is to be read: the rows are not the whole list yet, or a page failed. */
+  hasMore: boolean;
   refetch: () => void;
 }
 
@@ -119,6 +121,8 @@ export function usePromptList(scope: PromptScope): PromptList {
     loading: query.isPending,
     error: query.error,
     fetching: isFetching,
+    // Past `MAX_PROMPTS` no page is read, so the list is as whole as it will be
+    hasMore: hasNextPage && rows.length < MAX_PROMPTS,
     refetch: () => void refetch(),
   };
 }

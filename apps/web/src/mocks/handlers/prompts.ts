@@ -17,7 +17,7 @@ import {
 import { matchAliases, TooManyMatchesError, type MatcherEntity } from '../alias-matcher';
 import { MOCK_LOCATIONS, MOCK_TERMS, MOCK_VOCABULARIES } from '../entity-fixtures';
 import { isActiveRole, type EntityWorld, type StoredEntity, type StoredRole } from '../entities-state';
-import { entityRefView } from '../factories/entity';
+import { entityRefView, termPath } from '../factories/entity';
 import {
   ENGINE_CODES,
   ENGINE_FACTS,
@@ -144,7 +144,7 @@ function termOf(termId: string): Prompt['terms'][number] | null {
     term_id: term.term_id,
     vocabulary_kind: VOCABULARY_KINDS.get(term.vocabulary_id) ?? 'custom',
     name: term.name,
-    path: term.slug,
+    path: termPath({ terms: MOCK_TERMS }, term),
   };
 }
 

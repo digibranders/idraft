@@ -42,7 +42,7 @@ const PROMPT = z.object({
   prompt_type: z.string(),
   importance: z.number(),
   updated_at: z.string(),
-  terms: z.array(z.object({ term_id: z.string(), name: z.string() })),
+  terms: z.array(z.object({ term_id: z.string(), name: z.string(), path: z.string() })),
 });
 const PAGE = z.object({ limit: z.number(), next_cursor: z.string().nullable(), has_more: z.boolean() });
 const BULK = z.object({
@@ -162,6 +162,17 @@ describe('prompts', () => {
     expect(prompts.filter((prompt) => prompt.is_branded).map((prompt) => prompt.current_version.text)).toEqual([
       'Is Fynix a good SEO agency for software companies?',
     ]);
+  });
+
+  it('gives a term its path from the root, as the API does: the slugs of its ancestors and its own, joined by a slash', async () => {
+    const all = await mockBrowser('viewer').call('GET', `${FYNIX}/prompts?limit=200`);
+    const termsOf = (text: string): string[] =>
+      dataOf(all, z.array(PROMPT))
+        .filter((prompt) => prompt.current_version.text === text)
+        .flatMap((prompt) => prompt.terms.map((term) => term.path));
+    expect(termsOf('How do I run a technical SEO audit on a large site?')).toEqual(['seo/technical-seo']);
+    expect(termsOf('Which SEO agency is best for a SaaS startup in Germany?')).toEqual(['seo']);
+    expect(termsOf('How often should a company blog publish new posts?')).toEqual(['content-marketing/blog-strategy']);
   });
 
   it('adds one prompt, refuses a duplicate with its id and a country no enabled engine runs in', async () => {

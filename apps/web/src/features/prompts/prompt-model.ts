@@ -53,6 +53,27 @@ export function countText(cell: MetricCell | undefined): string | null {
 export const topicTermsOf = (prompt: Prompt): Prompt['terms'] =>
   prompt.terms.filter((term) => term.vocabulary_kind === 'topic');
 
+export type TopicTerm = Prompt['terms'][number];
+
+/** Each topic term the prompts carry, once, by id: the choices of a topic filter. */
+export function collectTopicTerms(prompts: readonly Prompt[]): Map<string, TopicTerm> {
+  const terms = new Map<string, TopicTerm>();
+  for (const prompt of prompts) for (const term of topicTermsOf(prompt)) terms.set(term.term_id, term);
+  return terms;
+}
+
+/**
+ * Whether the prompt belongs to any of the chosen topics, as the summary's topic rows count it (backend
+ * `topic_rollup`): it carries the term, or a term below it, that is one whose path starts with the chosen
+ * term's path and a slash. Every prompt belongs when none is chosen.
+ */
+export function matchesTopics(prompt: Prompt, chosen: readonly TopicTerm[]): boolean {
+  if (chosen.length === 0) return true;
+  return topicTermsOf(prompt).some((term) =>
+    chosen.some((topic) => term.term_id === topic.term_id || term.path.startsWith(`${topic.path}/`)),
+  );
+}
+
 /** Whether any prompt has an answer on an engine in the window, valid or not: until one has, the page says when the first arrive. */
 export const hasAnswers = (summary: PromptsSummary): boolean =>
   summary.prompts.some((row) => row.engines.some((engine) => engine.mentioned.n_observations > 0));

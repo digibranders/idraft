@@ -203,6 +203,29 @@ describe('usePromptList', () => {
     expect(result.current.rows.map((row) => row.prompt_id)).toEqual([PAGE_ONE, PAGE_TWO]);
     expect(cursors).toEqual([null, 'next']);
   });
+
+  it('says more pages are to come until the last one is in, and after a failed page too', async () => {
+    let failing = true;
+    server.use(
+      http.get(`${PROJECT}/prompts`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        if (cursor !== null && failing) return HttpResponse.json({ code: 'boom' }, { status: 500 });
+        return HttpResponse.json({
+          data: [{ ...promptRow(), prompt_id: cursor === null ? PAGE_ONE : PAGE_TWO }],
+          page: { limit: 200, next_cursor: cursor === null ? 'next' : null, has_more: cursor === null },
+        });
+      }),
+    );
+    const { result } = renderHook(() => usePromptList(scope), { wrapper });
+    // The first page is in and the second failed: the list is not whole
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(result.current.rows).toHaveLength(1);
+    expect(result.current.hasMore).toBe(true);
+    failing = false;
+    result.current.refetch();
+    await waitFor(() => expect(result.current.rows).toHaveLength(2));
+    expect(result.current.hasMore).toBe(false);
+  });
 });
 
 describe('usePromptLint', () => {

@@ -4,7 +4,9 @@ import {
   countriesForEngines,
   countText,
   fitsEngine,
+  collectTopicTerms,
   hasAnswers,
+  matchesTopics,
   parseTab,
   parseWindow,
   PROMPT_TEXT_MAX,
@@ -104,6 +106,52 @@ describe('the topics of a prompt', () => {
     });
     const prompt = { terms: [term('t1', 'topic'), term('t2', 'persona'), term('t3', 'topic')] } as Prompt;
     expect(topicTermsOf(prompt).map((item) => item.term_id)).toEqual(['t1', 't3']);
+  });
+});
+
+describe('the topic filter', () => {
+  const term = (term_id: string, path: string, vocabulary_kind = 'topic'): Prompt['terms'][number] => ({
+    term_id,
+    name: path.split('/').at(-1) ?? path,
+    path,
+    vocabulary_kind,
+  });
+  const SEO = term('seo', 'seo');
+  const TECHNICAL = term('technical', 'seo/technical-seo');
+  const CRAWL = term('crawl', 'seo/technical-seo/crawling');
+  // Shares a prefix with `seo` as text, but is not below it
+  const AUDIT = term('audit', 'seo-audit');
+  const PAID = term('paid', 'paid-search');
+  const carrying = (...terms: Prompt['terms']): Prompt => ({ terms }) as Prompt;
+
+  it('matches a prompt that carries the chosen term, or any term below it by path', () => {
+    expect(matchesTopics(carrying(SEO), [SEO])).toBe(true);
+    expect(matchesTopics(carrying(TECHNICAL), [SEO])).toBe(true);
+    expect(matchesTopics(carrying(CRAWL), [SEO])).toBe(true);
+    expect(matchesTopics(carrying(CRAWL), [TECHNICAL])).toBe(true);
+  });
+
+  it('does not match a parent, a sibling, or a term whose path only starts with the same letters', () => {
+    expect(matchesTopics(carrying(SEO), [TECHNICAL])).toBe(false);
+    expect(matchesTopics(carrying(AUDIT), [SEO])).toBe(false);
+    expect(matchesTopics(carrying(PAID), [SEO])).toBe(false);
+    expect(matchesTopics(carrying(), [SEO])).toBe(false);
+  });
+
+  it('matches any of several chosen topics, and every prompt when none is chosen', () => {
+    expect(matchesTopics(carrying(PAID), [SEO, PAID])).toBe(true);
+    expect(matchesTopics(carrying(CRAWL), [PAID, SEO])).toBe(true);
+    expect(matchesTopics(carrying(AUDIT), [PAID, SEO])).toBe(false);
+    expect(matchesTopics(carrying(), [])).toBe(true);
+  });
+
+  it('looks at topic terms only: another vocabulary with the same path is no topic', () => {
+    expect(matchesTopics(carrying(term('persona', 'seo/technical-seo', 'persona')), [SEO])).toBe(false);
+  });
+
+  it('collects each topic term the prompts carry once, by id', () => {
+    const terms = collectTopicTerms([carrying(SEO, TECHNICAL), carrying(TECHNICAL, term('p', 'x', 'persona'))]);
+    expect([...terms.keys()]).toEqual(['seo', 'technical']);
   });
 });
 

@@ -9,7 +9,16 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
 import { AddPromptsDialog } from './add-prompts-dialog';
 import { DEFAULT_SORT, usePromptColumns, type PromptRow } from './prompt-columns';
-import { DEFAULT_WINDOW, hasAnswers, parseWindow, topicTermsOf, WINDOW_DAYS, windowRange } from './prompt-model';
+import {
+  collectTopicTerms,
+  DEFAULT_WINDOW,
+  hasAnswers,
+  matchesTopics,
+  parseWindow,
+  topicTermsOf,
+  WINDOW_DAYS,
+  windowRange,
+} from './prompt-model';
 import { enginesQuery, summaryQuery, usePromptList, type PromptScope } from './prompt-queries';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { TableStatus } from '@/components/app/data-table/types';
@@ -120,10 +129,12 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const listErrorId = useErrorId(list.error);
 
   // The options are the topics and countries the prompts carry: a value from a link waits until every page is in
-  const optionsPending = list.loading || list.fetching || list.error !== null;
+  const optionsPending = list.loading || list.fetching || list.hasMore || list.error !== null;
+  const topicTerms = useMemo(() => collectTopicTerms(list.rows), [list.rows]);
   const fields = useMemo((): FilterField[] => {
-    const topicNames = new Map<string, string>();
-    for (const prompt of list.rows) for (const term of topicTermsOf(prompt)) topicNames.set(term.term_id, term.name);
+    // Two topics of one name under different parents are told apart by their paths
+    const nameCounts = new Map<string, number>();
+    for (const term of topicTerms.values()) nameCounts.set(term.name, (nameCounts.get(term.name) ?? 0) + 1);
     const isos = new Set(list.rows.flatMap((prompt) => (prompt.country_iso === null ? [] : [prompt.country_iso])));
     return [
       {
@@ -132,7 +143,13 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         label: t('filters.topic'),
         multi: true,
         optionsLoading: optionsPending,
-        options: [...topicNames].map(([value, label]) => ({ value, label })),
+        options: [...topicTerms.values()].map((term) => ({
+          value: term.term_id,
+          label:
+            (nameCounts.get(term.name) ?? 0) > 1
+              ? t('filters.topicWithPath', { name: term.name, path: term.path })
+              : term.name,
+        })),
       },
       {
         id: 'country',
@@ -147,7 +164,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         kind: 'enum',
         label: t('filters.engine'),
         multi: true,
-        optionsLoading: engines.isPending,
+        // A failed read leaves the options unknown too: the link's engine is kept until they arrive
+        optionsLoading: engines.data === undefined,
         options: enabled.map((engine) => ({ value: engine.engine.engine_code, label: engine.engine.label })),
       },
       {
@@ -158,7 +176,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         options: [{ value: 'include', label: t('filters.brandedInclude') }],
       },
     ];
-  }, [t, list.rows, optionsPending, countryName, enabled, engines.isPending]);
+  }, [t, list.rows, optionsPending, topicTerms, countryName, enabled, engines.data]);
   // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
   const [values, setValues] = useUrlFilters(fields, {
     onDropped: (dropped) =>
@@ -174,6 +192,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       }),
   });
   const filtered = Object.keys(values).length > 0;
+  // The topic and country narrow the rows; the engine only picks columns, and Branded adds rows
+  const narrowed = values.topic !== undefined || values.country !== undefined;
   const clearFilters = useCallback(() => setValues({}), [setValues]);
   const includeBranded = enumValuesOf(values.branded).includes('include');
   // Only the engines the Engine filter names, else every engine that is on
@@ -192,15 +212,19 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     () => new Map((summary.data?.data.prompts ?? []).map((row) => [row.prompt_id, row])),
     [summary.data],
   );
+  // Counts kept from another window or branded choice are not this one's: a prompt without a row in them is unknown
+  const countsLoaded = summary.data !== undefined && !summary.isPlaceholderData;
   // Branded prompts stay out of the table and the counts until included (16-metrics-methodology.md rule 4)
   const rows = useMemo((): PromptRow[] => {
     const topics = enumValuesOf(values.topic);
+    // A topic of the link that no prompt read so far carries matches nothing yet
+    const chosen = topics.flatMap((id) => topicTerms.get(id) ?? []);
     const countries = enumValuesOf(values.country);
     return list.rows
       .filter(
         (prompt) =>
           (includeBranded || !prompt.is_branded) &&
-          (topics.length === 0 || topicTermsOf(prompt).some((term) => topics.includes(term.term_id))) &&
+          (topics.length === 0 || (chosen.length > 0 && matchesTopics(prompt, chosen))) &&
           (countries.length === 0 || (prompt.country_iso !== null && countries.includes(prompt.country_iso))),
       )
       .map((prompt) => {
@@ -208,11 +232,22 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         return {
           prompt,
           summary: summaryById.get(prompt.prompt_id),
+          countsLoaded,
           topics: topicNames.length === 0 ? null : formatList(topicNames, locale),
           country: prompt.country_iso === null ? null : (countryName.get(prompt.country_iso) ?? prompt.country_iso),
         };
       });
-  }, [list.rows, includeBranded, values.topic, values.country, summaryById, countryName, locale]);
+  }, [
+    list.rows,
+    includeBranded,
+    values.topic,
+    values.country,
+    topicTerms,
+    summaryById,
+    countsLoaded,
+    countryName,
+    locale,
+  ]);
 
   const { columns, sortFields, searchText, rowName } = usePromptColumns(shown);
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
@@ -224,12 +259,17 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const density = parseDensity(view.density);
 
   // The summary is pending only before its first answer: a new window keeps the last counts meanwhile
-  const waiting = list.loading || engines.isPending || (enabled.length > 0 && summary.isPending);
+  // A topic or country that matches nothing so far may still match a page that is on its way
+  const waiting =
+    list.loading ||
+    engines.isPending ||
+    (enabled.length > 0 && summary.isPending) ||
+    (narrowed && rows.length === 0 && list.fetching);
   const status = ((): TableStatus => {
     if (list.error !== null && list.rows.length === 0) return 'error';
     if (waiting) return 'loading';
-    // Without a search or a filter, nothing to show means no prompts (an all branded project too), not no match
-    if (rows.length === 0) return view.q === '' && !filtered ? 'empty' : 'filtered-empty';
+    // Without a search, a topic or a country, nothing to show means no prompts (an all branded project too), not no match
+    if (rows.length === 0) return view.q === '' && !narrowed ? 'empty' : 'filtered-empty';
     // Later pages of the list may still be on their way
     return summary.isFetching || list.fetching ? 'refetching' : 'ready';
   })();
