@@ -1378,6 +1378,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a list of prompts
+         * @description Up to 1,000 items. An item that cannot be saved is rejected with its code (`location_not_supported`, `term_unknown`, `single_valued_vocabulary`, `duplicate_in_request` for the same prompt twice in the list, and `duplicate` with `on_duplicate: error`); with `skip`, a prompt the project has is listed in `skipped`. The rest are written together: `422 quota_exceeded` past the workspace's active prompt limit, and nothing is written. No Idempotency-Key: sending the list again skips what it added.
+         */
+        post: operations["bulk_create_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_create_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/lint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check prompts before saving them
+         * @description Nothing is stored. For each text, as it would be saved: whether it names an own brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine it is too long for (`engine_limit`: a warning when the engine skips it, an error when it is too long to save). `quota` is the workspace's active prompt limit and use.
+         */
+        post: operations["lint_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_lint_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}": {
         parameters: {
             query?: never;
@@ -3972,6 +4012,32 @@ export interface components {
             data: components["schemas"]["Keyword"][];
             page: components["schemas"]["CursorPageInfo"];
         };
+        /** LintSpan */
+        LintSpan: {
+            /** End */
+            end: number;
+            /** Start */
+            start: number;
+        };
+        /** LintWarning */
+        LintWarning: {
+            /** @description For `engine_limit`: the engine. */
+            engine_code: components["schemas"]["EngineCode"] | null;
+            /** Message */
+            message: string;
+            /**
+             * Rule
+             * @enum {string}
+             */
+            rule: "contains_brand_alias" | "engine_limit";
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "info" | "warning" | "error";
+            /** @description UTF-16 code units, as a JavaScript string indexes the text. */
+            span: components["schemas"]["LintSpan"] | null;
+        };
         /** Location */
         Location: {
             /** Country Iso */
@@ -4025,6 +4091,15 @@ export interface components {
              * @description Manual runs people started in the project today (UTC).
              */
             used: number;
+        };
+        /** MatchedAlias */
+        MatchedAlias: {
+            /**
+             * Alias
+             * @description The text that matched.
+             */
+            alias: string;
+            entity: components["schemas"]["EntityRef"];
         };
         /** Me */
         Me: {
@@ -4819,6 +4894,31 @@ export interface components {
              */
             updated_at: string;
         };
+        /** PromptBulkCreate */
+        PromptBulkCreate: {
+            /** Items */
+            items: components["schemas"]["PromptCreate"][];
+            /**
+             * On Duplicate
+             * @description A prompt the project has already: `skip` lists it in `skipped`, `error` in `rejected` with `duplicate`.
+             * @default skip
+             * @enum {string}
+             */
+            on_duplicate: "skip" | "error";
+        };
+        /** PromptBulkResponse */
+        PromptBulkResponse: {
+            data: components["schemas"]["PromptBulkResult"];
+        };
+        /** PromptBulkResult */
+        PromptBulkResult: {
+            /** Created */
+            created: string[];
+            /** Rejected */
+            rejected: components["schemas"]["PromptRejected"][];
+            /** Skipped */
+            skipped: components["schemas"]["PromptSkipped"][];
+        };
         /**
          * PromptCreate
          * @description One prompt. Its text is fixed once saved: to change it, archive the prompt and add a new
@@ -4866,6 +4966,39 @@ export interface components {
              */
             text: string;
         };
+        /** PromptLint */
+        PromptLint: {
+            /** Is Branded */
+            is_branded: boolean;
+            /**
+             * Matched Aliases
+             * @description Own brand names found, each once.
+             */
+            matched_aliases: components["schemas"]["MatchedAlias"][];
+            /**
+             * Text
+             * @description As it would be saved.
+             */
+            text: string;
+            /** Warnings */
+            warnings: components["schemas"]["LintWarning"][];
+        };
+        /** PromptLintRequest */
+        PromptLintRequest: {
+            /**
+             * Engine Codes
+             * @description The engines whose length limits apply. Left out: every one.
+             */
+            engine_codes?: components["schemas"]["EngineCode"][] | null;
+            /** Texts */
+            texts: string[];
+        };
+        /** PromptLintResponse */
+        PromptLintResponse: {
+            /** Data */
+            data: components["schemas"]["PromptLint"][];
+            quota: components["schemas"]["PromptQuota"];
+        };
         /** PromptPage */
         PromptPage: {
             /** Data */
@@ -4907,9 +5040,38 @@ export interface components {
              */
             term_ids?: string[];
         };
+        /** PromptQuota */
+        PromptQuota: {
+            /** Limit */
+            limit: number;
+            /**
+             * Used
+             * @description Active prompts in the whole workspace.
+             */
+            used: number;
+        };
+        /** PromptRejected */
+        PromptRejected: {
+            /** Code */
+            code: string;
+            /** Index */
+            index: number;
+            /** Message */
+            message: string;
+        };
         /** PromptResponse */
         PromptResponse: {
             data: components["schemas"]["Prompt"];
+        };
+        /** PromptSkipped */
+        PromptSkipped: {
+            /**
+             * Existing Id
+             * Format: uuid
+             */
+            existing_id: string;
+            /** Index */
+            index: number;
         };
         /** PromptTerm */
         PromptTerm: {
@@ -10160,6 +10322,78 @@ export interface operations {
             };
         };
     };
+    bulk_create_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_create_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptBulkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptBulkResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    lint_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_lint_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptLintRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptLintResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__get: {
         parameters: {
             query?: never;
@@ -11938,6 +12172,8 @@ export const keywordImportConfirmDuplicate_actionValues: ReadonlyArray<Flattened
 export const keywordImportCreateSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImportCreate"]["source"]> = ["paste", "api"];
 export const keywordMetricsCompetition_levelAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordMetrics"]["competition_level"]> = ["LOW", "MEDIUM", "HIGH"];
 export const keywordMetricsSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordMetrics"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
+export const lintWarningRuleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LintWarning"]["rule"]> = ["contains_brand_alias", "engine_limit"];
+export const lintWarningSeverityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LintWarning"]["severity"]> = ["info", "warning", "error"];
 export const meWorkspaceStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MeWorkspace"]["status"]> = ["active", "suspended", "deleting"];
 export const metricValueUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricValue"]["unit"]> = ["ratio", "count", "rank", "score", "usd", "clicks"];
 export const observationClassValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationClass"]> = ["consumer_ui", "official_api", "serp_ai"];
@@ -11954,6 +12190,7 @@ export const promptCreation_methodValues: ReadonlyArray<FlattenedDeepRequired<co
 export const promptFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
 export const promptIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
 export const promptPrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
+export const promptBulkCreateOn_duplicateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptBulkCreate"]["on_duplicate"]> = ["skip", "error"];
 export const promptCreateFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
 export const promptCreateIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
 export const promptCreatePrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];

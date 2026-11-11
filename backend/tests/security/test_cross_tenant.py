@@ -186,6 +186,10 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
         "language_code": "en",
         "country_iso": "US",
     },
+    ("POST", _W + "/projects/{project_id}/prompts/bulk-create"): {
+        "items": [{"text": "Planted prompt?", "language_code": "en", "country_iso": "US"}],
+    },
+    ("POST", _W + "/projects/{project_id}/prompts/lint"): {"texts": ["Is Acme good?"]},
     ("PATCH", _W + "/projects/{project_id}/prompts/{prompt_id}"): {"importance": 1},
 }
 # A path parameter that is a word, not an id of the tenant: it must not count as one of its

@@ -31,7 +31,8 @@ from idraft.api.ai import engine_repository as engines
 from idraft.api.ai import prompt_repository as prompts
 from idraft.api.ai.engine_service import live_project
 from idraft.api.ai.prompt_repository import NewPrompt, PromptFilter, PromptKey, PromptRecord
-from idraft.api.entities.project_service import MatcherRules, matcher_rules
+from idraft.api.entities.project_repository import MatcherEntity
+from idraft.api.entities.project_service import MatcherRules, matcher_rules, to_utf16
 from idraft.api.keywords import repository as keywords
 from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
 from idraft.api.problems import (
@@ -43,10 +44,17 @@ from idraft.api.problems import (
     invalid_fields,
 )
 from idraft.api.request_info import RequestInfo
-from idraft.api.schemas.ai import PromptCreate, PromptPatch
+from idraft.api.schemas.ai import (
+    LintRule,
+    LintSeverity,
+    PromptBulkCreate,
+    PromptCreate,
+    PromptLintRequest,
+    PromptPatch,
+)
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
-from idraft.domain.ai_engines import ENGINES, EngineCode
+from idraft.domain.ai_engines import ENGINES, PROMPT_TEXT_MAX, EngineCode
 from idraft.extraction.aliases import AliasMatcher, MatchResult
 from idraft.extraction.aliases import TooManyMatchesError as TooManyHitsError
 from idraft.keywords.links import TermRecord
@@ -76,6 +84,37 @@ class BulkOutcome:
     created: list[UUID]
     skipped: list[tuple[int, UUID]]
     rejected: list[Rejected]
+
+
+@dataclass(frozen=True, slots=True)
+class LintedAlias:
+    entity: MatcherEntity
+    alias: str
+
+
+@dataclass(frozen=True, slots=True)
+class LintNote:
+    rule: LintRule
+    severity: LintSeverity
+    message: str
+    engine_code: EngineCode | None
+    # UTF-16 code units.
+    span: tuple[int, int] | None
+
+
+@dataclass(frozen=True, slots=True)
+class LintedPrompt:
+    text: str
+    is_branded: bool
+    aliases: list[LintedAlias]
+    notes: list[LintNote]
+
+
+@dataclass(frozen=True, slots=True)
+class LintOutcome:
+    prompts: list[LintedPrompt]
+    limit: int
+    used: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,6 +195,57 @@ async def matched(rules: MatcherRules, texts: Sequence[str]) -> list[MatchResult
         raise TooManyMatchesError(
             "The aliases match a prompt too many times. Narrow a substring alias."
         ) from None
+
+
+def _lint(
+    text: str,
+    result: MatchResult,
+    entities: Mapping[UUID, MatcherEntity],
+    own: set[UUID],
+    codes: Sequence[EngineCode],
+) -> LintedPrompt:
+    """Own brand names found (each once, with the first place it is named, in UTF-16 units) and
+    the engines the text is too long for."""
+    shown = to_utf16(result, text)
+    aliases: list[LintedAlias] = []
+    notes: list[LintNote] = []
+    seen: set[tuple[UUID, str]] = set()
+    for mention, units in zip(result.mentions, shown.mentions, strict=True):
+        if mention.status != "accepted" or mention.entity_id not in own:
+            continue
+        entity = entities[mention.entity_id]
+        for span in mention.spans:
+            found = text[span.start : span.end]
+            if span.status == "accepted" and (entity.id, found) not in seen:
+                seen.add((entity.id, found))
+                aliases.append(LintedAlias(entity=entity, alias=found))
+        first = next((span for span in units.spans if span.status == "accepted"), units.spans[0])
+        notes.append(
+            LintNote(
+                rule="contains_brand_alias",
+                severity="warning",
+                message=f"Names {entity.canonical_name}. Answers to a branded prompt are left "
+                "out of the rates unless they are asked for.",
+                engine_code=None,
+                span=(first.start, first.end),
+            )
+        )
+    for code in codes:
+        engine = ENGINES[code]
+        if engine.fits(text):
+            continue
+        unsavable = len(text) > PROMPT_TEXT_MAX
+        notes.append(
+            LintNote(
+                rule="engine_limit",
+                severity="error" if unsavable else "warning",
+                message=f"{engine.label} takes up to {engine.max_prompt_chars} characters; "
+                + ("the prompt cannot be saved." if unsavable else "it skips this prompt."),
+                engine_code=code,
+                span=None,
+            )
+        )
+    return LintedPrompt(text=text, is_branded=names_own(result, own), aliases=aliases, notes=notes)
 
 
 async def checks_for(
@@ -311,6 +401,69 @@ class PromptService:
                 raise quota_error(limit, used, 1)
             (created,) = await write(db, access, project_id, [body], info)
         return created
+
+    async def bulk_create(
+        self, access: WorkspaceAccess, project_id: UUID, body: PromptBulkCreate, info: RequestInfo
+    ) -> BulkOutcome:
+        """Items that cannot be saved are rejected one by one; the rest are written together,
+        all or none: past the quota, nothing is written."""
+        async with self._transaction(access) as db:
+            await live_project(db, access, project_id)
+            await prompts.lock_prompt_writes(db, access.workspace_id)
+            checks = await checks_for(db, access, project_id, body.items)
+            keys = [key_of(item) for item in body.items]
+            found = await prompts.existing(db, access.workspace_id, project_id, keys)
+            rejected: list[Rejected] = []
+            skipped: list[tuple[int, UUID]] = []
+            accepted: list[PromptCreate] = []
+            first: dict[PromptKey, int] = {}
+            for index, (item, key) in enumerate(zip(body.items, keys, strict=True)):
+                error = checks.error(item)
+                if error is not None:
+                    rejected.append(Rejected(index, error.code, error.message))
+                elif key in found:
+                    if body.on_duplicate == "skip":
+                        skipped.append((index, found[key]))
+                    else:
+                        rejected.append(Rejected(index, "duplicate", DUPLICATE))
+                elif key in first:
+                    rejected.append(
+                        Rejected(
+                            index, "duplicate_in_request", f"The same prompt as item {first[key]}."
+                        )
+                    )
+                else:
+                    first[key] = index
+                    accepted.append(item)
+            limit, used = await prompts.quota_usage(db, access.workspace_id)
+            if accepted and used + len(accepted) > limit:
+                raise quota_error(limit, used, len(accepted))
+            created = await write(db, access, project_id, accepted, info)
+        return BulkOutcome(
+            created=[record.id for record in created], skipped=skipped, rejected=rejected
+        )
+
+    async def lint(
+        self, access: WorkspaceAccess, project_id: UUID, body: PromptLintRequest
+    ) -> LintOutcome:
+        """What saving these texts would meet, with nothing stored: own brand names (the
+        prompt would be branded) and engine limits, and the workspace's prompt quota."""
+        async with self._transaction(access) as db:
+            await live_project(db, access, project_id)
+            rules = await matcher_rules(db, access.workspace_id, project_id)
+            limit, used = await prompts.quota_usage(db, access.workspace_id)
+        own = own_entities(rules)
+        entities = {entity.id: entity for entity in rules.entities}
+        codes = body.engine_codes or list(EngineCode)
+        results = await matched(rules, body.texts)
+        return LintOutcome(
+            prompts=[
+                _lint(text, result, entities, own, codes)
+                for text, result in zip(body.texts, results, strict=True)
+            ],
+            limit=limit,
+            used=used,
+        )
 
     async def update(
         self,

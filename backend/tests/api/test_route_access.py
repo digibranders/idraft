@@ -364,6 +364,14 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"): "data:read",
     ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"): "prompts:write",
     (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-create",
+    ): "prompts:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/lint",
+    ): "data:read",
+    (
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}",
     ): "data:read",

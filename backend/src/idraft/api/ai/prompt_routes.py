@@ -13,20 +13,33 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Response
 
 from idraft.api.ai.prompt_repository import PromptFilter, PromptRecord
-from idraft.api.ai.prompt_service import PromptService
+from idraft.api.ai.prompt_service import LintedPrompt, PromptService
 from idraft.api.pagination import Commas, Cursor, CursorPageInfo
 from idraft.api.permissions import Permission
 from idraft.api.request_info import Info
 from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai import (
     CountryIso,
+    LintSpan,
+    LintWarning,
+    MatchedAlias,
     Prompt,
+    PromptBulkCreate,
+    PromptBulkResponse,
+    PromptBulkResult,
     PromptCreate,
+    PromptLint,
+    PromptLintRequest,
+    PromptLintResponse,
     PromptPage,
     PromptPatch,
+    PromptQuota,
+    PromptRejected,
     PromptResponse,
+    PromptSkipped,
 )
 from idraft.api.schemas.common import LanguageCode, QueryText
+from idraft.api.schemas.entities import EntityRef
 from idraft.api.schemas.keywords import Intent
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
@@ -146,6 +159,85 @@ async def create_prompt(
     project_id: UUID, body: PromptCreate, access: WritePrompts, prompts: Prompts, info: Info
 ) -> PromptResponse:
     return PromptResponse(data=prompt_view(await prompts.create(access, project_id, body, info)))
+
+
+def _lint_view(item: LintedPrompt) -> PromptLint:
+    return PromptLint(
+        text=item.text,
+        is_branded=item.is_branded,
+        matched_aliases=[
+            MatchedAlias(
+                entity=EntityRef.model_validate(
+                    {
+                        "entity_id": found.entity.id,
+                        "canonical_name": found.entity.canonical_name,
+                        "entity_type": found.entity.entity_type,
+                        "role": found.entity.role,
+                        "color_index": found.entity.color_index,
+                    }
+                ),
+                alias=found.alias,
+            )
+            for found in item.aliases
+        ],
+        warnings=[
+            LintWarning(
+                rule=note.rule,
+                severity=note.severity,
+                message=note.message,
+                engine_code=note.engine_code,
+                span=None if note.span is None else LintSpan(start=note.span[0], end=note.span[1]),
+            )
+            for note in item.notes
+        ],
+    )
+
+
+@router.post(
+    "/bulk-create",
+    summary="Add a list of prompts",
+    description="Up to 1,000 items. An item that cannot be saved is rejected with its code "
+    "(`location_not_supported`, `term_unknown`, `single_valued_vocabulary`, "
+    "`duplicate_in_request` for the same prompt twice in the list, and `duplicate` with "
+    "`on_duplicate: error`); with `skip`, a prompt the project has is listed in `skipped`. The "
+    "rest are written together: `422 quota_exceeded` past the workspace's active prompt limit, "
+    "and nothing is written. No Idempotency-Key: sending the list again skips what it added.",
+)
+async def bulk_create_prompts(
+    project_id: UUID, body: PromptBulkCreate, access: WritePrompts, prompts: Prompts, info: Info
+) -> PromptBulkResponse:
+    outcome = await prompts.bulk_create(access, project_id, body, info)
+    return PromptBulkResponse(
+        data=PromptBulkResult(
+            created=outcome.created,
+            skipped=[
+                PromptSkipped(index=index, existing_id=existing_id)
+                for index, existing_id in outcome.skipped
+            ],
+            rejected=[
+                PromptRejected(index=entry.index, code=entry.code, message=entry.message)
+                for entry in outcome.rejected
+            ],
+        )
+    )
+
+
+@router.post(
+    "/lint",
+    summary="Check prompts before saving them",
+    description="Nothing is stored. For each text, as it would be saved: whether it names an own "
+    "brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine "
+    "it is too long for (`engine_limit`: a warning when the engine skips it, an error when it "
+    "is too long to save). `quota` is the workspace's active prompt limit and use.",
+)
+async def lint_prompts(
+    project_id: UUID, body: PromptLintRequest, access: ReadData, prompts: Prompts
+) -> PromptLintResponse:
+    outcome = await prompts.lint(access, project_id, body)
+    return PromptLintResponse(
+        data=[_lint_view(item) for item in outcome.prompts],
+        quota=PromptQuota(limit=outcome.limit, used=outcome.used),
+    )
 
 
 @router.get("/{prompt_id}", summary="A prompt")

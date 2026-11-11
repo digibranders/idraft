@@ -5141,6 +5141,80 @@
         "title": "KeywordPage",
         "type": "object"
       },
+      "LintSpan": {
+        "properties": {
+          "end": {
+            "title": "End",
+            "type": "integer"
+          },
+          "start": {
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "LintSpan",
+        "type": "object"
+      },
+      "LintWarning": {
+        "properties": {
+          "engine_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineCode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For `engine_limit`: the engine."
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "rule": {
+            "enum": [
+              "contains_brand_alias",
+              "engine_limit"
+            ],
+            "title": "Rule",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "warning",
+              "error"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "span": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LintSpan"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "UTF-16 code units, as a JavaScript string indexes the text."
+          }
+        },
+        "required": [
+          "rule",
+          "severity",
+          "message",
+          "engine_code",
+          "span"
+        ],
+        "title": "LintWarning",
+        "type": "object"
+      },
       "Location": {
         "properties": {
           "country_iso": {
@@ -5258,6 +5332,24 @@
           "limit"
         ],
         "title": "ManualRuns",
+        "type": "object"
+      },
+      "MatchedAlias": {
+        "properties": {
+          "alias": {
+            "description": "The text that matched.",
+            "title": "Alias",
+            "type": "string"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityRef"
+          }
+        },
+        "required": [
+          "entity",
+          "alias"
+        ],
+        "title": "MatchedAlias",
         "type": "object"
       },
       "Me": {
@@ -7353,6 +7445,80 @@
         "title": "Prompt",
         "type": "object"
       },
+      "PromptBulkCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PromptCreate"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "on_duplicate": {
+            "default": "skip",
+            "description": "A prompt the project has already: `skip` lists it in `skipped`, `error` in `rejected` with `duplicate`.",
+            "enum": [
+              "skip",
+              "error"
+            ],
+            "title": "On Duplicate",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PromptBulkCreate",
+        "type": "object"
+      },
+      "PromptBulkResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PromptBulkResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PromptBulkResponse",
+        "type": "object"
+      },
+      "PromptBulkResult": {
+        "properties": {
+          "created": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Created",
+            "type": "array"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/PromptRejected"
+            },
+            "title": "Rejected",
+            "type": "array"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/PromptSkipped"
+            },
+            "title": "Skipped",
+            "type": "array"
+          }
+        },
+        "required": [
+          "created",
+          "skipped",
+          "rejected"
+        ],
+        "title": "PromptBulkResult",
+        "type": "object"
+      },
       "PromptCreate": {
         "additionalProperties": false,
         "description": "One prompt. Its text is fixed once saved: to change it, archive the prompt and add a new\none.",
@@ -7439,6 +7605,99 @@
           "country_iso"
         ],
         "title": "PromptCreate",
+        "type": "object"
+      },
+      "PromptLint": {
+        "properties": {
+          "is_branded": {
+            "title": "Is Branded",
+            "type": "boolean"
+          },
+          "matched_aliases": {
+            "description": "Own brand names found, each once.",
+            "items": {
+              "$ref": "#/components/schemas/MatchedAlias"
+            },
+            "title": "Matched Aliases",
+            "type": "array"
+          },
+          "text": {
+            "description": "As it would be saved.",
+            "title": "Text",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/LintWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "text",
+          "is_branded",
+          "matched_aliases",
+          "warnings"
+        ],
+        "title": "PromptLint",
+        "type": "object"
+      },
+      "PromptLintRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "engine_codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EngineCode"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The engines whose length limits apply. Left out: every one.",
+            "title": "Engine Codes"
+          },
+          "texts": {
+            "items": {
+              "maxLength": 8000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Texts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "texts"
+        ],
+        "title": "PromptLintRequest",
+        "type": "object"
+      },
+      "PromptLintResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PromptLint"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "quota": {
+            "$ref": "#/components/schemas/PromptQuota"
+          }
+        },
+        "required": [
+          "data",
+          "quota"
+        ],
+        "title": "PromptLintResponse",
         "type": "object"
       },
       "PromptPage": {
@@ -7531,6 +7790,48 @@
         "title": "PromptPatch",
         "type": "object"
       },
+      "PromptQuota": {
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "used": {
+            "description": "Active prompts in the whole workspace.",
+            "title": "Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "used"
+        ],
+        "title": "PromptQuota",
+        "type": "object"
+      },
+      "PromptRejected": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "code",
+          "message"
+        ],
+        "title": "PromptRejected",
+        "type": "object"
+      },
       "PromptResponse": {
         "properties": {
           "data": {
@@ -7541,6 +7842,25 @@
           "data"
         ],
         "title": "PromptResponse",
+        "type": "object"
+      },
+      "PromptSkipped": {
+        "properties": {
+          "existing_id": {
+            "format": "uuid",
+            "title": "Existing Id",
+            "type": "string"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "index",
+          "existing_id"
+        ],
+        "title": "PromptSkipped",
         "type": "object"
       },
       "PromptTerm": {
@@ -19573,6 +19893,134 @@
           }
         },
         "summary": "Add a prompt",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-create": {
+      "post": {
+        "description": "Up to 1,000 items. An item that cannot be saved is rejected with its code (`location_not_supported`, `term_unknown`, `single_valued_vocabulary`, `duplicate_in_request` for the same prompt twice in the list, and `duplicate` with `on_duplicate: error`); with `skip`, a prompt the project has is listed in `skipped`. The rest are written together: `422 quota_exceeded` past the workspace's active prompt limit, and nothing is written. No Idempotency-Key: sending the list again skips what it added.",
+        "operationId": "bulk_create_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_create_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptBulkCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptBulkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Add a list of prompts",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/lint": {
+      "post": {
+        "description": "Nothing is stored. For each text, as it would be saved: whether it names an own brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine it is too long for (`engine_limit`: a warning when the engine skips it, an error when it is too long to save). `quota` is the workspace's active prompt limit and use.",
+        "operationId": "lint_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_lint_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptLintRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptLintResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Check prompts before saving them",
         "tags": [
           "ai"
         ]
