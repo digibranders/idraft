@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 
 import httpx
 
 from idraft.api.resources import Resources
 from idraft.domain.ai_engines import BASE_PLAN
-from tests.api.ai.support import added, ai_project, prompt_body
+from tests.api.ai.support import added, ai_project, prompt_body, set_prompt_quota
 from tests.api.auth.support import execute, fetch, make_workspace
 from tests.api.entities.support import member, problem
 from tests.api.keywords.support import project_url, term, vocabulary
 from tests.conftest import PostgresServer
+
+# One letter two ways: e with acute as one character, and as e then a combining accent.
+COMPOSED_E = chr(0xE9)
+COMBINING_ACUTE = chr(0x301)
 
 
 async def test_a_pasted_list_is_added_with_what_it_skipped_and_rejected(
@@ -141,3 +146,56 @@ async def test_a_list_takes_up_to_1000_items(
     )
 
     assert problem(response) == (422, "validation_failed")
+
+
+async def test_two_lists_taking_the_last_places_at_once_fit_only_one(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    await set_prompt_quota(migrated, workspace, 10)
+    url = project_url(workspace, project, "prompts", "bulk-create")
+
+    responses = await asyncio.gather(
+        *(
+            api.post(
+                url,
+                json={"items": [prompt_body(f"{name} {index}?") for index in range(6)]},
+                headers=editor.headers,
+            )
+            for name in ("First", "Second")
+        )
+    )
+
+    assert sorted(
+        (200, "created") if response.status_code == 200 else problem(response)
+        for response in responses
+    ) == [(200, "created"), (422, "quota_exceeded")]
+    rows = await fetch(migrated, "SELECT id FROM ai.prompts WHERE project_id = $1", project)
+    assert len(rows) == 6
+
+
+async def test_a_decomposed_repeat_inside_a_list_is_a_duplicate_in_the_request(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    composed = f"Caf{COMPOSED_E} au lait?"
+    decomposed = f"Cafe{COMBINING_ACUTE} au lait?"
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.post(
+        project_url(workspace, project, "prompts", "bulk-create"),
+        json={"items": [prompt_body(composed), prompt_body(decomposed)]},
+        headers=editor.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert len(data["created"]) == 1
+    assert [(row["index"], row["code"]) for row in data["rejected"]] == [
+        (1, "duplicate_in_request")
+    ]
+    rows = await fetch(migrated, "SELECT id FROM ai.prompts WHERE project_id = $1", project)
+    assert len(rows) == 1
