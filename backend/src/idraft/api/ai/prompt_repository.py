@@ -1,0 +1,455 @@
+"""Reads and writes of prompts, their versions and their terms (docs/04-data-model.md section
+8.2).
+
+Runs in the caller's transaction as the API role; every statement names the workspace. A prompt
+is shown with its current version, in slice 1 the first and only one.
+"""
+
+from __future__ import annotations
+
+from collections import defaultdict
+from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy import Row, Select, and_, delete, func, insert, literal, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from idraft.api.keywords.repository import UserRecord
+from idraft.db.tables import (
+    ai_prompt_terms,
+    ai_prompt_versions,
+    ai_prompts,
+    projects,
+    taxonomy_terms,
+    users,
+    workspace_quotas,
+)
+from idraft.domain.ai_engines import BASE_PLAN
+from idraft.keywords.links import TermRecord, term_record, terms_query
+from idraft.keywords.trees import among_ids, descendants
+
+# Rows per insert: 14 values a prompt row stays far under the 32,767 parameters of a statement.
+INSERT_MAX = 1000
+# Term links per insert: three values each.
+_TERM_ROWS_MAX = 5000
+
+
+@dataclass(frozen=True, slots=True)
+class VersionRecord:
+    id: UUID
+    version_no: int
+    text: str
+    text_hash: bytes
+    change_kind: str
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class PromptRecord:
+    id: UUID
+    current_version: VersionRecord
+    language_code: str
+    country_iso: str | None
+    intent: str
+    funnel_stage: str
+    prompt_type: str
+    importance: int
+    is_branded: bool
+    source: str
+    creation_method: str
+    is_active: bool
+    created_by: UserRecord | None
+    created_at: datetime
+    updated_at: datetime
+    terms: list[TermRecord]
+
+
+@dataclass(frozen=True, slots=True)
+class PromptFilter:
+    q: str | None = None
+    # The term or one under it.
+    term: UUID | None = None
+    intents: frozenset[str] = frozenset()
+    country_iso: str | None = None
+    language_code: str | None = None
+    is_active: bool | None = True
+
+
+@dataclass(frozen=True, slots=True)
+class NewPrompt:
+    """One prompt to write; the caller has checked it."""
+
+    text: str
+    text_hash: bytes
+    language_code: str
+    country_iso: str
+    intent: str
+    funnel_stage: str
+    prompt_type: str
+    importance: int
+    is_branded: bool
+    term_ids: tuple[UUID, ...]
+
+
+# What makes two prompts of a project one (plan decision A2).
+type PromptKey = tuple[bytes, str, str | None]  # text hash, language, country
+
+
+def _contains(text: str) -> str:
+    return "%" + text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+
+def _current_version() -> Any:
+    return and_(
+        ai_prompt_versions.c.id == ai_prompts.c.current_version_id,
+        ai_prompt_versions.c.workspace_id == ai_prompts.c.workspace_id,
+    )
+
+
+def _prompts(workspace_id: UUID, project_id: UUID) -> Select[tuple[object, ...]]:
+    p, v = ai_prompts.c, ai_prompt_versions.c
+    return (
+        select(
+            p.id,
+            p.language_code,
+            p.country_iso,
+            p.intent,
+            p.funnel_stage,
+            p.prompt_type,
+            p.importance,
+            p.is_branded,
+            p.source,
+            p.creation_method,
+            p.is_active,
+            p.created_at,
+            p.updated_at,
+            v.id.label("version_id"),
+            v.version_no,
+            v.text,
+            v.text_hash,
+            v.change_kind,
+            v.created_at.label("version_created_at"),
+            users.c.id.label("user_id"),
+            users.c.name.label("user_name"),
+            users.c.email.label("user_email"),
+        )
+        .select_from(
+            ai_prompts.join(ai_prompt_versions, _current_version()).outerjoin(
+                users, users.c.id == p.created_by
+            )
+        )
+        .where(p.workspace_id == workspace_id, p.project_id == project_id, p.deleted_at.is_(None))
+    )
+
+
+def _record(row: Row[Any], terms: Mapping[UUID, list[TermRecord]]) -> PromptRecord:
+    return PromptRecord(
+        id=row.id,
+        current_version=VersionRecord(
+            id=row.version_id,
+            version_no=row.version_no,
+            text=row.text,
+            text_hash=bytes(row.text_hash),
+            change_kind=row.change_kind,
+            created_at=row.version_created_at,
+        ),
+        language_code=row.language_code,
+        country_iso=row.country_iso,
+        intent=row.intent,
+        funnel_stage=row.funnel_stage,
+        prompt_type=row.prompt_type,
+        importance=row.importance,
+        is_branded=row.is_branded,
+        source=row.source,
+        creation_method=row.creation_method,
+        is_active=row.is_active,
+        created_by=None
+        if row.user_id is None
+        else UserRecord(user_id=row.user_id, name=row.user_name, email=row.user_email),
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+        terms=list(terms.get(row.id, [])),
+    )
+
+
+async def terms_of(
+    db: AsyncSession, workspace_id: UUID, prompt_ids: Collection[UUID]
+) -> dict[UUID, list[TermRecord]]:
+    """Each prompt's terms, in path order."""
+    if not prompt_ids:
+        return {}
+    rows = await db.execute(
+        terms_query()
+        .add_columns(ai_prompt_terms.c.prompt_id)
+        .join(
+            ai_prompt_terms,
+            and_(
+                ai_prompt_terms.c.term_id == taxonomy_terms.c.id,
+                ai_prompt_terms.c.workspace_id == taxonomy_terms.c.workspace_id,
+            ),
+        )
+        .where(
+            ai_prompt_terms.c.workspace_id == workspace_id,
+            among_ids(ai_prompt_terms.c.prompt_id, prompt_ids),
+        )
+        .order_by(taxonomy_terms.c.path, taxonomy_terms.c.id)
+    )
+    found: defaultdict[UUID, list[TermRecord]] = defaultdict(list)
+    for row in rows:
+        found[row.prompt_id].append(term_record(row))
+    return dict(found)
+
+
+async def _with_terms(
+    db: AsyncSession, workspace_id: UUID, rows: Sequence[Row[Any]]
+) -> list[PromptRecord]:
+    terms = await terms_of(db, workspace_id, [row.id for row in rows])
+    return [_record(row, terms) for row in rows]
+
+
+async def list_prompts(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    given: PromptFilter,
+    *,
+    after: UUID | None,
+    limit: int,
+) -> list[PromptRecord]:
+    """Newest first: prompt ids are time-ordered (`uuidv7()`)."""
+    p, v = ai_prompts.c, ai_prompt_versions.c
+    statement = _prompts(workspace_id, project_id)
+    if given.q is not None:
+        statement = statement.where(v.text.ilike(_contains(given.q), escape="\\"))
+    if given.term is not None:
+        tagged = select(ai_prompt_terms.c.prompt_id).where(
+            ai_prompt_terms.c.workspace_id == workspace_id,
+            ai_prompt_terms.c.term_id.in_(
+                descendants("term", [given.term], workspace_id, "term_tree")
+            ),
+        )
+        statement = statement.where(p.id.in_(tagged))
+    if given.intents:
+        statement = statement.where(p.intent.in_(sorted(given.intents)))
+    if given.country_iso is not None:
+        statement = statement.where(p.country_iso == given.country_iso)
+    if given.language_code is not None:
+        statement = statement.where(p.language_code == given.language_code)
+    if given.is_active is not None:
+        statement = statement.where(p.is_active == given.is_active)
+    if after is not None:
+        statement = statement.where(p.id < after)
+    rows = (await db.execute(statement.order_by(p.id.desc()).limit(limit))).all()
+    return await _with_terms(db, workspace_id, rows)
+
+
+async def prompts_by_ids(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, ids: Sequence[UUID]
+) -> list[PromptRecord]:
+    """The project's prompts with these ids, in the order of `ids`."""
+    if not ids:
+        return []
+    statement = _prompts(workspace_id, project_id).where(among_ids(ai_prompts.c.id, ids))
+    rows = (await db.execute(statement)).all()
+    by_id = {record.id: record for record in await _with_terms(db, workspace_id, rows)}
+    return [by_id[prompt_id] for prompt_id in ids if prompt_id in by_id]
+
+
+async def get_prompt(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, prompt_id: UUID, *, lock: bool = False
+) -> PromptRecord | None:
+    """With `lock`, the prompt row is held (FOR NO KEY UPDATE) until the transaction ends."""
+    statement = _prompts(workspace_id, project_id).where(ai_prompts.c.id == prompt_id)
+    if lock:
+        statement = statement.with_for_update(of=ai_prompts, key_share=True)
+    row = (await db.execute(statement)).one_or_none()
+    if row is None:
+        return None
+    (record,) = await _with_terms(db, workspace_id, [row])
+    return record
+
+
+async def lock_prompt_writes(db: AsyncSession, workspace_id: UUID) -> None:
+    """Prompt writers of one workspace take turns until the transaction ends, so the quota count
+    and the duplicate check of one write are never overtaken by another (plan decision A2)."""
+    await db.execute(
+        select(
+            func.pg_advisory_xact_lock(func.hashtextextended(literal(f"prompts:{workspace_id}"), 0))
+        )
+    )
+
+
+async def quota_usage(db: AsyncSession, workspace_id: UUID) -> tuple[int, int]:
+    """The workspace's active prompt limit and its active prompts. Without a quota row the limit
+    is the base plan's. A deleted project's prompts do not count; an archived project's do, so
+    bringing a project back never takes the workspace over its limit."""
+    stored: int | None = (
+        await db.execute(
+            select(workspace_quotas.c.max_active_prompts).where(
+                workspace_quotas.c.workspace_id == workspace_id
+            )
+        )
+    ).scalar_one_or_none()
+    limit = BASE_PLAN.max_prompts if stored is None else stored
+    used: int = (
+        await db.execute(
+            select(func.count())
+            .select_from(
+                ai_prompts.join(
+                    projects,
+                    and_(
+                        projects.c.id == ai_prompts.c.project_id,
+                        projects.c.workspace_id == ai_prompts.c.workspace_id,
+                    ),
+                )
+            )
+            .where(
+                ai_prompts.c.workspace_id == workspace_id,
+                ai_prompts.c.is_active,
+                ai_prompts.c.deleted_at.is_(None),
+                projects.c.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one()
+    return limit, used
+
+
+async def existing(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, keys: Collection[PromptKey]
+) -> dict[PromptKey, UUID]:
+    """The project's prompts, archived ones too, with one of these identities."""
+    if not keys:
+        return {}
+    p, v = ai_prompts.c, ai_prompt_versions.c
+    rows = await db.execute(
+        select(p.id, v.text_hash, p.language_code, p.country_iso)
+        .select_from(ai_prompts.join(ai_prompt_versions, _current_version()))
+        .where(
+            p.workspace_id == workspace_id,
+            p.project_id == project_id,
+            p.deleted_at.is_(None),
+            v.workspace_id == workspace_id,
+            v.text_hash.in_(sorted({key[0] for key in keys})),
+        )
+    )
+    wanted = set(keys)
+    found: dict[PromptKey, UUID] = {}
+    for row in rows:
+        key: PromptKey = (bytes(row.text_hash), row.language_code, row.country_iso)
+        if key in wanted:
+            found[key] = row.id
+    return found
+
+
+async def insert_prompts(
+    db: AsyncSession,
+    *,
+    workspace_id: UUID,
+    project_id: UUID,
+    items: Sequence[NewPrompt],
+    created_by: UUID,
+    now: datetime,
+) -> list[UUID]:
+    """Each prompt with its first version (`change_kind = 'initial'`) and its terms, in the
+    order given. Ids are drawn from the database's `uuidv7()` first, so a prompt names its
+    version before the version is written; the key between them is checked at commit."""
+    if not items:
+        return []
+    drawn = await db.execute(
+        select(func.uuidv7()).select_from(func.generate_series(1, 2 * len(items)))
+    )
+    ids: list[UUID] = list(drawn.scalars())
+    prompt_ids, version_ids = ids[: len(items)], ids[len(items) :]
+    for start in range(0, len(items), INSERT_MAX):
+        chunk = range(start, min(start + INSERT_MAX, len(items)))
+        await db.execute(
+            insert(ai_prompts).values(
+                [
+                    {
+                        "id": prompt_ids[index],
+                        "workspace_id": workspace_id,
+                        "project_id": project_id,
+                        "current_version_id": version_ids[index],
+                        "language_code": items[index].language_code,
+                        "country_iso": items[index].country_iso,
+                        "intent": items[index].intent,
+                        "funnel_stage": items[index].funnel_stage,
+                        "prompt_type": items[index].prompt_type,
+                        "importance": items[index].importance,
+                        "is_branded": items[index].is_branded,
+                        "created_by": created_by,
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+                    for index in chunk
+                ]
+            )
+        )
+        await db.execute(
+            insert(ai_prompt_versions).values(
+                [
+                    {
+                        "id": version_ids[index],
+                        "workspace_id": workspace_id,
+                        "prompt_id": prompt_ids[index],
+                        "version_no": 1,
+                        "text": items[index].text,
+                        "text_hash": items[index].text_hash,
+                        "created_by": created_by,
+                        "created_at": now,
+                        "change_kind": "initial",
+                    }
+                    for index in chunk
+                ]
+            )
+        )
+    await add_terms(
+        db,
+        workspace_id,
+        [
+            (prompt_ids[index], term_id)
+            for index, item in enumerate(items)
+            for term_id in item.term_ids
+        ],
+    )
+    return prompt_ids
+
+
+async def add_terms(
+    db: AsyncSession, workspace_id: UUID, pairs: Sequence[tuple[UUID, UUID]]
+) -> None:
+    """(prompt, term) links; the caller has checked the terms."""
+    for start in range(0, len(pairs), _TERM_ROWS_MAX):
+        await db.execute(
+            insert(ai_prompt_terms).values(
+                [
+                    {"prompt_id": prompt_id, "term_id": term_id, "workspace_id": workspace_id}
+                    for prompt_id, term_id in pairs[start : start + _TERM_ROWS_MAX]
+                ]
+            )
+        )
+
+
+async def replace_terms(
+    db: AsyncSession, workspace_id: UUID, prompt_id: UUID, term_ids: Sequence[UUID]
+) -> None:
+    await db.execute(
+        delete(ai_prompt_terms).where(
+            ai_prompt_terms.c.workspace_id == workspace_id,
+            ai_prompt_terms.c.prompt_id == prompt_id,
+        )
+    )
+    await add_terms(db, workspace_id, [(prompt_id, term_id) for term_id in term_ids])
+
+
+async def update_prompt(
+    db: AsyncSession, workspace_id: UUID, prompt_id: UUID, values: Mapping[str, object]
+) -> None:
+    await db.execute(
+        update(ai_prompts)
+        .where(ai_prompts.c.workspace_id == workspace_id, ai_prompts.c.id == prompt_id)
+        .values(**values)
+    )

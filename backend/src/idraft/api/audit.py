@@ -77,6 +77,9 @@ AuditAction = Literal[
     "integration.disabled",
     "project_engine.updated",
     "project_engine.deleted",
+    "prompt.created",
+    "prompt.updated",
+    "prompt.archived",
 ]
 
 

@@ -7215,6 +7215,411 @@
         "title": "ProjectUpdate",
         "type": "object"
       },
+      "Prompt": {
+        "properties": {
+          "country_iso": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Iso"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "creation_method": {
+            "enum": [
+              "human",
+              "template",
+              "llm_generated",
+              "imported"
+            ],
+            "title": "Creation Method",
+            "type": "string"
+          },
+          "current_version": {
+            "$ref": "#/components/schemas/PromptVersion"
+          },
+          "funnel_stage": {
+            "enum": [
+              "tofu",
+              "mofu",
+              "bofu",
+              "retention",
+              "unknown"
+            ],
+            "title": "Funnel Stage",
+            "type": "string"
+          },
+          "importance": {
+            "title": "Importance",
+            "type": "integer"
+          },
+          "intent": {
+            "enum": [
+              "informational",
+              "navigational",
+              "commercial",
+              "transactional",
+              "local",
+              "unknown"
+            ],
+            "title": "Intent",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_branded": {
+            "description": "Names an own brand: computed from the project's own aliases when the prompt is saved; a change may set it.",
+            "title": "Is Branded",
+            "type": "boolean"
+          },
+          "language_code": {
+            "title": "Language Code",
+            "type": "string"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "prompt_type": {
+            "enum": [
+              "question",
+              "comparison",
+              "recommendation",
+              "how_to",
+              "definition",
+              "local",
+              "transactional",
+              "other"
+            ],
+            "title": "Prompt Type",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/PromptTerm"
+            },
+            "title": "Terms",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "current_version",
+          "language_code",
+          "country_iso",
+          "intent",
+          "funnel_stage",
+          "prompt_type",
+          "importance",
+          "is_branded",
+          "source",
+          "creation_method",
+          "is_active",
+          "terms",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Prompt",
+        "type": "object"
+      },
+      "PromptCreate": {
+        "additionalProperties": false,
+        "description": "One prompt. Its text is fixed once saved: to change it, archive the prompt and add a new\none.",
+        "properties": {
+          "country_iso": {
+            "description": "The market the prompt stands for. Every enabled engine needs a location in it (`location_not_supported` otherwise).",
+            "pattern": "^[A-Z]{2}$",
+            "title": "Country Iso",
+            "type": "string"
+          },
+          "funnel_stage": {
+            "default": "unknown",
+            "enum": [
+              "tofu",
+              "mofu",
+              "bofu",
+              "retention",
+              "unknown"
+            ],
+            "title": "Funnel Stage",
+            "type": "string"
+          },
+          "importance": {
+            "default": 3,
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Importance",
+            "type": "integer"
+          },
+          "intent": {
+            "default": "unknown",
+            "enum": [
+              "informational",
+              "navigational",
+              "commercial",
+              "transactional",
+              "local",
+              "unknown"
+            ],
+            "title": "Intent",
+            "type": "string"
+          },
+          "language_code": {
+            "pattern": "^[a-z]{2}$",
+            "title": "Language Code",
+            "type": "string"
+          },
+          "prompt_type": {
+            "default": "question",
+            "enum": [
+              "question",
+              "comparison",
+              "recommendation",
+              "how_to",
+              "definition",
+              "local",
+              "transactional",
+              "other"
+            ],
+            "title": "Prompt Type",
+            "type": "string"
+          },
+          "term_ids": {
+            "description": "Topics and other terms the project may use.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Term Ids",
+            "type": "array"
+          },
+          "text": {
+            "description": "Trimmed and composed (NFC); one line.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "language_code",
+          "country_iso"
+        ],
+        "title": "PromptCreate",
+        "type": "object"
+      },
+      "PromptPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Prompt"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "PromptPage",
+        "type": "object"
+      },
+      "PromptPatch": {
+        "additionalProperties": false,
+        "description": "At least one member. The text, language and country are fixed (`immutable_field`).",
+        "properties": {
+          "funnel_stage": {
+            "enum": [
+              "tofu",
+              "mofu",
+              "bofu",
+              "retention",
+              "unknown"
+            ],
+            "title": "Funnel Stage",
+            "type": "string"
+          },
+          "importance": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Importance",
+            "type": "integer"
+          },
+          "intent": {
+            "enum": [
+              "informational",
+              "navigational",
+              "commercial",
+              "transactional",
+              "local",
+              "unknown"
+            ],
+            "title": "Intent",
+            "type": "string"
+          },
+          "is_active": {
+            "description": "`true` brings an archived prompt back; it counts against the quota.",
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_branded": {
+            "title": "Is Branded",
+            "type": "boolean"
+          },
+          "prompt_type": {
+            "enum": [
+              "question",
+              "comparison",
+              "recommendation",
+              "how_to",
+              "definition",
+              "local",
+              "transactional",
+              "other"
+            ],
+            "title": "Prompt Type",
+            "type": "string"
+          },
+          "term_ids": {
+            "description": "Replaces the prompt's terms.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Term Ids",
+            "type": "array"
+          }
+        },
+        "title": "PromptPatch",
+        "type": "object"
+      },
+      "PromptResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Prompt"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PromptResponse",
+        "type": "object"
+      },
+      "PromptTerm": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "term_id": {
+            "format": "uuid",
+            "title": "Term Id",
+            "type": "string"
+          },
+          "vocabulary_kind": {
+            "title": "Vocabulary Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "term_id",
+          "vocabulary_kind",
+          "name",
+          "path"
+        ],
+        "title": "PromptTerm",
+        "type": "object"
+      },
+      "PromptVersion": {
+        "properties": {
+          "change_kind": {
+            "enum": [
+              "initial",
+              "wording",
+              "typo",
+              "context"
+            ],
+            "title": "Change Kind",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "prompt_version_id": {
+            "format": "uuid",
+            "title": "Prompt Version Id",
+            "type": "string"
+          },
+          "text": {
+            "description": "Exactly what the engines receive.",
+            "title": "Text",
+            "type": "string"
+          },
+          "text_hash": {
+            "description": "sha256 of the text, hex.",
+            "title": "Text Hash",
+            "type": "string"
+          },
+          "version_no": {
+            "title": "Version No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "prompt_version_id",
+          "version_no",
+          "text",
+          "text_hash",
+          "change_kind",
+          "created_at"
+        ],
+        "title": "PromptVersion",
+        "type": "object"
+      },
       "RankCell": {
         "description": "One check's result for one site (docs/19 section 2, `RankCell`). A rank is known only\nwithin the depth that was checked: `beyond_depth` says it is further down, not absent.",
         "properties": {
@@ -18917,6 +19322,449 @@
         "summary": "Refresh keyword metrics now (a manual run)",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts": {
+      "get": {
+        "description": "Newest first. `filter[is_active]` is true when left out; archived prompts are listed with false. `filter[term]` takes the term or one under it, `filter[q]` matches the text as a substring without case, and `filter[intent_in]` takes a comma list. A cursor is bound to its filters (`400 invalid_cursor` otherwise).",
+        "operationId": "list_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[q]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Q]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[intent_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "informational",
+                      "navigational",
+                      "commercial",
+                      "transactional",
+                      "local",
+                      "unknown"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Intent In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[language_code]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Language Code]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[is_active]",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Filter[Is Active]",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The project's prompts",
+        "tags": [
+          "ai"
+        ]
+      },
+      "post": {
+        "description": "`409 duplicate` (with `existing_id`) when the project has the same text in the same language and country, archived prompts included; `422 quota_exceeded` (with `limit`, `used` and `requested`) past the workspace's active prompt limit. Field codes: `prompt_too_long` (over 2,000 characters, the most any engine takes), `location_not_supported` (`country_iso` has no location of an enabled engine), `term_unknown` and `single_valued_vocabulary`. `is_branded` is computed from the project's own aliases.",
+        "operationId": "create_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Add a prompt",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}": {
+      "delete": {
+        "description": "The prompt is no longer asked. It keeps its row, versions and answers, and `PATCH is_active: true` brings it back.",
+        "operationId": "archive_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Prompt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Archive a prompt; its answers stay",
+        "tags": [
+          "ai"
+        ]
+      },
+      "get": {
+        "operationId": "get_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Prompt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "A prompt",
+        "tags": [
+          "ai"
+        ]
+      },
+      "patch": {
+        "description": "The text, language and country cannot change (`422 validation_failed` with `immutable_field`): archive the prompt and add a new one. `term_ids` replaces the terms. `is_active: true` brings an archived prompt back and counts against the quota.",
+        "operationId": "update_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Prompt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change a prompt's metadata",
+        "tags": [
+          "ai"
         ]
       }
     },

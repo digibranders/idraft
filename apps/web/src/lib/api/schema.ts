@@ -1354,6 +1354,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The project's prompts
+         * @description Newest first. `filter[is_active]` is true when left out; archived prompts are listed with false. `filter[term]` takes the term or one under it, `filter[q]` matches the text as a substring without case, and `filter[intent_in]` takes a comma list. A cursor is bound to its filters (`400 invalid_cursor` otherwise).
+         */
+        get: operations["list_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_get"];
+        put?: never;
+        /**
+         * Add a prompt
+         * @description `409 duplicate` (with `existing_id`) when the project has the same text in the same language and country, archived prompts included; `422 quota_exceeded` (with `limit`, `used` and `requested`) past the workspace's active prompt limit. Field codes: `prompt_too_long` (over 2,000 characters, the most any engine takes), `location_not_supported` (`country_iso` has no location of an enabled engine), `term_unknown` and `single_valued_vocabulary`. `is_branded` is computed from the project's own aliases.
+         */
+        post: operations["create_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A prompt */
+        get: operations["get_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Archive a prompt; its answers stay
+         * @description The prompt is no longer asked. It keeps its row, versions and answers, and `PATCH is_active: true` brings it back.
+         */
+        delete: operations["archive_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a prompt's metadata
+         * @description The text, language and country cannot change (`422 validation_failed` with `immutable_field`): archive the prompt and add a new one. `term_ids` replaces the terms. `is_active: true` brings an archived prompt back and counts against the quota.
+         */
+        patch: operations["update_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__patch"];
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs": {
         parameters: {
             query?: never;
@@ -4712,6 +4761,199 @@ export interface components {
             status?: "active" | "paused" | "archived";
             /** Timezone */
             timezone?: string;
+        };
+        /** Prompt */
+        Prompt: {
+            /** Country Iso */
+            country_iso: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Creation Method
+             * @enum {string}
+             */
+            creation_method: "human" | "template" | "llm_generated" | "imported";
+            current_version: components["schemas"]["PromptVersion"];
+            /**
+             * Funnel Stage
+             * @enum {string}
+             */
+            funnel_stage: "tofu" | "mofu" | "bofu" | "retention" | "unknown";
+            /** Importance */
+            importance: number;
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent: "informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown";
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Is Branded
+             * @description Names an own brand: computed from the project's own aliases when the prompt is saved; a change may set it.
+             */
+            is_branded: boolean;
+            /** Language Code */
+            language_code: string;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /**
+             * Prompt Type
+             * @enum {string}
+             */
+            prompt_type: "question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other";
+            /** Source */
+            source: string;
+            /** Terms */
+            terms: components["schemas"]["PromptTerm"][];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * PromptCreate
+         * @description One prompt. Its text is fixed once saved: to change it, archive the prompt and add a new
+         *     one.
+         */
+        PromptCreate: {
+            /**
+             * Country Iso
+             * @description The market the prompt stands for. Every enabled engine needs a location in it (`location_not_supported` otherwise).
+             */
+            country_iso: string;
+            /**
+             * Funnel Stage
+             * @default unknown
+             * @enum {string}
+             */
+            funnel_stage: "tofu" | "mofu" | "bofu" | "retention" | "unknown";
+            /**
+             * Importance
+             * @default 3
+             */
+            importance: number;
+            /**
+             * Intent
+             * @default unknown
+             * @enum {string}
+             */
+            intent: "informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown";
+            /** Language Code */
+            language_code: string;
+            /**
+             * Prompt Type
+             * @default question
+             * @enum {string}
+             */
+            prompt_type: "question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other";
+            /**
+             * Term Ids
+             * @description Topics and other terms the project may use.
+             */
+            term_ids?: string[];
+            /**
+             * Text
+             * @description Trimmed and composed (NFC); one line.
+             */
+            text: string;
+        };
+        /** PromptPage */
+        PromptPage: {
+            /** Data */
+            data: components["schemas"]["Prompt"][];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /**
+         * PromptPatch
+         * @description At least one member. The text, language and country are fixed (`immutable_field`).
+         */
+        PromptPatch: {
+            /**
+             * Funnel Stage
+             * @enum {string}
+             */
+            funnel_stage?: "tofu" | "mofu" | "bofu" | "retention" | "unknown";
+            /** Importance */
+            importance?: number;
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent?: "informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown";
+            /**
+             * Is Active
+             * @description `true` brings an archived prompt back; it counts against the quota.
+             */
+            is_active?: boolean;
+            /** Is Branded */
+            is_branded?: boolean;
+            /**
+             * Prompt Type
+             * @enum {string}
+             */
+            prompt_type?: "question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other";
+            /**
+             * Term Ids
+             * @description Replaces the prompt's terms.
+             */
+            term_ids?: string[];
+        };
+        /** PromptResponse */
+        PromptResponse: {
+            data: components["schemas"]["Prompt"];
+        };
+        /** PromptTerm */
+        PromptTerm: {
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+            /**
+             * Term Id
+             * Format: uuid
+             */
+            term_id: string;
+            /** Vocabulary Kind */
+            vocabulary_kind: string;
+        };
+        /** PromptVersion */
+        PromptVersion: {
+            /**
+             * Change Kind
+             * @enum {string}
+             */
+            change_kind: "initial" | "wording" | "typo" | "context";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Prompt Version Id
+             * Format: uuid
+             */
+            prompt_version_id: string;
+            /**
+             * Text
+             * @description Exactly what the engines receive.
+             */
+            text: string;
+            /**
+             * Text Hash
+             * @description sha256 of the text, hex.
+             */
+            text_hash: string;
+            /** Version No */
+            version_no: number;
         };
         /**
          * RankCell
@@ -9840,6 +10082,185 @@ export interface operations {
             };
         };
     };
+    list_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_get: {
+        parameters: {
+            query?: {
+                "filter[q]"?: string | null;
+                "filter[term]"?: string | null;
+                "filter[intent_in]"?: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown")[] | null;
+                "filter[country_iso]"?: string | null;
+                "filter[language_code]"?: string | null;
+                "filter[is_active]"?: boolean;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                prompt_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    archive_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                prompt_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                prompt_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_runs_api_v1_workspaces__workspace_id__projects__project_id__runs_get: {
         parameters: {
             query?: {
@@ -11441,6 +11862,7 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordGroupsGetP
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports"]["get"]["parameters"]["query"]["filter[status]"]> = ["uploaded", "parsing", "needs_mapping", "preview_ready", "writing", "completed", "completed_with_errors", "failed", "cancelled", "expired"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsImport_idRowsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["new", "duplicate", "variant", "conflict", "invalid"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsImport_idRowsGetParametersQueryFilterActionAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows"]["get"]["parameters"]["query"]["filter[action]"]> = ["create", "skip", "merge", "force_separate"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idPromptsGetParametersQueryFilterIntent_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"]["get"]["parameters"]["query"]["filter[intent_in]"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterWorkload_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[workload_in]"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterTrigger_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[trigger_in]"]> = ["schedule", "manual", "backfill", "retry"];
@@ -11528,6 +11950,17 @@ export const projectEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<compon
 export const projectEntityCreateRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectEntityCreate"]["role"]> = ["own", "competitor", "watch"];
 export const projectEntityUpdateRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectEntityUpdate"]["role"]> = ["own", "competitor", "watch"];
 export const projectUpdateStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectUpdate"]["status"]> = ["active", "paused", "archived"];
+export const promptCreation_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["creation_method"]> = ["human", "template", "llm_generated", "imported"];
+export const promptFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const promptIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const promptPrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
+export const promptCreateFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const promptCreateIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const promptCreatePrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
+export const promptPatchFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptPatch"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const promptPatchIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptPatch"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const promptPatchPrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptPatch"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
+export const promptVersionChange_kindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptVersion"]["change_kind"]> = ["initial", "wording", "typo", "context"];
 export const rankCellStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RankCell"]["state"]> = ["ranked", "beyond_depth", "not_checked", "failed"];
 export const rankChangeLabelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RankChange"]["label"]> = ["numeric", "new", "lost", "unchanged_beyond", "consistent_beyond", "first_check"];
 export const readinessStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Readiness"]["status"]> = ["ready", "not_ready"];

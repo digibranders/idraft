@@ -41,7 +41,7 @@ from tests.api.keywords.support import LOCATION, ensure_locations
 from tests.api.test_route_access import PATH_PARAMETER
 from tests.api.workspaces.support import make_project
 from tests.conftest import PostgresServer
-from tests.db.support import seed_rank
+from tests.db.support import insert_prompt, seed_rank
 from tests.providers.google.fake_google import FakeGoogle
 from tests.security.cross_tenant_exceptions import NOT_PATH_SCOPED
 
@@ -181,6 +181,12 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
         "duplicate_action": "merge_terms",
     },
     ("PUT", _W + "/projects/{project_id}/engines/{engine_code}"): {"location_ids": [LOCATION]},
+    ("POST", _W + "/projects/{project_id}/prompts"): {
+        "text": "Planted prompt?",
+        "language_code": "en",
+        "country_iso": "US",
+    },
+    ("PATCH", _W + "/projects/{project_id}/prompts/{prompt_id}"): {"importance": 1},
 }
 # A path parameter that is a word, not an id of the tenant: it must not count as one of its
 # secrets, since every response would then seem to hold it.
@@ -242,6 +248,8 @@ class Tenant:
     # project and switched off (so that linking it again succeeds).
     connection_id: uuid.UUID
     integration_id: uuid.UUID
+    # A prompt of the project with the term, so changing or archiving it succeeds.
+    prompt_id: uuid.UUID
 
     def ids(self) -> dict[str, str]:
         return {
@@ -265,6 +273,7 @@ class Tenant:
             "serp_snapshot_id": str(self.serp_snapshot_id),
             "connection_id": str(self.connection_id),
             "integration_id": str(self.integration_id),
+            "prompt_id": str(self.prompt_id),
         }
 
     def secrets(self) -> list[str]:
@@ -430,6 +439,25 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         workspace.id,
         LOCATION,
     )
+    # The same prompt in both, under the term.
+    prompt_db = await asyncpg.connect(pg.url())
+    try:
+        prompt_id, _ = await insert_prompt(
+            prompt_db,
+            workspace.id,
+            project_id,
+            "Which CRM software suits a startup?",
+            created_by=owner.id,
+        )
+    finally:
+        await prompt_db.close()
+    await execute(
+        pg,
+        "INSERT INTO ai.prompt_terms (prompt_id, term_id, workspace_id) VALUES ($1, $2, $3)",
+        prompt_id,
+        term["id"],
+        workspace.id,
+    )
     # The same schedule in both, and a run of it under way.
     schedule = await fetchrow(
         pg,
@@ -573,6 +601,7 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         serp_snapshot_id=snapshot_id,
         connection_id=connection["id"],
         integration_id=integration["id"],
+        prompt_id=prompt_id,
     )
 
 
@@ -734,6 +763,9 @@ _TENANT_ROWS = {
     "fp.connections": "workspace_id",
     "fp.integrations": "workspace_id",
     "ai.project_engines": "workspace_id",
+    "ai.prompts": "workspace_id",
+    "ai.prompt_versions": "workspace_id",
+    "ai.prompt_terms": "workspace_id",
 }
 
 

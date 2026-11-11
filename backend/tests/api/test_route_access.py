@@ -361,6 +361,20 @@ EXPECTED: dict[tuple[str, str], str] = {
         "DELETE",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines/{engine_code}",
     ): "projects:write",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"): "data:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"): "prompts:write",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}",
+    ): "data:read",
+    (
+        "PATCH",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}",
+    ): "prompts:write",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}",
+    ): "prompts:write",
 }
 
 
@@ -427,6 +441,8 @@ PATH_PARAMETERS = {
     "kind",
     # An AI engine (`chatgpt_web`), a word and not an id, after `{project_id}`.
     "engine_code",
+    # Inside one project, after `{project_id}`: the service reads the prompt within it.
+    "prompt_id",
 }
 # `{name}` or `{name:converter}`.
 PATH_PARAMETER = re.compile(r"\{(\w+)(?::\w+)?\}")

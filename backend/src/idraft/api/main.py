@@ -13,6 +13,8 @@ from idraft import __version__
 from idraft.api.access_log import AccessLogMiddleware
 from idraft.api.ai.engine_routes import router as engine_routes_router
 from idraft.api.ai.engine_service import EngineService
+from idraft.api.ai.prompt_routes import router as prompt_routes_router
+from idraft.api.ai.prompt_service import PromptService
 from idraft.api.auth.passwords import BreachedPasswords
 from idraft.api.auth.routes import router as auth_router
 from idraft.api.auth.service import AuthService
@@ -217,6 +219,7 @@ def create_app(
                     app_origin=settings.app_origin,
                 ),
                 ai_engines=EngineService(sessions=sessions),
+                prompts=PromptService(sessions=sessions),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -265,6 +268,7 @@ def create_app(
     app.include_router(quotas_router)
     app.include_router(integrations_router)
     app.include_router(engine_routes_router)
+    app.include_router(prompt_routes_router)
     app.include_router(connections_router)
     app.include_router(oauth_router)
     app.include_router(registries_router)
