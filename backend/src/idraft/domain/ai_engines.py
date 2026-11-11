@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Final, Literal
@@ -139,4 +139,4 @@ def monthly_cost(prompts: int, unit_price: Decimal, plan: BasePlan = BASE_PLAN) 
     """What one engine costs for this many prompts in an average month (52 weeks over 12), to
     the cent: doc 07 section 7.2 with the plan's runs and answers."""
     weekly = Decimal(prompts * plan.runs_per_week * plan.answers_per_engine) * unit_price
-    return (weekly * _WEEKS_PER_YEAR / 12).quantize(_CENT)
+    return (weekly * _WEEKS_PER_YEAR / 12).quantize(_CENT, rounding=ROUND_HALF_UP)
