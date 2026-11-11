@@ -17,6 +17,11 @@ from idraft.api.schemas.ai import (
 )
 from idraft.domain.ai_engines import PROMPT_TEXT_MAX
 
+# Built with chr(), not typed: a tool that composes text (NFC) would otherwise turn the
+# decomposed inputs into the composed ones and the tests would prove nothing.
+ACUTE = chr(0x0301)
+E_ACUTE = chr(0x00E9)
+
 ONE = {"text": "Which CRM suits a startup?", "language_code": "en", "country_iso": "US"}
 
 
@@ -61,9 +66,8 @@ def test_a_body_breaking_a_rule_is_refused_with_its_code(
 
 
 def test_a_prompt_is_stored_trimmed_and_composed() -> None:
-    # Written as escapes: an editor would otherwise compose the decomposed input again
-    body = PromptCreate.model_validate({**ONE, "text": "  Café near me?  "})
-    assert body.text == "Café near me?"
+    body = PromptCreate.model_validate({**ONE, "text": f"  Cafe{ACUTE} near me?  "})
+    assert body.text == f"Caf{E_ACUTE} near me?"
     assert (body.intent, body.funnel_stage, body.prompt_type, body.importance) == (
         "unknown",
         "unknown",
@@ -74,7 +78,7 @@ def test_a_prompt_is_stored_trimmed_and_composed() -> None:
 
 def test_a_text_that_composes_under_the_limit_fits() -> None:
     # Decomposed (letter plus combining accent): twice the limit raw, exactly the limit composed
-    body = PromptCreate.model_validate({**ONE, "text": "é" * PROMPT_TEXT_MAX})
+    body = PromptCreate.model_validate({**ONE, "text": f"e{ACUTE}" * PROMPT_TEXT_MAX})
     assert len(body.text) == PROMPT_TEXT_MAX
 
 
