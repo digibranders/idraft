@@ -36,7 +36,7 @@ TASK_OK: Final = 20000
 EXTRAS_MAX_BYTES: Final = 16 * 1024
 # An answer this short is not an answer (doc 07 section 5.5).
 REFUSAL_MAX_CHARS: Final = 40
-# A text opening with a refusal phrase is a refusal when shorter than this or citing nothing.
+# A text opening with a refusal phrase is a refusal only when shorter than this.
 REFUSAL_LONG_CHARS: Final = 300
 # What a refusal opens with, without case.
 REFUSALS: Final = (
@@ -181,7 +181,7 @@ def parse_ai_answer(engine_code: str, body: bytes | Mapping[str, Any]) -> Normal
         }
     )
     return NormalizedAnswer(
-        status=_status(text, result, blocks, sources),
+        status=_status(text, result, blocks),
         error_code=None,
         answer_text=text or None,
         model_reported=_model(result.get("model")),
@@ -196,19 +196,16 @@ def parse_ai_answer(engine_code: str, body: bytes | Mapping[str, Any]) -> Normal
 
 
 def _status(
-    text: str,
-    result: Mapping[str, Any],
-    blocks: Sequence[Mapping[str, Any]],
-    sources: Sequence[CitedSource],
+    text: str, result: Mapping[str, Any], blocks: Sequence[Mapping[str, Any]]
 ) -> AnswerStatus:
     if not text:
         return "empty"
     stripped = text.strip()
     # A curly apostrophe reads as a straight one, so one list of phrases serves both.
     opening = stripped.casefold().replace("\N{RIGHT SINGLE QUOTATION MARK}", "'")
-    # A hedged answer opens with a refusal phrase and goes on to answer: only a short text, or one
-    # that cites nothing, is a refusal.
-    declines = opening.startswith(REFUSALS) and (len(stripped) < REFUSAL_LONG_CHARS or not sources)
+    # A hedged answer opens with a refusal phrase and goes on to answer: a real refusal is short,
+    # whether or not the engine had sources.
+    declines = opening.startswith(REFUSALS) and len(stripped) < REFUSAL_LONG_CHARS
     if len(stripped) < REFUSAL_MAX_CHARS or declines:
         return "refused"
     if not blocks and _text(result.get("markdown")):

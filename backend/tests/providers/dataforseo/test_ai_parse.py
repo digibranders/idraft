@@ -220,12 +220,12 @@ def test_a_refusal_phrase_further_into_the_answer_is_not_a_refusal() -> None:
     assert parse_ai_answer("chatgpt_web", _cited_answer(text)).status == "complete"
 
 
-def test_a_long_refusal_without_any_source_is_a_refusal() -> None:
-    text = "I cannot help with that request." + FILLER * 2
+def test_a_long_hedged_answer_without_any_source_is_still_an_answer() -> None:
+    text = "I can't help with choosing just one, but here are the best options." + FILLER * 2
     assert len(text) >= 300
     body = _answer([{"markdown": text, "items": [{"type": "chat_gpt_text", "markdown": text}]}])
 
-    assert parse_ai_answer("chatgpt_web", body).status == "refused"
+    assert parse_ai_answer("chatgpt_web", body).status == "complete"
 
 
 @pytest.mark.parametrize(
