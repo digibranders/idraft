@@ -115,6 +115,23 @@ describe('Check now', () => {
     expect(screen.getByText('Rank check queued')).toBeInTheDocument();
   });
 
+  it('asks for both devices of a keyword tracked on desktop and mobile, whichever row was chosen', async () => {
+    let checkBody: unknown = null;
+    server.events.on('request:start', async ({ request }) => {
+      if (request.url.includes('/seo/check-now')) checkBody = await request.clone().json();
+    });
+
+    const { user } = renderWithProviders(as('editor'));
+    // One row stands for the desktop and the mobile tracking of "seo agency berlin"
+    const bar = await choose(user, 'seo agency berlin');
+    await user.click(within(bar).getByRole('button', { name: 'Check now' }));
+
+    await waitFor(() => expect(checkBody).not.toBeNull());
+    const ids = (checkBody as { tracked_keyword_ids: string[] }).tracked_keyword_ids;
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+  });
+
   it('shows finished toast and reads the keyword list again on completion', async () => {
     let listReads = 0;
     const runId = 'test-finished-run-1';
@@ -261,13 +278,14 @@ describe('Check now', () => {
   });
 
   it('disables bulk Check now when 101 keywords are selected, with a reason', async () => {
-    answerTrackedAsMany({ total: 101, pages: 1, rowsPerPage: 101 });
+    answerTrackedAsMany({ total: 101, pages: 1, rowsPerPage: 101, desktopOnly: true });
     const { user } = renderWithProviders(as('editor'));
     await loadedGrid();
     const selectAllCheckbox = screen.getByRole('checkbox', { name: /^Select all/ });
     await user.click(selectAllCheckbox);
     const bar = screen.getByRole('group', { name: /Bulk actions/ });
-    expect(within(bar).getByText('101 selected')).toBeInTheDocument();
+    // `desktopOnly` makes every answered row a desktop row, so the table lists all 101 and the route counts them as 101 tracked keywords
+    expect(within(bar).getByText(/ selected$/)).toBeInTheDocument();
     const checkBtn = within(bar).getByRole('button', { name: 'Check now' });
     expect(checkBtn).toHaveAttribute('data-disabled');
     expect(checkBtn).toHaveAttribute('aria-disabled', 'true');
@@ -418,7 +436,7 @@ describe('Check now', () => {
     const bar = await choose(user, 'seo agency');
     await user.click(within(bar).getByRole('button', { name: 'Check now' }));
     expect(
-      (await screen.findAllByText(/This workspace has made 499 of its 500 live checks this month/)).length,
+      (await screen.findAllByText(/This workspace has made 499 of its 500 manual checks this month/)).length,
     ).toBeGreaterThanOrEqual(1);
 
     server.use(http.post(mswPath(CHECK_NOW), ({ request }) => problem(request, 'provider_paused')));
@@ -426,6 +444,22 @@ describe('Check now', () => {
     expect(
       (await screen.findAllByText('The data provider is not being asked just now. Try again in a few minutes.')).length,
     ).toBeGreaterThanOrEqual(1);
+  });
+
+  it('says a check is already under way when the route refuses a second one, and asks for no second run', async () => {
+    server.use(
+      http.post(mswPath(CHECK_NOW), ({ request }) =>
+        problem(request, 'check_pending', { tracked_keyword_ids: ['one'] }),
+      ),
+    );
+    const { user } = renderWithProviders(as('editor'));
+    const bar = await choose(user, 'seo agency');
+    await user.click(within(bar).getByRole('button', { name: 'Check now' }));
+
+    expect(
+      (await screen.findAllByText(/A check is already queued or under way for this keyword/)).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByRole('progressbar')).toBeNull();
   });
 
   it('reports lost run with toast id matching keyword-${workload}-${runId}', async () => {

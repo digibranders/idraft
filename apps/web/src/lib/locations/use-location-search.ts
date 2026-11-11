@@ -26,8 +26,8 @@ export interface LocationSearch {
 
 /**
  * The locations rank checks can target (19 section 3.2.5, `GET /api/v1/locations`), for `LocationCombobox`.
- * Before 2 characters are typed it lists the countries; after that, the locations whose name contains the
- * text. The previous results stay while the next ones load.
+ * Keywords are tracked at country level, so only countries are offered: all of them before 2 characters are
+ * typed, then those whose name contains the text. The previous results stay while the next ones load.
  */
 export function useLocationSearch(): LocationSearch {
   const [query, setQuery] = useState('');
@@ -39,7 +39,8 @@ export function useLocationSearch(): LocationSearch {
         query: {
           limit: RESULT_LIMIT,
           'filter[supports]': 'serp',
-          ...(searching ? { 'filter[q]': settled } : { 'filter[location_type]': COUNTRY }),
+          'filter[location_type]': COUNTRY,
+          ...(searching ? { 'filter[q]': settled } : {}),
         },
       },
     }),

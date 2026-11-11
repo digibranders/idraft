@@ -19,11 +19,18 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api import audit
-from idraft.api.keywords import filters, rank_repository, repository
+from idraft.api.keywords import check_status, filters, gsc_repository, rank_repository, repository
+from idraft.api.keywords.check_status import CheckProgress
+from idraft.api.keywords.gsc_repository import GscRecord
 from idraft.api.keywords.rank_repository import (
     CompetitorRank as CompetitorRankRecord,
 )
-from idraft.api.keywords.rank_repository import FeatureRecord, SparkPoint, StateRecord
+from idraft.api.keywords.rank_repository import (
+    FeatureRecord,
+    RankingUrlRecord,
+    SparkPoint,
+    StateRecord,
+)
 from idraft.api.keywords.repository import (
     CompetitorRecord,
     ConfigRecord,
@@ -160,6 +167,7 @@ class TrackedDetail:
     config_versions: int
     schedule: ScheduleRecord | None
     state: StateRecord | None
+    check: CheckProgress | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,8 +180,11 @@ class TrackedRow:
     terms: list[TermRecord] | None
     overrides: list[OverrideRecord] | None
     state: StateRecord | None = None
+    check: CheckProgress | None = None
     sparkline: list[SparkPoint] | None = None
     competitor_ranks: list[CompetitorRankRecord] | None = None
+    ranking_urls: list[RankingUrlRecord] | None = None
+    gsc: GscRecord | None = None
     features: list[FeatureRecord] | None = None
     cited: list[UrlRecord] | None = None
 
@@ -494,6 +505,7 @@ class KeywordService:
                 state=(await rank_repository.states_of(db, access.workspace_id, ids)).get(
                     record.id
                 ),
+                check=(await check_status.progress_of(db, access.workspace_id, ids)).get(record.id),
                 schedule=None
                 if record.schedule_id is None
                 else await repository.schedule_ref(db, access.workspace_id, record.schedule_id),
@@ -686,14 +698,20 @@ class KeywordService:
         page: CursorParams,
     ) -> TrackedPageResult:
         """A page of the project's tracked keywords, with `page.total` for the filter."""
-        parts = filters.components(sort)
         bound = {"sort": [key.label() for key in sort], **filters.scope(given, project_id)}
-        after = None
-        if page.cursor is not None:
-            values = filters.decode_key(parts, decode_cursor(page.cursor, scope=bound))
-            after = filters.after(parts, values)
         async with self._transaction(access) as db:
             await self._defaults(db, access, project_id)
+            # The Search Console sorts need the property and its window, so they are read first.
+            gsc_scope = (
+                await gsc_repository.scope_of(db, access.workspace_id, project_id)
+                if any(key.field.startswith("gsc_") for key in sort)
+                else None
+            )
+            parts = filters.components(sort, gsc_scope)
+            after = None
+            if page.cursor is not None:
+                values = filters.decode_key(parts, decode_cursor(page.cursor, scope=bound))
+                after = filters.after(parts, values)
             where = filters.conditions(
                 given,
                 workspace_id=access.workspace_id,
@@ -716,6 +734,14 @@ class KeywordService:
         if len(found) > page.limit:
             next_cursor = encode_cursor(filters.encode_key(parts, shown[-1][1]), scope=bound)
         return TrackedPageResult(rows=rows, next_cursor=next_cursor, total=total)
+
+    async def countries_in_use(
+        self, access: WorkspaceAccess, project_id: UUID
+    ) -> list[repository.CountryRecord]:
+        """The countries the project has active tracked keywords in."""
+        async with self._transaction(access) as db:
+            await self._defaults(db, access, project_id)
+            return await repository.countries_in_use(db, access.workspace_id, project_id)
 
     async def bulk_update(
         self,
@@ -1096,6 +1122,7 @@ class KeywordService:
             else None
         )
         states = await rank_repository.states_of(db, workspace_id, ids)
+        checks = await check_status.progress_of(db, workspace_id, ids)
         sparklines = (
             await rank_repository.sparklines_of(db, workspace_id, ids)
             if "sparkline" in include
@@ -1104,6 +1131,16 @@ class KeywordService:
         competitor_ranks = (
             await rank_repository.competitor_ranks_of(db, workspace_id, project_id, ids)
             if "competitor_ranks" in include
+            else None
+        )
+        ranking_urls = (
+            await rank_repository.ranking_urls_of(db, workspace_id, ids)
+            if "ranking_urls" in include
+            else None
+        )
+        gsc = (
+            await gsc_repository.gsc_of(db, workspace_id, project_id, ids)
+            if "gsc" in include
             else None
         )
         features, cited = (
@@ -1121,10 +1158,13 @@ class KeywordService:
                 terms=None if terms is None else terms.get(record.id, []),
                 overrides=None if overrides is None else overrides.get(record.id, []),
                 state=states.get(record.id),
+                check=checks.get(record.id),
                 sparkline=None if sparklines is None else sparklines.get(record.id, []),
                 competitor_ranks=None
                 if competitor_ranks is None
                 else competitor_ranks.get(record.id, []),
+                ranking_urls=None if ranking_urls is None else ranking_urls.get(record.id, []),
+                gsc=None if gsc is None else gsc[record.id],
                 features=None
                 if features is None or "features" not in include
                 else features.get(record.id, []),

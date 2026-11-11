@@ -441,6 +441,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/oauth/google/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where Google returns the person after consent
+         * @description Public, but the single-use `state` must belong to the caller's session. Always a 302 to the project's Google page: `.../integrations/google?connection_id=...` on success (when at least one product permission was granted), `...?error=<code>` otherwise, with `invalid_state`, `scope_denied`, `no_refresh_token`, `exchange_failed`, `google_unavailable` or `integration_not_configured`. When the project cannot be known (a wrong or reused state) it goes to the app's front page with `?integration_error=invalid_state`.
+         */
+        get: operations["google_callback_api_v1_oauth_google_callback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces": {
         parameters: {
             query?: never;
@@ -492,6 +512,83 @@ export interface paths {
          * @description `month` is `YYYY-MM` (UTC; this month when left out). `spent_usd` is read from the cost events; `committed_estimate_usd` is what runs under way are still expected to spend, this month only. `state` is `hard_exceeded` from the limit and `soft_exceeded` from its soft share. A member limited to some projects sees their budgets only.
          */
         get: operations["budget_status_api_v1_workspaces__workspace_id__budgets_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The workspace's connections */
+        get: operations["list_connections_api_v1_workspaces__workspace_id__connections_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/connections/{connection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Disconnect a Google account
+         * @description Revokes the token at Google (best effort), deletes the stored credential, marks the connection revoked and switches off its properties, Search Console and GA4. The numbers already stored are kept. Disconnecting a revoked connection changes nothing.
+         */
+        delete: operations["disconnect_api_v1_workspaces__workspace_id__connections__connection_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/connections/{connection_id}/properties/ga4": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The GA4 properties of a connection
+         * @description Asks the Google Analytics Admin API (`accountSummaries.list`), by account and name. No domain is matched and none is suggested. The same problem codes as the Search Console list: `integration_reauth_required` and `integration_scope_missing` (409), `google_unavailable` and `google_rate_limited` (503).
+         */
+        get: operations["list_analytics_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_ga4_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/connections/{connection_id}/properties/gsc": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Search Console properties of a connection
+         * @description Asks Google, so it can answer `google_unavailable` or `google_rate_limited` (503). `suggested_project_id` names the project whose primary domain the property matches, a Domain property before a URL prefix. `integration_reauth_required` (409) when the account must connect again; `integration_scope_missing` (409) when Search Console access was not granted, without asking Google.
+         */
+        get: operations["list_search_console_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_gsc_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -608,7 +705,7 @@ export interface paths {
         put?: never;
         /**
          * Add a domain
-         * @description A registrable rule is stored against the registrable domain itself (`https://www.acme.com/x` is `acme.com`); host and path prefix rules keep the host.
+         * @description The default scope is `host`: a site, which is the host and its www form (`https://www.acme.com/x` and `acme.com` are the same site) and none of its other subdomains; a subdomain is a site of its own. Only a `registrable` rule takes every subdomain, and it is stored against the registrable domain itself; host and path prefix rules keep the host.
          */
         post: operations["add_entity_domain_api_v1_workspaces__workspace_id__entities__entity_id__domains_post"];
         delete?: never;
@@ -909,6 +1006,67 @@ export interface paths {
         head?: never;
         /** Change an entity's role in the project */
         patch: operations["update_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities__entity_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The properties linked to a project */
+        get: operations["list_project_integrations_api_v1_workspaces__workspace_id__projects__project_id__integrations_get"];
+        put?: never;
+        /**
+         * Link a Search Console or GA4 property to the project
+         * @description `kind` is `gsc` (a Search Console property) or `ga4` (`properties/<number>`). The connection must be active, must have been granted that product (`integration_scope_missing`, 409) and its account must be able to read the property (`property_not_accessible`, 422). A project has one live property per kind and a property belongs to one project of the workspace (`duplicate`, 409). Nothing is pulled yet for GA4.
+         */
+        post: operations["choose_property_api_v1_workspaces__workspace_id__projects__project_id__integrations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations/google/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start connecting a Google account
+         * @description Answers Google's consent address; the web app sends the person there. One consent asks for Search Console and Google Analytics together, and the person may untick one. The address carries a single-use state and a PKCE challenge, both valid for 10 minutes and bound to the caller, the workspace and the project. Google returns the person to `GET /api/v1/oauth/google/callback`. `integration_not_configured` (503) when this installation has no Google OAuth client.
+         */
+        post: operations["authorize_api_v1_workspaces__workspace_id__projects__project_id__integrations_google_authorize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations/{integration_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Stop using a property for the project
+         * @description The property is switched off and the numbers already stored are kept.
+         */
+        delete: operations["disable_integration_api_v1_workspaces__workspace_id__projects__project_id__integrations__integration_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups": {
@@ -1311,8 +1469,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Check keywords now (a manual run, asked of the provider live)
-         * @description The given tracked keywords (at most 100, which the project collects; `422 validation_failed` with `keyword_unknown` otherwise), each asked of the provider live, at `depth` or else its daily depth. The run is `planned` and the worker plans it within a minute; a result is normally there within seconds after that. Read the run for its progress and the keywords' rank for the answer. A budget used up blocks it (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC), with `limit`; `422 quota_exceeded` when the month's live checks would pass the workspace's `max_serp_checks_per_month`; `503 provider_paused` while the provider is refusing every request.
+         * Check keywords now (a manual run through the provider's standard queue)
+         * @description The given tracked keywords (at most 100, which the project collects; `422 validation_failed` with `keyword_unknown` otherwise), asked through the provider's standard queue, the path a schedule uses, at `depth` or else the keyword's daily depth. The run is `planned` and the worker plans it within a minute; the provider answers within minutes, not seconds. Read each keyword's `state.check` (`queued`, `processing`, `completed`, `inconclusive`, `failed`) for progress and its rank for the answer. A keyword that already has a check queued or under way is refused with `409 check_pending` and its ids in `tracked_keyword_ids`: it would be a second paid request for the same reading. A budget used up blocks it (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC), with `limit`; `422 quota_exceeded` when the month's manual checks would pass the workspace's `max_serp_checks_per_month`; `503 provider_paused` while the provider is refusing every request.
          */
         post: operations["check_now_api_v1_workspaces__workspace_id__projects__project_id__seo_check_now_post"];
         delete?: never;
@@ -1431,7 +1589,7 @@ export interface paths {
         };
         /**
          * The project's tracked keywords
-         * @description Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, `current_rank`, `rank_change`, `best_rank` and `last_observed_at`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric or a rank sorts keywords without one (beyond the depth, or never checked) last in both directions. Every row carries its rank `state`; `include` adds `sparkline`, `competitor_ranks`, `features` and `aio`. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).
+         * @description Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, `current_rank`, `rank_change`, `best_rank`, `last_observed_at`, `gsc_clicks` and `gsc_impressions`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric or a rank sorts keywords without one (beyond the depth, or never checked) last in both directions. The Search Console sorts use the 28 days of `include=gsc` on the keyword's own device, and count a keyword with no rows as 0 (every row is 0 while the project is `pending` or `not_connected`). Every row carries its rank `state`; `include` adds `sparkline`, `competitor_ranks`, `ranking_urls`, `gsc`, `features` and `aio`. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).
          */
         get: operations["list_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get"];
         put?: never;
@@ -1520,6 +1678,26 @@ export interface paths {
          * @description Exactly one of `ids` (up to 5,000) and `filter` (`422 too_many_subjects` over 20,000 matches, with `limit`). `set` takes the fields of a single change; a new `depth_profile` or `target_url` makes a configuration version for each row it changes (`config_versions_created`). `add_term_ids` with a term of a single-valued vocabulary replaces the keyword's other term of that vocabulary.
          */
         post: operations["bulk_update_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_update_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/countries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The countries the project has keywords in
+         * @description One entry for each country with active tracked keywords, a keyword tracked in a city counting for the city's country, most keywords first. `keyword_count` counts distinct keywords: one tracked on both devices counts once.
+         */
+        get: operations["list_tracked_keyword_countries_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_countries_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1713,6 +1891,26 @@ export interface paths {
          * @description A new `slug` or `parent_id` rewrites the paths of the whole subtree. The name keeps its slug unless a slug is given. `422 cycle_detected` for a parent under the term.
          */
         patch: operations["update_term_api_v1_workspaces__workspace_id__terms__term_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/tracked-keyword-quota": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The workspace's tracked keyword limit and use
+         * @description `used` counts the active tracked keywords of every project of the workspace that is not deleted, the figure `quota_exceeded` carries. The full quota report stays deferred.
+         */
+        get: operations["get_tracked_keyword_quota_api_v1_workspaces__workspace_id__tracked_keyword_quota_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/workspaces/{workspace_id}/vocabularies": {
@@ -2063,6 +2261,48 @@ export interface components {
             /** Requires Context */
             requires_context?: boolean;
         };
+        /** AnalyticsProperty */
+        AnalyticsProperty: {
+            /**
+             * Account Id
+             * @description `accounts/123`.
+             */
+            account_id: string;
+            /**
+             * Account Label
+             * @description The Analytics account's name.
+             */
+            account_label: string;
+            /**
+             * External Property
+             * @description `properties/123456`.
+             */
+            external_property: string;
+            /**
+             * Label
+             * @description The property's name in Google Analytics.
+             */
+            label: string;
+            /**
+             * Linked Project Id
+             * @description The project this property is already linked to. It cannot be linked twice.
+             */
+            linked_project_id: string | null;
+            /**
+             * Property Type
+             * @enum {string}
+             */
+            property_type: "ordinary" | "subproperty" | "rollup" | "unspecified";
+        };
+        /** AnalyticsPropertyList */
+        AnalyticsPropertyList: {
+            /** Data */
+            data: components["schemas"]["AnalyticsProperty"][];
+        };
+        /** AuthorizationResponse */
+        AuthorizationResponse: {
+            data: components["schemas"]["OAuthStart"];
+        };
         /** Body_upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post */
         Body_upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post: {
             /**
@@ -2215,14 +2455,14 @@ export interface components {
         };
         /**
          * CheckNow
-         * @description Keywords to check at once, each a live search of its own.
+         * @description Keywords to check at once, each a search of its own through the standard queue.
          */
         CheckNow: {
             /**
              * Depth
              * @description Results to look at; default: each keyword's daily depth.
              */
-            depth?: (10 | 20 | 50 | 100) | null;
+            depth?: 100 | null;
             /** Tracked Keyword Ids */
             tracked_keyword_ids: string[];
         };
@@ -2288,6 +2528,80 @@ export interface components {
             valid_from: string;
             /** Valid To */
             valid_to: string | null;
+        };
+        /** Connection */
+        Connection: {
+            /** @description Per product, from the granted scopes. */
+            access: components["schemas"]["ConnectionAccess"];
+            /**
+             * Auth Method
+             * @enum {string}
+             */
+            auth_method: "oauth" | "api_key" | "api_token" | "service_account";
+            /**
+             * Connected At
+             * Format: date-time
+             */
+            connected_at: string;
+            connected_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Connection Id
+             * Format: uuid
+             */
+            connection_id: string;
+            /**
+             * Integration Count
+             * @description Properties linked to projects, not disabled.
+             */
+            integration_count: number;
+            /** Last Error Code */
+            last_error_code: string | null;
+            /** Last Refresh At */
+            last_refresh_at: string | null;
+            /**
+             * Product
+             * @enum {string}
+             */
+            product: "google" | "bing_wmt" | "cloudflare";
+            /** Scopes */
+            scopes: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "reauth_required" | "revoked" | "error";
+            /**
+             * Subject Label
+             * @description The connected account, for display.
+             */
+            subject_label: string | null;
+        };
+        /**
+         * ConnectionAccess
+         * @description Which products the person let us read when they connected. Google lets them untick a
+         *     permission, so a connection can have one product and not the other.
+         */
+        ConnectionAccess: {
+            /**
+             * Ga4
+             * @description Google Analytics (`analytics.readonly`) was granted.
+             */
+            ga4: boolean;
+            /**
+             * Gsc
+             * @description Search Console (`webmasters.readonly`) was granted.
+             */
+            gsc: boolean;
+        };
+        /** ConnectionPage */
+        ConnectionPage: {
+            /** Data */
+            data: components["schemas"]["Connection"][];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** ConnectionResponse */
+        ConnectionResponse: {
+            data: components["schemas"]["Connection"];
         };
         /** CostList */
         CostList: {
@@ -2355,6 +2669,13 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** DeviceCounts */
+        DeviceCounts: {
+            /** Desktop */
+            desktop: number;
+            /** Mobile */
+            mobile: number;
+        };
         /** DomainCategory */
         DomainCategory: {
             /** Code */
@@ -2375,7 +2696,7 @@ export interface components {
             domain: string;
             /**
              * Match Scope
-             * @default registrable
+             * @default host
              * @enum {string}
              */
             match_scope: "path_prefix" | "host" | "registrable";
@@ -2672,6 +2993,7 @@ export interface components {
             own_ownership_rate: components["schemas"]["MetricValue"];
             presence_rate: components["schemas"]["MetricValue"];
         };
+        FilterList_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_1___Le_le_2147483647_____: number[];
         FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___: ("absent" | "present_not_cited" | "present_cited" | "not_loaded" | "unknown")[];
         FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown")[];
         FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___: ("light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100")[];
@@ -2695,6 +3017,51 @@ export interface components {
             name: string;
             /** Path */
             path: string;
+        };
+        /**
+         * GscBlock
+         * @description Clicks and impressions from Search Console (docs/18 section 4.9): counts, not estimates.
+         */
+        GscBlock: {
+            clicks?: components["schemas"]["DeviceCounts"] | null;
+            impressions?: components["schemas"]["DeviceCounts"] | null;
+            /**
+             * State
+             * @description `ok`: the counts are the last 28 days of final data (0 is a count). `pending`: the first pull of the property is running. `not_connected`: the project has no Search Console connection.
+             * @enum {string}
+             */
+            state: "ok" | "pending" | "not_connected";
+            /** @description `ok` only: the tracked device's clicks and impressions in 4-day buckets of the window, oldest first; the buckets add up to that device's counts. */
+            trend?: components["schemas"]["GscTrend"] | null;
+            window?: components["schemas"]["GscWindow"] | null;
+        };
+        /**
+         * GscTrend
+         * @description The keyword's own device over the window in consecutive buckets, oldest first.
+         */
+        GscTrend: {
+            /**
+             * Bucket Days
+             * @description Days in a bucket; bucket i starts i * bucket_days days after the window start.
+             */
+            bucket_days: number;
+            /** Clicks */
+            clicks: number[];
+            /** Impressions */
+            impressions: number[];
+        };
+        /** GscWindow */
+        GscWindow: {
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
         };
         /** Health */
         Health: {
@@ -2965,6 +3332,123 @@ export interface components {
             data: components["schemas"]["ImportRow"][];
             page: components["schemas"]["CursorPageInfo"];
         };
+        /** Integration */
+        Integration: {
+            /** Backfill State */
+            backfill_state: {
+                [key: string]: unknown;
+            };
+            /** Connection Id */
+            connection_id: string | null;
+            /** Connection Status */
+            connection_status: ("active" | "reauth_required" | "revoked" | "error") | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** External Account */
+            external_account: string | null;
+            /** External Property */
+            external_property: string;
+            /**
+             * Integration Id
+             * Format: uuid
+             */
+            integration_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "gsc" | "bing_wmt" | "ga4" | "cloudflare" | "server_logs";
+            /** Last Error */
+            last_error: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
+            /** Project Id */
+            project_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "reauth_required" | "disabled" | "error";
+            /** @description The pull's progress, for a Search Console property; null for other kinds. */
+            sync: components["schemas"]["IntegrationSync"] | null;
+        };
+        /** IntegrationCreate */
+        IntegrationCreate: {
+            /**
+             * Connection Id
+             * Format: uuid
+             */
+            connection_id: string;
+            /** External Property */
+            external_property: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "gsc" | "ga4";
+        };
+        /** IntegrationPage */
+        IntegrationPage: {
+            /** Data */
+            data: components["schemas"]["Integration"][];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** IntegrationResponse */
+        IntegrationResponse: {
+            data: components["schemas"]["Integration"];
+        };
+        /**
+         * IntegrationSync
+         * @description Where the Search Console pull of a property has got to: what the sync strip shows.
+         */
+        IntegrationSync: {
+            /**
+             * Consecutive Failures
+             * @description Passes in a row that ended in an error.
+             */
+            consecutive_failures: number;
+            /**
+             * Covered From
+             * @description The oldest day stored.
+             */
+            covered_from: string | null;
+            /**
+             * Days Stored
+             * @description Days that have rows.
+             */
+            days_stored: number;
+            /**
+             * Next Sync At
+             * @description The next daily sync, from the property's schedule; null when it has none or it is paused.
+             */
+            next_sync_at: string | null;
+            /**
+             * Phase
+             * @description `pending`: the first 28 days are not all stored yet. `backfilling`: they are, and older days are still coming. `synced`: the history is complete and each day adds the days that became final.
+             * @enum {string}
+             */
+            phase: "pending" | "backfilling" | "synced";
+            /**
+             * Retry After
+             * @description When a failed pass is tried again; the sync waits until then.
+             */
+            retry_after: string | null;
+            /** Rows Stored */
+            rows_stored: number;
+            /**
+             * Window End
+             * @description The latest final day the pull has reached.
+             */
+            window_end: string | null;
+            /**
+             * Window Start
+             * @description The 28 final days the Rankings columns sum, once they are stored.
+             */
+            window_start: string | null;
+        };
         /** Invitation */
         Invitation: {
             /**
@@ -3056,6 +3540,29 @@ export interface components {
              * @description As first entered: what the provider receives.
              */
             text: string;
+        };
+        /**
+         * KeywordCheck
+         * @description Where the keyword's latest rank check stands, whoever asked for it (a person with Check
+         *     now, or a schedule). `queued` and `processing` are pending: a second Check now is refused
+         *     with `409 check_pending` until the check ends.
+         */
+        KeywordCheck: {
+            /** Finished At */
+            finished_at?: string | null;
+            /**
+             * Reason
+             * @description A failed check's error code, or why a check was inconclusive (`unattributed_results`, `no_own_entity`).
+             */
+            reason?: string | null;
+            /** Requested At */
+            requested_at?: string | null;
+            /**
+             * Status
+             * @description `idle`: nothing recent. `queued`: asked for, not yet sent to the provider. `processing`: sent, answer not yet read. `completed`: the answer moved the rank. `inconclusive`: the answer was kept but cannot say if the site is absent, so the rank did not move. `failed`: the provider gave no usable answer.
+             * @enum {string}
+             */
+            status: "idle" | "queued" | "processing" | "completed" | "inconclusive" | "failed";
         };
         /** KeywordDetail */
         KeywordDetail: {
@@ -3310,6 +3817,11 @@ export interface components {
             language_code: string;
             /** Location Id */
             location_id: number;
+            /**
+             * Monthly Searches
+             * @description The provider's monthly volumes behind the trend, oldest first; empty when the provider sent none.
+             */
+            monthly_searches: components["schemas"]["MonthlySearches"][];
             search_volume: components["schemas"]["MetricValue"];
             /**
              * Source
@@ -3631,6 +4143,19 @@ export interface components {
             /** Year */
             year: number;
         };
+        /** OAuthStart */
+        OAuthStart: {
+            /**
+             * Authorization Url
+             * @description Where to send the person: Google's consent page.
+             */
+            authorization_url: string;
+            /**
+             * State Expires At
+             * Format: date-time
+             */
+            state_expires_at: string;
+        };
         /** OffsetPageInfo */
         OffsetPageInfo: {
             /** Limit */
@@ -3676,6 +4201,20 @@ export interface components {
             /** Self */
             self: string;
         };
+        /**
+         * OverlapWarning
+         * @description Another property of the same site is already linked to a project. The two are never
+         *     added together, so the person must pick one.
+         */
+        OverlapWarning: {
+            /** External Property */
+            external_property: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+        };
         /** OwnEntityInput */
         OwnEntityInput: {
             /**
@@ -3687,7 +4226,7 @@ export interface components {
             canonical_name: string;
             /**
              * Domains
-             * @description Hosts or URLs, each matched by registrable domain.
+             * @description Hosts or URLs, each a site: the host and its www form, no other subdomain.
              */
             domains?: string[];
         };
@@ -4070,6 +4609,11 @@ export interface components {
              * @description Null when `state` is `not_checked`.
              */
             depth_requested: number | null;
+            /**
+             * Depth Returned
+             * @description How far down the provider's answer reached. Below `depth_requested` when Google gave fewer results; `beyond_depth` then means not among those. The web app still shows `>depth_requested` and keeps this for a tooltip. Null when unknown.
+             */
+            depth_returned?: number | null;
             /** Observed At */
             observed_at: string | null;
             /**
@@ -4177,6 +4721,17 @@ export interface components {
         /** RankHistoryResponse */
         RankHistoryResponse: {
             data: components["schemas"]["RankHistory"];
+        };
+        /** RankingUrl */
+        RankingUrl: {
+            /** Rank */
+            rank: number;
+            /**
+             * Shares Rank
+             * @description The page holds a rank another page holds: a sub-result (sitelink) of it.
+             */
+            shares_rank: boolean;
+            url: components["schemas"]["UrlRef"];
         };
         /** Readiness */
         Readiness: {
@@ -4665,7 +5220,7 @@ export interface components {
         SeoSettings: {
             /**
              * Default Depth Profile
-             * @default standard
+             * @default full
              * @enum {string}
              */
             default_depth_profile: "light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100";
@@ -4992,6 +5547,47 @@ export interface components {
              * @enum {string}
              */
             status: "signed_in" | "totp_required";
+        };
+        /** SiteProperty */
+        SiteProperty: {
+            /**
+             * External Property
+             * @description `sc-domain:example.com` or a URL prefix.
+             */
+            external_property: string;
+            /**
+             * Is Selectable
+             * @description False for an unverified user: Search Console refuses to read its numbers.
+             */
+            is_selectable: boolean;
+            /** Label */
+            label: string;
+            /**
+             * Linked Project Id
+             * @description The project this property is already linked to. It cannot be linked twice.
+             */
+            linked_project_id: string | null;
+            overlap_warning: components["schemas"]["OverlapWarning"] | null;
+            /**
+             * Permission Level
+             * @description `siteOwner`, `siteFullUser`, `siteRestrictedUser` or `siteUnverifiedUser`.
+             */
+            permission_level: string;
+            /**
+             * Property Type
+             * @enum {string}
+             */
+            property_type: "domain" | "url_prefix";
+            /**
+             * Suggested Project Id
+             * @description The project whose primary domain this property matches; a Domain property is suggested before a URL-prefix one.
+             */
+            suggested_project_id: string | null;
+        };
+        /** SitePropertyList */
+        SitePropertyList: {
+            /** Data */
+            data: components["schemas"]["SiteProperty"][];
         };
         /** Sparkline */
         Sparkline: {
@@ -5374,6 +5970,21 @@ export interface components {
             remove_term_ids?: string[];
             set?: components["schemas"]["TrackedKeywordPatch"] | null;
         };
+        /** TrackedKeywordCountries */
+        TrackedKeywordCountries: {
+            /** Data */
+            data: components["schemas"]["TrackedKeywordCountry"][];
+        };
+        /** TrackedKeywordCountry */
+        TrackedKeywordCountry: {
+            /**
+             * Keyword Count
+             * @description Distinct keywords tracked in it or anywhere inside it, devices counted once.
+             */
+            keyword_count: number;
+            /** @description The country itself. */
+            location: components["schemas"]["LocationRef"];
+        };
         /**
          * TrackedKeywordCreate
          * @description Defaults come from the project: its location and language, and its settings
@@ -5537,6 +6148,13 @@ export interface components {
         TrackedKeywordFilter: {
             aio_state?: components["schemas"]["FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___"] | null;
             /**
+             * Country Id
+             * @description A country's location id: the keywords tracked in that country or anywhere inside it (a region, a city).
+             */
+            country_id?: number | null;
+            /** @description Any of these countries' location ids: the keywords tracked in one of them or anywhere inside one. */
+            country_id_in?: components["schemas"]["FilterList_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_1___Le_le_2147483647_____"] | null;
+            /**
              * Declined
              * @description Ranked lower than the check before.
              */
@@ -5656,6 +6274,23 @@ export interface components {
             /** Target Url */
             target_url?: string | null;
         };
+        /** TrackedKeywordQuota */
+        TrackedKeywordQuota: {
+            /**
+             * Limit
+             * @description The most active tracked keywords the workspace may hold.
+             */
+            limit: number;
+            /**
+             * Used
+             * @description Active tracked keywords of every project of the workspace that is not deleted.
+             */
+            used: number;
+        };
+        /** TrackedKeywordQuotaResponse */
+        TrackedKeywordQuotaResponse: {
+            data: components["schemas"]["TrackedKeywordQuota"];
+        };
         /** TrackedKeywordResponse */
         TrackedKeywordResponse: {
             data: components["schemas"]["TrackedKeyword"];
@@ -5717,6 +6352,8 @@ export interface components {
              * @description `include=groups`.
              */
             groups?: components["schemas"]["GroupRef"][] | null;
+            /** @description `include=gsc`: clicks and impressions from Search Console. */
+            gsc?: components["schemas"]["GscBlock"] | null;
             /**
              * Intent
              * @enum {string}
@@ -5743,6 +6380,11 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /**
+             * Ranking Urls
+             * @description `include=ranking_urls`: every page of the project that ranked at the last check, best rank first (at most 10).
+             */
+            ranking_urls?: components["schemas"]["RankingUrl"][] | null;
             /** Schedule Id */
             schedule_id: string | null;
             /**
@@ -5786,9 +6428,16 @@ export interface components {
             /** Best Rank At */
             best_rank_at: string | null;
             change: components["schemas"]["RankChange"];
+            check?: components["schemas"]["KeywordCheck"];
             /** Consecutive Failures */
             consecutive_failures: number;
             current: components["schemas"]["RankCell"];
+            /**
+             * Drop Unconfirmed
+             * @description The last check did not find a keyword that ranked before, and it is the only one in a row that did not. A SERP moves between readings, so the drop is not treated as final until a second check also misses (docs/09 section 4.1). The flag says what the rank rules know, not that a check is queued.
+             * @default false
+             */
+            drop_unconfirmed: boolean;
             /**
              * Feature Types Present
              * @description On the first page of results.
@@ -6797,6 +7446,45 @@ export interface operations {
             };
         };
     };
+    google_callback_api_v1_oauth_google_callback_get: {
+        parameters: {
+            query?: {
+                code?: string | null;
+                state?: string | null;
+                error?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Redirect to the web app. */
+            302: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_workspaces_api_v1_workspaces_get: {
         parameters: {
             query?: never;
@@ -6946,6 +7634,138 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BudgetStatusList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_connections_api_v1_workspaces__workspace_id__connections_get: {
+        parameters: {
+            query?: {
+                "filter[product]"?: ("google" | "bing_wmt" | "cloudflare") | null;
+                "filter[status]"?: ("active" | "reauth_required" | "revoked" | "error") | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    disconnect_api_v1_workspaces__workspace_id__connections__connection_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connection_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_analytics_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_ga4_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connection_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsPropertyList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_search_console_properties_api_v1_workspaces__workspace_id__connections__connection_id__properties_gsc_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connection_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SitePropertyList"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -8085,6 +8905,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectEntityResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_project_integrations_api_v1_workspaces__workspace_id__projects__project_id__integrations_get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    choose_property_api_v1_workspaces__workspace_id__projects__project_id__integrations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntegrationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    authorize_api_v1_workspaces__workspace_id__projects__project_id__integrations_google_authorize_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthorizationResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    disable_integration_api_v1_workspaces__workspace_id__projects__project_id__integrations__integration_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                integration_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -9286,7 +10242,7 @@ export interface operations {
             query?: {
                 sort?: string | null;
                 /** @description Blocks to fill: a comma list, or the parameter repeated. */
-                include?: ("metrics" | "groups" | "terms" | "competitors" | "sparkline" | "competitor_ranks" | "features" | "aio")[] | null;
+                include?: ("metrics" | "groups" | "terms" | "competitors" | "sparkline" | "competitor_ranks" | "ranking_urls" | "gsc" | "features" | "aio")[] | null;
                 "filter[q]"?: string | null;
                 /** @description The group or one under it. */
                 "filter[group]"?: string | null;
@@ -9296,6 +10252,10 @@ export interface operations {
                 "filter[term_in]"?: string[] | null;
                 "filter[device]"?: ("desktop" | "mobile") | null;
                 "filter[location_id]"?: number | null;
+                /** @description A country's location id: tracked in it or anywhere inside it. */
+                "filter[country_id]"?: number | null;
+                /** @description Any of these countries (comma separated location ids): tracked in one of them or anywhere inside one. */
+                "filter[country_id_in]"?: number[] | null;
                 "filter[language_code]"?: string | null;
                 "filter[search_engine]"?: ("google" | "bing") | null;
                 "filter[intent_in]"?: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown")[] | null;
@@ -9519,6 +10479,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BulkUpdateResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_tracked_keyword_countries_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_countries_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackedKeywordCountries"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -9969,6 +10961,37 @@ export interface operations {
             };
         };
     };
+    get_tracked_keyword_quota_api_v1_workspaces__workspace_id__tracked_keyword_quota_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackedKeywordQuotaResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_vocabularies_api_v1_workspaces__workspace_id__vocabularies_get: {
         parameters: {
             query?: {
@@ -10189,6 +11212,8 @@ type ReadonlyArray<T> = [
     unknown[]
 ] ? Readonly<Exclude<T, undefined>> : Readonly<Exclude<T, undefined>[]>;
 export const pathsApiV1LocationsGetParametersQueryFilterSupportsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/locations"]["get"]["parameters"]["query"]["filter[supports]"]> = ["serp", "ai_mode", "llm_scraper"];
+export const pathsApiV1WorkspacesWorkspace_idConnectionsGetParametersQueryFilterProductAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/connections"]["get"]["parameters"]["query"]["filter[product]"]> = ["google", "bing_wmt", "cloudflare"];
+export const pathsApiV1WorkspacesWorkspace_idConnectionsGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/connections"]["get"]["parameters"]["query"]["filter[status]"]> = ["active", "reauth_required", "revoked", "error"];
 export const pathsApiV1WorkspacesWorkspace_idCostsGetParametersQueryGroup_byAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/costs"]["get"]["parameters"]["query"]["group_by"]> = ["project", "workload", "provider", "endpoint", "engine", "day", "channel"];
 export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterEntity_typeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[entity_type]"]> = ["brand", "product", "organization", "person", "other"];
 export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
@@ -10203,7 +11228,7 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParameters
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterTrigger_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[trigger_in]"]> = ["schedule", "manual", "backfill", "retry"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idSchedulesGetParametersQueryFilterWorkloadAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules"]["get"]["parameters"]["query"]["filter[workload]"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["include"]> = ["metrics", "groups", "terms", "competitors", "sparkline", "competitor_ranks", "features", "aio"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["include"]> = ["metrics", "groups", "terms", "competitors", "sparkline", "competitor_ranks", "ranking_urls", "gsc", "features", "aio"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[device]"]> = ["desktop", "mobile"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterSearch_engineAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[search_engine]"]> = ["google", "bing"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterIntent_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[intent_in]"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
@@ -10226,12 +11251,15 @@ export const aliasTestMentionStatusValues: ReadonlyArray<FlattenedDeepRequired<c
 export const aliasTestSpanMatch_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestSpan"]["match_method"]> = ["alias_word", "alias_exact", "alias_substring", "alias_regex", "alias_name", "alias_domain", "via_product"];
 export const aliasTestSpanStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestSpan"]["status"]> = ["accepted", "uncertain", "discarded"];
 export const aliasUpdateMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasUpdate"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
+export const analyticsPropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AnalyticsProperty"]["property_type"]> = ["ordinary", "subproperty", "rollup", "unspecified"];
 export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["action_on_hard"]> = ["pause", "alert_only"];
 export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
-export const checkNowDepthAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CheckNow"]["depth"]> = [10, 20, 50, 100];
 export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
 export const configVersionDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ConfigVersion"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const connectionAuth_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["auth_method"]> = ["oauth", "api_key", "api_token", "service_account"];
+export const connectionProductValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["product"]> = ["google", "bing_wmt", "cloudflare"];
+export const connectionStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["status"]> = ["active", "reauth_required", "revoked", "error"];
 export const costWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CostWorkload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync", "ai_overview", "extraction_llm", "keyword_research", "first_party"];
 export const domainInputMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainInput"]["match_scope"]> = ["path_prefix", "host", "registrable"];
 export const domainRefCategory_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainRef"]["category_source"]> = ["seed_list", "rule", "llm", "manual", "tenant_override"];
@@ -10249,6 +11277,7 @@ export const filterList_Literal__light____standard____deep____full____weekly____
 export const filterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
 export const filterList_Literal__numeric____new____lost____unchanged_beyond____consistent_beyond____first_check___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__numeric____new____lost____unchanged_beyond____consistent_beyond____first_check___"]> = ["numeric", "new", "lost", "unchanged_beyond", "consistent_beyond", "first_check"];
 export const filterList_Literal__tofu____mofu____bofu____retention____unknown___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__tofu____mofu____bofu____retention____unknown___"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const gscBlockStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["GscBlock"]["state"]> = ["ok", "pending", "not_connected"];
 export const historyColumnsStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["HistoryColumns"]["state"]> = ["ranked", "beyond_depth", "failed"];
 export const historyPointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["HistoryPoint"]["state"]> = ["ranked", "beyond_depth", "failed"];
 export const importDefaultsDepth_profileAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportDefaults"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
@@ -10256,7 +11285,13 @@ export const importDefaultsDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequir
 export const importFieldValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportField"]> = ["keyword", "country", "location", "language", "device", "tags", "topic", "group", "intent", "funnel_stage", "priority", "target_url", "depth_profile"];
 export const importRowActionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportRow"]["action"]> = ["create", "skip", "merge", "force_separate"];
 export const importRowOutcomeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportRow"]["outcome"]> = ["new", "duplicate", "variant", "conflict", "invalid"];
+export const integrationConnection_statusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Integration"]["connection_status"]> = ["active", "reauth_required", "revoked", "error"];
+export const integrationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Integration"]["kind"]> = ["gsc", "bing_wmt", "ga4", "cloudflare", "server_logs"];
+export const integrationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Integration"]["status"]> = ["active", "reauth_required", "disabled", "error"];
+export const integrationCreateKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IntegrationCreate"]["kind"]> = ["gsc", "ga4"];
+export const integrationSyncPhaseValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IntegrationSync"]["phase"]> = ["pending", "backfilling", "synced"];
 export const invitationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Invitation"]["status"]> = ["pending", "accepted", "declined", "cancelled", "expired"];
+export const keywordCheckStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordCheck"]["status"]> = ["idle", "queued", "processing", "completed", "inconclusive", "failed"];
 export const keywordImportSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImport"]["source"]> = ["upload", "paste", "api"];
 export const keywordImportStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImport"]["status"]> = ["uploaded", "parsing", "needs_mapping", "preview_ready", "writing", "completed", "completed_with_errors", "failed", "cancelled", "expired"];
 export const keywordImportConfirmDuplicate_actionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImportConfirm"]["duplicate_action"]> = ["skip", "merge_terms"];
@@ -10312,6 +11347,7 @@ export const serpSnapshotDetailAi_overview_stateAnyOf0Values: ReadonlyArray<Flat
 export const serpSnapshotDetailTitles_sourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotDetail"]["titles_source"]> = ["domain_rank_observations", "serp_current_results", "unavailable"];
 export const serpSnapshotSummaryAi_overview_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotSummary"]["ai_overview_state"]> = ["absent", "present", "present_async_loaded", "present_not_loaded"];
 export const signInResponseStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SignInResponse"]["status"]> = ["signed_in", "totp_required"];
+export const sitePropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SiteProperty"]["property_type"]> = ["domain", "url_prefix"];
 export const sparklinePointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SparklinePoint"]["state"]> = ["ranked", "beyond_depth"];
 export const termSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Term"]["source"]> = ["manual", "import", "auto_cluster", "ai_suggestion"];
 export const termAssignmentOpValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["op"]> = ["add", "remove", "replace"];

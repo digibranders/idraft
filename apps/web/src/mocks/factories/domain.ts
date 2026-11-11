@@ -47,6 +47,12 @@ function publicSuffix(host: string): string {
 /** Whether `host` is itself a public suffix (`co.uk`, `github.io`), so a registrable rule would claim every site. */
 export const isPublicSuffix = (host: string): boolean => publicSuffix(host) === host;
 
+/** The host without a leading `www.`, so a site and its www form are one: `www.acme.com` is `acme.com`. */
+export function siteOf(host: string): string {
+  const rest = host.startsWith('www.') ? host.slice(4) : host;
+  return rest !== host && rest.includes('.') ? rest : host;
+}
+
 /** The name registered under the public suffix: `blog.acme.co.uk` is `acme.co.uk`. */
 export function registrableDomain(host: string): string {
   const suffix = publicSuffix(host);

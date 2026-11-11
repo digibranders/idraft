@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   costsPath,
   keywordDetailPath,
+  integrationsPath,
   projectPath,
   queryOf,
   rankingsImportPath,
@@ -18,6 +19,11 @@ describe('Rankings paths', () => {
     expect(keywordDetailPath('a b', 'c/d', id)).toBe(`/a%20b/c%2Fd/seo/keywords/${id}`);
     // The id is a path segment too: nothing in it can add a segment
     expect(keywordDetailPath('w', 'p', 'a b/c')).toBe('/w/p/seo/keywords/a%20b%2Fc');
+  });
+
+  it('names the one Google page of Integrations, with the slugs encoded', () => {
+    expect(integrationsPath('digibranders', 'fynix')).toBe('/digibranders/fynix/integrations/google');
+    expect(integrationsPath('a b', 'c/d')).toBe('/a%20b/c%2Fd/integrations/google');
   });
 
   it('names Rankings and the import over it, with the slugs encoded', () => {

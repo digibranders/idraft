@@ -11,6 +11,7 @@ import {
   groupErrors,
   idListError,
   keywordProjectCaller,
+  liveTrackedOf,
   now,
   parseInclude,
   parseSort,
@@ -35,7 +36,9 @@ import {
   trackedKeywordRowView,
   trackedKeywordView,
 } from '../factories/keyword';
+import { MOCK_LOCATIONS } from '../entity-fixtures';
 import { entityRefView } from '../factories/entity';
+import { locationRefFactory, mockLocation } from '../factories/location';
 import { currentNextRunAt } from '../factories/operations';
 import { operationWorld, readOperationChanges } from '../operations-state';
 import {
@@ -49,7 +52,10 @@ import {
   type StoredTracked,
 } from '../keywords-state';
 import { invalid, mock, noContent, problem, setCookies } from '../respond';
+import type { components } from '@/lib/api/schema';
 import type { ValidationItem } from '@/lib/api/types';
+
+type LocationRef = components['schemas']['LocationRef'];
 
 /**
  * A project's tracked keywords (19 section 3.5, backend plan D3, D4 and D15): the cursor-paged list with
@@ -67,6 +73,29 @@ const liveRow = (caller: KeywordProjectCaller, id: string | readonly string[] | 
   caller.keywords.tracked.find(
     (row) => row.tracked_keyword_id === id && row.project_id === caller.project.project_id && row.deleted_at === null,
   );
+
+/**
+ * The countries the active rows are tracked in, a keyword in a city counting for the city's country (they share
+ * its ISO code) and one on both devices once; the larger count first, then by name.
+ */
+function countriesInUse(rows: readonly StoredTracked[]): { location: LocationRef; keyword_count: number }[] {
+  const keywords = new Map<string, { location: LocationRef; ids: Set<string> }>();
+  for (const row of rows) {
+    if (!row.is_active) continue;
+    const place = mockLocation(row.location_id);
+    const country = MOCK_LOCATIONS.find(
+      (candidate) => candidate.location_type === 'Country' && candidate.country_iso === place?.country_iso,
+    );
+    const location = country === undefined ? null : locationRefFactory(country.location_id);
+    if (location === null) continue;
+    const entry = keywords.get(String(location.location_id)) ?? { location, ids: new Set<string>() };
+    entry.ids.add(row.keyword_id);
+    keywords.set(String(location.location_id), entry);
+  }
+  return [...keywords.values()]
+    .map(({ location, ids }) => ({ location, keyword_count: ids.size }))
+    .sort((a, b) => b.keyword_count - a.keyword_count || a.location.name.localeCompare(b.location.name));
+}
 
 export const trackedKeywordHandlers: HttpHandler[] = [
   mock('get', `${P}/tracked-keywords`, ({ request, cookies, params }) => {
@@ -219,6 +248,15 @@ export const trackedKeywordHandlers: HttpHandler[] = [
       { data: { created, restored, skipped, rejected } },
       { headers: setCookies(cookie, metrics) },
     );
+  }),
+
+  // Before the keyword's own route, which would take `countries` for an id
+  mock('get', `${P}/tracked-keywords/countries`, ({ request, cookies, params }) => {
+    const caller = keywordProjectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'data:read',
+    });
+    if (caller instanceof Response) return caller;
+    return HttpResponse.json({ data: countriesInUse(liveTrackedOf(caller.keywords, caller.project.project_id)) });
   }),
 
   mock('get', `${P}/tracked-keywords/{tracked_keyword_id}`, ({ request, cookies, params }) => {

@@ -90,6 +90,8 @@ Rules: at most 5 major sections (S1 to S5). Sections and side-by-side panels are
 
 **Purpose.** Work with many records of one type: scan, filter, sort, compare, select, act, and inspect one record without losing the list.
 
+**Header (decided 2026-11-02).** The wireframe stacks the title block, strip and filter bar for reading. Built, they are one 36 px toolbar row: title and meta, an inline `MetricStrip` ([23-application-patterns.md](23-application-patterns.md) section 2.8), the `FilterBar` with the view switch, and the actions. The table toolbar then starts about 60 px below the top bar and a 900 px screen shows 20 rows at 32 px instead of 14 ([04-spacing-density.md](04-spacing-density.md) section 3). Every other template follows the same rule: no separate filter row and no panel summary where one line carries it.
+
 ```text
 | Sidebar          | Top bar 52 px                                                                                     |
 +------------------+----------------------------------------------------------+----------------------------------------+
@@ -272,7 +274,7 @@ Vertical budget at 1440 x 900 without tabs: top bar 52, header offset 20, title 
 
 **States:** Not connected (S1 shows what the source adds and a "Connect" primary; S2 lists requested access before OAuth; S3 to S5 absent), Connecting (top-level navigation to the OAuth start, returns to a property picker), Backfilling (`CollectionProgress` in the meta line with "Backfilling: 212 of 480 days"), Re-auth required, Revoked, Disconnected with or without data deletion.
 
-**URL state:** path per source (`/integrations/gsc`); `win` for sync history.
+**URL state:** path per source (`/integrations/google`); `win` for sync history.
 
 **Responsive:** S2 and S3 stack below 1280 px.
 
@@ -466,10 +468,11 @@ In the drawing, `[]` stands for a SERP feature icon slot, intent badges are shor
 | 6 | Intent | `badge` | 96 / 88 | 3 | Neutral badge; "Manual" marker when overridden |
 | 7 | SERP features | `features` | 120 / 112 | 3 | `SERPFeatureList`, owned in `primary-text` |
 | 8 | AI Overview | `aiOverview` | 104 / 96 | 2 | `AIOverviewStatus` |
-| 9 | Competitor | `competitor` | 120 / 120 | 4 | First selected competitor's rank; more competitors via the column chooser |
-| 10 | Trend | `sparkline` | 96 / 88 | 2 | 30 checks, inverted, depth breaks |
-| 11 | Updated | `date` | 104 / 104 | 4 | Stale badge after threshold |
-| 12 | (actions) | `actions` | 40 / 40 | always | Row "More" menu |
+| 9 | CPC | `currency` | 112 / 96 | 2 | Cost per click in US dollars, two decimals; a provider value for the keyword and country |
+| 10 | Competitor | `competitor` | 120 / 120 | 4 | First selected competitor's rank; more competitors via the column chooser |
+| 11 | Trend | `sparkline` | 96 / 88 | 2 | Monthly search volume, last 12 months, higher is up, on the row's own scale; a month without a volume breaks the line |
+| 12 | Updated | `date` | 104 / 104 | 4 | Stale badge after threshold |
+| 13 | (actions) | `actions` | 40 / 40 | always | Row "More" menu |
 
 Column chooser extras (not in the default set): Previous rank, Best rank, Target URL, KD, Absolute rank, Volatility, URL stability, GSC clicks, impressions and average position (labeled GSC), Priority, Group, Tags, additional competitors.
 
@@ -489,7 +492,7 @@ At 1280 px the inspector overlays (the main column would be 672 px, 1,072 minus 
 
 **Grouping.** "Group: none" menu in the toolbar: Keyword group, Topic, Ranking URL, Intent. One level. Group header rows show the group name, keyword count, summed volume and top 10 count; never averaged ranks unless the API supplies them with `n_ranked`.
 
-**Bulk actions.** Add tags, Move to group, Set target URL, Set priority, Check now (shows remaining manual quota), Create prompts, Export, then after a separator Archive (reversible, `TriageToast` undo; over 100 rows it first confirms with the count, [20-accessibility.md](20-accessibility.md) section 2, WCAG 3.3.4) and Delete (confirmation with exact count).
+**Bulk actions.** Add tags, Move to group, Set target URL, Check now (shows remaining manual quota), Create prompts, Export, then after a separator Delete (confirmation with exact count). The bar has no Set priority, Refresh metrics or Archive: priority is set per keyword in the inspector, Refresh metrics is in the More actions menu, and a keyword is archived from its own menu. In the Archived view the bar adds Unarchive before Delete (reversible, `TriageToast` undo; over 100 rows it first confirms with the count, [20-accessibility.md](20-accessibility.md) section 2, WCAG 3.3.4).
 
 **Density.** Compact is the default (owner decision of 2026-10-29). At desktop widths both densities keep one line per row, as the reference screens show: Compact (32 px rows, 14 visible at 1440 x 900) and Default (40 px rows, 11 visible), which a person can choose. Location and device are in the keyword tooltip and the previous rank in the rank tooltip. Below 1280 px, Default density adds a secondary line under the keyword ([19-responsive-behavior.md](19-responsive-behavior.md) section 6.6).
 
@@ -497,16 +500,30 @@ At 1280 px the inspector overlays (the main column would be 672 px, 1,072 minus 
 
 | Region | Component | Notes |
 |---|---|---|
-| Header | `PageHeader`, `SavedViewMenu` | Primary "Add keywords"; "Import" secondary; Export in toolbar and More |
-| Filter bar | Compare and Device scopes; chips from [13-filters-search.md](13-filters-search.md) section 4. Date range and location are in the top bar | The Rank filter editor shows bucket counts as facets, which replaces a separate distribution bar |
+| Header | `PageHeader` with `titleHidden` (the top bar's breadcrumb already names the page; the `h1` stays for assistive technology), one row: the strip, the Desktop / Mobile switch (icons) and country, the filter bar, then "Updated", More (refresh metrics, manage groups, show archived keywords), Export (Excel workbook with the counts above the table, or the table as CSV) and the primary `sm` split button "Add keywords" with "Import from a file" under its arrow | The archived view is a menu choice with a chip that leaves it; the strip counts the keywords tracked on the device shown |
+| Filter bar | Compare scope; chips from [13-filters-search.md](13-filters-search.md) section 4. Date range and location are in the top bar | The Rank filter editor shows bucket counts as facets, which replaces a separate distribution bar |
+| Ranking pages popup | The arrow beside a keyword's name opens the best page. On hover and on focus it opens a popup listing every page of the project that ranks for the keyword at the last check, best first, with its rank on the device shown; a count beside the arrow says there is more than one. A page sharing a rank with another is marked a sub-result. The footer gives the time of the check | Data: `include=ranking_urls`, the row's `ranking_urls` ([19](../19-api-specification.md) section 3.6.1), built as a `PreviewCard` ([16](16-drawers-dialogs-popovers.md) section 6.3). **TODO: a detail popup for analysis** (the history of the ranking page, a page's rank over time, the pages of competitors in the same results, cannibalization advice); the hover popup stays short and has no actions |
+| Country scope | The Add keywords dialog takes several countries and tracks each keyword in each, on each device; it shows keywords x devices x countries = checks a day, the estimated cost and the plan check before Add. The top bar's country lists only the countries the project has keywords in, with All countries when there is more than one, and is a plain label when there is one. The Filter has Country, with several values as one chip each. A Country column shows when more than one country is in view. No Global: Google has no worldwide search | Rule and cost: [08-seo-keyword-system.md](../08-seo-keyword-system.md) section 3.1.1 |
+| Device switch | Two options only, Desktop and Mobile, one at a time (no combined view). Everything on the page is that device's own data: Rank and its change, Clicks, Impressions, SERP features, AI Overview, Trend, Updated, Ranking URL, the strip and the group counts. Volume, KD, CPC and Intent are provider values for the keyword and country and do not change with the device. One Rank column, headed plainly "Rank" (only the export headers it "Rank (Desktop)" or "Rank (Mobile)") | Replaces the paired Desktop and Mobile columns of the As built notes below |
+| Clicks and Impressions columns | After Volume, in that order, and CPC sits beside AI Overview. Search Console clicks and impressions in the last 28 days for the keyword, country and devices shown, never an estimate; a group row shows the sums. States: value, `0`, `Pending`, `Not connected` | Source, join and limits: [18-first-party-integrations.md](../18-first-party-integrations.md) section 4.9 (Clicks and impressions) |
 | Strip | `MetricStrip` `md`, 6 items for the filtered scope | Top 50 and 100 counts are in the Rank filter facets and Overview |
 | Toolbar | Table search, count, grouping, density, columns, export | Bulk bar replaces it on selection |
 | Table | `DataTable` with the columns above | Default sort Volume descending |
 | Footer | Count and freshness | Client mode up to 10,000 keywords |
 
-As built (2026-10-06, [20-frontend-specification.md](../20-frontend-specification.md) section 5.3): the table has Keyword, Rank, Change (headed "Change", not "Δ", so a screen reader and a narrow header both read it whole), Ranking URL, Volume, KD, CPC, Intent, Priority, Group, Tags, Best rank (chooser only), Updated and Added. Volume moved to tier 2 so that Rank, Change and Ranking URL come first. The sparkline, SERP features, AI Overview and competitor columns, the metric strip and Check now are not built yet. The Rank filter is a single choice (Top 3, 4 to 10, 11 to 20, 21 to 50, 51 to 100, Beyond depth) without bucket counts, with Change (`chg`: Improved, Declined, Entered, Lost) and Stale beside it.
+As built (2026-10-06, [20-frontend-specification.md](../20-frontend-specification.md) section 5.3): the table has Keyword, Desktop and Mobile (superseded on 2026-11-04 by the one-device note below; then: one row for a keyword tracked on both devices, each column its rank with its change; the Device scope control shows one or both; headed "Change" no more: the change sits beside each rank), Ranking URL, Volume, KD, CPC, Intent, Priority, Group, Tags, Best rank (chooser only), Updated and Added. Volume moved to tier 2 so that Rank, Change and Ranking URL come first. The sparkline, SERP features, AI Overview and competitor columns, the metric strip and Check now are not built yet. The Rank filter is a single choice (Top 3, 4 to 10, 11 to 20, 21 to 50, 51 to 100, Beyond depth) without bucket counts, with Change (`chg`: Improved, Declined, Entered, Lost) and Stale beside it.
 
 As built (rank features, 2026-10-29, [20-frontend-specification.md](../20-frontend-specification.md) section 5.3): the route is `/seo/keywords` with a redirect from `/seo/rankings`. Rank and Change are combined into one Rank column (current rank number and change slot to its right). Ranking URL is hidden by default and opens via the arrow link in the Keyword cell. Four columns are added: SERP features (`features`, priority 3), AI Overview (`aiOverview`, priority 2), Trend sparkline (`sparkline`, priority 2, 64 x 20 px in both densities), and Competitor rank (`competitor`, priority 4, default visible for first competitor). None of the four column types sorts. Filter chips add `featown` and `tmatch`. The summary strip (`MetricStrip` md) renders Tracked, Top 3, Top 10, and Top 20 counts via 5 single-row reads (Average rank, Visibility, and deltas wait for backend route `GET {P}/seo/rank-summary`). Check now (`useCheckNow`) runs from the bulk bar (up to 100 keywords) and the inspector header (`frequentAction`), followed by progress under the title. Inspector gains the Rank history card (90-day organic history with competitors, custom bands, and Table view alternative).
+
+As built (one device at a time, 2026-11-04, plan `2026-11-04-keywords-one-device.md`): the Device scope control has two options, Desktop and Mobile (the URL key `dev` holds `mobile`; Desktop is the default and is kept out of the URL). The table has one Rank column (id `current_rank`, headed "Rank") and every figure beside it is that device's own: rank and change, ranking URL, SERP features, AI Overview, trend and Updated. A keyword not tracked on the device is not listed. The strip counts the tracked keywords of the device shown. The ranking pages popup lists the rank on the device shown. The export has one column "Rank (Desktop)" or "Rank (Mobile)". An action on a keyword still reaches both of its devices. This note supersedes the paired Desktop and Mobile columns and the Device scope that showed one or both in the first As built note above.
+
+As built (adding in several countries, 2026-11-05, plan `2026-11-05-keywords-multi-country-add.md`, [08-seo-keyword-system.md](../08-seo-keyword-system.md) section 3.1.1): the Add keywords dialog has a required Countries multi-select, searched in the browser over the cached list of all countries and starting on the project's default country (a city default is replaced by its country, found by ISO code). At most 10 countries can be chosen in one add; the dialog says so and Add is refused over it. Without a default device from the project's settings the device is a required choice. Under the fields a plan panel reads, for example, "3 keywords × 1 device × 2 countries = 6 checks a day", then the estimated cost and the plan line ("used of limit, after this add"). The cost is "up to" and assumes depth 100, the standard queue and the asynchronous AI Overview; it is read from the price book and left out, with the checks and the plan line kept, where the price book cannot be read. The plan line reads `GET {W}/tracked-keyword-quota`; over the limit Add is refused with the shortfall named, and the API refuses it too with `quota_exceeded`. Each keyword is sent once per country in `bulk-create` requests of at most 1,000 items. An add that needs several requests is not atomic: when a later request fails, what the earlier ones added is kept and the result view says where it stopped. The result view names `keyword (Country)` for the keywords skipped or refused. The country control in the page toolbar lists "All countries" and only the countries the project has keywords in (`GET {P}/tracked-keywords/countries`), and it is a plain label for a project with no keywords. The Filter bar has a Country field with several values (`filter[country_id_in]`), which applies together with the control's country. A Country column follows Keyword when more than one country is in view. Bulk actions on "all matching" keep the country in view.
+
+As built (column order and By group columns, 2026-11-05, plan `2026-11-05-keywords-by-group-view.md`): the columns follow this order: Keyword, Country (only while more than one country is in view), Rank, Ranking URL, Volume, KD, Intent, SERP features, AI Overview, CPC, the competitors, Trend, Priority, Group, Tags, Best rank, Updated and Added. CPC moved from after KD to after AI Overview; the Clicks and Impressions columns follow Volume (built 2026-11-05: Search Console counts of the last 28 days on the device shown, sortable, in the export as "Clicks (28 days)" and "Impressions (28 days)"; a cell reads the number, `0`, `Pending` while the first pull runs, or `Not connected`). The By group view lists one row per keyword group and leaves out the columns a group has no figure for: KD, Intent, SERP features, Trend, Tags, Group and the competitor columns. Their choice is kept for the All keywords view. A group row shows the keyword count, the keywords in the top 10 under Rank, the summed Volume, the mean CPC, the keywords cited in the AI Overview and the newest Updated time; the other cells, Country included, are empty. By group sets the table's `identityCap` (12-tables.md section 16): Keyword stops at its 480 px maximum while the other columns widen toward their own maximums, and only the room left once all are there goes to Keyword, so the six columns it leaves out do not make one very wide Keyword column. All keywords keeps the width resolution above.
+
+As built (the By group view, 2026-11-05, plan `2026-11-05-keywords-by-group-view.md`; this replaces the "Group: none" toolbar menu of the Grouping paragraph above): a switch at the end of the table toolbar, before the density and column controls, chooses By group or All keywords (the URL key `view` holds `groups` or `flat`), and in By group a "Sort groups" menu orders the groups by most keywords, name, volume or best rank. The default is By group when the project has at least one group and the table is in client mode, otherwise All keywords; a `view` in the URL wins, and the table stays in its loading state until the default is known so a project with groups never shows the flat table first. A group row is one of the keyword's direct groups (one level, named by its path); a keyword in several groups is listed under each, and a keyword in none is under "Not grouped", last. A group with no keyword in view (device, country, filters or search) is not listed. Counts are of distinct keywords, never the API's `keyword_count`, and follow the device shown. The first group starts open; a group opens with its chevron, a click on its row, Enter or Right Arrow, and closes with Left Arrow. An open group shows its first 8 keyword rows (a keyword tracked in two countries has a row for each), then a row "Show N more" that shows the rest from any of its cells. A tick on a group row chooses the shown ids of all its keywords, those of a closed group and those behind "Show N more" included, so the bulk bar counts keywords ("13 selected"), not rows; a group with some of its keywords chosen is partly ticked; a keyword listed under two groups is chosen under both. An action on a group's keywords reaches both devices of each keyword. A search opens every group with a match (the first 8 limit still applies) and the groups open before it come back when it is cleared; J and K step over the keyword rows shown, so they do nothing while the open keyword's group is closed. The columns KD, Intent, SERP features, Trend, Tags, Group and the competitor columns are left out of By group, and a column choice made there leaves the choice for All keywords as it was. The row menu of a group has Open group, Check now, Add keywords, Rename group and Delete group. Open group, or `inspect=group:<id>`, opens the group drawer with its name, keyword count, the figures of the device shown (Top 3, Top 10, Top 20, volume, cited in the AI Overview, last checked) and its keywords with their rank, each opening in the keyword inspector; the drawer also opens in All keywords. By group works in client mode only (every row loaded, up to 10,000 keywords); above that the switch shows All keywords and By group is disabled with the reason, and a `view=groups` link falls back to the flat table.
+
+Known limits of the By group view: the bulk bar takes the place of the view switch while a selection exists, so the view changes only after the selection is cleared (or by a link or Back); the selection is kept across the switch. "Export this group", nested group rows and dragging a keyword to another group are not built. A group row shows the sums of Clicks and Impressions over its keywords (every place), or `Pending` or `Not connected` when no keyword has counts.
 
 ### 9.4 Keyword Detail (T3)
 
@@ -927,46 +944,50 @@ The Opportunities tab lists `OpportunityStatus` conditions (section 7.3 of [23-a
 
 ### 9.12 Integrations (T5)
 
-Route `/integrations/gsc`.
+Route `/integrations/google` (`/integrations` and `/integrations/gsc` redirect there, keeping the query string). One Google login is one connection with one consent for Search Console and GA4, so there is one page and one Connect button. The tabs are Google, Bing, Cloudflare and Imports; there is no GA4 tab, and Bing, Cloudflare and Imports are listed as not available yet.
 
 ```text
-| Google Search Console                                                   [Sync now] [...]             |
-| Connected · Last sync 38m ago · Property sc-domain:northwind.com                                     |
-| Search Console   Bing   GA4   Cloudflare   Imports                                                   |
-+------------------------------------------------------------------------------------------------------+
-| Connection                                                                                           |
-| Status  [Connected]   Account  analytics@northwind.com   Connected by  M. Keller   Since  Mar 4, 2026|
-+------------------------------------------------------------------------------------------------------+
-| Access                                           | Configuration                                     |
-| Read search performance for the property         | Property      [sc-domain:northwind.com v]         |
-| Read URL inspection results (not used in V1)     | Backfill      [16 months v]                       |
-| Cannot modify properties, sitemaps or settings   | Query matching [x]   Match GSC queries to         |
-| Scope strings in tooltip                         |               tracked keywords (exact)            |
-|                                                  | Save bar appears when changed                     |
-+--------------------------------------------------+---------------------------------------------------+
-| Last sync      |Coverage        |Rows imported   |Provisional days|Unmatched       |Next sync        |
-| 38m ago        |28 of 28 days   |1.24M           |2               |8,412           |Sep 30, 04:00    |
-| completed      |window          |this month      |final after 3d  |[Add to inbox]  |daily            |
-+----------------+----------------+----------------+----------------+----------------+-----------------+
-| Sync history                                                                         View all        |
-| Sep 29, 04:02  Completed  Sep 26 to Sep 28 · 41,220 rows · 2 provisional days                        |
-| Sep 28, 04:01  Completed  Sep 25 to Sep 27 · 40,980 rows                                             |
-| Sep 27, 04:03  Completed with errors  1 request failed (quota), retried Sep 27, 05:00                |
-+------------------------------------------------------------------------------------------------------+
-| Errors (last 30 days)                                                                                |
-| Sep 27, 04:03  Quota exceeded  "User rate limit exceeded" (escaped)  1  Retried automatically        |
+| Google                                                                              [Reconnect] [...] |
+| Connected as analytics@northwind.com. Search Console: sc-domain:northwind.com. GA4: no property chosen.  |
+| Google   Bing   Cloudflare   Imports                                                                    |
++---------------------------------------------------------------------------------------------------------+
+| [!] Reconnect needed: Google no longer accepts the saved sign-in ...   (only when re-auth is required)   |
++---------------------------------------------------------------------------------------------------------+
+| Connection                                                                                              |
+| Status  [Connected]   Account  analytics@northwind.com   Connected by  M. Keller   Since  Mar 4, 2026   |
++---------------------------------------------------------------------------------------------------------+
+| Access                                                                                                  |
+| Read search performance for Search Console properties                                                   |
+| Read reports and the property list of Google Analytics   [Not granted]   (when the person unticked it)  |
+| Identify the Google account that connected                                                              |
+| Cannot modify properties, sitemaps or settings                                                          |
++---------------------------------------------------------------------------------------------------------+
+| Search Console property                                                                                 |
+| Property  sc-domain:northwind.com  [Domain]  Change                                                     |
++---------------------------------------------------------------------------------------------------------+
+| GA4 property                                                                                            |
+| Importing GA4 numbers is not available yet. Choosing a property saves it for when it is.                |
+| Choose a GA4 property                                                          [Reload list]            |
+| Property                                  Account                                                       |
+| Northwind website  properties/398844007   Northwind Ltd                                       [Choose]  |
++---------------------------------------------------------------------------------------------------------+
+| Last sync      |Coverage        |Rows imported   |Next sync        |   (Search Console only)            |
+| Sync history                                                                                            |
 ```
 
 | Region | Component | Notes |
 |---|---|---|
-| Header | `PageHeader` with `TabNav` per source | No primary while connected and healthy; "Reconnect" becomes primary when re-auth is required; "Disconnect" is in More, below a separator |
-| Connection | `ConnectionStatus` | Re-auth required: warning `Banner` "Sync paused since Sep 21: reconnect to resume" above this row |
-| Access | `ScopeList` | Plain-language scopes; raw strings in tooltips |
-| Configuration | Form fields with `SaveBar`; "Query matching" is a checkbox | Backfill change shows the time estimate |
-| Sync status | `MetricStrip` `md` | Coverage never implies completeness beyond the window |
-| History and errors | `EventTimeline` and `DataTable` | Error messages escaped |
+| Header | `PageHeader` with `TabNav` per source | No primary while connected and healthy; "Reconnect" becomes primary when re-auth is required; "Disconnect Google" is in More, below a separator, and its question names Search Console and GA4 |
+| Re-auth | warning `Banner` above the Connection region | One banner for the whole connection: re-auth stops both products. The properties are kept and cannot be changed until it works again |
+| Connection | `ConnectionStatus` | Status, account, who connected it, since when. No property here: each product has its own section |
+| Access | `ScopeList` | Plain-language scopes, raw strings in tooltips. A product permission the person unticked on Google's consent page stays listed with a "Not granted" badge |
+| Search Console property | `section` with the chosen property and "Change", or the picker | The picker keeps its behaviours: Domain suggested first with the primary button, unverified entries disabled, an overlap warning, a property linked to another project disabled |
+| GA4 property | `section` with the same states | The picker lists properties with their Analytics account and type, suggests nothing (no domain matching) and disables a property another project uses. The section says importing GA4 numbers is not available yet |
+| Not granted | the section's body | "Search Console access was not granted" or "Google Analytics access was not granted", with "Reconnect" for those who manage connections. A property kept from before is named, and not read |
+| Sync status | `MetricStrip` `md` | Search Console only; coverage never implies completeness beyond the window |
+| History and errors | `EventTimeline` and `DataTable` | Search Console only; error messages escaped |
 
-Nothing on this page combines first-party data with synthetic observations; data views live under their own routes ([20-frontend-specification.md](../20-frontend-specification.md) section 5.15).
+Each product section has its own state (not chosen, picker, chosen with Change, access not granted, nothing to choose from while re-auth is required or for a reader), so a connection can have Search Console and not GA4. Nothing on this page combines first-party data with synthetic observations; data views live under their own routes ([20-frontend-specification.md](../20-frontend-specification.md) section 5.15).
 
 ### 9.13 Settings (T4)
 

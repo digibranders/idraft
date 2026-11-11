@@ -3,9 +3,11 @@ import type { HttpHandler } from 'msw';
 import { authHandlers } from './auth';
 import { entityHandlers } from './entities';
 import { costHandlers } from './costs';
+import { integrationHandlers } from './integrations';
 import { invitationHandlers } from './invitations';
 import { keywordGroupHandlers } from './keyword-groups';
 import { keywordImportHandlers } from './keyword-imports';
+import { keywordQuotaHandlers } from './keyword-quota';
 import { keywordHandlers } from './keywords';
 import { meHandlers } from './me';
 import { pendingHandlers } from './pending';
@@ -41,6 +43,7 @@ export const handlers: readonly HttpHandler[] = [
   ...keywordHandlers,
   ...trackedKeywordHandlers,
   ...rankEventsHandlers,
+  ...keywordQuotaHandlers,
   ...rankHistoryHandlers,
   ...serpHandlers,
   ...keywordGroupHandlers,
@@ -49,6 +52,7 @@ export const handlers: readonly HttpHandler[] = [
   ...scheduleHandlers,
   ...runHandlers,
   ...costHandlers,
+  ...integrationHandlers,
   ...pendingHandlers,
 ];
 

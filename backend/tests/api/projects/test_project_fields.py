@@ -113,8 +113,9 @@ async def test_a_project_is_created_with_its_own_brand(
     # The name itself is matched without an alias; repeats in any case are one alias.
     assert role["alias_count"] == 1
     assert [(d["domain"]["host"], d["match_scope"]) for d in role["domains"]] == [
-        ("fynix.digital", "registrable"),
-        ("fynix.io", "registrable"),
+        # `www.fynix.digital` and `fynix.digital` are one site: one rule, stored as `fynix.digital`
+        ("fynix.digital", "host"),
+        ("fynix.io", "host"),
     ]
     actions = await fetch(
         migrated,

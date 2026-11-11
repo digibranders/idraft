@@ -7,11 +7,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from idraft.api.keywords.check_status import CheckProgress
+from idraft.api.keywords.gsc_repository import BUCKET_DAYS, GscRecord
 from idraft.api.keywords.rank_repository import (
     CompetitorRank as CompetitorRankRecord,
 )
 from idraft.api.keywords.rank_repository import (
     FeatureRecord,
+    RankingUrlRecord,
     SparkPoint,
     StateRecord,
 )
@@ -21,9 +24,15 @@ from idraft.api.schemas.keywords import (
     AioCitations,
     AioStateInfo,
     CompetitorRank,
+    DeviceCounts,
     FeatureOnPage,
+    GscBlock,
+    GscTrend,
+    GscWindow,
+    KeywordCheck,
     RankCell,
     RankChange,
+    RankingUrl,
     Sparkline,
     SparklinePoint,
     TrackedKeywordState,
@@ -83,8 +92,22 @@ def _change(
     )
 
 
-def state_view(record: StateRecord | None) -> TrackedKeywordState:
+def check_view(check: CheckProgress | None) -> KeywordCheck:
+    if check is None:
+        return KeywordCheck(status="idle")
+    return KeywordCheck(
+        status=check.status,
+        requested_at=check.requested_at,
+        finished_at=check.finished_at,
+        reason=check.reason,
+    )
+
+
+def state_view(
+    record: StateRecord | None, check: CheckProgress | None = None
+) -> TrackedKeywordState:
     """The keyword's state; a keyword with none, or never checked, is `not_checked`."""
+    progress = check_view(check)
     if record is None:
         return TrackedKeywordState(
             current=_NOT_CHECKED,
@@ -104,6 +127,7 @@ def state_view(record: StateRecord | None) -> TrackedKeywordState:
             is_stale=False,
             last_observed_at=None,
             ranking_url_count=0,
+            check=progress,
         )
     checked = record.last_observed_at is not None
     if not checked:
@@ -117,6 +141,7 @@ def state_view(record: StateRecord | None) -> TrackedKeywordState:
                 "rank": record.current_rank,
                 "absolute_rank": record.current_absolute_rank,
                 "depth_requested": record.current_depth_requested,
+                "depth_returned": record.current_depth_returned,
                 "url": url_ref(record.current_url),
                 "observed_at": record.last_observed_at,
                 "serp_snapshot_id": None
@@ -154,6 +179,11 @@ def state_view(record: StateRecord | None) -> TrackedKeywordState:
         is_stale=record.is_stale,
         last_observed_at=record.last_observed_at,
         ranking_url_count=record.ranking_url_count,
+        check=progress,
+        drop_unconfirmed=checked
+        and record.current_rank is None
+        and record.last_ranked_rank is not None
+        and record.consecutive_beyond == 1,
     )
 
 
@@ -181,6 +211,30 @@ def _entity(record: CompetitorRecord) -> EntityRef:
             "color_index": record.color_index,
         }
     )
+
+
+def gsc_view(record: GscRecord) -> GscBlock:
+    return GscBlock(
+        state=record.state,
+        clicks=None if record.clicks is None else DeviceCounts(**record.clicks),
+        impressions=None if record.impressions is None else DeviceCounts(**record.impressions),
+        window=None
+        if record.window is None
+        else GscWindow(start=record.window[0], end=record.window[1]),
+        trend=None
+        if record.trend is None
+        else GscTrend(
+            bucket_days=BUCKET_DAYS,
+            clicks=record.trend.clicks,
+            impressions=record.trend.impressions,
+        ),
+    )
+
+
+def ranking_url_view(record: RankingUrlRecord) -> RankingUrl:
+    url = url_ref(record.url)
+    assert url is not None
+    return RankingUrl(url=url, rank=record.rank, shares_rank=record.shares_rank)
 
 
 def competitor_view(record: CompetitorRankRecord) -> CompetitorRank:

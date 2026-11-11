@@ -769,7 +769,7 @@ CREATE TABLE seo.serp_snapshots (
     canonicalizer_version smallint NOT NULL,
     cost_usd              numeric(14,6),
     served_from_cache     boolean NOT NULL DEFAULT false,  -- true when reused from ops.fetch_cache (shared fetch)
-    extras                jsonb,                           -- small parser extras: check_url, spell, rank_recomputed,
+    extras                jsonb,                           -- small parser extras: check_url, spell, inconclusive (why a check kept no state),
                                                            -- refinement chips summary (<= 8 KB, Pydantic-validated)
     superseded_by         bigint,                          -- set when re-ingest from raw created a newer snapshot (12 section 7)
     PRIMARY KEY (id, observed_at)
@@ -1420,9 +1420,8 @@ CREATE TABLE fp.integrations (
     kind             text NOT NULL CHECK (kind IN ('gsc','bing_wmt','ga4','cloudflare','server_logs')),
     external_account text,                       -- e.g. Google account email, Cloudflare account id
     external_property text NOT NULL,             -- 'sc-domain:example.com', GA4 property id, zone id
-    connection_id    uuid REFERENCES fp.connections(id),     -- credential grant (18 section 3.1)
-    credential_ref   uuid REFERENCES ops.secrets(id),
-    CONSTRAINT credential_required CHECK (kind = 'server_logs' OR credential_ref IS NOT NULL),
+    connection_id    uuid REFERENCES fp.connections(id),     -- credential grant (18 section 3.1); the credential lives only on the connection
+    CONSTRAINT connection_required CHECK (kind = 'server_logs' OR connection_id IS NOT NULL),
     scopes           text[] NOT NULL,
     status           text NOT NULL DEFAULT 'active' CHECK (status IN ('active','reauth_required','disabled','error')),
     last_success_at  timestamptz,

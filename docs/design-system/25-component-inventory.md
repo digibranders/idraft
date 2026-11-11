@@ -2085,9 +2085,9 @@ interface ProjectSwitcherProps {
 }
 ```
 
-- **Variants:** none. Sidebar presentation, 12 px from the top of the sidebar: 28 px square monogram with radius 6 (`foreground` fill with a `foreground-inverse` letter in the light theme, `primary` fill in the dark theme), name in `type-subsection-title` (14/20, 600; the screens show about 15 px, within tolerance, [visual-spec §6](reference/visual-spec.md)), chevron. **States:** closed, open, searching, no results.
+- **Variants:** none. Sidebar presentation, 12 px from the top of the sidebar: a bordered card with the project mark (the icon of its primary domain on a light 32 px tile, or the first letter on a monogram square: `foreground` fill with a `foreground-inverse` letter in the light theme, `primary` fill in the dark theme), name in `type-subsection-title` (14/20, 600) over the domain in `type-meta`, `ChevronsUpDown`; each project in the list has its mark and domain too. **States:** closed, open, searching, no results.
 - **A11y:** menu button whose name includes the current project; searchable list is a combobox.
-- **Use:** sidebar top (rail: the 28 px monogram alone), top bar below 1024 px. **Not for:** workspace switching (`WorkspaceMenu`).
+- **Use:** sidebar top (rail: the mark alone), top bar below 1024 px. **Not for:** workspace switching (`WorkspaceMenu`).
 
 ### 5.7 WorkspaceMenu
 `app/shell/workspace-menu.tsx` · V1 · [11 §4](11-navigation.md)
@@ -3850,13 +3850,13 @@ interface RankDeltaProps {
 ### 14.2 RankTrend
 `app/sparkline/rank-trend.tsx` · V1 · [15 §9](15-data-visualization.md), [24 §9.3](24-page-templates.md)
 
-Purpose: `SparklineCell` preset for ranks: 30 checks, inverted, fixed scale 1 to 20 per table, beyond-depth checks break the line.
+Purpose: `SparklineCell` preset for ranks: 30 checks, inverted, fixed scale 1 to 20 per table, beyond-depth checks break the line. Not used by the Keywords table any more: its Trend column draws 12 months of search volume ([15 §9](15-data-visualization.md), row "Search volume"), and the rank history is shown in the inspector and Keyword Detail.
 
 ```ts
 interface RankTrendProps { checks: ReadonlyArray<{ date: BusinessDate; obs: RankObservation }>; scaleMax: 20 | 100; density: Density }
 ```
 
-- **States:** data, gaps, empty. **A11y:** summary "Rank trend, last 30 checks: from 9 to 4, best 3, 2 checks not in top 20". **Use:** Rankings Trend column. **Not for:** rate trends (`SparklineCell` with `invert: false`).
+- **States:** data, gaps, empty. **A11y:** summary "Rank trend, last 30 checks: from 9 to 4, best 3, 2 checks not in top 20". **Use:** a rank history in a small space. **Not for:** the Rankings Trend column (search volume), rate trends (`SparklineCell` with `invert: false`).
 
 ### 14.3 RankDistribution
 `app/seo/rank-distribution.tsx` · V1 · [24 §9.2](24-page-templates.md), [15 §5](15-data-visualization.md)

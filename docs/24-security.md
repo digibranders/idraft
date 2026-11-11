@@ -160,7 +160,7 @@ V1 stores no tenant-supplied credentials: platform provider keys live in `/etc/s
 Envelope encryption with AES-256-GCM:
 
 ```
-KEK_vN     = 32-byte key from env (versioned: KEK_V1, KEK_V2, ...)
+KEK_vN     = 32-byte key from env (versioned; version 1 is `SECRETS_ENCRYPTION_KEY`, later versions add names)
 DEK        = random 32 bytes per secret
 ciphertext = AES-256-GCM(DEK, plaintext, aad = secret.id || workspace_id || kind)
 dek_wrapped= AES-256-GCM(KEK_vN, DEK, aad = secret.id)
@@ -168,7 +168,7 @@ store: ciphertext, dek_wrapped, kek_version = N
 ```
 
 - The associated data binds a ciphertext to its row, so a ciphertext copied into another workspace's row fails to decrypt.
-- Decryption happens only in the worker (and in the API only for the OAuth callback flow that writes the secret). Plaintext never leaves process memory, is never logged, and is not cached in Redis.
+- Decryption happens in the worker, and in the API for the OAuth callback flow that writes the secret, for the property list (it needs an access token) and for the revoke at disconnect. The API role can read, create and delete a secret and never change one; a secret is replaced by a new row. Plaintext never leaves process memory, is never logged, and is not cached in Redis.
 - **KEK rotation**: add `KEK_V2` to the GitHub environment, deploy, run `idraft secrets-rewrap --to 2` (re-wraps DEKs only; ciphertext untouched), remove `KEK_V1` after verification. Rotation target: yearly, and immediately on suspected exposure.
 - **Tenant key rotation**: the `ops.secrets.rotated_at` column drives a reminder alert for bring-your-own keys.
 
@@ -182,14 +182,14 @@ store: ciphertext, dek_wrapped, kek_version = N
 
 | Control | Implementation |
 |---|---|
-| Availability | Phase 12, together with envelope encryption (section 5.2). Nothing in this section is built in V1 |
+| Availability | Phase 12, together with envelope encryption (section 5.2). Google connect (Search Console and GA4 properties, one connection), with the encryption it needs, is built (migrations 0015 and 0017, `idraft.vault`); the GA4 pull, Bing and Cloudflare are not |
 | Flow | Authorization code with PKCE and a signed, single-use `state` bound to the user session and workspace (stored in Redis, 10 min TTL) |
-| Scopes | Minimum read-only: GSC `https://www.googleapis.com/auth/webmasters.readonly`; GA4 `https://www.googleapis.com/auth/analytics.readonly`; Bing and Cloudflare per [18-first-party-integrations.md](18-first-party-integrations.md) |
+| Scopes | Minimum read-only, asked together in one Google consent (one login is one connection): GSC `https://www.googleapis.com/auth/webmasters.readonly` and GA4 `https://www.googleapis.com/auth/analytics.readonly`, plus `openid email` to name the account. `include_granted_scopes=false`. The person may untick one product (granular consent); the connection stores what was granted and the other product is refused until they reconnect. Bing and Cloudflare per [18-first-party-integrations.md](18-first-party-integrations.md) |
 | Token storage | Refresh token encrypted in `ops.secrets`; access tokens held in worker memory only |
 | Redirect URI | Exact match, HTTPS, on the app origin under `/api/v1/` |
 | Revocation | "Disconnect" revokes the token at the provider, deletes the secret, and keeps already-ingested data unless the user also chooses "delete imported data" |
-| Failure | `invalid_grant` marks the integration `reauth_required` and notifies admins |
-| Verification | Google treats Search Console and Analytics read scopes as sensitive, so an app used by external customers needs Google OAuth app verification. Internal use (one Google Workspace organization) can run as an "Internal" app without verification. Plan for verification before external SaaS launch (see [30-risks-open-questions.md](30-risks-open-questions.md)) |
+| Failure | `invalid_grant` marks the connection and all its integrations, Search Console and GA4, `reauth_required` and notifies admins |
+| Verification | Google treats Search Console and Analytics read scopes as sensitive, so an app used by external customers needs Google OAuth app verification. Internal use (one Google Workspace organization) can run as an "Internal" app without verification. Plan for verification before external SaaS launch (see [30-risks-open-questions.md](30-risks-open-questions.md)). Because both scopes are requested together, the verification review covers both: the use of `analytics.readonly` must be justified in the request even while no GA4 data is pulled yet. The Google Cloud project needs the Google Search Console API, the Google Analytics Admin API (property listing) and the Google Analytics Data API (the later pull) enabled |
 
 ## 7. Untrusted content handling
 

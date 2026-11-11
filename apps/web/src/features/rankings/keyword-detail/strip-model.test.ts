@@ -77,6 +77,7 @@ const trackedOf = (spec: Spec): TrackedKeywordState => ({
   last_observed_at: spec.lastGood ?? null,
   owned_feature_types: [],
   ranking_url_count: 1,
+  drop_unconfirmed: false,
   target_url_match: null,
   url_changed_at: null,
   worst_rank: null,

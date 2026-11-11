@@ -1,6 +1,14 @@
 import type { InfiniteData, QueryClient, QueryKey } from '@tanstack/react-query';
 
-import { countKey, keywordsKey, type KeywordFilters, type ListPage, type ProjectScope } from './rankings-queries';
+import {
+  countKey,
+  keywordCountriesKey,
+  keywordsKey,
+  trackedKeywordQuotaKey,
+  type KeywordFilters,
+  type ListPage,
+  type ProjectScope,
+} from './rankings-queries';
 import type { TrackedKeywordDetail, TrackedKeywordRow } from '@/lib/api/types';
 
 /**
@@ -34,6 +42,8 @@ const LOOKS_AT = {
   'filter[search_volume_gte]': (row) => row.metrics?.search_volume ?? null,
   'filter[keyword_difficulty_lte]': (row) => row.metrics?.keyword_difficulty ?? null,
   // The rank filters look at the rank state; a save of the keyword's settings leaves it as it is.
+  'filter[country_id]': (row) => row.location_id,
+  'filter[country_id_in]': (row) => row.location_id,
   'filter[rank_lte]': (row) => row.state.current.rank,
   'filter[rank_gte]': (row) => row.state.current.rank,
   'filter[rank_is_null]': (row) => row.state.current.rank,
@@ -192,4 +202,9 @@ export function applyKeywordWrite(queryClient: QueryClient, scope: ProjectScope,
     }
   }
   if (membershipChanged) void queryClient.invalidateQueries({ queryKey: countKey(scope), exact: true });
+  // Who is tracked changed, or cannot be told because no list holds the keyword: the countries and the quota follow
+  if (membershipChanged || before === undefined) {
+    void queryClient.invalidateQueries({ queryKey: keywordCountriesKey(scope), exact: true });
+    void queryClient.invalidateQueries({ queryKey: trackedKeywordQuotaKey(scope.workspaceId), exact: true });
+  }
 }

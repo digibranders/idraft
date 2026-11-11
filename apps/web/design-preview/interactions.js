@@ -1540,7 +1540,7 @@
 
   function parseRoute(hash) {
     const [, address, section] = /^#\/([a-z-]+)(?:\/([a-z-]+))?$/.exec(hash) ?? [];
-    const view = address === 'rankings' ? 'keywords' : address;
+    const view = address === 'rankings' || address === 'keyword-groups' ? 'keywords' : address;
     if (!(view in VIEWS)) return null;
     if (view in PAGE_TABS) return { view, section: PAGE_TABS[view].includes(section) ? section : PAGE_TABS[view][0] };
     if (view !== 'settings') return { view, section: null };

@@ -28,6 +28,11 @@ from idraft.api.entities.service import EntityService
 from idraft.api.health import router as health_router
 from idraft.api.imports.routes import router as imports_router
 from idraft.api.imports.service import ImportService
+from idraft.api.integrations.routes import connection_router as connections_router
+from idraft.api.integrations.routes import oauth_router
+from idraft.api.integrations.routes import project_router as integrations_router
+from idraft.api.integrations.service import GoogleOAuthConfig, IntegrationService
+from idraft.api.integrations.state import OAuthStateStore
 from idraft.api.keywords.group_routes import router as keyword_groups_router
 from idraft.api.keywords.group_service import GroupService
 from idraft.api.keywords.routes import keywords_router
@@ -44,6 +49,8 @@ from idraft.api.operations.settings_routes import router as settings_routes_rout
 from idraft.api.problems import register_problem_handlers
 from idraft.api.projects.routes import router as projects_router
 from idraft.api.projects.service import ProjectService
+from idraft.api.quotas.routes import router as quotas_router
+from idraft.api.quotas.service import QuotaService
 from idraft.api.ranks.routes import event_router as rank_events_router
 from idraft.api.ranks.routes import keyword_router as rank_history_router
 from idraft.api.ranks.routes import snapshot_router as serp_snapshots_router
@@ -67,6 +74,7 @@ from idraft.db.migrate import migration_state
 from idraft.providers.email import EmailSender, build_email_sender
 from idraft.providers.pauses import RedisPauses
 from idraft.storage.raw import ObjectStore, RawStore, open_raw_store
+from idraft.vault.envelope import EnvelopeCipher
 
 REDIS_TIMEOUT_SECONDS = 1.0
 HTTP_TIMEOUT_SECONDS = 10.0
@@ -74,7 +82,7 @@ HTTP_TIMEOUT_SECONDS = 10.0
 IMPORT_STORE_CONNECTIONS = 4
 SESSION_CACHE_KEY_LABEL = b"idraft session cache v1"
 TOTP_SECRET_KEY_LABEL = b"idraft totp secrets v1"
-HEALTH_PATHS = frozenset({"/api/healthz", "/api/readyz"})
+HEALTH_PATHS = frozenset({"/api/healthz", "/api/readyz", "/api/internal/health"})
 
 
 def _open_import_store(settings: Settings) -> AbstractAsyncContextManager[RawStore]:
@@ -91,6 +99,18 @@ def _open_import_store(settings: Settings) -> AbstractAsyncContextManager[RawSto
         access_key_id=settings.r2_raw_access_key_id.get_secret_value(),
         secret_access_key=settings.r2_raw_secret_access_key.get_secret_value(),
         max_connections=IMPORT_STORE_CONNECTIONS,
+    )
+
+
+def _google_oauth(settings: Settings) -> GoogleOAuthConfig | None:
+    """The OAuth client, when this installation has one. Without it the connect routes answer
+    `integration_not_configured` and nothing else changes."""
+    if settings.google_oauth_client_id is None or settings.google_oauth_client_secret is None:
+        return None
+    return GoogleOAuthConfig(
+        client_id=settings.google_oauth_client_id.get_secret_value(),
+        client_secret=settings.google_oauth_client_secret.get_secret_value(),
+        redirect_uri=settings.google_callback_uri,
     )
 
 
@@ -183,6 +203,17 @@ def create_app(
                 costs=CostService(sessions=sessions),
                 imports=ImportService(sessions=sessions, store=sources),
                 ranks=RankService(sessions=sessions, raw_store=sources),
+                quotas=QuotaService(sessions=sessions),
+                integrations=IntegrationService(
+                    sessions=sessions,
+                    states=OAuthStateStore(redis),
+                    cipher=None
+                    if settings.secrets_encryption_key is None
+                    else EnvelopeCipher({1: settings.secrets_key}),
+                    http=http,
+                    oauth=_google_oauth(settings),
+                    app_origin=settings.app_origin,
+                ),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -228,6 +259,10 @@ def create_app(
     app.include_router(settings_routes_router)
     app.include_router(cost_routes_router)
     app.include_router(imports_router)
+    app.include_router(quotas_router)
+    app.include_router(integrations_router)
+    app.include_router(connections_router)
+    app.include_router(oauth_router)
     app.include_router(registries_router)
     app.include_router(document_router)
     install_openapi(app)

@@ -43,6 +43,13 @@ export const keywordDetailPath = (workspace: string, project: string, trackedKey
 export const rankingsImportPath = (workspace: string, project: string): Route =>
   projectPath(workspace, project, '/seo/keywords/import');
 
+/** The sources of Integrations (24 section 9.12); only Search Console is built. */
+export type IntegrationSource = 'google';
+
+/** Integrations > Google (Search Console and GA4) of a project, where Google returns the person after consent. */
+export const integrationsPath = (workspace: string, project: string, source: IntegrationSource = 'google'): Route =>
+  projectPath(workspace, project, `/integrations/${source}`);
+
 /** `path` with the query string `query` (without its `?`) kept, as when a dialog opens over a filtered page. */
 export const withQuery = (path: Route, query: string): Route => (query === '' ? path : (`${path}?${query}` as Route));
 

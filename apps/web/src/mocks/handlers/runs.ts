@@ -411,9 +411,9 @@ export const runHandlers: HttpHandler[] = [
     const depthErrors: ValidationItem[] =
       depth === undefined || depth === null
         ? []
-        : typeof depth === 'number' && [10, 20, 50, 100].includes(depth)
+        : typeof depth === 'number' && [100].includes(depth)
           ? []
-          : [bodyError('depth', 'enum', 'Allowed: 10, 20, 50, 100.')];
+          : [bodyError('depth', 'enum', 'Allowed: 100.')];
 
     const shape = [...extraMembers(body, ['tracked_keyword_ids', 'depth']), ...idsErrors, ...depthErrors];
     if (shape.length > 0) return invalid(request, shape);
@@ -455,7 +455,7 @@ export const runHandlers: HttpHandler[] = [
 
     if (monthlyUsed + trackedIds.length > MOCK_SERP_CHECKS_PER_MONTH) {
       return problem(request, 'quota_exceeded', {
-        detail: `This workspace has used ${String(monthlyUsed)} of its ${String(MOCK_SERP_CHECKS_PER_MONTH)} live checks this month.`,
+        detail: `This workspace has used ${String(monthlyUsed)} of its ${String(MOCK_SERP_CHECKS_PER_MONTH)} manual checks this month.`,
         limit: MOCK_SERP_CHECKS_PER_MONTH,
         used: monthlyUsed,
         requested: trackedIds.length,

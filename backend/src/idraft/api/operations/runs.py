@@ -24,12 +24,14 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api import audit
+from idraft.api.keywords import check_status
 from idraft.api.keywords import repository as keywords
 from idraft.api.operations import runs_repository as runs
 from idraft.api.operations.runs_repository import RunFilter, RunRecord
 from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
 from idraft.api.permissions import Permission
 from idraft.api.problems import (
+    CheckPendingError,
     ForbiddenError,
     InvalidStateTransitionError,
     ManualRunLimitError,
@@ -210,8 +212,10 @@ class RunService:
         body: CheckNow,
         info: RequestInfo,
     ) -> RunRecord:
-        """A manual rank run of the given tracked keywords, each asked of the provider live.
-        `422 quota_exceeded` when the month's live checks would pass the workspace's limit,
+        """A manual rank run of the given tracked keywords, asked through the provider's standard
+        queue, the same path a schedule uses, so a manual and a scheduled check read the same
+        SERP. `409 check_pending` when a keyword already has a check queued or under way,
+        `422 quota_exceeded` when the month's checks would pass the workspace's limit,
         `503 provider_paused` while the provider is refusing everyone."""
         if await self._provider_paused():
             raise ProviderPausedError(
@@ -229,6 +233,19 @@ class RunService:
                     message="A keyword the project does not track, or has archived.",
                 )
             await runs.lock_manual_runs(db, project_id)
+            # Under the lock, so two requests cannot both pass: a keyword with a check on its
+            # way is not paid for twice.
+            progress = await check_status.progress_of(db, access.workspace_id, wanted)
+            pending = [
+                str(tracked_id)
+                for tracked_id in wanted
+                if progress.get(tracked_id, check_status.IDLE).status in check_status.PENDING
+            ]
+            if pending:
+                raise CheckPendingError(
+                    "These keywords already have a check queued or under way. Wait for it to end.",
+                    tracked_keyword_ids=pending,
+                )
             used = await runs.manual_runs_since(
                 db, access.workspace_id, project_id, await _today(db)
             )
@@ -238,21 +255,21 @@ class RunService:
                     limit=MANUAL_RUNS_PER_DAY,
                 )
             limit = await runs.lock_serp_check_limit(db, access.workspace_id)
-            checks = await runs.live_serp_checks_since(
+            checks = await runs.manual_serp_checks_since(
                 db, access.workspace_id, await _month_start(db)
             )
             if checks + len(wanted) > limit:
                 raise QuotaExceededError(
-                    f"The workspace has made {checks} of its {limit} live checks this month "
+                    f"The workspace has made {checks} of its {limit} manual checks this month "
                     f"(UTC); {len(wanted)} more do not fit.",
                     limit=limit,
                     used=checks,
                     requested=len(wanted),
                     quota="max_serp_checks_per_month",
                 )
+            # No `live` flag: the planner sends these through the standard queue.
             selector: dict[str, object] = {
                 "tracked_keyword_ids": [str(tracked_id) for tracked_id in wanted],
-                "live": True,
             }
             if body.depth is not None:
                 selector["depth"] = body.depth
@@ -279,7 +296,7 @@ class RunService:
                     "workload": SEO_RANK,
                     "keyword_count": len(wanted),
                     "depth": body.depth,
-                    "live": True,
+                    "queue": "standard",
                 },
             )
             created = await runs.get_run(db, access.workspace_id, project_id, run_id)

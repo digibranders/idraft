@@ -8,7 +8,7 @@ Related: [03-system-architecture.md](03-system-architecture.md) sections 5, 6, 1
 
 This document is the build sheet for the production host. Every config block is meant to be copied into `infra/` and committed. Numbers labelled "(verified 2026-09-29)" come from primary sources recorded in research doc 08. Numbers labelled "estimate" are arithmetic or engineering judgement and must be replaced by measurements from the Phase 0 spikes. Numbers labelled "(measured 2026-10-31)" were read from the live host.
 
-Where the build stands: the live host (Hostinger VPS 187.126.121.25) currently runs idraft under systemd with a hand-built nginx and a Postgres 18 on `127.0.0.1:5433` (the system Postgres 16 on 5432 is not used by idraft). The Docker Compose design in this document is the target. The cutover is planned in `docs/superpowers/plans/2026-10-28-production-runtime.md`. Until then, sections 4 to 8 describe what the cutover builds, and sections 3, 9.5 and 10 hold the budgets that the cutover must respect.
+Where the build stands: the live host (Hostinger VPS 187.126.121.25) currently runs idraft under systemd with a hand-built nginx and a Postgres 18 on `127.0.0.1:5433` (the system Postgres 16 on 5432 is not used by idraft). Since 2026-11-05 releases go out only through `infra/ship.sh`, which runs the checks on the owner's Mac and deploys into release folders on that host; GitHub Actions is disabled. How that works today: [ops/release-and-deploy.md](ops/release-and-deploy.md). The Docker Compose design and the GitHub Actions pipeline in this document are the target, planned in `docs/superpowers/plans/2026-11-05-vps-compose-cutover.md`. Until then, sections 4 to 8 describe what the cutover builds, and sections 3, 9.5 and 10 hold the budgets that the cutover must respect.
 
 ## 1. Scope and fixed decisions
 
@@ -285,6 +285,9 @@ services:
       SENTRY_DSN: ${SENTRY_DSN_BACKEND:?}
       EMAIL_API_KEY: ${EMAIL_API_KEY:?}
       TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?}   # base64 of 32 random bytes; see section 7
+      SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY:-}   # same shape; required in production (doc 24 section 5.2)
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}   # both or neither; connecting Google is off without them
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/readyz', timeout=3).status == 200 else 1)"]
       interval: 10s
@@ -1039,10 +1042,12 @@ Each service gets the minimum it needs. This map is the `environment:` blocks of
 
 ```yaml
 web:       [SENTRY_DSN_WEB]
-api:       [DATABASE_URL_API, REDIS_URL_APP, SENTRY_DSN_BACKEND, EMAIL_API_KEY, TOTP_ENCRYPTION_KEY]
+api:       [DATABASE_URL_API, REDIS_URL_APP, SENTRY_DSN_BACKEND, EMAIL_API_KEY, TOTP_ENCRYPTION_KEY,
+            SECRETS_ENCRYPTION_KEY, GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET]
 worker:    [DATABASE_URL_WORKER, REDIS_URL_APP, DATAFORSEO_LOGIN, DATAFORSEO_PASSWORD,
             R2_RAW_ENDPOINT, R2_RAW_ACCESS_KEY_ID, R2_RAW_SECRET_ACCESS_KEY, HC_PLANNER_URL, HC_MAINTENANCE_URL,
-            HC_OPS_HEALTH_URL, SENTRY_DSN_BACKEND, EMAIL_API_KEY]
+            HC_OPS_HEALTH_URL, SENTRY_DSN_BACKEND, EMAIL_API_KEY, SECRETS_ENCRYPTION_KEY,
+            GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET]
 migrator:  [DATABASE_URL_MIGRATOR]
 postgres:  [PG_SUPERUSER_PASSWORD, PG_API_PASSWORD, PG_WORKER_PASSWORD, PG_MIGRATOR_PASSWORD]
 redis:     [REDIS_PASSWORD_HEALTHCHECK]                     # container healthcheck only
@@ -1071,6 +1076,8 @@ One part of the old reasoning is still valid and shapes the Compose file: `env_f
 The values do land in each container's configuration (`docker inspect` and `/var/lib/docker/containers/<id>/config.v2.json`). Both are readable only by root and members of the `docker` group, who can already read `/etc/seo-platform/.env`, so this exposes nothing new. The config loader in the `config` package validates every setting at start, and a process refuses to start on invalid config.
 
 ## 8. CI/CD
+
+> Not in use since 2026-11-05: releases go out through `infra/ship.sh` (checks on the owner's Mac, deploy into release folders on the VPS) and GitHub Actions is disabled. See [ops/release-and-deploy.md](ops/release-and-deploy.md). This section is the target design.
 
 Nothing is built on the host: its CPU and memory are shared with another project. GitHub Actions runs lint, typecheck and tests, builds the three images, pushes them to GHCR, and deploys over SSH by digest: pull, run `migrator`, restart `api` and `worker`, then `web`. Rollback is the previous tag (ADR-022).
 

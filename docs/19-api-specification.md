@@ -419,7 +419,7 @@ Mapping of domain statuses to `operation.status` (the domain status is always re
 | Export | `queued` / `running` / `ready` / `failed` / `expired` | `queued` / `running` / `succeeded` / `failed` / `succeeded` |
 | `ops.derivation_log` | `running` / `succeeded` / `failed` | `running` / `succeeded` / `failed` |
 
-Polling guidance: `Retry-After` is set on 202 responses and on GETs of non-terminal resources (2 seconds for live checks, 10 seconds for runs, 5 seconds for imports and exports). Terminal resources have no `Retry-After`. Live checks (`check-now`) typically finish in under 10 seconds; live AI runs in up to 120 seconds (doc 21 section 11). Server-sent events are not offered in V1.
+Polling guidance: `Retry-After` is set on 202 responses and on GETs of non-terminal resources (10 seconds for runs, 5 seconds for imports and exports). Terminal resources have no `Retry-After`. Live checks (`check-now`) typically finish in under 10 seconds; live AI runs in up to 120 seconds (doc 21 section 11). Server-sent events are not offered in V1.
 
 ### 2.11 Caching and conditional requests
 
@@ -637,6 +637,7 @@ interface ApiKey { api_key_id: Uuid; name: string; prefix: string; scopes: strin
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
 |---|---|---|---|---|---|---|---|
 | GET | `{W}/quotas` | member | none | `One<QuotaUsage>` | no | | deferred |
+| GET | `{W}/tracked-keyword-quota` | member | none | `One<{ limit, used }>`: the workspace's tracked keyword limit (the default when no quota row is stored) and its active tracked keywords in every project that is not deleted, the figures `quota_exceeded` carries | no | | 5 |
 | PUT | `/api/v1/admin/workspaces/{workspace_id}/quotas` | platform_operator | `{ max_projects, max_tracked_keywords, max_active_prompts, max_ai_observations_per_month, max_serp_checks_per_month }` | `One<QuotaUsage>` | no | | deferred |
 | GET | `{W}/audit-logs` | `audit:read` | `from?`, `to?`, `filter[actor_type]?`, `filter[actor_id]?`, `filter[action]?` (prefix match, e.g. `panel.`), `filter[target_type]?`, `filter[target_id]?` | `Page<AuditLog>` sorted `-occurred_at` | cursor | | deferred |
 | GET | `/api/v1/locations` | authenticated | `filter[q]?` (left out: all, by name, so `filter[location_type]=Country` lists countries; active locations only, sorted by name then id; `supports` is every surface any provider can collect there), `filter[country_iso]?`, `filter[location_type]?`, `filter[supports]?` (`serp`, `ai_mode`, `llm_scraper`) | `Page<Location>` | cursor | | 2 |
@@ -644,6 +645,8 @@ interface ApiKey { api_key_id: Uuid; name: string; prefix: string; scopes: strin
 | GET | `/api/v1/serp-feature-types` | authenticated | none | `{ data: Array<{ code, label, ownable, tracked_by_default }> }` | no | | 4 |
 | GET | `/api/v1/domain-categories` | authenticated | none | `{ data: Array<{ code, label, description }> }` | no | | 2 |
 | GET | `/api/v1/component-versions` | authenticated | `filter[component]?` | `{ data: Array<{ component, version, released_at, notes, is_breaking }> }` (no `git_sha`) | no | | 1 |
+
+`GET {W}/tracked-keyword-quota` is the first piece of `GET {W}/quotas`: the Add keywords dialog needs the tracked keyword limit and use before it submits. The full `QuotaUsage` below stays deferred.
 
 ```ts
 interface QuotaUsage {
@@ -697,7 +700,7 @@ interface ProjectSettingsV1 {
   version: 1;
   seo: {
     default_device: 'desktop' | 'mobile' | 'both';                 // 'both' expands to two tracked keywords
-    default_depth_profile: 'light' | 'standard' | 'deep' | 'full' | 'weekly' | 'weekly_light' | 'until_own_match_100';
+    default_depth_profile: 'light' | 'standard' | 'deep' | 'full' | 'weekly' | 'weekly_light' | 'until_own_match_100';   // default 'full' (depth 100)
     default_frequency: 'daily' | 'weekly';
     visibility_weight_scheme: 'uniform' | 'priority' | 'business_value';   // doc 09 section 6.2
     visibility_volume_mode: 'annual_average' | 'seasonal';              // doc 08 section 6
@@ -760,7 +763,7 @@ interface EntityCreate { entity_type: 'brand' | 'product' | 'organization' | 'pe
                          parent_entity_id?: Uuid; description?: string; is_ambiguous?: boolean; disambiguation_hints?: string[];
                          aliases?: AliasInput[]; domains?: DomainInput[] }
 interface DomainInput { domain: string;                                // a host, or a URL whose host is meant
-                        match_scope?: 'host' | 'registrable' | 'path_prefix';   // default 'registrable'
+                        match_scope?: 'host' | 'registrable' | 'path_prefix';   // default 'host': the site, which is the host and its www form (acme.com is www.acme.com), no other subdomain; 'registrable' takes every subdomain and has to be asked for
                         path_prefix?: string }                         // exactly when match_scope is 'path_prefix'
 interface Entity { entity_id: Uuid; entity_type: EntityCreate['entity_type']; canonical_name: string; parent_entity_id: Uuid | null;
                    description: string | null; is_ambiguous: boolean; disambiguation_hints: string[];
@@ -828,7 +831,8 @@ interface TermInput { name?: string; parent_id?: Uuid; path?: string; slug?: str
 | GET | `{W}/keywords/{keyword_id}/metrics-history` | `data:read` | `location_id`, `language_code`, `source?` (default `dataforseo_labs`), `from?`, `to?` | `One<KeywordMetricsHistory>` | no | | 3 |
 | GET | `{W}/keywords/{keyword_id}/ai-demand` | `data:read` | `location_id`, `language_code` | `One<{ snapshots: Array<{ fetched_at, ai_demand_estimate, monthly_estimates, method_note }>, latest: MetricValue }>` with `is_estimate: true`, labeled "Modeled AI demand" (doc 11 section 7) | no | | 11 |
 | POST | `{P}/keyword-metrics/refresh` | `runs:trigger` | `{ keyword_ids?: Uuid[] (max 1,000), stale_days?: number }`; Idempotency-Key required | `202 One<Run>` (workload `keyword_metrics`) | no | `429 manual_run_limit` | 3 |
-| GET | `{P}/tracked-keywords` | `data:read` | Filters and sorts below; `include?` (`sparkline`, `competitors`, `features`, `metrics`, `groups`, `terms`, `aio`); `date?` (state as of a past date, from history) | `Page<TrackedKeywordRow>` with `page.total` | cursor | | 3 |
+| GET | `{P}/tracked-keywords` | `data:read` | Filters and sorts below; `include?` (`sparkline`, `competitors`, `features`, `metrics`, `groups`, `terms`, `aio`, `gsc`); `sort` includes `gsc_clicks` and `gsc_impressions` (the 28 days of `include=gsc` on the keyword's own device; a keyword with no rows is 0); `date?` (state as of a past date, from history) | `Page<TrackedKeywordRow>` with `page.total` | cursor | | 3 |
+| GET | `{P}/tracked-keywords/countries` | `data:read` | none | `{ data: Array<{ location: LocationRef, keyword_count }> }`: the countries with active tracked keywords (a city counts for its country), most keywords first; `keyword_count` counts distinct keywords | no | | 3 |
 | POST | `{P}/tracked-keywords` | `keywords:write` | `TrackedKeywordCreate` | `201 { data: TrackedKeyword[] }` (two rows when `device = 'both'`) | no | `409 duplicate` (`existing_id`), `422 quota_exceeded`, `422 search_operator_not_allowed`, `422 keyword_too_long` (over 700 chars) | 3 |
 | POST | `{P}/tracked-keywords/bulk-create` | `keywords:write` | `{ items: TrackedKeywordCreate[] (max 1,000), on_duplicate: 'skip' \| 'merge_terms' }`; Idempotency-Key required | `200 { data: { created: Uuid[], skipped: Array<{ index, existing_id }>, rejected: Array<{ index, code, message }> } }`; larger sets use imports (3.6.3) | no | `422 quota_exceeded` (whole batch, nothing written) | 3 |
 | GET | `{P}/tracked-keywords/{tracked_keyword_id}` | `data:read` | none | `One<TrackedKeywordDetail>` | no | | 3 |
@@ -839,7 +843,7 @@ interface TermInput { name?: string; parent_id?: Uuid; path?: string; slug?: str
 | GET | `{P}/tracked-keywords/{tracked_keyword_id}/config-history` | `data:read` | none | `{ data: Array<{ config_version, depth_profile, target_url: UrlRef \| null, valid_from, valid_to, changed_by: UserRef \| null, change_reason }> }` | no | | 3 |
 | PUT | `{P}/tracked-keywords/{tracked_keyword_id}/competitors` | `keywords:write` | `{ include: Uuid[], exclude: Uuid[] }` (entity ids with a project role) | `One<{ effective_competitors: EntityRef[], overrides: Array<{ entity_id, mode }> }>` | no | `422 entity_not_in_project` | 3 |
 
-Tracked keyword list filters (all optional): `filter[q]`, `filter[group]`, `filter[term]`, `filter[term_in]`, `filter[device]`, `filter[location_id]`, `filter[language_code]`, `filter[search_engine]`, `filter[intent_in]`, `filter[funnel_stage_in]`, `filter[priority_lte]`, `filter[is_active]` (default `true`), `filter[source_in]`, `filter[depth_profile_in]`, `filter[rank_lte]`, `filter[rank_gte]`, `filter[rank_is_null]` (beyond depth at the latest check), `filter[rank_change_label_in]` (`numeric`, `new`, `lost`, `unchanged_beyond`, `consistent_beyond`, `first_check`), `filter[improved]`, `filter[declined]`, `filter[feature_present]` (feature type), `filter[feature_owned]`, `filter[aio_state]` (`absent`, `present_not_cited`, `present_cited`, `not_loaded`), `filter[ranking_url_id]`, `filter[target_url_match]`, `filter[is_stale]`, `filter[cannibalization_class_in]`, `filter[search_volume_gte]`, `filter[keyword_difficulty_lte]`.
+Tracked keyword list filters (all optional): `filter[q]`, `filter[group]`, `filter[term]`, `filter[term_in]`, `filter[device]`, `filter[location_id]`, `filter[country_id]` (a country's location id: keywords tracked in it or anywhere inside it, by the country's ISO code), `filter[country_id_in]` (the same for any of several countries), `filter[language_code]`, `filter[search_engine]`, `filter[intent_in]`, `filter[funnel_stage_in]`, `filter[priority_lte]`, `filter[is_active]` (default `true`), `filter[source_in]`, `filter[depth_profile_in]`, `filter[rank_lte]`, `filter[rank_gte]`, `filter[rank_is_null]` (beyond depth at the latest check), `filter[rank_change_label_in]` (`numeric`, `new`, `lost`, `unchanged_beyond`, `consistent_beyond`, `first_check`), `filter[improved]`, `filter[declined]`, `filter[feature_present]` (feature type), `filter[feature_owned]`, `filter[aio_state]` (`absent`, `present_not_cited`, `present_cited`, `not_loaded`), `filter[ranking_url_id]`, `filter[target_url_match]`, `filter[is_stale]`, `filter[cannibalization_class_in]`, `filter[search_volume_gte]`, `filter[keyword_difficulty_lte]`.
 
 Sort fields: `keyword`, `current_rank` (beyond depth sorts last in both directions), `rank_change`, `best_rank`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority`, `last_observed_at`, `created_at`.
 
@@ -864,6 +868,7 @@ interface KeywordMetrics {                       // from seo.keyword_metrics_cur
   cpc_usd: Usd | null; competition: number | null; competition_level: 'LOW' | 'MEDIUM' | 'HIGH' | null;
   keyword_difficulty: number | null;             // provider metric, doc 09 section 8
   intent_main: string | null; trend_pct_per_month: number | null; is_seasonal: boolean | null;
+  monthly_searches: Array<{ year: number; month: number; search_volume: number | null }>;   // the provider's months behind the trend, oldest first; [] when it sent none. The table's Trend column draws these
 }
 interface KeywordMetricsHistory {
   snapshots: Array<{ snapshot_id: BigId; fetched_at: Iso; data_month: Day | null; search_volume: number | null;
@@ -899,12 +904,25 @@ interface TrackedKeywordState {                  // seo.tracked_keyword_state (d
   aio: { state: 'absent' | 'present_not_cited' | 'present_cited' | 'not_loaded' | 'unknown'; citation_position: number | null; observation_id: BigId | null };
   target_url_match: boolean | null; url_changed_at: Iso | null;
   consecutive_failures: number; is_stale: boolean; last_observed_at: Iso | null;
+  ranking_url_count: number;                     // the project's own URLs that ranked at the last check
 }
 interface TrackedKeywordRow extends TrackedKeyword {
   state: TrackedKeywordState;
   metrics?: KeywordMetrics;                                  // include=metrics
   competitors?: Array<{ entity: EntityRef; current: RankCell; change: RankChange }>;   // include=competitors
   sparkline?: { depth_mode: 'daily_depth'; points: Array<{ t: Iso; rank: number | null; depth: number; state: RankCell['state'] }> };  // last 30 checks
+  // include=ranking_urls (built 2026-11-04): every own page that ranked at the last check, best rank first (at most 10),
+  // from seo.domain_rank_observations (`all_url_ids` with `all_organic_ranks`, doc 04). Behind the popup on the arrow beside
+  // a keyword. `shares_rank` marks a sub-result (a sitelink at the rank of the page above it).
+  ranking_urls?: Array<{ url: UrlRef; rank: number; shares_rank: boolean }>;
+  // include=gsc (built; doc 18 section 4.9). `pending` until the pull has stored the 28 final days that end on the latest final day;
+  // then `ok`, with the sums of that window for the keyword's normalized text and country, for both devices (the table picks the
+  // one it shows; a keyword with no rows is 0). A property waiting for a new sign-in counts as `not_connected`. `trend` (only with
+  // `ok`) is the tracked keyword's own device in seven 4-day buckets of the window, oldest first, zero where a bucket has no rows;
+  // the buckets add up to that device's counts. The Clicks and Impressions cells draw it as a graph.
+  gsc?: { state: 'ok' | 'pending' | 'not_connected'; clicks: { desktop: number; mobile: number } | null;
+          impressions: { desktop: number; mobile: number } | null; window: { start: string; end: string } | null;
+          trend: { bucket_days: number; clicks: number[]; impressions: number[] } | null };
   groups?: Array<{ group_id: Uuid; name: string; path: string }>;
   terms?: Array<{ term_id: Uuid; vocabulary_kind: string; name: string; path: string }>;
   cannibalization_class?: 'likely_cannibalization' | 'co_ranking' | 'unstable_url' | 'none' | null;
@@ -1001,7 +1019,7 @@ Previews expire after 7 days (`status = 'expired'`); the upload stays in R2 unde
 - `include=competitors` still returns the keyword's competitor overrides; the competitors' ranks are `include=competitor_ranks`. `include=sparkline` is the last 30 checks of the own side, `features` the features of the last snapshot with `owned_by_project`, `aio` the URLs the last AI Overview cites. `date` (state as of a past date) and `cannibalization_class` are not built.
 - The own side is one: a keyword's rank is the best organic rank among all entities with role `own`, and its events are attributed to the primary own entity (a project without one writes no rank events). `rank-history` computes `summary` inline from the window's rows, `422 window_too_large` past the limit. `serp-snapshots/{id}/raw` is `410 raw_expired` past retention and `503 raw_unavailable` when storage cannot be read; the definer function checks the workspace and the route checks the member's access to the snapshot's project.
 - The depth profile `until_own_match_100` is refused on create and update (`422 validation_failed` with `depth_profile_not_available`): it needs `stop_crawl_on_match`, which the adapter does not send. A keyword that has it anyway is not planned.
-- **Check now.** `POST {P}/seo/check-now` records a manual `seo_rank` run in status `planned` with the selector `{ tracked_keyword_ids, live: true, depth? }` and returns `202`. The worker plans it within a minute and asks DataForSEO live (`serp/google/organic/live/advanced`, one search a call, $0.002 a page), so an answer is normally there seconds after that. Without `depth` each keyword is checked at its daily depth, whatever the weekday. Every id must be a tracked keyword of the project that is active, on Google, with an offered profile and a keyword the provider takes (`422 validation_failed` with `keyword_unknown` at `tracked_keyword_ids` for any other). It counts as one of the project's 20 manual runs a day (`429 manual_run_limit`), and the month's live checks of the workspace (tasks made, plus the keywords of live runs not yet planned) may not pass `max_serp_checks_per_month` (`422 quota_exceeded` with `limit`, `used`, `requested` and `quota`). While the provider is paused the answer is `503 provider_paused` with `Retry-After`. The budget is checked when the run is planned, not in the request: a run a hard budget would be passed by becomes `status: 'budget_blocked'` afterwards, not in the `202`. A check now does not stand for the day's scheduled check. Not built: the `Idempotency-Key` requirement (as for the other asynchronous routes, review log F74) and `Retry-After` on the `202`.
+- **Check now.** `POST {P}/seo/check-now` records a manual `seo_rank` run in status `planned` with the selector `{ tracked_keyword_ids, depth? }` and returns `202`. The worker plans it within a minute and sends it through DataForSEO's standard queue, the path a schedule uses (since 2026-11-03; the live endpoint answered a different SERP for the same query), so the answer comes in minutes. Each keyword's `state.check` (`idle`, `queued`, `processing`, `completed`, `inconclusive`, `failed`, with `requested_at`, `finished_at` and `reason`) tells where its check stands, whoever asked for it; a keyword with a check queued or under way is refused with `409 check_pending` and `tracked_keyword_ids` (a second paid request for the same reading). Without `depth` each keyword is checked at its daily depth, whatever the weekday. Every id must be a tracked keyword of the project that is active, on Google, with an offered profile and a keyword the provider takes (`422 validation_failed` with `keyword_unknown` at `tracked_keyword_ids` for any other). It counts as one of the project's 20 manual runs a day (`429 manual_run_limit`), and the month's manual checks of the workspace (tasks of runs that named their keywords or asked the live endpoint, plus the keywords of such runs not yet planned) may not pass `max_serp_checks_per_month` (`422 quota_exceeded` with `limit`, `used`, `requested` and `quota`). While the provider is paused the answer is `503 provider_paused` with `Retry-After`. The budget is checked when the run is planned, not in the request: a run a hard budget would be passed by becomes `status: 'budget_blocked'` afterwards, not in the `202`. A check now does not stand for the day's scheduled check. Not built: the `Idempotency-Key` requirement (as for the other asynchronous routes, review log F74) and `Retry-After` on the `202`.
 
 ```ts
 interface SerpSnapshotSummary {
@@ -1432,15 +1450,16 @@ interface DiscoveryJobCreate {
 
 ### 3.10 First-party integrations (GSC basic Phase 11; full Phase 12; logs V1.5)
 
-A **connection** is one credential grant; an **integration** is one property on a connection (doc 18 section 3.1). Only `owner` and `admin` connect or disconnect (`integrations:manage`), and both actions are audit-logged.
+A **connection** is one credential grant; an **integration** is one property on a connection (doc 18 section 3.1). One Google connection (`product = 'google'`) carries Search Console and GA4: one consent asks for both scopes, `Connection.access` is `{ gsc, ga4 }` from the granted scopes, and disconnect, re-auth and revocation act on the connection and the integrations of both kinds. Only `owner` and `admin` connect or disconnect (`integrations:manage`), and both actions are audit-logged. A connection is a credential of the whole workspace, so an admin limited to some projects neither lists, uses nor changes connections: the routes that do need an admin of every project.
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
 |---|---|---|---|---|---|---|---|
-| POST | `{P}/integrations/{kind}/authorize` | `integrations:manage` fresh, session only | `kind` in `gsc`, `ga4`, `bing_wmt`; body `{ return_to? }` | `{ authorization_url, state_expires_at }`; state and PKCE verifier stored in Redis for 10 minutes, bound to session, workspace and project | no | | 11 |
-| GET | `/api/v1/oauth/{provider}/callback` | public (state must match the caller's session) | `code`, `state`; `provider` in `google`, `bing` | `302` to `https://<domain>/.../integrations/select?connection_id=...`; creates or updates `fp.connections`, stores the refresh token in `ops.secrets` | no | `400 invalid_state` (redirect with error), `409 scope_denied` | 11 |
-| GET | `{W}/connections` | `integrations:manage` | `filter[product]?`, `filter[status]?` | `Page<Connection>` | offset | | 11 |
+| POST | `{P}/integrations/google/authorize` | `integrations:manage` fresh, session only | no body (`return_to` is not built: the callback always returns to the project's Google page); asks for `webmasters.readonly` and `analytics.readonly` together (Bing later has its own route) | `{ authorization_url, state_expires_at }`; state and PKCE verifier stored in Redis for 10 minutes, bound to session, workspace and project | no | | 11 |
+| GET | `/api/v1/oauth/{provider}/callback` | public (state must match the caller's session) | `code`, `state`; `provider` in `google`, `bing` | `302` to `https://<domain>/<workspace>/<project>/integrations/google?connection_id=...` (`?error=<code>` on failure; `/?integration_error=invalid_state` when the project cannot be known); accepts the grant when at least one product scope is granted with a refresh token (`scope_denied` when neither), creates or updates `fp.connections` (`product = 'google'`) with the granted scopes, stores the refresh token in `ops.secrets` | no | `400 invalid_state` (redirect with error), `409 scope_denied` | 11 |
+| GET | `{W}/connections` | `integrations:manage` | `filter[product]?` (`google`, `bing_wmt`, `cloudflare`), `filter[status]?` | `Page<Connection>` (`access: { gsc, ga4 }`) | offset | | 11 |
 | POST | `{W}/connections` | `integrations:manage` fresh, session only | `{ product: 'cloudflare', api_token }` or `{ product: 'bing_wmt', api_key }` | `201 One<Connection>`; token validated (Cloudflare `settings` node, Bing `GetUserSites`) | no | `422 credential_invalid` | 12 |
-| GET | `{W}/connections/{connection_id}/properties` | `integrations:manage` | none | `{ data: Array<{ external_property, label, property_type, permission_level, is_selectable, suggested_project_id, overlap_warning }> }` | no | `409 integration_reauth_required` | 11 |
+| GET | `{W}/connections/{connection_id}/properties/gsc` | `integrations:manage` | none | `{ data: Array<{ external_property, label, property_type, permission_level, is_selectable, suggested_project_id, linked_project_id, overlap_warning }> }` | no | `409 integration_reauth_required`, `409 integration_scope_missing` (Search Console not granted; Google is not asked), `503 google_unavailable` | 11 |
+| GET | `{W}/connections/{connection_id}/properties/ga4` | `integrations:manage` | none | `{ data: Array<{ external_property, label, account_id, account_label, property_type, linked_project_id }> }` from the Analytics Admin API `accountSummaries.list`, by account then name; `property_type` in `ordinary`, `subproperty`, `rollup`, `unspecified` | no | `409 integration_reauth_required`, `409 integration_scope_missing`, `503 google_unavailable` | 11 |
 | POST | `{W}/connections/{connection_id}/reauthorize` | `integrations:manage` fresh, session only | `{ return_to? }` | `{ authorization_url, state_expires_at }` | no | `422 not_oauth` | 11 |
 | DELETE | `{W}/connections/{connection_id}` | `integrations:manage` fresh | `delete_imported_data?` (query, default `false`) | `202 One<Connection>` status `revoked`; token revoked at provider, secret destroyed, schedules disabled; data purge job when requested | no | | 11 |
 | GET | `{P}/integrations` | `data:read` | none | `Page<Integration>` | offset | | 11 |
@@ -1480,7 +1499,11 @@ interface Connection { connection_id: Uuid; product: 'gsc' | 'ga4' | 'bing_wmt' 
                        connected_by: UserRef | null; connected_at: Iso; last_refresh_at: Iso | null; last_error_code: string | null; integration_count: number }
 interface Integration { integration_id: Uuid; connection_id: Uuid | null; kind: 'gsc' | 'bing_wmt' | 'ga4' | 'cloudflare' | 'server_logs';
                         external_property: string; status: 'active' | 'reauth_required' | 'disabled' | 'error'; last_success_at: Iso | null;
-                        last_error: string | null; backfill_state: Record<string, unknown>; sync_paused_since: Iso | null; created_at: Iso }
+                        last_error: string | null; backfill_state: Record<string, unknown>; sync_paused_since: Iso | null; created_at: Iso;
+                        // built: the pull's progress, for `kind = 'gsc'` (null for other kinds); read by the sync strip
+                        sync: { phase: 'pending' | 'backfilling' | 'synced'; window_start: Day | null; window_end: Day | null; covered_from: Day | null;
+                                days_stored: number; rows_stored: number; consecutive_failures: number; retry_after: Iso | null;
+                                next_sync_at: Iso | null } | null }
 interface FileImport { import_id: Uuid; report_kind: string; origin: 'upload' | 'logpush' | 'agent' | 'api'; external_property: string;
                        report_view: string | null; period_start: Day | null; period_end: Day | null; filters: Record<string, unknown>;
                        filter_hash: string; filter_source: 'file_metadata' | 'user_declared' | 'both_matched' | 'not_applicable';
@@ -1717,6 +1740,9 @@ There are no provider callback routes. DataForSEO readiness is polling only (doc
 |---|---|---|---|---|---|---|---|
 | GET | `/api/healthz` | public | none | `200 {"status":"ok"}` when the process event loop responds | no | | 1 |
 | GET | `/api/readyz` | public | none | `200 {"status":"ready","checks":{"postgres":true,"redis":true,"migrations":true}}` or `503` with the failing check names only | no | | 1 |
+| GET | `/api/internal/health` | `Authorization: Bearer <HEALTH_TOKEN>` | none | the full health report (below): `200` with `status` `ok` or `degraded`, `503` with `down` | no | `401` for a missing or wrong token; `404` when no `HEALTH_TOKEN` is set | 1 |
+
+**Full health (`/api/internal/health`, not in the OpenAPI document).** For the people who run the system, never public: without `HEALTH_TOKEN` (at least 24 characters, an API environment variable) the route does not exist, and with it the token goes in an `Authorization: Bearer` header (compared in constant time). The edge proxy should also keep `/api/internal/*` off the public side. It holds no secret, host name or error text. Body: `status` (`ok`, `degraded`, `down`), `checked_at`, `took_ms`, `versions` (`release`, `installation`, `environment`, `parser_version`, `canonicalizer_version`) and `checks`: `postgres` (`ok`, `latency_ms`), `migrations` (`ok`, `current`, `expected`), `redis` (`ok`, `latency_ms`), `worker` (`ok`, and the `processes` that reported in the last 90 seconds: `instance`, `pid`, `started_at`, `reported_age_s`), `provider` (DataForSEO: `ok`, `registered`, `paused`, and the balance the worker last read: `balance_usd`, `days_remaining`, `severity`, `balance_checked_at`) and `collection` (`ok`, `open_tasks`, `oldest_due_age_s`, `failed_24h`, `last_ingested_at`, across all workspaces). `down` is PostgreSQL, Redis or the schema failing: the API cannot serve, and the status is 503. `degraded` is a `200` for what a monitor should alert on without taking the API out of rotation: no worker has reported, the provider is paused or its balance is `critical`, or a due task has waited more than an hour. A part the report cannot see is `null`, not a guess; a provider no worker has registered cannot be unhealthy. The API's database role cannot read the task ledger across workspaces, so each worker process writes its own report to Redis every 30 seconds (`health:worker:<installation>:<pid>`, 90 seconds to live, `idraft.worker.status`) and the report reads those.
 
 `/api/healthz` and `/api/readyz` reveal no versions, hostnames or error messages. `/api/readyz` is what the Compose healthcheck and the deploy script use to decide when a new API container can take traffic, and what the external uptime check calls.
 
@@ -1760,7 +1786,8 @@ Ids are shortened for readability where marked `...`; everything else is a liter
                            "filters": { "location_id": 2840, "language_code": "en" }, "is_estimate": true,
                            "method": "Provider-reported average monthly search volume (DataForSEO Labs), annual average", "method_version": 1 },
         "cpc_usd": "14.2300", "competition": 0.67, "competition_level": "HIGH", "keyword_difficulty": 58,
-        "intent_main": "commercial", "trend_pct_per_month": 1.8, "is_seasonal": false
+        "intent_main": "commercial", "trend_pct_per_month": 1.8, "is_seasonal": false,
+        "monthly_searches": [ { "year": 2025, "month": 9, "search_volume": 1700 }, "... 10 more ...", { "year": 2026, "month": 8, "search_volume": 1900 } ]
       },
       "competitors": [
         { "entity": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color_index": 2 },

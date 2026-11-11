@@ -1,6 +1,6 @@
 'use client';
 
-import { Clock, TriangleAlert } from 'lucide-react';
+import { CircleAlert, CircleHelp, Clock, RefreshCw, TriangleAlert } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
@@ -10,13 +10,13 @@ import { Badge } from '@/components/ui/badge';
 import { Icon } from '@/components/ui/icon';
 import { TextLink } from '@/components/ui/text-link';
 import { Tooltip } from '@/components/ui/tooltip';
-import type { RankCell, RankChange } from '@/lib/api/types';
+import type { RankCell } from '@/lib/api/types';
 import {
   formatDetailDateTime,
   formatInteger,
-  formatRankCell,
   webHref,
   type ChangeDisplay,
+  type CheckMark,
   type RankDisplay,
   type UrlDisplay,
 } from '@/lib/format';
@@ -54,15 +54,45 @@ function Marks({
   stale,
   failing,
   observedAt,
+  unconfirmed = false,
+  check = 'none',
 }: {
   stale: boolean;
   failing: boolean;
   observedAt?: string | null | undefined;
+  /** One check missed a rank an earlier one had; a second check confirms it. */
+  unconfirmed?: boolean;
+  /** A check is on its way, or the latest one could not say whether the site is absent. */
+  check?: CheckMark;
 }): ReactElement {
   const t = useTranslations('rankings.rank');
   const tip = observedAt ? t('lastGood', { date: observedAt }) : t('staleTooltip');
   return (
     <>
+      {check === 'pending' ? (
+        <Tooltip content={t('checkingTooltip')} purpose="label">
+          <span className="inline-flex items-center">
+            <Icon icon={RefreshCw} size="xs" className="text-foreground-tertiary" />
+            <span className="sr-only">{t('speech.checking')}</span>
+          </span>
+        </Tooltip>
+      ) : null}
+      {check === 'inconclusive' ? (
+        <Tooltip content={t('inconclusiveTooltip')} purpose="label">
+          <span className="inline-flex items-center">
+            <Icon icon={CircleAlert} size="xs" className="text-warning-text" />
+            <span className="sr-only">{t('speech.inconclusive')}</span>
+          </span>
+        </Tooltip>
+      ) : null}
+      {unconfirmed ? (
+        <Tooltip content={t('unconfirmedTooltip')} purpose="label">
+          <span className="inline-flex items-center">
+            <Icon icon={CircleHelp} size="xs" className="text-foreground-tertiary" />
+            <span className="sr-only">{t('speech.unconfirmed')}</span>
+          </span>
+        </Tooltip>
+      ) : null}
       {stale ? (
         <Tooltip content={tip} purpose="label">
           <span className="inline-flex items-center">
@@ -81,9 +111,15 @@ function Marks({
   );
 }
 
+/** The text of a keyword that is not ranked within the checked depth: a plain hyphen, never a dash character. */
+export const NOT_RANKED_MARK = '-';
+/** The rank's box: three digits wide, so the change slots line up across rows; the number ends next to the change. */
+const RANK_BOX = 'inline-flex w-7 shrink-0 items-center justify-end text-right';
+
 /**
- * The rank and its change in one cell: the rank number in a fixed-width box (~32 px, `w-8 shrink-0`),
- * then the change and marks in a slot to its right.
+ * The rank and its change in one cell, read as one unit: the rank number in a fixed-width box sized for three
+ * digits (`w-7 shrink-0`, tabular numerals, right-aligned so the number ends where the change begins), then
+ * a small gap (`gap-1.5`) and the change and marks. The box keeps the change slots aligned across rows.
  */
 export function RankCellView({
   display,
@@ -108,6 +144,8 @@ export function RankCellView({
         stale={display.stale}
         failing={display.kind === 'failed' ? false : display.failing}
         observedAt={observedDate}
+        unconfirmed={display.kind === 'beyond' && display.unconfirmed}
+        check={display.kind === 'failed' ? 'none' : display.check}
       />
     );
   const changeSlot = (
@@ -120,8 +158,8 @@ export function RankCellView({
   switch (display.kind) {
     case 'ranked':
       return (
-        <span className="flex items-center gap-2">
-          <span className="inline-flex w-8 shrink-0 items-center justify-start text-left">
+        <span className="flex items-center gap-1.5">
+          <span className={RANK_BOX}>
             <span className="num text-foreground">{formatInteger(display.rank)}</span>
           </span>
           {changeSlot}
@@ -129,10 +167,10 @@ export function RankCellView({
       );
     case 'beyond':
       return (
-        <span className="flex items-center gap-2">
-          <span className="inline-flex w-8 shrink-0 items-center justify-start text-left">
+        <span className="flex items-center gap-1.5">
+          <span className={RANK_BOX}>
             <span aria-hidden="true" className="num text-foreground-tertiary">
-              {formatRankCell({ rank: null, depth: display.depth })}
+              {NOT_RANKED_MARK}
             </span>
             <span className="sr-only">{t('speech.beyond', { depth: display.depth })}</span>
           </span>
@@ -147,8 +185,8 @@ export function RankCellView({
       );
     case 'failed':
       return (
-        <span className="flex items-center gap-2">
-          <span className="inline-flex w-8 shrink-0 items-center justify-start text-left">
+        <span className="flex items-center gap-1.5">
+          <span className={RANK_BOX}>
             <Icon icon={TriangleAlert} size="sm" label={t('failed')} className="text-warning-text" />
           </span>
           {changeSlot}
@@ -318,137 +356,31 @@ export function StaleMarker(): ReactElement {
 }
 
 export interface RankTips {
-  /**
-   * The tooltip and description of the Rank cell: where and when it was checked, the rank before it when there
-   * is one, and what is wrong with it (stale, or the checks after it failed).
-   */
-  rank: (
-    display: RankDisplay,
-    previousRankOrChange?: number | null | RankChange,
-    current?: RankCell,
-  ) => CellTip | undefined;
-  /** Where a rank moved from and to, for a change that has both ranks. */
-  change: (change: RankChange, current: RankCell) => CellTip | undefined;
-  /** The whole address and the check of a ranking URL, or why there is none yet. */
-  url: (display: UrlDisplay, rank: RankDisplay) => CellTip | undefined;
-  /** Why Best rank has no number yet or after a failed check; nothing for a keyword that was checked. */
-  best: (state: RankCell['state']) => CellTip | undefined;
+  /** Why a hyphen stands in the Rank cell: the keyword is not in the top results of the depth that was checked. */
+  notRanked: (display: RankDisplay) => CellTip | undefined;
+  /** The whole address of a ranking URL, which the cell shortens; nothing when there is no URL. */
+  url: (display: UrlDisplay) => CellTip | undefined;
   /** What the Stale marker of the Updated column means, with the last good check. */
   stale: (observedAt: string | null) => CellTip;
 }
 
 /**
- * The tooltips of the rank cells, in the project's time zone. A tip has a description only where the cell's
- * own text already says its first line (a change's words, a `>20` that is spoken as "not in top 20"): the
- * description is then the rest of the tooltip, so a screen reader does not hear the line twice.
+ * The tooltips of the rank cells, in the project's time zone. A tooltip is only for what the cell cannot say
+ * itself: a path that is cut short, and what a marker means. The rank, its change and its date are not repeated
+ * in one; the markers carry their own words.
  */
 export function useRankTips(timeZone: string): RankTips {
   const t = useTranslations('rankings.rank');
-  return useMemo((): RankTips => {
-    const date = (instant: string): string => formatDetailDateTime(instant, timeZone);
-    const lastGood = (observedAt: string | null, stale: boolean): string | undefined =>
-      stale && observedAt !== null ? t('lastGood', { date: date(observedAt) }) : undefined;
-    const previous = (rank: number | null): string | undefined =>
-      rank === null ? undefined : t('previousRank', { rank: formatInteger(rank) });
-    /** Sentences, each ending in its own full stop, as one line. */
-    const joined = (parts: readonly (string | undefined)[]): string | undefined => {
-      const found = parts.filter((part): part is string => part !== undefined);
-      return found.length === 0 ? undefined : found.join(' ');
-    };
-    const withDetail = (content: string, detail: string | undefined): CellTip =>
-      detail === undefined ? { content } : { content, detail };
-    const failed = (): CellTip => ({ content: t('failedTooltip') });
-    const pending = (): CellTip => ({ content: t('pendingTooltip') });
-
-    const changeTipOf = (change: RankChange, current: RankCell): CellTip | undefined => {
-      if (change.label !== 'numeric' || change.value === null || change.value === 0) return undefined;
-      if (change.previous_rank === null || current.rank === null) return undefined;
-      const detail = t('fromTo', { from: formatInteger(change.previous_rank), to: formatInteger(current.rank) });
-      const amount = Math.abs(change.value);
-      return {
-        content: t(change.value > 0 ? 'changeTip.improved' : 'changeTip.declined', { count: amount }),
-        detail,
-        description: detail,
-      };
-    };
-
-    return {
-      rank: (display, previousRankOrChange = null, current) => {
-        const isChangeObj =
-          typeof previousRankOrChange === 'object' && previousRankOrChange !== null && 'label' in previousRankOrChange;
-        const previousRank = isChangeObj ? previousRankOrChange.previous_rank : previousRankOrChange;
-        const changeObj = isChangeObj ? previousRankOrChange : undefined;
-
-        let baseTip: CellTip | undefined;
-        switch (display.kind) {
-          case 'ranked':
-            baseTip = withDetail(
-              t('rankTip', { rank: formatInteger(display.rank), date: date(display.observedAt), depth: display.depth }),
-              joined([
-                previous(previousRank),
-                lastGood(display.observedAt, display.stale),
-                display.failing ? t('failedTooltip') : undefined,
-              ]),
-            );
-            break;
-          case 'beyond': {
-            if (display.observedAt === null) {
-              baseTip = undefined;
-              break;
-            }
-            const rest = [
-              previous(previousRank),
-              lastGood(display.observedAt, display.stale),
-              display.failing ? t('failedTooltip') : undefined,
-            ];
-            // The cell says "not in top 20" itself: what the screen reader hears after it is the rest
-            const description = joined([t('checked', { date: date(display.observedAt) }), ...rest]);
-            baseTip = {
-              ...withDetail(t('beyondTip', { depth: display.depth, date: date(display.observedAt) }), joined(rest)),
-              ...(description === undefined ? {} : { description }),
-            };
-            break;
-          }
-          case 'pending':
-            baseTip = pending();
-            break;
-          case 'failed':
-            baseTip = withDetail(t('failedTooltip'), lastGood(display.observedAt, display.stale));
-            break;
-        }
-
-        if (changeObj && current) {
-          const cTip = changeTipOf(changeObj, current);
-          if (cTip) {
-            if (!baseTip) return cTip;
-            const content = `${baseTip.content.replace(/\.*$/, '')}. ${cTip.content.replace(/\.*$/, '')}.`;
-            const detail = [baseTip.detail, cTip.detail].filter(Boolean).join(' ');
-            return {
-              content,
-              ...(detail ? { detail } : {}),
-            };
-          }
-        }
-        return baseTip;
-      },
-      change: changeTipOf,
-      best: (state) => (state === 'failed' ? failed() : state === 'not_checked' ? pending() : undefined),
-      url: (display, rank) => {
-        switch (display.kind) {
-          case 'url': {
-            if (rank.kind !== 'ranked') return { content: display.full };
-            const detail = t('checked', { date: date(rank.observedAt) });
-            return { content: display.full, detail, description: detail };
-          }
-          case 'pending':
-            return pending();
-          case 'failed':
-            return failed();
-          case 'none':
-            return undefined;
-        }
-      },
-      stale: (observedAt) => withDetail(t('staleTooltip'), lastGood(observedAt, true)),
-    };
-  }, [t, timeZone]);
+  return useMemo(
+    (): RankTips => ({
+      notRanked: (display) =>
+        display.kind === 'beyond' ? { content: t('notInTop', { depth: display.depth }) } : undefined,
+      url: (display) => (display.kind === 'url' ? { content: display.full } : undefined),
+      stale: (observedAt) => ({
+        content: t('staleTooltip'),
+        ...(observedAt === null ? {} : { detail: t('lastGood', { date: formatDetailDateTime(observedAt, timeZone) }) }),
+      }),
+    }),
+    [t, timeZone],
+  );
 }

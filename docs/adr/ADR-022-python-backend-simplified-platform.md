@@ -65,7 +65,7 @@ Two stack changes were made at the same time. The backend moves to Python, becau
 
 | Item | Locked value |
 |---|---|
-| CI/CD | GitHub Actions: lint, typecheck, tests, build the three images (`seo-web`, and `seo-api` and `seo-worker` as two targets of one `backend/` Dockerfile), push to GHCR by digest, SSH deploy: pull, run `migrator`, restart `api` and `worker`, then `web`. Rollback is the previous tag |
+| CI/CD | GitHub Actions: lint, typecheck, tests, build the three images (`seo-web`, and `seo-api` and `seo-worker` as two targets of one `backend/` Dockerfile), push to GHCR by digest, SSH deploy: pull, run `migrator`, restart `api` and `worker`, then `web`. Rollback is the previous tag. (Superseded in practice on 2026-11-05: checks run on the owner's Mac and `infra/ship.sh` deploys to the VPS; GitHub Actions is disabled. See [ops/release-and-deploy.md](../ops/release-and-deploy.md).) |
 | Errors and performance | Sentry (Python SDK and Next.js SDK, 10% performance sampling) |
 | Heartbeats | Healthchecks.io for the planner tick, backups, maintenance, the `ops_health` SQL checks, the host check (`seo-hostcheck.timer`: disk, swap, OOM kills, container health, which is what feeds the resize triggers) and the monthly restore drill |
 | Uptime | One external uptime check (Better Stack free tier) on `/api/healthz`; the `web` container is covered by the host check |

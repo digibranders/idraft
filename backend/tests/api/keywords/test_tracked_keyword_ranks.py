@@ -3,9 +3,11 @@ row and of the detail, the rank filters and sorts, and the rank blocks of `inclu
 
 from __future__ import annotations
 
+import json
 import uuid
 from collections.abc import AsyncIterator
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -17,6 +19,7 @@ from idraft.api.resources import Resources
 from idraft.collectors.seo_rank_ingest import ingest
 from idraft.config.settings import Settings
 from idraft.db.engine import create_engine, create_session_factory
+from idraft.providers.dataforseo.serp_parse import PARSER_VERSION, parse_serp
 from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.entities.support import Caller, member
 from tests.api.keywords.support import errors, keyword_project, project_url, tracked_id
@@ -140,6 +143,7 @@ async def test_a_keyword_never_checked_is_not_checked_and_has_a_first_check_chan
             "rank": None,
             "absolute_rank": None,
             "depth_requested": None,
+            "depth_returned": None,
             "url": None,
             "observed_at": None,
             "serp_snapshot_id": None,
@@ -197,6 +201,91 @@ async def test_a_keyword_beyond_the_depth_is_beyond_depth_not_unranked(
     assert row["state"]["current"]["state"] == "beyond_depth"
     assert row["state"]["current"]["rank"] is None
     assert row["state"]["current"]["depth_requested"] == 20
+
+
+async def test_a_check_that_reached_less_far_than_asked_says_how_far_it_reached(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _world(resources, migrated)
+    tracked = await tracked_id(api, workspace, project, owner, "crm")
+    # Twenty were asked for; the provider had 12 to give and the site is not among them.
+    await _check(worker_db, migrated, world, tracked, _results(None, total=12))
+
+    (row,) = await _list(api, workspace, project, owner)
+
+    current = row["state"]["current"]
+    assert (current["state"], current["depth_requested"], current["depth_returned"]) == (
+        "beyond_depth",
+        20,
+        12,
+    )
+
+
+async def test_a_rank_lost_at_one_check_is_flagged_as_not_yet_confirmed(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _world(resources, migrated)
+    tracked = await tracked_id(api, workspace, project, owner, "crm")
+    await _check(worker_db, migrated, world, tracked, _results(5), days_ago=2)
+    await _check(worker_db, migrated, world, tracked, _results(None), days_ago=1)
+
+    (row,) = await _list(api, workspace, project, owner)
+    assert row["state"]["current"]["state"] == "beyond_depth"
+    assert row["state"]["drop_unconfirmed"] is True
+
+    # A second check that still cannot find it stands.
+    await _check(worker_db, migrated, world, tracked, _results(None))
+    (row,) = await _list(api, workspace, project, owner)
+    assert row["state"]["drop_unconfirmed"] is False
+
+
+async def test_a_snapshot_with_an_empty_rank_slot_lists_the_other_results_at_their_ranks(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _world(resources, migrated)
+    tracked = await tracked_id(api, workspace, project, owner, "crm")
+    # Rank 2 repeats rank 1, so its slot stays empty; the own site is the provider's third.
+    urls = [
+        "https://elsewhere-1.example/page",
+        "https://elsewhere-1.example/page#again",
+        f"https://www.{OWN_HOST}/pricing",
+    ]
+    await _check(worker_db, migrated, world, tracked, urls)
+
+    (row,) = await _list(api, workspace, project, owner)
+    snapshot = row["state"]["current"]["serp_snapshot_id"]
+    detail = await api.get(
+        project_url(workspace, project, "serp-snapshots", snapshot), headers=owner.headers
+    )
+
+    assert detail.status_code == 200, detail.text
+    organic = detail.json()["data"]["organic"]
+    assert [item["organic_rank"] for item in organic] == [1, 3]
+    assert organic[1]["entity"]["canonical_name"] == "Acme"
+    assert row["state"]["current"]["rank"] == 3
+
+
+async def test_a_keyword_that_never_ranked_has_no_drop_to_confirm(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _world(resources, migrated)
+    tracked = await tracked_id(api, workspace, project, owner, "crm")
+    await _check(worker_db, migrated, world, tracked, _results(None))
+
+    (row,) = await _list(api, workspace, project, owner)
+    assert row["state"]["drop_unconfirmed"] is False
 
 
 @pytest.fixture
@@ -491,6 +580,155 @@ async def test_the_rank_blocks_of_include(
     assert "ai_overview" in row["state"]["feature_types_present"]
 
 
+async def test_every_own_page_that_ranks_is_listed_best_first(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _world(resources, migrated)
+    tracked = await tracked_id(api, workspace, project, owner, "crm")
+    results = _results(9, 3)
+    results[3] = f"https://www.{OWN_HOST}/crm-guide"
+    await _check(worker_db, migrated, world, tracked, results)
+
+    (plain,) = await _list(api, workspace, project, owner)
+    (row,) = await _list(api, workspace, project, owner, include="ranking_urls")
+
+    assert plain["ranking_urls"] is None
+    assert row["state"]["ranking_url_count"] == 2
+    assert [
+        (page["url"]["path"], page["rank"], page["shares_rank"]) for page in row["ranking_urls"]
+    ] == [
+        ("/crm-guide", 4, False),
+        ("/pricing", 9, False),
+    ]
+    assert row["ranking_urls"][0]["url"]["host"] == f"www.{OWN_HOST}"
+    # The page at the best rank is the one the state names
+    assert row["state"]["current"]["url"]["path"] == "/crm-guide"
+
+
+async def test_a_keyword_that_never_ranked_lists_no_pages(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _world(resources, migrated)
+    unchecked = await tracked_id(api, workspace, project, owner, "never checked")
+    beyond = await tracked_id(api, workspace, project, owner, "beyond")
+    await _check(worker_db, migrated, world, beyond, _results(None, 3))
+
+    rows = await _list(api, workspace, project, owner, include="ranking_urls")
+
+    by_id = {row["tracked_keyword_id"]: row for row in rows}
+    assert by_id[unchecked]["ranking_urls"] == []
+    assert by_id[beyond]["ranking_urls"] == []
+
+
+async def _search_console(
+    pg: PostgresServer,
+    workspace: Workspace,
+    project_id: uuid.UUID,
+    status: str,
+    *,
+    property_name: str = "sc-domain:example.com",
+) -> None:
+    """A property linked to the project, written directly: what choosing one leaves behind."""
+    secret = await fetch(
+        pg,
+        "INSERT INTO ops.secrets (workspace_id, kind, ciphertext, dek_wrapped, kek_version, "
+        "fingerprint) VALUES ($1, 'oauth_refresh_token', '\\x00', '\\x00', 1, 'abcd') "
+        "RETURNING id",
+        workspace.id,
+    )
+    connection = await fetch(
+        pg,
+        "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
+        "credential_ref, scopes) VALUES ($1, 'google', 'oauth', $2, $3, '{}') RETURNING id",
+        workspace.id,
+        uuid.uuid4().hex,
+        secret[0]["id"],
+    )
+    await execute(
+        pg,
+        "INSERT INTO fp.integrations (workspace_id, project_id, kind, external_property, "
+        "connection_id, scopes, status) VALUES ($1, $2, 'gsc', $3, $4, '{}', $5)",
+        workspace.id,
+        project_id,
+        property_name,
+        connection[0]["id"],
+        status,
+    )
+
+
+NOT_CONNECTED = {
+    "state": "not_connected",
+    "clicks": None,
+    "impressions": None,
+    "window": None,
+    "trend": None,
+}
+
+
+async def test_search_console_clicks_say_not_connected_until_a_property_is_linked(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, _ = await _world(resources, migrated)
+    await tracked_id(api, workspace, project, owner, "crm")
+
+    (plain,) = await _list(api, workspace, project, owner)
+    (row,) = await _list(api, workspace, project, owner, include="gsc")
+
+    assert plain["gsc"] is None
+    # Nothing is linked: the answer is the true one, never an estimate
+    assert row["gsc"] == NOT_CONNECTED
+
+
+async def test_search_console_clicks_say_pending_once_a_property_is_linked(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, _ = await _world(resources, migrated)
+    await tracked_id(api, workspace, project, owner, "crm")
+    await tracked_id(api, workspace, project, owner, "seo tools")
+    await _search_console(migrated, workspace, project, "active")
+
+    rows = await _list(api, workspace, project, owner, include="gsc")
+
+    # Nothing is pulled yet, so no keyword has a number to show
+    assert [row["gsc"] for row in rows] == [
+        {"state": "pending", "clicks": None, "impressions": None, "window": None, "trend": None}
+    ] * 2
+
+
+@pytest.mark.parametrize("status", ["disabled", "reauth_required", "error"])
+async def test_a_property_that_is_not_working_is_not_a_connection(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, status: str
+) -> None:
+    workspace, project, owner, _ = await _world(resources, migrated)
+    await tracked_id(api, workspace, project, owner, "crm")
+    await _search_console(migrated, workspace, project, status)
+
+    (row,) = await _list(api, workspace, project, owner, include="gsc")
+
+    assert row["gsc"] == NOT_CONNECTED
+
+
+async def test_a_property_of_another_project_or_workspace_does_not_connect_this_one(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, _ = await _world(resources, migrated)
+    other_workspace, other_project, _, _ = await _world(resources, migrated)
+    sibling = await keyword_project(migrated, workspace)
+    await tracked_id(api, workspace, project, owner, "crm")
+    await _search_console(migrated, other_workspace, other_project, "active")
+    await _search_console(migrated, workspace, sibling, "active", property_name="sc-domain:b.com")
+
+    (row,) = await _list(api, workspace, project, owner, include="gsc")
+
+    assert row["gsc"] == NOT_CONNECTED
+
+
 async def test_the_detail_carries_the_state(
     api: httpx.AsyncClient,
     resources: Resources,
@@ -549,3 +787,178 @@ async def test_an_unknown_rank_sort_is_refused_by_name(
 
     assert response.status_code == 422
     assert errors(response) == [("sort", "invalid_sort")]
+
+
+# Real answers of DataForSEO's standard queue for the Fynix site (India, desktop, depth 100),
+# trimmed to what the parser reads. Captured on 2026-11-03 with the app's own request body: two
+# readings of each keyword a few hours apart, which differ (the provider's SERP moves between
+# readings).
+LIVE_FIXTURES = Path(__file__).parents[2] / "fixtures" / "dataforseo" / "live"
+FYNIX = "fynix.digital"
+
+
+def _fixture(name: str) -> bytes:
+    return (LIVE_FIXTURES / f"{name}.json").read_bytes()
+
+
+def _provider_rank(name: str) -> int:
+    """The `rank_group` of the first organic result of the Fynix site in the raw answer."""
+    items = json.loads(_fixture(name))["tasks"][0]["result"][0]["items"]
+    ranks = [i["rank_group"] for i in items if i["type"] == "organic" and FYNIX in i["domain"]]
+    return int(ranks[0])
+
+
+async def _fynix_world(
+    resources: Resources, pg: PostgresServer
+) -> tuple[Workspace, uuid.UUID, Caller, World]:
+    workspace = await make_workspace(pg)
+    owner = await member(resources, pg, workspace, "owner")
+    project_id = await keyword_project(pg, workspace)
+    project = Project(workspace.id, project_id)
+    world = World(
+        project,
+        own=await _entity(pg, project, "Fynix", FYNIX, "own", primary=True),
+        rival=await _entity(pg, project, "Rival", RIVAL_HOST, "competitor"),
+    )
+    return workspace, project_id, owner, world
+
+
+async def _read(
+    worker_db: Ledger,
+    pg: PostgresServer,
+    world: World,
+    tracked: str,
+    fixture: str,
+    store: MemoryStore,
+    *,
+    days_ago: int,
+    manual: bool,
+) -> None:
+    when = NOW - days_ago * DAY
+    selector = {"tracked_keyword_ids": [tracked]} if manual else None
+    await fetched_task(
+        worker_db,
+        pg,
+        world,
+        uuid.UUID(tracked),
+        _fixture(fixture),
+        store,
+        fetched_at=when,
+        selector=selector,
+    )
+    await ingest(worker_db, store)
+
+
+async def test_the_standard_queue_answers_for_fynix_digital_reach_the_api_as_the_provider_gave_them(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _fynix_world(resources, migrated)
+    store = MemoryStore()
+    tracked = await tracked_id(api, workspace, project, owner, "fynix digital")
+    found, missing = (
+        "standard_fynix_digital_1154_found_rank_1",
+        "standard_fynix_digital_1327_not_found",
+    )
+
+    await _read(worker_db, migrated, world, tracked, found, store, days_ago=1, manual=True)
+    (row,) = await _list(api, workspace, project, owner)
+    state = row["state"]
+    assert _provider_rank(found) == 1
+    assert (state["current"]["state"], state["current"]["rank"]) == ("ranked", 1)
+    assert state["current"]["url"]["host"] == "www.fynix.digital"
+    assert state["current"]["depth_returned"] == 96
+    assert (state["aio"]["state"], state["check"]["status"]) == ("present_cited", "completed")
+
+    # The later reading does not have the site. It is stored as a reading, the earlier one is
+    # kept, and the drop is shown as not yet confirmed rather than as a fact.
+    await _read(worker_db, migrated, world, tracked, missing, store, days_ago=0, manual=False)
+    (row,) = await _list(api, workspace, project, owner)
+    state = row["state"]
+    assert state["current"]["state"] == "beyond_depth"
+    assert (state["current"]["depth_requested"], state["current"]["depth_returned"]) == (100, 99)
+    assert state["drop_unconfirmed"] is True
+    assert (state["change"]["label"], state["change"]["previous_rank"]) == ("lost", 1)
+    assert state["check"]["status"] == "completed"
+    assert (state["aio"]["state"]) == "present_not_cited"
+
+    snapshots = await fetch(
+        migrated,
+        "SELECT id, depth_requested, depth_returned, parser_version, collection_task_id, "
+        "organic_url_ids FROM seo.serp_snapshots WHERE tracked_keyword_id = $1 "
+        "ORDER BY observed_at",
+        uuid.UUID(tracked),
+    )
+    assert [(s["depth_requested"], s["depth_returned"]) for s in snapshots] == [
+        (100, 96),
+        (100, 99),
+    ]
+    assert {s["parser_version"] for s in snapshots} == {PARSER_VERSION}
+    for stored, name in zip(snapshots, (found, missing), strict=True):
+        parsed = parse_serp(_fixture(name))
+        assert len(stored["organic_url_ids"]) == parsed.depth_returned
+        assert sum(slot is None for slot in stored["organic_url_ids"]) == (
+            parsed.depth_returned - len(parsed.organic)
+        )
+    # The first reading is still readable through the API at the ranks the provider gave
+    first = await api.get(
+        project_url(workspace, project, "serp-snapshots", str(snapshots[0]["id"])),
+        headers=owner.headers,
+    )
+    organic = first.json()["data"]["organic"]
+    assert organic[0]["organic_rank"] == 1
+    assert organic[0]["entity"]["canonical_name"] == "Fynix"
+    assert [item["organic_rank"] for item in organic] == sorted(
+        r.organic_rank for r in parse_serp(_fixture(found)).organic
+    )
+
+
+async def test_fynix_keeps_the_providers_rank_and_a_manual_check_equals_a_scheduled_one(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _fynix_world(resources, migrated)
+    store = MemoryStore()
+    manual = await tracked_id(api, workspace, project, owner, "fynix manual")
+    scheduled = await tracked_id(api, workspace, project, owner, "fynix scheduled")
+    reading = "standard_fynix_1150_rank_21"
+    # Two repeated URLs above the site: renumbering from the kept results gave 19, not 21
+    parsed = parse_serp(_fixture(reading))
+    renumbered = 1 + sum(1 for r in parsed.organic if r.organic_rank < _provider_rank(reading))
+
+    await _read(worker_db, migrated, world, manual, reading, store, days_ago=0, manual=True)
+    await _read(worker_db, migrated, world, scheduled, reading, store, days_ago=0, manual=False)
+
+    rows = {r["keyword"]["text"]: r["state"] for r in await _list(api, workspace, project, owner)}
+    assert _provider_rank(reading) == 21
+    assert renumbered == 19
+    for name in ("fynix manual", "fynix scheduled"):
+        assert rows[name]["current"]["rank"] == 21
+    keys = ("rank", "absolute_rank", "depth_requested", "depth_returned")
+    assert {k: rows["fynix manual"]["current"][k] for k in keys} == {
+        k: rows["fynix scheduled"]["current"][k] for k in keys
+    }
+    assert rows["fynix manual"]["aio"] == rows["fynix scheduled"]["aio"] | {
+        "observation_id": rows["fynix manual"]["aio"]["observation_id"]
+    }
+    # The later reading, a few hours on, found it at 19: the provider's own rank
+    await _read(
+        worker_db,
+        migrated,
+        world,
+        manual,
+        "standard_fynix_1324_rank_19",
+        store,
+        days_ago=0,
+        manual=True,
+    )
+    later = {r["keyword"]["text"]: r["state"] for r in await _list(api, workspace, project, owner)}
+    assert (
+        later["fynix manual"]["current"]["rank"]
+        == _provider_rank("standard_fynix_1324_rank_19")
+        == 19
+    )

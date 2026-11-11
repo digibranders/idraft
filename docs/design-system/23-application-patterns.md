@@ -33,7 +33,7 @@ Rules:
 
 | Object | L1 Scan (row) | L2 Hover (tooltip) | L3 Inspect (inspector) | L4 Study (full page) |
 |---|---|---|---|---|
-| **Keyword** (tracked keyword) | Keyword text, rank, rank change, ranking URL path, volume, intent, SERP feature icons, AI Overview status, top competitor rank, 30-check sparkline, updated | Location, device, depth and check time; previous rank and normal movement (up to 2 positions); full ranking URL; volume source and month; last 7 ranks; AI Overview position and source count; feature names | Rank strip (current, best, average with `n_ranked of n_checks`, volatility); 30-day rank chart with depth band; target vs ranking URL; latest SERP features; competitor ranks (top 5); latest AI Overview; related prompts (top 3 with per-engine mention rate); last 10 events; actions | Keyword Detail: full history with deep checks, SERP snapshots and compare, feature strip, AI Overview history, related prompts with intervals, GSC panel, demand history, diagnostics |
+| **Keyword** (tracked keyword) | Keyword text, rank, rank change, ranking URL path, volume, intent, SERP feature icons, AI Overview status, top competitor rank, 12-month search volume sparkline, updated | Location, device, depth and check time; previous rank and normal movement (up to 2 positions); full ranking URL; volume source and month; last 7 ranks; AI Overview position and source count; feature names | Rank strip (current, best, average with `n_ranked of n_checks`, volatility); 30-day rank chart with depth band; target vs ranking URL; latest SERP features; competitor ranks (top 5); latest AI Overview; related prompts (top 3 with per-engine mention rate); last 10 events; actions | Keyword Detail: full history with deep checks, SERP snapshots and compare, feature strip, AI Overview history, related prompts with intervals, GSC panel, demand history, diagnostics |
 | **Prompt** | Prompt text (one line), topic, per-engine mention rate, mention rate (equal-weight, labeled), citation rate, top competitor, trend, updated | Full prompt text; `k of n` and interval per engine; prompt type, panel, version; last observed per engine | Per-engine rate table (mention, citation, recommendation with `k of n`); latest answer (`ResponsePreview`); observation history (last 12); entities mentioned with counts; top 5 cited domains; competitors; related keywords with rank; confidence and sample | Prompt Detail: trends with CI bands, all answers with evidence and compare, citations, competitor gap (A14), recommendation and sentiment (A5, A6, A13), volatility, fan-out, versions, statistics |
 | **Observation** (one answer) | Engine, date, replicate, validity status, mentioned, cited, recommended (icon plus word), structured rank, citation count | Invalid reason, reported model, run, collection time | Evidence viewer (section 5): answer with mention highlights, entity toggles, `CitationList`, facts footer | Prompt Detail, Answers tab with `obs=<id>`: compare with another observation, raw payload (`raw:read`) |
 | **Domain** (cited registrable domain) | Domain with favicon, role, category, citation units (C2), source share (C1), change, observations, prompts, per-engine share, new or lost badge, trend | Full host, category source (default or override), first and last seen, `min_support`, per-engine counts | Share trend (180 px, per engine); top 10 cited pages; top 10 prompts citing it; entities co-mentioned when it is cited; SEO SOV of the domain on project keywords; category override action | Citations, Pages tab filtered to the domain (`domain=<domainId>`); publisher opportunity row when present. No dedicated domain page in V1 |
@@ -84,7 +84,7 @@ The strip is one panel. Vertical bars are full-height dividers. Each cell has a 
 | Item width | Cells share the panel width equally, minimum 140 px; labels truncate with a tooltip, values never do | 3 items: 3 columns; 4 items: 2 columns |
 | Item count | 3 to 6 | 3 to 4 |
 | Background | `surface` (the panel) | `surface` |
-| Separation from next region | 16 px gap, the gap between page blocks ([05-layout-grid.md](05-layout-grid.md)) | 16 px below, inside the first inspector section |
+| Separation from next region | 12 px gap, the gap between page blocks ([05-layout-grid.md](05-layout-grid.md)) | 16 px below, inside the first inspector section |
 
 Cells stretch to fill the panel, so the dividers run at equal intervals and the panel has no empty tail. On very wide screens the values stay left-aligned inside their cells.
 
@@ -141,6 +141,20 @@ Everything else uses the strip.
 
 The strip is a `dl`: each item is a `div` wrapping `dt` (label) and `dd` (value, delta, context). The delta's accessible text comes from the formatter ("up 2.1 percentage points, within normal variation"). A clickable item is an `a` inside the `dd` whose name combines label and value ("Top 10: 301, open keywords").
 
+### 2.8 Inline size (`size="inline"`)
+
+The inline strip is the summary of a table page (Keywords). It is label and value side by side, with no panel, no border and no dividers, placed in the page toolbar (section 3.1).
+
+| Part | Spec |
+|---|---|
+| Item | Label in `type-meta` (tertiary), 6 px, value in `type-body-strong num` (`foreground`). Items are 20 px apart and wrap to a second line when the toolbar runs out of width |
+| Delta | Inline after the value, as in `md` |
+| Context | Not drawn. It is in the item's tooltip and in the text read by screen readers, so "of 44 checked" stays available |
+| Loading | A 24 px bar in place of the value; the labels stay |
+| Count | 3 to 5 items. A scope with a budget meter or a sparkline keeps `md` |
+
+Use `md` when the summary is the first thing a person reads (overview pages, Costs). Use `inline` when the data below it is a table the person came to work in.
+
 ## 3. Page header: PageHeader
 
 ### 3.1 Anatomy
@@ -155,33 +169,44 @@ The strip is a `dl`: each item is a `div` wrapping `dt` (label) and `dd` (value,
 | [vs previous v] [Desktop v] [Topic: CRM x] [+ Filter]                                                              |
 ```
 
-The line under the tabs is the tab row's 1 px `border` bottom edge. The page header itself has no border: the blocks below it follow at the 16 px page block gap.
+The line under the tabs is the tab row's 1 px `border` bottom edge. The page header itself has no border: the blocks below it follow at the 12 px page block gap.
+
+**The toolbar row (decided 2026-11-02, [00-design-principles.md](00-design-principles.md) section 3 rule 7).** The sketch above is the long form, used by pages with nothing to put beside the title (settings, forms). Every page with a summary, filters or a view switch uses the toolbar form: one row holding the title, the meta line beside it (baseline aligned, not under it), the inline summary, the `FilterBar` with its chips and trailing view switch, and the actions right-aligned.
+
+```text
+| Keywords  Updated 12m ago   Tracked 59  Top 3 6  Top 10 12  Top 20 26   [+ Filter] ........ [Active|Archived]  [...] [Import] [Add keywords] |
++------------------------------------------------------------------------------------------------------------------------------------------+
+| [Search /]  59 keywords                                                                                    [Density] [Cols]              |
+```
+
+`PageHeader` takes the middle of the row as its `toolbar` prop. The row wraps below 768 px (title block first, then the toolbar, then the actions) and wherever the content outgrows the width; the toolbar basis is 320 px and the filter group inside it 240 px, so chips wrap inside their own group first. Month or date scope controls (Runs, Costs) sit at the start of the toolbar, 176 px wide.
 
 The breadcrumb (`House` icon for the project root, then Workspace, Project and the page) is in the top bar, not in the page header, and so are the project-wide date range and location controls ([11-navigation.md](11-navigation.md) section 4). The page header starts with the title; its filter bar holds only screen-specific scope and filters ([13-filters-search.md](13-filters-search.md) section 1).
 
 | Region | Component | Spec |
 |---|---|---|
-| Container | `PageHeader` | `background`, 20 px horizontal padding (page gutter), 20 px from the top bar to the title, no border, no background of its own |
+| Container | `PageHeader` | `background`, 20 px horizontal padding (page gutter), 12 px from the top bar to the title, no border, no background of its own |
 | Title | `h1` in `type-page-title` (24 / 32 px, 600, tracking -0.015em) | Never truncates; wraps to 2 lines at most. Detail pages use the object name (keyword text, prompt text in quotes, URL path) |
 | View menu | `SavedViewMenu` ([12-tables.md](12-tables.md) section 11) | 32 px `secondary` `sm` button 12 px right of the title, on T2, T6, Matrix and Competitors only |
 | Meta line | `type-meta` (13 / 20 px, tertiary) 4 px under the title | `FreshnessIndicator` first, then one scope fact ("1,000 tracked keywords"). At most two middle dots. Detail pages add the object facts ("US · desktop · depth 20") |
 | Actions | `Button` `md` (36 px) | Right-aligned, vertically centered on the title block. At most 1 `primary` + 2 `secondary` visible + a "More actions" `IconButton` (`icon`, 36 px, `Ellipsis`) holding the rest, including "Copy link". Order: secondary, secondary, More, primary (primary rightmost, [09-buttons-controls.md](09-buttons-controls.md) section 2.6) |
 | Local tabs | `Tabs` `variant="underline"` or `TabNav` when tabs are routes | 44 px row (`h-tab`), 8 px below the title block; 14 px labels 24 px apart; active label `primary-text` 500 with a 2 px `primary` underline; 1 px `border` along the bottom of the row. At most 6 tabs, nouns of 1 to 2 words, counts only on inboxes ([11-navigation.md](11-navigation.md) section 6) |
-| Filter bar | `FilterBar` ([13-filters-search.md](13-filters-search.md)) | 36 px controls, 16 px below the tabs or the title block; on pages with a metric strip, 16 px below the strip (the strip sits between the title block and the filter bar, [reference/visual-spec.md](reference/visual-spec.md) section 4). Result count in `type-meta`: in the table toolbar on table pages ([12-tables.md](12-tables.md) section 1), right-aligned in the filter bar on T1 |
+| Filter bar | `FilterBar` ([13-filters-search.md](13-filters-search.md)) | 36 px controls. On pages that use the toolbar row it is inside the row, after the inline summary. On a page with an `md` strip and no toolbar it is 12 px below the strip. Result count in `type-meta`: in the table toolbar on table pages ([12-tables.md](12-tables.md) section 1), right-aligned in the filter bar on T1 |
 
 ### 3.2 Height budget
 
-Data (a metric strip, chart or table) starts within **200 px** below the 52 px top bar when a page has tabs and a filter bar, and at about **130 px** otherwise (92 to 144 px), in the default state of every page (P1, [reference/visual-spec.md](reference/visual-spec.md) section 6). The numbers below are measured from the bottom edge of the top bar to the first data block. The date range and location add no height: they are in the top bar.
+Data (a metric strip, chart or table) starts within **100 px** below the 52 px top bar in the default state of every page without tabs, and within **160 px** when it has tabs (P1, [reference/visual-spec.md](reference/visual-spec.md) section 6). A table page uses the toolbar row of section 3.1, so its table toolbar starts about 60 px below the top bar. The numbers below are measured from the bottom edge of the top bar to the first data block. The date range and location add no height: they are in the top bar.
 
 | Header composition | Calculation | Data starts at |
 |---|---|---|
-| Title block only (settings, and every page whose first block is the metric strip) | 20 + 56 (title 32 + 4 + meta 20) + 16 | 92 px |
-| Title block and filter bar (no strip) | 20 + 56 + 16 + 36 + 16 | 144 px |
-| Title block, tabs and filter bar | 20 + 56 + 8 + 44 + 16 + 36 + 16 | 196 px |
-| Detail page (`DetailPageHeader`): back link line above the title | 20 (`type-meta` line) + 4 gap added to the rows above | 116 px, or 168 px with a filter bar |
-| Each additional line of wrapped filter chips | 8 + 36 | +44 px |
+| Toolbar row (title, meta, summary, filters, actions on one row; table pages, Runs, Costs) | 12 + 36 + 12 | 60 px |
+| Title block only (settings, forms, and every page whose first block is the metric strip) | 12 + 56 + 12 | 80 px |
+| Toolbar row and tabs | 12 + 36 + 8 + 44 + 12 | 112 px |
+| Title block, tabs and a separate filter bar (only where a toolbar row does not fit) | 12 + 56 + 8 + 44 + 12 + 36 + 12 | 180 px, over budget: use the toolbar row |
+| Detail page (`DetailPageHeader`): back link line above the title | 20 (`type-meta` line) + 4 gap added to the rows above | 84 px, or 136 px with tabs |
+| Each additional line of wrapped toolbar or filter chips | 8 + 36 | +44 px |
 
-A page whose default state exceeds 200 px fails review. Chips a user adds may wrap past the budget; that height is the user's choice. The mobile header is specified in [19-responsive-behavior.md](19-responsive-behavior.md).
+A page whose default state exceeds its budget fails review. Chips a user adds may wrap past the budget; that height is the user's choice. The mobile header is specified in [19-responsive-behavior.md](19-responsive-behavior.md).
 
 ### 3.3 Sticky behavior
 

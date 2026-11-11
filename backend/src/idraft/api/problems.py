@@ -278,6 +278,13 @@ class QuotaExceededError(ProblemError):
     status, code, title = 422, "quota_exceeded", "Workspace limit reached"
 
 
+class CheckPendingError(ProblemError):
+    """Carries `tracked_keyword_ids`: keywords that already have a check queued or being
+    answered. A second one would be a second paid request for the same reading."""
+
+    status, code, title = 409, "check_pending", "A check is already under way"
+
+
 class TooManySubjectsError(ProblemError):
     """Carries `limit`: a filter of a bulk change matched more rows than one request changes."""
 
@@ -302,6 +309,32 @@ class RateLimitedError(ProblemError):
 
 class ServiceUnavailableError(ProblemError):
     status, code, title = 503, "service_unavailable", "Service unavailable"
+
+
+class IntegrationNotConfiguredError(ProblemError):
+    """This installation has no Google OAuth client (or the one it has is refused), so nothing
+    can be connected. The rest of the application is unaffected."""
+
+    status, code, title = 503, "integration_not_configured", "The integration is not set up"
+
+
+class IntegrationReauthRequiredError(ProblemError):
+    """The connection's credential no longer works. The person connects the account again."""
+
+    status, code, title = 409, "integration_reauth_required", "The connection needs to be renewed"
+
+
+class IntegrationScopeMissingError(ProblemError):
+    """The person did not grant this product's permission when connecting Google, so nothing is
+    asked of Google for it. They connect again and tick it."""
+
+    status, code, title = 409, "integration_scope_missing", "Access to this product was not granted"
+
+
+class PropertyNotAccessibleError(ProblemError):
+    """The connected account cannot read the property, or it is not one of its properties."""
+
+    status, code, title = 422, "property_not_accessible", "The account cannot read this property"
 
 
 class ProviderPausedError(ProblemError):

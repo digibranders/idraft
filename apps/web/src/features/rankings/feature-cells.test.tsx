@@ -79,7 +79,16 @@ describe('AioStatusView', () => {
     expect(badge).toBeInTheDocument();
     expect(badge).toHaveAccessibleName('AI Overview present, cited at position 2');
     expect(badge).toHaveClass('bg-positive-subtle', 'text-positive-text');
-    expect(badge).toHaveTextContent('Cited #2');
+    // The position alone: no check icon and no word "Cited"
+    expect(badge).toHaveTextContent(/^#2$/);
+    expect(badge.querySelector('svg')).toBeNull();
+  });
+
+  it('renders a cited status with no position as the check alone', () => {
+    renderWithProviders(<AioStatusView display={{ kind: 'cited', position: null }} />);
+    const badge = screen.getByRole('img', { name: 'AI Overview present, cited' });
+    expect(badge).toHaveTextContent(/^$/);
+    expect(badge.querySelector('svg')).not.toBeNull();
   });
 
   it('renders notCited as a 16 px check icon in primary text with an accessible name and no visible word', () => {
@@ -201,7 +210,8 @@ describe('CompetitorRankView', () => {
     const { container } = renderWithProviders(<CompetitorRankView entry={entry} name="Northlight" />);
     const swatch = container.querySelector('.rounded-2xs');
     expect(swatch).toHaveStyle({ backgroundColor: 'var(--chart-4)' });
-    expect(screen.getByText('>20')).toBeInTheDocument();
+    expect(screen.getByText('-')).toBeInTheDocument();
+    expect(screen.getByText('not in top 20')).toHaveClass('sr-only');
   });
 
   it('renders n/a in tertiary when entry is missing or null', () => {

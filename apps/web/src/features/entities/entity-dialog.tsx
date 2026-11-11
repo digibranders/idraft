@@ -180,7 +180,7 @@ function EntityForm({
             entity_type: 'brand',
             is_ambiguous: false,
             canonical_name: trimmedName,
-            domains: [{ domain: domain.trim(), match_scope: 'registrable' }],
+            domains: [{ domain: domain.trim(), match_scope: 'host' }],
             // The matcher finds the name itself; stored aliases are the other names
             aliases: otherNames(trimmedName, aliases).map(wordAlias),
           },

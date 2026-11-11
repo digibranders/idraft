@@ -6,6 +6,7 @@ import { useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { ProjectSwitcherSpecimen } from './project-switcher-specimen';
 import { SpecimenGroup, SpecimenRow } from './specimen';
 import { DomainInput } from '@/components/app/forms/domain-input';
 import { FormField } from '@/components/app/forms/form-field';
@@ -353,6 +354,8 @@ export function FormsSection(): ReactNode {
           />
         </SpecimenRow>
       </SpecimenGroup>
+
+      <ProjectSwitcherSpecimen />
 
       <SpecimenGroup
         title="Tag and multi-select"

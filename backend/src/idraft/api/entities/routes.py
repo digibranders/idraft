@@ -280,8 +280,11 @@ async def list_entity_domains(
     "/{entity_id}/domains",
     status_code=201,
     summary="Add a domain",
-    description="A registrable rule is stored against the registrable domain itself "
-    "(`https://www.acme.com/x` is `acme.com`); host and path prefix rules keep the host.",
+    description="The default scope is `host`: a site, which is the host and its www form "
+    "(`https://www.acme.com/x` and `acme.com` are the same site) and none of its other "
+    "subdomains; a subdomain is a site of its own. Only a `registrable` rule takes every "
+    "subdomain, and it is stored against the registrable domain itself; host and path prefix "
+    "rules keep the host.",
 )
 async def add_entity_domain(
     entity_id: UUID, body: DomainInput, access: WriteEntities, entities: Entities, info: Info

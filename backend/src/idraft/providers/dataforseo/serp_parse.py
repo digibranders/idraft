@@ -20,19 +20,48 @@ Text the database cannot keep (NUL, a lone surrogate) is cleaned from the whole 
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any, Final, Literal
 
-from idraft.extraction.urls import CanonicalUrl, UrlRejectedError, canonicalize
+from idraft.extraction.urls import CanonicalUrl, UrlRejectedError, canonicalize, has_known_suffix
 
-PARSER_VERSION: Final = 1
+PARSER_VERSION: Final = 4
+# What a result shows in place of its address: the origin, then the path pieces, each after a
+# single right-pointing angle quotation mark (U+203A).
+_CRUMB_SEPARATOR: Final = "›"  # noqa: RUF001
+_CRUMB_ORIGIN: Final = re.compile(r"https?://[^\s/?#]+", re.IGNORECASE)
+_CRUMB_SEGMENT: Final = re.compile(r"[A-Za-z0-9._~%!$&'()*+,;=:@-]+")
+_HOSTNAME: Final = re.compile(
+    r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+"
+)
+# A result's site name for a post or profile: the platform, a middle dot, then the account.
+_NAME_SEPARATOR: Final = "·"
+# The platforms whose posts and profiles come back hidden with a count in place of the address
+# (seen 2026-11-02), by the name they show. Only the host is known, never the page.
+_PLATFORMS: Final[Mapping[str, str]] = {
+    "linkedin": "linkedin.com",
+    "instagram": "instagram.com",
+    "facebook": "facebook.com",
+    "youtube": "youtube.com",
+    "x": "x.com",
+    "twitter": "x.com",
+    "quora": "quora.com",
+    "reddit": "reddit.com",
+    "pinterest": "pinterest.com",
+    "tiktok": "tiktok.com",
+    "medium": "medium.com",
+    "github": "github.com",
+}
 # A feature's payload is kept small: it is a row of a table read for every SERP of a keyword.
 # The limit is bytes of the text PostgreSQL gives the jsonb value, which is what the table's check
 # measures: `json.dumps` with its default separators writes the same text.
 PAYLOAD_MAX_BYTES: Final = 4096
 NO_RESULTS_STATUS: Final = 40102
+# The deepest a check can be (the snapshot table's limit): a rank above it is not a rank.
+ORGANIC_RANK_MAX: Final = 700
 
 AiOverviewState = Literal["absent", "present", "present_async_loaded", "present_not_loaded"]
 CitationKind = Literal["reference_card", "inline"]
@@ -101,7 +130,9 @@ class Rating:
 
 @dataclass(frozen=True, slots=True)
 class OrganicResult:
-    organic_rank: int  # canonical: 1 for the first organic result, in order, without gaps
+    # The provider's `rank_group`: 1 for the first organic result. Not renumbered; a result we
+    # dropped leaves a gap.
+    organic_rank: int
     absolute_rank: int | None  # None for a right-column item
     url: CanonicalUrl
     title: str | None
@@ -111,6 +142,10 @@ class OrganicResult:
     has_sitelinks: bool
     checks: tuple[str, ...]  # 'is_image', 'is_video', 'amp', 'is_featured_snippet'
     rating: Rating | None
+    # The provider hid the address behind a Google redirect and the site was read from the
+    # result's breadcrumb or site name: the host is the result's, the path is as the breadcrumb
+    # shows it (the host alone when that was cut short).
+    recovered: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,10 +207,13 @@ class NormalizedSerp:
     warnings: tuple[str, ...]  # repairs and oddities, one entry for each occurrence
     # None when the answer does not echo the task (reported as `request_echo_missing`).
     request: RequestEcho | None = None
-
-    @property
-    def depth_returned(self) -> int:
-        return len(self.organic)
+    # Ranks of organic results that were not read (no usable address, or a second result at a
+    # rank already taken): a site may stand at any of them.
+    unreadable_ranks: tuple[int, ...] = ()
+    # How far down the answer reaches: the highest organic rank the provider sent, kept or not.
+    # Fewer than were asked for means the provider had no more to give; it is not a count of
+    # results.
+    depth_returned: int = 0
 
 
 def parse_serp(body: bytes | Mapping[str, Any]) -> NormalizedSerp:
@@ -218,6 +256,8 @@ def parse_serp(body: bytes | Mapping[str, Any]) -> NormalizedSerp:
         features=tuple(builder.features),
         ai_overview=builder.ai_overview(),
         warnings=tuple(builder.warnings),
+        unreadable_ranks=tuple(builder.unreadable),
+        depth_returned=builder.reached,
     )
 
 
@@ -411,6 +451,8 @@ class _Builder:
 
     def __init__(self) -> None:
         self.warnings: list[str] = []
+        self.unreadable: list[int] = []
+        self.reached = 0
         self.features: list[SerpFeature] = []
         self.seen_types: list[str] = []
         self._organic: list[Mapping[str, Any]] = []
@@ -586,25 +628,48 @@ class _Builder:
         return None
 
     def finish_organic(self) -> tuple[OrganicResult, ...]:
-        """The organic list (doc 06 section 5.2): ranks checked, URLs canonical, duplicates
-        dropped, ranks dense from 1. Dense ranks are the invariant of doc 12; when a gap in the
-        provider's ranks, or a result dropped before a later one, moves a result off the rank the
-        provider gave it, that is reported as `rank_recomputed`."""
-        given = [
-            _strict_int(item.get("rank_group"), "items[].rank_group") for item in self._organic
-        ]
-        recomputed = given != list(range(1, len(given) + 1))
+        """The organic list (doc 06 section 5.2): URLs canonical, duplicates dropped, each result
+        at the `rank_group` the provider gave it. A result that is dropped (a repeat of an earlier
+        URL, an address that cannot be read) leaves its rank empty; the ranks after it do not move
+        up, because a site's rank is the provider's position, not its place in what we kept. The
+        ranks of results whose address could not be read are kept in `unreadable_ranks`: the site
+        may be one of them."""
         results: list[OrganicResult] = []
         seen: set[bytes] = set()
-        for item, provider_rank in zip(self._organic, given, strict=True):
-            url = _url(_strict_str(item.get("url"), "items[].url"), self.warnings)
+        taken: set[int] = set()
+        # The left column first, so a right-column item at the same rank never takes its place.
+        for item in sorted(self._organic, key=lambda found: found.get("position") == "right"):
+            organic_rank = _organic_rank(item)
+            self.reached = max(self.reached, organic_rank)
+            if organic_rank in taken:
+                # Two results at one rank: the first stays. The other cannot be told apart from an
+                # own result, unless it is in the right column, which is no part of the list.
+                self.warnings.append("rank_collision")
+                if item.get("position") != "right" and organic_rank not in self.unreadable:
+                    self.unreadable.append(organic_rank)
+                continue
+            taken.add(organic_rank)
+            url_warnings: list[str] = []
+            url = _url(_strict_str(item.get("url"), "items[].url"), url_warnings)
             if url is None:
+                self.warnings.extend(url_warnings)
                 self.warnings.append("organic_without_url")
+                if organic_rank not in self.unreadable:
+                    self.unreadable.append(organic_rank)
                 continue
-            if url.url_hash in seen:
-                self.warnings.append("duplicate_url")
-                continue
-            seen.add(url.url_hash)
+            site = _hidden_site(item) if "unresolved_redirect" in url.flags else None
+            if site is not None:
+                url = site
+                self.warnings.append("redirect_site_recovered")
+            else:
+                self.warnings.extend(url_warnings)
+            # A hidden address read back is a guess at the page, so two of one site are two
+            # results, not a repeat.
+            if site is None:
+                if url.url_hash in seen:
+                    self.warnings.append("duplicate_url")
+                    continue
+                seen.add(url.url_hash)
             grouped = _distinct(
                 [
                     _url(child.get("url"), self.warnings)
@@ -612,9 +677,6 @@ class _Builder:
                 ]
             )
             links = _mappings(item.get("links"))
-            organic_rank = len(results) + 1
-            if provider_rank != organic_rank:
-                recomputed = True
             if links:
                 self._sitelinks(item, url, len(links), organic_rank)
             results.append(
@@ -631,10 +693,11 @@ class _Builder:
                     has_sitelinks=bool(links),
                     checks=_checks(item),
                     rating=_rating(item.get("rating")),
+                    recovered=site is not None,
                 )
             )
-        if recomputed:
-            self.warnings.append("rank_recomputed")
+        results.sort(key=lambda result: result.organic_rank)
+        self.unreadable.sort()
         self._finish_ads(results)
         return tuple(results)
 
@@ -693,6 +756,18 @@ def _placeholder() -> SerpFeature:
     return SerpFeature("ads", 1, None, (), None)
 
 
+def _organic_rank(item: Mapping[str, Any]) -> int:
+    """The provider's position of an organic result among the organic results (`rank_group`),
+    read strictly: a rank that is missing or not a whole number from 1 fails the parse rather than
+    being invented from the order of the answer."""
+    rank = _strict_int(item.get("rank_group"), "items[].rank_group")
+    if rank is None or not 1 <= rank <= ORGANIC_RANK_MAX:
+        raise SerpSchemaMismatchError(
+            "tasks[].result[].items[].rank_group", f"an integer from 1 to {ORGANIC_RANK_MAX}"
+        )
+    return rank
+
+
 def _organic_absolute(item: Mapping[str, Any]) -> int | None:
     """The position of an organic item among all items of the page, read strictly; None for the
     right column, which the provider numbers apart and which is not compared with the left."""
@@ -707,6 +782,43 @@ def _absolute(item: Mapping[str, Any]) -> int | None:
     if item.get("position") == "right":
         return None
     return _whole(item.get("rank_absolute"))
+
+
+def _hidden_site(item: Mapping[str, Any]) -> CanonicalUrl | None:
+    """The page behind an organic result whose address the provider replaced with a Google
+    redirect it cannot unwrap, read from what the result shows: its breadcrumb (the origin and
+    the path pieces), else a site name that is itself a host. None when neither says."""
+    candidate: str | None = None
+    crumb = _text(item.get("breadcrumb"))
+    if crumb is not None:
+        candidate = _breadcrumb_address(crumb)
+    name = (_text(item.get("website_name")) or "").replace("\xa0", " ").strip().lower()
+    if candidate is None and _HOSTNAME.fullmatch(name):
+        candidate = f"https://{name}/"
+    if candidate is None:
+        # A post or profile on a social site shows `Platform · account` and a count of followers
+        # or views in place of the address; the platform's own site is the host.
+        host = _PLATFORMS.get(name.split(_NAME_SEPARATOR)[0].strip())
+        candidate = None if host is None else f"https://{host}/"
+    if candidate is None:
+        return None
+    try:
+        found = canonicalize(candidate)
+    except UrlRejectedError:
+        return None
+    # A product's name that looks like a host (`Node.js`) is not a site.
+    return found if has_known_suffix(found.host.name) else None
+
+
+def _breadcrumb_address(crumb: str) -> str | None:
+    """A breadcrumb of origin `https://host` and pieces `a`, `b` as `https://host/a/b`. A path
+    that is cut short (an ellipsis) or shows words instead of path pieces is not guessed at: the
+    address is then the host's root."""
+    head, *segments = (part.strip() for part in crumb.split(_CRUMB_SEPARATOR))
+    if not _CRUMB_ORIGIN.fullmatch(head):
+        return None
+    path = "/".join(segments) if all(_CRUMB_SEGMENT.fullmatch(s) for s in segments) else ""
+    return f"{head}/{path}"
 
 
 def _host_of(url: object) -> str | None:

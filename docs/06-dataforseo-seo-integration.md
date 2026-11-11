@@ -12,7 +12,7 @@ Related: [05-provider-integrations.md](05-provider-integrations.md), [09-rank-tr
 | Rank tracking, SERP features, AI Overview | `POST /v3/serp/google/organic/task_post` | Standard queue (task) | 4 |
 | Readiness (polling only, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)) | `GET /v3/serp/google/organic/tasks_ready` | poll | 4 |
 | Result fetch | `GET /v3/serp/google/organic/task_get/advanced/{id}` | fetch | 4 |
-| On-demand single check ("check now") | `POST /v3/serp/google/organic/live/advanced` (one search a call, $0.002 a page; built in Phase 4, `providers/dataforseo/serp.py`) | Live | 4 |
+| On-demand check ("check now") | The standard queue, like a schedule (since 2026-11-03; the live endpoint, `POST /v3/serp/google/organic/live/advanced`, answered a different SERP for the same query and is a diagnostic only: its answers are kept as snapshots and never move rank state) | Standard | 4 |
 | Error reconciliation | `POST /v3/serp/google/organic/errors` (tasks errored in past 7 days) | poll, 10/min | 4 |
 | Tasks posted in a period, with their tags (resolving unknown submissions) | `POST /v3/serp/id_list` with `include_metadata` (per API; 1,000 ids a call, 10 calls/min, a month back with metadata) | reconciler, off until S-01 | 4 |
 | Webhook replay | `POST /v3/appendix/webhook_resend` (up to 100 ids, no double charge) | Not used in V1: no pingback endpoint | n/a |
@@ -47,20 +47,18 @@ Tracking 10,000 keywords daily at top-100 on the standard queue costs about $1,8
 
 Each tracked keyword has a **depth profile** (project default, overridable per keyword group or keyword). The profile, not a single `depth`, drives the planner.
 
+**Every check reads the top 100 (decision of 2026-11-04).** A rank is a number up to 100, and beyond that it is "over 100": no check is made at depth 10, 20 or 50, so the UI never says "over 20". The profile names below are kept so existing keywords and settings that carry them keep working; only `full` and `weekly` are offered when a keyword or a project default is set, and `full` is the default.
+
 | Profile | Daily checks | Weekly deep check | Pages per keyword per month (30 days) | Standard cost per keyword per month (desktop) |
 |---|---|---|---|---|
-| `light` | depth 10 | depth 100 on the project's deep-check weekday | 25.7 x 1 + 4.33 x 10 = 69 | $0.041 |
-| `standard` (**default**) | depth 20 | depth 100 on the deep-check weekday | 25.7 x 2 + 4.33 x 10 = 94.7 | $0.057 |
-| `deep` | depth 50 | depth 100 weekly | 25.7 x 5 + 4.33 x 10 = 172 | $0.103 |
-| `full` | depth 100 | (not needed) | 30 x 10 = 300 | $0.180 |
+| `full` (**default**) | depth 100 | (not needed) | 30 x 10 = 300 | $0.180 |
 | `weekly` | none | depth 100 weekly | 4.33 x 10 = 43 | $0.026 |
-| `weekly_light` | none | depth 20 weekly | 4.33 x 2 = 8.7 | $0.005 |
-
-On the deep-check weekday the deep check **replaces** the daily check (it contains the top 20), so no SERP is fetched twice.
+| `light`, `standard`, `deep` (no longer offered) | depth 100, as `full` | not needed | 300 | $0.180 |
+| `weekly_light` (no longer offered) | none | depth 100 weekly, as `weekly` | 43 | $0.026 |
 
 What each profile can report is stated explicitly in the UI and API:
 
-- Daily series for `standard` are exact for positions 1 to 20. A keyword outside the top 20 on a daily check is recorded as **"not in top 20"** (`organic_rank = NULL`, `depth_requested = 20`), never as unranked.
+- Daily series are exact for positions 1 to 100. A keyword outside the top 100 on a daily check is recorded as **"over 100"** (`organic_rank = NULL`, `depth_requested = 100`), never as unranked. Older readings taken at depth 10, 20 or 50 keep their depth and read "not in the top N" until the keyword is checked again.
 - Top-100 counts, "entered top 100" and "lost from top 100" events are computed only from deep checks.
 - Charts plot positions 21 to 100 as weekly points and show the daily "beyond top 20" band as a shaded region, not as a line.
 
@@ -101,7 +99,7 @@ Mobile costs the same as desktop per page. Tracking both devices doubles collect
 | `location_coordinate` | Only for hyperlocal tracking (Phase 15). Organic format is `lat,lng,radius`; the radius unit in the docs is ambiguous, so this needs a spike before use. |
 | `language_code` | ISO 639-1 from tracked keyword. |
 | `device`, `os` | From tracked keyword. `os` NULL means provider default (`windows` desktop, `android` mobile). |
-| `se_domain` | Omitted (provider picks per location) unless the project overrides, for example `google.co.uk` for a UK project tracked from a UK location. |
+| `se_domain` | Omitted (provider picks per location) unless the project overrides, for example `google.co.uk` for a UK project tracked from a UK location. **Open (2026-11-02):** left out, the provider answers from `google.com` for India. Live calls on `google.com` returned 50 to 77 of 100 results as opaque `google.com/goto` links and none on `google.co.in`; standard-queue tasks returned none on either. In 12 standard-queue tasks per domain for one brand keyword the own site appeared more often on `google.com` than on `google.co.in`, so `google.co.in` was not adopted: which domain matches what people in Mumbai see is not known (a manual search is the ground truth). Do not switch a project's domain without a re-baseline, or its rank history gets a step. |
 | `depth` | From depth profile for this check. |
 | `priority` | 1 (standard queue) by default; 2 only for schedules with `priority = 'high'` and `provider_mode = 'priority_queue'`. |
 | `load_async_ai_overview` | **Always true.** Without it, AI Overviews that Google loads asynchronously come back as `null`, which undercounts AI Overview presence. The surcharge is refunded when no async AIO is present. The billing formula is ambiguous in the docs (additive one base price vs whole-task multiplier); S-01 resolves it, and section 6 shows both cases. |
@@ -120,7 +118,7 @@ Mobile costs the same as desktop per page. Tracking both devices doubles collect
 | `tasks_ready`: 20 calls/min, up to 1,000 ids per call, last 3 days | Poll every 60 s per endpoint while any task is `submitted`; no call when none are. A 30 s poll during open windows is not built: the id sweeper bounds what a slower poll could miss |
 | Results re-fetchable free for 30 days (HTML 7 days) | Fetch immediately; re-fetch within 30 days is allowed for re-ingest |
 | 10 s callback timeout, then task goes to `tasks_ready` | Not relevant: no callback URL is sent, so every task is found through `tasks_ready` or the id sweeper |
-| Live: 1 task per call | Used only for "check now" and small backfills |
+| Live: 1 task per call | A diagnostic: kept as a snapshot, never moves rank state (`seo_rank_ingest`, reason `live_diagnostic`) |
 
 At 10,000 keywords per day, submission needs 100 POSTs; fetching needs 10,000 GETs. Spread over a 6-hour window that is about 28 calls per minute, 1.4% of the account limit (under 3% of our 1,000 per minute limiter).
 
@@ -213,11 +211,11 @@ Decision (ADR-007): **organic rank is canonical.** It is what users and every ma
 
 1. Take items with `type = 'organic'`, in response order.
 2. Nested `related_result` entries (grouped results from the same site) are **not** separate ranks. They are recorded as additional URLs of their parent result (same organic rank) in `all_url_ids` for the domain. Rationale: they are displayed as part of the parent listing.
-3. Validate that `rank_group` values are 1..N, strictly increasing, without gaps. If not (provider anomaly, duplicate), recompute organic rank from response order, set `rank_recomputed = true` in snapshot extras, and emit a `serp_parser_anomaly` metric.
-4. Canonicalize every URL (rules in [14-citation-intelligence.md](14-citation-intelligence.md) section 3). Detect unresolved Google redirect wrappers (`google.com/goto`, `google.com/url`): unwrap when the target is in a query parameter, otherwise keep the wrapper and flag `unresolved_redirect`. (Since August 2026 Google wraps organic links in `google.com/goto`; DataForSEO reports resolving 99.99% of organic results and fixed AIO cases on 28 August 2026, verified.)
-5. Duplicate canonical URL within one SERP: keep first occurrence, flag duplicate.
-6. Build `organic_url_ids[]`, `organic_domain_ids[]`, `organic_abs_positions[]` in organic rank order.
-7. `depth_returned` = number of organic results after steps 1 to 5.
+3. The organic rank of a result is the provider's `rank_group`, read strictly (a missing, non-integer or non-positive value fails the parse and the task, payload kept). It is never renumbered. (Parser versions 1 to 3 renumbered the kept results 1..N from response order, so a result dropped in step 5 or 4 moved every later result up one rank: measured 2026-11-03 on a live Mumbai answer for `fynix digital`, one repeated URL, `rank_recomputed` raised, every result after it one rank too high. Version 4 keeps the provider's rank and leaves a gap.) Two items at one `rank_group` keep the first; the other is reported as `rank_collision` and counted as unreadable unless it is in the right column.
+4. Canonicalize every URL (rules in [14-citation-intelligence.md](14-citation-intelligence.md) section 3). Detect unresolved Google redirect wrappers (`google.com/goto`, `google.com/url`): unwrap when the target is in a query parameter, otherwise keep the wrapper and flag `unresolved_redirect`. (Since August 2026 Google wraps organic links in `google.com/goto`; DataForSEO reports resolving 99.99% of organic results and fixed AIO cases on 28 August 2026, verified. Measured on 2026-11-02 the claim does not hold for live calls on `google.com`: the token in `url` is opaque and half of a SERP or more can be wrapped (standard-queue tasks showed none). Parser version 3 reads the site back from the item's `breadcrumb` (`https://host`, then the path pieces after a `›`, an ellipsis or words meaning only the host's root is used), else from a `website_name` that is itself a host, else from the platform a post or profile names (`LinkedIn · account` gives `linkedin.com`, host only: a count of followers or views stands in the breadcrumb; the table `_PLATFORMS` in `serp_parse.py`; seen 2026-11-02, all of the results version 2 could not read), and counts it as `redirect_site_recovered`. An item whose site cannot be read stays wrapped and flagged.)
+5. Duplicate canonical URL within one SERP: keep first occurrence, flag duplicate. A result whose site was read back is never a duplicate: its address is a guess at the page, and two of one site are two results.
+6. Build `organic_url_ids[]`, `organic_domain_ids[]`, `organic_abs_positions[]` by position: element n is organic rank n + 1, and null where no result is held (a dropped repeat, an unreadable address). Ranks of results whose address could not be read at all (`organic_without_url`, `rank_collision`) are `NormalizedSerp.unreadable_ranks`; within the depth they make an absent own side inconclusive, like an unresolved redirect.
+7. `depth_returned` = the highest organic rank read: how far down the answer reaches. It is below `depth_requested` when Google had fewer results to give (measured 2026-11-03: depth 100 returned 99 organic results for `fynix digital` and 66 for `fynix`). The API shows it as `RankCell.depth_returned`, so a keyword not found reads `>66`, not `>100`.
 
 ### 5.3 Domain rank resolution
 

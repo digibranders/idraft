@@ -319,6 +319,7 @@ export const KEYWORD_METRICS: z.ZodType<KeywordMetrics> = z.object({
   intent_main: z.string().nullable(),
   trend_pct_per_month: z.number().nullable(),
   is_seasonal: z.boolean().nullable(),
+  monthly_searches: z.array(z.object({ year: z.number(), month: z.number(), search_volume: z.number().nullable() })),
 });
 
 export const KEYWORD_DETAIL: z.ZodType<KeywordDetail> = z.object({
@@ -391,6 +392,7 @@ const RANK_CELL = z.object({
   rank: z.number().nullable(),
   absolute_rank: z.number().nullable(),
   depth_requested: z.number().nullable(),
+  depth_returned: z.exactOptional(z.number().nullable()),
   url: URL_REF.nullable(),
   observed_at: z.string().nullable(),
   serp_snapshot_id: z.string().nullable(),
@@ -401,6 +403,13 @@ const RANK_CHANGE = z.object({
   value: z.number().nullable(),
   previous_rank: z.number().nullable(),
   previous_observed_at: z.string().nullable(),
+});
+
+const KEYWORD_CHECK = z.object({
+  status: z.enum(['idle', 'queued', 'processing', 'completed', 'inconclusive', 'failed']),
+  requested_at: z.string().nullable().exactOptional(),
+  finished_at: z.string().nullable().exactOptional(),
+  reason: z.string().nullable().exactOptional(),
 });
 
 /** The rank state every tracked keyword carries (doc 19 section 3.6.4). */
@@ -424,6 +433,8 @@ export const TRACKED_KEYWORD_STATE = z.object({
   is_stale: z.boolean(),
   last_observed_at: z.string().nullable(),
   ranking_url_count: z.number(),
+  drop_unconfirmed: z.boolean(),
+  check: z.exactOptional(KEYWORD_CHECK),
 });
 
 const TRACKED_KEYWORD_FIELDS = {
@@ -473,9 +484,20 @@ export const COMPETITOR_RANK: z.ZodType<CompetitorRank> = z.object({
   change: RANK_CHANGE,
 });
 
+const DEVICE_COUNTS = z.object({ desktop: z.number().int(), mobile: z.number().int() });
+
+/** `include=gsc`: the 28 days of Search Console counts of a keyword, per device. */
+const GSC_BLOCK = z.object({
+  state: z.enum(['ok', 'pending', 'not_connected']),
+  clicks: DEVICE_COUNTS.nullable().exactOptional(),
+  impressions: DEVICE_COUNTS.nullable().exactOptional(),
+  window: z.object({ start: z.string(), end: z.string() }).nullable().exactOptional(),
+});
+
 export const TRACKED_KEYWORD_ROW: z.ZodType<TrackedKeywordRow> = z.object({
   ...TRACKED_KEYWORD_FIELDS,
   metrics: KEYWORD_METRICS.nullable().exactOptional(),
+  gsc: GSC_BLOCK.nullable().exactOptional(),
   groups: z.array(GROUP_REF).nullable().exactOptional(),
   terms: z.array(TERM_REF).nullable().exactOptional(),
   competitors: z.array(COMPETITOR_OVERRIDE).nullable().exactOptional(),

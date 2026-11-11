@@ -114,7 +114,7 @@ Key table (every query key used by the application):
 | `from`, `to` | Custom date window bounds (`YYYY-MM-DD`), set by the top-bar date range | replace | 13 (this document), [10-forms.md](10-forms.md) section 10 |
 | `win` | Date window preset (`28d`), set by the top-bar date range | replace | 13 |
 | `cmp` | Comparison period (`CompareSelect`) | replace | 13 |
-| `dev`, `loc`, `eng` | Scope controls: device (filter bar), location (top bar), engines (filter bar). Until the top bar has its location control, Rankings shows `loc` as a filter chip; the key and its value (a location id) stay the same when it moves | replace | 13 |
+| `dev`, `loc`, `eng` | Scope controls: device (filter bar), location (top bar), engines (filter bar). As built (2026-11-03) Rankings shows both as scope controls beside the filters, not as chips: `dev` is a Both, Desktop, Mobile control (absent means both; it chooses which rank columns show) and `loc` is a country button with a searchable list and an All countries choice (value a country's location id, `0` for all; absent means the project's own country, India when it has none). They are never cleared with the filters. Until the top bar has its location control they stay there; the keys do not change when the location moves | replace | 13 |
 | `topic`, `grp`, `tag`, `intent`, `rank`, `feat`, `aio`, `vol` | Filters: topic, keyword group, tag, intent, rank bucket, SERP feature, AI Overview status, volume range | replace | 13 |
 | `featown` | SERP feature you own filter | replace | 13 |
 | `tmatch` | Target URL match filter (`match`, `mismatch`) | replace | 13 |

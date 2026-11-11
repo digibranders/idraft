@@ -107,8 +107,9 @@ class SnapshotRow:
     depth_returned: int
     se_results_count: int | None
     item_types: list[str]
-    organic_url_ids: list[int]
-    organic_domain_ids: list[int]
+    # Positional: element n is organic rank n + 1; null where no result is held.
+    organic_url_ids: list[int | None]
+    organic_domain_ids: list[int | None]
     organic_abs_positions: list[int | None]
     has_ai_overview: bool
     ai_overview_state: str | None

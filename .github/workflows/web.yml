@@ -30,7 +30,8 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # The unit tests alone took 11 to 19 minutes on 2026-11-05; 20 cut one run off mid-suite
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Reads the pnpm version from packageManager in the root package.json

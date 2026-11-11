@@ -84,3 +84,15 @@ export function canWriteSharedTaxonomy(membership: {
 }): boolean {
   return can(membership.permissions, 'taxonomy:write') && membership.project_ids === null;
 }
+
+/**
+ * Whether a member may connect Google, choose its property or disconnect it. A connection is the
+ * workspace's credential, shared by all its projects, so a member limited to some projects is refused
+ * (`403`, backend `require_permission(INTEGRATIONS_MANAGE, every_project=True)`) whatever their role.
+ */
+export function canManageIntegrations(membership: {
+  permissions: readonly string[];
+  project_ids: readonly string[] | null;
+}): boolean {
+  return can(membership.permissions, 'integrations:manage') && membership.project_ids === null;
+}

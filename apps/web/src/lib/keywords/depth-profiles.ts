@@ -15,17 +15,12 @@ export const DEPTH_KEYS = {
 } as const satisfies Record<DepthProfile, string>;
 
 /**
- * The depth profiles a person can choose today, in the order they are offered. `until_own_match_100` is the
+ * The depth profiles a person can choose today, in the order they are offered. Every check reads the top 100,
+ * so the shallower profiles (`light`, `standard`, `deep`, `weekly_light`) are no longer offered: a keyword
+ * that holds one is still named, and its checks read the top 100 as well. `until_own_match_100` is the
  * API's name for a profile a later step of the backend builds (rank collection): it answers a keyword or a
  * default set to it `422 depth_profile_not_available`, so it is not offered, and a keyword that holds it
  * (it cannot yet) is still named. One list for every screen that offers a depth, so none offers what the
  * API refuses.
  */
-export const OFFERED_DEPTH_PROFILES = [
-  'light',
-  'standard',
-  'deep',
-  'full',
-  'weekly',
-  'weekly_light',
-] as const satisfies readonly DepthProfile[];
+export const OFFERED_DEPTH_PROFILES = ['full', 'weekly'] as const satisfies readonly DepthProfile[];

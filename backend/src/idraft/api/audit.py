@@ -70,6 +70,11 @@ AuditAction = Literal[
     "keyword_import.updated",
     "keyword_import.confirmed",
     "keyword_import.cancelled",
+    "connection.created",
+    "connection.reconnected",
+    "connection.revoked",
+    "integration.created",
+    "integration.disabled",
 ]
 
 

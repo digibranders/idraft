@@ -10,12 +10,12 @@ from idraft.ranks.depth import depth_for, pages
 @pytest.mark.parametrize(
     ("profile", "daily", "deep_day"),
     [
-        ("light", 10, 100),
-        ("standard", 20, 100),
-        ("deep", 50, 100),
+        ("light", 100, 100),
+        ("standard", 100, 100),
+        ("deep", 100, 100),
         ("full", 100, 100),
         ("weekly", None, 100),
-        ("weekly_light", None, 20),
+        ("weekly_light", None, 100),
     ],
 )
 def test_each_profile_has_its_daily_and_its_deep_weekday_depth(
@@ -23,6 +23,14 @@ def test_each_profile_has_its_daily_and_its_deep_weekday_depth(
 ) -> None:
     assert depth_for(profile, deep_day=False) == daily
     assert depth_for(profile, deep_day=True) == deep_day
+
+
+def test_no_profile_ever_checks_shallower_than_the_top_100() -> None:
+    """A rank is a number up to 100 and beyond that "over 100": never "over 20" (2026-11-04)."""
+    for profile in ("light", "standard", "deep", "full", "weekly", "weekly_light"):
+        for deep_day in (False, True):
+            depth = depth_for(profile, deep_day=deep_day)
+            assert depth in (None, 100)
 
 
 def test_the_deep_check_contains_the_daily_one() -> None:

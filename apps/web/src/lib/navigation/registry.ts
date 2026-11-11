@@ -187,7 +187,7 @@ export const NAVIGATION: readonly NavDestination[] = [
     section: 3,
     group: null,
     permission: 'data:read',
-    status: 'planned',
+    status: 'live',
   },
   {
     key: 'runs',

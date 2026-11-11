@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from idraft.extraction.urls import canonicalize
+from idraft.providers.dataforseo.serp_parse import parse_serp
 from idraft.ranks.resolve import (
     EntityRank,
     RankedEntity,
@@ -21,6 +23,7 @@ from tests.ranks.support import (
     OWN_BLOG,
     RIVAL,
     WATCHED,
+    organic,
     resolver,
     rule,
     serp_of,
@@ -370,3 +373,197 @@ def test_the_ai_overview_is_cited_not_owned() -> None:
     # The feature row still says whose sources it lists.
     (ownership,) = resolved.features
     assert ownership.owned_by_project is True
+
+
+HIDDEN = "https://google.com/goto?url=CAESVQHrOzAVgBDTW51JSGSz9_1jDk4e3wXMyMj8"
+OWN_ONLY = resolver(rule(OWN, "own", "acme.com"))
+
+
+def test_hidden_results_within_the_depth_make_an_absent_own_side_inconclusive() -> None:
+    serp = serp_of("https://other.example/1", HIDDEN + "1", HIDDEN + "2")
+    resolved = resolve_serp(serp, OWN_ONLY, ENTITIES, depth_requested=20)
+    side = own_side(resolved, serp)
+
+    assert side.organic_rank is None
+    assert side.unattributed == 2
+    assert side.inconclusive is True
+
+
+def test_a_hidden_result_beyond_the_depth_is_never_read() -> None:
+    serp = serp_of("https://other.example/1", "https://other.example/2", HIDDEN)
+    resolved = resolve_serp(serp, OWN_ONLY, ENTITIES, depth_requested=2)
+    side = own_side(resolved, serp)
+
+    assert side.unattributed == 0
+    assert side.inconclusive is False
+
+
+def test_an_own_rank_found_stays_conclusive_beside_hidden_results() -> None:
+    serp = serp_of(HIDDEN, "https://www.acme.com/pricing")
+    resolved = resolve_serp(serp, OWN_ONLY, ENTITIES, depth_requested=20)
+    side = own_side(resolved, serp)
+
+    assert side.organic_rank == 2
+    assert side.unattributed == 1
+    assert side.inconclusive is False
+
+
+def test_a_result_without_a_readable_address_within_the_depth_makes_absence_inconclusive() -> None:
+    serp = parse_serp(
+        {
+            "tasks": [
+                {
+                    "status_code": 20000,
+                    "result": [
+                        {
+                            "keyword": "crm",
+                            "items": [
+                                organic(1, "https://other.example/1"),
+                                organic(2, "javascript:void(0)"),
+                                organic(3, "https://other.example/3"),
+                            ],
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+    resolved = resolve_serp(serp, OWN_ONLY, ENTITIES, depth_requested=20)
+    side = own_side(resolved, serp)
+
+    assert side.organic_rank is None
+    assert side.unattributed == 1
+    assert side.inconclusive is True
+    # The same answer read to depth 1 never looked at rank 2.
+    shallow = own_side(resolve_serp(serp, OWN_ONLY, ENTITIES, depth_requested=1), serp)
+    assert shallow.inconclusive is False
+
+
+def test_an_own_result_after_a_dropped_duplicate_keeps_the_rank_the_provider_gave_it() -> None:
+    serp = serp_of(
+        "https://other.example/1",
+        "https://other.example/1#again",
+        "https://www.acme.com/pricing",
+    )
+    resolved = resolve_serp(serp, OWN_ONLY, ENTITIES, depth_requested=20)
+
+    assert own_side(resolved, serp).organic_rank == 3
+
+
+def test_a_gap_before_the_tenth_rank_does_not_turn_the_whole_page_into_page_one() -> None:
+    items = [organic(n, f"https://other.example/{n}") for n in range(1, 11) if n != 4]
+    items.append(organic(11, "https://other.example/11"))
+    items.append({"type": "people_also_ask", "rank_group": 1, "rank_absolute": 40, "items": []})
+    serp = parse_serp(
+        {"tasks": [{"status_code": 20000, "result": [{"keyword": "crm", "items": items}]}]}
+    )
+    resolved = resolve_serp(serp, OWN_ONLY, ENTITIES, depth_requested=20)
+
+    (ownership,) = resolved.features
+    assert ownership.on_page_one is False
+
+
+def test_a_hidden_result_whose_site_was_read_back_is_attributed() -> None:
+    serp = serp_of(
+        "https://other.example/1",
+        HIDDEN,
+        more={2: {"breadcrumb": "https://www.acme.com › pricing"}},  # noqa: RUF001
+    )
+    resolved = resolve_serp(serp, OWN_ONLY, ENTITIES, depth_requested=20)
+    side = own_side(resolved, serp)
+
+    assert side.organic_rank == 2
+    assert side.unattributed == 0
+    assert side.inconclusive is False
+
+
+def test_a_ranking_url_read_back_from_a_hidden_result_never_matches_a_target() -> None:
+    serp = serp_of(
+        HIDDEN,
+        more={1: {"breadcrumb": "https://www.acme.com"}},
+    )
+    resolved = resolve_serp(serp, OWN_ONLY, ENTITIES, depth_requested=20)
+    side = own_side(resolved, serp)
+
+    assert side.organic_rank == 1
+    assert side.ranking_recovered is True
+    assert side.ranking_url is not None
+    assert target_url_match(side, side.ranking_url.url_hash) is None
+
+
+FYNIX = resolver(rule(OWN, "own", "fynix.digital"))
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://fynix.digital",
+        "https://www.fynix.digital/",
+        "http://www.fynix.digital/services?utm_source=x#team",
+        "https://blog.fynix.digital/post/seo-agency",
+        "https://WWW.Fynix.Digital:443/Path",
+        "https://www.google.com/url?q=https%3A%2F%2Fwww.fynix.digital%2Fseo&sa=D",
+        "https://google.com/goto?url=https%3A%2F%2Fwww.fynix.digital%2F",
+    ],
+)
+def test_every_form_of_the_tracked_site_ranks_for_it(url: str) -> None:
+    serp = serp_of("https://other.example/1", url)
+    side = own_side(resolve_serp(serp, FYNIX, ENTITIES, depth_requested=20), serp)
+
+    assert side.organic_rank == 2
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://fynix.digital.example.com/",
+        "https://notfynix.digital/",
+        "https://fynix-digital.com/",
+        "https://other.example/fynix.digital",
+        "https://other.example/?site=www.fynix.digital",
+        "https://www.google.com/url?q=https%3A%2F%2Fother.example%2F%3Fu%3Dfynix.digital",
+        "https://fynix.digitalpro.com/",
+        "https://web.archive.org/web/2024/https://www.fynix.digital/",
+    ],
+)
+def test_a_url_that_only_contains_the_tracked_domain_as_text_is_not_the_site(url: str) -> None:
+    serp = serp_of(url)
+    side = own_side(resolve_serp(serp, FYNIX, ENTITIES, depth_requested=20), serp)
+
+    assert side.organic_rank is None
+    assert side.inconclusive is False
+
+
+def test_a_goto_link_without_a_destination_is_unattributed_not_a_match_or_an_absence() -> None:
+    serp = serp_of("https://google.com/goto?url=CAESWQHrOzAVFvNVMmnW7-X91SuKcEkn")
+    side = own_side(resolve_serp(serp, FYNIX, ENTITIES, depth_requested=20), serp)
+
+    assert side.organic_rank is None
+    assert side.inconclusive is True
+
+
+# A trimmed answer captured live on 2026-11-03 (India, desktop, "fynix digital", depth 100): the
+# AI Overview cites www.fynix.digital while the site is in none of the organic results.
+LIVE = Path(__file__).parents[1] / "fixtures" / "dataforseo" / "live"
+
+
+def test_a_site_cited_by_the_ai_overview_is_cited_though_it_has_no_organic_rank() -> None:
+    serp = parse_serp((LIVE / "ai_overview_cites_site_not_organic.json").read_bytes())
+    resolved = resolve_serp(serp, FYNIX, ENTITIES, depth_requested=100)
+    side = own_side(resolved, serp)
+
+    assert serp.ai_overview.state == "present_async_loaded"
+    assert "www.fynix.digital" in {c.url.host.name for c in serp.ai_overview.citations}
+    assert side.organic_rank is None
+    assert side.aio_state == "present_cited"
+    assert side.cited_in_ai_overview is True
+    assert side.aio_citation_position is not None
+
+
+def test_an_ai_overview_that_cites_others_is_present_not_cited() -> None:
+    serp = parse_serp((LIVE / "ai_overview_cites_site_not_organic.json").read_bytes())
+    elsewhere = resolver(rule(OWN, "own", "acme.com"))
+    side = own_side(resolve_serp(serp, elsewhere, ENTITIES, depth_requested=100), serp)
+
+    assert side.aio_state == "present_not_cited"
+    assert side.cited_in_ai_overview is False

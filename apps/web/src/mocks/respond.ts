@@ -99,6 +99,7 @@ const PROBLEMS = {
   cannot_remove_primary_own: [409, 'The primary own entity cannot be removed'],
   has_children: [409, 'Term has children'],
   schedule_in_use: [409, 'Schedule is in use'],
+  check_pending: [409, 'A check is already under way'],
   single_valued_violation: [409, 'A keyword has two terms of this vocabulary'],
   raw_expired: [410, 'The raw answer is past its retention'],
   payload_too_large: [413, 'Payload too large'],
@@ -116,6 +117,11 @@ const PROBLEMS = {
   manual_run_limit: [429, 'Manual run limit reached'],
   raw_unavailable: [503, 'The raw answer is not available now'],
   provider_paused: [503, 'Provider paused'],
+  integration_reauth_required: [409, 'The connection needs to be renewed'],
+  integration_scope_missing: [409, 'Access to this product was not granted'],
+  property_not_accessible: [422, 'The account cannot read this property'],
+  integration_not_configured: [503, 'The integration is not set up'],
+  google_unavailable: [503, 'Service unavailable'],
 } as const satisfies Record<string, readonly [number, string]>;
 
 export type MockProblemCode = keyof typeof PROBLEMS;

@@ -29,6 +29,8 @@ export interface DataTableToolbarProps {
   onDensityChange: (density: Density) => void;
   /** The column chooser, opened from its own trigger. */
   columns: (trigger: ReactElement) => ReactNode;
+  /** The view switch, at the end of the bar before density and columns. */
+  end?: ReactNode;
 }
 
 /**
@@ -46,6 +48,7 @@ export function DataTableToolbar({
   density,
   onDensityChange,
   columns,
+  end,
 }: DataTableToolbarProps): ReactElement {
   const t = useTranslations('dataTable');
   const input = useRef<HTMLInputElement>(null);
@@ -58,8 +61,9 @@ export function DataTableToolbar({
     { kind: 'single-key' },
   );
   return (
-    <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border-subtle px-3">
-      <InputGroup leadingIcon={Search} size="sm" className="w-64 max-w-full">
+    // 48 px on one line; on a narrow table the bar wraps rather than scrolling the page sideways
+    <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle px-3 py-2">
+      <InputGroup leadingIcon={Search} size="sm" className="w-64 max-w-full min-w-0">
         <Input
           ref={input}
           size="sm"
@@ -75,7 +79,7 @@ export function DataTableToolbar({
         />
       </InputGroup>
       {/* The table announces a new count itself, so it is heard while the bulk bar is up as well */}
-      {countText === null ? null : <p className="num type-meta">{countText}</p>}
+      {countText === null ? null : <p className="shrink-0 num type-meta whitespace-nowrap">{countText}</p>}
       {/* Shown from 1280 px, and always readable, since aria-sort names only the first key */}
       {sortSummary === null ? null : <p className="sr-only type-meta xl:not-sr-only">{sortSummary}</p>}
       {updating ? (
@@ -84,20 +88,24 @@ export function DataTableToolbar({
           {t('updating')}
         </p>
       ) : null}
-      <div role="toolbar" aria-label={t('toolbar', { caption })} className="ml-auto flex items-center gap-1">
-        <Menu
-          align="end"
-          trigger={<IconButton icon={Rows3} variant="ghost" label={t('density')} />}
-          items={DENSITIES.map((value) => ({
-            id: value,
-            kind: 'radio' as const,
-            group: t('density'),
-            label: value === 'compact' ? t('densityCompact') : t('densityDefault'),
-            checked: density === value,
-            onSelect: () => onDensityChange(value),
-          }))}
-        />
-        {columns(<IconButton icon={Columns3} variant="ghost" label={t('columns')} />)}
+      {/* The end slot and the controls go to a second line together when the bar is too narrow for one */}
+      <div className="ml-auto flex items-center gap-1">
+        {end}
+        <div role="toolbar" aria-label={t('toolbar', { caption })} className="flex items-center gap-1">
+          <Menu
+            align="end"
+            trigger={<IconButton icon={Rows3} variant="ghost" label={t('density')} />}
+            items={DENSITIES.map((value) => ({
+              id: value,
+              kind: 'radio' as const,
+              group: t('density'),
+              label: value === 'compact' ? t('densityCompact') : t('densityDefault'),
+              checked: density === value,
+              onSelect: () => onDensityChange(value),
+            }))}
+          />
+          {columns(<IconButton icon={Columns3} variant="ghost" label={t('columns')} />)}
+        </div>
       </div>
     </div>
   );

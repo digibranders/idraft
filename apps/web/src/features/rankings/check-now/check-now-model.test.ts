@@ -43,9 +43,30 @@ describe('checkNowTarget', () => {
       reason: 'archived',
     });
   });
+
+  it('refuses a selection that holds a keyword whose check is already on its way', () => {
+    const pending = new Set(['b']);
+
+    expect(checkNowTarget({ ids: new Set(['a', 'b']), allMatching: false }, false, pending)).toEqual({
+      kind: 'blocked',
+      reason: 'pending',
+    });
+    expect(checkNowTarget({ ids: new Set(['a', 'c']), allMatching: false }, false, pending)).toEqual({
+      kind: 'ids',
+      ids: ['a', 'c'],
+    });
+  });
 });
 
 describe('checkNowRefusal', () => {
+  it('reads check_pending with the number of keywords the route names', () => {
+    expect(checkNowRefusal(problem(409, 'check_pending', { tracked_keyword_ids: ['a', 'b'] }), 5)).toEqual({
+      kind: 'pending',
+      count: 2,
+    });
+    expect(checkNowRefusal(problem(409, 'check_pending'), 5)).toEqual({ kind: 'pending', count: 5 });
+  });
+
   it('reads each refusal the route declares', () => {
     expect(checkNowRefusal(problem(429, 'manual_run_limit', { limit: 20 }))).toEqual({
       kind: 'limit',

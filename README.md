@@ -4,7 +4,9 @@ Implementation-ready specification for a self-hosted platform that combines Goog
 
 Start here: [docs/00-executive-summary.md](docs/00-executive-summary.md) (decisions, costs, MVP scope, final decision summary).
 
-Architecture locked on 2026-09-30: [docs/adr/ADR-022-python-backend-simplified-platform.md](docs/adr/ADR-022-python-backend-simplified-platform.md) (FastAPI backend, self-hosted Next.js, Taskiq on Redis, one shared host) with the diagrams in [docs/diagrams/architecture-locked.html](docs/diagrams/architecture-locked.html). The host is a Hostinger VPS shared with a second project, with a capped 8 GB idraft share, per [ADR-023](docs/adr/ADR-023-shared-hostinger-vps.md) (2026-10-31). Where a numbered doc and ADR-022 or ADR-023 disagree, the ADRs win.
+Coding agents: read [AGENTS.md](AGENTS.md) first. Releases go out only through `infra/ship.sh`; the runbook is [docs/ops/release-and-deploy.md](docs/ops/release-and-deploy.md).
+
+Architecture locked on 2026-09-30: [docs/adr/ADR-022-python-backend-simplified-platform.md](docs/adr/ADR-022-python-backend-simplified-platform.md) (FastAPI backend, self-hosted Next.js, Taskiq on Redis, one shared host) with the diagrams in [docs/diagrams/architecture-locked.html](docs/diagrams/architecture-locked.html). The host is a Hostinger VPS, planned as shared with a second project with a capped 8 GB idraft share in [ADR-023](docs/adr/ADR-023-shared-hostinger-vps.md) (2026-10-31); that project was removed on 2026-10-28, so idraft runs alone on it. Where a numbered doc and ADR-022 or ADR-023 disagree, the ADRs win.
 
 | Folder | Content |
 |---|---|

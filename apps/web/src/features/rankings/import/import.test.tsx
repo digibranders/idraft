@@ -18,6 +18,7 @@ import {
   WRITTEN,
   answerImportAs,
   choose,
+  chooseImport,
   countIn,
   csv,
   fileInput,
@@ -89,7 +90,7 @@ describe('Import dialog', () => {
       expect(confirms.bodies).toEqual([{ duplicate_action: 'skip' }]);
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Import keywords' })).toBeNull());
       // Focus goes back to the button that opened the dialog
-      expect(screen.getByRole('button', { name: 'Import' })).toHaveFocus();
+      expect(screen.getByRole('button', { name: 'More ways to add keywords' })).toHaveFocus();
     },
     SLOW_TEST,
   );
@@ -382,21 +383,21 @@ describe('Import dialog', () => {
       expect(changes).toEqual([true, false]);
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Import keywords' })).toBeNull());
       // Opened again, the dialog starts empty
-      await user.click(screen.getByRole('button', { name: 'Import' }));
+      await chooseImport(user);
       const again = await screen.findByRole('dialog', { name: 'Import keywords' });
       expect(within(again).getByText('Drop a CSV file here, or choose one')).toBeInTheDocument();
     },
     SLOW_TEST,
   );
 
-  it('shows the Import button to people who may import, and to nobody else', async () => {
+  it('shows the import to people who may import, under the arrow of Add keywords, and to nobody else', async () => {
     const editor = renderWithProviders(<Controlled changes={[]} />);
     await loadedGrid();
-    expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More ways to add keywords' })).toBeInTheDocument();
     editor.unmount();
     renderWithProviders(<Controlled member="viewer" changes={[]} />);
     await loadedGrid();
-    expect(screen.queryByRole('button', { name: 'Import' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'More ways to add keywords' })).toBeNull();
   });
 });
 

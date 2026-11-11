@@ -229,7 +229,7 @@ Representative cases, not the full list.
 | ID | Case | Assertion |
 |---|---|---|
 | SERP-ORG-01 | Ads and AI Overview above organic #1 | organic rank 1 with `rank_absolute = 4` |
-| SERP-ORG-02 | `rank_group` gap (1, 2, 4) or duplicate (1, 2, 2, 3) | recomputed from response order; `rank_recomputed` warning; `rank_recomputed` counter in `ops.quality_counters_daily` |
+| SERP-ORG-02 | `rank_group` gap (1, 2, 4), two items at one rank (1, 2, 2, 3), a missing or out of range rank | gap: ranks kept as the provider gave them; collision: first kept, `rank_collision` warning, the other counted in `unreadable_ranks` (left column); bad rank: `SerpSchemaMismatchError` (parser version 4; the earlier renumbering moved later ranks) |
 | SERP-ORG-03 | `related_result` children | no separate ranks; in parent's `grouped_urls` and the domain's `all_url_ids` at the parent rank |
 | SERP-ORG-04 | `google.com/goto?url=<target>`; wrapper without decodable target | unwrapped with `redirect_unwrapped`; kept with `unresolved_redirect` |
 | SERP-ORG-05 | Duplicate canonical URL (tracking-param variant) | first kept, `duplicate_url` warning, `depth_returned` counts unique results |
@@ -237,7 +237,7 @@ Representative cases, not the full list.
 | SERP-ORG-07 | 23 organic results at depth 20 | all kept (doc 12 invariant 5) |
 | SERP-ORG-08 | Tracked domain absent at depth 20 | `organic_rank = null`, `depth_requested = 20`; never 21 or 101 |
 | SERP-ORG-09 | Right-column knowledge panel | `position = 'right'` never read as a rank |
-| SERP-ORG-10 | Doc 12 section 3 invariants on every fixture | `organic_rank == i + 1`; unique `url_hash` |
+| SERP-ORG-10 | Doc 12 section 3 invariants on every fixture | ranks strictly increasing and unique, `depth_returned` is the highest rank sent; unique `url_hash` |
 
 ### 5.4 Rank extraction
 
@@ -642,6 +642,8 @@ Metric response (`methodVersion`, boundaries) to rollup (`computed_at`) to fact 
 ## 10. CI pipeline, gates and pre-release checklist
 
 ### 10.1 Pipeline (GitHub Actions)
+
+> Not in use since 2026-11-05: the same checks run on the owner's Mac through `infra/ship.sh` and GitHub Actions is disabled. See [ops/release-and-deploy.md](ops/release-and-deploy.md).
 
 Two toolchains, no Turborepo (ADR-022): `uv` for `backend/`, pnpm for `apps/web/`. Caching is the GitHub Actions cache keyed on each lockfile.
 

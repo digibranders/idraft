@@ -5,9 +5,12 @@ import { pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetPar
 import messages from '../../../messages/en.json';
 
 describe('depth profiles', () => {
-  it('offers every profile the API names but the one a later step builds', () => {
+  it('offers only the profiles that read the top 100: every check does (2026-11-04)', () => {
     const all: readonly DepthProfile[] = depthValues;
-    expect([...OFFERED_DEPTH_PROFILES].sort()).toEqual(all.filter((value) => value !== 'until_own_match_100').sort());
+    expect([...OFFERED_DEPTH_PROFILES].sort()).toEqual(['full', 'weekly']);
+    // Every offered profile is one the API names; the shallower ones stay named for the keywords that hold them
+    for (const profile of OFFERED_DEPTH_PROFILES) expect(all).toContain(profile);
+    expect(all).toEqual(expect.arrayContaining(['light', 'standard', 'deep', 'weekly_light']));
   });
 
   it('has one name in the catalog for every profile the API names, and no other', () => {

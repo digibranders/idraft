@@ -13,6 +13,7 @@ from idraft.api.resources import Resources
 from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import (
+    OTHER_LOCATION,
     errors,
     group,
     keyword_project,
@@ -81,7 +82,7 @@ async def test_bulk_update_by_ids_sets_fields_and_versions_the_configuration(
     } == {
         "crm": (1, "deep", 2),
         "erp": (1, "deep", 1),
-        "hr": (3, "standard", 1),
+        "hr": (3, "full", 1),
     }
     history = await fetch(
         migrated,
@@ -149,6 +150,54 @@ async def test_bulk_update_by_filter_adds_and_removes_groups_and_terms(
     assert sorted((row["id"], row["link"]) for row in links) == sorted(
         [(mobile, new_group), (mobile, new_term), (desktop, old_group), (desktop, old_term)]
     )
+
+
+async def test_bulk_archive_by_countries_archives_only_those_countries(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    await tracked_id(api, workspace, project, owner, "crm")
+    await tracked_id(api, workspace, project, owner, "erp", location_id=OTHER_LOCATION)
+
+    response = await _bulk(
+        api,
+        workspace,
+        project,
+        owner,
+        "bulk-archive",
+        {"filter": {"country_id_in": [OTHER_LOCATION]}, "archive": True},
+    )
+
+    assert response.json()["data"] == {"matched": 1, "updated": 1}
+    rows = await _rows(migrated, project)
+    assert {text: r["is_active"] for text, r in rows.items()} == {"crm": True, "erp": False}
+
+
+@pytest.mark.parametrize(
+    "filter_body",
+    [
+        {"country_id_in": ["abc"]},
+        {"country_id_in": []},
+        {"country_id_in": list(range(1, 102))},
+        {"country_id_in": [2**40]},
+        {"country_id_in": [0]},
+        {"country_id": 2**40},
+        {"location_id": 2**40},
+    ],
+)
+async def test_a_bad_location_in_a_body_filter_is_a_validation_error(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    filter_body: dict[str, Any],
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+
+    response = await _bulk(
+        api, workspace, project, owner, "bulk-archive", {"filter": filter_body, "archive": True}
+    )
+
+    assert problem(response) == (422, "validation_failed")
 
 
 async def test_a_single_valued_term_added_in_bulk_replaces_the_one_there(

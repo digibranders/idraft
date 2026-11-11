@@ -1,6 +1,6 @@
 import type { HttpResponse } from 'msw';
 
-import { projectCaller, workspaceCaller, type ProjectCaller, type WorkspaceCaller } from './access';
+import { projectCaller, workspaceCaller, type Gate, type ProjectCaller, type WorkspaceCaller } from './access';
 import { at, bodyError, enumError, extraMembers, isOneOf, isRecord, queryError, textError, uuidError } from './rules';
 import { stateTime } from '../entities-codec';
 import { MOCK_LOCATIONS } from '../entity-fixtures';
@@ -9,6 +9,7 @@ import {
   canonicalUrl,
   decimalOfCents,
   groupAndBelow,
+  gscOf,
   readingOf,
   stateOf,
   type Include,
@@ -95,7 +96,7 @@ export function keywordWorkspaceCaller(
   request: Request,
   cookies: Readonly<Record<string, string>>,
   workspaceId: PathParam,
-  gate: { permission: Permission; query?: readonly string[] },
+  gate: Gate,
 ): KeywordWorkspaceCaller | HttpResponse<Problem> {
   const caller = workspaceCaller(request, cookies, workspaceId, gate);
   if (caller instanceof Response) return caller;
@@ -152,16 +153,21 @@ export const liveTrackedOf = (world: KeywordWorld, projectId: string): StoredTra
 /** Tracked keywords a workspace may keep active (`workspace_quotas.max_tracked_keywords`). */
 export const MAX_TRACKED_KEYWORDS = 5000;
 
+/** The active tracked keywords of every project of the caller's workspace: what the quota counts. */
+export function activeTrackedCount(caller: KeywordProjectCaller | KeywordWorkspaceCaller): number {
+  const projects = new Set(projectList(caller.changes, caller.access.workspace.workspace_id).map((p) => p.project_id));
+  return caller.keywords.tracked.filter(
+    (row) => projects.has(row.project_id) && row.deleted_at === null && row.is_active,
+  ).length;
+}
+
 /** The `422 quota_exceeded` when `requested` more active rows would pass the limit, or `null`. */
 export function quotaProblem(
   request: Request,
   caller: KeywordProjectCaller | KeywordWorkspaceCaller,
   requested: number,
 ): HttpResponse<Problem> | null {
-  const projects = new Set(projectList(caller.changes, caller.access.workspace.workspace_id).map((p) => p.project_id));
-  const used = caller.keywords.tracked.filter(
-    (row) => projects.has(row.project_id) && row.deleted_at === null && row.is_active,
-  ).length;
+  const used = activeTrackedCount(caller);
   return used + requested > MAX_TRACKED_KEYWORDS
     ? problem(request, 'quota_exceeded', {
         detail: `The workspace tracks ${String(used)} of ${String(MAX_TRACKED_KEYWORDS)} keywords.`,
@@ -553,6 +559,13 @@ export function newKeyword(
 
 // Filters (TrackedKeywordFilter, the list's `filter[...]`)
 
+/** Whether a location is the country or a place inside it (they share the country's ISO code). */
+function inCountry(locationId: number, countryId: number): boolean {
+  const place = MOCK_LOCATIONS.find((location) => location.location_id === locationId);
+  const country = MOCK_LOCATIONS.find((location) => location.location_id === countryId);
+  return place !== undefined && country !== undefined && place.country_iso === country.country_iso;
+}
+
 export interface TrackedFilter {
   q: string | null;
   group: string | null;
@@ -560,6 +573,8 @@ export interface TrackedFilter {
   termIn: string[];
   device: 'desktop' | 'mobile' | null;
   locationId: number | null;
+  countryId: number | null;
+  countryIdIn: number[];
   languageCode: string | null;
   searchEngine: 'google' | 'bing' | null;
   intentIn: Intent[];
@@ -612,6 +627,8 @@ export const FILTER_NAMES = [
   'term_in',
   'device',
   'location_id',
+  'country_id',
+  'country_id_in',
   'language_code',
   'search_engine',
   'intent_in',
@@ -650,6 +667,8 @@ interface FilterSource {
 
 /** The most values a list filter takes (19 section 2.4). */
 const MAX_FILTER_VALUES = 100;
+/** The largest location id a filter takes (a 32-bit integer, as the API bounds it). */
+const MAX_LOCATION_ID = 2_147_483_647;
 
 function readFilter(source: FilterSource, defaultActive: boolean | null): TrackedFilter | ValidationItem[] {
   const errors: ValidationItem[] = [];
@@ -710,6 +729,23 @@ function readFilter(source: FilterSource, defaultActive: boolean | null): Tracke
     }
     return value;
   };
+  /** A list of integers within `min` and `max`: the values of a query are text, those of a body numbers. */
+  const integers = (name: string, min: number, max: number): number[] => {
+    const values = listOf(name).map((raw) =>
+      source.fromQuery && typeof raw === 'string' && /^-?\d+$/.test(raw) ? Number(raw) : raw,
+    );
+    if (values.some((value) => typeof value !== 'number' || !Number.isInteger(value))) {
+      errors.push(source.error(name, 'int_parsing', 'Input should be a valid integer'));
+      return [];
+    }
+    const numbers = values.filter((value): value is number => typeof value === 'number');
+    const outside = numbers.find((value) => value < min || value > max);
+    if (outside !== undefined) {
+      errors.push(source.error(name, outside < min ? 'greater_than_equal' : 'less_than_equal', 'Out of range.'));
+      return [];
+    }
+    return numbers;
+  };
   const oneOf = <T extends string>(name: string, allowed: readonly T[]): T | null => {
     const value = source.text(name);
     if (value === undefined || value === null) return null;
@@ -753,6 +789,8 @@ function readFilter(source: FilterSource, defaultActive: boolean | null): Tracke
     termIn: ids('term_in'),
     device: oneOf('device', ['desktop', 'mobile'] as const),
     locationId: integer('location_id'),
+    countryId: integer('country_id'),
+    countryIdIn: integers('country_id_in', 1, MAX_LOCATION_ID),
     languageCode: text('language_code', { min: 2, max: 2 }),
     searchEngine: oneOf('search_engine', ['google', 'bing'] as const),
     intentIn: manyOf('intent_in', INTENTS),
@@ -937,6 +975,11 @@ export function filteredRows(
     }
     if (filter.device !== null && row.device !== filter.device) return false;
     if (filter.locationId !== null && row.location_id !== filter.locationId) return false;
+    // A country covers itself and every place inside it: they share its ISO code
+    if (filter.countryId !== null && !inCountry(row.location_id, filter.countryId)) return false;
+    if (filter.countryIdIn.length > 0 && !filter.countryIdIn.some((id) => inCountry(row.location_id, id))) {
+      return false;
+    }
     if (filter.languageCode !== null && row.language_code !== filter.languageCode) return false;
     if (filter.searchEngine === 'bing') return false;
     if (filter.intentIn.length > 0 && !filter.intentIn.includes(row.intent)) return false;
@@ -969,6 +1012,9 @@ export const SORT_KEYS = [
   'rank_change',
   'best_rank',
   'last_observed_at',
+  // Search Console counts of the keyword's own device, as `gscOf` gives them
+  'gsc_clicks',
+  'gsc_impressions',
 ] as const;
 type SortKey = (typeof SORT_KEYS)[number];
 /** The sort when none is asked for. */
@@ -1011,6 +1057,10 @@ export function sortRows(
       const observed = ranks(row).last_observed_at;
       return observed === null ? null : Date.parse(observed);
     }
+    if (key === 'gsc_clicks' || key === 'gsc_impressions') {
+      const gsc = gscOf(world, row);
+      return gsc[key === 'gsc_clicks' ? 'clicks' : 'impressions']?.[row.device] ?? 0;
+    }
     const reading = readingOf(world, row.keyword_id, row.location_id, row.language_code)?.reading;
     if (reading === undefined) return null;
     if (key === 'search_volume') return reading.volume;
@@ -1043,6 +1093,8 @@ export function parseInclude(url: URL): Set<Include> | ValidationItem {
     'competitors',
     'sparkline',
     'competitor_ranks',
+    'ranking_urls',
+    'gsc',
     'features',
     'aio',
   ] as const;

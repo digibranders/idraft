@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import uuid
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -15,7 +15,12 @@ from zoneinfo import ZoneInfo
 
 from idraft.db.dictionaries import UrlRow
 from idraft.extraction.urls import CANONICALIZER_VERSION, CanonicalUrl
-from idraft.providers.dataforseo.serp_parse import PARSER_VERSION, NormalizedSerp, RequestEcho
+from idraft.providers.dataforseo.serp_parse import (
+    PARSER_VERSION,
+    NormalizedSerp,
+    OrganicResult,
+    RequestEcho,
+)
 from idraft.ranks.resolve import OwnSide, ResolvedSerp
 from idraft.ranks.state import Check
 
@@ -90,6 +95,28 @@ class SerpRows:
         )
 
 
+def mark_inconclusive(
+    rows: SerpRows, *, unattributed: int | None = None, reason: str | None = None
+) -> SerpRows:
+    """The rows of a check that cannot say if the site is absent, cut down to its snapshot and
+    marked with why: how many results it could not attribute, or a `reason` (no own entity to
+    look for). Its features, observations and current results are left out: they would record
+    the site as absent."""
+    why: dict[str, Any] = {}
+    if unattributed is not None:
+        why["unattributed"] = unattributed
+    if reason is not None:
+        why["reason"] = reason
+    extras = {**(rows.snapshot["extras"] or {}), "inconclusive": why}
+    return SerpRows(
+        snapshot={**rows.snapshot, "extras": extras},
+        features=[],
+        observations=[],
+        current=[],
+        feature_codes=(),
+    )
+
+
 def snapshot_time(provider: datetime | None, fetched_at: datetime) -> datetime:
     """When the check happened: the provider's crawl time when it is believable, else the time
     the answer was fetched. Both are fixed by the stored task and payload, so ingesting twice
@@ -120,6 +147,19 @@ def smallint(value: int | None) -> int | None:
     """A value a `smallint` column holds; one it cannot (a position the provider should not
     send) is left out rather than failing the check."""
     return value if value is not None and 0 <= value <= SMALLINT_MAX else None
+
+
+def _by_rank[T](
+    organic: Sequence[OrganicResult], value: Callable[[OrganicResult], T]
+) -> list[T | None]:
+    """One slot for each organic rank up to the highest read, filled from the result at that
+    rank."""
+    length = min(max((r.organic_rank for r in organic), default=0), DEPTH_MAX)
+    slots: list[T | None] = [None] * length
+    for result in organic:
+        if result.organic_rank <= DEPTH_MAX:
+            slots[result.organic_rank - 1] = value(result)
+    return slots
 
 
 def echo_of(serp: NormalizedSerp) -> RequestEcho:
@@ -163,12 +203,15 @@ def build_rows(
         "device": echo.device,
         "os": echo.os,
         "depth_requested": echo.depth,
-        "depth_returned": min(len(organic), DEPTH_MAX),
+        # How far down the answer reaches: the highest rank read, not a count of results.
+        "depth_returned": min(serp.depth_returned, DEPTH_MAX),
         "se_results_count": serp.se_results_count,
         "item_types": list(serp.item_types),
-        "organic_url_ids": [urls[r.url.url_hash].id for r in organic],
-        "organic_domain_ids": [urls[r.url.url_hash].domain_id for r in organic],
-        "organic_abs_positions": [smallint(r.absolute_rank) for r in organic],
+        # Positional: element n is the result at organic rank n + 1, and null where we hold none
+        # (a repeat of an earlier URL, an address that could not be read).
+        "organic_url_ids": _by_rank(organic, lambda r: urls[r.url.url_hash].id),
+        "organic_domain_ids": _by_rank(organic, lambda r: urls[r.url.url_hash].domain_id),
+        "organic_abs_positions": _by_rank(organic, lambda r: smallint(r.absolute_rank)),
         "has_ai_overview": resolved.has_ai_overview,
         "ai_overview_state": serp.ai_overview.state,
         "raw_payload_id": task.raw_payload_id,

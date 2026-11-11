@@ -154,7 +154,7 @@ def test_a_run_that_asked_for_a_live_check_uses_the_live_call_whatever_its_mode(
 # Planning.
 
 
-async def test_each_profile_is_planned_at_its_depth_and_the_deep_weekday_replaces_the_daily_check(
+async def test_every_profile_is_planned_at_the_top_100_and_a_weekly_one_only_on_the_deep_weekday(
     worker_db: Ledger, migrated: PostgresServer, world: World
 ) -> None:
     project = world.project
@@ -168,9 +168,9 @@ async def test_each_profile_is_planned_at_its_depth_and_the_deep_weekday_replace
     monday = _depths(await _plan(worker_db, _window(project, start=MONDAY)))
 
     assert tuesday == {
-        ids["light"]: 10,
-        ids["standard"]: 20,
-        ids["deep"]: 50,
+        ids["light"]: 100,
+        ids["standard"]: 100,
+        ids["deep"]: 100,
         ids["full"]: 100,
     }
     assert monday == {
@@ -179,7 +179,7 @@ async def test_each_profile_is_planned_at_its_depth_and_the_deep_weekday_replace
         ids["deep"]: 100,
         ids["full"]: 100,
         ids["weekly"]: 100,
-        ids["weekly_light"]: 20,
+        ids["weekly_light"]: 100,
     }
     assert refused not in monday
 
@@ -202,7 +202,7 @@ async def test_the_deep_weekday_is_the_projects_own_and_read_in_its_zone(
         await _plan(worker_db, _window(project, start=TUESDAY + timedelta(days=1)))
     )
 
-    assert monday_evening == {keyword: 20}
+    assert monday_evening == {keyword: 100}
     assert tuesday_evening == {keyword: 100}
 
 
@@ -244,6 +244,23 @@ async def test_the_selector_narrows_what_is_planned_and_none_selects_nothing(
     assert set(in_group) == {grouped}
     assert list(nothing.tasks) == []
     assert nothing.estimated_cost_usd == Decimal(0)
+
+
+async def test_a_project_without_an_own_entity_that_tracks_seo_plans_nothing(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    await _tracked(migrated, project, "crm top")
+    assert _depths(await _plan(worker_db, _window(project, {"all": True})))
+
+    await execute(
+        migrated,
+        "UPDATE core.project_entities SET track_seo = false WHERE project_id = $1 AND role = 'own'",
+        project.id,
+    )
+
+    assert list((await _plan(worker_db, _window(project, {"all": True}))).tasks) == []
+    assert list((await _plan(worker_db, _window(project, {"new": True}))).tasks) == []
 
 
 async def test_a_keyword_that_names_a_schedule_is_left_to_it(
@@ -297,11 +314,11 @@ async def test_a_keyword_is_planned_once_a_local_day_across_schedules(
     )
     next_day = _window(project, schedule_id=second, start=window.window_start + timedelta(days=1))
 
-    assert _depths(plan) == {keyword: 20}
+    assert _depths(plan) == {keyword: 100}
     assert _depths(await _plan(worker_db, later_that_day)) == {}
-    assert _depths(await _plan(worker_db, next_day)) == {keyword: 20}
+    assert _depths(await _plan(worker_db, next_day)) == {keyword: 100}
     # The schedule that planned it can plan it again: nothing is added by the second time.
-    assert _depths(await _plan(worker_db, window)) == {keyword: 20}
+    assert _depths(await _plan(worker_db, window)) == {keyword: 100}
     async with worker_db() as db, db.begin():
         assert await ledger.insert_tasks(db, run_id, plan.tasks) == 0
 
@@ -352,28 +369,45 @@ async def test_check_now_plans_the_named_keywords_live_and_due_at_once(
 
     assert set(_depths(plan)) == {named, pinned, weekly}
     assert left_out not in _depths(plan)
-    # The daily depth of each profile; a weekly one has none today and gets its deep check.
-    assert _depths(plan) == {named: 20, pinned: 20, weekly: 100}
+    # Every profile reads the top 100; a weekly one has no check today and gets its deep check.
+    assert _depths(plan) == {named: 100, pinned: 100, weekly: 100}
     assert {task.provider_endpoint for task in plan.tasks} == {SERP_ORGANIC_LIVE}
     assert {task.scheduled_for for task in plan.tasks} == {TUESDAY}
     assert plan.config_snapshot["queue"] == "live"
     assert plan.config_snapshot["selector"] == selector
-    # (2 + 2 + 10) pages at the live price of $0.002, and no asynchronous AI Overview to add.
-    assert plan.estimated_cost_usd == Decimal("0.028")
+    # (10 + 10 + 10) pages at the live price of $0.002, and no asynchronous AI Overview to add.
+    assert plan.estimated_cost_usd == Decimal("0.060")
 
 
-async def test_check_now_checks_at_the_depth_asked_for(
+async def test_check_now_without_the_live_flag_plans_standard_queue_tasks_like_a_schedule(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    first = await _tracked(migrated, project, "crm first")
+    second = await _tracked(migrated, project, "crm second", profile="full")
+    selector = {"tracked_keyword_ids": [str(first), str(second)]}
+
+    plan = await _plan(worker_db, _window(project, selector))
+
+    assert _depths(plan) == {first: 100, second: 100}
+    assert {task.provider_endpoint for task in plan.tasks} == {SERP_ORGANIC}
+    assert {task.scheduled_for for task in plan.tasks} == {TUESDAY}
+    assert plan.config_snapshot["queue"] == "standard"
+    assert plan.estimated_cost_usd > Decimal(0)
+
+
+async def test_check_now_checks_at_the_top_100_when_it_asks_for_it(
     worker_db: Ledger, migrated: PostgresServer, world: World
 ) -> None:
     project = world.project
     first = await _tracked(migrated, project, "crm first", profile="full")
     second = await _tracked(migrated, project, "crm second", profile="light")
-    selector = {"tracked_keyword_ids": [str(first), str(second)], "live": True, "depth": 10}
+    selector = {"tracked_keyword_ids": [str(first), str(second)], "live": True, "depth": 100}
 
     plan = await _plan(worker_db, _window(project, selector))
 
-    assert _depths(plan) == {first: 10, second: 10}
-    assert plan.estimated_cost_usd == Decimal("0.004")
+    assert _depths(plan) == {first: 100, second: 100}
+    assert plan.estimated_cost_usd == Decimal("0.040")
 
 
 async def test_check_now_plans_a_keyword_again_that_was_checked_today(
@@ -427,7 +461,7 @@ async def test_check_now_without_a_depth_is_the_daily_depth_even_on_the_deep_wee
 
     plan = await _plan(worker_db, _window(project, selector, start=MONDAY))
 
-    assert _depths(plan) == {standard: 20, weekly: 100}
+    assert _depths(plan) == {standard: 100, weekly: 100}
 
 
 @pytest.mark.parametrize(
@@ -458,11 +492,11 @@ async def test_the_estimate_is_pages_at_the_queues_price_and_the_async_ai_overvi
     standard = await _plan(worker_db, _window(project, mode="standard_queue"))
     priority = await _plan(worker_db, _window(project, mode="priority_queue"))
 
-    # Standard: (2 + 5) pages at $0.0006 and two tasks at $0.0006 for the AI Overview.
-    assert standard.estimated_cost_usd == Decimal("0.0054")
-    # Priority: 7 pages at $0.0012 and, with no price row of its own, the surcharge at the
+    # Standard: (10 + 10) pages at $0.0006 and two tasks at $0.0006 for the AI Overview.
+    assert standard.estimated_cost_usd == Decimal("0.0132")
+    # Priority: 20 pages at $0.0012 and, with no price row of its own, the surcharge at the
     # queue's page price (the additive reading of doc 06 section 6.2).
-    assert priority.estimated_cost_usd == Decimal("0.0108")
+    assert priority.estimated_cost_usd == Decimal("0.0264")
     assert standard.config_snapshot["queue"] == "standard"
     assert priority.config_snapshot["queue"] == "priority"
     assert standard.config_snapshot["selector"] == {"all": True}
@@ -681,6 +715,232 @@ async def test_a_run_blocked_by_a_budget_is_not_made_again_for_a_day(
     assert await queue_new_keywords(worker_db, now=NOW + timedelta(hours=25)) == 1
 
 
+async def _with_state(
+    pg: PostgresServer,
+    project: Project,
+    tracked_id: Any,
+    *,
+    observed: datetime,
+    rank: int | None,
+    last_ranked: int | None,
+    beyond: int,
+) -> None:
+    await execute(
+        pg,
+        "INSERT INTO seo.tracked_keyword_state (tracked_keyword_id, workspace_id, project_id, "
+        "last_observed_at, current_rank, last_ranked_rank, consecutive_beyond, "
+        "current_depth_requested) VALUES ($1, $2, $3, $4, $5, $6, $7, 20)",
+        tracked_id,
+        project.workspace_id,
+        project.id,
+        observed,
+        rank,
+        last_ranked,
+        beyond,
+    )
+
+
+async def test_a_drop_is_asked_about_again_when_it_is_first_seen(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    dropped = await _tracked(migrated, project, "crm dropped", profile="deep")
+    held = await _tracked(migrated, project, "crm held")
+    confirmed = await _tracked(migrated, project, "crm confirmed")
+    never_ranked = await _tracked(migrated, project, "crm never")
+    seen = NOW - timedelta(minutes=10)
+    await _with_state(migrated, project, dropped, observed=seen, rank=None, last_ranked=5, beyond=1)
+    await _with_state(migrated, project, held, observed=seen, rank=4, last_ranked=4, beyond=0)
+    # Asked about twice already: the drop stands
+    await _with_state(
+        migrated, project, confirmed, observed=seen, rank=None, last_ranked=5, beyond=3
+    )
+    await _with_state(
+        migrated, project, never_ranked, observed=seen, rank=None, last_ranked=None, beyond=1
+    )
+
+    shallow = await _tracked(migrated, project, "crm shallow", profile="weekly_light")
+    await _with_state(
+        migrated, project, shallow, observed=seen, rank=None, last_ranked=35, beyond=1
+    )
+
+    plan = await _plan(worker_db, _window(project, {"confirm": True}, start=NOW))
+    made = await queue_new_keywords(worker_db, now=NOW)
+    again = await queue_new_keywords(worker_db, now=NOW + timedelta(minutes=1))
+
+    # Deep enough to find the rank again, whatever the profile's own depths are.
+    assert _depths(plan) == {dropped: 100, shallow: 100}
+    assert (made, again) == (1, 0)
+    (run,) = await _runs(migrated, project)
+    assert run["config_snapshot"] == '{"selector": {"confirm": true}}'
+
+
+async def _confirmed_once(
+    sessions: Ledger,
+    pg: PostgresServer,
+    project: Project,
+    *,
+    task_status: str,
+    asked: int = 1,
+) -> None:
+    """`asked` confirmation runs for the project's keywords, made before `NOW`, whose tasks are
+    in `task_status` and whose runs are over."""
+    for index in range(asked):
+        start = NOW - timedelta(hours=6 - index)
+        plan = await _plan(sessions, _window(project, {"confirm": True}, start=start))
+        async with sessions() as db, db.begin():
+            run_id = await ledger.create_run(
+                db,
+                NewRun(
+                    workspace_id=project.workspace_id,
+                    project_id=project.id,
+                    schedule_id=None,
+                    workload=TaskWorkload.SEO_RANK,
+                    window_start=start,
+                    window_end=start + timedelta(hours=1),
+                    trigger="manual",
+                    config_snapshot={"selector": {"confirm": True}},
+                ),
+                now=start,
+            )
+            assert run_id is not None
+            await ledger.insert_tasks(db, run_id, plan.tasks)
+            await ledger.start_run(
+                db, run_id, tasks_total=len(plan.tasks), estimated_cost_usd=Decimal(0)
+            )
+        await execute(
+            pg,
+            "UPDATE ops.collection_tasks SET status = $2 WHERE run_id = $1",
+            run_id,
+            task_status,
+        )
+        await execute(
+            pg, "UPDATE ops.collection_runs SET status = 'completed' WHERE id = $1", run_id
+        )
+
+
+async def test_a_drop_the_first_confirmation_did_not_bring_back_is_asked_about_once_more(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    dropped = await _tracked(migrated, project, "crm dropped")
+    await _with_state(
+        migrated,
+        project,
+        dropped,
+        observed=NOW - timedelta(minutes=10),
+        rank=None,
+        last_ranked=1,
+        beyond=2,
+    )
+    await _confirmed_once(worker_db, migrated, project, task_status="ingested")
+
+    plan = await _plan(worker_db, _window(project, {"confirm": True}, start=NOW))
+
+    assert _depths(plan) == {dropped: 100}
+    assert await queue_new_keywords(worker_db, now=NOW) == 1
+
+
+async def test_a_drop_is_not_asked_about_a_third_time(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    dropped = await _tracked(migrated, project, "crm dropped")
+    # Two confirmations that were too shallow to move the count: the number of asks still holds
+    await _with_state(
+        migrated,
+        project,
+        dropped,
+        observed=NOW - timedelta(minutes=10),
+        rank=None,
+        last_ranked=1,
+        beyond=2,
+    )
+    await _confirmed_once(worker_db, migrated, project, task_status="ingested", asked=2)
+
+    plan = await _plan(worker_db, _window(project, {"confirm": True}, start=NOW))
+
+    assert plan.tasks == []
+    assert await queue_new_keywords(worker_db, now=NOW) == 0
+
+
+async def test_a_confirmation_is_not_asked_for_while_the_one_before_is_on_its_way(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    dropped = await _tracked(migrated, project, "crm dropped")
+    await _with_state(
+        migrated,
+        project,
+        dropped,
+        observed=NOW - timedelta(minutes=10),
+        rank=None,
+        last_ranked=1,
+        beyond=1,
+    )
+    await _confirmed_once(worker_db, migrated, project, task_status="submitted")
+
+    plan = await _plan(worker_db, _window(project, {"confirm": True}, start=NOW))
+
+    assert plan.tasks == []
+
+
+async def test_a_drop_whose_confirmation_failed_is_not_asked_for_again(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    dropped = await _tracked(migrated, project, "crm dropped")
+    await _with_state(
+        migrated,
+        project,
+        dropped,
+        observed=NOW - timedelta(minutes=10),
+        rank=None,
+        last_ranked=5,
+        beyond=1,
+    )
+    assert await queue_new_keywords(worker_db, now=NOW) == 1
+    await execute(
+        migrated,
+        "UPDATE ops.collection_runs SET status = 'failed' WHERE project_id = $1",
+        project.id,
+    )
+
+    assert await queue_new_keywords(worker_db, now=NOW + timedelta(hours=3)) == 0
+
+
+async def test_a_confirmation_that_was_ingested_is_not_asked_for_again_within_the_day(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    dropped = await _tracked(migrated, project, "crm dropped")
+    await _with_state(
+        migrated,
+        project,
+        dropped,
+        observed=NOW - timedelta(minutes=10),
+        rank=None,
+        last_ranked=5,
+        beyond=1,
+    )
+    assert await queue_new_keywords(worker_db, now=NOW) == 1
+    await execute(
+        migrated,
+        "UPDATE ops.collection_runs SET status = 'completed' WHERE project_id = $1",
+        project.id,
+    )
+    # The confirmation was checked and ingested, and was too shallow to move the count.
+    await execute(
+        migrated,
+        "UPDATE seo.tracked_keyword_state SET last_observed_at = $1 WHERE tracked_keyword_id = $2",
+        NOW + timedelta(minutes=30),
+        dropped,
+    )
+
+    assert await queue_new_keywords(worker_db, now=NOW + timedelta(hours=1)) == 0
+    assert await queue_new_keywords(worker_db, now=NOW + timedelta(hours=23)) == 0
+
+
 async def test_paused_and_archived_projects_get_no_run(
     worker_db: Ledger, migrated: PostgresServer, world: World
 ) -> None:
@@ -705,7 +965,7 @@ async def test_a_weekly_keyword_gets_its_first_check_whatever_the_weekday(
     first = _depths(await _plan(worker_db, _window(project, {"new": True}, start=TUESDAY)))
 
     assert on_a_normal_day == {}
-    assert first == {weekly: 100, light: 20}
+    assert first == {weekly: 100, light: 100}
 
 
 async def test_nothing_is_planned_without_a_price_to_check_the_budget_against(
@@ -790,7 +1050,7 @@ async def test_a_task_that_was_sent_counts_as_checked_even_when_its_run_was_canc
     await execute(
         migrated, "UPDATE ops.collection_tasks SET status = 'cancelled' WHERE run_id = $1", run_id
     )
-    assert _depths(await _plan(worker_db, other)) == {keyword: 20}
+    assert _depths(await _plan(worker_db, other)) == {keyword: 100}
     # Sent before the cancel: the provider has it, and it is paid for.
     await execute(
         migrated, "UPDATE ops.collection_tasks SET status = 'submitted' WHERE run_id = $1", run_id

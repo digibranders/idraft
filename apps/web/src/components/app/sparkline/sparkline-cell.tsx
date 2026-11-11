@@ -2,26 +2,36 @@
 
 import { useEffect, useMemo, useRef, type ReactElement } from 'react';
 
-import type { SparklinePoint } from '@/lib/api/types';
-import { SPARK_HEIGHT, SPARK_WIDTH, sparklineGeometry } from '@/lib/charts/sparkline';
+import { SPARK_HEIGHT, SPARK_WIDTH, sparklineGeometry, type SparkValue } from '@/lib/charts/sparkline';
 import { readColorToken } from '@/lib/design/read-tokens';
 import { cn } from '@/lib/utils';
 
+/** The line's colour: the neutral reference, or the direction of a movement (never the only sign of it). */
+export type SparklineTone = 'reference' | 'positive' | 'negative';
+
+const TONE_TOKEN: Readonly<Record<SparklineTone, string>> = {
+  reference: '--chart-reference',
+  positive: '--positive-solid',
+  negative: '--negative-solid',
+};
+
 export interface SparklineCellProps {
-  points: readonly SparklinePoint[];
+  /** The values, oldest first; `null` for a point without one. */
+  values: readonly SparkValue[];
   label: string;
+  tone?: SparklineTone | undefined;
   className?: string | undefined;
 }
 
 /**
- * A rank trend sparkline in a table cell (15-data-visualization.md section 9).
+ * A search volume trend sparkline in a table cell (15-data-visualization.md section 9).
  * Draws on a 64 x 20 canvas with role="img" and accessible label.
  * An empty sparkline renders a 1 px dashed line across the width.
  */
-export function SparklineCell({ points, label, className }: SparklineCellProps): ReactElement {
+export function SparklineCell({ values, label, tone = 'reference', className }: SparklineCellProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const geo = useMemo(() => sparklineGeometry(points, SPARK_WIDTH, SPARK_HEIGHT), [points]);
+  const geo = useMemo(() => sparklineGeometry(values, SPARK_WIDTH, SPARK_HEIGHT), [values]);
   const hasSegments = geo.segments.length > 0;
 
   useEffect(() => {
@@ -36,7 +46,7 @@ export function SparklineCell({ points, label, className }: SparklineCellProps):
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const color = readColorToken('--chart-reference');
+      const color = readColorToken(TONE_TOKEN[tone]);
       ctx.strokeStyle = color;
       ctx.fillStyle = color;
       ctx.lineWidth = 1.5;
@@ -77,7 +87,7 @@ export function SparklineCell({ points, label, className }: SparklineCellProps):
     return () => {
       theme.disconnect();
     };
-  }, [hasSegments, geo]);
+  }, [hasSegments, geo, tone]);
 
   if (!hasSegments) {
     return (

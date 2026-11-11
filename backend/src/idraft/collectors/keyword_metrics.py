@@ -19,7 +19,7 @@ from typing import Any, Final
 from uuid import UUID
 
 import structlog
-from sqlalchemy import ColumnElement, and_, exists, func, literal, or_, select, tuple_
+from sqlalchemy import ColumnElement, and_, exists, func, literal, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -641,7 +641,7 @@ async def _keep(
         # row, saying when it was asked; one with metrics keeps them.
         await db.execute(statement.on_conflict_do_nothing())
         return
-    await db.execute(
+    replaced = await db.execute(
         statement.on_conflict_do_update(
             index_elements=[
                 current.keyword_id,
@@ -662,7 +662,29 @@ async def _keep(
                 current.workspace_id == statement.excluded.workspace_id,
                 current.fetched_at <= statement.excluded.fetched_at,
             ),
+        ).returning(current.snapshot_id)
+    )
+    if replaced.scalar_one_or_none() == inserted and reading.intent_main is not None:
+        await _file_intent(db, task, keyword_id, language, reading.intent_main)
+
+
+async def _file_intent(
+    db: AsyncSession, task: FetchedTask, keyword_id: UUID, language: str, intent: str
+) -> None:
+    """The provider's intent on the keyword's rows, where nobody chose one (docs/09 section 4):
+    a `manual` intent stays, and so does one the rules set."""
+    t = tracked_keywords.c
+    await db.execute(
+        update(tracked_keywords)
+        .where(
+            t.workspace_id == task.workspace_id,
+            t.keyword_id == keyword_id,
+            t.location_id == task.location_id,
+            t.language_code == language,
+            or_(t.intent_source.is_(None), t.intent_source == "provider"),
+            t.intent.is_distinct_from(intent),
         )
+        .values(intent=intent, intent_source="provider")
     )
 
 

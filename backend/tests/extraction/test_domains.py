@@ -67,10 +67,52 @@ def test_a_host_rule_beats_a_registrable_rule() -> None:
     assert _resolve(resolver, "https://www.acme.com/a") == ("own", OWN, "registrable")
 
 
-def test_a_host_rule_is_exact() -> None:
-    resolver = DomainResolver([_rule(OWN, "own", "acme.com", "host")])
-    assert _resolve(resolver, "https://acme.com/") == ("own", OWN, "host")
+def test_a_host_rule_is_the_site_and_its_www_form_and_nothing_else() -> None:
+    for entered in ("acme.com", "www.acme.com"):
+        resolver = DomainResolver([_rule(OWN, "own", entered, "host")])
+        assert _resolve(resolver, "https://acme.com/") == ("own", OWN, "host")
+        assert _resolve(resolver, "https://www.acme.com/pricing?x=1#top") == ("own", OWN, "host")
+        assert _resolve(resolver, "http://WWW.ACME.COM") == ("own", OWN, "host")
+        # Another subdomain is another site; so is another domain that merely contains the name
+        assert _resolve(resolver, "https://partner.acme.com/") == ("third_party", None, None)
+        assert _resolve(resolver, "https://blog.acme.com/") == ("third_party", None, None)
+        assert _resolve(resolver, "https://www.partner.acme.com/") == ("third_party", None, None)
+        assert _resolve(resolver, "https://acme.com.evil.example/") == ("third_party", None, None)
+        assert _resolve(resolver, "https://acme.co.uk/") == ("third_party", None, None)
+
+
+def test_a_host_rule_on_a_subdomain_is_that_subdomain_only() -> None:
+    resolver = DomainResolver([_rule(OWN, "own", "partner.acme.com", "host")])
+    assert _resolve(resolver, "https://partner.acme.com/a") == ("own", OWN, "host")
+    assert _resolve(resolver, "https://www.partner.acme.com/a") == ("own", OWN, "host")
+    assert _resolve(resolver, "https://acme.com/") == ("third_party", None, None)
     assert _resolve(resolver, "https://www.acme.com/") == ("third_party", None, None)
+    assert _resolve(resolver, "https://docs.acme.com/") == ("third_party", None, None)
+
+
+def test_the_main_site_and_a_subdomain_are_two_entities_that_do_not_overlap() -> None:
+    resolver = DomainResolver(
+        [
+            _rule(OWN, "own", "acme.com", "host"),
+            _rule(RIVAL, "competitor", "partner.acme.com", "host"),
+        ]
+    )
+    assert _resolve(resolver, "https://www.acme.com/") == ("own", OWN, "host")
+    assert _resolve(resolver, "https://partner.acme.com/") == ("competitor", RIVAL, "host")
+    assert resolver.conflicts() == ()
+
+
+def test_the_www_and_bare_forms_of_one_host_claimed_by_two_entities_are_a_conflict() -> None:
+    resolver = DomainResolver(
+        [_rule(OWN, "own", "acme.com", "host"), _rule(RIVAL, "competitor", "www.acme.com", "host")]
+    )
+    assert _resolve(resolver, "https://acme.com/") == ("own", OWN, "host")
+    assert len(resolver.conflicts()) == 1
+
+
+def test_a_registrable_rule_still_takes_every_subdomain_when_asked_for() -> None:
+    resolver = DomainResolver([_rule(OWN, "own", "acme.com", "registrable")])
+    assert _resolve(resolver, "https://partner.acme.com/") == ("own", OWN, "registrable")
 
 
 def test_a_path_prefix_rule_beats_a_host_rule() -> None:

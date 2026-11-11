@@ -90,7 +90,7 @@ describe('Project settings > General > Keyword defaults', () => {
     await waitFor(() =>
       expect(within(section).getByRole('combobox', { name: 'Default device' })).toHaveTextContent('Desktop'),
     );
-    expect(within(section).getByRole('combobox', { name: 'Default depth profile' })).toHaveTextContent('Standard');
+    expect(within(section).getByRole('combobox', { name: 'Default depth profile' })).toHaveTextContent('Full');
     expect(within(section).getByRole('combobox', { name: 'Default check frequency' })).toHaveTextContent('Daily');
     expect(within(section).queryByRole('button', { name: 'Save defaults' })).toBeNull();
     expect(await axe(container)).toHaveNoViolations();
@@ -98,11 +98,11 @@ describe('Project settings > General > Keyword defaults', () => {
     await user.click(within(section).getByRole('combobox', { name: 'Default device' }));
     await user.click(await screen.findByRole('option', { name: 'Desktop and mobile' }));
     await user.click(within(section).getByRole('combobox', { name: 'Default depth profile' }));
-    await user.click(await screen.findByRole('option', { name: /^Deep/ }));
+    await user.click(await screen.findByRole('option', { name: /^Weekly/ }));
     await user.click(within(section).getByRole('button', { name: 'Save defaults' }));
     await waitFor(() => expect(politeRegion()).toHaveTextContent('Keyword defaults saved'));
     expect(seen.find((request) => request.method === 'PATCH')?.body).toEqual({
-      seo: { default_device: 'both', default_depth_profile: 'deep' },
+      seo: { default_device: 'both', default_depth_profile: 'weekly' },
     });
     expect(within(section).getByRole('combobox', { name: 'Default device' })).toHaveTextContent('Desktop and mobile');
     expect(within(section).queryByRole('button', { name: 'Save defaults' })).toBeNull();
@@ -155,12 +155,8 @@ describe('Project settings > General > Keyword defaults', () => {
     await user.click(within(section).getByRole('combobox', { name: 'Default depth profile' }));
     const options = await screen.findAllByRole('option');
     expect(options.map((option) => option.textContent)).toEqual([
-      'LightDaily check to the top 10, deep check to the top 100 each week',
-      'StandardDaily check to the top 20, deep check to the top 100 each week',
-      'DeepDaily check to the top 50, deep check to the top 100 each week',
       'FullDaily check to the top 100',
       'WeeklyOne check to the top 100 each week, none on other days',
-      'Weekly lightOne check to the top 20 each week, none on other days',
     ]);
   });
 
@@ -188,12 +184,12 @@ describe('Project settings > General > Keyword defaults', () => {
     const { user } = renderWithProviders(screenAs('editor'));
     const section = await editableDefaults();
     await user.click(within(section).getByRole('combobox', { name: 'Default depth profile' }));
-    await user.click(await screen.findByRole('option', { name: /^Full/ }));
+    await user.click(await screen.findByRole('option', { name: /^Weekly/ }));
     await user.click(within(section).getByRole('button', { name: 'Save defaults' }));
     expect(
       await within(section).findByText('This depth profile is not available yet. Choose another.'),
     ).toBeInTheDocument();
-    expect(within(section).getByRole('combobox', { name: 'Default depth profile' })).toHaveTextContent('Full');
+    expect(within(section).getByRole('combobox', { name: 'Default depth profile' })).toHaveTextContent('Weekly');
   });
 
   it('says when the save failed, and keeps the changes', async () => {
@@ -226,7 +222,7 @@ describe('Project settings > General > Keyword defaults', () => {
     const { container } = renderWithProviders(screenAs('viewer'));
     const section = await defaults();
     expect(await within(section).findByText('Desktop')).toBeInTheDocument();
-    expect(within(section).getByText('Standard')).toBeInTheDocument();
+    expect(within(section).getByText('Full')).toBeInTheDocument();
     expect(within(section).getByText('Daily')).toBeInTheDocument();
     expect(within(section).queryByRole('combobox')).toBeNull();
     expect(within(section).queryByRole('button')).toBeNull();

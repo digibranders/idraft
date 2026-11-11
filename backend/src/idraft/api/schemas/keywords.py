@@ -87,6 +87,9 @@ TargetUrl = Annotated[
 BusinessValue = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=2)]
 Priority = Annotated[int, Field(ge=1, le=5)]
 Links = Annotated[list[UUID], Field(max_length=LINKS_MAX)]
+# `core.locations.id` is a 4-byte integer: a larger id names no location, and reaching the
+# database it would overflow instead of being refused.
+LocationId = Annotated[int, Field(ge=1, le=2**31 - 1)]
 # A filter's list of values: one at least, so an empty list never reads as "no filter".
 type FilterList[T] = Annotated[list[T], Field(min_length=1, max_length=LINKS_MAX)]
 
@@ -125,7 +128,7 @@ class TrackedKeywordCreate(Body):
     (`seo.default_device`, `default_depth_profile`, `default_frequency`)."""
 
     keyword: KeywordText
-    location_id: int | None = None
+    location_id: LocationId | None = None
     language_code: LanguageCode | None = None
     device: DeviceChoice | None = Field(default=None, description="`both` makes two rows.")
     search_engine: Literal["google"] = Field(
@@ -235,6 +238,8 @@ TrackedInclude = Literal[
     "competitors",
     "sparkline",
     "competitor_ranks",
+    "ranking_urls",
+    "gsc",
     "features",
     "aio",
 ]
@@ -253,6 +258,12 @@ class RankCell(BaseModel):
     rank: int | None = Field(description="The organic rank; null unless `state` is `ranked`.")
     absolute_rank: int | None
     depth_requested: int | None = Field(description="Null when `state` is `not_checked`.")
+    depth_returned: int | None = Field(
+        default=None,
+        description="How far down the provider's answer reached. Below `depth_requested` when "
+        "Google gave fewer results; `beyond_depth` then means not among those. The web app still "
+        "shows `>depth_requested` and keeps this for a tooltip. Null when unknown.",
+    )
     url: UrlRef | None
     observed_at: datetime | None
     serp_snapshot_id: str | None
@@ -276,6 +287,29 @@ class AioStateInfo(BaseModel):
     observation_id: str | None
 
 
+CheckStatusName = Literal["idle", "queued", "processing", "completed", "inconclusive", "failed"]
+
+
+class KeywordCheck(BaseModel):
+    """Where the keyword's latest rank check stands, whoever asked for it (a person with Check
+    now, or a schedule). `queued` and `processing` are pending: a second Check now is refused
+    with `409 check_pending` until the check ends."""
+
+    status: CheckStatusName = Field(
+        description="`idle`: nothing recent. `queued`: asked for, not yet sent to the provider. "
+        "`processing`: sent, answer not yet read. `completed`: the answer moved the rank. "
+        "`inconclusive`: the answer was kept but cannot say if the site is absent, so the rank "
+        "did not move. `failed`: the provider gave no usable answer."
+    )
+    requested_at: datetime | None = None
+    finished_at: datetime | None = None
+    reason: str | None = Field(
+        default=None,
+        description="A failed check's error code, or why a check was inconclusive "
+        "(`unattributed_results`, `no_own_entity`).",
+    )
+
+
 class TrackedKeywordState(BaseModel):
     """The keyword's latest rank facts (`seo.tracked_keyword_state`)."""
 
@@ -294,6 +328,14 @@ class TrackedKeywordState(BaseModel):
     is_stale: bool
     last_observed_at: datetime | None
     ranking_url_count: int = Field(description="Own URLs that ranked at the last check.")
+    check: KeywordCheck = Field(default_factory=lambda: KeywordCheck(status="idle"))
+    drop_unconfirmed: bool = Field(
+        default=False,
+        description="The last check did not find a keyword that ranked before, and it is the "
+        "only one in a row that did not. A SERP moves between readings, so the drop is not "
+        "treated as final until a second check also misses (docs/09 section 4.1). The flag "
+        "says what the rank rules know, not that a check is queued.",
+    )
 
 
 class SparklinePoint(BaseModel):
@@ -314,6 +356,56 @@ class CompetitorRank(BaseModel):
     change: RankChange
 
 
+class GscWindow(BaseModel):
+    start: date
+    end: date
+
+
+class DeviceCounts(BaseModel):
+    desktop: int
+    mobile: int
+
+
+class GscTrend(BaseModel):
+    """The keyword's own device over the window in consecutive buckets, oldest first."""
+
+    bucket_days: int = Field(
+        description="Days in a bucket; bucket i starts i * bucket_days days after the window start."
+    )
+    clicks: list[int]
+    impressions: list[int]
+
+
+class GscBlock(BaseModel):
+    """Clicks and impressions from Search Console (docs/18 section 4.9): counts, not estimates."""
+
+    state: Literal["ok", "pending", "not_connected"] = Field(
+        description=(
+            "`ok`: the counts are the last 28 days of final data (0 is a count). "
+            "`pending`: the first pull of the property is running. "
+            "`not_connected`: the project has no Search Console connection."
+        )
+    )
+    clicks: DeviceCounts | None = None
+    impressions: DeviceCounts | None = None
+    window: GscWindow | None = None
+    trend: GscTrend | None = Field(
+        default=None,
+        description=(
+            "`ok` only: the tracked device's clicks and impressions in 4-day buckets of the "
+            "window, oldest first; the buckets add up to that device's counts."
+        ),
+    )
+
+
+class RankingUrl(BaseModel):
+    url: UrlRef
+    rank: int
+    shares_rank: bool = Field(
+        description="The page holds a rank another page holds: a sub-result (sitelink) of it."
+    )
+
+
 class FeatureOnPage(BaseModel):
     feature_type: str
     ordinal: int
@@ -332,6 +424,12 @@ MetricsSource = Literal["dataforseo_labs", "dataforseo_google_ads", "dataforseo_
 CompetitionLevel = Literal["LOW", "MEDIUM", "HIGH"]
 
 
+class MonthlySearches(BaseModel):
+    year: int
+    month: int
+    search_volume: int | None
+
+
 class KeywordMetrics(BaseModel):
     source: MetricsSource
     location_id: int
@@ -346,6 +444,10 @@ class KeywordMetrics(BaseModel):
     intent_main: str | None
     trend_pct_per_month: float | None
     is_seasonal: bool | None
+    monthly_searches: list[MonthlySearches] = Field(
+        description="The provider's monthly volumes behind the trend, oldest first; "
+        "empty when the provider sent none."
+    )
 
 
 class GroupRef(BaseModel):
@@ -408,6 +510,16 @@ class TrackedKeywordRow(TrackedKeyword):
     competitor_ranks: list[CompetitorRank] | None = Field(
         default=None, description="`include=competitor_ranks`: the competitors' ranks."
     )
+    ranking_urls: list[RankingUrl] | None = Field(
+        default=None,
+        description=(
+            "`include=ranking_urls`: every page of the project that ranked at the last check, best "
+            "rank first (at most 10)."
+        ),
+    )
+    gsc: GscBlock | None = Field(
+        default=None, description="`include=gsc`: clicks and impressions from Search Console."
+    )
     features: list[FeatureOnPage] | None = Field(
         default=None, description="`include=features`: the features of the last check."
     )
@@ -431,6 +543,17 @@ class TrackedKeywordPageInfo(CursorPageInfo):
 class TrackedKeywordPage(BaseModel):
     data: list[TrackedKeywordRow]
     page: TrackedKeywordPageInfo
+
+
+class TrackedKeywordCountry(BaseModel):
+    location: LocationRef = Field(description="The country itself.")
+    keyword_count: int = Field(
+        description="Distinct keywords tracked in it or anywhere inside it, devices counted once."
+    )
+
+
+class TrackedKeywordCountries(BaseModel):
+    data: list[TrackedKeywordCountry]
 
 
 class ScheduleRef(BaseModel):
@@ -493,7 +616,17 @@ class TrackedKeywordFilter(Body):
         default=None, description="Any of these terms or one under them."
     )
     device: Device | None = None
-    location_id: int | None = None
+    location_id: LocationId | None = None
+    country_id: LocationId | None = Field(
+        default=None,
+        description="A country's location id: the keywords tracked in that country or anywhere "
+        "inside it (a region, a city).",
+    )
+    country_id_in: FilterList[LocationId] | None = Field(
+        default=None,
+        description="Any of these countries' location ids: the keywords tracked in one of them "
+        "or anywhere inside one.",
+    )
     language_code: LanguageCode | None = None
     search_engine: Literal["google", "bing"] | None = None
     intent_in: FilterList[Intent] | None = None
@@ -641,12 +774,6 @@ class KeywordDetail(Keyword):
 
 class KeywordDetailResponse(BaseModel):
     data: KeywordDetail
-
-
-class MonthlySearches(BaseModel):
-    year: int
-    month: int
-    search_volume: int | None
 
 
 class MetricsSnapshot(BaseModel):

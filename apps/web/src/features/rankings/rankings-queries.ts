@@ -15,9 +15,9 @@ import { rankFilterParams } from './rank-filters';
 import type { PageSize } from '@/components/app/data-table/types';
 import type { FilterValues } from '@/components/app/filters/types';
 import { api, unwrap } from '@/lib/api/client';
-import { projectKey, type QueryKey } from '@/lib/api/keys';
+import { projectKey, queryKey, type QueryKey } from '@/lib/api/keys';
 import type { paths } from '@/lib/api/schema';
-import type { TrackedKeywordRow } from '@/lib/api/types';
+import type { TrackedKeywordRow, TrackedKeywordState } from '@/lib/api/types';
 import type { FilterValue } from '@/lib/filters/filter-values';
 import { queryTextOf } from '@/lib/keywords/query-text';
 import { isUuid } from '@/lib/routes/paths';
@@ -48,10 +48,51 @@ export const CLIENT_MODE_LIMIT = 10_000;
 export const MAX_FILTER_VALUES = 100;
 /** The largest page the API answers. */
 const PAGE = 200;
-// The pending-metrics poll lays only metrics and state over a waiting row, so a first check's sparkline
-// arrives with the next read of the list, which is acceptable for a keyword with one point.
+// The Trend column reads the monthly volumes that come with `metrics`, so the rows ask for no rank sparkline.
 // Competitor ranks are always asked for (small payload per row) to avoid re-reading the list when toggling columns.
-const INCLUDE: NonNullable<ListQuery['include']> = ['metrics', 'groups', 'terms', 'sparkline', 'competitor_ranks'];
+const INCLUDE: NonNullable<ListQuery['include']> = [
+  'metrics',
+  'groups',
+  'terms',
+  'competitor_ranks',
+  'ranking_urls',
+  'gsc',
+];
+/** The most pages an export reads: 50 of 200 are the 10 000 keywords the table itself holds. */
+const EXPORT_PAGES_MAX = 50;
+
+/**
+ * Every keyword the filters and the search match, read page by page for an export: the rows of the table
+ * whatever its mode, in the order of the keyword's text, with the metrics and the groups an export writes.
+ */
+export async function readAllKeywords(
+  scope: ProjectScope,
+  filters: KeywordFilters,
+  search: string,
+  signal: AbortSignal,
+): Promise<TrackedKeywordRow[]> {
+  const rows: TrackedKeywordRow[] = [];
+  let cursor: string | null = FIRST_PAGE;
+  for (let page = 0; page < EXPORT_PAGES_MAX; page += 1) {
+    const answer: ListPage = await readPage(
+      scope,
+      {
+        ...filters,
+        sort: LOAD_SORT,
+        include: ['metrics', 'groups', 'gsc'],
+        limit: PAGE,
+        ...(search.trim() === '' ? {} : { 'filter[q]': search.trim() }),
+        ...(cursor === null ? {} : { cursor }),
+      },
+      signal,
+    );
+    rows.push(...answer.data);
+    cursor = answer.page.has_more ? answer.page.next_cursor : null;
+    if (cursor === null) return rows;
+  }
+  throw new Error('The list is longer than an export reads');
+}
+
 /** The cursor of the first page: none. */
 const FIRST_PAGE: string | null = null;
 /** The sort the client mode loads in: the table sorts in memory, so changing it reads nothing again. */
@@ -85,15 +126,28 @@ export const pageListKey = (scope: ProjectScope, filters: KeywordFilters, query:
 ];
 export const countKey = (scope: ProjectScope): QueryKey => [...keywordsKey(scope), 'count'];
 
+/** The countries the project has keywords in (`useKeywordCountries`), under `keywordsKey`. */
+export const keywordCountriesKey = (scope: ProjectScope): QueryKey =>
+  queryKey('/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/countries', {
+    workspace_id: scope.workspaceId,
+    project_id: scope.projectId,
+  });
+
+/** The workspace's tracked keyword quota (`useTrackedKeywordQuota`), which every add, archive and delete changes. */
+export const trackedKeywordQuotaKey = (workspaceId: string): QueryKey =>
+  queryKey('/api/v1/workspaces/{workspace_id}/tracked-keyword-quota', { workspace_id: workspaceId });
+
 /**
- * After any change to tracked keywords: the list, its counts, every page and the open keyword, and with
- * them the reads of the keyword page that sit outside the keyword's own key: the project's rank events and
- * the SERP snapshots (Decision 12). Resolves once the queries on screen have read again.
+ * After any change to tracked keywords: the list, its counts, every page, the countries in use (all under
+ * `keywordsKey`), the open keyword and the workspace's quota, and with them the reads of the keyword page
+ * that sit outside the keyword's own key: the project's rank events and the SERP snapshots (Decision 12).
+ * Resolves once the queries on screen have read again.
  */
 export async function refreshKeywords(queryClient: QueryClient, scope: ProjectScope): Promise<void> {
   const project = projectKey(scope.workspaceId, scope.projectId);
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: keywordsKey(scope) }),
+    queryClient.invalidateQueries({ queryKey: trackedKeywordQuotaKey(scope.workspaceId) }),
     queryClient.invalidateQueries({ queryKey: [...project, 'seo', 'rank-events'] }),
     queryClient.invalidateQueries({ queryKey: [...project, 'serp-snapshots'] }),
   ]);
@@ -121,17 +175,18 @@ const maxOf = (value: FilterValue | undefined): number | null => (value?.kind ==
 export function keywordFilters(values: FilterValues, archived: boolean): KeywordFilters {
   const [group] = idsOf(values.grp);
   const terms = idsOf(values.tag);
-  const [device] = enumOf(values.dev, ['desktop', 'mobile'] as const);
-  const [location] = idsOf(values.loc);
   const [language] = idsOf(values.lang);
   const intents = enumOf(values.intent, INTENTS);
   const stages = enumOf(values.stage, FUNNEL_STAGES);
   const sources = enumOf(values.src, SOURCES);
+  const countries = idsOf(values.country)
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id > 0)
+    .slice(0, MAX_FILTER_VALUES);
   const depths = enumOf(values.depth, DEPTH_PROFILES);
   const priority = maxOf(values.prio);
   const volume = minOf(values.vol);
   const difficulty = maxOf(values.kd);
-  const locationId = location === undefined || !/^\d+$/.test(location) ? Number.NaN : Number(location);
   // A value from a link is sent only in the API's shape, so a hand-edited URL never reads as a server error
   const groupId = group !== undefined && isUuid(group) ? group : undefined;
   // A list filter takes at most 100 values, and a link can name more
@@ -141,12 +196,11 @@ export function keywordFilters(values: FilterValues, archived: boolean): Keyword
     'filter[is_active]': !archived,
     ...(groupId === undefined ? {} : { 'filter[group]': groupId }),
     ...(termIds.length === 0 ? {} : { 'filter[term]': termIds }),
-    ...(device === undefined ? {} : { 'filter[device]': device }),
-    ...(Number.isInteger(locationId) ? { 'filter[location_id]': locationId } : {}),
     ...(language === undefined ? {} : { 'filter[language_code]': language }),
     ...(intents.length === 0 ? {} : { 'filter[intent_in]': intents }),
     ...(stages.length === 0 ? {} : { 'filter[funnel_stage_in]': stages }),
     ...(sources.length === 0 ? {} : { 'filter[source_in]': sources }),
+    ...(countries.length === 0 ? {} : { 'filter[country_id_in]': countries }),
     ...(depths.length === 0 ? {} : { 'filter[depth_profile_in]': depths }),
     ...(priority === null ? {} : { 'filter[priority_lte]': priority }),
     ...(volume === null ? {} : { 'filter[search_volume_gte]': volume }),
@@ -211,14 +265,26 @@ interface ListArgs {
   sort: readonly SortKey[];
   /** The search, which server mode sends as `filter[q]` (already debounced). */
   search: string;
+  /** False while the filters are not settled: nothing is read, and the list reports that it is loading. */
+  enabled?: boolean;
 }
 
 type AllPages = UseInfiniteQueryResult<InfiniteData<ListPage, string | null>>;
 
+/** How often the list is read again while a keyword has a check queued or being answered (standard queue: minutes). */
+const CHECK_POLL_MS = 20_000;
+
+/** Whether a keyword's check is queued or being answered (`state.check`), so its rank is about to change. */
+export function hasPendingCheck(row: { state?: Pick<TrackedKeywordState, 'check'> | undefined }): boolean {
+  const status = row.state?.check?.status;
+  return status === 'queued' || status === 'processing';
+}
+
 /** The rows of Rankings in the mode their count calls for. */
-export function useKeywordList({ scope, filters, sort, search }: ListArgs): KeywordList {
+export function useKeywordList({ scope, filters, sort, search, enabled = true }: ListArgs): KeywordList {
   const all: AllPages = useInfiniteQuery({
     queryKey: allListKey(scope, filters),
+    enabled,
     queryFn: ({ pageParam, signal }) =>
       readPage(
         scope,
@@ -239,6 +305,9 @@ export function useKeywordList({ scope, filters, sort, search }: ListArgs): Keyw
     // to it (the writes invalidate it), not on every focus or visit
     staleTime: ALL_STALE_MS,
     refetchOnWindowFocus: false,
+    // A check asked for by hand or by a schedule ends on the provider's time: read the list again until none is open
+    refetchInterval: (query) =>
+      query.state.data?.pages.some((page) => page.data.some(hasPendingCheck)) ? CHECK_POLL_MS : false,
     // A combination of filters nobody looks at any more is not kept: each holds up to 10,000 rows
     gcTime: ALL_GC_MS,
   });

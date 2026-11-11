@@ -13,8 +13,8 @@ import { sparklineSummary } from '@/lib/charts/sparkline';
 import {
   aioDisplay,
   formatDetailDateTime,
-  formatRankCell,
-  formatTableDate,
+  formatInteger,
+  formatMonth,
   rankDisplay,
   rowChangeDisplay,
   urlDisplay,
@@ -23,6 +23,7 @@ import { featureListDisplay, isFeatureType, FEATURE_MESSAGE_KEYS } from '@/lib/k
 
 /** The ids of the rank columns: the API's sort fields, except the ranking URL, which does not sort. */
 export const RANK_COLUMN_IDS = {
+  /** The rank column keeps the API's sort field, so a link with `sort=current_rank` still sorts. */
   rank: 'current_rank',
   url: 'ranking_url',
   best: 'best_rank',
@@ -31,6 +32,13 @@ export const RANK_COLUMN_IDS = {
   aio: 'aio',
   trend: 'trend',
 } as const;
+
+/** What a row's rank cell shows, from its state. */
+export const rankDisplayOf = (row: TrackedKeywordRow): ReturnType<typeof rankDisplay> =>
+  rankDisplay(row.state.current, row.state.is_stale, row.state.consecutive_failures, {
+    dropUnconfirmed: row.state.drop_unconfirmed,
+    check: row.state.check,
+  });
 
 export interface RankColumns {
   rank: DataTableColumn<TrackedKeywordRow>;
@@ -57,40 +65,15 @@ export function useRankColumns(timeZone: string): RankColumns {
   const tips = useRankTips(timeZone);
   return useMemo((): RankColumns => {
     const pending: UnknownValue = { label: t('pending'), tooltip: t('pendingTooltip') };
-    const display = (row: TrackedKeywordRow): ReturnType<typeof rankDisplay> =>
-      rankDisplay(row.state.current, row.state.is_stale, row.state.consecutive_failures);
-    const aioTip = (row: TrackedKeywordRow): CellTip | undefined => {
-      if (row.state.current.state === 'failed') {
-        return { content: aioT('failedTooltip') };
-      }
-      const disp = aioDisplay(row.state.aio, row.state.current.state);
-      switch (disp.kind) {
-        case 'notLoaded':
-          return { content: aioT('notLoadedTooltip') };
-        case 'unknown':
-          return { content: aioT('unknownTooltip') };
-        case 'pending':
-          return { content: aioT('pendingTooltip') };
-        case 'cited':
-          return disp.position !== null
-            ? { content: aioT('citedTooltip', { position: disp.position }) }
-            : { content: aioT('citedNoPosition') };
-        case 'notCited':
-        case 'absent':
-          return undefined;
-      }
-    };
+    const display = rankDisplayOf;
+    // The AI Overview cell says what it shows; only its failure is an icon that needs words
+    const aioTip = (row: TrackedKeywordRow): CellTip | undefined =>
+      row.state.current.state === 'failed' ? { content: aioT('failedTooltip') } : undefined;
+    // The SERP feature icons carry no words: the tooltip names them, and says which are the site's own
     const featureTip = (row: TrackedKeywordRow): CellTip | undefined => {
-      if (row.state.current.state === 'not_checked') {
-        return { content: features('pendingTooltip') };
-      }
-      if (row.state.current.state === 'failed') {
-        return { content: features('failedTooltip') };
-      }
+      if (row.state.current.state === 'not_checked' || row.state.current.state === 'failed') return undefined;
       const featDisplay = featureListDisplay(row.state.feature_types_present, row.state.owned_feature_types);
-      if (featDisplay.all.length === 0) {
-        return { content: features('noneTooltip') };
-      }
+      if (featDisplay.all.length === 0) return undefined;
       const shortLabelOf = (type: string): string =>
         isFeatureType(type) ? features(`types.${FEATURE_MESSAGE_KEYS[type]}`) : type;
       const content = featDisplay.all.map((slot) => shortLabelOf(slot.type)).join(', ');
@@ -110,10 +93,11 @@ export function useRankColumns(timeZone: string): RankColumns {
         },
         {
           header: t('rank'),
-          headerTooltip: t('rankTooltip'),
           priority: 1,
-          width: 104,
-          minWidth: 104,
+          // The rank and its change slot beside it
+          width: 112,
+          minWidth: 112,
+          cellTip: (row) => tips.notRanked(display(row)),
           cell: (row) => (
             <RankCellView
               display={display(row)}
@@ -121,7 +105,6 @@ export function useRankColumns(timeZone: string): RankColumns {
               timeZone={timeZone}
             />
           ),
-          cellTip: (row) => tips.rank(display(row), row.state.change, row.state.current),
         },
       ),
       url: col.url<TrackedKeywordRow>(RANK_COLUMN_IDS.url, () => null, {
@@ -132,7 +115,7 @@ export function useRankColumns(timeZone: string): RankColumns {
         defaultVisible: false,
         hasControls: true,
         cell: (row) => <RankingUrlView display={urlDisplay(row.state.current, row.state.ranking_url_count)} />,
-        cellTip: (row) => tips.url(urlDisplay(row.state.current, row.state.ranking_url_count), display(row)),
+        cellTip: (row) => tips.url(urlDisplay(row.state.current, row.state.ranking_url_count)),
       }),
       features: col.features<TrackedKeywordRow>(RANK_COLUMN_IDS.features, () => null, {
         header: features('column'),
@@ -156,7 +139,9 @@ export function useRankColumns(timeZone: string): RankColumns {
         header: aioT('column'),
         headerTooltip: aioT('columnTooltip'),
         priority: 2,
-        width: 104,
+        // "AI OVERVIEW" in capitals is 80 px, 104 with the cell padding: a little more keeps it whole, unsqueezed
+        width: 112,
+        minWidth: 112,
         sortable: false,
         cell: (row) => (
           <AioStatusView
@@ -172,57 +157,45 @@ export function useRankColumns(timeZone: string): RankColumns {
       }),
       trend: col.sparkline<TrackedKeywordRow>(RANK_COLUMN_IDS.trend, {
         header: trendT('column'),
-        headerTooltip: trendT('columnTooltip'),
         priority: 2,
         width: 96,
         cell: (row) => {
-          const points = row.sparkline?.points ?? [];
-          const label = ((): string => {
-            if (row.state.current.state === 'failed') return trendT('labelFailed');
-            if (row.state.current.state === 'not_checked' || points.length === 0) return trendT('labelEmpty');
-            const summary = sparklineSummary(points);
-            if (summary.first === null) return trendT('labelNone', { checks: summary.checks });
-            const latest = points.at(-1);
-            const lastRankStr =
-              latest?.state === 'beyond_depth'
-                ? formatRankCell({ rank: null, depth: latest.depth })
-                : String(summary.last ?? summary.first);
-            const base = trendT('label', {
-              checks: summary.checks,
-              first: summary.first,
-              last: lastRankStr,
-              best: summary.best ?? summary.first,
-            });
-            return summary.beyond > 0 ? `${base}, ${trendT('labelBeyond', { count: summary.beyond })}` : base;
-          })();
-          return <SparklineCell points={points} label={label} />;
+          const months = row.metrics?.monthly_searches ?? [];
+          const values = months.map((month) => month.search_volume);
+          const summary = sparklineSummary(values);
+          const label =
+            summary.first === null || summary.last === null || summary.peak === null
+              ? trendT('labelEmpty')
+              : trendT('label', {
+                  months: summary.months,
+                  first: formatInteger(summary.first),
+                  last: formatInteger(summary.last),
+                  peak: formatInteger(summary.peak),
+                });
+          return <SparklineCell values={values} label={label} />;
         },
         cellTip: (row) => {
-          const points = row.sparkline?.points ?? [];
-          if (points.length === 0) return undefined;
-          const last7 = points
-            .slice(-7)
-            .map((point) => {
-              const d = formatTableDate(point.t, timeZone);
-              const r = formatRankCell({ rank: point.rank, depth: point.depth });
-              return trendT('tipPoint', { date: d, rank: r });
-            })
+          const months = row.metrics?.monthly_searches ?? [];
+          if (months.length === 0) return undefined;
+          const recent = months
+            .slice(-6)
+            .map((month) =>
+              trendT('tipPoint', {
+                month: formatMonth(month.year, month.month),
+                volume: formatInteger(month.search_volume),
+              }),
+            )
             .join(', ');
-          return {
-            content: trendT('tipTitle'),
-            detail: last7,
-          };
+          return { content: trendT('tipTitle'), detail: recent };
         },
       }),
       best: col.rank<TrackedKeywordRow>(RANK_COLUMN_IDS.best, (row) => row.state.best_rank, {
         header: t('bestRank'),
-        headerTooltip: t('bestRankTooltip'),
         priority: 3,
         // "BEST RANK" with its sort arrow needs 112 px
         width: 112,
         defaultVisible: false,
         cell: (row) => <BestRankView best={row.state.best_rank} state={row.state.current.state} />,
-        cellTip: (row) => (row.state.best_rank === null ? tips.best(row.state.current.state) : undefined),
       }),
       updated: col.date<TrackedKeywordRow>(RANK_COLUMN_IDS.updated, (row) => row.state.last_observed_at, {
         header: t('updated'),
@@ -234,8 +207,7 @@ export function useRankColumns(timeZone: string): RankColumns {
         // The marker follows the API's `is_stale` and nothing else
         marker: (row) => (row.state.is_stale ? <StaleMarker /> : null),
         cellTip: (row) => (row.state.is_stale ? tips.stale(row.state.last_observed_at) : undefined),
-        unknown: (row) =>
-          row.state.current.state === 'failed' ? { label: t('failed'), tooltip: t('failedTooltip') } : pending,
+        unknown: (row) => (row.state.current.state === 'failed' ? { label: t('failed') } : pending),
       }),
     };
   }, [t, common, features, aioT, trendT, tips, timeZone]);
@@ -245,13 +217,7 @@ export function useRankColumns(timeZone: string): RankColumns {
  * Competitor rank columns: one column per project competitor, ordered by color_index ascending then name.
  * Default visible for the first competitor only.
  */
-export function useCompetitorColumns(
-  competitors: readonly EntityRef[],
-  timeZone: string,
-): DataTableColumn<TrackedKeywordRow>[] {
-  const t = useTranslations('rankings.competitor');
-  const tips = useRankTips(timeZone);
-
+export function useCompetitorColumns(competitors: readonly EntityRef[]): DataTableColumn<TrackedKeywordRow>[] {
   return useMemo(() => {
     const sorted = [...competitors].sort((a, b) => {
       const aColor = a.color_index ?? Number.MAX_SAFE_INTEGER;
@@ -264,7 +230,6 @@ export function useCompetitorColumns(
       const id = `competitor_${competitor.entity_id}`;
       return col.competitor<TrackedKeywordRow>(id, {
         header: competitor.canonical_name,
-        headerTooltip: t('headerTooltip', { name: competitor.canonical_name }),
         priority: 4,
         width: 120,
         sortable: false,
@@ -280,15 +245,7 @@ export function useCompetitorColumns(
             />
           );
         },
-        cellTip: (row) => {
-          const entry = row.competitor_ranks?.find((cr) => cr.entity.entity_id === competitor.entity_id);
-          if (!entry) {
-            return { content: t('notTrackedTooltip', { name: competitor.canonical_name }) };
-          }
-          const display = rankDisplay(entry.current, false, 0);
-          return tips.rank(display, entry.change, entry.current);
-        },
       });
     });
-  }, [competitors, t, tips]);
+  }, [competitors]);
 }

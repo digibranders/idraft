@@ -10,6 +10,7 @@ export type ColumnType =
   | 'text'
   | 'count'
   | 'volume'
+  | 'volumeTrend'
   | 'currency'
   | 'date'
   | 'badge'
@@ -45,12 +46,16 @@ export const COLUMN_TYPES: Readonly<Record<ColumnType, ColumnTypeSpec>> = {
   // (USD)" 139, "Best rank" 112) sets its own width, and its own `minWidth` where it must not be squeezed
   count: { width: 88, min: 72, max: 120, align: 'left', defaultDesc: true, flex: false },
   volume: { width: 96, min: 96, max: 120, align: 'left', defaultDesc: true, flex: false },
+  // A count with its 64 px trend graph (Search Console clicks and impressions): a 7-digit count, an 8 px gap and the
+  // graph take about 140 px with padding. "IMPRESSIONS" is 86 px in capitals (Chrome, 2026-11-05): with the 14 px
+  // arrow, 4 px gap, the 24 px column menu and 12 px padding each side the header needs 152 px
+  volumeTrend: { width: 160, min: 152, max: 200, align: 'left', defaultDesc: true, flex: false },
   currency: { width: 128, min: 112, max: 144, align: 'left', defaultDesc: true, flex: false },
   date: { width: 120, min: 104, max: 160, align: 'left', defaultDesc: true, flex: false },
   badge: { width: 120, min: 88, max: 180, align: 'left', defaultDesc: false, flex: false },
   status: { width: 120, min: 96, max: 180, align: 'left', defaultDesc: false, flex: false },
   // Best (lowest) rank first, and the biggest improvement first (12-tables.md section 5)
-  rank: { width: 80, min: 80, max: 112, align: 'left', defaultDesc: false, flex: false },
+  rank: { width: 80, min: 80, max: 136, align: 'left', defaultDesc: false, flex: false },
   // 12-tables.md gave 56 / 48 / 72. The header "CHANGE" with its sort arrow needs 95 px (84 in sentence case), and
   // the width resolver shrinks a column toward its minimum when the table is tight, so the minimum is 96
   rankDelta: { width: 96, min: 96, max: 96, align: 'left', defaultDesc: true, flex: false },
@@ -80,13 +85,34 @@ export interface SizedColumn {
  * strip beside the table); when the set does not fit, the flex column shrinks to its minimum, then the
  * others shrink toward theirs in proportion; what still does not fit scrolls sideways (the sum then
  * exceeds `available`).
+ *
+ * `capIdentity` (the By group table, 12-tables.md section 16) holds the flex column at its maximum while the
+ * others can still widen: room past that maximum widens each of them toward its own maximum, in proportion
+ * to the room it has, and none past it. Only what is left once all are at their maximums goes to the flex
+ * column, so the table still fills its panel with no gap at its right.
  */
-export function resolveWidths(columns: readonly SizedColumn[], available: number): Map<string, number> {
+export function resolveWidths(
+  columns: readonly SizedColumn[],
+  available: number,
+  { capIdentity = false }: { capIdentity?: boolean } = {},
+): Map<string, number> {
   const widths = new Map(columns.map((column) => [column.id, column.width]));
   const flex = columns.find((column) => column.flex);
   const fixedTotal = columns.reduce((sum, column) => sum + (column.flex ? 0 : column.width), 0);
   if (flex !== undefined) {
     widths.set(flex.id, Math.max(flex.min, available - fixedTotal));
+  }
+  const surplus = flex === undefined ? 0 : available - fixedTotal - Math.max(flex.max, flex.min);
+  if (capIdentity && flex !== undefined && surplus > 0) {
+    const growable = columns.filter((column) => !column.flex && column.max > column.width);
+    const growRoom = growable.reduce((sum, column) => sum + (column.max - column.width), 0);
+    const growRatio = growRoom === 0 ? 0 : Math.min(1, surplus / growRoom);
+    for (const column of growable) {
+      widths.set(column.id, Math.floor(column.width + (column.max - column.width) * growRatio));
+    }
+    const othersTotal = columns.reduce((sum, column) => sum + (column.flex ? 0 : (widths.get(column.id) ?? 0)), 0);
+    widths.set(flex.id, available - othersTotal);
+    return widths;
   }
   const total = (): number => [...widths.values()].reduce((sum, width) => sum + width, 0);
   const excess = total() - available;

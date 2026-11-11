@@ -104,20 +104,39 @@ async def pending_or_active_session(
         yield context
 
 
+async def _optional(request: Request, resources: Resources) -> SessionContext | None:
+    token = session_token(request)
+    if token is None:
+        return None
+    try:
+        return await resources.session_store.load(token, now=datetime.now(UTC))
+    except ExpiredSession:
+        return None
+
+
 @declare(AccessRule("public"))
 async def optional_session(
     request: Request, resources: Annotated[Resources, Depends(get_resources)]
 ) -> AsyncIterator[SessionContext | None]:
     """The session if the cookie names a live one, pending or active. Never refuses one."""
     reject_unknown_query(request)
-    token = session_token(request)
-    context: SessionContext | None = None
-    if token is not None:
-        try:
-            context = await resources.session_store.load(token, now=datetime.now(UTC))
-        except ExpiredSession:
-            context = None
+    context = await _optional(request, resources)
     if context is None:
+        yield None
+        return
+    with _identified(request, context):
+        yield context
+
+
+@declare(AccessRule("public"))
+async def lenient_session(
+    request: Request, resources: Annotated[Resources, Depends(get_resources)]
+) -> AsyncIterator[SessionContext | None]:
+    """The active session if the cookie names one, else None. For a route another site sends the
+    browser to (Google's OAuth redirect): the sender adds query parameters of its own choosing,
+    which are left unread here instead of refused, since the person would see a JSON error."""
+    context = await _optional(request, resources)
+    if context is None or context.state != "active":
         yield None
         return
     with _identified(request, context):
@@ -136,5 +155,6 @@ def fresh_session(
 
 CurrentSession = Annotated[SessionContext, Depends(current_session)]
 OptionalSession = Annotated[SessionContext | None, Depends(optional_session)]
+LenientSession = Annotated[SessionContext | None, Depends(lenient_session)]
 PendingOrActiveSession = Annotated[SessionContext, Depends(pending_or_active_session)]
 FreshSession = Annotated[SessionContext, Depends(fresh_session)]

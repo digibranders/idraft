@@ -64,6 +64,7 @@ export type RankCell = Schemas['RankCell'];
 export type AioStateInfo = Schemas['AioStateInfo'];
 export type RankChange = Schemas['RankChange'];
 export type TrackedKeywordState = Schemas['TrackedKeywordState'];
+export type KeywordCheck = Schemas['KeywordCheck'];
 export type Sparkline = Schemas['Sparkline'];
 export type SparklinePoint = Schemas['SparklinePoint'];
 export type KeywordGroup = Schemas['KeywordGroup'];
@@ -126,6 +127,14 @@ export type RankEventPage = Schemas['RankEventPage'];
 export type SerpSnapshotPage = Schemas['SerpSnapshotPage'];
 export type SerpDomain = Schemas['SerpDomain'];
 export type SerpProvenance = Schemas['SerpProvenance'];
+
+// Integrations: Google connections (Search Console and GA4) and the properties linked to projects
+export type Connection = Schemas['Connection'];
+export type ConnectionStatus = Connection['status'];
+export type SiteProperty = Schemas['SiteProperty'];
+export type AnalyticsProperty = Schemas['AnalyticsProperty'];
+export type Integration = Schemas['Integration'];
+export type OverlapWarning = Schemas['OverlapWarning'];
 
 /** Runtime lists from the OpenAPI enums: a form checks a slug against them before it asks the API. */
 export { reservedProjectSlugValues, reservedWorkspaceSlugValues, roleValues } from './schema';

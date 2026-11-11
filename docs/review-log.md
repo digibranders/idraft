@@ -703,3 +703,80 @@ The docs assumed one DigitalOcean droplet (`s-2vcpu-4gb`, $24 per month) used on
 | D-H2 | Edge proxy for the shared ports 80 and 443: the existing nginx or a host-level Caddy | owner and the second project's owner, before WP2b step 4 |
 | D-H3 | The second project's name and its expected resource needs, so the split (about 8 GB each) can be reviewed against measured load | owner |
 | D-H4 | Who owns host-level changes (edge proxy, firewall, systemd slices, OS updates and reboots) | owner |
+
+### Rank accuracy: hidden results, inconclusive checks, confirmed drops (2026-11-02)
+
+The owner reported wrong ranks in the keywords table. The live data was checked against DataForSEO the same day (about $0.8 of test calls). What was found:
+
+- In live calls on `google.com` the provider hid the address of many results behind opaque `google.com/goto` links (50 to 77 of 100 in the checks made for an India location, none on `google.co.in`; none at all in standard-queue tasks). The real site is only in `breadcrumb` and `website_name`. The project's own site was found behind such a link at ranks 1, 89, 92 and 93 in different readings, and the parser stored those as domain `google.com`, so the site looked absent. Check now is live, so it is the path affected.
+- The same query at the same location, device and depth returned the own site at rank 1 in one reading and nowhere in the next (the standard-queue checks of the brand keyword `fynix digital` on 2026-10-31 and 2026-11-01, and 12 repeats on 2026-11-02). The state followed the latest reading, so a keyword flipped to "not in top 100".
+- A country Google domain (`google.co.in`) was tried as a fix and not adopted: it gave no wrapped links, but the own site appeared less often on it than on `google.com`, and which domain matches what people in Mumbai see is unknown. Switching also steps the rank history. A manual search is the ground truth (Google blocked an automated one).
+
+Changed (backend only):
+
+- Parser version 2: the site of a wrapped result is read back from the breadcrumb or a site name that is a host on the ICANN suffix list (`OrganicResult.recovered`, warning `redirect_site_recovered`); unreadable ones stay wrapped and flagged. A recovered ranking URL never gives `target_url_match`.
+- A check with no own rank and unattributed results within its depth is `inconclusive`: snapshot kept, nothing else written.
+- The new-keyword tick also plans one confirmation check (`{"confirm": true}`, depth 100 or more) for a drop, at most once a keyword in 24 hours; "never checked" now means no state, not no snapshot.
+- Doc 06 sections 3.1 and 5.2, doc 09 section 4.1 (as built) updated.
+
+Independent review (Sonnet) found, and this pass fixed: the confirmation guard re-opened after the confirmation was ingested (now a 24 hour cap by run, not by timestamps); a confirmation shallower than the last rank could not move the count (now depth 100 or more); a product name such as `Node.js` was read as a host (now needs a known suffix). It also removed the country domain from the change (history step at deploy).
+
+| Id | Item | Plan |
+|---|---|---|
+| F99 | A recovered result's path is the breadcrumb's (a guess): the ranking URL can differ between readings and raise a false `url_changed`; the state and the snapshot detail (titles are keyed by URL id, so recovered results of one site share one title) do not mark it. Show a recovered ranking URL as approximate | UI follow-up |
+| F100 | No view shows that a keyword's latest reading was inconclusive or that a drop awaits confirmation; the table shows the last rank that stood. A permanently inconclusive keyword stays "never checked" and is asked again every 24 hours in place of its scheduled check | UI follow-up |
+| F101 | The Google domain per country is an open question (doc 06 section 3.1); a table of country domains (written and removed in this pass) needs a manual ground truth and a re-baseline | owner: search `fynix digital` from Mumbai |
+| F102 | Existing stored states were collected before these changes and keep their values until the next check | run a check of all keywords after deploy |
+| F103 | Hidden results above a found own rank can hide a better own page, so that rank is an upper bound; it is not marked | with F99 |
+| F104 | Re-ingest does not repair old snapshots (a bumped parser version applies to new rows only) | none needed |
+
+### Rank accuracy: provider ranks kept, coverage and unconfirmed drops in the API (2026-11-03)
+
+Full audit in `docs/SEO_DATA_ACCURACY_AUDIT.md`. Live checks (about 0.21 USD) showed the parser renumbered organic results from the kept list, so a dropped repeat moved every later result up a rank; and that the provider often returns far fewer results than the depth asked for (36 to 99 of 100), which the API did not say.
+
+Changed (backend only, no migration): parser version 4 keeps `rank_group` and leaves gaps (ranks no longer depend on which results were kept); unreadable organic results make an absent own side inconclusive; snapshot arrays are positional with NULL slots; `RankCell.depth_returned` and `TrackedKeywordState.drop_unconfirmed` (closes the confirmation part of F100); a project with no own entity that tracks SEO stores inconclusive snapshots instead of unranked states.
+
+| Id | Item | Plan |
+|---|---|---|
+| F105 | Snapshots written by parser versions 1 to 3 with the warning `rank_recomputed` hold ranks that may be too good | find them with the audit's appendix query, re-check those keywords |
+| F106 | The web app still prints `>depth_requested` and ignores `drop_unconfirmed` | UI session: use `depth_returned`, mark unconfirmed drops |
+| F107 | A project's `primary_domain` is not checked against its own entity's domain rules | validate on project update; find existing cases with the audit's appendix query |
+| F108 | Standalone AI answer collection (`ai_prompt`, `ai_mode_keyword`) has workload names only, no collector | build per docs/07 |
+
+### Check now through the standard queue, honest progress, the web app (2026-11-03, second pass)
+
+Live and standard-queue checks of `fynix digital` and `fynix` (about 0.025 USD, the request built by the app's own code) showed the same standard request returning different SERPs hours apart (`fynix digital` at 1, then not found; `fynix` at 21, then 19). So the earlier reading that the owner's 19 was the renumbering defect is withdrawn: the renumbering defect is real (21 stored as 19 in the 11:50 reading) but 19 was also a true provider rank later.
+
+Changed: Check now sends tasks through the standard queue (selector without `live`); `state.check` reports queued, processing, completed, inconclusive or failed for every keyword; a second check of a keyword with one pending is refused (`409 check_pending`); live answers are stored as diagnostic snapshots and never move state; the monthly quota counts manual checks; the web app shows `depth_returned`, `drop_unconfirmed` and the check marks, disables Check now for pending keywords, polls the list while a check is open, and has Device and Location columns; types regenerated with `pnpm gen:api`.
+
+| Id | Item | Plan |
+|---|---|---|
+| F109 | One reading can be wrong either way; only a drop is confirmed | owner: a consensus rule (better of two readings hours apart), and ask DataForSEO about the variance |
+| F110 | Three Playwright tests in `e2e/flows/rankings.spec.ts` (lines 305, 345, 664) fail on the committed code: they expect columns hidden below 1680 px, against the 2026-10-30 rule | update the tests; regenerate the visual baselines in the pinned image for the new column |
+| F111 | Five unit tests fail on the committed code (costs budgets, invite password reason, rank trend sparkline, two rank strip tests) | look at the date or clock assumption they share |
+| F112 | The list does not poll while a check is open in server mode (very large lists) | extend the poll to the server page |
+| F113 | Production configuration items of 2026-10-31 remain: operator account, DataForSEO spending cap, one real check on the server | owner |
+
+### Rankings: one row per keyword, Desktop and Mobile rank columns, device and country scope (2026-11-03, third pass)
+
+The owner asked for the Device and Location columns to go, the rank to split into a Desktop and a Mobile column on one row per keyword, a Both, Desktop, Mobile control and a country selector (country level, India by default) beside the filters, and a `>` only for `>100`.
+
+Changed: `GET tracked-keywords` takes `filter[country_id]` (a country and every place inside it, by ISO code; no migration). The web app pairs the tracked keywords of one keyword, place and language into one row (`keyword-pairs.ts`); every action (bulk, Check now, refresh) reaches both devices; the Device control shows or hides the rank columns; the country control sends `filter[country_id]` (India, or the project's own country, until another is chosen; All countries sends none). A rank not found shows `>100` whatever Google returned; the shortfall stays in the tooltip.
+
+| Id | Item | Plan |
+|---|---|---|
+| F114 | A keyword not found at a shallower depth (the daily 20) still reads `>20`; "a `>` only above 100" cannot be kept without a different word for it | owner: show `>20` as now, or check at 100 daily |
+| F115 | In server mode (above 10,000 tracked keywords) a pair can be split by a page boundary, so a row shows one device and Not tracked for the other | page by keyword in the API, or pair on the server |
+| F116 | The inspector of a paired row opens the desktop (or mobile when only mobile is chosen) tracked keyword; there is no device switch in it | add a device switch |
+| F117 | The header count "Tracked N" is of tracked keywords (both devices), the table footer of keywords | align them |
+| F118 | The mock keywords are mostly desktop-only, so the Mobile column reads Not tracked there; the e2e flows open on All countries (`?loc=0`) | richer mock devices |
+
+### A domain rule is a site, not every subdomain (2026-11-04)
+
+The owner's rule: adding `eventussecurity.com` (or `www.eventussecurity.com`) tracks that site and its www form only, and a subdomain such as `partner.eventussecurity.com` is another site that is tracked only if it is added. The default scope was `registrable`, which took every subdomain.
+
+Changed: a `host` rule is now the host and its www form (`acme.com` is `www.acme.com`) and nothing else, stored without the www (resolver `site_of`, `extraction/domains.py`); `host` is the default scope of a new domain rule, of the own entity made with a project, and in the web forms ("This site"; "Site and all subdomains" is a choice). A `registrable` rule still takes every subdomain when asked for. A public suffix is refused as a host rule too. Existing rules keep their scope.
+
+| Id | Item | Plan |
+|---|---|---|
+| F114 | Rules written before this change are `registrable` and still take every subdomain, the Fynix one included | owner: change a rule to "This site" in Entities, or have it migrated; no production data was changed |

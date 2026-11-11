@@ -82,15 +82,15 @@ export function useRankHistoryChart(
     const labelOf = (type: string): string => {
       switch (type) {
         case 'url_changed':
-          return t('eventMark.url_changed');
+          return t('eventMark.urlChanged');
         case 'entered_top_10':
-          return t('eventMark.entered_top_10');
+          return t('eventMark.enteredTop10');
         case 'lost_top_10':
-          return t('eventMark.lost_top_10');
+          return t('eventMark.lostTop10');
         case 'aio_appeared':
-          return t('eventMark.aio_appeared');
+          return t('eventMark.aioAppeared');
         case 'aio_disappeared':
-          return t('eventMark.aio_disappeared');
+          return t('eventMark.aioDisappeared');
         default:
           return type;
       }

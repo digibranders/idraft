@@ -156,16 +156,19 @@ async def refresh_keyword_metrics(
 @router.post(
     "/seo/check-now",
     status_code=202,
-    summary="Check keywords now (a manual run, asked of the provider live)",
+    summary="Check keywords now (a manual run through the provider's standard queue)",
     description="The given tracked keywords (at most 100, which the project collects; "
-    "`422 validation_failed` with `keyword_unknown` otherwise), each asked of the provider "
-    "live, at `depth` or else its daily depth. The run is `planned` and the worker plans it "
-    "within a minute; a result is normally there within seconds after that. Read the run for "
-    "its progress and the keywords' rank for the answer. A budget used up blocks it "
-    "(`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC), with "
-    "`limit`; `422 quota_exceeded` when the month's live checks would pass the workspace's "
-    "`max_serp_checks_per_month`; `503 provider_paused` while the provider is refusing every "
-    "request.",
+    "`422 validation_failed` with `keyword_unknown` otherwise), asked through the provider's "
+    "standard queue, the path a schedule uses, at `depth` or else the keyword's daily depth. "
+    "The run is `planned` and the worker plans it within a minute; the provider answers "
+    "within minutes, not seconds. Read each keyword's `state.check` (`queued`, `processing`, "
+    "`completed`, `inconclusive`, `failed`) for progress and its rank for the answer. A "
+    "keyword that already has a check queued or under way is refused with `409 check_pending` "
+    "and its ids in `tracked_keyword_ids`: it would be a second paid request for the same "
+    "reading. A budget used up blocks it (`budget_blocked`). `429 manual_run_limit` after 20 "
+    "manual runs in a day (UTC), with `limit`; `422 quota_exceeded` when the month's manual "
+    "checks would pass the workspace's `max_serp_checks_per_month`; `503 provider_paused` "
+    "while the provider is refusing every request.",
 )
 async def check_now(
     project_id: UUID, body: CheckNow, access: TriggerRuns, runs: Runs, info: Info

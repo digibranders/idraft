@@ -41,6 +41,8 @@ SETTINGS_VARIABLES = (
     "EMAIL_FROM",
     "EMAIL_PROVIDER",
     "ENVIRONMENT",
+    "GOOGLE_OAUTH_CLIENT_ID",
+    "GOOGLE_OAUTH_CLIENT_SECRET",
     "HEARTBEAT_FILE",
     "INSTALLATION_ID",
     "LOG_LEVEL",
@@ -54,11 +56,15 @@ SETTINGS_VARIABLES = (
     "REGISTRATION",
     "RELEASE_SHA",
     "RESOLVE_UNKNOWN_SUBMISSIONS",
+    "SECRETS_ENCRYPTION_KEY",
     "SENTRY_DSN",
     "TOTP_ENCRYPTION_KEY",
 )
 # A fixed key for tests only: base64 of bytes 0 to 31.
 TEST_TOTP_KEY = SecretStr("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
+# Another fixed key for tests only: base64 of bytes 32 to 63. Not the TOTP key, so a test that
+# mixes the two up fails.
+TEST_SECRETS_KEY = SecretStr("ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=")
 POSTGRES_IMAGE = "postgres:18"
 INITDB_DIR = Path(__file__).parents[2] / "infra" / "compose" / "postgres" / "initdb"
 ROLE_PASSWORDS = {"migrator": "migrator-pw", "app_api": "api-pw", "app_worker": "worker-pw"}
@@ -195,6 +201,7 @@ def settings(postgres_url: str, redis_url: str) -> Settings:
         db_pool_size=1,
         app_env="test",
         totp_encryption_key=TEST_TOTP_KEY,
+        secrets_encryption_key=TEST_SECRETS_KEY,
     )
 
 
@@ -222,6 +229,7 @@ def app_settings(migrated: PostgresServer, redis_url: str) -> Settings:
         log_level="critical",
         app_env="test",
         totp_encryption_key=TEST_TOTP_KEY,
+        secrets_encryption_key=TEST_SECRETS_KEY,
         breached_password_check=False,
     )
 

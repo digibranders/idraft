@@ -5,7 +5,7 @@ import { RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { checkNowRefusal, checkNowTarget } from './check-now-model';
+import { checkNowRefusal, checkNowTarget, type CheckNowTarget } from './check-now-model';
 import { RefreshProgress } from '../refresh/refresh-progress';
 import {
   endedRefreshes,
@@ -33,6 +33,8 @@ export interface UseCheckNowArgs {
   enabled: boolean;
   archived: boolean;
   chosen: { ids: ReadonlySet<string>; allMatching: boolean };
+  /** Tracked keywords whose latest check is queued or being answered (`state.check`). */
+  pendingIds: ReadonlySet<string>;
   onDrop: (trackedIds: ReadonlySet<string>) => void;
 }
 
@@ -43,9 +45,17 @@ export interface CheckNowResult {
   barAction: RecordAction<TrackedKeywordRow> | null;
   inspectorAction: (trackedId: string, active: boolean, presentation?: CheckNowPresentation) => ReactNode;
   progress: ReactNode;
+  /** Whether Check now is offered at all (the person may trigger runs). */
+  enabled: boolean;
+  /** Why Check now waits for these tracked ids (both devices), in the bar's words, or `null` when it can run. */
+  reasonFor: (ids: ReadonlySet<string>) => string | null;
+  /** Checks these tracked ids, when `reasonFor` has nothing against them. */
+  check: (ids: ReadonlySet<string>) => void;
+  /** A check is being asked for. */
+  checking: boolean;
 }
 
-export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseCheckNowArgs): CheckNowResult {
+export function useCheckNow({ scope, enabled, archived, chosen, pendingIds, onDrop }: UseCheckNowArgs): CheckNowResult {
   const t = useTranslations('rankings.checkNow');
   const queryClient = useQueryClient();
   const { user } = useMe();
@@ -122,6 +132,10 @@ export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseChe
           });
         } else if (refusal.kind === 'paused') {
           toast({ type: 'error', title: t('refused.paused') });
+        } else if (refusal.kind === 'pending') {
+          toast({ type: 'error', title: t('refused.pending', { count: refusal.count }) });
+          // Another check was started meanwhile: the rows are read again to show it
+          void refreshKeywords(queryClient, scope);
         } else if (refusal.kind === 'unknownKeyword') {
           toast({ type: 'error', title: t('refused.unknownKeyword') });
           void refreshKeywords(queryClient, scope);
@@ -137,14 +151,25 @@ export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseChe
     [scope, queryClient, refetch, t, onDrop],
   );
 
-  const target = checkNowTarget(chosen, archived);
-  const disabledReason = inFlight
-    ? t('inProgress')
-    : exhausted
-      ? t('blocked.noneLeft')
-      : target.kind === 'blocked'
-        ? t(`blocked.${target.reason}`)
-        : null;
+  const reasonOf = (target: CheckNowTarget): string | null =>
+    inFlight
+      ? t('inProgress')
+      : exhausted
+        ? t('blocked.noneLeft')
+        : target.kind === 'blocked'
+          ? t(`blocked.${target.reason}`)
+          : null;
+  const target = checkNowTarget(chosen, archived, pendingIds);
+  const disabledReason = reasonOf(target);
+  // A set of keywords that is not the selection, such as a group's: the same checks and limit
+  const targetOf = (ids: ReadonlySet<string>): CheckNowTarget =>
+    checkNowTarget({ ids, allMatching: false }, archived, pendingIds);
+  const reasonFor = (ids: ReadonlySet<string>): string | null => (enabled ? reasonOf(targetOf(ids)) : null);
+  const check = (ids: ReadonlySet<string>): void => {
+    const asked = targetOf(ids);
+    if (!enabled || inFlightRef.current || asked.kind !== 'ids') return;
+    void triggerCheck(asked.ids);
+  };
 
   const barAction: RecordAction<TrackedKeywordRow> | null = enabled
     ? {
@@ -163,7 +188,13 @@ export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseChe
   const inspectorAction = useCallback(
     (trackedId: string, active: boolean, presentation: CheckNowPresentation = 'inspector'): ReactNode => {
       if (!enabled || !active) return null;
-      const reason = inFlight ? t('inProgress') : exhausted ? t('blocked.noneLeft') : null;
+      const reason = inFlight
+        ? t('inProgress')
+        : pendingIds.has(trackedId)
+          ? t('blocked.pending')
+          : exhausted
+            ? t('blocked.noneLeft')
+            : null;
       const onPage = presentation === 'page';
       return (
         <Tooltip content={reason ?? ''} disabled={reason === null}>
@@ -181,12 +212,12 @@ export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseChe
         </Tooltip>
       );
     },
-    [enabled, inFlight, exhausted, triggerCheck, t],
+    [enabled, inFlight, exhausted, pendingIds, triggerCheck, t],
   );
 
   const progress = followed.map((runId) => (
     <RefreshProgress key={runId} scope={scope} runId={runId} workload="seo_rank" onSettled={onSettled} />
   ));
 
-  return { barAction, inspectorAction, progress };
+  return { barAction, inspectorAction, progress, enabled, reasonFor, check, checking: inFlight };
 }

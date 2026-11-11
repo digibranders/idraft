@@ -286,6 +286,10 @@
       "unverified": "Your email address is not verified yet. Open the verification link we sent you, then open the invitation link again.",
       "failed": "The request did not go through. Open the invitation link again to retry.",
       "continueTo": "Continue to {workspace}"
+    },
+    "integrationNotice": {
+      "title": "The Google connection did not finish",
+      "description": "The link was already used, has expired, or belongs to another session. Open Integrations in your project and connect Google again."
     }
   },
   "navigation": {
@@ -444,12 +448,12 @@
       "depth": "Default depth profile",
       "depthHint": "How deep the daily rank checks read the results.",
       "depthHints": {
-        "light": "Daily check to the top 10, deep check to the top 100 each week",
-        "standard": "Daily check to the top 20, deep check to the top 100 each week",
-        "deep": "Daily check to the top 50, deep check to the top 100 each week",
+        "light": "Daily check to the top 100",
+        "standard": "Daily check to the top 100",
+        "deep": "Daily check to the top 100",
         "full": "Daily check to the top 100",
         "weekly": "One check to the top 100 each week, none on other days",
-        "weeklyLight": "One check to the top 20 each week, none on other days"
+        "weeklyLight": "One check to the top 100 each week, none on other days"
       },
       "frequency": "Default check frequency",
       "frequencyHint": "How often a new keyword is checked.",
@@ -1102,13 +1106,13 @@
       "domain": "Domain",
       "scope": "Counts",
       "scopes": {
-        "registrable": "Whole domain",
-        "host": "This host only",
+        "registrable": "Site and all subdomains",
+        "host": "This site",
         "pathPrefix": "Pages under a path"
       },
       "scopeHints": {
-        "registrable": "Every host of the domain, such as blog.acme.com",
-        "host": "Only the host as typed",
+        "registrable": "Every subdomain too, such as blog.acme.com",
+        "host": "The domain and its www form, such as acme.com and www.acme.com. Not other subdomains",
         "pathPrefix": "Only pages under one path, such as medium.com/@acme"
       },
       "path": "Path",
@@ -1411,6 +1415,8 @@
     "resetWidth": "Reset width",
     "selectAll": "Select all {count, plural, one {# {nounOne}} other {# {nounOther}}} loaded",
     "selectRow": "Select {name}",
+    "expandGroup": "Expand {name}",
+    "collapseGroup": "Collapse {name}",
     "rowActions": "Actions for {name}",
     "actionsColumn": "Actions",
     "selected": "{count} selected",
@@ -1684,8 +1690,6 @@
       "tags": "Add tags",
       "group": "Move to group",
       "targetUrl": "Set target URL",
-      "priority": "Set priority",
-      "archive": "Archive",
       "unarchive": "Unarchive",
       "delete": "Delete",
       "failed": "The change was not made. Try again.",
@@ -1725,17 +1729,6 @@
         "set": "Target URL set for {count}",
         "cleared": "Target URL cleared for {count}",
         "versions": "{count, plural, one {# configuration version started} other {# configuration versions started}}"
-      },
-      "priorityDialog": {
-        "title": "Priority for {count}",
-        "priority": "Priority",
-        "submit": "Set for {count}",
-        "set": "Priority {priority} set for {count}"
-      },
-      "archiveConfirm": {
-        "title": "Archive {count}?",
-        "description": "Archived keywords are no longer checked and do not count against the plan. Their history is kept, and you can unarchive them.",
-        "confirm": "Archive {count}"
       },
       "unarchiveConfirm": {
         "title": "Unarchive {count}?",
@@ -1931,8 +1924,51 @@
       "downloadReport": "Download report",
       "reportName": "keyword-import-{date}.csv"
     },
+    "pages": {
+      "label": "Pages that rank for this keyword",
+      "title": "{count, plural, one {Ranking page} other {# pages rank for this keyword}}",
+      "page": "Page",
+      "best": "Best rank",
+      "subResult": "Sub-result of the page above",
+      "checked": "At the last check, {time}.",
+      "competing": "Pages competing for one keyword can hold each other back."
+    },
+    "export": {
+      "open": "Export",
+      "xlsx": "Excel workbook with summary",
+      "csv": "CSV, table only",
+      "failed": {
+        "title": "The export did not finish",
+        "description": "The keywords could not be read. Try again."
+      },
+      "sheet": "Keywords",
+      "country": "Country",
+      "devices": "Devices",
+      "filters": "Filters",
+      "filtersNone": "None",
+      "filtersCount": "{count, plural, one {# filter} other {# filters}}",
+      "search": "Search",
+      "archived": "Archived keywords only",
+      "exported": "Exported",
+      "columns": {
+        "keyword": "Keyword",
+        "url": "Ranking URL",
+        "volume": "Search volume",
+        "clicks": "Clicks (28 days)",
+        "impressions": "Impressions (28 days)",
+        "difficulty": "KD",
+        "cpc": "CPC (USD)",
+        "intent": "Intent",
+        "priority": "Priority",
+        "groups": "Groups",
+        "checked": "Last checked"
+      }
+    },
     "add": {
       "open": "Add keywords",
+      "options": "Add keywords options",
+      "moreWays": "More ways to add keywords",
+      "importFile": "Import from a file",
       "title": "Add keywords",
       "description": "Keywords are tracked on Google. Their metrics arrive within minutes.",
       "keywords": "Keywords",
@@ -1947,9 +1983,23 @@
         "keywordTooLong": "use at most {max} characters",
         "searchOperatorNotAllowed": "search operators such as site: or a minus before a word are not tracked"
       },
-      "counter": "{count, plural, =0 {No keywords yet} one {# keyword} other {# keywords}}{repeats, plural, =0 {} one { · # repeat left out} other { · # repeats left out}}{rows, plural, =0 {} other { · # tracked keywords, one per device}}",
-      "location": "Location",
-      "locationRequired": "Choose a location",
+      "counter": "{count, plural, =0 {No keywords yet} one {# keyword} other {# keywords}}{repeats, plural, =0 {} one { · # repeat left out} other { · # repeats left out}}",
+      "countries": "Countries",
+      "countriesHint": "A keyword is tracked in each country you choose, on each device",
+      "countriesPlaceholder": "Choose countries",
+      "countriesEmpty": "No countries match “{query}”",
+      "countriesRequired": "Choose at least one country",
+      "countriesTooMany": "Choose at most {max} countries in one add",
+      "countriesFailed": "The countries could not be loaded",
+      "deviceRequired": "Choose a device",
+      "plan": {
+        "empty": "Each keyword is checked once a day in every country and on every device chosen.",
+        "noDevice": "Choose a device to see the checks a day",
+        "checks": "{keywords, plural, one {# keyword} other {# keywords}} × {devices, plural, one {# device} other {# devices}} × {countries, plural, one {# country} other {# countries}} = {checks, plural, one {# check} other {# checks}} a day",
+        "cost": "Up to {day} a day, {month} a month",
+        "quota": "Plan: {used} of {limit} tracked keywords used, {after} after this add",
+        "over": "Over the plan by {count, plural, one {# tracked keyword} other {# tracked keywords}}"
+      },
       "language": "Language",
       "device": "Device",
       "devices": {
@@ -1985,6 +2035,8 @@
         "skipped": "Already tracked",
         "skippedReason": "{count, plural, one {The project tracks this keyword already.} other {The project tracks these # keywords already.}}",
         "rejected": "Not added",
+        "stoppedFailed": "The add stopped before every keyword was sent. Try again: the keywords already added are skipped.",
+        "keywordCountry": "{keyword} ({country})",
         "keywordDevice": "{keyword} · {device}",
         "archived": "Archived",
         "show": "Show it: {keyword}",
@@ -2121,11 +2173,13 @@
         "tooMany": "Check now takes up to 100 keywords at a time.",
         "none": "Choose keywords first.",
         "archived": "Archived keywords are not checked.",
+        "pending": "A check is already queued or under way for a chosen keyword.",
         "noneLeft": "No manual runs left today. The limit resets at 00:00 UTC."
       },
       "refused": {
         "limit": "No manual runs left today. The limit resets at 00:00 UTC.",
-        "quota": "This workspace has made {used} of its {limit} live checks this month. {requested, plural, one {1 more does} other {# more do}} not fit.",
+        "pending": "A check is already queued or under way for {count, plural, one {this keyword} other {some of these keywords}}. Wait for it to finish.",
+        "quota": "This workspace has made {used} of its {limit} manual checks this month. {requested, plural, one {1 more does} other {# more do}} not fit.",
         "paused": "The data provider is not being asked just now. Try again in a few minutes.",
         "unknownKeyword": "A keyword is no longer tracked here. The list was read again; try again.",
         "other": "The check did not start. Try again."
@@ -2148,6 +2202,16 @@
         "budgetBlocked": "The rank check did not start: a budget for rank checks is used up this month"
       }
     },
+    "scope": {
+      "device": "Device",
+      "country": "Country: {country}",
+      "countrySearch": "Search countries",
+      "countryEmpty": "No countries match “{query}”",
+      "clear": "Clear",
+      "open": "Show countries",
+      "defaultCountry": "India",
+      "allCountries": "All countries"
+    },
     "caption": "Tracked keywords",
     "noun": {
       "one": "keyword",
@@ -2161,7 +2225,62 @@
     "view": {
       "label": "Show",
       "active": "Active",
-      "archived": "Archived"
+      "archived": "Archived",
+      "showArchived": "Show archived keywords",
+      "archivedChip": "Archived keywords",
+      "backToActive": "Show active keywords"
+    },
+    "grouped": {
+      "inTop10": "{count, number} in top 10",
+      "cited": "{count, number} cited",
+      "unknown": "Unknown",
+      "gscPending": "Pending",
+      "gscNotConnected": "Not connected",
+      "showAll": "Show {count, number} more",
+      "notGrouped": "Not grouped",
+      "expand": "Expand {label} group, {count, plural, one {# keyword} other {# keywords}}",
+      "collapse": "Collapse {label} group, {count, plural, one {# keyword} other {# keywords}}",
+      "groupName": "{label}, {count, plural, one {# keyword} other {# keywords}}",
+      "keywordCount": "{count, plural, one {# keyword} other {# keywords}}",
+      "viewLabel": "View",
+      "byGroup": "By group",
+      "allKeywords": "All keywords",
+      "needsClientMode": "By group needs every keyword loaded, which works up to 10,000 keywords. Narrow the list with a filter.",
+      "sortLabel": "Sort groups",
+      "sort": {
+        "size": "Most keywords",
+        "name": "Name",
+        "volume": "Volume",
+        "rank": "Best rank"
+      },
+      "loading": "Groups are complete when all keywords have loaded: {loaded} of {total} so far.",
+      "openGroup": "Open group",
+      "addKeywords": "Add keywords",
+      "renameGroup": "Rename group",
+      "deleteGroup": "Delete group",
+      "noKeywordsToCheck": "No keyword of this group is in view."
+    },
+    "groupInspector": {
+      "type": "Keyword group",
+      "noun": "group",
+      "figures": "On {device}",
+      "keywords": "Keywords",
+      "top3": "Top 3",
+      "top10": "Top 10",
+      "top20": "Top 20",
+      "volume": "Search volume",
+      "cited": "Cited in AI Overview",
+      "updated": "Last checked",
+      "notChecked": "Not checked yet",
+      "ofKeywords": "{count, number} of {total, number}",
+      "list": "Keywords and their rank",
+      "keyword": "Keyword",
+      "rank": "Rank",
+      "openKeyword": "Open {keyword}",
+      "emptyTitle": "No keywords of this group in view",
+      "emptyReason": "The device, country, filters or search leave out every keyword of this group.",
+      "needsEveryKeyword": "Group figures need every keyword loaded, which works up to 10,000 keywords.",
+      "needsEveryKeywordReason": "Narrow the list with a filter to see this group's figures and keywords."
     },
     "error": {
       "title": "The keywords did not load",
@@ -2194,22 +2313,34 @@
       "reasonArchived": "{count, plural, one {The active filter excludes} other {The # active filters exclude}} every archived keyword.",
       "clear": "Clear filters"
     },
+    "gscTrend": {
+      "up": "{metric, select, clicks {Clicks} other {Impressions}} up {percent} percent over the last 28 days",
+      "upFromNone": "{metric, select, clicks {Clicks} other {Impressions}} up from none over the last 28 days",
+      "down": "{metric, select, clicks {Clicks} other {Impressions}} down {percent} percent over the last 28 days",
+      "flat": "{metric, select, clicks {Clicks} other {Impressions}} flat over the last 28 days",
+      "insufficient": "Too few {metric, select, clicks {clicks} other {impressions}} in the last 28 days to show a trend",
+      "halves": "First 12 days: {earlier}. Last 12 days: {later}"
+    },
     "columns": {
       "keyword": "Keyword",
-      "keywordDetail": "{location} · {device} · {engine} · {language}",
       "openRankingPage": "Open the ranking page of {keyword}: {url}",
-      "moreRankingPages": "{count, plural, one {(+1 more ranking page)} other {(+# more ranking pages)}}",
-      "rowName": "{keyword}, {device}, {location}",
-      "rowNameLanguage": "{keyword}, {device}, {location}, {language}",
+      "openRankingPageMany": "Open the ranking page of {keyword}: {url}. {count} pages rank for this keyword",
+      "rowName": "{keyword}, {location}",
+      "rowNameLanguage": "{keyword}, {location}, {language}",
+      "country": "Country",
       "desktop": "Desktop",
       "mobile": "Mobile",
       "google": "Google",
       "volume": "Volume",
-      "volumeTooltip": "Monthly searches, an estimate from DataForSEO Labs",
+      "clicks": "Clicks",
+      "impressions": "Impressions",
+      "gscTooltip": "From Google Search Console: the last 28 days on the device shown, never an estimate",
+      "gscNotConnected": "Not connected",
+      "gscNotConnectedTooltip": "Connect Google Search Console in Integrations to see clicks and impressions",
+      "gscPendingTooltip": "The first pull from Search Console is running",
       "difficulty": "KD",
       "difficultyTooltip": "Keyword difficulty, from 0 to 100",
       "cpc": "CPC (USD)",
-      "cpcTooltip": "Cost per click in Google Ads, in US dollars",
       "intent": "Intent",
       "intents": {
         "informational": "Informational",
@@ -2221,7 +2352,6 @@
       "manual": "Manual",
       "intentUnknown": "Unknown",
       "priority": "Priority",
-      "priorityTooltip": "1 is the highest priority and 5 the lowest",
       "group": "Group",
       "tags": "Tags",
       "none": "None",
@@ -2233,38 +2363,34 @@
     },
     "rank": {
       "rank": "Rank",
-      "rankTooltip": "Organic rank at the latest check and how it moved since the previous check. A keyword beyond the depth that was checked shows the depth, such as >20.",
+      "rankTooltip": "Organic rank at the latest check and how it moved since the previous check. A hyphen means the keyword was not found within the depth that was checked.",
+      "notInTop": "Not in the top {depth}",
       "rankingUrl": "Ranking URL",
       "openUrl": "Open {path} in a new tab",
       "copyUrl": "Copy ranking URL",
       "urlCopied": "Ranking URL copied",
       "bestRank": "Best rank",
-      "bestRankTooltip": "The best organic rank in the checks kept.",
       "updated": "Updated",
       "pending": "Pending",
       "pendingTooltip": "The first check has not run yet.",
       "failed": "Check failed",
-      "failedTooltip": "The last check failed. It will be tried again.",
       "stale": "Stale",
       "staleTooltip": "No recent successful check. The rank shown is from the last one that worked.",
+      "checkingTooltip": "A check is queued or being answered. The rank shown is from the last one that finished.",
+      "inconclusiveTooltip": "The latest check could not say whether your site is absent, so the rank was not changed.",
+      "unconfirmedTooltip": "The latest check did not find this keyword, and the one before did. A second check confirms the drop before it stands.",
       "notRanking": "Not ranking",
       "unavailable": "n/a",
-      "rankTip": "Rank {rank}, {date}, depth {depth}",
-      "beyondTip": "Not in the top {depth}, {date}",
-      "previousRank": "Previous rank {rank}.",
       "lastGood": "Last successful check: {date}.",
-      "checked": "Checked {date}.",
-      "fromTo": "From {from} to {to}",
       "new": "New",
       "lost": "Lost",
       "moreUrls": "{count, plural, one {and 1 more of your URLs ranks} other {and # more of your URLs rank}}",
-      "changeTip": {
-        "improved": "{count, plural, one {Improved # position} other {Improved # positions}}",
-        "declined": "{count, plural, one {Declined # position} other {Declined # positions}}"
-      },
       "speech": {
         "beyond": "not in top {depth}",
         "stale": "stale",
+        "checking": "check in progress",
+        "inconclusive": "latest check inconclusive",
+        "unconfirmed": "drop not yet confirmed",
         "lastCheckFailed": "last check failed",
         "improved": "{count, plural, one {improved # position} other {improved # positions}}",
         "declined": "{count, plural, one {declined # position} other {declined # positions}}",
@@ -2280,11 +2406,8 @@
       "column": "SERP features",
       "columnTooltip": "Result features on the first page at the latest check. Highlighted ones show your site.",
       "none": "None",
-      "noneTooltip": "No result features on the first page at the latest check.",
       "pending": "Pending",
-      "pendingTooltip": "The first check has not run yet.",
       "failed": "Check failed",
-      "failedTooltip": "The last check failed. It will be tried again.",
       "more": "+{count}",
       "owned": "{feature}, yours",
       "yours": "Yours: {features}",
@@ -2329,16 +2452,11 @@
     "aio": {
       "column": "AI Overview",
       "columnTooltip": "Whether Google showed an AI Overview at the latest check, and whether it cites your site.",
-      "cited": "Cited #{position}",
-      "citedNoPosition": "Cited",
-      "citedTooltip": "Cited at position {position}",
+      "cited": "#{position}",
       "absent": "No AIO",
       "notLoaded": "Not loaded",
-      "notLoadedTooltip": "The AI Overview did not load at the latest check.",
       "unknown": "n/a",
-      "unknownTooltip": "The latest check did not record the AI Overview.",
       "pending": "Pending",
-      "pendingTooltip": "The first check has not run yet.",
       "failed": "Check failed",
       "failedTooltip": "The last check failed. It will be tried again.",
       "speech": {
@@ -2361,26 +2479,20 @@
       "mismatchChoice": "Ranks with another URL"
     },
     "competitor": {
-      "headerTooltip": "{name}'s organic rank at the latest check.",
       "notTracked": "n/a",
-      "notTrackedTooltip": "{name} is not in this keyword's competitor set.",
       "speech": "{name}: {rank}",
       "failed": "The project competitors did not load."
     },
     "trend": {
       "column": "Trend",
-      "columnTooltip": "Rank at the last 30 checks, better up, on a scale of 1 to 20. A gap is a check beyond the depth.",
-      "label": "Rank trend, last {checks, plural, one {check} other {# checks}}: from {first} to {last}, best {best}",
-      "labelBeyond": "{count, plural, one {1 check} other {# checks}} beyond the depth checked",
-      "labelNone": "Rank trend: not ranked within the depth in the last {checks, plural, one {check} other {# checks}}",
-      "labelEmpty": "Rank trend: no checks yet",
-      "labelFailed": "Rank trend: checks failed",
-      "tipTitle": "Last checks",
-      "tipPoint": "{date}: {rank}"
+      "label": "Search volume trend, last {months, plural, one {month} other {# months}}: from {first} to {last}, peak {peak}",
+      "labelEmpty": "Search volume trend: no monthly volumes yet",
+      "tipTitle": "Monthly search volume",
+      "tipPoint": "{month}: {volume}"
     },
     "strip": {
       "label": "Summary for the filtered keywords",
-      "tracked": "Tracked",
+      "tracked": "Keywords",
       "trackedNote": "{count} checked",
       "top3": "Top 3",
       "top10": "Top 10",
@@ -2391,6 +2503,7 @@
     },
     "filters": {
       "group": "Group",
+      "country": "Country",
       "tag": "Tags",
       "termLabel": "{vocabulary}: {term}",
       "device": "Device",
@@ -2477,11 +2590,11 @@
       "deepNote": "{count, plural, one {1 deep check is not drawn.} other {# deep checks are not drawn.}}",
       "eventsMarked": "{count, plural, =0 {No events are marked on the chart.} one {1 event is marked on the chart and listed under Events.} other {# events are marked on the chart and listed under Events.}}",
       "eventMark": {
-        "url_changed": "Ranking URL changed",
-        "entered_top_10": "Entered the top 10",
-        "lost_top_10": "Left the top 10",
-        "aio_appeared": "An AI Overview appeared",
-        "aio_disappeared": "The AI Overview disappeared"
+        "urlChanged": "Ranking URL changed",
+        "enteredTop10": "Entered the top 10",
+        "lostTop10": "Left the top 10",
+        "aioAppeared": "An AI Overview appeared",
+        "aioDisappeared": "The AI Overview disappeared"
       },
       "eventKey": {
         "label": "Marks on the chart",
@@ -2706,11 +2819,11 @@
       "deepCheck": "deep check {weekday}",
       "window": {
         "label": "Window",
-        "7d": "Last 7 days",
-        "30d": "Last 30 days",
-        "90d": "Last 90 days",
-        "180d": "Last 180 days",
-        "365d": "Last 365 days"
+        "last7Days": "Last 7 days",
+        "last30Days": "Last 30 days",
+        "last90Days": "Last 90 days",
+        "last180Days": "Last 180 days",
+        "last365Days": "Last 365 days"
       },
       "competitors": {
         "label": "Competitors on the chart",
@@ -2749,6 +2862,8 @@
       "topTen": "Days in top 10",
       "topTenOf": "of {days, plural, one {1 day checked} other {# days checked}}",
       "aio": "AI Overview",
+      "aioCited": "Cited",
+      "aioCitedAt": "Cited #{position}",
       "aioChecks": "{present} of {of, plural, one {1 check} other {# checks}}",
       "aioNoChecks": "No readable checks in this window",
       "unavailable": "n/a",
@@ -2834,8 +2949,8 @@
       "kinds": {
         "rank": "Rank",
         "url": "Ranking URL",
-        "serp_feature": "SERP features",
-        "ai_citation": "AI Overview citation",
+        "serpFeature": "SERP features",
+        "aiCitation": "AI Overview citation",
         "competitor": "Competitors"
       },
       "rank": {
@@ -2843,26 +2958,26 @@
         "none": "not ranked"
       },
       "types": {
-        "entered_top_3": "Entered the top 3, from {from} to {to}",
-        "entered_top_10": "Entered the top 10, from {from} to {to}",
-        "entered_top_20": "Entered the top 20, from {from} to {to}",
-        "entered_top_100": "Entered the top 100, from {from} to {to}",
-        "lost_top_3": "Left the top 3, from {from} to {to}",
-        "lost_top_10": "Left the top 10, from {from} to {to}",
-        "lost_top_20": "Left the top 20, from {from} to {to}",
-        "lost_top_100": "Left the top 100, from {from} to {to}",
-        "new_ranking": "Started ranking at {to}",
-        "lost_ranking": "Stopped ranking, it was {from}",
-        "rank_gain": "Rank improved from {from} to {to}",
-        "rank_drop": "Rank dropped from {from} to {to}",
-        "url_changed": "Ranking URL changed from {fromPath} to {toPath}",
-        "feature_gained": "You now own {feature}",
-        "feature_lost": "You no longer own {feature}",
-        "aio_appeared": "An AI Overview appeared",
-        "aio_disappeared": "The AI Overview disappeared",
-        "aio_citation_gained": "Your site is now cited in the AI Overview",
-        "aio_citation_lost": "Your site is no longer cited in the AI Overview",
-        "overtaken_by": "{competitor} passed you, from {from} to {to}",
+        "enteredTop3": "Entered the top 3, from {from} to {to}",
+        "enteredTop10": "Entered the top 10, from {from} to {to}",
+        "enteredTop20": "Entered the top 20, from {from} to {to}",
+        "enteredTop100": "Entered the top 100, from {from} to {to}",
+        "lostTop3": "Left the top 3, from {from} to {to}",
+        "lostTop10": "Left the top 10, from {from} to {to}",
+        "lostTop20": "Left the top 20, from {from} to {to}",
+        "lostTop100": "Left the top 100, from {from} to {to}",
+        "newRanking": "Started ranking at {to}",
+        "lostRanking": "Stopped ranking, it was {from}",
+        "rankGain": "Rank improved from {from} to {to}",
+        "rankDrop": "Rank dropped from {from} to {to}",
+        "urlChanged": "Ranking URL changed from {fromPath} to {toPath}",
+        "featureGained": "You now own {feature}",
+        "featureLost": "You no longer own {feature}",
+        "aioAppeared": "An AI Overview appeared",
+        "aioDisappeared": "The AI Overview disappeared",
+        "aioCitationGained": "Your site is now cited in the AI Overview",
+        "aioCitationLost": "Your site is no longer cited in the AI Overview",
+        "overtakenBy": "{competitor} passed you, from {from} to {to}",
         "overtook": "You passed {competitor}, now at {to}",
         "unknown": "{code}"
       },
@@ -2917,5 +3032,202 @@
     "noOptions": "No option matches",
     "clear": "Clear",
     "apply": "Apply"
+  },
+  "integrations": {
+    "pageTitle": "Google",
+    "title": "Google",
+    "accountUnknown": "a Google account",
+    "tabs": {
+      "label": "Data sources",
+      "google": "Google",
+      "bing": "Bing",
+      "cloudflare": "Cloudflare",
+      "imports": "Imports",
+      "unavailable": "Not available yet"
+    },
+    "meta": {
+      "notConnected": "Not connected. Nothing is imported from Google.",
+      "connected": "Connected as {account}. Search Console: {gsc}. GA4: {ga4}.",
+      "noProperty": "no property chosen",
+      "reauth": "Reconnect needed for {account}.",
+      "problem": "Connected as {account}, but Google is reporting an error."
+    },
+    "actions": {
+      "more": "More actions for Google",
+      "reconnect": "Reconnect",
+      "reconnectItem": "Reconnect Google",
+      "disconnect": "Disconnect Google"
+    },
+    "loadFailed": "Could not load Google",
+    "loadFailedReason": "The server returned an error. Nothing was changed.",
+    "connectionLoadFailed": "Could not load the Google connection",
+    "forbidden": "Your role cannot see integrations.",
+    "readOnlyLead": "Read only:",
+    "readOnly": "Connections belong to the whole workspace. Connecting Google or changing a property needs the owner or admin role with access to every project.",
+    "empty": {
+      "title": "Google is not connected",
+      "reason": "Connect the Google account that can read this site in Search Console and Google Analytics. One sign-in covers both.",
+      "reasonReadOnly": "Ask an owner or admin to connect the Google account that can read this site.",
+      "note": "Clicks and impressions are not imported yet, and neither are GA4 numbers. Connecting now saves the properties for when they are.",
+      "connect": "Connect Google"
+    },
+    "errors": {
+      "lead": "Google was not connected.",
+      "invalidState": "The link expired, was already used, or was opened in another session. Connect again.",
+      "scopeDenied": "Google did not give idraft permission to read Search Console or Google Analytics. Connect again and leave at least one of the two boxes ticked.",
+      "noRefreshToken": "Google did not return the sign-in idraft needs to stay connected. Connect again. If it repeats, remove idraft from the third-party access of your Google account first.",
+      "exchangeFailed": "Google could not finish the sign-in. Connect again.",
+      "googleUnavailable": "Google did not answer. Try again in a few minutes.",
+      "integrationNotConfigured": "Google sign-in is not set up on this installation. Ask the person who runs idraft to add the Google OAuth client.",
+      "unknown": "The connection did not finish. Try again.",
+      "connectAgain": "Connect again",
+      "dismiss": "Dismiss"
+    },
+    "authorizeFailed": "Could not start the connection. Nothing was changed. Try again.",
+    "authorizeNotConfigured": "Google sign-in is not set up on this installation. Ask the person who runs idraft to add the Google OAuth client.",
+    "opening": "Opening Google to ask for permission",
+    "reauth": {
+      "lead": "Reconnect needed:",
+      "message": "Google no longer accepts the saved sign-in for {account}. Reconnect to keep using Search Console and GA4."
+    },
+    "connection": {
+      "title": "Connection",
+      "status": "Status",
+      "account": "Account",
+      "connectedBy": "Connected by",
+      "since": "Since",
+      "unknown": "Not shown",
+      "statuses": {
+        "active": "Connected",
+        "reauthRequired": "Reconnect needed",
+        "error": "Error",
+        "revoked": "Disconnected"
+      }
+    },
+    "propertyTypes": {
+      "domain": "Domain",
+      "urlPrefix": "URL prefix"
+    },
+    "product": {
+      "property": "Property",
+      "change": "Change",
+      "reconnect": "Reconnect",
+      "reconnectFirst": "Reconnect Google to choose a property.",
+      "noneChosen": "No property chosen.",
+      "keptProperty": "Kept from before: {property}. It is not read until access is granted.",
+      "gsc": {
+        "title": "Search Console property",
+        "accessMissing": "Search Console access was not granted. Reconnect Google and leave the Search Console box ticked to add it."
+      },
+      "ga4": {
+        "title": "GA4 property",
+        "accessMissing": "Google Analytics access was not granted. Reconnect Google and leave the Google Analytics box ticked to add it.",
+        "importNote": "Importing GA4 numbers is not available yet. Choosing a property saves it for when it is."
+      }
+    },
+    "access": {
+      "title": "Access",
+      "description": "What idraft may do with the connected Google account. Google lets you untick a permission, so a product can be missing.",
+      "listLabel": "Access granted to idraft",
+      "webmasters": "Read search performance for Search Console properties",
+      "analytics": "Read reports and the property list of Google Analytics",
+      "openid": "Identify the Google account that connected",
+      "email": "Read the email address of the account, to name the connection",
+      "other": "Other access granted by Google",
+      "notGranted": "Not granted",
+      "readOnly": "Cannot modify properties, sitemaps or settings"
+    },
+    "chooser": {
+      "title": "Choose a Search Console property",
+      "description": "Choose the Search Console property to read for this project. Domain properties cover every subdomain and both http and https, so they come first.",
+      "account": "Reading as {account}.",
+      "reload": "Reload list",
+      "tableLabel": "Search Console properties of the connected account",
+      "columns": {
+        "property": "Property",
+        "access": "Access",
+        "actions": "Actions"
+      },
+      "suggested": "Suggested",
+      "suggestedNote": "Matches this project's domain.",
+      "unverified": "Search Console does not let an unverified user read numbers. Verify the site in Search Console, then reload the list.",
+      "linked": "Already linked to another project.",
+      "overlap": "Overlaps {property}, which is linked to a project. The two are never added together.",
+      "choose": "Choose",
+      "chooseProperty": "Choose {property}",
+      "emptyTitle": "This account sees no Search Console properties",
+      "emptyReason": "Add the site in Search Console with this Google account, then reload the list, or disconnect and connect another account.",
+      "loadFailed": "Could not load the properties",
+      "loadFailedReason": "Google or the server did not answer. Nothing was changed.",
+      "chosen": "Property chosen",
+      "chosenDetail": "{property} is saved for this project.",
+      "notAccessible": "This account cannot read that property. The list was reloaded.",
+      "taken": "That property, or this project, is already linked. The list was reloaded.",
+      "googleUnavailable": "Google did not answer. Try again in a few minutes.",
+      "failed": "Could not save the property. Try again.",
+      "reconnect": "Reconnect",
+      "scopeMissing": "Search Console or GA4 access was not granted for this connection. Reconnect Google to add it."
+    },
+    "analyticsChooser": {
+      "title": "Choose a GA4 property",
+      "description": "Properties are listed by Google Analytics account. idraft does not match them to this project's domain, so pick the one that measures this site.",
+      "tableLabel": "GA4 properties of the connected account",
+      "columns": {
+        "property": "Property",
+        "account": "Account",
+        "actions": "Actions"
+      },
+      "types": {
+        "ordinary": "Standard",
+        "subproperty": "Subproperty",
+        "rollup": "Roll-up",
+        "unspecified": "Property"
+      },
+      "chooseProperty": "Choose {property} of {account}",
+      "emptyTitle": "This account sees no GA4 properties",
+      "emptyReason": "Create a property in Google Analytics with this Google account, then reload the list, or disconnect and connect another account.",
+      "loadFailed": "Could not load the GA4 properties",
+      "loadFailedReason": "Google or the server did not answer. Nothing was changed."
+    },
+    "sync": {
+      "stripLabel": "Search Console sync status",
+      "lastSync": "Last sync",
+      "never": "Never",
+      "coverage": "Coverage",
+      "notStarted": "Not started",
+      "rows": "Rows imported",
+      "none": "None yet",
+      "next": "Next sync",
+      "notScheduled": "Not scheduled",
+      "historyTitle": "Search Console sync history",
+      "emptyTitle": "No sync yet",
+      "emptyBeforeProperty": "The first sync starts after a property is chosen.",
+      "emptyAfterProperty": "The property is saved. Importing its numbers is not available yet, so nothing has been synced."
+    },
+    "disconnect": {
+      "title": "Disconnect Google?",
+      "description": "idraft revokes its access at Google and deletes the saved sign-in. Search Console and GA4 properties stop syncing, and the numbers already stored are kept.",
+      "descriptionShared": "idraft revokes its access at Google and deletes the saved sign-in. {count, plural, one {# property} other {# properties}} linked to projects use this connection, for Search Console and GA4, and stop syncing. The numbers already stored are kept.",
+      "confirm": "Disconnect",
+      "failed": "Could not disconnect. Nothing was changed. Try again.",
+      "done": "Google disconnected",
+      "doneDetail": "The numbers already stored are kept."
+    },
+    "change": {
+      "title": {
+        "gsc": "Change the Search Console property?",
+        "ga4": "Change the GA4 property?"
+      },
+      "description": "{property} is switched off for this project. The numbers already stored are kept, and you can choose a property again right away.",
+      "confirm": "Switch off property",
+      "failed": "Could not switch off the property. Nothing was changed. Try again.",
+      "done": "Property switched off"
+    },
+    "permissions": {
+      "siteOwner": "Owner",
+      "siteFullUser": "Full user",
+      "siteRestrictedUser": "Restricted user",
+      "siteUnverifiedUser": "Unverified user"
+    }
   }
 }

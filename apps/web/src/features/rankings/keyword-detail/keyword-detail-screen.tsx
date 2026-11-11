@@ -15,6 +15,7 @@ import { listReturnHref, tabStorage } from './list-return';
 import { RankHistoryPanel } from './rank-history-panel';
 import { SnapshotsTab } from './snapshots/snapshots-tab';
 import { useCheckNow } from '../check-now/use-check-now';
+import { hasPendingCheck } from '../rankings-queries';
 import { detailQuery, type KeywordScope } from '../keyword-inspector/inspector-queries';
 import { SectionError } from '../keyword-inspector/section-error';
 import { PAGE_CLASS } from '@/components/app/shell/page-header';
@@ -101,7 +102,18 @@ function KeywordDetailContent({
   const data = detail.data?.data ?? null;
   // The keyword has no list here to drop from. A keyword deleted while the page is open keeps showing the last
   // read until the page loads again: TanStack Query keeps the data of a read that failed, and `data` wins below
-  const checkNow = useCheckNow({ scope, enabled: canCheck, archived: false, chosen: EMPTY_SELECTION, onDrop: noop });
+  const pendingIds = useMemo(
+    (): ReadonlySet<string> => new Set(data !== null && hasPendingCheck(data) ? [trackedKeywordId] : []),
+    [data, trackedKeywordId],
+  );
+  const checkNow = useCheckNow({
+    scope,
+    enabled: canCheck,
+    archived: false,
+    chosen: EMPTY_SELECTION,
+    pendingIds,
+    onDrop: noop,
+  });
 
   if (data === null) {
     if (detail.isError) {

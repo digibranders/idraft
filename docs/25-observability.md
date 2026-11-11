@@ -361,7 +361,7 @@ CREATE TABLE ops.quality_counters_daily (
     component         text NOT NULL,     -- 'serp_parser', 'ai_normalizer:dataforseo_chatgpt', 'extractor', ...
     component_version smallint NOT NULL,
     engine_code       text NOT NULL DEFAULT '',
-    counter           text NOT NULL,     -- ingests, schema_mismatch, rank_recomputed, unresolved_redirect, organic_results,
+    counter           text NOT NULL,     -- ingests, schema_mismatch, rank_collision, unresolved_redirect, organic_results,
                                          -- mentions_total, mentions_uncertain, llm_rule_compared, llm_rule_disagree
     value             bigint NOT NULL,
     PRIMARY KEY (metric_date, component, component_version, engine_code, counter)
@@ -373,7 +373,7 @@ CREATE TABLE ops.quality_counters_daily (
 
 | Check | Definition | Threshold | Min n |
 |---|---|---|---|
-| SERP parser anomaly | `rank_recomputed / ingests` for `serp_parser` | > 0.5% | 500 |
+| SERP parser anomaly | `rank_collision / ingests` for `serp_parser` (was `rank_recomputed`, removed in parser version 4) | > 0.5% | 500 |
 | Unresolved redirects | `unresolved_redirect / organic_results` | > 0.1% (DataForSEO resolves 99.99%, [06](06-dataforseo-seo-integration.md) section 5.2) | 5,000 results |
 | Schema mismatch (daily) | `schema_mismatch / ingests` per component | > 0.5% | 200 |
 | AI status mix | share `empty`, `refused`, `error` per engine | `error + empty` > 10%, or `refused` > 2x 7-day baseline | 100 |

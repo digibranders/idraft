@@ -102,19 +102,19 @@ async function choose(user: User, ...keywords: string[]): Promise<HTMLElement> {
 }
 
 describe('Bulk actions', () => {
-  it('sets the priority of the chosen keywords, by their ids', async () => {
+  it('sets the target URL of the chosen keywords, by their ids', async () => {
     const seen = writes();
     const { user, container } = renderWithProviders(as('editor'));
     const bar = await choose(user, 'seo agency', 'backlink checker');
     expect(within(bar).getByText('2 selected')).toBeInTheDocument();
-    await user.click(within(bar).getByRole('button', { name: 'Set priority' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Priority for 2 keywords' });
+    expect(within(bar).queryByRole('button', { name: /Set priority|Refresh metrics|Archive/ })).toBeNull();
+    await user.click(within(bar).getByRole('button', { name: 'Set target URL' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Target URL for 2 keywords' });
     expect(await axe(container)).toHaveNoViolations();
-    await user.click(within(dialog).getByRole('combobox', { name: 'Priority' }));
-    await user.click(await screen.findByRole('option', { name: '2' }));
+    await user.type(within(dialog).getByRole('textbox', { name: /Target URL/ }), 'https://fynix.io/seo');
     await user.click(within(dialog).getByRole('button', { name: 'Set for 2 keywords' }));
-    expect(await screen.findByText('Priority 2 set for 2 keywords')).toBeInTheDocument();
-    expect(seen.at(-1)).toMatchObject({ route: 'bulk-update', body: { set: { priority: 2 } } });
+    expect(await screen.findByText('Target URL set for 2 keywords')).toBeInTheDocument();
+    expect(seen.at(-1)).toMatchObject({ route: 'bulk-update', body: { set: { target_url: expect.any(String) } } });
     expect((seen.at(-1)?.body as { ids: string[] }).ids).toHaveLength(2);
     // The selection is spent
     await waitFor(() => expect(screen.queryByRole('group', { name: /Bulk actions/ })).toBeNull());
@@ -197,7 +197,7 @@ describe('Bulk actions', () => {
     }
 
     it('sends batches of at most 4,000 keywords when 50 groups are named and the groups of the rows are not known', async () => {
-      answerTrackedAsMany({ total: 5_000, pages: 25, rowsPerPage: 200, withoutGroups: true });
+      answerTrackedAsMany({ total: 5_000, pages: 25, rowsPerPage: 200, withoutGroups: true, desktopOnly: true });
       fiftyGroups();
       const updates = recordUpdates();
       const { user } = renderWithProviders(as('editor'));
@@ -211,7 +211,7 @@ describe('Bulk actions', () => {
     }, 40_000);
 
     it('names only the groups the chosen keywords are in, so 5,000 keywords go in one request', async () => {
-      answerTrackedAsMany({ total: 5_000, pages: 25, rowsPerPage: 200 });
+      answerTrackedAsMany({ total: 5_000, pages: 25, rowsPerPage: 200, desktopOnly: true });
       fiftyGroups();
       const updates = recordUpdates();
       const { user } = renderWithProviders(as('editor'));
@@ -268,21 +268,11 @@ describe('Bulk actions', () => {
     expect(screen.getByText('1 configuration version started')).toBeInTheDocument();
   }, 15_000);
 
-  it('archives at once with an undo, and deletes after asking with the count', async () => {
+  it('deletes after asking with the count', async () => {
     const seen = writes();
     const { user } = renderWithProviders(as('editor'));
-    let bar = await choose(user, 'seo agency', 'backlink checker');
-    await user.click(within(bar).getByRole('button', { name: 'Archive' }));
-    expect(await screen.findByText('2 keywords archived')).toBeInTheDocument();
     const grid = await loadedGrid();
-    await waitFor(() => expect(keywordsIn(grid)).not.toContain('seo agency'));
-    await user.click(screen.getByRole('button', { name: 'Undo' }));
-    expect(await screen.findByText('2 keywords unarchived')).toBeInTheDocument();
-    const archives = seen.filter((write) => write.route === 'bulk-archive').map((write) => write.body);
-    expect(archives).toMatchObject([{ archive: true }, { archive: false }]);
-    await waitFor(() => expect(keywordsIn(grid)).toContain('seo agency'));
-
-    bar = await choose(user, 'seo agency', 'backlink checker');
+    const bar = await choose(user, 'seo agency', 'backlink checker');
     await user.click(within(bar).getByRole('button', { name: 'Delete' }));
     const confirm = await screen.findByRole('alertdialog', { name: 'Delete 2 keywords?' });
     await user.click(within(confirm).getByRole('button', { name: 'Delete 2 keywords' }));
@@ -293,7 +283,7 @@ describe('Bulk actions', () => {
     await waitFor(() => expect(keywordsIn(grid)).not.toContain('backlink checker'));
   }, 20_000);
 
-  it('sends the filters for every match, and asks before archiving or deleting them', async () => {
+  it('sends the filters for every match, and asks before deleting them', async () => {
     answerTrackedAsMany({ total: 12_000 });
     const seen = writes();
     const { user } = renderWithProviders(as('editor'));
@@ -305,18 +295,13 @@ describe('Bulk actions', () => {
     const deleting = await screen.findByRole('alertdialog', { name: 'Delete 12,000 keywords?' });
     await user.click(within(deleting).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(seen.filter((write) => write.route === 'bulk-delete')).toHaveLength(0);
     bar = screen.getByRole('group', { name: /Bulk actions/ });
-    await user.click(within(bar).getByRole('button', { name: 'Archive' }));
-    const confirm = await screen.findByRole('alertdialog', { name: 'Archive 12,000 keywords?' });
-    await user.click(within(confirm).getByRole('button', { name: 'Archive 12,000 keywords' }));
-    await waitFor(() => expect(seen.some((write) => write.route === 'bulk-archive')).toBe(true));
-    expect(seen.find((write) => write.route === 'bulk-archive')?.body).toEqual({
-      filter: { is_active: true },
-      archive: true,
-    });
-    // By filter, the archive cannot be undone by the same filter: no Undo
-    expect(await screen.findByText(/archived$/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    await user.click(within(bar).getByRole('button', { name: 'Delete' }));
+    const confirm = await screen.findByRole('alertdialog', { name: 'Delete 12,000 keywords?' });
+    await user.click(within(confirm).getByRole('button', { name: 'Delete 12,000 keywords' }));
+    await waitFor(() => expect(seen.some((write) => write.route === 'bulk-delete')).toBe(true));
+    expect(seen.find((write) => write.route === 'bulk-delete')?.body).toEqual({ filter: { is_active: true } });
   }, 20_000);
 
   describe('when the keywords that match change before the action is sent', () => {
@@ -371,31 +356,16 @@ describe('Bulk actions', () => {
       await waitFor(() => expect(listReads.length).toBeGreaterThan(readBefore));
     }, 20_000);
 
-    it('stops an archive of every match above 100 keywords the same way', async () => {
-      answerTrackedAsMany({ total: 12_000 });
-      let matching = 12_000;
-      answerRecount(() => matching);
-      const seen = writes();
-      const { user } = renderWithProviders(as('editor'));
-      const bar = await chooseAllMatching(user, '12,000');
-      await user.click(within(bar).getByRole('button', { name: 'Archive' }));
-      const asking = await screen.findByRole('alertdialog', { name: 'Archive 12,000 keywords?' });
-      matching = 11_950;
-      await user.click(within(asking).getByRole('button', { name: 'Archive 12,000 keywords' }));
-      expect(await within(asking).findByText(CHANGED)).toBeInTheDocument();
-      expect(seen.filter((write) => write.route === 'bulk-archive')).toHaveLength(0);
-    }, 20_000);
-
-    it('stops an archive that runs at once, without a question, and says so in a notice', async () => {
+    it('stops an unarchive that runs at once, without a question, and says so in a notice', async () => {
       // 60 match, 59 are on screen: "Select all 60 matching" is offered, and 60 is below the question's 100
       answerTrackedAsMany({ total: 60, pages: 1 });
       let matching = 60;
       answerRecount(() => matching);
       const seen = writes();
-      const { user } = renderWithProviders(as('editor'));
+      const { user } = renderWithProviders(as('editor'), { searchParams: '?archived=true' });
       const bar = await chooseAllMatching(user, '60');
       matching = 55;
-      await user.click(within(bar).getByRole('button', { name: 'Archive' }));
+      await user.click(within(bar).getByRole('button', { name: 'Unarchive' }));
       expect(
         (await screen.findAllByText('The keywords that match changed since you chose them: 55 now. Choose again.'))
           .length,
@@ -410,10 +380,9 @@ describe('Bulk actions', () => {
       const seen = writes();
       const { user } = renderWithProviders(as('editor'));
       const bar = await chooseAllMatching(user, '12,000');
-      await user.click(within(bar).getByRole('button', { name: 'Set priority' }));
-      const dialog = await screen.findByRole('dialog', { name: 'Priority for 12,000 keywords' });
-      await user.click(within(dialog).getByRole('combobox', { name: 'Priority' }));
-      await user.click(await screen.findByRole('option', { name: '2' }));
+      await user.click(within(bar).getByRole('button', { name: 'Set target URL' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Target URL for 12,000 keywords' });
+      await user.type(within(dialog).getByRole('textbox', { name: /Target URL/ }), 'https://fynix.io/seo');
       await user.click(within(dialog).getByRole('button', { name: 'Set for 12,000 keywords' }));
       expect(await within(dialog).findByText(CHANGED)).toBeInTheDocument();
       expect(seen.filter((write) => write.route === 'bulk-update')).toHaveLength(0);
@@ -499,7 +468,7 @@ describe('Bulk actions', () => {
     expect(await screen.findByText(/unarchived$/)).toBeInTheDocument();
   }, 20_000);
 
-  it('passes the accessibility checks in the tags and target URL dialogs and in the archive and delete questions', async () => {
+  it('passes the accessibility checks in the tags and target URL dialogs and in the delete question', async () => {
     answerTrackedAsMany({ total: 12_000 });
     const { user } = renderWithProviders(as('editor'));
     await loadedGrid();
@@ -520,24 +489,22 @@ describe('Bulk actions', () => {
     dialog = await screen.findByRole('dialog', { name: 'Target URL for 12,000 keywords' });
     expect(await axe(document.body)).toHaveNoViolations();
     await closeWith(dialog);
-    await user.click(within(barNow()).getByRole('button', { name: 'Archive' }));
-    dialog = await screen.findByRole('alertdialog', { name: 'Archive 12,000 keywords?' });
-    expect(await axe(document.body)).toHaveNoViolations();
-    await closeWith(dialog);
     await user.click(within(barNow()).getByRole('button', { name: 'Delete' }));
     dialog = await screen.findByRole('alertdialog', { name: 'Delete 12,000 keywords?' });
     expect(await axe(document.body)).toHaveNoViolations();
     await closeWith(dialog);
   }, 30_000);
 
-  it('draws Archive in the bar neutral and Delete destructive, both last', async () => {
+  it('draws Delete destructive and last, with no Set priority, Refresh metrics or Archive before it', async () => {
     const { user } = renderWithProviders(as('editor'));
     const bar = await choose(user, 'seo agency');
     const names = within(bar)
       .getAllByRole('button')
       .map((button) => button.textContent);
-    expect(names.slice(-3)).toEqual(['Archive', 'Delete', '']);
-    expect(within(bar).getByRole('button', { name: 'Archive' }).className).not.toContain('negative');
+    expect(names.slice(-2)).toEqual(['Delete', '']);
+    expect(names).not.toContain('Archive');
+    expect(names).not.toContain('Set priority');
+    expect(names).not.toContain('Refresh metrics');
     expect(within(bar).getByRole('button', { name: 'Delete' }).className).toContain('negative');
   });
 
@@ -551,8 +518,8 @@ describe('Bulk actions', () => {
     await user.click(screen.getByRole('checkbox', { name: /^Select all/ }));
     const bar = screen.getByRole('group', { name: /Bulk actions/ });
     await user.click(within(bar).getByRole('button', { name: 'Select all 25,000 matching' }));
-    await user.click(within(bar).getByRole('button', { name: 'Set priority' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Priority for 25,000 keywords' });
+    await user.click(within(bar).getByRole('button', { name: 'Set target URL' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Target URL for 25,000 keywords' });
     await user.click(within(dialog).getByRole('button', { name: 'Set for 25,000 keywords' }));
     expect(
       await within(dialog).findByText(
@@ -571,7 +538,7 @@ describe('Bulk actions', () => {
     let bar = screen.getByRole('group', { name: /Bulk actions/ });
     await user.click(within(bar).getByRole('button', { name: 'Select all 12,000 matching' }));
     // Unticking one row means the chosen rows, not every match, and never the one unticked
-    await user.click(screen.getAllByRole('checkbox', { name: 'Select seo agency, desktop, United States' })[0] ?? bar);
+    await user.click(screen.getAllByRole('checkbox', { name: 'Select seo agency, United States' })[0] ?? bar);
     bar = screen.getByRole('group', { name: /Bulk actions/ });
     expect(within(bar).queryByText(/All 12,000 matching selected/)).toBeNull();
     await user.click(within(bar).getByRole('button', { name: 'Delete' }));
@@ -590,27 +557,29 @@ describe('Bulk actions', () => {
   it('does not bring a selection back when the filters return to what they were', async () => {
     const { user } = renderWithProviders(as('editor'));
     await choose(user, 'seo agency');
-    await user.click(screen.getByRole('radio', { name: 'Archived' }));
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: 'Show archived keywords' }));
     await waitFor(() => expect(screen.queryByRole('group', { name: /Bulk actions/ })).toBeNull());
-    await user.click(screen.getByRole('radio', { name: 'Active' }));
+    await user.click(screen.getByRole('button', { name: 'Show active keywords' }));
     await loadedGrid();
     expect(screen.queryByRole('group', { name: /Bulk actions/ })).toBeNull();
-    expect(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select seo agency, United States' })).not.toBeChecked();
   });
 
   it('returns focus to the grid once a dialog made its change', async () => {
     const { user } = renderWithProviders(as('editor'));
     const bar = await choose(user, 'seo agency');
-    await user.click(within(bar).getByRole('button', { name: 'Set priority' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Priority for 1 keyword' });
+    await user.click(within(bar).getByRole('button', { name: 'Set target URL' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Target URL for 1 keyword' });
+    await user.type(within(dialog).getByRole('textbox', { name: /Target URL/ }), 'https://fynix.io/seo');
     await user.click(within(dialog).getByRole('button', { name: 'Set for 1 keyword' }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Priority for 1 keyword' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Target URL for 1 keyword' })).toBeNull());
     await waitFor(() => expect(document.activeElement?.closest('[role="grid"]')).not.toBeNull());
   });
 
   it('offers no choosing to a member who may not change keywords', async () => {
     renderWithProviders(as('viewer'));
     await loadedGrid();
-    expect(screen.queryByRole('checkbox', { name: 'Select seo agency, desktop, United States' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Select seo agency, United States' })).toBeNull();
   });
 });

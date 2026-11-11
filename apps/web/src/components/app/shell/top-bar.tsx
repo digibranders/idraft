@@ -3,6 +3,7 @@
 import { Menu } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 
+import { TopBarSlotTarget } from './top-bar-slot';
 import { IconButton } from '@/components/ui/icon-button';
 
 export interface TopBarProps {
@@ -18,8 +19,9 @@ export interface TopBarProps {
 
 /**
  * The 52 px bar above every project page (11-navigation.md section 4, 25 section 5.4): the breadcrumb on
- * the left, the controls on the right, 12 px apart. Search, the date range, the location and
- * notifications join it with the screens that need them.
+ * the left, the controls on the right, 12 px apart. A page adds its own controls before them through the
+ * slot (`top-bar-slot.tsx`). Search, the date range and notifications join it with the screens that need
+ * them.
  */
 export function TopBar({ breadcrumb, controls, navigation }: TopBarProps): ReactElement {
   return (
@@ -38,7 +40,10 @@ export function TopBar({ breadcrumb, controls, navigation }: TopBarProps): React
         />
       )}
       {breadcrumb}
-      <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-3">{controls}</div>
+      <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-3">
+        <TopBarSlotTarget />
+        {controls}
+      </div>
     </header>
   );
 }

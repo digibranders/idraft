@@ -32,11 +32,12 @@ Design read used for every decision in this system: information-dense product UI
 Density is required and must be earned. These rules apply to every screen:
 
 1. **Tables over cards** for any list a user would sort, filter, compare or act on in bulk ([12-tables.md](12-tables.md) section 2).
-2. **Metric strips over KPI cards.** Summary numbers sit in one horizontal strip of 3 to 6 metrics: a single panel, 76 px tall, with cells split by 1 px dividers ([23-application-patterns.md](23-application-patterns.md) section 2).
+2. **Metric strips over KPI cards.** Summary numbers sit in one horizontal strip of 3 to 6 metrics: a single panel, 76 px tall, with cells split by 1 px dividers, or inline in the page toolbar when the page is a table ([23-application-patterns.md](23-application-patterns.md) section 2).
 3. **Progressive disclosure in four levels** ([23-application-patterns.md](23-application-patterns.md) section 1): scan (row), hover (tooltip), inspect (right inspector), study (full page). Each piece of information is assigned to exactly one level where it first appears.
 4. **Secondary information moves right or down, not into more borders.** Metadata goes to a second line in `type-meta`, a tooltip, or the inspector.
 5. **No empty decoration.** No illustrations, background patterns, gradients, glow or decorative icons.
 6. **Whitespace is a spacing token, never "some padding".** Every gap comes from the scale in [04-spacing-density.md](04-spacing-density.md).
+7. **Maximum information in minimum screen (decided 2026-11-02).** The space above the data is the most expensive space on a page, so every page spends as little of it as it can. Title, meta line, summary counts, filters, the view switch and the actions share one toolbar row ([23-application-patterns.md](23-application-patterns.md) section 3.1). The page starts 12 px below the top bar and blocks are 12 px apart. A summary that fits on one line is an inline `MetricStrip`, not a panel ([23-application-patterns.md](23-application-patterns.md) section 2.8). The row wraps to a second line only when the width runs out, and that wrapped height counts against the budget in section 3.2 of the same document. A new page does not add a second header row, a filter row on its own, or a help paragraph above its data.
 
 ## 4. Hierarchy toolkit (in order of preference)
 

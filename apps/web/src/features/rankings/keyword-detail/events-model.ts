@@ -36,6 +36,40 @@ export const EVENT_TYPES = [
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
+/** The catalog key of an event kind under `keywordDetail.events.kinds`: keys are camelCase, the API's codes are not. */
+export const EVENT_KIND_MESSAGE_KEYS = {
+  rank: 'rank',
+  url: 'url',
+  serp_feature: 'serpFeature',
+  ai_citation: 'aiCitation',
+  competitor: 'competitor',
+} as const satisfies Record<EventKind, string>;
+
+/** The catalog key of an event type under `keywordDetail.events.types`: keys are camelCase, the API's codes are not. */
+export const EVENT_TYPE_MESSAGE_KEYS = {
+  entered_top_3: 'enteredTop3',
+  entered_top_10: 'enteredTop10',
+  entered_top_20: 'enteredTop20',
+  entered_top_100: 'enteredTop100',
+  lost_top_3: 'lostTop3',
+  lost_top_10: 'lostTop10',
+  lost_top_20: 'lostTop20',
+  lost_top_100: 'lostTop100',
+  new_ranking: 'newRanking',
+  lost_ranking: 'lostRanking',
+  rank_drop: 'rankDrop',
+  rank_gain: 'rankGain',
+  url_changed: 'urlChanged',
+  feature_gained: 'featureGained',
+  feature_lost: 'featureLost',
+  aio_appeared: 'aioAppeared',
+  aio_disappeared: 'aioDisappeared',
+  aio_citation_gained: 'aioCitationGained',
+  aio_citation_lost: 'aioCitationLost',
+  overtaken_by: 'overtakenBy',
+  overtook: 'overtook',
+} as const satisfies Record<EventType, string>;
+
 const KIND_OF_TYPE: Readonly<Record<EventType, EventKind>> = {
   entered_top_3: 'rank',
   entered_top_10: 'rank',

@@ -34,7 +34,7 @@ Values follow [reference/visual-spec.md](reference/visual-spec.md) section 4.
 | Page gutter (desktop, at least 1024 px) | 20 px (`px-5`) |
 | Page gutter (tablet) | 16 px (`px-4`) |
 | Page gutter (mobile) | 12 px (`px-3`) |
-| Page header | Starts 20 px below the top bar; meta line 4 px below the title; actions right-aligned and vertically centered on the title block |
+| Page header | Starts 12 px below the top bar; meta line 4 px below the title, or beside it on the toolbar row; actions right-aligned and vertically centered on the title block |
 | Between page blocks (header to metric strip, strip to filter bar, panel to panel) | 16 px |
 | Panel padding | 16 px; panel title row 48 px |
 | Metric strip cell padding | 20 px |
@@ -72,7 +72,7 @@ Values follow [reference/visual-spec.md](reference/visual-spec.md) section 4.
 | Underline tab row (page and inspector) | 44 px including the 2 px indicator | `h-tab` (`--size-tab`) |
 | Top bar | 52 px | `h-topbar` (`--size-topbar`) |
 | T2 page body: the window under the top bar, so the table body is the scroll container ([24-page-templates.md](24-page-templates.md) section 4); below its 480 px minimum the page scrolls as a whole | window height less 52 px, at least 480 px | `h-page-body`, `min-h-page-body-min` (`--size-page-body`, `--size-page-body-min`) |
-| Page header title block | 56 px: title 32 (`type-page-title`), 4 px gap, meta line 20 (`type-meta`); 20 px below the top bar ([23-application-patterns.md](23-application-patterns.md) section 3.2) | component |
+| Page header title block | 56 px: title 32 (`type-page-title`), 4 px gap, meta line 20 (`type-meta`); 12 px below the top bar; on the toolbar row the block is 36 px and the meta line sits beside the title ([23-application-patterns.md](23-application-patterns.md) section 3.2) | component |
 | Metric strip | 76 px, one panel; 96 px when items carry context lines ([23-application-patterns.md](23-application-patterns.md) section 2.2) | `h-metric-strip` (`--size-metric-strip`) |
 | Panel title row | 48 px | component |
 | Change feed row | 36 px | component ([23-application-patterns.md](23-application-patterns.md) section 9) |
@@ -103,7 +103,7 @@ Two modes exist for full-page tables and lists. **Compact is the default** (owne
 | Sparkline height | 20 px | 16 px |
 | Rows visible in a 900 px tall viewport (T2 with a metric strip, no tabs) | 11 | 14 |
 
-Rows visible: 900 px minus 424 px of chrome (top bar 52, header offset 20, title block 56, metric strip 76, filter bar 36, three 16 px gaps, table toolbar 48, table header 40, table footer 48) leaves 476 px; divided by the row height that is 11 rows at 40 px and 14 rows at 32 px, the same budget as [24-page-templates.md](24-page-templates.md) section 4.
+Rows visible: 900 px minus 248 px of chrome (top bar 52, header offset 12, toolbar row 36, one 12 px gap, table toolbar 48, table header 40, table footer 48) leaves 652 px; divided by the row height that is 16 rows at 40 px and 20 rows at 32 px, the same budget as [24-page-templates.md](24-page-templates.md) section 4. Before the toolbar row (2026-11-02) the chrome was 424 px and the table showed 11 and 14 rows.
 
 Rules:
 - The density toggle lives in the table toolbar (a two-option segmented control with icons and labels "Compact (default)" and "Comfortable") and persists per user per table in the saved-view state ([12-tables.md](12-tables.md) section 11).

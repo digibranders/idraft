@@ -18,7 +18,15 @@ import { useCallback, useMemo, type ReactElement } from 'react';
 import { rankEventsQuery } from './detail-queries';
 import { detailStateOf } from './detail-state';
 import { useDetailUrlState } from './detail-url-state';
-import { EVENT_KINDS, eventView, type EventKind, type EventRank, type EventView } from './events-model';
+import {
+  EVENT_KIND_MESSAGE_KEYS,
+  EVENT_KINDS,
+  EVENT_TYPE_MESSAGE_KEYS,
+  eventView,
+  type EventKind,
+  type EventRank,
+  type EventView,
+} from './events-model';
 import type { KeywordDetail, KeywordScope } from '../keyword-inspector/inspector-queries';
 import { SectionError } from '../keyword-inspector/section-error';
 import { EventTimeline, type TimelineEvent } from '@/components/app/status/event-timeline';
@@ -106,26 +114,26 @@ export function EventsPanel({ scope, detail, workspaceSlug, projectSlug, timeZon
         case 'lost_top_100':
         case 'rank_gain':
         case 'rank_drop':
-          return t(`types.${view.type}`, { from, to });
+          return t(`types.${EVENT_TYPE_MESSAGE_KEYS[view.type]}`, { from, to });
         case 'new_ranking':
-          return t('types.new_ranking', { to });
+          return t('types.newRanking', { to });
         case 'lost_ranking':
-          return t('types.lost_ranking', { from });
+          return t('types.lostRanking', { from });
         case 'url_changed':
-          return t('types.url_changed', {
+          return t('types.urlChanged', {
             fromPath: view.paths.from ?? t('noPath'),
             toPath: view.paths.to ?? t('noPath'),
           });
         case 'feature_gained':
         case 'feature_lost':
-          return t(`types.${view.type}`, { feature });
+          return t(`types.${EVENT_TYPE_MESSAGE_KEYS[view.type]}`, { feature });
         case 'aio_appeared':
         case 'aio_disappeared':
         case 'aio_citation_gained':
         case 'aio_citation_lost':
-          return t(`types.${view.type}`);
+          return t(`types.${EVENT_TYPE_MESSAGE_KEYS[view.type]}`);
         case 'overtaken_by':
-          return t('types.overtaken_by', { competitor: view.other ?? t('noCompetitor'), from, to });
+          return t('types.overtakenBy', { competitor: view.other ?? t('noCompetitor'), from, to });
         case 'overtook':
           return t('types.overtook', { competitor: view.other ?? t('noCompetitor'), to });
         default:
@@ -200,7 +208,7 @@ export function EventsPanel({ scope, detail, workspaceSlug, projectSlug, timeZon
         title={t('title')}
         headingLevel={2}
         events={events}
-        kinds={EVENT_KINDS.map((kind) => ({ kind, label: t(`kinds.${kind}`) }))}
+        kinds={EVENT_KINDS.map((kind) => ({ kind, label: t(`kinds.${EVENT_KIND_MESSAGE_KEYS[kind]}`) }))}
         filter={allKinds ? 'all' : kinds}
         onFilterChange={(next) => void setEvents(next === 'all' ? EVENT_KINDS : next)}
         pageSize={50}

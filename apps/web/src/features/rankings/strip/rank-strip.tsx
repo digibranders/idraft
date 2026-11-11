@@ -14,16 +14,19 @@ export interface RankStripProps {
   scope: ProjectScope;
   filters: KeywordFilters;
   total: number;
+  /** False while the scope is a guess: no count is read, and the strip shows as loading. */
+  enabled?: boolean;
 }
 
 /**
  * Summary metric strip of the filtered keywords (24-page-templates.md section 9.3).
- * Four counts: Tracked (with checked count), Top 3, Top 10 and Top 20 (each of checked count).
+ * Four counts of tracked keywords: Keywords (with checked count), Top 3, Top 10 and Top 20 (each of checked
+ * count). The filters carry the device shown, so each keyword counts once and Keywords equals the table's count.
  */
-export function RankStrip({ scope, filters, total }: RankStripProps): ReactElement {
+export function RankStrip({ scope, filters, total, enabled = true }: RankStripProps): ReactElement {
   const t = useTranslations('rankings.strip');
   const common = useTranslations('common');
-  const { counts, itemErrors, loading, fetching, error, refetch } = useStripCounts(scope, filters, true);
+  const { counts, itemErrors, loading, fetching, error, refetch } = useStripCounts(scope, filters, enabled);
 
   const status = loading ? 'loading' : fetching ? 'refetching' : 'ready';
 
@@ -51,12 +54,12 @@ export function RankStrip({ scope, filters, total }: RankStripProps): ReactEleme
   };
 
   // The strip ignores rows without a check date for rank counts (24-page-templates.md section 9.3).
-  // Tracked count is the total tracked keywords matching the active filters.
+  // The count of keywords is of the device shown, like the table's: a keyword tracked on both devices is one.
   const items: MetricStripItem[] = [
     {
       id: 'tracked',
       label: t('tracked'),
-      value: formatInteger(total),
+      value: formatInteger(counts?.total ?? total),
       context: checkedNote,
     },
     itemOf('top3', t('top3'), counts?.top3, itemErrors.top3, ofChecked),
@@ -68,7 +71,7 @@ export function RankStrip({ scope, filters, total }: RankStripProps): ReactEleme
 
   return (
     <div className="flex flex-col gap-2">
-      <MetricStrip size="md" label={t('label')} groups={groups} status={status} />
+      <MetricStrip size="inline" label={t('label')} groups={groups} status={status} />
       {error ? (
         <Banner
           tone="negative"

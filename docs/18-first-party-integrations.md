@@ -32,27 +32,26 @@ Labels: **(verified 2026-09-29)** marks a fact read on a primary page in researc
 
 ### 3.1 Connections and integrations
 
-A **connection** is one credential grant (one Google login, one Bing OAuth grant or API key, one Cloudflare API token). An **integration** is one property on that connection (one GSC property, one GA4 property, one Bing site, one Cloudflare zone). One connection has many integrations. Rate limits, re-auth state and revocation belong to the connection; sync cursors and data belong to the integration. This needs a new table `fp.connections` (DDL in section 12) and a `connection_id` column on `fp.integrations`.
+A **connection** is one credential grant (one Google login, one Bing OAuth grant or API key, one Cloudflare API token). An **integration** is one property on that connection (one GSC property, one GA4 property, one Bing site, one Cloudflare zone). One connection has many integrations. One Google login carries both Search Console and GA4: its connection has `product = 'google'` and the integrations of both kinds (`gsc`, `ga4`) hang on it. What the connection may reach is read from its granted `scopes`. Rate limits, re-auth state and revocation belong to the connection; sync cursors and data belong to the integration. This needs a new table `fp.connections` (DDL in section 12) and a `connection_id` column on `fp.integrations`.
 
 ### 3.2 Credentials and OAuth (doc 24 sections 5 and 6)
 
 Doc 24 section 6 controls apply unchanged: PKCE with single-use `state` (Redis, 10-minute TTL), refresh tokens envelope-encrypted in `ops.secrets` (`oauth_refresh_token`; Bing keys and Cloudflare tokens as `provider_api_key`), access tokens in worker memory only, exact-match HTTPS redirect URIs. Additions:
 
 - Only `owner` and `admin` can connect or disconnect; both actions write `ops.audit_logs`.
-- **Disconnect** also sets `fp.connections.status = 'revoked'` and disables the schedules.
-- **`invalid_grant`** (or the provider equivalent) sets the connection and all its integrations to `reauth_required`, pauses their schedules, and notifies admins. Ingested data stays visible under a "sync paused since <date>" banner.
+- **Disconnect** also sets `fp.connections.status = 'revoked'` and disables the schedules and every integration of the connection, Search Console and GA4 alike.
+- **`invalid_grant`** (or the provider equivalent) sets the connection and all its integrations, of both Google products, to `reauth_required`, pauses their schedules, and notifies admins. Ingested data stays visible under a "sync paused since <date>" banner.
 - **Self-hosted note.** Each installation registers its own OAuth clients in its own Google Cloud project. Every "per project" quota below is per installation, shared by all its workspaces.
 
 Scopes (minimum, read-only):
 
 | Product | Auth | Scopes or permissions |
 |---|---|---|
-| GSC | OAuth 2.0 | `https://www.googleapis.com/auth/webmasters.readonly` (verified 2026-09-29), plus `openid email` to identify the Google account (stable `sub` for rate-limit keys) |
-| GA4 | OAuth 2.0 | `https://www.googleapis.com/auth/analytics.readonly` (INFERRED in research 05; listed in doc 24) |
+| Google (GSC and GA4, one connection) | OAuth 2.0 | `https://www.googleapis.com/auth/webmasters.readonly` (verified 2026-09-29) and `https://www.googleapis.com/auth/analytics.readonly` (INFERRED in research 05; listed in doc 24), asked together in one consent, plus `openid email` to identify the Google account (stable `sub` for rate-limit keys) |
 | Bing | OAuth 2.0 preferred; API key fallback | `Webmaster.read` (verified 2026-09-29). Never `Webmaster.manage` |
 | Cloudflare | Customer-created API token | Analytics Read on the selected zones (zone-level permission naming INFERRED), plus Zone Read if the customer wants us to list zones; otherwise the customer pastes zone IDs |
 
-Google app verification: doc 24 plans for Google OAuth app verification before external SaaS launch. Research 05 could not confirm whether `webmasters.readonly` is a sensitive or restricted scope (UNVERIFIED). Internal use inside one Google Workspace organization can run as an "Internal" app without verification (doc 24). Google refresh tokens for External apps in "Testing" publishing status are commonly reported to expire after 7 days (UNVERIFIED in research 05), which would surface as weekly `invalid_grant`; spike FP-S3 confirms this. GSC and GA4 scopes are requested in separate connect flows without `include_granted_scopes`, so each product has its own grant and its own revocation.
+Google app verification: doc 24 plans for Google OAuth app verification before external SaaS launch. Research 05 could not confirm whether `webmasters.readonly` is a sensitive or restricted scope (UNVERIFIED). Internal use inside one Google Workspace organization can run as an "Internal" app without verification (doc 24). Google refresh tokens for External apps in "Testing" publishing status are commonly reported to expire after 7 days (UNVERIFIED in research 05), which would surface as weekly `invalid_grant`; spike FP-S3 confirms this. GSC and GA4 scopes are requested together in one consent (decision of 2026-11-05: access and connection are made at the same time). One Google login is one connection, so a second consent for the same login would only ask the person to sign in twice and would leave two grants of one account to revoke. The request keeps `include_granted_scopes=false`, so the grant is exactly what is asked. Google's granular consent lets the person untick a product: the callback accepts the grant when at least one product scope is granted with a refresh token (`scope_denied` only when neither is), stores the granted scopes on the connection, and the API exposes them as `access: { gsc, ga4 }`. A product that was not granted is refused with `integration_scope_missing` (409) before Google is asked, and the person reconnects to add it. Google's verification reviews both scopes, so the use of GA4 must be justified in the verification request even while only Search Console is pulled. The Google Cloud project must have these APIs enabled: Google Search Console API, Google Analytics Admin API (property listing) and Google Analytics Data API (the GA4 pull, later).
 
 ### 3.3 Queue, tasks and raw payloads
 
@@ -74,14 +73,14 @@ Google app verification: doc 24 plans for Google OAuth app verification before e
 
 ### 4.1 Property selection UX
 
-1. **Project settings > Integrations > Google Search Console > Connect** (owner or admin).
-2. **Consent** with `webmasters.readonly openid email`, `access_type=offline`, `prompt=consent` (to receive a refresh token).
-3. **Property picker** from `sites.list` (verified 2026-09-29): type (Domain `sc-domain:` or URL-prefix) and permission level. Unverified-user entries are disabled, since `searchanalytics.query` needs read permission (verified 2026-09-29). The property matching the project's primary domain is pre-selected, Domain preferred over URL-prefix.
+1. **Integrations > Google > Connect** (project sidebar, route `/<workspace>/<project>/integrations/google`; owner or admin; `/integrations/gsc` redirects there). Google returns the person to the same screen with `?connection_id=...` (the property pickers open) or `?error=<code>`.
+2. **Consent** with `webmasters.readonly analytics.readonly openid email`, `access_type=offline`, `prompt=consent` (to receive a refresh token), `include_granted_scopes=false`. One consent covers both products.
+3. **Search Console property picker** from `sites.list` (verified 2026-09-29): type (Domain `sc-domain:` or URL-prefix) and permission level. Unverified-user entries are disabled, since `searchanalytics.query` needs read permission (verified 2026-09-29). The property matching the project's primary domain is pre-selected, Domain preferred over URL-prefix.
 4. **Overlap guard:** a Domain and a URL-prefix property for the same host in one project trigger a warning; they are never summed.
 5. **Backfill options:** default 16 months, all search types with data, with the call and time estimate from 4.3.
 6. **Progress panel:** days done per type, provisional days, last error, next sync.
 
-V1 maps one property to one project (`fp.integrations` is unique per workspace and property). Using one property in two projects is open question FP-Q4.
+V1 maps one property to one project (`fp.integrations` is unique per workspace and property), and a project has one live property per source (a partial unique index, migration 0015), so a Domain and a URL-prefix property of one site are never both counted. Using one property in two projects is open question FP-Q4.
 
 Service-account mode for agencies (the customer adds our service account email as a user on the property) is supported by the OAuth credential types (verified 2026-09-29), but adding a service account as a property user is UNVERIFIED on a current Google page. It ships behind a flag after spike FP-S8.
 
@@ -93,7 +92,7 @@ All calls: `POST https://www.googleapis.com/webmasters/v3/sites/{siteUrl}/search
 |---|---|---|---|---|---|
 | P (probe) | Which days have data per type | `[date]`, full 16-month range, one call per type | `byProperty` (`auto` for `discover` and `googleNews`, where `byProperty` is not supported) | none (at most about 490 rows) | none; plans the backfill |
 | A (property totals) | Accurate totals including anonymized queries | `[date, country, device]` | `byProperty` (`auto` for `discover`, `googleNews`) | `startRow` until empty | `fp.gsc_property_daily` (new) |
-| B (detail) | Query and page analysis | `[date, query, page, country, device]` | `auto` (resolves to by-page) | `startRow` 0, 25000, 50000, ... until a response returns 0 rows | `fp.gsc_search_analytics`, `fp.gsc_queries` |
+| B (detail) | Query analysis: the numbers of a keyword (changed 2026-11-05, was `[date, query, page, country, device]`) | `[date, query, country, device]` | `auto` (resolves to by-property) | `startRow` 0, 25000, 50000, ... until a response returns 0 rows | `fp.gsc_search_analytics`, `fp.gsc_queries` |
 | C (page totals) | Honest page totals including anonymized-query traffic | `[date, page]` | `byPage` | `startRow` until empty | `fp.gsc_page_daily` |
 
 **Watched pages.** The per-URL feature of [32-page-performance.md](32-page-performance.md) adds shape D, `[date, country, device]` filtered to one watched page (stored in `fp.gsc_watched_page_daily`), and live shapes for queries. It needs only the connection of 4.1, shape A and the freshness rules of 4.4, so it ships before the full ingest below.
@@ -208,10 +207,10 @@ sequenceDiagram
     participant R2 as R2
     participant WP as worker (process queue)
 
-    U->>W: Connect Search Console
-    W->>A: POST /integrations/gsc/authorize
+    U->>W: Connect Google
+    W->>A: POST /integrations/google/authorize
     A->>R: store state + PKCE verifier (10 min TTL, bound to session and workspace)
-    A-->>W: Google authorize URL (webmasters.readonly openid email, offline, consent)
+    A-->>W: Google authorize URL (webmasters.readonly analytics.readonly openid email, offline, consent)
     W->>G: redirect, user consents
     G->>A: GET /oauth/google/callback?code&state
     A->>R: consume state (single use)
@@ -243,6 +242,41 @@ sequenceDiagram
         WC->>PG: task failed, next_attempt_at = now + 15 min
     end
 ```
+
+### 4.9 Clicks and impressions in the Rankings table
+
+The Rankings table has a **Clicks** column and an **Impressions** column right after it, in the flat view and in the grouped view, where a group's value is the sum of its keywords'. Both come from the same pull and follow the same rules below; where the text says clicks, impressions are read the same way. Impressions say how often the keyword showed a page of the site in results, so clicks next to impressions show whether a shown page is chosen. It shows real Search Console clicks and never an estimate from search volume and rank: an estimate would credit a keyword with visits Google does not report, and accuracy is the point of the column (decision of 2026-11-04). The design preview (`design-preview/kw-grouped*.js`) draws made-up numbers where the app reads these.
+
+**What the number is.** Clicks in the last 28 days of final data (the window ends on the last final day, section 4.4; provisional days are left out), for the keyword's text, in the keyword's country, on the device the table shows (desktop or mobile, never added together).
+
+**Where it comes from.** Shape B of section 4.2 (`[date, query, country, device]`, table `fp.gsc_search_analytics`), summed over the dates. Search Console counts the numbers over all pages of the property, so a keyword's clicks are the clicks of every page that answered it and its impressions count a search once. Rows are stored with `url_id = 0` (all pages). The first build pulled `[date, query, page, country, device]` and summed the pages, which counted a search once for every page of the site that it showed: on 2026-11-05 one Eventus query read 330 impressions that way and 92 from Google without the page dimension (clicks were equal). A state of version 1 therefore reads as a pull not begun, every day is fetched again in the new shape, and the readers use only rows with `url_id = 0`. The join to a tracked keyword:
+
+| Side of the join | Tracked keyword | Search Console row |
+|---|---|---|
+| Query | `normalized_text` of the keyword (doc 08 normalization) | the query text in `fp.gsc_queries`, normalized the same way |
+| Country | the ISO code of the tracked location, or of its country when the location is a city (Search Console has no city) | `country` (ISO 3166-1 alpha-3, converted) |
+| Device | the tracked keyword's device | `device` |
+
+**States of a cell.**
+
+| State | Shown | When |
+|---|---|---|
+| Value | the number | the connection is healthy and the keyword has rows in the window |
+| Zero | `0` | the connection is healthy and the keyword has no click in the window (it may have had impressions, or none) |
+| Pending | `Pending` | the first backfill of the property is running (section 4.3), or the keyword's first rank check has not run |
+| Not connected | `Not connected` with a link to Settings, Integrations | the project has no Search Console connection; the column header says so |
+
+**Accuracy limits, stated in the header's tooltip and not hidden.**
+
+1. **Anonymized queries.** Google leaves out rare queries, so a keyword with few searches can show 0 clicks though it got some, and the clicks of all keywords add up to less than the property's total (shape A, `fp.gsc_property_daily`). A group's Clicks is the sum of its tracked keywords, never the group's total traffic.
+2. **The query as typed.** Google reports each wording as its own query (`soc service provider` and `soc service providers`); only the exact keyword is matched.
+3. **Delay.** Final data trails by two to three days (section 4.4).
+4. **Country and device** are what Search Console reports for the searcher. They can differ from the place and device of the rank check, which is one fixed place.
+5. **Property scope.** A domain property includes its subdomains; a URL-prefix property only its prefix. The clicks are those of the connected property, not of the project's own site entities alone.
+
+**Built so far (2026-11-05).** `include=gsc` reads the stored numbers: `not_connected` until a project has an active property on a healthy connection, `pending` until the pull has stored the 28 final days that end on the latest final day, then `ok` with the sums (a keyword with no rows in the window is 0). The storage (migration 0015), the connect flow (start, callback, property list and choice, disconnect) and the pull (the `gsc_sync` job: final data only, `web` search type, shape B one day at a time, the latest 28 days first, then the older days oldest first, resumable from `backfill_state`) are built and tested against a fake Google. Decisions of the build: the Rankings columns count the `web` type only; the window ends on the latest day that has final data (a run of idle days at the end does not move it); a property that waits for a new sign-in (`reauth_required`) or is in error shows as `not_connected`, never with numbers presented as current; the call budgets of section 4.5 are token buckets inside the one worker process (move them to Redis before a second worker runs); shapes A and C, other search types, the raw-response copy in R2 and the admin notifications of section 4.6 are not built.
+
+**Data the API needs.** `GET .../tracked-keywords` takes `include=gsc`, which adds to each row `gsc: { state, clicks: { desktop, mobile }, impressions: { desktop, mobile }, window: { start, end }, trend: { bucket_days, clicks, impressions } }` (`state` is `ok`, `pending` or `not_connected`) and takes the sorts `gsc_clicks` and `gsc_impressions`. `trend` comes with `ok` only: the tracked keyword's own device in seven 4-day buckets of the 28-day window, oldest first (bucket i starts 4i days after the window's start), zero where a bucket has no rows, read in the same query as the sums under the same rules, so the buckets add up to the counts. The Clicks and Impressions cells draw it as a small graph beside the number, coloured by direction: the first three buckets (12 days) are compared with the last three, a move of 20 percent or more either way is a rise or a fall, and fewer than 5 clicks (20 impressions) in those 24 days is too few to call; the graph's name says the movement in words. A group row sums its keywords' buckets. The sums for groups are made in the browser while the table holds every row (client mode, doc 20 section 5.3) and by the API in server mode. The same read can later carry click-through rate and average position as columns hidden by default; they need no new pull, since shape B holds them.
 
 ## 5. GSC Generative AI performance report (import)
 
@@ -322,7 +356,7 @@ Rows go to `fp.bing_ai_performance` with the filter columns denormalized onto ev
 
 ### 7.1 Auth and property selection
 
-OAuth with `analytics.readonly` in its own connect flow. Listing properties uses the Analytics Admin API account summaries method (not covered by research 05; UNVERIFIED, confirmed in FP-S6). The picker pre-selects properties whose web stream domain matches the project domain. The schedule timezone is set to the GA4 property timezone, because GA4 `date` values are property-local.
+OAuth with `analytics.readonly`, granted in the same consent and on the same connection as Search Console (section 3.2); there is no separate GA4 connect flow. Listing properties uses the Analytics Admin API `accountSummaries.list` (`GET https://analyticsadmin.googleapis.com/v1beta/accountSummaries`, paged with `pageToken`; each summary has `account`, `displayName` and `propertySummaries[]` of `property` (`properties/123`), `displayName` and `propertyType`; the response shape is from the API reference and is UNVERIFIED against a real account until the first live run). The picker lists properties by account and name and pre-selects nothing: the web stream domain needs further calls, so domain matching is not built. A project has one live GA4 property, `kind = 'ga4'`, `external_property = 'properties/<id>'`. Choosing a property only stores it; the pull (sections 7.2 onward) is not built. The schedule timezone is set to the GA4 property timezone, because GA4 `date` values are property-local.
 
 ### 7.2 Reports
 
@@ -522,7 +556,7 @@ These metrics are never inputs to synthetic metrics (mention rate, share of voic
 CREATE TABLE fp.connections (
     id               uuid PRIMARY KEY DEFAULT uuidv7(),
     workspace_id     uuid NOT NULL REFERENCES auth.workspaces(id) ON DELETE CASCADE,
-    product          text NOT NULL CHECK (product IN ('gsc','ga4','bing_wmt','cloudflare')),
+    product          text NOT NULL CHECK (product IN ('google','bing_wmt','cloudflare')),  -- 'google' carries GSC and GA4 (migration 0017)
     auth_method      text NOT NULL CHECK (auth_method IN ('oauth','api_key','api_token','service_account')),
     subject_id       text NOT NULL,          -- Google 'sub', Cloudflare token id, or our connection id when unknown (Bing)
     subject_label    text,                   -- email or token name, display only
@@ -766,7 +800,7 @@ Bot class is not stored on `fp.log_hits_daily`; it is joined from `fp.ai_bot_reg
 | Id | Table | Change | Reason |
 |---|---|---|---|
 | A1 | `fp.gsc_queries` | Add `workspace_id uuid NOT NULL`; primary key becomes `(workspace_id, query_hash)`; enable RLS | Query text is tenant data; `matched_keyword_ids` are workspace ids |
-| A2 | `fp.integrations` | Add `connection_id uuid REFERENCES fp.connections(id)`; make `credential_ref` nullable with `CHECK (kind = 'server_logs' OR credential_ref IS NOT NULL)` | Section 3.1; log uploads have no credential |
+| A2 | `fp.integrations` | Add `connection_id uuid REFERENCES fp.connections(id)` with `CHECK (kind = 'server_logs' OR connection_id IS NOT NULL)`. No `credential_ref` on the integration (revised 2026-11-04, migration 0015) | Section 3.1; log uploads have no credential. The credential belongs to the connection: a second reference to the same secret would make the disconnect, which deletes the secret, break every integration |
 | A3 | `fp.gsc_page_daily` | Partition by `metric_date` month; register in section 12.1 table | 50,000 pages x 365 days x 2 types is about 36 M rows per year for a large site |
 | A4 | `fp.metric_observations` | Add `data_state text NOT NULL DEFAULT 'final' CHECK (data_state IN ('final','provisional'))` and `data_origin text NOT NULL DEFAULT 'api'`; partition by `metric_date` month | Cloudflare partial days, GA4 restated days; Cloudflare path rows grow fast |
 | A5 | `fp.metric_observations.source` comment | Values: `bing_traffic`, `bing_query_stats`, `bing_page_stats`, `bing_page_query_stats`, `cloudflare_ai_crawl`, `cloudflare_ai_referral`, `ga4_source_daily`, `ga4_ai_landing_daily` | Replaces `bing_ai_performance` and `ga4_ai_referral`, which now have their own tables |

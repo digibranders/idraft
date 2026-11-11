@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useId, type ReactNode } from 'react';
 
 import { PageHeader } from '@/components/app/shell/page-header';
-import { ProjectMonogram } from '@/components/app/shell/project-monogram';
+import { ProjectMark } from '@/components/app/shell/project-mark';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { Badge } from '@/components/ui/badge';
 import { LinkButton } from '@/components/ui/link-button';
@@ -38,7 +38,7 @@ export interface ProjectListProps {
   now?: Date | undefined;
 }
 
-export const PROJECT_LIST_FRAME = 'flex w-full flex-col gap-4 px-3 pt-5 pb-8 md:px-4 lg:px-5';
+export const PROJECT_LIST_FRAME = 'flex w-full flex-col gap-3 px-3 pt-3 pb-8 md:px-4 lg:px-5';
 const LIST = 'flex flex-col divide-y divide-border-subtle overflow-hidden rounded-lg border border-border bg-surface';
 
 /**
@@ -95,7 +95,7 @@ export function ProjectList({
                   aria-labelledby={nameId}
                   className="flex items-center gap-3 px-4 py-3 hover:bg-surface-hover focus-visible:focus-ring focus-visible:-outline-offset-2"
                 >
-                  <ProjectMonogram name={project.name} />
+                  <ProjectMark name={project.name} domain={project.domain} />
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="flex min-w-0 items-center gap-2">
                       <span id={nameId} className="truncate type-body-strong text-foreground">

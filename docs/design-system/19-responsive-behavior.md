@@ -218,7 +218,7 @@ Content width budget: 1,030 px at 1280, 1,190 px at 1440, 1,430 px at 1680 (view
 | Ranking URL | 2 | 200 px | `URLCell`, middle truncation |
 | Volume | 2 | 80 px | Estimate badge in the header |
 | AI Overview | 2 | 104 px | Absent, present, cited #n |
-| Trend | 2 | 96 px | 30-check sparkline |
+| Trend | 2 | 96 px | Sparkline of 12 months of search volume |
 | Intent | 3 | 96 px | Neutral chip |
 | SERP Features | 3 | 120 px | Icons with accessible names |
 | Competitor | 4 | 120 px per competitor | First selected competitor; further competitors are chooser-only and take priority 4 |

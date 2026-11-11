@@ -14,6 +14,7 @@ from idraft.api.auth.sessions import SessionStore
 from idraft.api.entities.project_service import ProjectEntityService
 from idraft.api.entities.service import EntityService
 from idraft.api.imports.service import ImportService
+from idraft.api.integrations.service import IntegrationService
 from idraft.api.keywords.group_service import GroupService
 from idraft.api.keywords.service import KeywordService
 from idraft.api.operations.costs import CostService
@@ -21,6 +22,7 @@ from idraft.api.operations.runs import RunService
 from idraft.api.operations.schedules import ScheduleService
 from idraft.api.operations.settings import SettingsService
 from idraft.api.projects.service import ProjectService
+from idraft.api.quotas.service import QuotaService
 from idraft.api.ranks.service import RankService
 from idraft.api.taxonomy.service import TaxonomyService
 from idraft.api.workspaces.invitations import InvitationService
@@ -60,6 +62,8 @@ class Resources:
     costs: CostService
     imports: ImportService
     ranks: RankService
+    quotas: QuotaService
+    integrations: IntegrationService
 
 
 def get_resources(request: Request) -> Resources:

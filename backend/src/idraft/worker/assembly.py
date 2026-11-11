@@ -18,6 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from idraft.collectors.costs import DAILY_DAYS, HOURLY_DAYS, roll_up_costs
 from idraft.collectors.dispatcher import SubmitBatch, dispatch
 from idraft.collectors.fetching import FETCH_JOB, FetchTask, fetch_task, poll_ready
+from idraft.collectors.gsc_limits import GscLimiter
+from idraft.collectors.gsc_plan import JOB as GSC_JOB
+from idraft.collectors.gsc_plan import GscSyncTask, plan_syncs
+from idraft.collectors.gsc_sync import SyncContext, sync_integration
 from idraft.collectors.import_writer import write_next
 from idraft.collectors.imports import expire_imports, parse_next
 from idraft.collectors.keyword_metrics import (
@@ -45,7 +49,9 @@ from idraft.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, DataFor
 from idraft.providers.dataforseo.locations import fetch_locations
 from idraft.providers.dataforseo.provider import CODE as DATAFORSEO
 from idraft.providers.dataforseo.provider import DataForSeo
+from idraft.providers.google.client import GoogleClient
 from idraft.providers.pauses import RedisPauses
+from idraft.vault.envelope import EnvelopeCipher
 from idraft.worker.app import WorkerContext
 from idraft.worker.limiter import RedisCallGate
 from idraft.worker.queues import Queues
@@ -82,6 +88,13 @@ BALANCE_CHECK_AT = "*/15 * * * *"
 # Failed rank checks and stale keywords into the keyword state (docs/21 section 9).
 RANK_HEALTH_EVERY = timedelta(minutes=10)
 COST_RECONCILE_AT = "45 0 * * *"
+# Search Console syncs due now, and passes left unfinished (docs/18 section 13).
+GSC_PLAN_EVERY = timedelta(seconds=60)
+GSC_PLAN_LOCK = timedelta(seconds=55)
+# docs/18 section 4.6: a server error is tried up to six times with a 30 second base. Four tries
+# with that base keep one call (at most 30 + 60 + 120 seconds of waiting) well inside a pass.
+GSC_ATTEMPTS = 4
+GSC_BACKOFF_SECONDS = 30.0
 _log = structlog.get_logger(__name__)
 
 
@@ -195,6 +208,41 @@ async def run_cost_reconcile(context: WorkerContext, parts: Registry) -> None:
     now = await database_time(context.sessions)
     yesterday = now.astimezone(UTC).date() - timedelta(days=1)
     await reconcile_costs(context.sessions, context.redis, provider_code=DATAFORSEO, day=yesterday)
+
+
+def gsc_context(context: WorkerContext) -> SyncContext | None:
+    """What a Search Console pass needs; None where this worker has no Google OAuth client, no
+    encryption key or no HTTP client, and so cannot read a stored token or call Google."""
+    settings = context.settings
+    if (
+        context.http is None
+        or settings.google_oauth_client_id is None
+        or settings.google_oauth_client_secret is None
+        or settings.secrets_encryption_key is None
+    ):
+        return None
+    return SyncContext(
+        sessions=context.sessions,
+        google=GoogleClient(
+            context.http,
+            client_id=settings.google_oauth_client_id.get_secret_value(),
+            client_secret=settings.google_oauth_client_secret.get_secret_value(),
+            attempts=GSC_ATTEMPTS,
+            backoff_seconds=GSC_BACKOFF_SECONDS,
+        ),
+        cipher=EnvelopeCipher({1: settings.secrets_key}),
+        limiter=GscLimiter(),
+    )
+
+
+def _gsc_handler(gsc: SyncContext) -> Callable[[GscSyncTask], Awaitable[None]]:
+    """The `gsc_sync` job: one pass over one property."""
+
+    async def run(task: GscSyncTask) -> None:
+        report = await sync_integration(gsc, task.workspace_id, task.integration_id)
+        _log.info("search console pass", integration_id=str(task.integration_id), **asdict(report))
+
+    return run
 
 
 def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequence[Tick]:
@@ -352,7 +400,28 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
         if not report.quiet:
             _log.info("ready poll", **asdict(report))
 
+    gsc = gsc_context(context)
+    gsc_ticks: list[Tick] = []
+    if gsc is None:
+        _log.info("search console sync not registered", reason="no Google OAuth client or key")
+    else:
+        context.queues.register("collect", GSC_JOB, _gsc_handler(gsc))
+
+        async def plan_gsc() -> None:
+            async def send(task: GscSyncTask) -> bool:
+                return await context.queues.enqueue(GSC_JOB, task, dedupe_key=task.dedupe_key)
+
+            now = await database_time(context.sessions)
+            report = await plan_syncs(context.sessions, send, now=now)
+            if not report.quiet:
+                _log.info("search console sync planned", **asdict(report))
+
+        gsc_ticks.append(
+            Tick(name="gsc_plan", interval=GSC_PLAN_EVERY, action=plan_gsc, lock_ttl=GSC_PLAN_LOCK)
+        )
+
     return (
+        *gsc_ticks,
         Tick(name="planner", interval=PLANNER_EVERY, action=plan, lock_ttl=PLANNER_LOCK),
         Tick(name="dispatcher", interval=DISPATCHER_EVERY, action=send, lock_ttl=DISPATCHER_LOCK),
         Tick(name="ready_poll", interval=POLL_EVERY, action=poll, lock_ttl=POLL_LOCK),

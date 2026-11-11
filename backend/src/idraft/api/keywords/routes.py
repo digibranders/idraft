@@ -74,6 +74,8 @@ from idraft.api.schemas.keywords import (
     TrackedKeywordBulkCreate,
     TrackedKeywordBulkDelete,
     TrackedKeywordBulkUpdate,
+    TrackedKeywordCountries,
+    TrackedKeywordCountry,
     TrackedKeywordCreate,
     TrackedKeywordDetail,
     TrackedKeywordDetailResponse,
@@ -252,10 +254,14 @@ Include = Annotated[
     summary="The project's tracked keywords",
     description="Sorted by `sort`, a comma list of `keyword`, `search_volume`, "
     "`keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, `current_rank`, `rank_change`, "
-    "`best_rank` and `last_observed_at`, each at most once and with `-` for descending; "
-    "`keyword` when left out, and the id always last. A metric or a rank sorts keywords without "
-    "one (beyond the depth, or never checked) last in both directions. Every row carries its "
-    "rank `state`; `include` adds `sparkline`, `competitor_ranks`, `features` and `aio`. "
+    "`best_rank`, `last_observed_at`, `gsc_clicks` and `gsc_impressions`, each at most once and "
+    "with `-` for descending; `keyword` when left out, and the id always last. A metric or a rank "
+    "sorts keywords without one (beyond the depth, or never checked) last in both directions. "
+    "The Search Console sorts use the 28 days of `include=gsc` on the keyword's own device, and "
+    "count a keyword with no rows as 0 (every row is 0 while the project is `pending` or "
+    "`not_connected`). Every row carries its "
+    "rank `state`; `include` adds `sparkline`, `competitor_ranks`, `ranking_urls`, `gsc`, "
+    "`features` and `aio`. "
     "`page.total` counts every match. A cursor is bound to its filters and sort "
     "(`400 invalid_cursor` otherwise).",
 )
@@ -286,6 +292,22 @@ async def list_tracked_keywords(
     ] = None,
     device: Annotated[Device | None, Query(alias="filter[device]")] = None,
     location_id: Annotated[int | None, Query(alias="filter[location_id]")] = None,
+    country_id: Annotated[
+        int | None,
+        Query(
+            alias="filter[country_id]",
+            description="A country's location id: tracked in it or anywhere inside it.",
+        ),
+    ] = None,
+    country_id_in: Annotated[
+        list[int] | None,
+        Commas,
+        Query(
+            alias="filter[country_id_in]",
+            description="Any of these countries (comma separated location ids): tracked in one "
+            "of them or anywhere inside one.",
+        ),
+    ] = None,
     language_code: Annotated[LanguageCode | None, Query(alias="filter[language_code]")] = None,
     search_engine: Annotated[
         Literal["google", "bing"] | None, Query(alias="filter[search_engine]")
@@ -339,6 +361,8 @@ async def list_tracked_keywords(
             "term_in": term_in,
             "device": device,
             "location_id": location_id,
+            "country_id": country_id,
+            "country_id_in": country_id_in,
             "language_code": language_code,
             "search_engine": search_engine,
             "intent_in": intent_in,
@@ -379,13 +403,17 @@ async def list_tracked_keywords(
                     "competitors": None
                     if row.overrides is None
                     else [_override(o) for o in row.overrides],
-                    "state": rank_views.state_view(row.state),
+                    "state": rank_views.state_view(row.state, row.check),
                     "sparkline": None
                     if row.sparkline is None
                     else rank_views.sparkline_view(row.sparkline),
                     "competitor_ranks": None
                     if row.competitor_ranks is None
                     else [rank_views.competitor_view(c) for c in row.competitor_ranks],
+                    "ranking_urls": None
+                    if row.ranking_urls is None
+                    else [rank_views.ranking_url_view(p) for p in row.ranking_urls],
+                    "gsc": None if row.gsc is None else rank_views.gsc_view(row.gsc),
                     "features": None
                     if row.features is None
                     else rank_views.features_view(row.features),
@@ -400,6 +428,32 @@ async def list_tracked_keywords(
             has_more=result.next_cursor is not None,
             total=result.total,
         ),
+    )
+
+
+@router.get(
+    "/countries",
+    summary="The countries the project has keywords in",
+    description="One entry for each country with active tracked keywords, a keyword tracked "
+    "in a city counting for the city's country, most keywords first. `keyword_count` counts "
+    "distinct keywords: one tracked on both devices counts once.",
+)
+async def list_tracked_keyword_countries(
+    project_id: UUID, access: ReadData, keywords: Keywords
+) -> TrackedKeywordCountries:
+    return TrackedKeywordCountries(
+        data=[
+            TrackedKeywordCountry(
+                location=LocationRef(
+                    location_id=country.location_id,
+                    name=country.name,
+                    country_iso=country.country_iso,
+                    location_type=country.location_type,
+                ),
+                keyword_count=country.keyword_count,
+            )
+            for country in await keywords.countries_in_use(access, project_id)
+        ]
     )
 
 
@@ -534,7 +588,7 @@ async def get_tracked_keyword(
                 "groups": [_group(group) for group in detail.groups],
                 "terms": [_term(term) for term in detail.terms],
                 "competitor_overrides": [_override(o) for o in detail.overrides],
-                "state": rank_views.state_view(detail.state),
+                "state": rank_views.state_view(detail.state, detail.check),
                 "config_history_count": detail.config_versions,
                 "schedule": None
                 if schedule is None

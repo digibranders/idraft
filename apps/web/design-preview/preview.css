@@ -20,17 +20,14 @@
 @source "./perf-filters.js";
 @source "./perf-model.js";
 @source "./perf-ui.js";
-@source "./kw.js";
-@source "./kw-add.js";
-@source "./kw-bulk.js";
-@source "./kw-data.js";
 @source "./kw-dialog.js";
-@source "./kw-filters.js";
-@source "./kw-groups.js";
-@source "./kw-import.js";
-@source "./kw-inspector.js";
-@source "./kw-model.js";
-@source "./kw-table.js";
+@source "./kw-grouped.js";
+@source "./kw-grouped-data.js";
+@source "./kw-grouped-model.js";
+@source "./kw-grouped-menus.js";
+@source "./kw-grouped-dialogs.js";
+@source "./kw-grouped-drawer.js";
+@source "./kw-grouped-pages.js";
 
 /* Every table: all data at 12 px / 16 px and header labels in capitals (owner decisions of 2026-10-29).
    Unlayered on purpose: it wins over the type-* utilities that the mock-up cells carry. The app does this

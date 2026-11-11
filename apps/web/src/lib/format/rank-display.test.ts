@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { changeDisplay, rankDisplay, rowChangeDisplay, urlDisplay } from './rank-display';
-import type { RankCell, RankChange, UrlRef } from '@/lib/api/types';
+import type { KeywordCheck, RankCell, RankChange, UrlRef } from '@/lib/api/types';
 
 const current = (over: Partial<RankCell> = {}): RankCell => ({
   state: 'ranked',
@@ -23,6 +23,7 @@ describe('rank display', () => {
       observedAt: '2026-10-06T02:00:00Z',
       stale: false,
       failing: false,
+      check: 'none',
     });
   });
 
@@ -30,10 +31,50 @@ describe('rank display', () => {
     expect(rankDisplay(current({ state: 'beyond_depth', rank: null, depth_requested: 50 }), false)).toEqual({
       kind: 'beyond',
       depth: 50,
+      returned: null,
       observedAt: '2026-10-06T02:00:00Z',
       stale: false,
       failing: false,
+      unconfirmed: false,
+      check: 'none',
     });
+  });
+
+  it('keeps the asked depth as the number and notes in `returned` that Google gave fewer results', () => {
+    const beyond = (over: Partial<RankCell>): RankCell =>
+      current({ state: 'beyond_depth', rank: null, depth_requested: 100, ...over });
+
+    expect(rankDisplay(beyond({ depth_returned: 66 }), false)).toMatchObject({ depth: 100, returned: 66 });
+    // Nothing to note when the answer reached the asked depth, passed it, or the API does not say
+    expect(rankDisplay(beyond({ depth_returned: 100 }), false)).toMatchObject({ depth: 100, returned: null });
+    expect(rankDisplay(beyond({ depth_returned: 140 }), false)).toMatchObject({ depth: 100, returned: null });
+    expect(rankDisplay(beyond({}), false)).toMatchObject({ depth: 100, returned: null });
+    expect(rankDisplay(beyond({ depth_returned: null }), false)).toMatchObject({ depth: 100, returned: null });
+    // An answer with no results at all still says it
+    expect(rankDisplay(beyond({ depth_returned: 0 }), false)).toMatchObject({ depth: 100, returned: 0 });
+  });
+
+  it('says a drop is unconfirmed only for a rank that is beyond the depth', () => {
+    const beyond = current({ state: 'beyond_depth', rank: null });
+
+    expect(rankDisplay(beyond, false, 0, { dropUnconfirmed: true })).toMatchObject({ unconfirmed: true });
+    expect(rankDisplay(beyond, false, 0, { dropUnconfirmed: false })).toMatchObject({ unconfirmed: false });
+    expect(rankDisplay(current(), false, 0, { dropUnconfirmed: true })).not.toHaveProperty('unconfirmed');
+  });
+
+  it('marks a keyword whose check is on its way or could not say, and nothing for the other states', () => {
+    const mark = (status: KeywordCheck['status']): unknown =>
+      (rankDisplay(current(), false, 0, { check: { status } }) as { check: string }).check;
+
+    expect(mark('queued')).toBe('pending');
+    expect(mark('processing')).toBe('pending');
+    expect(mark('inconclusive')).toBe('inconclusive');
+    expect(['idle', 'completed', 'failed'].map((status) => mark(status as KeywordCheck['status']))).toEqual([
+      'none',
+      'none',
+      'none',
+    ]);
+    expect(rankDisplay(current(), false)).toMatchObject({ check: 'none' });
   });
 
   it('shows pending before the first check and a failure as such', () => {
@@ -90,9 +131,12 @@ describe('rank display', () => {
     expect(rankDisplay(current({ state: 'beyond_depth', rank: null, observed_at: null }), false)).toEqual({
       kind: 'beyond',
       depth: 20,
+      returned: null,
       observedAt: null,
       stale: false,
       failing: false,
+      unconfirmed: false,
+      check: 'none',
     });
   });
 });

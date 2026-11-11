@@ -874,3 +874,7 @@ Found on the way: a combobox's open list was unnamed (Base UI names the text fie
 | Drag to move a term, merge with counts | step 11 |
 | Visual baselines of the new pages | CI, in the Playwright image |
 
+
+## 2026-11-02: one-row page header
+
+Rule 7 added to 00 section 3 (maximum information in minimum screen). Page top padding 20 to 12 px and block gap 16 to 12 px (04, 05, 23, 27, DESIGN_SYSTEM.md). New `MetricStrip` size `inline` (23 section 2.8) and the `PageHeader` toolbar row (23 section 3.1). Height budget in 23 section 3.2 is now 100 px (160 px with tabs); the table page chrome drops from 424 px to 248 px, so a 900 px screen shows 20 rows at 32 px (04 section 3). Applied to Keywords, Runs and Costs; settings, project list and the page skeleton take the new padding. Checklist item in 27 section 1 updated.

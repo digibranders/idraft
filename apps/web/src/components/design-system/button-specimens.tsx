@@ -4,6 +4,7 @@ import { Download, Ellipsis, Plus, Search, Settings, Trash2, X } from 'lucide-re
 import { useState, type ReactNode } from 'react';
 
 import { SpecimenGroup, SpecimenRow } from './specimen';
+import { TabNav } from '@/components/app/shell/tab-nav';
 import { Button } from '@/components/ui/button';
 import type { ButtonVariant } from '@/components/ui/button-variants';
 import { IconButton } from '@/components/ui/icon-button';
@@ -146,6 +147,22 @@ export function ButtonSpecimens(): ReactNode {
               Visibility chart
             </TabsPanel>
           </Tabs>
+        </div>
+      </SpecimenGroup>
+
+      <SpecimenGroup
+        title="Route tabs"
+        note="09 section 12, 25 section 3.39. A nav of links that change the route; a source that is not built yet is listed and disabled."
+      >
+        <div className="w-full max-w-form">
+          <TabNav
+            label="Data sources"
+            items={[
+              { href: '/design-system', label: 'Search Console', current: true },
+              { href: '/design-system', label: 'Bing', current: false, unavailable: 'Not available yet' },
+              { href: '/design-system', label: 'GA4', current: false, unavailable: 'Not available yet' },
+            ]}
+          />
         </div>
       </SpecimenGroup>
     </>

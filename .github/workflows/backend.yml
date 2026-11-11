@@ -3,9 +3,10 @@ name: backend
 on:
   push:
     branches: [main]
-    paths: ["backend/**", ".github/workflows/backend.yml"]
+    # The tests build their database from the role scripts in infra/compose/postgres/initdb (tests/conftest.py)
+    paths: ["backend/**", "infra/compose/postgres/initdb/**", ".github/workflows/backend.yml"]
   pull_request:
-    paths: ["backend/**", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "infra/compose/postgres/initdb/**", ".github/workflows/backend.yml"]
 
 concurrency:
   group: backend-${{ github.ref }}
@@ -17,7 +18,8 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # 4,120 tests on 4 workers take about 7.5 minutes on a 4-CPU machine; this leaves room for a slower runner
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: backend

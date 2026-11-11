@@ -23,8 +23,12 @@ if not config.get_main_option("sqlalchemy.url"):
 
 
 def _run(connection: Connection) -> None:
-    # A session lock: a second migrator waits here until the first one disconnects.
+    # A session lock: a second migrator waits here until the first one disconnects. The role's
+    # lock_timeout (2 s, 10-roles.sh) is for the DDL below, not for this wait, which the role's
+    # statement_timeout still bounds; RESET puts the role's value back for the migrations.
+    connection.execute(text("SET lock_timeout = 0"))
     connection.execute(text("SELECT pg_advisory_lock(:key)"), {"key": ADVISORY_LOCK_KEY})
+    connection.execute(text("RESET lock_timeout"))
     connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {VERSION_SCHEMA}"))
     connection.commit()
     context.configure(

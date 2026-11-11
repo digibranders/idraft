@@ -121,10 +121,11 @@ function topTenItem(cell: StripCells['topTen'], t: StripTranslate): MetricStripI
 }
 
 /** The AI Overview as the table cell words it, as a word answer rather than a figure. */
-function aioText(display: AioDisplay, aio: AioTranslate): string | null {
+function aioText(display: AioDisplay, t: StripTranslate, aio: AioTranslate): string | null {
   switch (display.kind) {
     case 'cited':
-      return display.position === null ? aio('citedNoPosition') : aio('cited', { position: display.position });
+      // The table cell shows only "#3" beside a check mark; the strip has no mark, so it says "Cited"
+      return display.position === null ? t('aioCited') : t('aioCitedAt', { position: display.position });
     case 'notCited':
       return aio('states.presentNotCited');
     case 'absent':
@@ -145,7 +146,7 @@ function aioItem(
 ): MetricStripItem {
   const id = 'aio';
   const label = t('aio');
-  const text = aioText(cell.display, aio);
+  const text = aioText(cell.display, t, aio);
   if (text === null) return unavailable(id, label, t);
   const context =
     cell.counts === null

@@ -14,7 +14,8 @@ import {
   type RefObject,
 } from 'react';
 
-import { MAX_GROUP_DEPTH, MAX_GROUP_NAME } from './group-paths';
+import { useChangeGroup, useDeleteGroup, useGroupNameCheck } from './group-mutations';
+import { MAX_GROUP_DEPTH } from './group-paths';
 import { groupRefusal } from './group-refusals';
 import { ancestorsOf, flattenGroups, moveTargets, subtreeIds, toTreeNodes, type GroupNode } from './group-tree';
 import { refreshKeywords, type ProjectScope } from '../rankings-queries';
@@ -32,19 +33,9 @@ import { toast } from '@/components/ui/toast';
 import { Tooltip } from '@/components/ui/tooltip';
 import { TreeView } from '@/components/ui/tree-view';
 import { announce } from '@/lib/a11y/announcer';
-import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
-import { textLength } from '@/lib/text/length';
 
 const CREATE = apiMutation('post', '/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups');
-const CHANGE = apiMutation(
-  'patch',
-  '/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups/{group_id}',
-);
-const REMOVE = apiMutation(
-  'delete',
-  '/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups/{group_id}',
-);
 
 const SKELETON_ROWS = 4;
 /** The "Move under" choice for the top level: group ids are UUIDs, so this never names a group. */
@@ -110,9 +101,8 @@ function ManageGroups({
   const t = useTranslations('rankings.groups.manage');
   const refusals = useTranslations('rankings.groups.refusals');
   const common = useTranslations('common');
-  const queryClient = useQueryClient();
   const groups = useKeywordGroupTree(scope);
-  const remove = useMutation(REMOVE);
+  const deleteGroup = useDeleteGroup(scope);
   const [selected, setSelected] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   // A group to bring into view when the refreshed tree contains it
@@ -150,24 +140,14 @@ function ManageGroups({
     if (deleting === null) return;
     setDeleteError(null);
     try {
-      await remove.mutateAsync({
-        params: {
-          path: { workspace_id: scope.workspaceId, project_id: scope.projectId, group_id: deleting.group_id },
-        },
-      });
+      await deleteGroup(deleting.group_id);
     } catch (error) {
-      // A group deleted meanwhile is gone, which is what was asked
-      if (!isApiProblem(error, 'not_found')) {
-        setDeleteError(groupRefusal(error, refusals).message);
-        throw error;
-      }
+      setDeleteError(groupRefusal(error, refusals).message);
+      throw error;
     }
     // A form for the deleted group, or one under it, has nothing left to change
     const formGroup = form === null ? null : formGroupId(form);
     if (formGroup !== null && subtreeIds(deleting).has(formGroup)) setForm(null);
-    await refreshGroups(queryClient, scope);
-    // The keyword list shows each keyword's groups, and a delete or a move changes them
-    void refreshKeywords(queryClient, scope);
     setSelected(deleting.parent_id);
     toast({ type: 'success', title: t('deleted', { name: deleting.name }) });
   };
@@ -374,17 +354,17 @@ interface GroupFormRowProps {
  */
 function GroupFormRow({ scope, form, groups, onDirtyChange, onCancel, onDone }: GroupFormRowProps): ReactElement {
   const t = useTranslations('rankings.groups.manage');
-  const pickers = useTranslations('rankings.groups');
   const refusals = useTranslations('rankings.groups.refusals');
   const queryClient = useQueryClient();
   const create = useMutation(CREATE);
-  const change = useMutation(CHANGE);
+  const change = useChangeGroup(scope);
+  const nameProblem = useGroupNameCheck();
   const formElement = useRef<HTMLFormElement>(null);
   const [name, setName] = useState(form.kind === 'rename' ? form.group.name : '');
   const [parent, setParent] = useState<string>(form.kind === 'move' ? (form.group.parent_id ?? TOP_LEVEL) : TOP_LEVEL);
   const [nameError, setNameError] = useState<string | null>(null);
   const [alert, setAlert] = useState<string | null>(null);
-  const busy = create.isPending || change.isPending;
+  const busy = create.isPending || change.pending;
   const project = { workspace_id: scope.workspaceId, project_id: scope.projectId };
 
   const dirty =
@@ -422,12 +402,6 @@ function GroupFormRow({ scope, form, groups, onDirtyChange, onCancel, onDone }: 
     return () => element.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const nameProblem = (text: string): string | null => {
-    if (text === '') return t('nameRequired');
-    if (textLength(text) > MAX_GROUP_NAME) return pickers('pathTooLong');
-    return text.includes('/') ? refusals('slash') : null;
-  };
-
   /** What the form sends and the group it leaves selected, or `null` when nothing changes. */
   const send = async (): Promise<string | null> => {
     if (form.kind === 'add') {
@@ -442,18 +416,12 @@ function GroupFormRow({ scope, form, groups, onDirtyChange, onCancel, onDone }: 
     if (form.kind === 'rename') {
       const trimmed = name.trim();
       if (trimmed === form.group.name) return null;
-      await change.mutateAsync({
-        params: { path: { ...project, group_id: form.group.group_id } },
-        body: { name: trimmed },
-      });
+      await change.change(form.group.group_id, { name: trimmed });
       toast({ type: 'success', title: t('renamed', { name: trimmed }) });
       return form.group.group_id;
     }
     if (parent === (form.group.parent_id ?? TOP_LEVEL)) return null;
-    await change.mutateAsync({
-      params: { path: { ...project, group_id: form.group.group_id } },
-      body: { parent_id: parent === TOP_LEVEL ? null : parent },
-    });
+    await change.change(form.group.group_id, { parent_id: parent === TOP_LEVEL ? null : parent });
     toast({ type: 'success', title: t('moved', { name: form.group.name }) });
     return form.group.group_id;
   };

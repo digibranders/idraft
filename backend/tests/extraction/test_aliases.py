@@ -238,10 +238,12 @@ def test_a_stored_pattern_the_matcher_cannot_run_is_left_out_not_fatal() -> None
 
 
 def test_a_pathological_pattern_runs_in_linear_time() -> None:
+    # CPU time of this process, not wall time: the suite runs on parallel workers that share the
+    # CPUs, and waiting for a core says nothing about the matcher. Applies to the timings below too.
     matcher = AliasMatcher([_entity(ACME, "Acme")], [_alias(ACME, "(a+)+$", "regex")])
-    started = time.monotonic()
+    started = time.process_time()
     matcher.match("a" * 50_000 + "!")
-    assert time.monotonic() - started < 1.0
+    assert time.process_time() - started < 1.0
 
 
 # Overlaps, negatives, products, domains.
@@ -343,9 +345,9 @@ def test_a_negative_that_drops_nothing_is_not_reported() -> None:
 def test_many_negatives_on_a_long_text_are_quick() -> None:
     entities = [_entity(APPLE, "Apple")]
     aliases = [_alias(APPLE, "apple"), _alias(APPLE, "apple pie", negative=True)]
-    started = time.monotonic()
+    started = time.process_time()
     result = _match("apple pie " * 10_000, entities, aliases)
-    assert time.monotonic() - started < 2.0
+    assert time.process_time() - started < 2.0
     assert result.mentions == ()
     assert len(result.negatives_applied) == 10_000
 
@@ -354,9 +356,9 @@ def test_overlapping_matches_on_a_long_text_resolve_quickly() -> None:
     """A substring alias of one letter on the alias test's 100 KB limit."""
     entities = [_entity(ACME, "A"), _entity(HUBSPOT, "Aa")]
     aliases = [_alias(ACME, "a", "substring"), _alias(HUBSPOT, "aa", "substring")]
-    started = time.monotonic()
+    started = time.process_time()
     result = _match("a" * 100_000, entities, aliases)
-    assert time.monotonic() - started < 5.0
+    assert time.process_time() - started < 5.0
     assert [len(m.spans) for m in result.mentions] == [50_000]
 
 

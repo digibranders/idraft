@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 
 import { col } from './columns';
 import { DataTable } from './data-table';
-import type { DataTableColumn, RecordAction, RowActions, ServerPaging, TableStatus } from './types';
+import type { DataTableColumn, RecordAction, RowActions, RowTree, Selection, ServerPaging, TableStatus } from './types';
 import { CopyButton } from '@/components/app/cells/copy-button';
 import { InspectorOverlayContext } from '@/components/app/inspector/inspector-layout';
 import { CELL_CONTROL } from '@/lib/tables/grid-focus';
@@ -379,6 +379,21 @@ describe('DataTable', () => {
     expect(within(bulkBar()).getByText('3 selected')).toBeInTheDocument();
     await user.keyboard('{Control>}a{/Control}');
     expect(within(bulkBar()).getByText('5 selected')).toBeInTheDocument();
+  });
+
+  it('keeps a Shift click on a row checkbox as the one range it asks for, and a plain click as one toggle', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(6)} />);
+    // The default sort is by volume, descending: k5 (185), k4 (148), k3 (111), k2 (74), k0 (0), k1 (none)
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 005' }));
+    expect(within(bulkBar()).getByText('1 selected')).toBeInTheDocument();
+    await user.keyboard('{Shift>}');
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 002' }));
+    await user.keyboard('{/Shift}');
+    expect(within(bulkBar()).getByText('4 selected')).toBeInTheDocument();
+    for (const name of ['005', '004', '003', '002']) {
+      expect(screen.getByRole('checkbox', { name: `Select keyword ${name}` })).toBeChecked();
+    }
+    expect(screen.getByRole('checkbox', { name: 'Select keyword 000' })).not.toBeChecked();
   });
 
   it('offers every matching row only once every loaded row is selected, and runs a bulk action on it', async () => {
@@ -797,7 +812,7 @@ describe('DataTable rank, change and URL columns', () => {
       cell: () => 'comp',
     });
     expect(RANKED.map((column) => column.type)).toEqual(['keyword', 'rank', 'rankDelta', 'url']);
-    expect(wide.width).toBe(112);
+    expect(wide.width).toBe(136);
     expect(narrow.width).toBe(160);
     expect(features.type).toBe('features');
     expect(features.width).toBe(120);
@@ -1353,5 +1368,443 @@ describe('DataTable row tone', () => {
     await user.keyboard('{ArrowDown}');
     // Sorted by volume, high to low: keyword 002 is followed by keyword 000
     expect(document.activeElement).toBe(within(rowOf('keyword 000')).getByRole('rowheader'));
+  });
+});
+
+describe('DataTable tree mode', () => {
+  const TREE_ROWS: Row[] = [
+    { id: 'g1', keyword: 'Group A', volume: 50, difficulty: 1 },
+    { id: 'c1', keyword: 'alpha one', volume: 20, difficulty: 2 },
+    { id: 'c2', keyword: 'alpha two', volume: 30, difficulty: 3 },
+    { id: 'g2', keyword: 'Group B', volume: 90, difficulty: 4 },
+  ];
+  const TREE: Readonly<Record<string, RowTree>> = {
+    g1: { level: 1, expanded: true, setSize: 2, posInSet: 1 },
+    c1: { level: 2, setSize: 2, posInSet: 1 },
+    c2: { level: 2, setSize: 2, posInSet: 2 },
+    g2: { level: 1, expanded: false, setSize: 2, posInSet: 2 },
+  };
+  // Two open groups, and between them a "Show all" row that is no keyword
+  const WIDE_ROWS: Row[] = [
+    { id: 'g1', keyword: 'Group A', volume: 50, difficulty: 1 },
+    { id: 'c1', keyword: 'alpha one', volume: 20, difficulty: 2 },
+    { id: 'c2', keyword: 'alpha two', volume: 30, difficulty: 3 },
+    { id: 'm1', keyword: 'Show all 9', volume: null, difficulty: 0 },
+    { id: 'g2', keyword: 'Group B', volume: 90, difficulty: 4 },
+    { id: 'd1', keyword: 'beta one', volume: 10, difficulty: 5 },
+    { id: 'd2', keyword: 'beta two', volume: 40, difficulty: 6 },
+  ];
+  const WIDE: Readonly<Record<string, RowTree>> = {
+    g1: { level: 1, expanded: true, setSize: 2, posInSet: 1 },
+    c1: { level: 2, setSize: 3, posInSet: 1 },
+    c2: { level: 2, setSize: 3, posInSet: 2 },
+    m1: { level: 2, setSize: 3, posInSet: 3, selectable: false },
+    g2: { level: 1, expanded: true, setSize: 2, posInSet: 2 },
+    d1: { level: 2, setSize: 2, posInSet: 1 },
+    d2: { level: 2, setSize: 2, posInSet: 2 },
+  };
+  const toggle = vi.fn<(row: Row) => void>();
+  const BASE_SELECTION: Selection = {
+    selectedIds: new Set(),
+    onChange: vi.fn(),
+    matchingTotal: null,
+    allMatching: false,
+    onAllMatchingChange: vi.fn(),
+  };
+
+  function TreeHarness({
+    sort = [],
+    selection = {},
+    toolbarEnd,
+    rows = TREE_ROWS,
+    tree = TREE,
+  }: {
+    sort?: readonly SortKey[];
+    selection?: Partial<Selection>;
+    toolbarEnd?: ReactElement;
+    rows?: Row[];
+    tree?: Readonly<Record<string, RowTree>>;
+  }): ReactElement {
+    const [search, setSearch] = useState('');
+    const [density, setDensity] = useState<Density>(parseDensity(null));
+    return (
+      <div className="flex h-200 flex-col">
+        <DataTable<Row>
+          caption="Keywords"
+          itemNoun={{ one: 'keyword', other: 'keywords' }}
+          columns={COLUMNS}
+          getRowId={rowId}
+          rows={rows}
+          total={3}
+          sort={sort}
+          onSortChange={vi.fn()}
+          defaultSort={DEFAULT_SORT}
+          density={density}
+          onDensityChange={setDensity}
+          columnState={{ visible: null, onChange: vi.fn() }}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search keywords"
+          selection={{ ...BASE_SELECTION, ...selection }}
+          rowName={keywordOf}
+          onRowOpen={onOpen}
+          rowTree={(row) => tree[row.id]}
+          onToggleGroup={toggle}
+          toolbarEnd={toolbarEnd}
+          status="ready"
+          errorState={<p>The keywords did not load.</p>}
+          emptyState={<p>No keywords yet.</p>}
+          filteredEmptyState={<p>No keywords match.</p>}
+        />
+      </div>
+    );
+  }
+
+  const treeGrid = (): HTMLElement => screen.getByRole('treegrid', { name: 'Keywords' });
+  const bodyRows = (): HTMLElement[] => within(treeGrid()).getAllByRole('row').slice(1);
+  const cellAt = (row: number, column: number): HTMLElement => {
+    const cell = treeGrid().querySelector<HTMLElement>(`[data-cell="${String(row)}:${String(column)}"]`);
+    if (cell === null) throw new Error(`No cell ${String(row)}:${String(column)}`);
+    return cell;
+  };
+  const focusedCell = (): string | undefined => (document.activeElement as HTMLElement | null)?.dataset.cell;
+
+  beforeEach(() => {
+    toggle.mockReset();
+  });
+
+  it('is a treegrid whose group rows carry the level, set and expanded state, and whose children carry no expanded state', () => {
+    renderWithProviders(<TreeHarness />);
+    const [first, child, , second] = bodyRows();
+    expect(first).toHaveAttribute('aria-expanded', 'true');
+    expect(first).toHaveAttribute('aria-level', '1');
+    expect(first).toHaveAttribute('aria-setsize', '2');
+    expect(first).toHaveAttribute('aria-posinset', '1');
+    expect(first).toHaveAttribute('data-group-row');
+    expect(second).toHaveAttribute('aria-expanded', 'false');
+    expect(second).toHaveAttribute('aria-posinset', '2');
+    expect(child).toHaveAttribute('aria-level', '2');
+    expect(child).toHaveAttribute('aria-setsize', '2');
+    expect(child).not.toHaveAttribute('aria-expanded');
+    expect(child).not.toHaveAttribute('data-group-row');
+  });
+
+  it('names the disclosure button of a group row by its state and name, and toggles the group from it', async () => {
+    const { user } = renderWithProviders(<TreeHarness />);
+    await user.click(screen.getByRole('button', { name: 'Collapse Group A' }));
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g1' }));
+    expect(screen.getByRole('button', { name: 'Expand Group B' })).toBeInTheDocument();
+    expect(within(bodyRows()[1] as HTMLElement).queryByRole('button', { name: /(Expand|Collapse)/ })).toBeNull();
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('shows the rows in the order given, whatever the sort names', () => {
+    renderWithProviders(<TreeHarness sort={[{ id: 'keyword', desc: true }]} />);
+    expect(
+      within(treeGrid())
+        .getAllByRole('rowheader')
+        .map((cell) => cell.textContent),
+    ).toEqual(['Group A', 'alpha one', 'alpha two', 'Group B']);
+  });
+
+  it('toggles a group row on a click and on Enter, and opens a child row as before', async () => {
+    const { user } = renderWithProviders(<TreeHarness />);
+    await user.click(within(bodyRows()[0] as HTMLElement).getByText('Group A'));
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g1' }));
+    expect(onOpen).not.toHaveBeenCalled();
+    toggle.mockClear();
+    act(() => cellAt(3, 1).focus());
+    await user.keyboard('{Enter}');
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g2' }));
+    expect(onOpen).not.toHaveBeenCalled();
+    await user.click(within(bodyRows()[1] as HTMLElement).getByText('alpha one'));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'c1' }), 'inspector');
+  });
+
+  it('opens a collapsed group with Right Arrow and closes an expanded one with Left Arrow', async () => {
+    // The selection column is cell 0 and the identity cell, which holds the disclosure button, is cell 1
+    const { user } = renderWithProviders(<TreeHarness />);
+    act(() => cellAt(3, 1).focus());
+    // Left on a closed group row moves to the cell before it, as in a grid
+    await user.keyboard('{ArrowLeft}');
+    expect(toggle).not.toHaveBeenCalled();
+    expect(focusedCell()).toBe('3:0');
+    act(() => cellAt(3, 1).focus());
+    await user.keyboard('{ArrowRight}');
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g2' }));
+    toggle.mockClear();
+    act(() => cellAt(0, 1).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g1' }));
+  });
+
+  it('moves from an expanded group to its first child with Right Arrow, and from a child to its group with Left Arrow', async () => {
+    const { user } = renderWithProviders(<TreeHarness />);
+    act(() => cellAt(0, 1).focus());
+    await user.keyboard('{ArrowRight}');
+    expect(toggle).not.toHaveBeenCalled();
+    expect(focusedCell()).toBe('1:1');
+    // On a child the arrows move between cells, except Left from its identity cell
+    await user.keyboard('{ArrowRight}');
+    expect(focusedCell()).toBe('1:2');
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('1:1');
+    act(() => cellAt(2, 1).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('0:1');
+    expect(toggle).not.toHaveBeenCalled();
+  });
+
+  it('moves between cells as in a grid from the selection cell and from the cells after the identity cell', async () => {
+    const { user } = renderWithProviders(<TreeHarness />);
+    act(() => cellAt(3, 0).focus());
+    await user.keyboard('{ArrowRight}');
+    expect(focusedCell()).toBe('3:1');
+    expect(toggle).not.toHaveBeenCalled();
+    act(() => cellAt(0, 0).focus());
+    await user.keyboard('{ArrowRight}');
+    expect(focusedCell()).toBe('0:1');
+    expect(toggle).not.toHaveBeenCalled();
+    act(() => cellAt(0, 2).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('0:1');
+    expect(toggle).not.toHaveBeenCalled();
+    // The checkbox cell of a row inside a group goes right and left as a grid does, not to the group row
+    act(() => cellAt(2, 0).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('2:0');
+  });
+
+  it('puts focus on the group row when its rows go while focus is on one of them', () => {
+    const { rerender } = renderWithProviders(<TreeHarness rows={WIDE_ROWS} tree={WIDE} />);
+    act(() => cellAt(2, 1).focus());
+    expect(cellAt(2, 1)).toHaveAttribute('tabindex', '0');
+    const closed = WIDE_ROWS.filter((row) => row.id !== 'c1' && row.id !== 'c2' && row.id !== 'm1');
+    rerender(
+      <TreeHarness rows={closed} tree={{ ...WIDE, g1: { level: 1, expanded: false, setSize: 2, posInSet: 1 } }} />,
+    );
+    expect(cellAt(0, 1)).toHaveAttribute('tabindex', '0');
+    expect(focusedCell()).toBe('0:1');
+  });
+
+  it('names the disclosure button with the label the caller gives, and keeps the row header named by the row', () => {
+    renderWithProviders(
+      <TreeHarness
+        tree={{
+          ...TREE,
+          g1: { level: 1, expanded: true, setSize: 2, posInSet: 1, label: 'Collapse the Group A group' },
+        }}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Collapse the Group A group' })).toBeInTheDocument();
+    expect(screen.getByRole('rowheader', { name: 'Group A' })).toBeInTheDocument();
+  });
+
+  it('draws the cells of a group row in the strong body type', () => {
+    renderWithProviders(<TreeHarness />);
+    expect(within(bodyRows()[0] as HTMLElement).getByRole('rowheader')).toHaveClass('type-body-strong');
+    expect(within(bodyRows()[1] as HTMLElement).getByRole('rowheader')).not.toHaveClass('type-body-strong');
+  });
+
+  it('keeps Space selecting a group row', async () => {
+    const onChange = vi.fn<(ids: ReadonlySet<string>) => void>();
+    const { user } = renderWithProviders(<TreeHarness selection={{ onChange }} />);
+    act(() => cellAt(0, 0).focus());
+    await user.keyboard(' ');
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(new Set(['g1']));
+    expect(toggle).not.toHaveBeenCalled();
+  });
+
+  it('draws a group checkbox as mixed when its id is in indeterminateIds and checked when it is selected', () => {
+    renderWithProviders(
+      <TreeHarness selection={{ selectedIds: new Set(['g2']), indeterminateIds: new Set(['g1']) }} />,
+    );
+    expect(screen.getByRole('checkbox', { name: 'Select Group A' })).toHaveAttribute('aria-checked', 'mixed');
+    expect(screen.getByRole('checkbox', { name: 'Select Group B' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select alpha one' })).not.toBeChecked();
+  });
+
+  it('counts the chosen keywords in the bulk bar, and does not call the rows of closed groups hidden', () => {
+    const hidden = new Set(['g1', 'c1', 'c2', 'x1', 'x2', 'x3', 'x4']);
+    const { rerender } = renderWithProviders(
+      <TreeHarness selection={{ selectedIds: new Set(['g1', 'c1', 'c2']), selectedCount: 7 }} />,
+    );
+    expect(within(bulkBar()).getByText('7 selected')).toBeInTheDocument();
+    expect(within(bulkBar()).queryByText('3 selected')).toBeNull();
+    rerender(<TreeHarness selection={{ selectedIds: hidden }} />);
+    expect(within(bulkBar()).getByText(/4 selected rows are hidden by filters/)).toBeInTheDocument();
+    rerender(<TreeHarness selection={{ selectedIds: hidden, unrenderedCount: 4 }} />);
+    expect(within(bulkBar()).queryByText(/hidden by filters/)).toBeNull();
+    rerender(<TreeHarness selection={{ selectedIds: hidden, unrenderedCount: 10 }} />);
+    expect(within(bulkBar()).queryByText(/hidden by filters/)).toBeNull();
+  });
+
+  it('keeps the bulk bar while keywords are chosen only in closed groups, and Clear empties the selection', async () => {
+    const onChange = vi.fn<(ids: ReadonlySet<string>) => void>();
+    const onAllMatchingChange = vi.fn<(allMatching: boolean) => void>();
+    const { user } = renderWithProviders(
+      <TreeHarness
+        selection={{ selectedIds: new Set(), selectedCount: 3, unrenderedCount: 3, onChange, onAllMatchingChange }}
+      />,
+    );
+    expect(within(bulkBar()).getByText('3 selected')).toBeInTheDocument();
+    expect(within(bulkBar()).queryByText(/hidden by filters/)).toBeNull();
+    expect(screen.queryByRole('searchbox', { name: 'Search in table' })).toBeNull();
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Clear selection' }));
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(new Set());
+    expect(onAllMatchingChange).toHaveBeenCalledExactlyOnceWith(false);
+  });
+
+  it('shows the toolbar when the count is 0, whatever ids the selection holds', () => {
+    renderWithProviders(<TreeHarness selection={{ selectedIds: new Set(['x1']), selectedCount: 0 }} />);
+    expect(screen.queryByRole('group', { name: /Bulk actions/ })).toBeNull();
+    expect(screen.getByRole('searchbox', { name: 'Search in table' })).toBeInTheDocument();
+  });
+
+  it('renders toolbarEnd after the search field and before the density and column controls', () => {
+    renderWithProviders(<TreeHarness toolbarEnd={<button type="button">By group</button>} />);
+    const end = screen.getByRole('button', { name: 'By group' });
+    const search = screen.getByRole('searchbox', { name: 'Search in table' });
+    const controls = screen.getByRole('toolbar', { name: /Keywords/ });
+    expect(search.compareDocumentPosition(end) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(end.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(controls).not.toContainElement(end);
+  });
+
+  it('wraps the toolbar on a narrow table: the switch and the controls drop to a second line together', () => {
+    renderWithProviders(<TreeHarness toolbarEnd={<button type="button">By group</button>} />);
+    const controls = screen.getByRole('toolbar', { name: /Keywords/ });
+    const endGroup = controls.parentElement;
+    expect(endGroup).toContainElement(screen.getByRole('button', { name: 'By group' }));
+    expect(endGroup?.parentElement).toHaveClass('flex-wrap', 'min-h-12');
+    // The search field may narrow to nothing rather than push the bar wider than the table
+    expect(screen.getByRole('searchbox', { name: 'Search in table' }).closest('[data-slot="input-group"]')).toHaveClass(
+      'min-w-0',
+      'max-w-full',
+    );
+  });
+
+  describe('selecting rows in a tree', () => {
+    const onChange = vi.fn<(ids: ReadonlySet<string>) => void>();
+    beforeEach(() => {
+      onChange.mockReset();
+    });
+    const renderWide = (selection: Partial<Selection> = {}) =>
+      renderWithProviders(<TreeHarness rows={WIDE_ROWS} tree={WIDE} selection={{ onChange, ...selection }} />);
+
+    it('draws no checkbox on a row that cannot be selected, and no selected state', () => {
+      renderWide();
+      expect(screen.queryByRole('checkbox', { name: 'Select Show all 9' })).toBeNull();
+      expect(within(bodyRows()[3] as HTMLElement).queryByRole('checkbox')).toBeNull();
+      expect(bodyRows()[3]).not.toHaveAttribute('aria-selected');
+    });
+
+    // A caller that keeps the selection, as the screens do: a click's change is read by the next click
+    function StatefulTree(): ReactElement {
+      const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
+      return (
+        <TreeHarness
+          rows={WIDE_ROWS}
+          tree={WIDE}
+          selection={{
+            selectedIds,
+            onChange: (next) => {
+              onChange(next);
+              setSelectedIds(next);
+            },
+          }}
+        />
+      );
+    }
+    const checkedNames = (): (string | null)[] =>
+      bodyRows()
+        .filter((row) => within(row).queryByRole('checkbox', { checked: true }) !== null)
+        .map((row) => within(row).getByRole('rowheader').textContent);
+
+    it('extends a Shift click over the keywords between two groups, and over no group row or other row, in one change', async () => {
+      const { user } = renderWithProviders(<StatefulTree />);
+      await user.click(screen.getByRole('checkbox', { name: 'Select alpha one' }));
+      await user.keyboard('{Shift>}');
+      await user.click(screen.getByRole('checkbox', { name: 'Select beta two' }));
+      await user.keyboard('{/Shift}');
+      expect(onChange).toHaveBeenCalledTimes(2);
+      expect(onChange).toHaveBeenLastCalledWith(new Set(['c1', 'c2', 'd1', 'd2']));
+      expect(checkedNames()).toEqual(['alpha one', 'alpha two', 'beta one', 'beta two']);
+    });
+
+    it('lets a group row checkbox toggle its own id, with or without Shift, in one change, and keeps the anchor', async () => {
+      const { user } = renderWithProviders(<StatefulTree />);
+      await user.click(screen.getByRole('checkbox', { name: 'Select alpha one' }));
+      await user.keyboard('{Shift>}');
+      await user.click(screen.getByRole('checkbox', { name: 'Select Group B' }));
+      expect(onChange).toHaveBeenCalledTimes(2);
+      expect(onChange).toHaveBeenLastCalledWith(new Set(['c1', 'g2']));
+      // The anchor is still alpha one, so this range runs from it
+      await user.click(screen.getByRole('checkbox', { name: 'Select alpha two' }));
+      await user.keyboard('{/Shift}');
+      expect(onChange).toHaveBeenCalledTimes(3);
+      expect(onChange).toHaveBeenLastCalledWith(new Set(['c1', 'c2', 'g2']));
+    });
+
+    it('selects only the keyword rows from the header checkbox, and counts only them in its name', async () => {
+      const { user } = renderWide();
+      await user.click(screen.getByRole('checkbox', { name: 'Select all 4 keywords loaded' }));
+      expect(onChange).toHaveBeenLastCalledWith(new Set(['c1', 'c2', 'd1', 'd2']));
+    });
+
+    it('selects only the keyword rows with Ctrl+A', async () => {
+      const { user } = renderWide();
+      act(() => cellAt(1, 1).focus());
+      await user.keyboard('{Control>}a{/Control}');
+      expect(onChange).toHaveBeenLastCalledWith(new Set(['c1', 'c2', 'd1', 'd2']));
+    });
+
+    it('shows the header checked when every keyword row is selected, whatever the group and other rows', () => {
+      const { unmount } = renderWide({ selectedIds: new Set(['c1', 'c2', 'd1', 'd2']) });
+      expect(screen.getByRole('checkbox', { name: 'Select all 4 keywords loaded' })).toBeChecked();
+      unmount();
+      renderWide({ selectedIds: new Set(['g1', 'g2', 'm1', 'c1', 'c2', 'd1']) });
+      expect(screen.getByRole('checkbox', { name: 'Select all 4 keywords loaded' })).toHaveAttribute(
+        'aria-checked',
+        'mixed',
+      );
+    });
+
+    it('does not count the group rows chosen as keywords: the header is unchecked when only they are', () => {
+      renderWide({ selectedIds: new Set(['g1', 'g2']) });
+      expect(screen.getByRole('checkbox', { name: 'Select all 4 keywords loaded' })).not.toBeChecked();
+    });
+
+    it('does not select a row that cannot be selected with Space', async () => {
+      const { user } = renderWide();
+      act(() => cellAt(3, 1).focus());
+      await user.keyboard(' ');
+      expect(onChange).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('announcing the count of its own', () => {
+    const region = (): HTMLElement => {
+      const element = document.getElementById('live-region-polite');
+      if (element === null) throw new Error('No live region');
+      return element;
+    };
+
+    it('announces the count when it changes, including when it falls to 0, and not when only the selection changes', async () => {
+      const { rerender } = renderWithProviders(
+        <TreeHarness selection={{ selectedIds: new Set(['c1']), selectedCount: 3 }} />,
+      );
+      expect(region().textContent).toBe('');
+      rerender(<TreeHarness selection={{ selectedIds: new Set(['c1', 'c2']), selectedCount: 3 }} />);
+      rerender(<TreeHarness selection={{ selectedIds: new Set(['c1', 'c2']), selectedCount: 5 }} />);
+      await waitFor(() => expect(region()).toHaveTextContent('5 selected'));
+      rerender(<TreeHarness selection={{ selectedIds: new Set(), selectedCount: 0 }} />);
+      await waitFor(() => expect(region()).toHaveTextContent('0 selected'));
+    });
+  });
+
+  it('passes the accessibility check', async () => {
+    const { container } = renderWithProviders(<TreeHarness />);
+    expect(await axe(container)).toHaveNoViolations();
   });
 });

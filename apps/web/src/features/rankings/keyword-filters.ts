@@ -1,9 +1,9 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
+import { useKeywordCountries } from './keyword-countries';
 import { FUNNEL_STAGES, INTENTS, OFFERED_DEPTH_PROFILES, SOURCE_KEY, SOURCES } from './keyword-values';
 import {
   CHANGE_CHOICES,
@@ -24,7 +24,7 @@ import { useDepthLabel } from '@/lib/keywords/use-depth-label';
 
 /**
  * The filters of Rankings as chips (backend plan D15, 13-filters-search.md section 4), each under its URL
- * key of section 5: group, tag (a term of any vocabulary the project sees), rank bucket, change, device,
+ * key of section 5: group, country (of those the project has keywords in), tag (a term of any vocabulary the project sees), rank bucket, change, device,
  * location, language, intent, funnel stage, priority at most, source, depth profile, volume at least, KD at
  * most and stale. Groups, terms and locations come from the API; the rest are the API's own values.
  */
@@ -34,10 +34,11 @@ const COUNTRIES = { 'filter[location_type]': 'Country', 'filter[supports]': 'ser
 /** About 250 countries exist; the reading stops here whatever the API says. */
 const MAX_COUNTRY_PAGES = 5;
 
-type Location = ApiResponse<'get', '/api/v1/locations'>['data'][number];
+export type Country = ApiResponse<'get', '/api/v1/locations'>['data'][number];
+type Location = Country;
 
 /** Every country the API lists, page after page: a link's location must be among them to be kept. */
-async function readCountries(signal: AbortSignal): Promise<Location[]> {
+export async function readCountries(signal: AbortSignal): Promise<Location[]> {
   const found: Location[] = [];
   let cursor: string | null = null;
   for (let page = 0; page < MAX_COUNTRY_PAGES; page += 1) {
@@ -66,13 +67,6 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
   // Until every list is in, a value from a link is kept as it is; a list that failed keeps it too
   const groupsLoading = groups.isPending || groups.isError;
   const termsLoading = vocabularies.pending || vocabularies.error;
-  const locations = useQuery({
-    queryKey: ['locations', 'countries', 'all'],
-    queryFn: ({ signal }) => readCountries(signal),
-    staleTime: Number.POSITIVE_INFINITY,
-  });
-  const locationsLoading = locations.isPending || locations.isError;
-
   const groupOptions = useMemo(
     (): FilterOption[] =>
       (groups.data?.data ?? []).map((group) => ({
@@ -81,6 +75,17 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
         count: group.keyword_count,
       })),
     [groups.data],
+  );
+  const inUse = useKeywordCountries(scope);
+  const countriesLoading = inUse.loading || inUse.failed;
+  const countryOptions = useMemo(
+    (): FilterOption[] =>
+      inUse.countries.map(({ locationId, name, keywordCount }) => ({
+        value: String(locationId),
+        label: name,
+        count: keywordCount,
+      })),
+    [inUse.countries],
   );
   const termOptions = useMemo(
     (): FilterOption[] =>
@@ -92,12 +97,6 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
       ),
     [t, vocabularies.loaded],
   );
-  const locationOptions = useMemo(
-    (): FilterOption[] =>
-      (locations.data ?? []).map((location) => ({ value: String(location.location_id), label: location.name })),
-    [locations.data],
-  );
-
   return useMemo((): FilterField[] => {
     const options = <T extends string>(values: readonly T[], label: (value: T) => string): FilterOption[] =>
       values.map((value) => ({ value, label: label(value) }));
@@ -109,6 +108,15 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
         multi: false,
         options: groupOptions,
         optionsLoading: groupsLoading,
+      },
+      {
+        id: 'country',
+        kind: 'enum',
+        label: t('country'),
+        multi: true,
+        options: countryOptions,
+        // A list that failed keeps a value from a link, as the groups and tags do
+        optionsLoading: countriesLoading,
       },
       { id: 'tag', kind: 'enum', label: t('tag'), multi: true, options: termOptions, optionsLoading: termsLoading },
       // One range of places and one change at a time: the API joins its rank filters with AND (rank-filters.ts)
@@ -155,21 +163,6 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
         label: t('target'),
         multi: false,
         options: options(TARGET_CHOICES, (value) => (value === 'match' ? targetT('match') : targetT('mismatchChoice'))),
-      },
-      {
-        id: 'dev',
-        kind: 'enum',
-        label: t('device'),
-        multi: false,
-        options: options(['desktop', 'mobile'] as const, (value) => t(`devices.${value}`)),
-      },
-      {
-        id: 'loc',
-        kind: 'enum',
-        label: t('location'),
-        multi: false,
-        options: locationOptions,
-        optionsLoading: locationsLoading,
       },
       {
         id: 'lang',
@@ -226,10 +219,10 @@ export function useKeywordFilterFields(scope: ProjectScope, depth?: number | und
     locale,
     depthLabel,
     groupOptions,
+    countryOptions,
     termOptions,
-    locationOptions,
     groupsLoading,
+    countriesLoading,
     termsLoading,
-    locationsLoading,
   ]);
 }

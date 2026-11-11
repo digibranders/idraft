@@ -29,6 +29,21 @@ describe('what the home page does', () => {
     });
   });
 
+  it('stays to say a Google connection did not finish when the callback could not name the project', () => {
+    expect(homeOutcome(member, null, 'invalid_state')).toEqual({
+      kind: 'screen',
+      props: {
+        email: mockUser('editor').email,
+        invitation: null,
+        workspace: { name: 'Digibranders', slug: 'digibranders' },
+        canCreateWorkspace: false,
+        integrationFailed: true,
+      },
+    });
+    // Only the one code this path can carry; anything else in the link is ignored
+    expect(homeOutcome(member, null, 'scope_denied')).toEqual({ kind: 'redirect', to: '/digibranders' });
+  });
+
   it('says there is no workspace to someone in none', () => {
     expect(homeOutcome(outsider, null)).toEqual({
       kind: 'screen',

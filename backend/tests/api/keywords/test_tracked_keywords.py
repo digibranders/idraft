@@ -148,7 +148,7 @@ async def test_a_keyword_is_tracked_with_the_projects_defaults(
     )
     assert (row["device"], row["search_engine"], row["os"]) == ("desktop", "google", None)
     assert (row["depth_profile"], row["frequency"], row["config_version"]) == (
-        "standard",
+        "full",
         "daily",
         1,
     )
@@ -266,6 +266,18 @@ async def test_a_keyword_that_cannot_be_tracked_is_refused(
     response = await track(api, workspace, project, owner, keyword)
     assert response.status_code == 422
     assert errors(response) == [("keyword", code)]
+
+
+@pytest.mark.parametrize("location_id", [0, 2**31, 2**40])
+async def test_a_location_id_outside_the_database_range_is_a_validation_error(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, location_id: int
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+
+    response = await track(api, workspace, project, owner, "crm", location_id=location_id)
+
+    assert problem(response) == (422, "validation_failed")
+    assert errors(response)[0][0] == "location_id"
 
 
 @pytest.mark.parametrize(
@@ -584,6 +596,10 @@ async def test_the_detail_carries_current_metrics(
         "2026-08-01",
     )
     assert (metrics["trend_pct_per_month"], metrics["is_seasonal"]) == (0.0, False)
+    # The twelve months behind the trend, oldest first, for the table's Trend column
+    assert len(metrics["monthly_searches"]) == 12
+    assert metrics["monthly_searches"][0] == {"year": 2025, "month": 9, "search_volume": 100}
+    assert metrics["monthly_searches"][-1] == {"year": 2026, "month": 8, "search_volume": 100}
 
 
 async def test_a_change_to_depth_or_target_url_makes_a_new_config_version(
@@ -613,7 +629,7 @@ async def test_a_change_to_depth_or_target_url_makes_a_new_config_version(
     assert cleared.json()["data"]["target_url"] is None
     versions = history.json()["data"]
     assert [(v["config_version"], v["depth_profile"]) for v in versions] == [
-        (1, "standard"),
+        (1, "full"),
         (2, "deep"),
         (3, "deep"),
         (4, "deep"),

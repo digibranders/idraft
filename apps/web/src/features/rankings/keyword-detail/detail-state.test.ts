@@ -35,6 +35,7 @@ function stateWith({ current, stale = false, failures = 0 }: StateInput): Tracke
     is_stale: stale,
     last_observed_at: null,
     ranking_url_count: 0,
+    drop_unconfirmed: false,
   };
 }
 

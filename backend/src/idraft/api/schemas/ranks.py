@@ -288,9 +288,9 @@ CHECK_NOW_MAX = 100
 
 
 class CheckNow(Body):
-    """Keywords to check at once, each a live search of its own."""
+    """Keywords to check at once, each a search of its own through the standard queue."""
 
     tracked_keyword_ids: Annotated[list[UUID], Field(min_length=1, max_length=CHECK_NOW_MAX)]
-    depth: Literal[10, 20, 50, 100] | None = Field(
+    depth: Literal[100] | None = Field(
         default=None, description="Results to look at; default: each keyword's daily depth."
     )

@@ -6,14 +6,21 @@ import { quotaFacts } from '@/lib/keywords/quota';
 export const MAX_CHECK_NOW = 100;
 
 export type CheckNowTarget =
-  { kind: 'ids'; ids: string[] } | { kind: 'blocked'; reason: 'allMatching' | 'tooMany' | 'none' | 'archived' };
+  | { kind: 'ids'; ids: string[] }
+  | { kind: 'blocked'; reason: 'allMatching' | 'tooMany' | 'none' | 'archived' | 'pending' };
 
 /** What Check now sends for a selection: ids only, since the route takes no filter. */
-export function checkNowTarget(chosen: ActionScope, archived: boolean): CheckNowTarget {
+export function checkNowTarget(
+  chosen: ActionScope,
+  archived: boolean,
+  pending: ReadonlySet<string> = new Set(),
+): CheckNowTarget {
   if (archived) return { kind: 'blocked', reason: 'archived' };
   if (chosen.allMatching) return { kind: 'blocked', reason: 'allMatching' };
   if (chosen.ids.size === 0) return { kind: 'blocked', reason: 'none' };
   if (chosen.ids.size > MAX_CHECK_NOW) return { kind: 'blocked', reason: 'tooMany' };
+  // The route refuses the whole request when one keyword already has a check on its way: a second paid request
+  if ([...chosen.ids].some((id) => pending.has(id))) return { kind: 'blocked', reason: 'pending' };
   return { kind: 'ids', ids: [...chosen.ids].sort() };
 }
 
@@ -21,6 +28,7 @@ export type CheckNowRefusal =
   | { kind: 'limit'; limit: number | null }
   | { kind: 'quota'; limit: number; used: number; requested: number }
   | { kind: 'paused' }
+  | { kind: 'pending'; count: number }
   | { kind: 'unknownKeyword' }
   | { kind: 'other' };
 
@@ -32,6 +40,10 @@ export function checkNowRefusal(error: unknown, requested = 0): CheckNowRefusal 
     return { kind: 'quota', limit: facts.limit, used: facts.used, requested: facts.requested };
   }
   if (isApiProblem(error, 'provider_paused')) return { kind: 'paused' };
+  if (isApiProblem(error, 'check_pending')) {
+    const named = error.body.tracked_keyword_ids;
+    return { kind: 'pending', count: Array.isArray(named) ? named.length : requested };
+  }
   if (isApiProblem(error, 'validation_failed') && error.errors.some((item) => item.code === 'keyword_unknown')) {
     return { kind: 'unknownKeyword' };
   }

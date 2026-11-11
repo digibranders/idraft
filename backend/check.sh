@@ -6,4 +6,7 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy
 uv run lint-imports
-uv run pytest "$@"
+# Four workers, each with its own PostgreSQL, Redis and object store containers (the session fixtures run
+# once per worker). The suite waits on the databases far more than on the CPU. infra/ship.sh passes -n 8
+# (Colima has 10 CPUs); a later -n wins, and -n 0 runs serially.
+uv run pytest -n 4 "$@"

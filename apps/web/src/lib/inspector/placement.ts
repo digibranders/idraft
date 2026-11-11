@@ -7,6 +7,8 @@
 /** The objects the inspector opens, as `inspect=<type>:<id>` names them (16 section 2.7, 25 deviation 36). */
 export const INSPECTOR_TYPES = [
   'keyword',
+  // A keyword group; "Not grouped" is the id `__none`
+  'group',
   'prompt',
   'citation',
   'answer',

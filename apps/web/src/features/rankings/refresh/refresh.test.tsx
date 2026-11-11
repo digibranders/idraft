@@ -339,30 +339,28 @@ describe('Who sees Refresh metrics', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Manage groups' })).toBeInTheDocument();
   });
 
-  it('gives a viewer no menu, and asks the API nothing about runs', async () => {
+  it('gives a viewer no Refresh metrics, and asks the API nothing about runs', async () => {
     const served = serveRuns({ used: 0, open: [] });
-    renderWithProviders(as('viewer'));
+    const { user } = renderWithProviders(as('viewer'));
     await loadedGrid();
-    expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull();
+    // The menu is there for the archived keywords only
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(await screen.findByRole('menuitemcheckbox', { name: 'Show archived keywords' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Refresh metrics/ })).toBeNull();
     expect(served.reads()).toBe(0);
   });
 
-  it('gives the bulk bar of an editor the action, and an analyst, who cannot choose rows, none', async () => {
+  it('keeps the action out of the bulk bar of an editor, and an analyst, who cannot choose rows, has no bar', async () => {
     serveRuns({ used: 0, open: [] });
     const { user, unmount } = renderWithProviders(as('editor'));
     await loadedGrid();
-    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, United States' }));
     const bar = screen.getByRole('group', { name: /Bulk actions/ });
-    const names = within(bar)
-      .getAllByRole('button')
-      .map((button) => button.textContent);
-    // With the other changes, ahead of Archive and Delete
-    expect(names.indexOf('Refresh metrics')).toBeGreaterThan(names.indexOf('Set priority'));
-    expect(names.indexOf('Refresh metrics')).toBeLessThan(names.indexOf('Archive'));
+    expect(within(bar).queryByRole('button', { name: 'Refresh metrics' })).toBeNull();
     unmount();
     renderWithProviders(as('analyst'));
     await loadedGrid();
-    expect(screen.queryByRole('checkbox', { name: 'Select seo agency, desktop, United States' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Select seo agency, United States' })).toBeNull();
   });
 });
 
@@ -398,8 +396,8 @@ describe('What the dialog refreshes', () => {
     const sent = serveRefresh(() => accepted(run()));
     const { user } = renderWithProviders(as('editor'));
     await loadedGrid();
-    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, United States' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select backlink checker, Germany' }));
     const dialog = await openRefresh(user);
     expect(within(dialog).getByRole('radio', { name: 'The 2 chosen keywords' })).toBeChecked();
     await submit(user, dialog, 'Refresh metrics for 2 keywords');
@@ -409,22 +407,7 @@ describe('What the dialog refreshes', () => {
     expect(sent.bodies[0]).toEqual({ keyword_ids: [first.keyword, second.keyword] });
     expect(first.keyword).not.toBe(first.tracked);
     // The choice is kept: the chosen rows stay chosen
-    expect(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' })).toBeChecked();
-  });
-
-  it('opens from the bulk bar for the same keywords', async () => {
-    serveRuns({ used: 0, open: [] });
-    const seen = watchRows();
-    const sent = serveRefresh(() => accepted(run()));
-    const { user } = renderWithProviders(as('editor'));
-    await loadedGrid();
-    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' }));
-    const bar = screen.getByRole('group', { name: /Bulk actions/ });
-    await user.click(within(bar).getByRole('button', { name: 'Refresh metrics' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Refresh metrics' });
-    expect(within(dialog).getByRole('radio', { name: 'The chosen keyword' })).toBeChecked();
-    await submit(user, dialog, 'Refresh metrics for 1 keyword');
-    await waitFor(() => expect(sent.bodies).toEqual([{ keyword_ids: [seen.ids('seo agency').keyword] }]));
+    expect(screen.getByRole('checkbox', { name: 'Select seo agency, United States' })).toBeChecked();
   });
 
   it('offers the keywords matching the filters, each once, and starts on them', async () => {
@@ -497,13 +480,13 @@ describe('What the dialog refreshes', () => {
     const sent = serveRefresh(() => accepted(run()));
     const { user } = renderWithProviders(as('editor'));
     await loadedGrid();
-    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, United States' }));
     await user.click(screen.getByRole('button', { name: 'Next page' }));
     // The second page holds the same keywords under ids of their own: the first page's choice is not ticked
     await waitFor(() =>
-      expect(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' })).not.toBeChecked(),
+      expect(screen.getByRole('checkbox', { name: 'Select seo agency, United States' })).not.toBeChecked(),
     );
-    await user.click(screen.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select backlink checker, Germany' }));
     const dialog = await openRefresh(user);
     expect(within(dialog).getByRole('radio', { name: 'The 2 chosen keywords' })).toBeChecked();
     await submit(user, dialog, 'Refresh metrics for 2 keywords');
@@ -596,7 +579,7 @@ describe('What the dialog refreshes', () => {
     serveRuns({ used: 0, open: [] });
     const { user } = renderWithProviders(as('editor'));
     await loadedGrid();
-    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, United States' }));
     const dialog = await openRefresh(user);
     expect(within(dialog).getByRole('radio', { name: 'The chosen keyword' })).toBeChecked();
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
@@ -608,7 +591,7 @@ describe('What the dialog refreshes', () => {
     serveRuns({ used: 0, open: [] });
     const { user } = renderWithProviders(as('editor'));
     await loadedGrid();
-    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, United States' }));
     const dialog = await openRefresh(user);
     const hint = 'A keyword is read at every location and language it is tracked in.';
     expect(within(dialog).getByText(hint)).toBeInTheDocument();
@@ -634,6 +617,8 @@ function answerListOf(count: number): void {
         const suffix = String(index).padStart(6, '0');
         return {
           ...row,
+          // Every row is a desktop row, so the table lists them all
+          device: 'desktop',
           tracked_keyword_id: `0192d1a8-0000-7a10-8e07-${suffix}`,
           keyword: { ...row.keyword, keyword_id: `0192d1a8-1111-7a10-8e07-${suffix}` },
         };
@@ -719,12 +704,8 @@ describe('When the API does not take the refresh', () => {
     // The list is read again, and the keyword that left it is no longer chosen, here or in the table
     await waitFor(() => expect(within(dialog).getByRole('radio', { name: 'The 2 chosen keywords' })).toBeChecked());
     // The table is behind the dialog, which leaves it out of the accessibility tree
-    expect(
-      screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States', hidden: true }),
-    ).toBeChecked();
-    expect(
-      screen.queryByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', hidden: true }),
-    ).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Select seo agency, United States', hidden: true })).toBeChecked();
+    expect(screen.queryByRole('checkbox', { name: 'Select backlink checker, Germany', hidden: true })).toBeNull();
 
     await submit(user, dialog, 'Refresh metrics for 2 keywords');
     await waitFor(() => expect(sent.bodies).toHaveLength(2));
@@ -1284,7 +1265,7 @@ describe('Keywords that wait for their first metrics', () => {
     expect(waiting).toBeGreaterThanOrEqual(3);
     await waitFor(() => expect(listReads()).toBeGreaterThan(0));
     const loaded = listReads();
-    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, United States' }));
 
     await act(() => vi.advanceTimersByTimeAsync(29_000));
     expect(poll.polls()).toBe(0);
@@ -1299,7 +1280,7 @@ describe('Keywords that wait for their first metrics', () => {
     await waitFor(() => expect(poll.polls()).toBe(2));
     await waitFor(() => expect(pending(grid)).toBe(0));
     // The chosen row is still chosen, and no page of the list was read again
-    expect(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select seo agency, United States' })).toBeChecked();
     expect(listReads()).toBe(loaded);
 
     // None is left: the polling stops
@@ -1403,7 +1384,7 @@ describe('Keywords that wait for their first metrics', () => {
     for (let tick = 0; tick < 5; tick += 1) await act(() => vi.advanceTimersByTimeAsync(30_000));
     expect(rankOf()).toBe('Pending');
     for (let tick = 0; tick < 2; tick += 1) await act(() => vi.advanceTimersByTimeAsync(30_000));
-    await waitFor(() => expect(rankOf()).toMatch(/^(\d+|>\d+not in top \d+)(?:first check)?$/));
+    await waitFor(() => expect(rankOf()).toMatch(/^(\d+|-not in top \d+)(?:first check)?$/));
   }, 20_000);
 
   it('are not polled when none on screen waits: archived keywords are not collected', async () => {

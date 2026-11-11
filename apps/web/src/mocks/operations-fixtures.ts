@@ -280,7 +280,7 @@ export interface StoredPrice {
   verified_at: string;
 }
 
-/** Labs prices of doc 27 section 1, verified on 29 September 2026; SERP prices arrive with rank collection. */
+/** Labs prices of doc 27 section 1 and the Google organic SERP prices, verified on 29 September 2026. */
 const LABS_SOURCE = 'https://dataforseo.com/pricing/dataforseo-labs/dataforseo-google-api';
 const LABS_VERIFIED = '2026-09-29';
 const LABS_ENDPOINTS = [
@@ -299,7 +299,7 @@ export const KEYWORD_OVERVIEW_ENDPOINT = 'dataforseo_labs/google/keyword_overvie
 export const LABS_TASK_MICROS = 12_000;
 export const LABS_ITEM_MICROS = 120;
 
-export const MOCK_PRICES: readonly StoredPrice[] = LABS_ENDPOINTS.flatMap((name, index) => {
+const LABS_PRICES: readonly StoredPrice[] = LABS_ENDPOINTS.flatMap((name, index) => {
   const endpoint = `dataforseo_labs/google/${name}/live`;
   const common = {
     provider_code: 'dataforseo',
@@ -326,3 +326,30 @@ export const MOCK_PRICES: readonly StoredPrice[] = LABS_ENDPOINTS.flatMap((name,
     },
   ];
 });
+
+const SERP_SOURCE = 'https://dataforseo.com/pricing/serp-api/google-serp-api';
+const SERP_VALID_FROM = '2026-07-01';
+
+/**
+ * Google organic SERP as the backend seeds it (migration 0013, in its order): a page of ten results on the
+ * standard, priority and live queues, and the task that reads the AI Overview later on the standard queue. A
+ * check at depth 100 costs ten standard pages and one such task, the figure the Add keywords dialog estimates.
+ */
+const SERP_PRICES: readonly StoredPrice[] = [
+  { price_unit: 'page', unit_price_micros: 600, conditions: { queue: 'standard' } },
+  { price_unit: 'page', unit_price_micros: 1200, conditions: { queue: 'priority' } },
+  { price_unit: 'page', unit_price_micros: 2000, conditions: { queue: 'live' } },
+  { price_unit: 'task', unit_price_micros: 600, conditions: { queue: 'standard', async_ai_overview: true } },
+].map((price, index) => ({
+  ...price,
+  price_id: mockId('price', LABS_PRICES.length + index + 1),
+  provider_code: 'dataforseo',
+  endpoint: 'serp/google/organic',
+  // The day the backend's seed (migration 0013) starts these prices
+  valid_from: SERP_VALID_FROM,
+  valid_to: null,
+  source_url: SERP_SOURCE,
+  verified_at: LABS_VERIFIED,
+}));
+
+export const MOCK_PRICES: readonly StoredPrice[] = [...LABS_PRICES, ...SERP_PRICES];

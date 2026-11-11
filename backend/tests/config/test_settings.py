@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from idraft.config.settings import (
     MigratorSettings,
     Settings,
+    google_redirect_uri,
     load_migrator_settings,
     load_settings,
     to_asyncpg_dsn,
@@ -13,11 +14,13 @@ from idraft.config.settings import (
 )
 
 TOTP_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="  # bytes 0 to 31
+SECRETS_KEY = "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8="  # bytes 32 to 63
 BASE_ENV = {
     "APP_ORIGIN": "https://app.example.com",
     "DATABASE_URL": "postgresql://app_api:pw@postgres:5432/idraft",
     "REDIS_URL": "redis://app:pw@redis:6379/0",
     "TOTP_ENCRYPTION_KEY": TOTP_KEY,
+    "SECRETS_ENCRYPTION_KEY": SECRETS_KEY,
     "EMAIL_PROVIDER": "resend",
     "EMAIL_API_KEY": "re_123",
     "EMAIL_FROM": "idraft.ai <login@mail.example.com>",
@@ -28,6 +31,7 @@ LOCAL_ENV = {
     "DATABASE_URL": BASE_ENV["DATABASE_URL"],
     "REDIS_URL": BASE_ENV["REDIS_URL"],
     "TOTP_ENCRYPTION_KEY": TOTP_KEY,
+    "SECRETS_ENCRYPTION_KEY": SECRETS_KEY,
 }
 
 
@@ -454,3 +458,132 @@ def test_a_host_that_forgot_app_env_still_cannot_print_emails(
 def test_tests_may_use_the_console_sender_with_any_origin(monkeypatch: pytest.MonkeyPatch) -> None:
     _set(monkeypatch, {**LOCAL_ENV, "APP_ORIGIN": "https://app.example.com", "APP_ENV": "test"})
     assert Settings().email_provider == "console"
+
+
+GOOGLE_ENV = {
+    "GOOGLE_OAUTH_CLIENT_ID": "fake-client-id",
+    "GOOGLE_OAUTH_CLIENT_SECRET": "fake-secret",
+}
+
+
+def test_google_oauth_is_off_by_default_and_the_key_is_not_needed_locally(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    env = {name: value for name, value in LOCAL_ENV.items() if name != "SECRETS_ENCRYPTION_KEY"}
+    _set(monkeypatch, env)
+    settings = Settings()
+    assert not settings.google_oauth_configured
+    assert settings.google_oauth_client_id is None
+    with pytest.raises(RuntimeError, match="no secrets encryption key"):
+        _ = settings.secrets_key
+
+
+def test_google_oauth_reads_its_pair_and_builds_the_callback_from_the_origin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set(monkeypatch, {**BASE_ENV, **GOOGLE_ENV})
+    settings = Settings()
+    assert settings.google_oauth_configured
+    assert settings.google_callback_uri == "https://app.example.com/api/v1/oauth/google/callback"
+    assert settings.secrets_key == bytes(range(32, 64))
+
+
+def test_empty_google_variables_mean_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Compose passes an empty variable for one the host has not set."""
+    _set(
+        monkeypatch,
+        {
+            **BASE_ENV,
+            "GOOGLE_OAUTH_CLIENT_ID": "",
+            "GOOGLE_OAUTH_CLIENT_SECRET": "",
+            "SECRETS_ENCRYPTION_KEY": "",
+        },
+    )
+    settings = Settings()
+    assert not settings.google_oauth_configured
+    assert settings.secrets_encryption_key is None
+
+
+@pytest.mark.parametrize("missing", ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"])
+def test_the_google_client_is_configured_whole_or_not_at_all(
+    monkeypatch: pytest.MonkeyPatch, missing: str
+) -> None:
+    env = {name: value for name, value in GOOGLE_ENV.items() if name != missing}
+    _set(monkeypatch, {**BASE_ENV, **env})
+    with pytest.raises(ValidationError, match="set together or not at all"):
+        Settings()
+
+
+def test_google_oauth_needs_the_secrets_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    env = {name: value for name, value in BASE_ENV.items() if name != "SECRETS_ENCRYPTION_KEY"}
+    _set(monkeypatch, {**env, **GOOGLE_ENV})
+    with pytest.raises(ValidationError, match="SECRETS_ENCRYPTION_KEY is required"):
+        Settings()
+
+
+@pytest.mark.parametrize("role", ["api", "worker"])
+def test_production_needs_the_secrets_key_in_the_api_and_the_worker(
+    monkeypatch: pytest.MonkeyPatch, role: str
+) -> None:
+    env = {name: value for name, value in BASE_ENV.items() if name != "SECRETS_ENCRYPTION_KEY"}
+    _set(monkeypatch, {**env, "APP_ENV": "production", "PROCESS_ROLE": role})
+    with pytest.raises(ValidationError, match="SECRETS_ENCRYPTION_KEY is required"):
+        Settings()
+
+
+@pytest.mark.parametrize("role", ["migrator", "cli"])
+def test_production_does_not_ask_the_other_processes_for_the_secrets_key(
+    monkeypatch: pytest.MonkeyPatch, role: str
+) -> None:
+    env = {name: value for name, value in BASE_ENV.items() if name != "SECRETS_ENCRYPTION_KEY"}
+    _set(monkeypatch, {**env, "APP_ENV": "production", "PROCESS_ROLE": role})
+    assert Settings().secrets_encryption_key is None
+
+
+@pytest.mark.parametrize("key", ["c2hvcnQ=", "not base64!", SECRETS_KEY[:-4]])
+def test_a_rejected_secrets_key_is_not_echoed(monkeypatch: pytest.MonkeyPatch, key: str) -> None:
+    _set(monkeypatch, {**BASE_ENV, "SECRETS_ENCRYPTION_KEY": key})
+    with pytest.raises(ValidationError) as error:
+        Settings()
+    assert key not in str(error.value)
+    assert "32 random bytes" in str(error.value)
+
+
+def test_whitespace_around_the_secrets_key_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(monkeypatch, {**BASE_ENV, "SECRETS_ENCRYPTION_KEY": SECRETS_KEY + "\n"})
+    assert Settings().secrets_key == bytes(range(32, 64))
+
+
+def test_google_secrets_never_appear_in_repr(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(monkeypatch, {**BASE_ENV, **GOOGLE_ENV})
+    shown = repr(Settings()) + str(Settings())
+    for secret in (*GOOGLE_ENV.values(), SECRETS_KEY):
+        assert secret not in shown
+
+
+@pytest.mark.parametrize(
+    ("origin", "uri"),
+    [
+        ("https://app.idraft.ai", "https://app.idraft.ai/api/v1/oauth/google/callback"),
+        ("http://localhost:3000", "http://localhost:3000/api/v1/oauth/google/callback"),
+        ("http://127.0.0.1:3000", "http://127.0.0.1:3000/api/v1/oauth/google/callback"),
+    ],
+)
+def test_the_callback_address_is_https_or_loopback(origin: str, uri: str) -> None:
+    assert google_redirect_uri(origin) == uri
+
+
+@pytest.mark.parametrize(
+    "origin", ["http://app.idraft.ai", "http://10.0.0.5:3000", "http://app.localhost:3000"]
+)
+def test_a_callback_address_that_google_would_refuse_is_not_built(origin: str) -> None:
+    with pytest.raises(ValueError, match="https"):
+        google_redirect_uri(origin)
+
+
+def test_a_server_with_google_oauth_and_a_plain_http_origin_does_not_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set(monkeypatch, {**LOCAL_ENV, **GOOGLE_ENV, "APP_ORIGIN": "http://app.localhost:3000"})
+    with pytest.raises(ValidationError, match="must be https"):
+        Settings()

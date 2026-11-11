@@ -48,7 +48,7 @@ from idraft.api.schemas.entities import (
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
 from idraft.extraction.aliases import MatchMode
-from idraft.extraction.domains import DomainResolver, DomainRule, MatchScope, ProjectRole
+from idraft.extraction.domains import DomainResolver, DomainRule, MatchScope, ProjectRole, site_of
 from idraft.extraction.urls import Host, normalize_host
 
 
@@ -115,10 +115,16 @@ def _new_alias(alias: AliasInput) -> NewAlias:
 
 def stored_host(domain: DomainInput) -> Host:
     """The host a rule is stored against. A registrable rule names its registrable domain, so
-    `www.acme.com` entered as registrable is stored as `acme.com`."""
+    `www.acme.com` entered as registrable is stored as `acme.com`. A host rule is a site, which is
+    the host and its www form, so `www.acme.com` is stored as `acme.com` too; a path prefix rule
+    keeps the host as entered."""
     host = normalize_host(domain.domain)
-    if domain.match_scope == "registrable" and not host.is_ip:
+    if host.is_ip:
+        return host
+    if domain.match_scope == "registrable":
         return normalize_host(host.registrable_domain)
+    if domain.match_scope == "host":
+        return normalize_host(site_of(host.name))
     return host
 
 

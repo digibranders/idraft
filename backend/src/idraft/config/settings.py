@@ -22,12 +22,21 @@ from sqlalchemy.exc import ArgumentError
 LogLevel = Literal["debug", "info", "warning", "error", "critical"]
 
 TOTP_KEY_BYTES = 32
+SECRETS_KEY_BYTES = 32
+GOOGLE_CALLBACK_PATH = "/api/v1/oauth/google/callback"
+# Google accepts a plain-http redirect only for the machine's own loopback.
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+MIN_HEALTH_TOKEN_LENGTH = 24
 # Good enough for the console sender. A real provider refuses it, so it is refused at start.
 DEFAULT_EMAIL_FROM = "idraft.ai <no-reply@localhost>"
 _DEFAULT_PORTS = {"https": 443, "http": 80}
 _POSTGRES_SCHEMES = ("postgresql+asyncpg://", "postgresql://", "postgres://")
 _EMAIL_FROM_PATTERN = re.compile(r"[^\r\n<>]*<[^\s<>@]+@[^\s<>@]+>|[^\s<>@]+@[^\s<>@]+")
 _TIMEOUT_PATTERN = re.compile(r"[1-9][0-9]{0,8}(ms|s|min)", re.ASCII)
+
+
+def _plain(value: str | SecretStr | object) -> str:
+    return value.get_secret_value() if isinstance(value, SecretStr) else str(value)
 
 
 def _strip_scheme(database_url: str) -> str:
@@ -85,6 +94,20 @@ def _validate_origin(value: str) -> str:
     return f"{parts.scheme}://{host}" + (f":{port}" if port else "")
 
 
+def google_redirect_uri(app_origin: str) -> str:
+    """Where Google sends the person back: `{app_origin}/api/v1/oauth/google/callback`.
+
+    The address must be registered with the OAuth client byte for byte, so it is built from the
+    validated origin and nothing else. It is https, except on the machine's own loopback.
+    """
+    parts = urlsplit(app_origin)
+    if parts.scheme != "https" and not (
+        parts.scheme == "http" and (parts.hostname or "") in _LOOPBACK_HOSTS
+    ):
+        raise ValueError("the Google redirect address must be https, or http on localhost")
+    return app_origin + GOOGLE_CALLBACK_PATH
+
+
 class _DatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=None, extra="ignore", frozen=True, hide_input_in_errors=True
@@ -121,6 +144,14 @@ class Settings(_DatabaseSettings):
     registration: Literal["invited", "open"] = "invited"
     # base64 of 32 random bytes. Encrypts TOTP secrets at rest; only the api process needs it.
     totp_encryption_key: SecretStr | None = None
+    # base64 of 32 random bytes: the key that wraps the data key of every stored credential
+    # (docs/24-security.md section 5.2; Google refresh tokens first). Version 1 of the key; the
+    # api and the worker both need it. Never change it while secrets exist.
+    secrets_encryption_key: SecretStr | None = None
+    # The "idraft web app" OAuth client of the Google Cloud project, both or neither. Without
+    # them the connect routes answer `integration_not_configured` and nothing else changes.
+    google_oauth_client_id: SecretStr | None = None
+    google_oauth_client_secret: SecretStr | None = None
     email_provider: Literal["console", "resend", "brevo"] = "console"
     email_api_key: SecretStr | None = None
     email_from: str = DEFAULT_EMAIL_FROM
@@ -148,6 +179,9 @@ class Settings(_DatabaseSettings):
     # provider account (production and a restore rehearsal, say) then never take each other's
     # answers. Production is `prod`; a copy of its database must be started with another.
     installation_id: str = Field(default="local", pattern=r"^[a-z0-9]{1,16}$")
+    # The API only. The bearer token of `GET /api/internal/health`, the full health report. Without
+    # it the route does not exist (404), so a deployment that sets none exposes nothing.
+    health_token: SecretStr | None = Field(default=None)
 
     @field_validator("heartbeat_file", "r2_raw_endpoint", mode="before")
     @classmethod
@@ -155,11 +189,22 @@ class Settings(_DatabaseSettings):
         # An empty variable is "not set". As a path it would be the working directory.
         return None if value == "" else value
 
+    @field_validator("health_token")
+    @classmethod
+    def _health_token_is_long_enough(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None or value.get_secret_value() == "":
+            return None
+        if len(value.get_secret_value()) < MIN_HEALTH_TOKEN_LENGTH:
+            raise ValueError(f"health_token must be at least {MIN_HEALTH_TOKEN_LENGTH} characters")
+        return value
+
     @field_validator(
         "dataforseo_login",
         "dataforseo_password",
         "r2_raw_access_key_id",
         "r2_raw_secret_access_key",
+        "google_oauth_client_id",
+        "google_oauth_client_secret",
     )
     @classmethod
     def _empty_credential_is_none(cls, value: SecretStr | None) -> SecretStr | None:
@@ -225,6 +270,22 @@ class Settings(_DatabaseSettings):
             raise ValueError("must be 32 random bytes, base64 encoded")
         return SecretStr(text)
 
+    @field_validator("secrets_encryption_key", mode="before")
+    @classmethod
+    def _validate_secrets_key(cls, value: object) -> object:
+        # An empty variable is "not set"; Compose passes one when the host has not set it.
+        if value is None or (isinstance(value, str | SecretStr) and not _plain(value).strip()):
+            return None
+        # Stripped: a key read from a secrets file usually ends with a newline.
+        text = _plain(value).strip()
+        try:
+            key = base64.b64decode(text, validate=True)
+        except ValueError:
+            key = b""
+        if len(key) != SECRETS_KEY_BYTES:
+            raise ValueError("must be 32 random bytes, base64 encoded")
+        return SecretStr(text)
+
     @field_validator("email_from")
     @classmethod
     def _validate_email_from(cls, value: str) -> str:
@@ -238,6 +299,38 @@ class Settings(_DatabaseSettings):
         if self.totp_encryption_key is None:
             raise RuntimeError("this process has no TOTP encryption key")
         return base64.b64decode(self.totp_encryption_key.get_secret_value(), validate=True)
+
+    @property
+    def secrets_key(self) -> bytes:
+        """The decoded key of version 1. Raises when this process has none."""
+        if self.secrets_encryption_key is None:
+            raise RuntimeError("this process has no secrets encryption key")
+        return base64.b64decode(self.secrets_encryption_key.get_secret_value(), validate=True)
+
+    @property
+    def google_oauth_configured(self) -> bool:
+        return self.google_oauth_client_id is not None
+
+    @property
+    def google_callback_uri(self) -> str:
+        return google_redirect_uri(self.app_origin)
+
+    @model_validator(mode="after")
+    def _credentials_can_be_stored(self) -> Self:
+        if (self.google_oauth_client_id is None) != (self.google_oauth_client_secret is None):
+            raise ValueError(
+                "GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET are set together or not "
+                "at all"
+            )
+        if self.secrets_encryption_key is None:
+            if self.app_env == "production" and self.process_role in ("api", "worker"):
+                raise ValueError("SECRETS_ENCRYPTION_KEY is required when APP_ENV is production")
+            if self.google_oauth_configured:
+                raise ValueError("SECRETS_ENCRYPTION_KEY is required when Google OAuth is set")
+        if self.google_oauth_configured:
+            # Fail at start, not at the first person who tries to connect.
+            _ = self.google_callback_uri
+        return self
 
     @model_validator(mode="after")
     def _production_is_served_over_https(self) -> Self:

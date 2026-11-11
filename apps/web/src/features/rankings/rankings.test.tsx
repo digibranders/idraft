@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import en from '../../../messages/en.json';
 
-import type { TrackedKeywordState } from '@/lib/api/types';
+import type { TrackedKeywordRow, TrackedKeywordState } from '@/lib/api/types';
 import { MOCK_ENTITY_IDS } from '@/mocks/entity-fixtures';
 import { MOCK_KEYWORDS, MOCK_TRACKED_KEYWORDS } from '@/mocks/keyword-fixtures';
 import { KEYWORD_TABLE } from '@/mocks/keyword-table';
@@ -42,6 +42,10 @@ vi.mock('next/navigation', () => ({
 
 const TRACKED = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords';
 const ACTIVE = KEYWORD_TABLE.filter((row) => row.archived !== true);
+/** The active keywords tracked on desktop, the device the table opens on. */
+const DESKTOP = ACTIVE.filter((row) => row.device === 'desktop');
+/** Rows on screen: a keyword tracked on both devices is one row, and one tracked on mobile only is not listed. */
+const SHOWN = new Set(DESKTOP.map((row) => [row.text, row.location, row.language].join('|'))).size;
 
 beforeEach(() => {
   stubWideScreen();
@@ -62,39 +66,93 @@ function urlWrites(): { onUrlUpdate: (event: UrlUpdateEvent) => void; latest: ()
   };
 }
 
+/** Whether a row header names the keyword: its text, and after it the count of pages beside the arrow. */
+const named = (header: HTMLElement, text: string): boolean =>
+  (header.textContent ?? '').startsWith(text) && /^\d*$/.test((header.textContent ?? '').slice(text.length));
+
 describe('Rankings', () => {
   it('lists the active keywords by volume, the ones still without metrics last, with the project count', async () => {
     const { container } = renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
-    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(ACTIVE.length));
+    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(SHOWN));
     expect(keywordsIn(grid).slice(0, 2)).toEqual(['seo agency', 'backlink checker']);
     // The three without metrics tie on volume, so they follow in the order of their ids, as the API orders ties
     expect(keywordsIn(grid).slice(-3)).toEqual(['generative engine optimization', 'llm seo', 'chatgpt seo agency']);
     expect(within(grid).getAllByText('Pending').length).toBeGreaterThanOrEqual(3);
     expect(screen.getByRole('columnheader', { name: /Volume/ })).toHaveAttribute('aria-sort', 'descending');
-    expect(await screen.findByText(/59 tracked keywords/)).toBeInTheDocument();
+    // The strip counts the keywords; the header does not quote a second count beside it
+    expect(await screen.findByLabelText('Summary for the filtered keywords')).toBeInTheDocument();
+    expect(screen.queryByText(/tracked keywords/)).toBeNull();
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('names the rows of one keyword apart by device and location, and by language when it is not the project’s', async () => {
+  it('names a keyword’s row by its location, and by language when it is not the project’s', async () => {
     renderWithProviders(as('editor'));
     const grid = await loadedGrid();
+    // One row holds both devices, so the device is not in the name
+    expect(within(grid).getByRole('checkbox', { name: 'Select seo agency berlin, Germany' })).toBeInTheDocument();
     expect(
-      within(grid).getByRole('checkbox', { name: 'Select seo agency berlin, desktop, Germany' }),
-    ).toBeInTheDocument();
-    expect(
-      within(grid).getByRole('checkbox', { name: 'Select seo agency berlin, mobile, Germany' }),
-    ).toBeInTheDocument();
-    expect(
-      within(grid).getByRole('checkbox', { name: 'Select seo agentur berlin, desktop, Germany, German' }),
+      within(grid).getByRole('checkbox', { name: 'Select seo agentur berlin, Germany, German' }),
     ).toBeInTheDocument();
   });
 
-  it('describes a keyword’s row header by where, on what device and in which language it is tracked', async () => {
+  it('shows one rank column for the device chosen, and the other device’s figures when it is switched', async () => {
+    const { user } = renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    // Desktop is the default: one Rank column, no Desktop or Mobile column
+    expect(within(grid).getByRole('columnheader', { name: /^Rank$/ })).toBeInTheDocument();
+    expect(within(grid).queryByRole('columnheader', { name: /^Desktop$/ })).toBeNull();
+    expect(within(grid).queryByRole('columnheader', { name: /^Mobile$/ })).toBeNull();
+    // The device and location are not columns: they are the controls beside the filters
+    expect(within(grid).queryByRole('columnheader', { name: /^Device$/ })).toBeNull();
+    expect(within(grid).queryByRole('columnheader', { name: /^Location$/ })).toBeNull();
+    // Two options only
+    expect(screen.queryByRole('radio', { name: 'Desktop and mobile' })).toBeNull();
+    expect(screen.getByRole('radio', { name: 'Desktop' })).toBeChecked();
+    // seo agency berlin is tracked on both devices, with a different rank on each. The cell reads the rank, then its change.
+    const rankOf = (keyword: string): string => {
+      const index = keywordsIn(grid).indexOf(keyword);
+      if (index < 0) throw new Error(`No row for ${keyword}`);
+      return (visibleColumnTexts(grid, /^Rank$/)[index] ?? '').split(' ')[0] ?? '';
+    };
+    const onDesktop = rankOf('seo agency berlin');
+    expect(onDesktop).toMatch(/^\d+$/);
+    await user.click(screen.getByRole('radio', { name: 'Mobile' }));
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Mobile' })).toBeChecked());
+    expect(within(grid).getByRole('columnheader', { name: /^Rank$/ })).toBeInTheDocument();
+    await waitFor(() => expect(rankOf('seo agency berlin')).not.toBe(onDesktop));
+    expect(rankOf('seo agency berlin')).toMatch(/^\d+$/);
+  });
+
+  it('puts one row for a keyword tracked on both devices', async () => {
+    renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const row = within(grid)
+      .getAllByRole('rowheader')
+      .find((header) => header.textContent?.includes('seo agency berlin'))
+      ?.closest('tr');
+    if (row === null || row === undefined) throw new Error('No row for seo agency berlin');
+    expect(within(row).getAllByRole('gridcell').length).toBeGreaterThan(2);
+  });
+
+  it('opens on the country asked for in the URL and sends it to the API', async () => {
+    const asked: URLSearchParams[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (request.method === 'GET' && url.pathname.endsWith('/tracked-keywords')) asked.push(url.searchParams);
+    });
+    renderWithProviders(as('viewer'), { searchParams: '?loc=2276' });
+    await loadedGrid();
+    await waitFor(() => expect(asked.some((query) => query.get('filter[country_id]') === '2276')).toBe(true));
+  });
+
+  it('gives a keyword no description of its own, and a column header one only where it explains something', async () => {
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
     const header = within(grid).getAllByRole('rowheader')[0];
-    expect(header).toHaveAccessibleDescription('United States · Desktop · Google · English');
+    expect(header).not.toHaveAccessibleDescription();
+    // The rank headers say what they are, so they have no description either
+    expect(screen.getByRole('columnheader', { name: /^Rank$/ })).not.toHaveAccessibleDescription();
     expect(screen.getByRole('columnheader', { name: /KD/ })).toHaveAccessibleDescription(
       'Keyword difficulty, from 0 to 100',
     );
@@ -112,7 +170,7 @@ describe('Rankings', () => {
     const url = urlWrites();
     const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
     const grid = await loadedGrid();
-    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(ACTIVE.length));
+    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(SHOWN));
     const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     // The first row that ranks with a URL
@@ -159,9 +217,9 @@ describe('Rankings', () => {
   it('says once how fresh the metrics are: in the page header, not again in the table footer', async () => {
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
-    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(ACTIVE.length));
+    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(SHOWN));
     expect(screen.getAllByText(/Updated /)).toHaveLength(1);
-    expect(screen.getByText(/Updated .* · 59 tracked keywords/)).toBeInTheDocument();
+    expect(screen.getByText(/^Updated [^·]*$/)).toBeInTheDocument();
   });
 
   it('writes a sort from a header into the URL, and leaves the default out', async () => {
@@ -200,12 +258,15 @@ describe('Rankings', () => {
       onUrlUpdate: url.onUrlUpdate,
     });
     const grid = await loadedGrid();
-    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(6));
+    const commercialLoud = DESKTOP.filter(
+      (row) => row.metrics?.intent === 'commercial' && (row.metrics.volume ?? 0) >= 5000,
+    ).length;
+    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(commercialLoud));
     expect(screen.getByRole('button', { name: 'Volume: at least 5,000. Edit filter' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Remove filter Intent: Commercial' }));
     await waitFor(() => expect(url.latest().has('intent')).toBe(false));
     expect(url.latest().get('vol')).toBe('5000..');
-    const louder = ACTIVE.filter((row) => (row.metrics?.volume ?? 0) >= 5000).length;
+    const louder = DESKTOP.filter((row) => (row.metrics?.volume ?? 0) >= 5000).length;
     await waitFor(() => expect(keywordsIn(grid)).toHaveLength(louder));
   });
 
@@ -213,12 +274,14 @@ describe('Rankings', () => {
     const url = urlWrites();
     const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
     const grid = await loadedGrid();
-    await user.click(screen.getByRole('radio', { name: 'Archived' }));
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: 'Show archived keywords' }));
     await waitFor(() => expect(url.latest().get('archived')).toBe('true'));
     await waitFor(() =>
       expect(keywordsIn(grid).sort()).toEqual(['seo meme', 'seo newsletter', 'wordpress seo plugin']),
     );
-    await user.click(screen.getByRole('radio', { name: 'Active' }));
+    // The chip that says the archived keywords are shown takes the table back to the active ones
+    await user.click(screen.getByRole('button', { name: 'Show active keywords' }));
     await waitFor(() => expect(url.latest().has('archived')).toBe(false));
   });
 
@@ -267,7 +330,7 @@ describe('Rankings', () => {
     await user.type(screen.getByRole('searchbox', { name: /Search/ }), 'zebra');
     expect(await screen.findByRole('heading', { name: 'No keywords match “zebra”' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Clear search' }));
-    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(ACTIVE.length));
+    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(SHOWN));
     server.events.removeAllListeners();
   });
 
@@ -388,8 +451,9 @@ describe('Rankings', () => {
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     const grid = await loadedGrid();
     // Above 100 rows the table renders the rows near the view, so the count tells how many it holds
-    await waitFor(() => expect(grid).toHaveAttribute('aria-rowcount', '119'));
-    expect(screen.getAllByText(/^118 keywords/).length).toBeGreaterThan(0);
+    // Each of the two pages holds the fixture rows, so the keywords tracked on desktop come twice
+    await waitFor(() => expect(grid).toHaveAttribute('aria-rowcount', String(2 * DESKTOP.length + 1)));
+    expect(screen.getAllByText(new RegExp(`^${String(2 * DESKTOP.length)} keywords`)).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Some keywords did not load/)).toBeNull();
   });
 
@@ -454,10 +518,11 @@ describe('Rankings', () => {
 });
 
 /** The fixture keywords as the mocks state them now: what the API will answer for each active row. */
-function fixtureStates(): { text: string; state: TrackedKeywordState }[] {
+function fixtureStates(): { text: string; device: TrackedKeywordRow['device']; state: TrackedKeywordState }[] {
   const texts = new Map(MOCK_KEYWORDS.map((keyword) => [keyword.keyword_id, keyword.text]));
   return MOCK_TRACKED_KEYWORDS.filter((row) => row.is_active).map((row) => ({
     text: texts.get(row.keyword_id) ?? '',
+    device: row.device,
     state: rankStateOf(
       row.tracked_keyword_id,
       row.created_at,
@@ -492,7 +557,7 @@ describe('Rankings rank columns', () => {
     const grid = await loadedGrid();
     const header = within(grid)
       .getAllByRole('rowheader')
-      .find((candidate) => candidate.textContent === moved.text);
+      .find((candidate) => named(candidate, moved.text));
     const row = header?.closest('tr');
     if (row === null || row === undefined || header === undefined) throw new Error(`No row for ${moved.text}`);
     const change = moved.state.change.value ?? 0;
@@ -509,7 +574,7 @@ describe('Rankings rank columns', () => {
     expect(link).toHaveAttribute('href', moved.state.current.url?.canonical_url);
   });
 
-  it('shows translated moreRankingPages when ranking_url_count is greater than 1', async () => {
+  it('says how many pages rank when the keyword has more than one, beside the arrow', async () => {
     const states = fixtureStates();
     const multi = states.find(({ state }) => state.ranking_url_count > 1);
     expect(multi).toBeDefined();
@@ -517,11 +582,35 @@ describe('Rankings rank columns', () => {
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
     const row = within(grid).getByRole('row', { name: new RegExp(multi.text) });
-    const expectedLink = en.rankings.columns.openRankingPage
+    const expectedLink = en.rankings.columns.openRankingPageMany
       .replace('{keyword}', multi.text)
-      .replace('{url}', multi.state.current.url?.canonical_url ?? '');
+      .replace('{url}', multi.state.current.url?.canonical_url ?? '')
+      .replace('{count}', String(multi.state.ranking_url_count));
     const link = within(row).getByRole('link', { name: expectedLink });
     expect(link).toBeInTheDocument();
+  });
+
+  it('opens the pages that rank for a keyword from the arrow, each with its rank', async () => {
+    const multi = fixtureStates().find(({ state }) => state.ranking_url_count > 1);
+    if (!multi) throw new Error('No fixture keyword ranks with more than one page');
+    const { user } = renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const header = within(grid)
+      .getAllByRole('rowheader')
+      .find((candidate) => named(candidate, multi.text));
+    if (!header) throw new Error(`No row for ${multi.text}`);
+
+    await user.hover(within(header).getByRole('link'));
+
+    expect(
+      await screen.findByText(
+        `${String(multi.state.ranking_url_count)} pages rank for this keyword`,
+        {},
+        { timeout: 3000 },
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Best rank')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /^\// }).length).toBeGreaterThanOrEqual(multi.state.ranking_url_count);
   });
 
   it('shows what is not a rank in words: beyond the depth, still waiting, a failed check, and stale', async () => {
@@ -533,7 +622,8 @@ describe('Rankings rank columns', () => {
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
     const ranks = visibleColumnTexts(grid, /^Rank$/);
-    expect(ranks.filter((text) => text.startsWith('>'))).toHaveLength(beyond);
+    // A hyphen is what shows; the depth is in hidden words
+    expect(ranks.filter((text) => text.startsWith('-'))).toHaveLength(beyond);
     expect(ranks.filter((text) => text === 'Pending')).toHaveLength(
       states.filter(({ current }) => current.state === 'not_checked').length,
     );
@@ -581,8 +671,8 @@ describe('Rankings rank columns', () => {
       const cell = rowCells(grid, at)(/^Rank$/);
       expect(within(cell).getByText('last check failed')).toHaveClass('sr-only');
       expect(within(cell).getByText('stale')).toHaveClass('sr-only');
-      // The rank of the last good check is still there
-      expect(cell.querySelector('.num')?.textContent).toMatch(/^\d+$|^>\d+$/);
+      // The rank of the last good check is still there: a number, or the not ranked mark when it was beyond the depth
+      expect(cell.querySelector('.num')?.textContent).toMatch(/^\d+$|^-$/);
       expect(keywordsIn(grid)[at]).toBe(textOfKeyword([...FAILING_IDS][0] ?? ''));
     }
   });
@@ -594,7 +684,7 @@ describe('Rankings rank columns', () => {
     const grid = await loadedGrid();
     const header = within(grid)
       .getAllByRole('rowheader')
-      .find((candidate) => candidate.textContent === withFeatures.text);
+      .find((candidate) => named(candidate, withFeatures.text));
     const row = header?.closest('tr');
     if (row === null || row === undefined) throw new Error(`No row for ${withFeatures.text}`);
     const cell = row.cells[columnIndex(grid, /^SERP features$/)];
@@ -603,7 +693,7 @@ describe('Rankings rank columns', () => {
     expect(within(cell).getByText(/^SERP features:/)).toHaveClass('sr-only');
   });
 
-  it('shows Cited #n for a keyword cited in the AI Overview', async () => {
+  it('shows #n with a check for a keyword cited in the AI Overview', async () => {
     const withAioCited = fixtureStates().find(
       ({ state }) => state.aio.state === 'present_cited' && state.aio.citation_position !== null,
     );
@@ -612,15 +702,16 @@ describe('Rankings rank columns', () => {
     const grid = await loadedGrid();
     const header = within(grid)
       .getAllByRole('rowheader')
-      .find((candidate) => candidate.textContent === withAioCited.text);
+      .find((candidate) => named(candidate, withAioCited.text));
     const row = header?.closest('tr');
     if (row === null || row === undefined) throw new Error(`No row for ${withAioCited.text}`);
     const cell = row.cells[columnIndex(grid, /^AI Overview$/)];
     if (cell === undefined) throw new Error('No AI Overview cell');
-    expect(within(cell).getByText(`Cited #${withAioCited.state.aio.citation_position}`)).toBeInTheDocument();
+    expect(within(cell).getByText(`#${withAioCited.state.aio.citation_position}`)).toBeInTheDocument();
+    expect(within(cell).queryByText(/Cited/)).toBeNull();
   });
 
-  it('shows the rank trend sparkline for checked and pending keywords, and requests include=sparkline', async () => {
+  it('shows the search volume trend of each keyword from its metrics, and asks for no rank sparkline', async () => {
     const asked: string[] = [];
     const listener = ({ request }: { request: Request }): void => {
       if (request.url.includes('/tracked-keywords')) {
@@ -633,31 +724,33 @@ describe('Rankings rank columns', () => {
       renderWithProviders(as('viewer'));
       const grid = await loadedGrid();
       expect(within(grid).getByRole('columnheader', { name: /^Trend/ })).toBeInTheDocument();
-      await waitFor(() => expect(asked).toContain('sparkline'));
+      await waitFor(() => expect(asked).toContain('metrics'));
+      expect(asked).not.toContain('sparkline');
 
       const checked = fixtureStates().find(({ state }) => state.current.state === 'ranked');
       if (checked === undefined) throw new Error('No checked keyword');
       const checkedRow = within(grid)
         .getAllByRole('rowheader')
-        .find((candidate) => candidate.textContent === checked.text)
+        .find((candidate) => named(candidate, checked.text))
         ?.closest('tr');
       if (!checkedRow) throw new Error(`No row for ${checked.text}`);
       const checkedCell = checkedRow.cells[columnIndex(grid, /^Trend$/)];
       if (checkedCell === undefined) throw new Error('No Trend cell on checked row');
       expect(
         within(checkedCell).getByRole('img', {
-          name: 'Rank trend, last 30 checks: from 18 to 10, best 8, 1 check beyond the depth checked',
+          name: /^Search volume trend, last 12 months: from [\d,]+ to [\d,]+, peak [\d,]+$/,
         }),
       ).toBeInTheDocument();
 
+      // A keyword that is still waiting for its first rank check has its own volumes all the same
       const pendingRow = within(grid)
         .getAllByRole('rowheader')
-        .find((candidate) => candidate.textContent === 'generative engine optimization')
+        .find((candidate) => named(candidate, 'generative engine optimization'))
         ?.closest('tr');
       if (!pendingRow) throw new Error('No row for pending keyword');
       const pendingCell = pendingRow.cells[columnIndex(grid, /^Trend$/)];
       if (pendingCell === undefined) throw new Error('No Trend cell on pending row');
-      expect(within(pendingCell).getByRole('img', { name: 'Rank trend: no checks yet' })).toBeInTheDocument();
+      expect(within(pendingCell).getByRole('img', { name: /^Search volume trend/ })).toBeInTheDocument();
     } finally {
       server.events.removeListener('request:start', listener);
     }
@@ -703,20 +796,15 @@ describe('Rankings rank columns', () => {
     expect(desc.slice(ranked.length).some((text) => parseRank(text) !== null)).toBe(false);
   });
 
-  it('gives the tooltip of a rank to the cell that holds the keyboard focus, as its description too', async () => {
+  it('gives the rank cell that holds the keyboard focus no tooltip: the cell and its markers say it all', async () => {
     const { user } = renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
-    for (let presses = 0; presses < 6 && !grid.contains(document.activeElement); presses += 1) await user.tab();
+    for (let presses = 0; presses < 14 && !grid.contains(document.activeElement); presses += 1) await user.tab();
     // From the first header to the first row, then past its keyword (a viewer has no checkbox column) to the Rank cell
     await user.keyboard('{ArrowDown}{ArrowRight}');
     const cell = document.activeElement;
     expect(cell).toHaveAttribute('role', 'gridcell');
-    const tip = /^(Rank \d+|Not in the top \d+), \w{3} \d+, \d{4} · \d{2}:\d{2} \w+/;
-    await waitFor(() => expect(document.querySelector('[data-slot="tooltip"]')?.textContent).toMatch(tip));
-    // The description is the whole tooltip, except for `>20`, which the cell already speaks as "not in top 20":
-    // then it is the check that follows
-    const checked = /^Checked \w{3} \d+, \d{4} · \d{2}:\d{2} \S+\./;
-    expect(cell).toHaveAccessibleDescription(expect.stringMatching(new RegExp(`${tip.source}|${checked.source}`)));
+    expect(cell).not.toHaveAccessibleDescription();
   });
 
   it('asks the API to sort by rank above 10,000 keywords', async () => {
@@ -771,7 +859,7 @@ describe('Rankings rank columns', () => {
       // Keyword 1 (seo agency berlin) excludes Meridian Growth, so its cell has "n/a"
       const row1Header = within(grid)
         .getAllByRole('rowheader')
-        .find((candidate) => candidate.textContent === 'seo agency berlin');
+        .find((candidate) => named(candidate, 'seo agency berlin'));
       const row1 = row1Header?.closest('tr');
       if (!row1) throw new Error('No row for seo agency berlin');
       const meridianColIndex = columnIndex(grid, /^Meridian Growth$/);
@@ -890,8 +978,10 @@ describe('Rankings rank filters', () => {
         asked.some((query) => query.get('filter[rank_gte]') === '4' && query.get('filter[rank_lte]') === '10'),
       ).toBe(true),
     );
+    // The table shows one device, desktop unless mobile is chosen
     const within4to10 = fixtureStates().filter(
-      ({ state }) => state.current.rank !== null && state.current.rank >= 4 && state.current.rank <= 10,
+      ({ device, state }) =>
+        device === 'desktop' && state.current.rank !== null && state.current.rank >= 4 && state.current.rank <= 10,
     );
     expect(within4to10.length).toBeGreaterThan(0);
     await waitFor(() => expect(keywordsIn(grid)).toHaveLength(within4to10.length));
@@ -922,7 +1012,9 @@ describe('Rankings rank filters', () => {
     await waitFor(() => expect(asked.some((query) => query.get('filter[improved]') === 'true')).toBe(true));
     const improved = fixtureStates().filter(({ state }) => (state.change.value ?? 0) > 0);
     expect(improved.length).toBeGreaterThan(0);
-    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(improved.length));
+    // Two tracked keywords of one keyword (its desktop and mobile) make one row
+    await waitFor(() => expect(keywordsIn(grid).length).toBeGreaterThan(0));
+    expect(keywordsIn(grid).length).toBeLessThanOrEqual(improved.length);
   });
 
   it('sends Entered as the new label and Lost as the lost label', async () => {
@@ -1053,7 +1145,7 @@ describe('Rankings rank filters', () => {
 
     const mismatchRow = within(grid)
       .getAllByRole('rowheader')
-      .find((candidate) => candidate.textContent === 'website seo audit');
+      .find((candidate) => named(candidate, 'website seo audit'));
     expect(mismatchRow).toBeDefined();
     if (!mismatchRow) throw new Error('No mismatch row found');
     const icon = mismatchRow.querySelector('svg.text-warning-text');
@@ -1083,14 +1175,12 @@ describe('Rankings summary strip', () => {
     renderWithProviders(as('viewer'), { searchParams: '?archived=true' });
     await loadedGrid();
     expect(screen.queryByText('Summary for the filtered keywords')).toBeNull();
-    expect(screen.queryByText('Tracked')).toBeNull();
   });
 
   it('is absent when the project tracks nothing yet', async () => {
     renderWithProviders(as('viewer', cleanstart.project_id));
     expect(await screen.findByRole('heading', { name: 'No keywords tracked yet' })).toBeInTheDocument();
     expect(screen.queryByText('Summary for the filtered keywords')).toBeNull();
-    expect(screen.queryByText('Tracked')).toBeNull();
   });
 
   it('follows a filter change', async () => {
@@ -1116,7 +1206,28 @@ describe('Rankings summary strip', () => {
     });
   });
 
-  it('ignores the search query in server mode and reads Tracked from the strip counts', async () => {
+  it('counts the device shown, while the list reads both devices of every keyword', async () => {
+    const listAsked: URLSearchParams[] = [];
+    const stripAsked: URLSearchParams[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (request.method !== 'GET' || !url.pathname.endsWith('/tracked-keywords')) return;
+      // The project's own count (one row, no filter) is not the strip's
+      if (url.searchParams.get('limit') === '1') {
+        if ([...url.searchParams.keys()].some((key) => key.startsWith('filter['))) stripAsked.push(url.searchParams);
+      } else if (url.searchParams.get('sort') !== '-created_at') listAsked.push(url.searchParams);
+    });
+
+    renderWithProviders(as('viewer'), { searchParams: '?dev=mobile' });
+    await loadedGrid();
+
+    await waitFor(() => expect(stripAsked.length).toBeGreaterThanOrEqual(6));
+    expect(stripAsked.every((query) => query.get('filter[device]') === 'mobile')).toBe(true);
+    expect(listAsked.length).toBeGreaterThan(0);
+    expect(listAsked.every((query) => !query.has('filter[device]'))).toBe(true);
+  });
+
+  it('ignores the search query in server mode and reads its counts from the strip', async () => {
     answerAsMany({ total: 12_000 });
     const stripAsked: URLSearchParams[] = [];
     server.events.on('request:start', ({ request }) => {
@@ -1132,33 +1243,32 @@ describe('Rankings summary strip', () => {
 
     const { user } = renderWithProviders(as('viewer'));
     await loadedGrid();
-    expect(screen.getByText('Tracked')).toBeInTheDocument();
+    expect(screen.getByLabelText('Summary for the filtered keywords')).toBeInTheDocument();
 
     await user.type(screen.getByRole('searchbox', { name: /Search/ }), 'audit');
     await waitFor(() => {
       expect(stripAsked.length).toBeGreaterThan(0);
       expect(stripAsked.every((query) => !query.has('filter[q]'))).toBe(true);
     });
-    expect(screen.getByText('Tracked')).toBeInTheDocument();
+    expect(screen.getByLabelText('Summary for the filtered keywords')).toBeInTheDocument();
   });
 });
 
 describe('Rankings import button', () => {
-  it('opens the import for a member who may import, before Add keywords', async () => {
+  it('opens the import from the menu of Add keywords for a member who may import', async () => {
     const onImportOpenChange = vi.fn<(open: boolean) => void>();
     const { user } = renderWithProviders(as('editor', undefined, { onImportOpenChange }));
     await loadedGrid();
-    const importButton = screen.getByRole('button', { name: 'Import' });
-    const addButton = screen.getByRole('button', { name: 'Add keywords' });
-    expect(importButton.compareDocumentPosition(addButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    await user.click(importButton);
+    expect(screen.queryByRole('button', { name: 'Import' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'More ways to add keywords' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Import from a file' }));
     expect(onImportOpenChange).toHaveBeenCalledExactlyOnceWith(true);
   });
 
   it('shows no import to a viewer', async () => {
     renderWithProviders(as('viewer'));
     await loadedGrid();
-    expect(screen.queryByRole('button', { name: 'Import' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'More ways to add keywords' })).toBeNull();
   });
 });
 

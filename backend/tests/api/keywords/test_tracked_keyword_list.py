@@ -15,6 +15,7 @@ from idraft.api.schemas.keywords import TrackedKeywordFilter
 from tests.api.auth.support import Workspace, execute, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import (
+    LOCATION,
     OTHER_LOCATION,
     errors,
     group,
@@ -126,7 +127,7 @@ async def test_each_filter_keeps_the_matching_keywords(
         ({"filter[funnel_stage_in]": "unknown"}, ["erp", "hr"]),
         ({"filter[priority_lte]": 3}, ["crm software", "erp"]),
         ({"filter[source_in]": "csv_import"}, ["crm software"]),
-        ({"filter[depth_profile_in]": ["standard"]}, ["erp", "hr"]),
+        ({"filter[depth_profile_in]": ["full"]}, ["erp", "hr"]),
         ({"filter[search_volume_gte]": 1000}, ["crm software"]),
         ({"filter[keyword_difficulty_lte]": 30}, []),
     ]
@@ -134,6 +135,107 @@ async def test_each_filter_keeps_the_matching_keywords(
         response = await _list(api, workspace, project, owner, **params)
         assert _texts(response) == expected, params
         assert response.json()["page"]["total"] == len(expected), params
+
+
+async def test_the_country_filter_takes_the_country_and_every_place_inside_it(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    city = 990001
+    await execute(
+        migrated,
+        "INSERT INTO core.locations (id, name, country_iso, location_type, parent_id) "
+        "VALUES ($1, 'New York', 'US', 'City', $2) ON CONFLICT (id) DO NOTHING",
+        city,
+        LOCATION,
+    )
+    await tracked_id(api, workspace, project, owner, "crm")
+    await tracked_id(api, workspace, project, owner, "nyc crm", location_id=city)
+    await tracked_id(api, workspace, project, owner, "erp", location_id=OTHER_LOCATION)
+
+    in_us = await _list(api, workspace, project, owner, **{"filter[country_id]": LOCATION})
+    in_uk = await _list(api, workspace, project, owner, **{"filter[country_id]": OTHER_LOCATION})
+    exact = await _list(api, workspace, project, owner, **{"filter[location_id]": LOCATION})
+
+    assert sorted(_texts(in_us)) == ["crm", "nyc crm"]
+    assert _texts(in_uk) == ["erp"]
+    # The exact filter is unchanged: the country only, not the city inside it
+    assert _texts(exact) == ["crm"]
+
+
+async def test_the_country_in_filter_takes_every_country_named_and_the_places_inside_them(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    city = 990002
+    third = 990003
+    await execute(
+        migrated,
+        "INSERT INTO core.locations (id, name, country_iso, location_type) VALUES "
+        "($1, 'Germany', 'DE', 'Country') ON CONFLICT (id) DO NOTHING",
+        third,
+    )
+    await execute(
+        migrated,
+        "INSERT INTO core.locations (id, name, country_iso, location_type, parent_id) "
+        "VALUES ($1, 'London', 'GB', 'City', $2) ON CONFLICT (id) DO NOTHING",
+        city,
+        OTHER_LOCATION,
+    )
+    await tracked_id(api, workspace, project, owner, "crm")
+    await tracked_id(api, workspace, project, owner, "london crm", location_id=city)
+    await tracked_id(api, workspace, project, owner, "erp", location_id=third)
+
+    both = await _list(
+        api,
+        workspace,
+        project,
+        owner,
+        **{"filter[country_id_in]": f"{LOCATION},{OTHER_LOCATION}"},
+    )
+    one = await _list(api, workspace, project, owner, **{"filter[country_id_in]": third})
+    scoped = await _list(
+        api,
+        workspace,
+        project,
+        owner,
+        **{"filter[country_id_in]": f"{LOCATION},{third}", "filter[country_id]": third},
+    )
+
+    assert sorted(_texts(both)) == ["crm", "london crm"]
+    assert both.json()["page"]["total"] == 2
+    assert _texts(one) == ["erp"]
+    # Both country filters apply: the keyword must match each
+    assert _texts(scoped) == ["erp"]
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "parameter"),
+    [
+        ("country_id_in", "abc", "filter[country_id_in]"),
+        ("country_id_in", "", "filter[country_id_in]"),
+        ("country_id_in", ",".join(str(n) for n in range(1, 102)), "filter[country_id_in]"),
+        ("country_id_in", "3000000000", "filter[country_id_in]"),
+        ("country_id_in", "0", "filter[country_id_in]"),
+        ("country_id", "3000000000", "filter[country_id]"),
+        ("location_id", "3000000000", "filter[location_id]"),
+    ],
+)
+async def test_a_bad_location_filter_is_a_validation_error(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    name: str,
+    value: str,
+    parameter: str,
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+
+    response = await _list(api, workspace, project, owner, **{parameter: value})
+
+    assert problem(response) == (422, "validation_failed"), name
+    # A list names the item that is wrong: `filter[country_id_in].0`
+    assert response.json()["errors"][0]["path"].startswith(parameter)
 
 
 async def test_group_and_term_filters_include_what_is_under_them(

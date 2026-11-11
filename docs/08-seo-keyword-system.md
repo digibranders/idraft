@@ -80,6 +80,15 @@ Rules:
 | GSC import (queries with impressions above a threshold) | 11 (basic), 12 (full) | From `fp.gsc_search_analytics`; deduped against existing |
 | Discovery inbox promotion | 11 | Section 5 |
 
+### 3.1.1 Adding in several countries (decision of 2026-11-04)
+
+The Add keywords dialog takes **one or more countries** (a multi-select with search) and the devices to track (desktop, mobile or both). A keyword is tracked once in each country, and each of those once on each device, so 12 keywords in India and the United States on both devices are 48 tracked keywords and 48 checks a day. All of them are stored, each as its own tracked keyword (the identity of a tracked keyword already holds the location and the device, doc 04, `seo.tracked_keywords`).
+
+- **Cost and quota before Add.** The dialog shows `keywords x devices x countries = checks a day`, the estimated cost at the price of a depth-100 standard-queue check with the asynchronous AI Overview (about $0.0066, doc 27), per day and per month, and the plan's use before and after (`used of max_tracked_keywords`). It refuses an add that would pass the quota with the same `422 quota_exceeded` figures as the API (`limit`, `used`, `requested` = keywords x devices x countries). The dialog reads the limit and use from `GET {W}/tracked-keyword-quota` and the price from the price book; where the price book cannot be read the cost is left out and the checks and the plan line stay. The quota and the 1,000-item batch limit are enforced by the API too, so the dialog's check only saves a round trip.
+- **No worldwide search.** Google has no global SERP and the provider needs a location on every check (doc 06), so there is no "Global" country. A view of all the countries the project tracks is the table's "All countries" scope, not something that is added.
+- **Duplicates.** A keyword already tracked in a country on a device is skipped for that one and reported ("2 keywords already tracked"); the others are added.
+- **Country limit per add.** At most 10 countries in one add, so one request stays inside the batch limit (keywords x countries x devices); the dialog says so when the choice is over it. The API does not count countries; this is the dialog's own rule. The dialog sends each keyword once per country in `bulk-create` requests of at most 1,000 items, so a large add is several requests; if a later one fails, the keywords of the earlier ones stay added and the result says so.
+
 ### 3.2 CSV format
 
 Required: `keyword`. Optional columns (header names case-insensitive):

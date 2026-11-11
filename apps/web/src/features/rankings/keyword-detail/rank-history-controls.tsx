@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import { MAX_CHART_COMPETITORS, type ChartLayer } from './detail-url-state';
-import { WINDOW_KEYS, type DetailWindow } from './detail-window';
+import { WINDOW_KEYS, WINDOW_MESSAGE_KEYS, type DetailWindow } from './detail-window';
 import { competitorPalette } from '../rank-history/rank-history-model';
 import { EntitySwatch } from '@/components/app/entity/entity-swatch';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,7 @@ export function WindowSelect({
   onWinChange: (win: DetailWindow) => void;
 }): ReactElement {
   const t = useTranslations('keywordDetail.history');
-  const windows = WINDOW_KEYS.map((value) => ({ value, label: t(`window.${value}`) }));
+  const windows = WINDOW_KEYS.map((value) => ({ value, label: t(`window.${WINDOW_MESSAGE_KEYS[value]}`) }));
   return (
     <Field width="short" className="w-36 sm:w-40">
       <FieldLabel display="visually-hidden">{t('window.label')}</FieldLabel>

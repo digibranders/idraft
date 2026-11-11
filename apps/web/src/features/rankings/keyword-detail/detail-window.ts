@@ -1,6 +1,15 @@
 /** The windows of the page's chart, strip and histories: the five the rank history route takes. */
 export const WINDOW_KEYS = ['7d', '30d', '90d', '180d', '365d'] as const;
 export type DetailWindow = (typeof WINDOW_KEYS)[number];
+
+/** The catalog key of a window under `keywordDetail.history.window`: a key cannot start with a digit. */
+export const WINDOW_MESSAGE_KEYS = {
+  '7d': 'last7Days',
+  '30d': 'last30Days',
+  '90d': 'last90Days',
+  '180d': 'last180Days',
+  '365d': 'last365Days',
+} as const satisfies Record<DetailWindow, string>;
 export const WINDOWS = { '7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365 } as const satisfies Record<
   DetailWindow,
   number
