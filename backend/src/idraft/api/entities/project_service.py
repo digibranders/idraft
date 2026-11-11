@@ -74,6 +74,50 @@ class AliasTestOutcome:
     skipped_alias_ids: tuple[UUID, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class MatcherRules:
+    """A project's entities with a live role and their aliases, as the alias matcher reads
+    them. Building the matcher from them is CPU work: do it off the event loop."""
+
+    entities: list[MatcherEntity]
+    rules: list[EntityRule]
+    aliases: list[AliasRule]
+
+
+async def matcher_rules(db: AsyncSession, workspace_id: UUID, project_id: UUID) -> MatcherRules:
+    """What the alias matcher needs for the project, read in the caller's transaction."""
+    named = await roles.matcher_entities(db, workspace_id, project_id)
+    ids = [entity.id for entity in named]
+    hosts = await roles.matcher_hosts(db, workspace_id, ids)
+    stored = await entities.aliases_of(db, workspace_id, ids)
+    return MatcherRules(
+        entities=named,
+        rules=[
+            EntityRule(
+                id=entity.id,
+                canonical_name=entity.canonical_name,
+                parent_entity_id=entity.parent_entity_id,
+                is_ambiguous=entity.is_ambiguous,
+                hints=entity.hints,
+                domains=tuple(hosts[entity.id]),
+            )
+            for entity in named
+        ],
+        aliases=[
+            AliasRule(
+                id=alias.id,
+                entity_id=alias.entity_id,
+                alias=alias.alias,
+                match_mode=cast(MatchMode, alias.match_mode),
+                case_sensitive=alias.case_sensitive,
+                is_negative=alias.is_negative,
+                requires_context=alias.requires_context,
+            )
+            for alias in stored
+        ],
+    )
+
+
 def _seo_competitor(values: Mapping[str, object]) -> bool:
     return values["role"] == "competitor" and bool(values["track_seo"])
 
@@ -284,36 +328,10 @@ class ProjectEntityService:
                     "The alias test takes up to 100 KB of text.",
                     limit_bytes=ALIAS_TEST_MAX_BYTES,
                 )
-            named = await roles.matcher_entities(db, access.workspace_id, project_id)
-            ids = [entity.id for entity in named]
-            hosts = await roles.matcher_hosts(db, access.workspace_id, ids)
-            stored = await entities.aliases_of(db, access.workspace_id, ids)
-        rules = [
-            EntityRule(
-                id=entity.id,
-                canonical_name=entity.canonical_name,
-                parent_entity_id=entity.parent_entity_id,
-                is_ambiguous=entity.is_ambiguous,
-                hints=entity.hints,
-                domains=tuple(hosts[entity.id]),
-            )
-            for entity in named
-        ]
-        aliases = [
-            AliasRule(
-                id=alias.id,
-                entity_id=alias.entity_id,
-                alias=alias.alias,
-                match_mode=cast(MatchMode, alias.match_mode),
-                case_sensitive=alias.case_sensitive,
-                is_negative=alias.is_negative,
-                requires_context=alias.requires_context,
-            )
-            for alias in stored
-        ]
+            loaded = await matcher_rules(db, access.workspace_id, project_id)
 
         def run() -> tuple[MatchResult, tuple[UUID, ...]]:
-            matcher = AliasMatcher(rules, aliases)
+            matcher = AliasMatcher(loaded.rules, loaded.aliases)
             return matcher.match(text), matcher.skipped_alias_ids
 
         try:
@@ -325,7 +343,7 @@ class ProjectEntityService:
             ) from None
         return AliasTestOutcome(
             result=to_utf16(result, text),
-            entities={entity.id: entity for entity in named},
+            entities={entity.id: entity for entity in loaded.entities},
             skipped_alias_ids=skipped,
         )
 
