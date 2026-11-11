@@ -13,6 +13,7 @@ import { meHandlers } from './me';
 import { pendingHandlers } from './pending';
 import { projectEntityHandlers } from './project-entities';
 import { projectHandlers } from './projects';
+import { promptHandlers } from './prompts';
 import { rankEventsHandlers } from './rank-events';
 import { rankHistoryHandlers } from './rank-history';
 import { serpHandlers } from './serp';
@@ -52,6 +53,7 @@ export const handlers: readonly HttpHandler[] = [
   ...scheduleHandlers,
   ...runHandlers,
   ...costHandlers,
+  ...promptHandlers,
   ...integrationHandlers,
   ...pendingHandlers,
 ];

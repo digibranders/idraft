@@ -19,7 +19,8 @@ export type IdKind =
   | 'budget'
   | 'price'
   | 'connection'
-  | 'integration';
+  | 'integration'
+  | 'prompt';
 
 /** One hexadecimal digit per kind, so the id stays a UUID. */
 const KIND_DIGIT: Readonly<Record<IdKind, string>> = {
@@ -38,6 +39,8 @@ const KIND_DIGIT: Readonly<Record<IdKind, string>> = {
   price: 'd',
   connection: 'e',
   integration: 'f',
+  // The last hexadecimal digit left; a prompt's version takes the prompt's number plus 500,000
+  prompt: '0',
 };
 
 /** The first number a browser's rows get; the fixtures stay below it. */
