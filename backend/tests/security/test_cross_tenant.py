@@ -130,6 +130,9 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("POST", _W + "/projects/{project_id}/seo/check-now"): {
         "tracked_keyword_ids": ["{tracked_keyword_id}"],
     },
+    ("POST", _W + "/projects/{project_id}/prompts/{prompt_id}/run-now"): {
+        "engine_codes": ["chatgpt_web"],
+    },
     ("POST", _W + "/projects/{project_id}/tracked-keywords/bulk-update"): {
         "ids": ["{tracked_keyword_id}"],
         "set": {"priority": 1},

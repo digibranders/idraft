@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Query, Response
 
 from idraft.api.ai.prompt_repository import PromptFilter, PromptRecord
 from idraft.api.ai.prompt_service import LintedPrompt, PromptService
+from idraft.api.operations.run_routes import Runs, TriggerRuns, run_view
 from idraft.api.pagination import Commas, Cursor, CursorPageInfo
 from idraft.api.permissions import Permission
 from idraft.api.request_info import Info
@@ -37,10 +38,12 @@ from idraft.api.schemas.ai import (
     PromptRejected,
     PromptResponse,
     PromptSkipped,
+    RunNow,
 )
 from idraft.api.schemas.common import LanguageCode, QueryText
 from idraft.api.schemas.entities import EntityRef
 from idraft.api.schemas.keywords import Intent
+from idraft.api.schemas.operations import RunResponse
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 
@@ -278,3 +281,30 @@ async def archive_prompt(
 ) -> Response:
     await prompts.archive(access, project_id, prompt_id, info)
     return Response(status_code=204)
+
+
+@router.post(
+    "/{prompt_id}/run-now",
+    status_code=202,
+    summary="Ask a prompt now (a manual run through the provider's standard queue)",
+    description="The prompt, which the project collects (`404` otherwise), on each of "
+    "`engine_codes` once, through the provider's standard queue, the path a schedule uses. The "
+    "run is `planned` and the worker plans it within a minute; answers arrive within minutes. "
+    "An engine the project has not turned on is `422 validation_failed` with "
+    "`engine_not_enabled`, a prompt longer than an engine takes `prompt_too_long`. An answer "
+    "already queued or under way is `409 check_pending` with its `engine_codes`. A budget used "
+    "up blocks the run (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day "
+    "(UTC); `422 quota_exceeded` when the month's AI answers would pass the workspace's "
+    "`max_ai_observations_per_month`; `503 provider_paused` while the provider is refusing "
+    "every request.",
+)
+async def run_now(
+    project_id: UUID,
+    prompt_id: UUID,
+    body: RunNow,
+    access: TriggerRuns,
+    runs: Runs,
+    info: Info,
+) -> RunResponse:
+    record = await runs.ai_run_now(access, project_id, prompt_id, body, info)
+    return RunResponse(data=run_view(record, access.workspace_id))

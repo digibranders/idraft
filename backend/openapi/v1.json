@@ -9086,6 +9086,26 @@
         "title": "RunDetailResponse",
         "type": "object"
       },
+      "RunNow": {
+        "additionalProperties": false,
+        "description": "The engines to ask the prompt on now, each once, through the standard queue.",
+        "properties": {
+          "engine_codes": {
+            "items": {
+              "$ref": "#/components/schemas/EngineCode"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Engine Codes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "engine_codes"
+        ],
+        "title": "RunNow",
+        "type": "object"
+      },
       "RunPage": {
         "properties": {
           "data": {
@@ -20211,6 +20231,80 @@
           }
         },
         "summary": "Change a prompt's metadata",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}/run-now": {
+      "post": {
+        "description": "The prompt, which the project collects (`404` otherwise), on each of `engine_codes` once, through the provider's standard queue, the path a schedule uses. The run is `planned` and the worker plans it within a minute; answers arrive within minutes. An engine the project has not turned on is `422 validation_failed` with `engine_not_enabled`, a prompt longer than an engine takes `prompt_too_long`. An answer already queued or under way is `409 check_pending` with its `engine_codes`. A budget used up blocks the run (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC); `422 quota_exceeded` when the month's AI answers would pass the workspace's `max_ai_observations_per_month`; `503 provider_paused` while the provider is refusing every request.",
+        "operationId": "run_now_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__run_now_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Prompt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunNow"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Ask a prompt now (a manual run through the provider's standard queue)",
         "tags": [
           "ai"
         ]

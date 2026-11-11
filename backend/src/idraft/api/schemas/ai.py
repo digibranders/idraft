@@ -325,3 +325,9 @@ class EngineUpdate(Body):
     is_enabled: bool = Field(
         default=True, description="On starts weekly spend; off keeps the settings."
     )
+
+
+class RunNow(Body):
+    """The engines to ask the prompt on now, each once, through the standard queue."""
+
+    engine_codes: Annotated[list[EngineCode], Field(min_length=1, max_length=3)]

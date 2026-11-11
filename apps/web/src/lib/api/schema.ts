@@ -1443,6 +1443,26 @@ export interface paths {
         patch: operations["update_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__patch"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}/run-now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask a prompt now (a manual run through the provider's standard queue)
+         * @description The prompt, which the project collects (`404` otherwise), on each of `engine_codes` once, through the provider's standard queue, the path a schedule uses. The run is `planned` and the worker plans it within a minute; answers arrive within minutes. An engine the project has not turned on is `422 validation_failed` with `engine_not_enabled`, a prompt longer than an engine takes `prompt_too_long`. An answer already queued or under way is `409 check_pending` with its `engine_codes`. A budget used up blocks the run (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC); `422 quota_exceeded` when the month's AI answers would pass the workspace's `max_ai_observations_per_month`; `503 provider_paused` while the provider is refusing every request.
+         */
+        post: operations["run_now_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__run_now_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs": {
         parameters: {
             query?: never;
@@ -5496,6 +5516,14 @@ export interface components {
         /** RunDetailResponse */
         RunDetailResponse: {
             data: components["schemas"]["RunDetail"];
+        };
+        /**
+         * RunNow
+         * @description The engines to ask the prompt on now, each once, through the standard queue.
+         */
+        RunNow: {
+            /** Engine Codes */
+            engine_codes: components["schemas"]["EngineCode"][];
         };
         /** RunPage */
         RunPage: {
@@ -10482,6 +10510,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PromptResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    run_now_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__run_now_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                prompt_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunNow"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
