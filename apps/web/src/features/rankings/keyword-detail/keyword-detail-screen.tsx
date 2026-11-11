@@ -15,7 +15,7 @@ import { listReturnHref, tabStorage } from './list-return';
 import { RankHistoryPanel } from './rank-history-panel';
 import { SnapshotsTab } from './snapshots/snapshots-tab';
 import { useCheckNow } from '../check-now/use-check-now';
-import { hasPendingCheck } from '../rankings-queries';
+import { CHECK_POLL_MS, hasPendingCheck } from '../rankings-queries';
 import { detailQuery, type KeywordScope } from '../keyword-inspector/inspector-queries';
 import { SectionError } from '../keyword-inspector/section-error';
 import { PAGE_CLASS } from '@/components/app/shell/page-header';
@@ -98,7 +98,11 @@ function KeywordDetailContent({
     (): KeywordScope => ({ workspaceId, projectId, trackedKeywordId }),
     [workspaceId, projectId, trackedKeywordId],
   );
-  const detail = useQuery(detailQuery(scope));
+  // Read again while a check is queued or being answered, as the list does, so Check now comes back by itself
+  const detail = useQuery({
+    ...detailQuery(scope),
+    refetchInterval: (query) => (query.state.data && hasPendingCheck(query.state.data.data) ? CHECK_POLL_MS : false),
+  });
   const data = detail.data?.data ?? null;
   // The keyword has no list here to drop from. A keyword deleted while the page is open keeps showing the last
   // read until the page loads again: TanStack Query keeps the data of a read that failed, and `data` wins below

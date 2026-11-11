@@ -6,6 +6,9 @@ import { expectAccessible, signIn, waitForContent } from '../support';
 const EDITOR = 'priya@digibranders.test';
 const VIEWER = 'mei@digibranders.test';
 const LIST = '/digibranders/fynix/seo/keywords';
+/** The list as keyword rows over every country: the project has groups and two countries, so the bare address opens By group on one. */
+const FLAT = 'loc=0&view=flat';
+const KEYWORDS = `${LIST}?${FLAT}`;
 const DETAIL = /\/digibranders\/fynix\/seo\/keywords\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 const THEME_KEY = 'idraft.theme';
 /** The ranked fixture keyword the layout tests open, and the stale and pending ones the states tests open. */
@@ -263,7 +266,7 @@ test.describe('keyword detail', () => {
     page,
   }) => {
     await signIn(page, EDITOR);
-    await page.goto(LIST);
+    await page.goto(KEYWORDS);
     const header = rowHeader(page, 'seo agency');
     const keyword = ((await header.locator('.truncate').first().textContent()) ?? '').trim();
     expect(keyword).toBe('seo agency');
@@ -281,11 +284,11 @@ test.describe('keyword detail', () => {
 
     // Back is the browser's: the list comes back with the inspector on the same keyword
     await page.goBack();
-    await expect(page).toHaveURL(new RegExp(`${LIST}\\?inspect=keyword(:|%3A)${id}$`));
+    await expect(page).toHaveURL(new RegExp(`${LIST}\\?${FLAT}&inspect=keyword(:|%3A)${id}$`));
     await expect(page.getByRole('complementary', { name: keyword })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('complementary', { name: keyword })).toBeHidden();
-    await expect(page).toHaveURL(new RegExp(`${LIST}$`));
+    await expect(page).toHaveURL(new RegExp(`${LIST}\\?${FLAT}$`));
 
     // The list still steps with J and K once an inspector is open again
     await rowHeader(page, 'seo agency').click();
@@ -296,21 +299,21 @@ test.describe('keyword detail', () => {
 
   test('the back link returns to the list as it was left, filters included', async ({ page }) => {
     await signIn(page, EDITOR);
-    await page.goto(`${LIST}?intent=commercial`);
+    await page.goto(`${KEYWORDS}&intent=commercial`);
     await expect(page.getByRole('button', { name: 'Intent: Commercial. Edit filter' })).toBeVisible();
     await page.getByRole('grid', { name: 'Tracked keywords' }).getByRole('rowheader').first().click();
     await page.getByRole('complementary').getByRole('button', { name: 'Open page' }).click();
     await expect(page).toHaveURL(DETAIL);
     const back = page.getByRole('main').getByRole('link', { name: 'Keywords', exact: true });
-    await expect(back).toHaveAttribute('href', `${LIST}?intent=commercial`);
+    await expect(back).toHaveAttribute('href', `${KEYWORDS}&intent=commercial`);
     await back.click();
-    await expect(page).toHaveURL(new RegExp(`${LIST}\\?intent=commercial$`));
+    await expect(page).toHaveURL(new RegExp(`${LIST}\\?${FLAT}&intent=commercial$`));
     await expect(page.getByRole('button', { name: 'Intent: Commercial. Edit filter' })).toBeVisible();
   });
 
   test('a Ctrl or Cmd click on a row opens its page in a new tab and leaves this tab alone', async ({ page }) => {
     await signIn(page, EDITOR);
-    await page.goto(LIST);
+    await page.goto(KEYWORDS);
     await expect(rowHeader(page, 'backlink checker')).toBeVisible();
     const before = page.url();
     const [popup] = await Promise.all([
@@ -386,7 +389,7 @@ test.describe('keyword detail', () => {
   for (const keyword of [RANKED, DEEP]) {
     test(`the Rank cell of "${keyword.text}" reads what the Rank column of the list reads`, async ({ page }) => {
       await signIn(page, EDITOR);
-      await page.goto(LIST);
+      await page.goto(KEYWORDS);
       const grid = page.getByRole('grid', { name: 'Tracked keywords' });
       const header = rowHeader(page, keyword.text);
       await expect(header).toBeVisible();
@@ -412,7 +415,7 @@ test.describe('keyword detail', () => {
     page,
   }) => {
     await signIn(page, EDITOR);
-    await page.goto(LIST);
+    await page.goto(KEYWORDS);
     await rowHeader(page, 'seo agency').click();
     const inspector = page.getByRole('complementary', { name: 'seo agency' });
     const small = await boxOf(inspector.getByRole('button', { name: 'Check now' }));
@@ -493,21 +496,26 @@ test.describe('keyword detail', () => {
     expect(instants.slice(1).every((value, index) => value <= (instants[index] ?? 0))).toBe(true);
 
     await panel.getByRole('button', { name: 'Show older events' }).click();
-    await expect(rows).toHaveCount(63);
+    // The mock builds events up to today's date, so the full count is not fixed: more than one page, all loaded
+    await expect.poll(() => rows.count()).toBeGreaterThan(50);
     await expect(panel.getByRole('button', { name: 'Show older events' })).toHaveCount(0);
     await expect(panel.getByRole('heading', { level: 2, name: 'Events' })).toBeFocused();
 
     await page.goto(`${LIST}/${URL_CHANGED.id}`);
     await expect(page.getByRole('heading', { level: 1, name: URL_CHANGED.text })).toBeVisible();
-    await expect(rows).not.toHaveCount(1);
+    await expect.poll(() => rows.count()).toBeGreaterThan(1);
+    const all = await rows.count();
     await panel.getByRole('button', { name: 'Ranking URL' }).click();
     await expect(page).toHaveURL(/[?&]events=url/);
-    await expect(rows).toHaveCount(1);
-    await expect(rows.first()).toContainText(/Ranking URL changed from \/\S+ to \/\S+/);
+    // The mock changes the URL every 17 to 29 days up to today's date, so how many there are is not fixed
+    await expect.poll(() => rows.count()).toBeLessThan(all);
+    const changes = await rows.allInnerTexts();
+    expect(changes.length).toBeGreaterThan(0);
+    for (const text of changes) expect(text).toMatch(/Ranking URL changed from \/\S* to \/\S*/);
     await expect(panel.getByRole('button', { name: 'Ranking URL' })).toHaveAttribute('aria-pressed', 'true');
     await panel.getByRole('button', { name: 'All events' }).click();
     await expect(page).not.toHaveURL(/events=/);
-    await expect(rows).not.toHaveCount(1);
+    await expect(rows).toHaveCount(all);
   });
 
   test('every event links to its snapshot on the SERP snapshots tab', async ({ page }) => {

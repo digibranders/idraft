@@ -272,7 +272,7 @@ interface ListArgs {
 type AllPages = UseInfiniteQueryResult<InfiniteData<ListPage, string | null>>;
 
 /** How often the list is read again while a keyword has a check queued or being answered (standard queue: minutes). */
-const CHECK_POLL_MS = 20_000;
+export const CHECK_POLL_MS = 20_000;
 
 /** Whether a keyword's check is queued or being answered (`state.check`), so its rank is about to change. */
 export function hasPendingCheck(row: { state?: Pick<TrackedKeywordState, 'check'> | undefined }): boolean {
