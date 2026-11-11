@@ -256,3 +256,76 @@ async def seed_observation(
     )
     observation_id: int = row["id"]
     return observation_id
+
+
+async def seed_extraction(
+    pg: PostgresServer, project: Project, observation_id: int, entity_id: uuid.UUID
+) -> int:
+    """The extraction of an observation `seed_observation` wrote: a derivation, and under it one
+    citation, one mention of `entity_id` as the own brand and the facts. A `core.urls` row must
+    exist. Returns the derivation's id."""
+    observation = await fetchrow(
+        pg,
+        "SELECT observed_at, observed_date, engine_code, observation_class, prompt_id, "
+        "prompt_version_id FROM ai.observations WHERE id = $1",
+        observation_id,
+    )
+    derivation = await fetchrow(
+        pg,
+        "INSERT INTO ai.derivations (workspace_id, project_id, extractor_version, "
+        "entity_config_version, recommendation_version, sentiment_version) "
+        "VALUES ($1, $2, 1, 1, 1, 1) RETURNING id",
+        project.workspace_id,
+        project.id,
+    )
+    url = await fetchrow(pg, "SELECT id, domain_id FROM core.urls ORDER BY id LIMIT 1")
+    await execute(
+        pg,
+        "INSERT INTO ai.citations (observation_id, observed_at, citation_index, workspace_id, "
+        "project_id, engine_code, url_id, domain_id, raw_url, citation_kind, domain_role, "
+        "role_entity_id) VALUES ($1, $2, 1, $3, $4, $5, $6, $7, 'https://example.com/crm', "
+        "'source_list', 'own', $8)",
+        observation_id,
+        observation["observed_at"],
+        project.workspace_id,
+        project.id,
+        observation["engine_code"],
+        url["id"],
+        url["domain_id"],
+        entity_id,
+    )
+    await execute(
+        pg,
+        "INSERT INTO ai.entity_mentions (observation_id, observed_at, entity_id, derivation_id, "
+        "workspace_id, project_id, engine_code, role, mention_count, first_char_offset, "
+        "mention_order, prominence, match_method, confidence, evidence_spans) VALUES ($1, $2, "
+        "$3, $4, $5, $6, $7, 'own', 1, 0, 1, 1, 'alias_word', 1, ARRAY['[0,8)'::int4range])",
+        observation_id,
+        observation["observed_at"],
+        entity_id,
+        derivation["id"],
+        project.workspace_id,
+        project.id,
+        observation["engine_code"],
+    )
+    await execute(
+        pg,
+        "INSERT INTO ai.observation_facts (observation_id, observed_at, derivation_id, "
+        "workspace_id, project_id, observed_date, engine_code, observation_class, prompt_id, "
+        "prompt_version_id, replicate_index, is_valid, own_mentioned, own_domain_cited, "
+        "own_citation_count, total_citation_count, tracked_entities_mentioned, "
+        "had_structured_list) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, true, true, "
+        "true, 1, 1, 1, false)",
+        observation_id,
+        observation["observed_at"],
+        derivation["id"],
+        project.workspace_id,
+        project.id,
+        observation["observed_date"],
+        observation["engine_code"],
+        observation["observation_class"],
+        observation["prompt_id"],
+        observation["prompt_version_id"],
+    )
+    derivation_id: int = derivation["id"]
+    return derivation_id

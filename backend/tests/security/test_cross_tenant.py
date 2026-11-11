@@ -41,7 +41,7 @@ from tests.api.auth.support import (
 from tests.api.keywords.support import LOCATION, ensure_locations
 from tests.api.test_route_access import PATH_PARAMETER
 from tests.api.workspaces.support import make_project
-from tests.collectors.ai_support import add_prompt, seed_observation
+from tests.collectors.ai_support import add_prompt, seed_extraction, seed_observation
 from tests.collectors.support import Project
 from tests.conftest import PostgresServer
 from tests.db.support import insert_prompt, seed_rank
@@ -562,6 +562,8 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         object_key=ai_key,
         sha256=digest(ai_answer),
     )
+    # Its extraction: a citation, a mention of the entity and the facts, read through the routes.
+    await seed_extraction(pg, Project(workspace.id, project_id), observation_id, entity["id"])
     # A real connection of the same Google account in both: its refresh token is sealed as the
     # application seals one, and the fake Google accepts it.
     account = fake.account(f"{label}@client.example", [("sc-domain:acme.example", "siteOwner")])
@@ -816,9 +818,11 @@ _TENANT_ROWS = {
     "ai.prompts": "workspace_id",
     "ai.prompt_versions": "workspace_id",
     "ai.prompt_terms": "workspace_id",
-    # The citation, mention and fact tables have no row in the seeded tenants (the checksum
-    # needs a row per table); they are read through the observation.
+    "ai.derivations": "workspace_id",
     "ai.observations": "workspace_id",
+    "ai.citations": "workspace_id",
+    "ai.entity_mentions": "workspace_id",
+    "ai.observation_facts": "workspace_id",
 }
 
 
