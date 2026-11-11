@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Ban, MessageSquare, Plus, Power } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
@@ -110,7 +110,12 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   );
   const list = usePromptList(scope);
   const listErrorId = useErrorId(list.error);
-  const summary = useQuery({ ...summaryQuery(scope, range, false), enabled: enabled.length > 0 });
+  // The table stays on the last counts while a new window is read
+  const summary = useQuery({
+    ...summaryQuery(scope, range, false),
+    enabled: enabled.length > 0,
+    placeholderData: keepPreviousData,
+  });
   // Branded prompts stay out, as the rates leave them out (16-metrics-methodology.md rule 4)
   const summaryById = useMemo(
     () => new Map((summary.data?.data.prompts ?? []).map((row) => [row.prompt_id, row])),
@@ -141,20 +146,28 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const visible = useMemo(() => parseColumns(view.cols, columnIds, ['prompt']), [view.cols, columnIds]);
   const density = parseDensity(view.density);
 
+  // The summary is pending only before its first answer: a new window keeps the last counts meanwhile
   const waiting = list.loading || engines.isPending || (enabled.length > 0 && summary.isPending);
   const status = ((): TableStatus => {
     if (list.error !== null && list.rows.length === 0) return 'error';
     if (waiting) return 'loading';
-    if (rows.length === 0) return 'filtered-empty';
-    return summary.isFetching ? 'refetching' : 'ready';
+    // Without a search, nothing to show means no prompts (an all branded project too), not a search with no match
+    if (rows.length === 0) return view.q === '' ? 'empty' : 'filtered-empty';
+    // Later pages of the list may still be on their way
+    return summary.isFetching || list.fetching ? 'refetching' : 'ready';
   })();
-  const noAnswers = summary.data !== undefined && list.rows.length > 0 && !hasAnswers(summary.data.data);
+  const listIncomplete = list.error !== null && list.rows.length > 0;
+  // Counts of the last window are not the answer to "has any prompt an answer" for this one
+  const noAnswers =
+    summary.data !== undefined && !summary.isPlaceholderData && rows.length > 0 && !hasAnswers(summary.data.data);
 
-  const addButton = canWrite ? (
-    <Button variant="primary" size="sm" icon={Plus} onClick={() => setAddOpen(true)}>
-      {t('addPrompts')}
-    </Button>
-  ) : null;
+  // Not before the engines are known: the dialog takes the enabled ones
+  const addButton =
+    canWrite && engines.data !== undefined ? (
+      <Button variant="primary" size="sm" icon={Plus} onClick={() => setAddOpen(true)}>
+        {t('addPrompts')}
+      </Button>
+    ) : null;
 
   const listError = (
     <InlineError
@@ -179,7 +192,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   );
 
   let content: ReactNode;
-  if (engines.isError) {
+  // A failed read in the background leaves the page as it is
+  if (engines.isError && engines.data === undefined) {
     content = (
       <InlineError
         title={t('enginesFailed')}
@@ -204,12 +218,25 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         }
       />
     );
-  } else if (!list.loading && list.error === null && list.rows.length === 0) {
+  } else if (engines.data !== undefined && !list.loading && list.error === null && list.rows.length === 0) {
     content = noPrompts;
   } else {
     content = (
       <>
         {noAnswers ? <Banner tone="info" placement="region" message={t('noAnswers')} /> : null}
+        {listIncomplete ? (
+          <Banner
+            tone="warning"
+            placement="region"
+            live
+            message={t('listPartial')}
+            actions={
+              <Button variant="secondary" size="sm" onClick={list.refetch} loading={list.fetching}>
+                {common('retry')}
+              </Button>
+            }
+          />
+        ) : null}
         {summary.isError ? (
           <Banner
             tone="warning"

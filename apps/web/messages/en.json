@@ -3270,6 +3270,7 @@
     "enginesFailed": "The engines of this project could not be loaded.",
     "loadFailed": "The prompts could not be loaded.",
     "loadFailedReason": "The server did not answer. Try again in a moment.",
+    "listPartial": "Some prompts could not be loaded, so the list may be incomplete.",
     "summaryFailed": "The answer counts could not be loaded. The prompts are listed without them.",
     "noEngineTitle": "No AI engine is on",
     "noEngineReason": "Turn on ChatGPT, Gemini or Google AI Mode in the project settings to start asking your prompts.",
