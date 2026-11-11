@@ -137,7 +137,7 @@ FOR UPDATE OF t SKIP LOCKED;
 - Each batch becomes one `submit_batch` Taskiq message with dedupe key `submit:` + sha256(sorted task ids) (section 5.2). The budget check against `ops.budgets` runs before the message is sent.
 - Tasks stay in `status = 'pending'` with `dispatched_at` set, so they are not selected again until a handler takes them, the dispatcher releases a batch it could not send, or the reconciler clears a stale `dispatched_at`.
 
-**As built (step 5, keywords).** The worker runs six ticks (`worker/assembly.py`), and a seventh, `rank_ingest`, since rank collection. Each runs in one process per interval, under the Redis lock `lock:<name>`, which expires just before the next run is due:
+**As built (step 5, keywords).** The worker runs six ticks (`worker/assembly.py`), a seventh, `rank_ingest`, since rank collection, and an eighth, `ai_prompt_ingest`, since AI prompts (step 8). Each runs in one process per interval, under the Redis lock `lock:<name>`, which expires just before the next run is due:
 
 | Tick | Every | Lock TTL | Work |
 |---|---|---|---|
@@ -146,6 +146,7 @@ FOR UPDATE OF t SKIP LOCKED;
 | `ready_poll` | 60 s | 55 s | section 8.1 |
 | `keyword_metrics_ingest` | 30 s | 28 s | reads fetched `keyword_metrics` tasks into snapshots; needs the raw bucket |
 | `rank_ingest` | 30 s | 28 s | (rank collection) reads fetched `seo_rank` tasks into snapshots, observations, features, state and rank events, one transaction a task; needs the raw bucket: without one the tick does nothing |
+| `ai_prompt_ingest` | 30 s | 28 s | (step 8) reads fetched `ai_prompt` tasks into observations, citations, entity mentions and fact rows, one transaction a task; an answer that cannot be read is stored as an `error` observation; needs the raw bucket: without one the tick does nothing |
 | `keyword_imports` | 5 s | 4 s | ends imports past `expires_at`, then reads the next import waiting to be previewed; needs the raw bucket |
 | `keyword_import_writes` | 5 s | 4 s | writes the next confirmed import in batches; needs no bucket, and runs apart from the reading tick so a long write never holds up a preview |
 

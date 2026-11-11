@@ -1252,7 +1252,7 @@ CREATE TABLE ai.entity_mentions (
     role                text NOT NULL CHECK (role IN ('own','competitor','watch','untracked')),
     mention_count       smallint NOT NULL,
     first_char_offset   integer NOT NULL,
-    mention_order       smallint NOT NULL,       -- 1 = first tracked entity to appear
+    mention_order       smallint,                -- 1 = first tracked entity to appear; NULL for an uncertain, watched or product mention (migration 0019)
     prominence          numeric(5,4) NOT NULL,   -- 1 - first_char_offset / answer_char_count (see 16 section 6)
     structured_rank     smallint,                -- only when answer contains an ordered list and the entity is an item
     structured_list_size smallint,
@@ -1313,6 +1313,8 @@ CREATE INDEX ON ai.observation_facts (prompt_id, engine_code, observed_at) WHERE
 The four mandatory outcomes (mentioned and cited, mentioned only, cited only, neither) are the cross product of `own_mentioned` and `own_domain_cited`. They are never collapsed.
 
 **As built (step 8, slice 1, migration 0018).** The ten tables of sections 8.1 to 8.5 exist without the panels, fan-out and retrieval tables. Every tenant table carries `workspace_id` with the `tenant_isolation` policy, `ai.derivations` and `ai.prompt_terms` included, and keys between tenant tables include it: a prompt's current version is one of its own versions (`(current_version_id, id, workspace_id)`, checked at commit), and answer rows refer to their answer through `(observation_id, observed_at, workspace_id)`. `ai.observations` keeps its raw payload by key and has one answer per task (`observations_one_per_task`). Partitions are monthly on `observed_at` for observations, citations, entity mentions and observation facts. The raw payload of an answer is read through `ai.observation_raw(bigint)`. The engines and their DataForSEO task prices (standard and priority queue) are seeded. `core.workspace_quotas.max_active_prompts` defaults to 150 (the base plan of 2026-11-11), not 1,000, and quota rows still at 1,000 were moved to 150.
+
+**As built (step 8, slice 1, plan B, migration 0019).** Ingest relies on two unique keys of migration 0018 and writes with `ON CONFLICT DO NOTHING` on them: `observations_one_per_task (collection_task_id, observed_at)` makes ingesting a task twice write nothing the second time (`observed_at` is the answer's own time when it lies inside the partition window, else the task's fetched time, so it is the same on every read), and `derivations_identity (project_id, extractor_version, entity_config_version, recommendation_version, sentiment_version)` makes the project's derivation once per extractor and entity configuration. Slice 1 writes `recommendation_version = 0` and `sentiment_version = 0` ("no classifier"). Migration 0019 drops `NOT NULL` from `ai.entity_mentions.mention_order` (the partitions follow the parent): only accepted mentions of own and competitor entities are numbered, and uncertain mentions, watched entities and products counted as their brand are stored with a null order as evidence. `ai.observation_facts.is_valid` is false for every answer that is not `complete` or `partial`, and the API's `outcome` is null for those. The shipped migrations 0018 and 0019 are never edited: a change is a new migration. The worker's grants on the answer tables are `SELECT, INSERT` only, so flipping `is_current` and `superseded_by` waits for the re-derivation plan.
 
 ### 8.6 Claims (post-MVP, schema reserved)
 

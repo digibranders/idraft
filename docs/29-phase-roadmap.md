@@ -217,6 +217,8 @@ The product owner's rule: build what makes the product show data first, and move
 
 ### Phase 7: AI collection
 
+**As built (step 8, slice 1, plan B, 2026-11-11).** The ChatGPT scraper, the Gemini scraper and Google AI Mode through DataForSEO's standard queue (adapter and normalizer version 1), the `ai_prompt` workload (each active prompt once per schedule window on each enabled engine, at the engine's locations in the prompt's country; two windows a week with the base plan), Run now (which refuses what the planner would skip and counts the month's quota per task), the ingest tick and the answer routes are built (plan `docs/superpowers/plans/2026-11-11-ai-prompts-b-collection-and-extraction.md`). Not built: replicates, live answers, the AI Mode keyword workload, fan-out and retrieval tables, the coverage route. The first real run is `docs/ops/ai-first-run.md`; it includes a probe for how the AI endpoints read `+` and `%` in a prompt, which no spike prompt contained.
+
 **Objective:** Collect consumer-surface answers reliably and store them fully.
 
 | Area | Content |
@@ -230,6 +232,8 @@ The product owner's rule: build what makes the product show data first, and move
 | Risks | Provider schema drift (schema hash check in the test suite); consumer surface behavior change (model boundary markers) |
 
 ### Phase 8: AI extraction
+
+**As built (step 8, slice 1, plan B).** Light extraction at ingest: citation roles, own and competitor mentions with evidence spans, and the fact row per answer under the project's derivation (migration 0019 lets uncertain, watched and product mentions be stored without a mention order); `GET {P}/ai/prompts-summary` reads Mentioned, Cited, the four outcomes (of valid answers only) and Share of voice from the fact rows, prompt weighted in topic rows. Recommendation, sentiment, structured lists, untracked entities and re-derivation are slice 2.
 
 **Objective:** Turn answers into trustworthy, versioned facts.
 
