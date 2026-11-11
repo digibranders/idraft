@@ -3389,6 +3389,79 @@
         "duplicate": "the project already tracks this prompt."
       },
       "done": "Done"
+    },
+    "inspector": {
+      "type": "Prompt",
+      "noun": "prompt",
+      "back": "Back to Topics & Prompts",
+      "position": "{index} of {count}",
+      "loadFailed": "The prompt could not be loaded.",
+      "loadFailedReason": "The server did not answer. Try again in a moment.",
+      "archivedBadge": "Archived",
+      "facts": "Prompt",
+      "topic": "Topic",
+      "language": "Language",
+      "country": "Country",
+      "importance": "Importance",
+      "added": "Added",
+      "addedBy": "Added by",
+      "system": "System",
+      "byEngine": "By engine",
+      "engineCounts": "Mentioned {mentioned}, cited {cited}",
+      "engineNoAnswers": "No answers in this window",
+      "countsFailed": "The counts could not be loaded.",
+      "noCounts": "No counts for this window",
+      "noCountsReason": "Each prompt is asked twice a week. The counts follow its first answers.",
+      "noCountsBranded": "Branded prompts stay out of the counts until the Branded filter includes them.",
+      "answers": "Answers",
+      "answersCaption": "Answers to this prompt",
+      "answersEmpty": "No answers in this window",
+      "answersEmptyReason": "Each prompt is asked twice a week. Choose a longer window to see earlier answers.",
+      "answersFailed": "The answers could not be loaded.",
+      "columns": {
+        "date": "Date",
+        "engine": "Engine",
+        "status": "Status",
+        "outcome": "Outcome"
+      },
+      "statuses": {
+        "complete": "Complete",
+        "partial": "Partial",
+        "empty": "Empty",
+        "refused": "Refused",
+        "error": "Failed"
+      },
+      "outcomes": {
+        "mentionedAndCited": "Mentioned and cited",
+        "mentionedOnly": "Mentioned only",
+        "citedOnly": "Cited only",
+        "neither": "Neither",
+        "notCounted": "Not counted"
+      },
+      "openAnswer": "Open the {engine} answer of {date}",
+      "runNow": "Run now",
+      "runQueued": "Run queued",
+      "runQueuedHint": "Answers arrive within minutes. A run the AI budget blocks waits in Runs.",
+      "runFailedTitle": "Not queued",
+      "runPending": "An answer is already on its way on {engines}. Try again once it has arrived.",
+      "runLimit": "All {limit, number} manual runs of today (UTC) are used, keyword refreshes included. Try again tomorrow.",
+      "runQuota": "The workspace has used {used, number} of {limit, number} AI answers this month. This run needs {requested, number} more.",
+      "runPaused": "Collection from the provider is paused. Try again in {minutes, plural, one {# minute} other {# minutes}}.",
+      "runRefused": {
+        "engineNotEnabled": "{count, plural, one {{engines} is} other {{engines} are}} not turned on for this project.",
+        "promptTooLong": "{count, plural, one {{engines} does} other {{engines} do}} not take a prompt this long.",
+        "locationNotEnabled": "{count, plural, one {{engines} has} other {{engines} have}} no location in the country of this prompt.",
+        "priceUnavailable": "No price is known for {engines} today, so {count, plural, one {it} other {they}} cannot be asked."
+      },
+      "runInvalid": "An engine of this project cannot ask this prompt. Check the Engines settings.",
+      "runFailed": "The run was not queued. Try again in a moment.",
+      "archive": "Archive",
+      "archived": "Prompt archived",
+      "archivedHint": "Its answers stay. It is no longer asked from the next run.",
+      "archiveFailed": "The prompt was not archived. Try again in a moment.",
+      "undo": "Undo",
+      "restoreFailed": "The prompt was not brought back. Try again in a moment.",
+      "restoreQuota": "The workspace has {used, number} of {limit, number} active prompts. Archive another one to bring this one back."
     }
   }
 }

@@ -9,6 +9,7 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
 import { AddPromptsDialog } from './add-prompts-dialog';
 import { DEFAULT_SORT, usePromptColumns, type PromptRow } from './prompt-columns';
+import { PromptInspector, type PromptCounts } from './prompt-inspector';
 import {
   collectTopicTerms,
   DEFAULT_WINDOW,
@@ -33,6 +34,8 @@ import { FilterBar } from '@/components/app/filters/filter-bar';
 import { ReadOnlyFilterChips } from '@/components/app/filters/read-only-chips';
 import type { FilterField } from '@/components/app/filters/types';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
+import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
+import { useInspector } from '@/components/app/inspector/use-inspector';
 import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
 import { TopBarPortal } from '@/components/app/shell/top-bar-slot';
 import { Banner } from '@/components/app/status/banner';
@@ -46,7 +49,8 @@ import { toast } from '@/components/ui/toast';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { useUtcDay } from '@/lib/dom/use-utc-day';
 import { enumValuesOf } from '@/lib/filters/filter-values';
-import { formatBusinessDate, formatList } from '@/lib/format';
+import { formatBusinessDate, formatInteger, formatList } from '@/lib/format';
+import { formatInspectTarget } from '@/lib/inspector/placement';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { useCountries } from '@/lib/locations/countries';
 import { useCan } from '@/lib/permissions';
@@ -281,6 +285,27 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const visible = useMemo(() => parseColumns(view.cols, columnIds, ['prompt']), [view.cols, columnIds]);
   const density = parseDensity(view.density);
 
+  // The inspector: a prompt opened from either tab, stepping in the order of the table on screen
+  const inspector = useInspector();
+  const openPrompt = inspector.target?.type === 'prompt' ? inspector.target.id : null;
+  const [order, setOrder] = useState<readonly string[]>([]);
+  const at = inspector.position(order);
+  const step = (direction: 'next' | 'previous'): void => {
+    if (at === null || (direction === 'next' ? at.index === at.count - 1 : at.index === 0)) return;
+    inspector.step(direction, order);
+  };
+  const openPromptRow = (promptId: string, intent: 'inspector' | 'new-tab' = 'inspector'): void => {
+    const target = { type: 'prompt' as const, id: promptId };
+    if (intent === 'new-tab') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('inspect', formatInspectTarget(target));
+      url.searchParams.delete('itab');
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+    if (promptId !== openPrompt) inspector.open(target);
+  };
+
   // The summary is pending only before its first answer: a new window keeps the last counts meanwhile
   // A topic or country that matches nothing so far may still match a page that is on its way
   const waiting =
@@ -465,6 +490,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               onSearchChange={(next) => void setView({ q: next === '' ? null : next })}
               density={density}
               onDensityChange={(next: Density) => void setView({ density: next === DEFAULT_DENSITY ? null : next })}
+              activePromptId={openPrompt}
+              onOpenPrompt={openPromptRow}
+              onPromptOrderChange={setOrder}
             />
           </TabsPanel>
           <TabsPanel value="prompts" className="flex min-h-0 flex-1 flex-col pt-3">
@@ -512,6 +540,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 errorState={listError}
                 emptyState={noPrompts}
                 filteredEmptyState={filteredEmpty}
+                onRowOpen={(row, intent) => openPromptRow(row.prompt.prompt_id, intent)}
+                activeRowId={openPrompt}
+                onRowOrderChange={setOrder}
               />
             </div>
           </TabsPanel>
@@ -520,8 +551,51 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     );
   }
 
+  const counts: PromptCounts = {
+    // A new window keeps the last counts on screen: they are not this window's until it has read
+    status: summaryFailed
+      ? 'failed'
+      : summary.isFetching && (summary.data === undefined || summary.isPlaceholderData)
+        ? 'loading'
+        : 'ready',
+    row: openPrompt === null ? undefined : summaryById.get(openPrompt),
+    errorId: summaryErrorId,
+    retry: () => void summary.refetch(),
+    retrying: summary.isFetching,
+  };
+  const promptInspector =
+    openPrompt === null ? null : (
+      <PromptInspector
+        // Another prompt is another inspector, not the same one with new data
+        key={openPrompt}
+        scope={scope}
+        promptId={openPrompt}
+        timeZone={project.timeZone}
+        range={range}
+        engines={enabled}
+        counts={counts}
+        positionText={
+          at === null
+            ? null
+            : t('inspector.position', { index: formatInteger(at.index + 1), count: formatInteger(at.count) })
+        }
+        navigation={
+          at === null
+            ? null
+            : {
+                onPrevious: () => step('previous'),
+                onNext: () => step('next'),
+                atFirst: at.index === 0,
+                atLast: at.index === at.count - 1,
+              }
+        }
+        onStep={at === null ? undefined : step}
+        onClose={() => inspector.close()}
+      />
+    );
+
   return (
-    <>
+    <InspectorLayout inspector={promptInspector}>
       <TopBarPortal>
         <div className="w-44">
           <Select<string>
@@ -555,6 +629,6 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           defaults={{ languageCode: project.defaultLanguage, countryIso: project.defaultCountryIso }}
         />
       ) : null}
-    </>
+    </InspectorLayout>
   );
 }

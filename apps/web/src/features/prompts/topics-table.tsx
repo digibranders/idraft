@@ -1,7 +1,7 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
-import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 
 import { useEngineColumns } from './prompt-columns';
 import { topicMembers, topicRowKept, type TopicDescendants } from './prompt-model';
@@ -31,6 +31,7 @@ type TopicRow =
       kind: 'prompt';
       /** Topic and prompt: a prompt of two topics is a row under each. */
       id: string;
+      promptId: string;
       name: string;
       branded: boolean;
       engines: readonly EngineSummary[];
@@ -67,6 +68,11 @@ export interface TopicsTableProps {
   onSearchChange: (search: string) => void;
   density: Density;
   onDensityChange: (density: Density) => void;
+  /** The prompt open in the inspector; its row is marked. */
+  activePromptId: string | null;
+  onOpenPrompt: (promptId: string, intent: 'inspector' | 'new-tab') => void;
+  /** The prompts the open topics list, in the order of the rows, each once: what the inspector steps through. */
+  onPromptOrderChange: (promptIds: readonly string[]) => void;
 }
 
 /**
@@ -92,6 +98,9 @@ export function TopicsTable({
   onSearchChange,
   density,
   onDensityChange,
+  activePromptId,
+  onOpenPrompt,
+  onPromptOrderChange,
 }: TopicsTableProps): ReactElement {
   const t = useTranslations('prompts');
   const locale = useLocale();
@@ -157,6 +166,7 @@ export function TopicsTable({
         ...ordered.map((member, at): TopicRow => ({
           kind: 'prompt',
           id: `${key}:${member.prompt_id}`,
+          promptId: member.prompt_id,
           name: member.text,
           branded: member.is_branded,
           engines: member.engines,
@@ -167,6 +177,16 @@ export function TopicsTable({
     });
   }, [summary, descendants, kept, filtering, search, locale, open, t, firstEngine]);
   const topicCount = rows.filter((row) => row.kind === 'topic').length;
+  // A prompt of two open topics is two rows and one step
+  const promptOrder = useMemo(
+    () => [...new Set(rows.flatMap((row) => (row.kind === 'prompt' ? [row.promptId] : [])))],
+    [rows],
+  );
+  useEffect(() => onPromptOrderChange(promptOrder), [promptOrder, onPromptOrderChange]);
+  const activeRowId =
+    activePromptId === null
+      ? null
+      : (rows.find((row) => row.kind === 'prompt' && row.promptId === activePromptId)?.id ?? null);
   const rowTree = (row: TopicRow): RowTree => {
     if (row.kind === 'prompt') return { level: 2, setSize: row.siblings, posInSet: row.position };
     // A row without `expanded` has no prompts to show and is an ordinary row
@@ -212,6 +232,10 @@ export function TopicsTable({
       rowName={rowName}
       rowTree={rowTree}
       onToggleGroup={toggle}
+      onRowOpen={(row, intent) => {
+        if (row.kind === 'prompt') onOpenPrompt(row.promptId, intent);
+      }}
+      activeRowId={activeRowId}
       status={shownStatus}
       errorState={errorState}
       emptyState={emptyState}
