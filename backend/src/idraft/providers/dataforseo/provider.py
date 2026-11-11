@@ -35,7 +35,7 @@ from idraft.providers.contract import (
     SubmitResult,
     SubmittedTask,
 )
-from idraft.providers.dataforseo import labs, serp
+from idraft.providers.dataforseo import ai, labs, serp
 from idraft.providers.dataforseo.client import Answered, DataForSeoClient, TaskAnswer
 from idraft.providers.dataforseo.endpoint import TaskEndpoint
 from idraft.providers.dataforseo.errors import Answer, read_status
@@ -46,7 +46,9 @@ K = ProviderErrorKind
 CODE: Final = "dataforseo"
 # Tasks in one `task_post` (DataForSEO refuses more with 40006).
 BATCH_SIZE: Final = 100
-ENDPOINTS: Final[Mapping[str, TaskEndpoint]] = MappingProxyType({serp.SERP_ORGANIC: serp.ENDPOINT})
+ENDPOINTS: Final[Mapping[str, TaskEndpoint]] = MappingProxyType(
+    {serp.SERP_ORGANIC: serp.ENDPOINT, **ai.ENDPOINTS}
+)
 # Endpoints answered in the call itself.
 LIVE_ENDPOINTS: Final = frozenset({labs.KEYWORD_OVERVIEW, serp.SERP_ORGANIC_LIVE})
 # `id_list` gives up to 1,000 tasks a call. A look at a period makes at most this many calls;
