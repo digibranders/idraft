@@ -1,0 +1,113 @@
+{
+  "endpoint": "ai answers: ai_optimization/chat_gpt/llm_scraper, ai_optimization/gemini/llm_scraper, serp/google/ai_mode (task_get/advanced)",
+  "fixtures": [
+    {
+      "id": "chatgpt_scraper_answer",
+      "file": "captured/chatgpt_scraper_answer.json",
+      "provider": "dataforseo",
+      "captured_at": "2026-11-11",
+      "source": "captured",
+      "engine_code": "chatgpt_web",
+      "status": "complete",
+      "sha256": "6cbc0f93be3b7973f0bafaacbcc7220803a65b73162860885b834df7e40b3438",
+      "schema_hash": "f6198fde8347361bdd0e65be361a267d9ddba72b37b9ed1fa790b4644efea1ae",
+      "tags": ["sources", "search_results", "fan_out", "brand_entities", "tables", "images"]
+    },
+    {
+      "id": "gemini_scraper_answer",
+      "file": "captured/gemini_scraper_answer.json",
+      "provider": "dataforseo",
+      "captured_at": "2026-11-11",
+      "source": "captured",
+      "engine_code": "gemini_web",
+      "status": "complete",
+      "sha256": "1814a45bd464f920a3bb0013a75f66b064701a8482882d41bb89ec40c70a49ec",
+      "schema_hash": "23103c9d3dd7101e27112ffa0adfe9ea448b3aec98484b8b3a4437ab25e5f35e",
+      "tags": ["sources", "duplicate_sources", "text_fragments"]
+    },
+    {
+      "id": "ai_mode_answer",
+      "file": "captured/ai_mode_answer.json",
+      "provider": "dataforseo",
+      "captured_at": "2026-11-11",
+      "source": "captured",
+      "engine_code": "google_ai_mode",
+      "status": "complete",
+      "sha256": "f7dee5003a550726b696a59d4135512234126d2a8b2bacc92156395a055c6823",
+      "schema_hash": "6205ea94cbf9310a1aa9be6f826481d4f97cbdbd359e29d2f4af0299f3d2dd99",
+      "tags": ["references", "element_links"]
+    },
+    {
+      "id": "chatgpt_ad",
+      "file": "ai/chatgpt_ad.json",
+      "provider": "dataforseo",
+      "captured_at": null,
+      "source": "synthetic",
+      "engine_code": "chatgpt_web",
+      "status": "complete",
+      "sha256": "d3de87b58970fbe56c5b2846577eec1a54363de768f10898b2121ee9155d8425",
+      "schema_hash": "8a82fdfd8799d25b8e62e3d9b1ae8694e1e195a3ef2b2bf036d73e0c64854ed9",
+      "tags": ["ads"]
+    },
+    {
+      "id": "chatgpt_refused",
+      "file": "ai/chatgpt_refused.json",
+      "provider": "dataforseo",
+      "captured_at": null,
+      "source": "synthetic",
+      "engine_code": "chatgpt_web",
+      "status": "refused",
+      "sha256": "9cfb26092b95f49285ad029ec71ca88493f13d21a99ce6168c27594aa2aff3df",
+      "schema_hash": "baa5399f34df688133505590a2e3501d79ef7d3f1c04eb693a8722e196013f48",
+      "tags": ["refusal"]
+    },
+    {
+      "id": "chatgpt_empty",
+      "file": "ai/chatgpt_empty.json",
+      "provider": "dataforseo",
+      "captured_at": null,
+      "source": "synthetic",
+      "engine_code": "chatgpt_web",
+      "status": "empty",
+      "sha256": "40b972aa14c9cc8ab4796844a33b1bc135f45c0f04edd0cfbb3129bc2281d8e6",
+      "schema_hash": "879b652be4094b7dc6dd7aa4ce1e1e2525bfeac8236c9e4b634c085c49a26812",
+      "tags": ["empty"]
+    },
+    {
+      "id": "chatgpt_partial",
+      "file": "ai/chatgpt_partial.json",
+      "provider": "dataforseo",
+      "captured_at": null,
+      "source": "synthetic",
+      "engine_code": "chatgpt_web",
+      "status": "partial",
+      "sha256": "36843ed2b02803cc2d2f93889050af0c6166ffc6009b7fc99f714a1322bae572",
+      "schema_hash": "554c985f2b261d29b11c7291b86d7477f5b2cef99689fc037ad1f76eef3a1557",
+      "tags": ["partial"]
+    },
+    {
+      "id": "gemini_nbsp_model",
+      "file": "ai/gemini_nbsp_model.json",
+      "provider": "dataforseo",
+      "captured_at": null,
+      "source": "synthetic",
+      "engine_code": "gemini_web",
+      "status": "complete",
+      "sha256": "855d316113b4c0677d1f03d94d7b065d807e14ee660fc4f812ec450ca28cbac9",
+      "schema_hash": "61f6e5bdf060ff5a678f4d986cbaa8411a4a4943c587d964b5ef3e02d4fff1bd",
+      "tags": ["model_whitespace", "text_fragments"]
+    },
+    {
+      "id": "task_error",
+      "file": "ai/task_error.json",
+      "provider": "dataforseo",
+      "captured_at": null,
+      "source": "synthetic",
+      "engine_code": "chatgpt_web",
+      "status": "error",
+      "sha256": "7c70383f4f93fef756b66e431a29dd78daacdd824cefe819ae87844d079ed7ee",
+      "schema_hash": "c4657a97a1f782991aa13a2cc681c53107240d93e2f3d111fa09b94a82ebad9f",
+      "tags": ["task_error"]
+    }
+  ]
+}
