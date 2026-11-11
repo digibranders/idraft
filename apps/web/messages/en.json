@@ -3413,11 +3413,13 @@
       "noCounts": "No counts for this window",
       "noCountsReason": "Each prompt is asked twice a week. The counts follow its first answers.",
       "noCountsBranded": "Branded prompts stay out of the counts until the Branded filter includes them.",
+      "noCountsArchived": "An archived prompt is not in the counts.",
       "answers": "Answers",
       "answersCaption": "Answers to this prompt",
       "answersEmpty": "No answers in this window",
       "answersEmptyReason": "Each prompt is asked twice a week. Choose a longer window to see earlier answers.",
       "answersFailed": "The answers could not be loaded.",
+      "answersTruncated": "Only the latest {count, number} answers of this window are listed.",
       "columns": {
         "date": "Date",
         "engine": "Engine",
@@ -3436,6 +3438,7 @@
         "mentionedOnly": "Mentioned only",
         "citedOnly": "Cited only",
         "neither": "Neither",
+        "pending": "Being read",
         "notCounted": "Not counted"
       },
       "openAnswer": "Open the {engine} answer of {date}",
@@ -3453,6 +3456,10 @@
         "locationNotEnabled": "{count, plural, one {{engines} has} other {{engines} have}} no location in the country of this prompt.",
         "priceUnavailable": "No price is known for {engines} today, so {count, plural, one {it} other {they}} cannot be asked."
       },
+      "runNoEngine": "No enabled engine can ask this prompt: it is too long for them, or they have no location in its country.",
+      "runRateLimited": "Too many requests. Try again in {minutes, plural, one {# minute} other {# minutes}}.",
+      "runGone": "This prompt is no longer asked: it was archived or removed.",
+      "runForbidden": "You do not have permission to run prompts in this project.",
       "runInvalid": "An engine of this project cannot ask this prompt. Check the Engines settings.",
       "runFailed": "The run was not queued. Try again in a moment.",
       "archive": "Archive",
@@ -3460,6 +3467,7 @@
       "archivedHint": "Its answers stay. It is no longer asked from the next run.",
       "archiveFailed": "The prompt was not archived. Try again in a moment.",
       "undo": "Undo",
+      "restored": "Prompt restored",
       "restoreFailed": "The prompt was not brought back. Try again in a moment.",
       "restoreQuota": "The workspace has {used, number} of {limit, number} active prompts. Archive another one to bring this one back."
     }

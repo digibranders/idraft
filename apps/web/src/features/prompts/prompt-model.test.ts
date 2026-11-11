@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  asksIn,
   countriesForEngines,
   countText,
   fitsEngine,
@@ -429,5 +430,14 @@ describe('engines', () => {
     expect(
       countriesForEngines([engine('chatgpt_web', 2000, [2276, 2356]), engine('gemini_web', 2000, [2356, 2840])], all),
     ).toEqual([INDIA]);
+  });
+
+  it('knows whether an engine has a location in the country of a prompt, and takes a prompt without a country anywhere', () => {
+    const all = [GERMANY, INDIA, US];
+    const chatgpt = engine('chatgpt_web', 2000, [2276, 2356]);
+    expect(asksIn(chatgpt, all, 'DE')).toBe(true);
+    expect(asksIn(chatgpt, all, 'US')).toBe(false);
+    expect(asksIn(chatgpt, all, 'FR')).toBe(false);
+    expect(asksIn(chatgpt, all, null)).toBe(true);
   });
 });

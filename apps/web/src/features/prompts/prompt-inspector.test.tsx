@@ -1,11 +1,11 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { Suspense, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { aiKey, enginesKey, promptsKey, type PromptScope } from './prompt-queries';
 import { PromptsScreen } from './prompts-screen';
-import type { Role } from '@/lib/api/types';
+import type { ObservationSummary, Role } from '@/lib/api/types';
 import { projectKey } from '@/lib/api/keys';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
@@ -251,9 +251,7 @@ describe('the prompt inspector: opening and stepping', () => {
   });
 
   it('gives focus back to the row of the prompt when the inspector closes', async () => {
-    // Opened by the link, which Close undoes by replacing the address: jsdom cannot go back in its history. The
-    // inspector remembers (per window) that a row pushed the entry it sits on: a test before this one did
-    renderOn('viewer', '?tab=prompts').unmount();
+    // Opened by the link, which Close undoes by replacing the address: jsdom cannot go back in its history
     const { user } = renderOn('viewer', opened);
     await grid();
     const inspector = await panel();
@@ -261,6 +259,207 @@ describe('the prompt inspector: opening and stepping', () => {
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('complementary', { name: first.text })).toBeNull());
     await waitFor(() => expect(document.activeElement?.closest('[role="row"]')).toHaveTextContent(first.text));
+  });
+
+  it('keeps focus on Next and Previous while they step, so they can be pressed again', async () => {
+    const { user } = renderOn('viewer', opened);
+    const inspector = await panel();
+    const position = (): string => screen.getByRole('complementary').textContent ?? '';
+    const before = position();
+    await user.click(within(inspector).getByRole('button', { name: 'Previous prompt' }));
+    await waitFor(() => expect(position()).not.toBe(before));
+    expect(screen.getByRole('button', { name: 'Previous prompt' })).toHaveFocus();
+    // Again from the keyboard: the button still has focus, since the inspector was not made again
+    const middle = position();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(position()).not.toBe(middle));
+    expect(screen.getByRole('button', { name: 'Previous prompt' })).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Next prompt' }));
+    expect(screen.getByRole('button', { name: 'Next prompt' })).toHaveFocus();
+  });
+
+  it('steps with J from the list without taking focus out of it', async () => {
+    const { user } = renderOn('viewer', opened);
+    const table = await grid();
+    const inspector = await panel();
+    const title = within(inspector).getByRole('heading', { level: 2 }).textContent;
+    const cell = (await within(table).findByText(first.text)).closest<HTMLElement>('[data-cell]');
+    if (cell === null) throw new Error('The row has no cell');
+    cell.focus();
+    await user.keyboard('j');
+    await waitFor(() =>
+      expect(within(screen.getByRole('complementary')).getByRole('heading', { level: 2 }).textContent).not.toBe(title),
+    );
+    expect(screen.getByRole('complementary').contains(document.activeElement)).toBe(false);
+  });
+
+  it('does not carry a Run now still on its way to the prompt it steps to', async () => {
+    server.use(
+      http.post(RUN_NOW, async () => {
+        await delay(3000);
+        return undefined;
+      }),
+    );
+    const { user } = renderOn('analyst', opened);
+    await user.click(await within(await panel()).findByRole('button', { name: 'Run now' }));
+    expect(screen.getByRole('button', { name: 'Run now' })).toHaveAttribute('aria-busy', 'true');
+    await user.click(screen.getByRole('button', { name: 'Previous prompt' }));
+    await waitFor(() => expect(screen.queryByRole('complementary', { name: first.text })).toBeNull());
+    expect(await screen.findByRole('button', { name: 'Run now' })).not.toHaveAttribute('aria-busy');
+  });
+});
+
+describe('the prompt inspector: a prompt under two topics', () => {
+  it('marks, and returns focus to, the row that was clicked, not the first row of the prompt', async () => {
+    const { user } = renderOn('viewer', '');
+    const tree = await treegrid();
+    const text = 'How do I run a technical SEO audit on a large site?';
+    await user.click(await within(tree).findByRole('button', { name: /^Expand Technical SEO/ }));
+    await user.click(await within(tree).findByRole('button', { name: /^Expand SEO,/ }));
+    const rows = await within(tree).findAllByText(text);
+    expect(rows).toHaveLength(2);
+    const rowOf = (node: HTMLElement): HTMLElement => node.closest<HTMLElement>('[role="row"]') ?? node;
+    // The tree lists SEO before Technical SEO: the second row is the one under Technical SEO
+    await user.click(rows[1] ?? tree);
+    await panel(text);
+    const [above, below] = (await within(tree).findAllByText(text)).map(rowOf);
+    expect(above).not.toHaveAttribute('aria-current');
+    expect(below).toHaveAttribute('aria-current', 'true');
+  });
+});
+
+describe('the prompt inspector: the address and the answers', () => {
+  it('says a prompt that is no prompt id does not exist, and asks for nothing', async () => {
+    const asked: string[] = [];
+    server.events.on('request:start', ({ request }) => asked.push(new URL(request.url).pathname));
+    renderOn('viewer', '?tab=prompts&inspect=prompt%3Aabc');
+    expect(await screen.findByText('This prompt does not exist or you do not have access to it.')).toBeInTheDocument();
+    expect(asked.some((path) => path.endsWith('/prompts/abc'))).toBe(false);
+    expect(asked.some((path) => path.endsWith('/ai/observations'))).toBe(false);
+  });
+
+  it('says a prompt the API refuses to look up does not exist either', async () => {
+    server.use(http.get(PROMPT, () => HttpResponse.json(problemBody('validation_failed'), { status: 422 })));
+    renderOn('viewer', opened);
+    expect(await screen.findByText('This prompt does not exist or you do not have access to it.')).toBeInTheDocument();
+  });
+
+  it('does not read the answers of a prompt that does not exist', async () => {
+    const asked: string[] = [];
+    server.events.on('request:start', ({ request }) => asked.push(new URL(request.url).pathname));
+    renderOn('viewer', `?tab=prompts&${inspectOf(promptId(999))}`);
+    await screen.findByText('This prompt does not exist or you do not have access to it.');
+    // One read may be on its way before the 404 is known, but none follows it
+    const before = asked.filter((path) => path.endsWith('/ai/observations')).length;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(asked.filter((path) => path.endsWith('/ai/observations')).length).toBe(before);
+    expect(screen.queryByRole('table', { name: 'Answers to this prompt' })).toBeNull();
+  });
+
+  const answer = (overrides: Partial<ObservationSummary>): ObservationSummary => ({
+    answer_char_count: 100,
+    citation_count: 0,
+    device: null,
+    engine_code: 'chatgpt_web',
+    facts: null,
+    fanout_count: 0,
+    language_code: 'en',
+    location_id: 2276,
+    model_reported: null,
+    observation_class: 'consumer_ui',
+    observation_id: '2000000',
+    observed_at: '2026-11-12T02:00:00Z',
+    observed_date: '2026-11-12',
+    query_text: first.text,
+    replicate_index: 1,
+    run_id: null,
+    served_from_cache: false,
+    status: 'complete',
+    subject: { type: 'prompt', prompt_id: first.prompt_id, prompt_version_id: first.version_id, version_no: 1 },
+    ...overrides,
+  });
+  const serveAnswers = (data: ObservationSummary[], hasMore = false): void =>
+    server.use(
+      http.get(mswPath(`${P}/ai/observations`), () =>
+        HttpResponse.json({ data, page: { has_more: hasMore, next_cursor: hasMore ? 'next' : null, limit: 200 } }),
+      ),
+    );
+
+  it('says an answer that has no facts yet is being read, and keeps Not counted for one that is not valid', async () => {
+    serveAnswers([
+      answer({ observation_id: '2000001', facts: null }),
+      answer({ observation_id: '2000002', status: 'refused', facts: null }),
+    ]);
+    renderOn('viewer', opened);
+    const answers = await within(await panel()).findByRole('table', { name: 'Answers to this prompt' });
+    expect(within(answers).getAllByText('Being read')).toHaveLength(1);
+    expect(within(answers).getAllByText('Not counted')).toHaveLength(1);
+  });
+
+  it('says only the latest answers are listed when the API has more', async () => {
+    // A full page, as the API sends it when it has more
+    serveAnswers(
+      Array.from({ length: 200 }, (_, index) => answer({ observation_id: String(2_000_000 + index) })),
+      true,
+    );
+    renderOn('viewer', opened);
+    expect(
+      await within(await panel()).findByText('Only the latest 200 answers of this window are listed.'),
+    ).toBeInTheDocument();
+  });
+
+  it('does not say so when the list is whole', async () => {
+    renderOn('viewer', opened);
+    await within(await panel()).findByRole('table', { name: 'Answers to this prompt' });
+    expect(screen.queryByText(/Only the latest/)).toBeNull();
+  });
+});
+
+describe('the prompt inspector: the counts', () => {
+  it('does not say there are no counts while the engines are still loading', async () => {
+    server.use(
+      http.get(mswPath(`${P}/engines`), async () => {
+        await delay(1200);
+        return undefined;
+      }),
+    );
+    renderOn('viewer', opened);
+    const inspector = await panel();
+    await within(inspector).findByText('English');
+    expect(within(inspector).queryByText('No counts for this window')).toBeNull();
+    expect(
+      await within(inspector).findByText('Mentioned 3 of 6, cited 4 of 6', undefined, { timeout: 4000 }),
+    ).toBeInTheDocument();
+  });
+
+  it('says an archived prompt is not in the counts', async () => {
+    const stored = promptsOf(fynix.project_id).prompts.find((prompt) => prompt.prompt_id === first.prompt_id);
+    if (stored === undefined) throw new Error('The stored prompt is missing');
+    stored.is_active = false;
+    renderOn('viewer', opened);
+    expect(await within(await panel()).findByText('An archived prompt is not in the counts.')).toBeInTheDocument();
+  });
+
+  it('does not say branded prompts stay out of the counts when they are included', async () => {
+    const branded = fixtures.find((prompt) => prompt.is_branded);
+    if (branded === undefined) throw new Error('The branded fixture prompt is missing');
+    server.use(
+      http.get(mswPath(`${P}/ai/prompts-summary`), () =>
+        HttpResponse.json({
+          data: {
+            window: { from: '2026-10-16', to: '2026-11-12', timezone: 'Europe/Berlin' },
+            include_branded: true,
+            engine_codes: ['chatgpt_web', 'gemini_web'],
+            prompts: [],
+            topics: [],
+          },
+        }),
+      ),
+    );
+    renderOn('viewer', `?tab=prompts&branded=include&${inspectOf(branded.prompt_id)}`);
+    const inspector = await panel(branded.text);
+    expect(await within(inspector).findByText('No counts for this window')).toBeInTheDocument();
+    expect(within(inspector).queryByText(/stay out of the counts/)).toBeNull();
   });
 });
 
@@ -351,7 +550,6 @@ describe('the prompt inspector: Run now', () => {
     ['engine_not_enabled', 'Gemini is not turned on for this project.'],
     ['prompt_too_long', 'Gemini does not take a prompt this long.'],
     ['location_not_enabled', 'Gemini has no location in the country of this prompt.'],
-    ['price_unavailable', 'No price is known for Gemini today, so it cannot be asked.'],
   ])('says why an engine was refused with %s, naming the engine', async (code, words) => {
     refuse(
       422,
@@ -362,6 +560,26 @@ describe('the prompt inspector: Run now', () => {
     const { user } = renderOn('analyst', opened);
     await user.click(await within(await panel()).findByRole('button', { name: 'Run now' }));
     await said(words);
+  });
+
+  it('words a missing price for every engine asked: the API sends it with no engine in the message', async () => {
+    // backend api/operations/runs.py `_ai_subjects`: the price book is read for the whole run
+    refuse(
+      422,
+      problemBody('validation_failed', {
+        errors: [
+          {
+            location: 'body',
+            path: 'engine_codes',
+            code: 'price_unavailable',
+            message: 'The price book has no price for these engines today.',
+          },
+        ],
+      }),
+    );
+    const { user } = renderOn('analyst', opened);
+    await user.click(await within(await panel()).findByRole('button', { name: 'Run now' }));
+    await said('No price is known for ChatGPT and Gemini today, so they cannot be asked.');
   });
 
   it('tells each engine refused for the same reason in one sentence, and each other reason in its own', async () => {
@@ -394,7 +612,7 @@ describe('the prompt inspector: Run now', () => {
     await said('ChatGPT does not take a prompt this long. Gemini has no location in the country of this prompt.');
   });
 
-  it('falls back to a sentence for a refusal that names no engine it knows', async () => {
+  it('applies a known reason that names no engine we know to every engine asked', async () => {
     refuse(
       422,
       problemBody('validation_failed', {
@@ -403,7 +621,76 @@ describe('the prompt inspector: Run now', () => {
     );
     const { user } = renderOn('analyst', opened);
     await user.click(await within(await panel()).findByRole('button', { name: 'Run now' }));
+    await said('ChatGPT and Gemini do not take a prompt this long.');
+  });
+
+  it('falls back to a sentence for a refusal reason it does not know', async () => {
+    refuse(
+      422,
+      problemBody('validation_failed', {
+        errors: [{ location: 'body', path: 'engine_codes', code: 'something_new', message: 'gemini_web: x' }],
+      }),
+    );
+    const { user } = renderOn('analyst', opened);
+    await user.click(await within(await panel()).findByRole('button', { name: 'Run now' }));
     await said('An engine of this project cannot ask this prompt. Check the Engines settings.');
+  });
+
+  it.each([
+    [404, 'not_found', 'This prompt is no longer asked: it was archived or removed.'],
+    [403, 'forbidden', 'You do not have permission to run prompts in this project.'],
+  ])('gives a %s its own sentence', async (status, code, words) => {
+    refuse(status, problemBody(code));
+    const { user } = renderOn('analyst', opened);
+    await user.click(await within(await panel()).findByRole('button', { name: 'Run now' }));
+    await said(words);
+  });
+
+  it('says when to try again after too many requests, from Retry-After', async () => {
+    refuse(429, problemBody('rate_limited'), { 'retry-after': '120' });
+    const { user } = renderOn('analyst', opened);
+    await user.click(await within(await panel()).findByRole('button', { name: 'Run now' }));
+    await said('Too many requests. Try again in 2 minutes.');
+  });
+
+  it('asks only the engines that have a location in the country of the prompt', async () => {
+    const bodies: unknown[] = [];
+    server.events.on('request:start', ({ request }) => {
+      if (request.method === 'POST' && new URL(request.url).pathname.endsWith('/run-now')) {
+        void request
+          .clone()
+          .json()
+          .then((body: unknown) => bodies.push(body));
+      }
+    });
+    // The prompt is German; Gemini keeps only India
+    const gemini = promptsOf(fynix.project_id).engines.find((engine) => engine.engine_code === 'gemini_web');
+    if (gemini === undefined) throw new Error('The Gemini fixture is missing');
+    gemini.location_ids = [2356];
+    const { user } = renderOn('analyst', opened);
+    await user.click(await within(await panel()).findByRole('button', { name: 'Run now' }));
+    await screen.findByText('Run queued');
+    await waitFor(() => expect(bodies).toEqual([{ engine_codes: ['chatgpt_web'] }]));
+  });
+
+  it('says why there is no Run now when no engine has a location in the country of the prompt', async () => {
+    for (const engine of promptsOf(fynix.project_id).engines) engine.location_ids = [2356];
+    renderOn('analyst', opened);
+    const inspector = await panel();
+    expect(
+      await within(inspector).findByText(
+        'No enabled engine can ask this prompt: it is too long for them, or they have no location in its country.',
+      ),
+    ).toBeInTheDocument();
+    expect(within(inspector).queryByRole('button', { name: 'Run now' })).toBeNull();
+  });
+
+  it('shows neither Run now nor its reason to a member who may not run', async () => {
+    for (const engine of promptsOf(fynix.project_id).engines) engine.location_ids = [2356];
+    renderOn('viewer', opened);
+    const inspector = await panel();
+    await within(inspector).findByText('English');
+    expect(within(inspector).queryByText(/^No enabled engine can ask this prompt/)).toBeNull();
   });
 
   it('says the run was not queued for an answer it does not know', async () => {
@@ -427,6 +714,22 @@ describe('the prompt inspector: Archive', () => {
     await waitFor(() => expect(within(table).queryByText(first.text)).toBeNull());
     await user.click(screen.getByRole('button', { name: 'Undo' }));
     expect(await within(table).findByText(first.text)).toBeInTheDocument();
+    expect(await screen.findByText('Prompt restored')).toBeInTheDocument();
+  });
+
+  it('shows the toast with Undo without waiting for the lists to be read again', async () => {
+    const { user } = renderOn('editor', opened);
+    const inspector = await panel();
+    await within(inspector).findByRole('table', { name: 'Answers to this prompt' });
+    server.use(
+      http.get(mswPath(`${P}/prompts`), async () => {
+        await delay(4000);
+        return undefined;
+      }),
+    );
+    await user.click(within(inspector).getByRole('button', { name: /^More actions/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    expect(await screen.findByRole('button', { name: 'Undo' })).toBeInTheDocument();
   });
 
   it('keeps the inspector open and says so when the archive fails', async () => {

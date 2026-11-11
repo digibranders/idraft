@@ -222,6 +222,14 @@ export const fitsEngine = (text: string, engine: ProjectEngine): boolean =>
   [...text].length <= engine.engine.max_prompt_chars;
 
 /**
+ * Whether the engine has a location in the country: a prompt is asked in the locations of its country, and an
+ * engine without one is refused by Run now (`location_not_enabled`). A prompt without a country goes anywhere.
+ */
+export const asksIn = (engine: ProjectEngine, countries: readonly Country[], countryIso: string | null): boolean =>
+  countryIso === null ||
+  countries.some((country) => country.country_iso === countryIso && engine.location_ids.includes(country.location_id));
+
+/**
  * The countries a prompt may stand for: those every enabled engine has a location in (plan A decision A5), or
  * every country while no engine is on.
  */

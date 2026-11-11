@@ -3,11 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClipboardList, ListChecks, MessageSquareText, Play } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import type { ReactElement } from 'react';
+import { useEffect, type ReactElement } from 'react';
 
-import { countText, fitsEngine, topicTermsOf, type DateRange } from './prompt-model';
+import { asksIn, countText, fitsEngine, topicTermsOf, type DateRange } from './prompt-model';
 import {
   ARCHIVE_PROMPT,
+  isPromptId,
   observationsQuery,
   promptQuery,
   refreshPrompts,
@@ -59,6 +60,8 @@ export interface PromptCounts {
   status: 'loading' | 'failed' | 'ready';
   /** The prompt's row; `undefined` for a prompt the summary leaves out (a branded one, or one with no answer). */
   row: PromptSummaryRow | undefined;
+  /** Whether the summary includes the branded prompts (the Branded filter). */
+  brandedIncluded: boolean;
   errorId: ErrorIdWords | null;
   retry: () => void;
   retrying: boolean;
@@ -111,12 +114,20 @@ export function PromptInspector({
   const queryClient = useQueryClient();
   const canTrigger = useCan('runs:trigger');
   const canWrite = useCan('prompts:write');
-  const { countries } = useCountries();
+  const { countries, isError: countriesFailed } = useCountries();
   const detail = useQuery(promptQuery(scope, promptId));
-  const answers = useQuery(observationsQuery(scope, promptId, range));
+  // An id that is no prompt's (a hand-typed address, or one the API refuses) is a prompt that is not there
+  const notFound = isApiProblem(detail.error, 'not_found') || isApiProblem(detail.error, 'validation_failed');
+  const answers = useQuery({
+    ...observationsQuery(scope, promptId, range),
+    enabled: isPromptId(promptId) && !notFound,
+  });
   const runNow = useMutation(RUN_NOW);
   const archive = useMutation(ARCHIVE_PROMPT);
   const restore = useMutation(UPDATE_PROMPT);
+  const { reset: resetRun } = runNow;
+  // The inspector stays while it steps to another prompt: what the last one's Run now was doing is not this one's
+  useEffect(() => resetRun(), [promptId, resetRun]);
   const errorId = useErrorId(detail.error);
   const answersErrorId = useErrorId(answers.error);
   const prompt = detail.data?.data ?? null;
@@ -125,19 +136,36 @@ export function PromptInspector({
     engines.map((engine) => [engine.engine.engine_code, engine.engine.label]),
   );
   const labelOf = (code: string): string => engineLabel.get(code) ?? code;
-  const runnable = prompt === null ? [] : engines.filter((engine) => fitsEngine(prompt.current_version.text, engine));
+  // The engines Run now asks: those that take the prompt's length and have a location in its country. The API
+  // refuses the whole run when one of the engines asked gets nothing to ask, so the others are not sent with it.
+  // The countries are waited for (without them the locations cannot be told); when they fail the API decides.
+  const locationsKnown = countries.length > 0 || countriesFailed;
+  const runnable =
+    prompt === null || !locationsKnown
+      ? []
+      : engines.filter(
+          (engine) =>
+            fitsEngine(prompt.current_version.text, engine) &&
+            (countriesFailed || asksIn(engine, countries, prompt.country_iso)),
+        );
+  const mayRun = canTrigger && prompt?.is_active === true;
 
-  /** The refusal of Run now in words: one sentence per reason, naming the engines refused for it. */
+  /**
+   * The refusal of Run now in words: one sentence per reason, naming the engines refused for it. The API names the
+   * engine before the colon of its message ("gemini_web: ..."), except for a missing price, which is the run's: a
+   * reason without a known engine in front of it is every engine asked.
+   */
   const refusedText = (error: ApiProblem): string => {
-    const byReason = new Map<Refusal, string[]>();
+    const byReason = new Map<Refusal, Set<string>>();
     for (const item of error.errors) {
-      // The API names the engine before the colon of its message: "gemini_web: ..."
-      const engine = engineLabel.get(item.message.split(':')[0] ?? '');
-      if (!item.path.startsWith('engine_codes') || !isRefusal(item.code) || engine === undefined) continue;
-      byReason.set(item.code, [...(byReason.get(item.code) ?? []), engine]);
+      if (!item.path.startsWith('engine_codes') || !isRefusal(item.code)) continue;
+      const named = engineLabel.get(item.message.split(':')[0] ?? '');
+      const names = byReason.get(item.code) ?? new Set<string>();
+      for (const name of named === undefined ? runnable.map((e) => e.engine.label) : [named]) names.add(name);
+      byReason.set(item.code, names);
     }
     const sentences = [...byReason].map(([reason, names]) =>
-      t(`runRefused.${REFUSAL_KEYS[reason]}`, { engines: formatList(names, locale), count: names.length }),
+      t(`runRefused.${REFUSAL_KEYS[reason]}`, { engines: formatList([...names], locale), count: names.size }),
     );
     return sentences.length === 0 ? t('runInvalid') : sentences.join(' ');
   };
@@ -160,7 +188,10 @@ export function PromptInspector({
       return t('runQuota', { limit, used, requested });
     }
     if (error.code === 'provider_paused') return t('runPaused', { minutes: retryMinutes(error) });
+    if (error.code === 'rate_limited') return t('runRateLimited', { minutes: retryMinutes(error) });
     if (error.code === 'validation_failed') return refusedText(error);
+    if (error.status === 404) return t('runGone');
+    if (error.status === 403) return t('runForbidden');
     return t('runFailed');
   };
   const run = async (): Promise<void> => {
@@ -180,7 +211,10 @@ export function PromptInspector({
   };
   const bringBack = (): void => {
     restore.mutateAsync({ params: { path }, body: { is_active: true } }).then(
-      () => refreshPrompts(queryClient, scope),
+      () => {
+        toast({ type: 'success', title: t('restored') });
+        void refreshPrompts(queryClient, scope);
+      },
       (error: unknown) => {
         const used = isApiProblem(error, 'quota_exceeded') ? error.number('used') : null;
         const limit = isApiProblem(error, 'quota_exceeded') ? error.number('limit') : null;
@@ -200,13 +234,14 @@ export function PromptInspector({
       return;
     }
     onClose();
-    await refreshPrompts(queryClient, scope);
+    // The toast does not wait for the lists to be read again: Undo is there while the row goes
     toast({
       type: 'success',
       title: t('archived'),
       description: t('archivedHint'),
       action: { label: t('undo'), onAction: bringBack },
     });
+    void refreshPrompts(queryClient, scope);
   };
 
   const cellText = (cell: EngineSummary['mentioned']): string => countText(cell) ?? EMPTY_VALUE;
@@ -216,10 +251,14 @@ export function PromptInspector({
       : t('engineCounts', { mentioned: cellText(cells.mentioned), cited: cellText(cells.cited) });
   const countryName = (iso: string | null): string =>
     iso === null ? EMPTY_VALUE : (countries.find((country) => country.country_iso === iso)?.name ?? iso);
-  const outcomeLabel = (row: ObservationSummary): string =>
-    row.facts === null || !row.facts.is_valid || row.facts.outcome === null
+  const outcomeLabel = (row: ObservationSummary): string => {
+    // An answer that came back has its facts read a moment later; one that failed or was refused never does
+    if (row.facts === null)
+      return t(row.status === 'complete' || row.status === 'partial' ? 'outcomes.pending' : 'outcomes.notCounted');
+    return !row.facts.is_valid || row.facts.outcome === null
       ? t('outcomes.notCounted')
       : t(`outcomes.${OUTCOME_KEYS[row.facts.outcome]}`);
+  };
   const answerColumns: PlainColumn<ObservationSummary>[] = [
     {
       id: 'date',
@@ -245,7 +284,13 @@ export function PromptInspector({
   ];
   const answerRows = answers.data?.data ?? [];
   const answersFailed = answers.isError && answers.data === undefined;
-  const notFound = isApiProblem(detail.error, 'not_found');
+  // Why the summary has no row: an archived prompt is not asked, a branded one is left out unless included
+  const countsReason =
+    prompt?.is_active === false
+      ? t('noCountsArchived')
+      : prompt?.is_branded === true && !counts.brandedIncluded
+        ? t('noCountsBranded')
+        : t('noCountsReason');
   const archiveAction: MenuItemDef = { id: 'archive', label: t('archive'), onSelect: () => void doArchive() };
   const factsOf = (candidate: Prompt): KeyValue[] => {
     const topics = topicTermsOf(candidate).map((term) => term.name);
@@ -287,7 +332,7 @@ export function PromptInspector({
             </span>
           ),
         frequentAction:
-          canTrigger && prompt?.is_active === true && runnable.length > 0 ? (
+          mayRun && runnable.length > 0 ? (
             <Button variant="secondary" size="sm" icon={Play} loading={runNow.isPending} onClick={() => void run()}>
               {t('runNow')}
             </Button>
@@ -316,6 +361,13 @@ export function PromptInspector({
           )
         ) : (
           <>
+            {canTrigger &&
+            prompt?.is_active === true &&
+            locationsKnown &&
+            engines.length > 0 &&
+            runnable.length === 0 ? (
+              <p className="type-meta">{t('runNoEngine')}</p>
+            ) : null}
             <InspectorSection title={t('facts')} icon={ClipboardList} status={prompt === null ? 'loading' : 'ready'}>
               {prompt === null ? null : <KeyValues items={factsOf(prompt)} />}
             </InspectorSection>
@@ -341,14 +393,7 @@ export function PromptInspector({
                   retryLabel={common('retry')}
                 />
               }
-              empty={
-                <EmptyState
-                  variant="inline"
-                  title={t('noCounts')}
-                  reason={prompt?.is_branded === true ? t('noCountsBranded') : t('noCountsReason')}
-                  headingLevel={3}
-                />
-              }
+              empty={<EmptyState variant="inline" title={t('noCounts')} reason={countsReason} headingLevel={3} />}
             >
               {counts.row === undefined ? null : (
                 <KeyValues
@@ -387,6 +432,9 @@ export function PromptInspector({
                 />
               }
             >
+              {answers.data?.page.has_more === true ? (
+                <p className="mb-2 type-meta">{t('answersTruncated', { count: answerRows.length })}</p>
+              ) : null}
               <PlainTable<ObservationSummary>
                 caption={t('answersCaption')}
                 columns={answerColumns}

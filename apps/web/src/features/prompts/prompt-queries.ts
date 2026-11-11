@@ -127,9 +127,36 @@ export function usePromptList(scope: PromptScope): PromptList {
   };
 }
 
-/** `GET {P}/prompts/{prompt_id}`. */
-export const promptQuery = (scope: PromptScope, promptId: string): ApiQueryOptions<typeof PROMPT> =>
-  apiQuery(PROMPT, { params: { path: { ...pathOf(scope), prompt_id: promptId } } });
+const NOT_FOUND = (): ApiProblem =>
+  new ApiProblem({
+    status: 404,
+    code: 'not_found',
+    title: 'Not Found',
+    detail: null,
+    requestId: null,
+    errors: [],
+    retryAfterSeconds: null,
+    body: {},
+  });
+
+/** Whether `id` has the shape of a prompt id (a UUID): anything else names no prompt and is not looked up. */
+export const isPromptId = (id: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+/**
+ * `GET {P}/prompts/{prompt_id}`; an id that `isPromptId` refuses (`?inspect=prompt:abc`) is not asked and
+ * rejects with a `not_found` `ApiProblem`, as the screens read a prompt that is not there.
+ */
+export const promptQuery = (scope: PromptScope, promptId: string): ApiQueryOptions<typeof PROMPT> => {
+  if (!isPromptId(promptId)) {
+    const queryFn: QueryFunction<ApiResponse<'get', typeof PROMPT>, QueryKey> = () => Promise.reject(NOT_FOUND());
+    return {
+      ...queryOptions({ queryKey: queryKey(PROMPT, { ...pathOf(scope), prompt_id: promptId }, {}), queryFn }),
+      queryFn,
+    };
+  }
+  return apiQuery(PROMPT, { params: { path: { ...pathOf(scope), prompt_id: promptId } } });
+};
 
 /** `GET {P}/ai/prompts-summary`: Mentioned, Cited and the rest per prompt, topic and engine over the window. */
 export const summaryQuery = (
@@ -161,18 +188,6 @@ export const observationsQuery = (
  */
 export const isObservationId = (id: string): boolean => /^[1-9]\d*$/.test(id) && Number.isSafeInteger(Number(id));
 
-const NOT_AN_ANSWER = (): ApiProblem =>
-  new ApiProblem({
-    status: 404,
-    code: 'not_found',
-    title: 'Not Found',
-    detail: null,
-    requestId: null,
-    errors: [],
-    retryAfterSeconds: null,
-    body: {},
-  });
-
 /**
  * `GET {P}/ai/observations/{observation_id}`; an `observationId` that `isObservationId` refuses is not asked
  * and rejects with a `not_found` `ApiProblem`, as the screens read a missing answer.
@@ -187,8 +202,7 @@ export const observationQuery = (
   if (!isObservationId(observationId)) {
     // An id typed into the address (`?inspect=answer:abc`) names no answer: nothing is asked, and the inspector
     // reaches the same not found state as for an answer that does not exist
-    const queryFn: QueryFunction<ApiResponse<'get', typeof OBSERVATION>, QueryKey> = () =>
-      Promise.reject(NOT_AN_ANSWER());
+    const queryFn: QueryFunction<ApiResponse<'get', typeof OBSERVATION>, QueryKey> = () => Promise.reject(NOT_FOUND());
     return {
       ...queryOptions({
         queryKey: queryKey(OBSERVATION, { ...pathOf(scope), observation_id: observationId }, query),

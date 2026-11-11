@@ -81,6 +81,20 @@ describe('useInspector', () => {
     expect(update.options.history).toBe('replace');
   });
 
+  it('forgets the entry it pushed when its page goes away, so a later inspector from the URL closes by replacing', async () => {
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    const page = renderHook(() => useInspector(), {
+      wrapper: withNuqsTestingAdapter({ searchParams: '', hasMemory: true }),
+    });
+    act(() => page.result.current.open({ type: 'keyword', id: 'k1' }));
+    page.unmount();
+
+    const linked = setup('?inspect=keyword:k1');
+    const update = await linked.run((inspector) => inspector.close());
+    expect(back).not.toHaveBeenCalled();
+    expect(update.options.history).toBe('replace');
+  });
+
   describe('with the browser’s own history', () => {
     // The real adapter writes to window.location and the history, so what a close does to the URL is seen
     const wrapper = ({ children }: { children: ReactNode }): ReactNode => <NuqsAdapter>{children}</NuqsAdapter>;

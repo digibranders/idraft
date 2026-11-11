@@ -52,6 +52,13 @@ export function useInspector(): UseInspectorResult {
   useEffect(() => {
     if (closed) pushedFrom = null;
   }, [closed]);
+  // A page that goes away takes its entry with it: what it pushed is not what a later inspector sits on
+  useEffect(
+    () => () => {
+      pushedFrom = null;
+    },
+    [],
+  );
   const tabParam = (next: string | undefined): string | null =>
     next === undefined || next === DEFAULT_INSPECTOR_TAB ? null : next;
 

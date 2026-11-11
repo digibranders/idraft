@@ -552,12 +552,14 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   }
 
   const counts: PromptCounts = {
-    // A new window keeps the last counts on screen: they are not this window's until it has read
+    // The counts wait for the engines (the summary is not asked before them), and a new window keeps the last
+    // counts on screen: they are not this window's until it has read
     status: summaryFailed
       ? 'failed'
-      : summary.isFetching && (summary.data === undefined || summary.isPlaceholderData)
+      : engines.isPending || (enabled.length > 0 && (summary.isPending || summary.isPlaceholderData))
         ? 'loading'
         : 'ready',
+    brandedIncluded: includeBranded,
     row: openPrompt === null ? undefined : summaryById.get(openPrompt),
     errorId: summaryErrorId,
     retry: () => void summary.refetch(),
@@ -566,8 +568,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const promptInspector =
     openPrompt === null ? null : (
       <PromptInspector
-        // Another prompt is another inspector, not the same one with new data
-        key={openPrompt}
+        // Another project's prompt is another inspector. Stepping to another prompt of the project keeps this one,
+        // and with it the focus on Next or Previous
+        key={project.id}
         scope={scope}
         promptId={openPrompt}
         timeZone={project.timeZone}

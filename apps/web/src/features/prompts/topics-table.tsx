@@ -105,6 +105,8 @@ export function TopicsTable({
   const t = useTranslations('prompts');
   const locale = useLocale();
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
+  // The prompt row that was clicked, which two topics may both show
+  const [clicked, setClicked] = useState<string | null>(null);
   const [visible, setVisible] = useState<readonly string[] | null>(null);
   // The rates are prompt weighted while the counts shown are answers: the header says so
   const engineColumns = useEngineColumns(engines, cellsOf, { sortable: false, note: t('topics.weighted') });
@@ -183,10 +185,13 @@ export function TopicsTable({
     [rows],
   );
   useEffect(() => onPromptOrderChange(promptOrder), [promptOrder, onPromptOrderChange]);
+  // A prompt of two open topics is two rows: the one clicked is the open one while it still shows the open prompt
+  // (stepping or a link name it without a row, and the first row of the prompt stands for it)
+  const ofOpenPrompt = (row: TopicRow): boolean => row.kind === 'prompt' && row.promptId === activePromptId;
   const activeRowId =
     activePromptId === null
       ? null
-      : (rows.find((row) => row.kind === 'prompt' && row.promptId === activePromptId)?.id ?? null);
+      : ((rows.find((row) => row.id === clicked && ofOpenPrompt(row)) ?? rows.find(ofOpenPrompt))?.id ?? null);
   const rowTree = (row: TopicRow): RowTree => {
     if (row.kind === 'prompt') return { level: 2, setSize: row.siblings, posInSet: row.position };
     // A row without `expanded` has no prompts to show and is an ordinary row
@@ -233,7 +238,9 @@ export function TopicsTable({
       rowTree={rowTree}
       onToggleGroup={toggle}
       onRowOpen={(row, intent) => {
-        if (row.kind === 'prompt') onOpenPrompt(row.promptId, intent);
+        if (row.kind !== 'prompt') return;
+        setClicked(row.id);
+        onOpenPrompt(row.promptId, intent);
       }}
       activeRowId={activeRowId}
       status={shownStatus}
