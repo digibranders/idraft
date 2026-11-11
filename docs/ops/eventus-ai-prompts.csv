@@ -1,0 +1,151 @@
+topic,prompt,country,language,prompt_type,intent,funnel_stage,importance,branded
+Managed SOC providers and vendors,What are the best managed SOC providers in India?,IN,en,recommendation,commercial,mofu,1,false
+Managed SOC providers and vendors,Which companies offer SOC as a service in India?,IN,en,recommendation,commercial,mofu,1,false
+Managed SOC providers and vendors,Top SOC as a service providers for mid-size companies,IN,en,recommendation,commercial,mofu,1,false
+Managed SOC providers and vendors,Who are the leading managed security service providers in India?,IN,en,recommendation,commercial,mofu,1,false
+Managed SOC providers and vendors,Which SOC providers are empanelled by CERT-In?,IN,en,recommendation,commercial,mofu,1,false
+Managed SOC providers and vendors,Best managed SOC vendors for a bank in India,IN,en,recommendation,commercial,mofu,1,false
+Managed SOC providers and vendors,Which managed SOC provider should a company with 500 employees choose?,IN,en,recommendation,commercial,mofu,3,false
+Managed SOC providers and vendors,What should I look for when choosing a managed SOC provider?,IN,en,question,commercial,bofu,3,false
+Managed SOC providers and vendors,How do I evaluate and compare SOC as a service vendors?,IN,en,comparison,commercial,mofu,3,false
+Managed SOC providers and vendors,What questions should I ask a managed SOC provider before signing a contract?,IN,en,question,commercial,bofu,3,false
+Managed SOC providers and vendors,Compare an in-house SOC and a managed SOC for a growing company,IN,en,comparison,commercial,mofu,3,false
+Managed SOC providers and vendors,Which MSSPs offer 24/7 monitoring from a security operations center in India?,IN,en,recommendation,commercial,mofu,3,false
+Managed SOC providers and vendors,Best SOC service providers for startups and fintech companies,IN,en,recommendation,commercial,mofu,3,false
+Managed SOC providers and vendors,Which managed security providers include SOAR and threat intelligence in their SOC service?,IN,en,recommendation,commercial,mofu,3,false
+Managed SOC providers and vendors,List of cybersecurity service providers with a cyber defence centre in India,IN,en,recommendation,commercial,mofu,3,false
+Managed SOC providers and vendors,What are the best alternatives to hiring a full security team for 24/7 monitoring?,IN,en,recommendation,commercial,mofu,3,false
+Managed SOC providers and vendors,Which SOC as a service providers can monitor Microsoft Sentinel and on-premise log sources?,IN,en,recommendation,commercial,mofu,3,false
+Managed SOC providers and vendors,Best managed detection and response providers for small businesses in India,IN,en,recommendation,commercial,mofu,3,false
+Managed SOC providers and vendors,Which managed SOC providers are good for hybrid cloud environments?,IN,en,recommendation,commercial,mofu,3,false
+Managed SOC providers and vendors,Which SOC providers have the fastest incident response times?,IN,en,recommendation,commercial,mofu,3,false
+Managed SOC providers and vendors,How do I shortlist an MSSP for an RFP?,IN,en,how_to,commercial,bofu,3,false
+Managed SOC providers and vendors,Which companies provide multi-tenant SOC services for managed service providers?,IN,en,recommendation,commercial,mofu,3,false
+Managed SOC providers and vendors,Top rated cybersecurity service providers for manufacturing companies in India,IN,en,recommendation,commercial,mofu,3,false
+Managed SOC providers and vendors,Which managed SOC services work best for companies with a small security team?,IN,en,recommendation,commercial,mofu,3,false
+SOC pricing and cost,How much does a managed SOC service cost per month in India?,IN,en,transactional,commercial,bofu,1,false
+SOC pricing and cost,SOC as a service pricing models explained,IN,en,transactional,commercial,bofu,1,false
+SOC pricing and cost,What is the cost of building an in-house SOC compared with outsourcing it?,IN,en,comparison,commercial,mofu,3,false
+SOC pricing and cost,"How is managed SOC pricing calculated: per user, per device or per log volume?",IN,en,how_to,commercial,bofu,3,false
+SOC pricing and cost,What is the typical price of 24/7 SOC monitoring for 500 employees?,IN,en,question,commercial,bofu,3,false
+SOC pricing and cost,What drives the cost of a SOC as a service contract?,IN,en,transactional,commercial,bofu,3,false
+SOC pricing and cost,Is SOC as a service worth the cost for a mid-size company?,IN,en,transactional,commercial,bofu,3,false
+SOC pricing and cost,What hidden costs should I expect with a managed SOC provider?,IN,en,transactional,commercial,bofu,3,false
+SOC pricing and cost,How much does managed detection and response cost per endpoint?,IN,en,transactional,commercial,bofu,3,false
+SOC pricing and cost,How much does it cost to hire a 24/7 SOC team in India?,IN,en,transactional,commercial,bofu,3,false
+What a SOC is and how it works,What is SOC as a service and how does it work?,IN,en,definition,informational,tofu,3,false
+What a SOC is and how it works,What is a managed SOC?,IN,en,definition,informational,tofu,3,false
+What a SOC is and how it works,What does a security operations center do every day?,IN,en,definition,informational,tofu,3,false
+What a SOC is and how it works,What is the difference between an MSSP and a SOC as a service provider?,IN,en,definition,informational,tofu,3,false
+What a SOC is and how it works,What are the tiers of SOC analysts and what does each tier do?,IN,en,definition,informational,tofu,3,false
+What a SOC is and how it works,What is the difference between a SOC and a NOC?,IN,en,definition,informational,tofu,3,false
+What a SOC is and how it works,What are the main SOC metrics such as MTTD and MTTR?,IN,en,question,commercial,bofu,3,false
+What a SOC is and how it works,How does a SIEM differ from a SOC?,IN,en,how_to,informational,tofu,3,false
+What a SOC is and how it works,What is the difference between a fully managed SOC and a co-managed SOC?,IN,en,definition,informational,tofu,3,false
+What a SOC is and how it works,How long does it take to onboard a managed SOC?,IN,en,how_to,informational,tofu,3,false
+What a SOC is and how it works,Which log sources should be sent to a SOC?,IN,en,recommendation,commercial,mofu,3,false
+What a SOC is and how it works,What is a security data lake and why do SOC teams use one?,IN,en,definition,informational,tofu,3,false
+What a SOC is and how it works,What is SOAR and how does it help a SOC?,IN,en,definition,informational,tofu,3,false
+What a SOC is and how it works,How does a SOC reduce alert fatigue?,IN,en,how_to,informational,tofu,3,false
+"XDR, MDR and AI in the SOC","What is the difference between MDR, XDR and SOC as a service?",IN,en,definition,informational,tofu,3,false
+"XDR, MDR and AI in the SOC",What is managed XDR and who needs it?,IN,en,definition,informational,tofu,3,false
+"XDR, MDR and AI in the SOC",Is MDR enough or does a company need a full SOC?,IN,en,question,commercial,bofu,3,false
+"XDR, MDR and AI in the SOC",How is AI used in a modern SOC?,IN,en,how_to,informational,tofu,3,false
+"XDR, MDR and AI in the SOC",Does an AI driven SOC reduce false positives?,IN,en,question,commercial,bofu,3,false
+"XDR, MDR and AI in the SOC",What are the best XDR platforms for mid-size companies?,IN,en,recommendation,commercial,mofu,3,false
+"XDR, MDR and AI in the SOC",XDR or SIEM: which is better for a small security team?,IN,en,comparison,commercial,mofu,3,false
+"XDR, MDR and AI in the SOC",How does contextual correlation of alerts work in XDR?,IN,en,how_to,informational,tofu,3,false
+"XDR, MDR and AI in the SOC",What are the limits of AI in security operations?,IN,en,question,commercial,bofu,3,false
+"XDR, MDR and AI in the SOC",Best MDR providers in India compared,IN,en,comparison,commercial,mofu,3,false
+"XDR, MDR and AI in the SOC",How does a SOC work with a vulnerability management program?,IN,en,how_to,informational,tofu,3,false
+"XDR, MDR and AI in the SOC",How does an MDR service carry out response actions on my endpoints?,IN,en,how_to,informational,tofu,3,false
+Incident response and ransomware,What should a company do in the first hour of a ransomware attack?,IN,en,question,commercial,bofu,3,false
+Incident response and ransomware,Which companies offer incident response services in India?,IN,en,recommendation,commercial,mofu,1,false
+Incident response and ransomware,What is included in an incident response retainer?,IN,en,definition,informational,tofu,3,false
+Incident response and ransomware,How much does an incident response retainer cost?,IN,en,transactional,commercial,bofu,3,false
+Incident response and ransomware,What is digital forensics and incident response (DFIR)?,IN,en,definition,informational,tofu,3,false
+Incident response and ransomware,How do I choose a ransomware response service?,IN,en,how_to,commercial,bofu,3,false
+Incident response and ransomware,Should a company pay a ransomware demand?,IN,en,question,commercial,bofu,3,false
+Incident response and ransomware,How do I build an incident response plan for a mid-size company?,IN,en,how_to,informational,tofu,3,false
+Incident response and ransomware,What is the difference between incident response and a SOC?,IN,en,definition,informational,tofu,3,false
+Incident response and ransomware,Which providers offer 24/7 incident response assistance for ransomware?,IN,en,recommendation,commercial,mofu,3,false
+Incident response and ransomware,How long does recovery from a ransomware attack take?,IN,en,how_to,informational,tofu,3,false
+Incident response and ransomware,What should an incident response report contain?,IN,en,question,commercial,bofu,3,false
+"VAPT, red teaming and security testing",Best VAPT companies in India,IN,en,recommendation,commercial,mofu,1,false
+"VAPT, red teaming and security testing",What is VAPT and why do companies need it?,IN,en,definition,informational,tofu,3,false
+"VAPT, red teaming and security testing",How much does a penetration test cost in India?,IN,en,transactional,commercial,bofu,3,false
+"VAPT, red teaming and security testing",What is the difference between vulnerability assessment and penetration testing?,IN,en,definition,informational,tofu,3,false
+"VAPT, red teaming and security testing",What is red teaming and how is it different from penetration testing?,IN,en,definition,informational,tofu,3,false
+"VAPT, red teaming and security testing",What is penetration testing as a service (PTaaS)?,IN,en,definition,informational,tofu,3,false
+"VAPT, red teaming and security testing",How often should a company run penetration tests?,IN,en,how_to,informational,tofu,3,false
+"VAPT, red teaming and security testing",Which companies offer red team services in India?,IN,en,recommendation,commercial,mofu,3,false
+"VAPT, red teaming and security testing",How do I choose a penetration testing provider?,IN,en,how_to,commercial,bofu,3,false
+"VAPT, red teaming and security testing",What is the difference between black box and grey box penetration testing?,IN,en,definition,informational,tofu,3,false
+"VAPT, red teaming and security testing",What is an assumed breach exercise?,IN,en,definition,informational,tofu,3,false
+"VAPT, red teaming and security testing",What should a VAPT report include?,IN,en,question,commercial,bofu,3,false
+"VAPT, red teaming and security testing",Best penetration testing providers for fintech applications,IN,en,recommendation,commercial,mofu,3,false
+"VAPT, red teaming and security testing",What is breach and attack simulation and when should a company use it?,IN,en,definition,informational,tofu,3,false
+Cloud and application security,What is cloud security posture management and who needs it?,IN,en,definition,informational,tofu,3,false
+Cloud and application security,How do I secure workloads on AWS and Azure with a managed security provider?,IN,en,how_to,informational,tofu,3,false
+Cloud and application security,Which companies provide cloud security assessment services in India?,IN,en,recommendation,commercial,mofu,3,false
+Cloud and application security,What is application security testing and what types are there?,IN,en,definition,informational,tofu,3,false
+Cloud and application security,What is the shared responsibility model in cloud security?,IN,en,definition,informational,tofu,3,false
+Cloud and application security,How do I monitor a multi-cloud environment from a SOC?,IN,en,how_to,informational,tofu,3,false
+Cloud and application security,What does a cloud security audit cover?,IN,en,definition,informational,tofu,3,false
+Cloud and application security,How do I secure the APIs of a financial services app?,IN,en,how_to,informational,tofu,3,false
+"Compliance, GRC and regulation",What is a GRC platform and what does it do?,IN,en,definition,informational,tofu,3,false
+"Compliance, GRC and regulation",What does CERT-In empanelment mean for a security provider?,IN,en,definition,informational,tofu,3,false
+"Compliance, GRC and regulation",What are the CERT-In incident reporting requirements?,IN,en,question,commercial,bofu,3,false
+"Compliance, GRC and regulation",What cybersecurity requirements does the RBI set for banks and NBFCs?,IN,en,question,commercial,bofu,3,false
+"Compliance, GRC and regulation",How does a managed SOC help with ISO 27001 compliance?,IN,en,how_to,informational,tofu,3,false
+"Compliance, GRC and regulation",How does the DPDP Act affect security monitoring?,IN,en,how_to,informational,tofu,3,false
+"Compliance, GRC and regulation",What is SOC 2 and how does a SOC support it?,IN,en,definition,informational,tofu,3,false
+"Compliance, GRC and regulation",What compliance reports should a managed SOC provider deliver?,IN,en,question,commercial,bofu,3,false
+"Compliance, GRC and regulation",How do I meet PCI DSS log monitoring requirements?,IN,en,how_to,informational,tofu,3,false
+"Compliance, GRC and regulation",Which companies help with ISO 27001 and SOC 2 readiness in India?,IN,en,recommendation,commercial,mofu,3,false
+"Compliance, GRC and regulation",What are the SEBI cybersecurity requirements for regulated entities?,IN,en,question,commercial,bofu,3,false
+"Compliance, GRC and regulation",How do I run a cyber risk assessment for my company?,IN,en,how_to,informational,tofu,3,false
+Threat intelligence,What is a cyber threat intelligence service?,IN,en,definition,informational,tofu,3,false
+Threat intelligence,What is a threat intelligence platform and what does it do?,IN,en,definition,informational,tofu,3,false
+Threat intelligence,How does threat intelligence improve SOC detection?,IN,en,how_to,informational,tofu,3,false
+Threat intelligence,Which companies provide cyber threat intelligence services in India?,IN,en,recommendation,commercial,mofu,3,false
+Threat intelligence,What is dark web monitoring and is it worth it?,IN,en,definition,informational,tofu,3,false
+Threat intelligence,How do threat intelligence feeds differ from threat intelligence reports?,IN,en,how_to,informational,tofu,3,false
+Threat intelligence,What is a managed threat hunting service?,IN,en,definition,informational,tofu,3,false
+"Industries: banking, manufacturing, energy, fintech",How should a bank set up security monitoring and SOC services?,IN,en,how_to,informational,tofu,3,false
+"Industries: banking, manufacturing, energy, fintech",Cybersecurity services for insurance companies in India,IN,en,question,commercial,bofu,3,false
+"Industries: banking, manufacturing, energy, fintech",How do manufacturing companies secure OT and IT networks?,IN,en,how_to,informational,tofu,3,false
+"Industries: banking, manufacturing, energy, fintech",What does an energy company need from a SOC for OT environments?,IN,en,definition,informational,tofu,3,false
+"Industries: banking, manufacturing, energy, fintech",Best security monitoring for fintech and payment companies,IN,en,recommendation,commercial,mofu,3,false
+"Industries: banking, manufacturing, energy, fintech",How do BPO and IT services companies secure client data?,IN,en,how_to,informational,tofu,3,false
+"Industries: banking, manufacturing, energy, fintech",What cybersecurity does a logistics company need?,IN,en,question,commercial,bofu,3,false
+"Industries: banking, manufacturing, energy, fintech",How do steel and petrochemical plants protect industrial control systems?,IN,en,how_to,informational,tofu,3,false
+"Industries: banking, manufacturing, energy, fintech",How do healthcare providers in India secure patient data?,IN,en,how_to,informational,tofu,3,false
+"Industries: banking, manufacturing, energy, fintech",What are the main cyber threats facing Indian banks right now?,IN,en,question,commercial,bofu,3,false
+"Middle East, Asia Pacific and US",Which SOC as a service providers operate in Saudi Arabia?,SA,en,recommendation,commercial,mofu,1,false
+"Middle East, Asia Pacific and US",What are the NCA Essential Cybersecurity Controls and how does a SOC help meet them?,SA,en,question,commercial,bofu,3,false
+"Middle East, Asia Pacific and US",Best managed security service providers in Riyadh,SA,en,recommendation,commercial,mofu,3,false
+"Middle East, Asia Pacific and US",Which companies offer a managed SOC with data hosted inside Saudi Arabia?,SA,en,recommendation,commercial,mofu,3,false
+"Middle East, Asia Pacific and US",Best SOC as a service providers in the UAE,AE,en,recommendation,commercial,mofu,1,false
+"Middle East, Asia Pacific and US",Which companies provide managed cybersecurity services in Dubai?,AE,en,recommendation,commercial,mofu,3,false
+"Middle East, Asia Pacific and US",Which UAE regulations require security monitoring for financial institutions?,AE,en,recommendation,commercial,mofu,3,false
+"Middle East, Asia Pacific and US",Managed SOC providers with local data residency in the UAE,AE,en,recommendation,commercial,mofu,3,false
+"Middle East, Asia Pacific and US",Best managed SOC providers in Singapore,SG,en,recommendation,commercial,mofu,1,false
+"Middle East, Asia Pacific and US",What does the MAS technology risk guideline require for security monitoring?,SG,en,definition,informational,tofu,3,false
+"Middle East, Asia Pacific and US",Which companies provide incident response services in Singapore?,SG,en,recommendation,commercial,mofu,3,false
+"Middle East, Asia Pacific and US",Managed detection and response providers for Southeast Asia,SG,en,recommendation,commercial,mofu,3,false
+"Middle East, Asia Pacific and US",Best SOC as a service providers for mid-market companies in the United States,US,en,recommendation,commercial,mofu,1,false
+"Middle East, Asia Pacific and US",How much does a managed SOC cost in the United States?,US,en,transactional,commercial,bofu,3,false
+"Middle East, Asia Pacific and US",Which managed security providers offer a follow-the-sun SOC with US data centres?,US,en,recommendation,commercial,mofu,3,false
+"Middle East, Asia Pacific and US",Best managed XDR providers for mid-size businesses in the United States,US,en,recommendation,commercial,mofu,3,false
+Eventus Security (branded),What is Eventus Security and what services does it offer?,IN,en,definition,navigational,bofu,1,true
+Eventus Security (branded),Is Eventus Security a good SOC provider?,IN,en,question,navigational,bofu,1,true
+Eventus Security (branded),What do customers say in reviews of Eventus Security?,IN,en,question,navigational,bofu,3,true
+Eventus Security (branded),How much does Eventus Security SOC as a service cost?,IN,en,transactional,navigational,bofu,3,true
+Eventus Security (branded),Where is the Eventus Security cyber defence centre located?,IN,en,question,navigational,bofu,3,true
+Eventus Security (branded),Is Eventus Security CERT-In empanelled?,IN,en,question,navigational,bofu,3,true
+Eventus Security (branded),Eventus Security compared with Tata Communications for managed SOC services,IN,en,comparison,navigational,bofu,3,true
+Eventus Security (branded),Eventus Security compared with Wipro for managed security services,IN,en,comparison,navigational,bofu,3,true
+Eventus Security (branded),What are the best alternatives to Eventus Security?,IN,en,comparison,navigational,bofu,3,true
+Eventus Security (branded),What is the Eventus platform and which modules does it include?,IN,en,definition,navigational,bofu,3,true
+Eventus Security (branded),Which industries and regions does Eventus Security serve?,IN,en,recommendation,navigational,bofu,3,true
