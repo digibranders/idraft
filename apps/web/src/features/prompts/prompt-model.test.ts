@@ -12,11 +12,14 @@ import {
   PROMPT_TEXT_MAX,
   promptKeyOf,
   readPromptLines,
+  topicMembers,
+  topicRowKept,
   topicTermsOf,
   WINDOW_DAYS,
   windowRange,
+  type TopicTerm,
 } from './prompt-model';
-import type { MetricCell, ProjectEngine, Prompt, PromptsSummary } from '@/lib/api/types';
+import type { MetricCell, ProjectEngine, Prompt, PromptsSummary, PromptSummaryRow } from '@/lib/api/types';
 import type { Country } from '@/lib/locations/countries';
 
 /** Characters built from code points: the editing tools turn typed escapes into literal characters. */
@@ -152,6 +155,60 @@ describe('the topic filter', () => {
   it('collects each topic term the prompts carry once, by id', () => {
     const terms = collectTopicTerms([carrying(SEO, TECHNICAL), carrying(TECHNICAL, term('p', 'x', 'persona'))]);
     expect([...terms.keys()]).toEqual(['seo', 'technical']);
+  });
+});
+
+describe('the topic rows of the summary', () => {
+  const term = (term_id: string, path: string): TopicTerm => ({
+    term_id,
+    name: path.split('/').at(-1) ?? path,
+    path,
+    vocabulary_kind: 'topic',
+  });
+  const SEO = term('seo', 'seo');
+  const TECHNICAL = term('technical', 'seo/technical-seo');
+  const CRAWL = term('crawl', 'seo/technical-seo/crawling');
+  const AUDIT = term('audit', 'seo-audit');
+  const PAID = term('paid', 'paid-search');
+  const terms = new Map([SEO, TECHNICAL, CRAWL, AUDIT, PAID].map((item) => [item.term_id, item]));
+  const row = (prompt_id: string, ...topic_term_ids: string[]): PromptSummaryRow => ({
+    prompt_id,
+    text: prompt_id,
+    is_branded: false,
+    topic_term_ids,
+    engines: [],
+  });
+  const ids = (rows: readonly PromptSummaryRow[] | null): string[] | null =>
+    rows === null ? null : rows.map((item) => item.prompt_id);
+
+  it('keeps a topic row that is a chosen topic or below one, as the Prompts tab does', () => {
+    expect(topicRowKept('seo', terms, [SEO])).toBe(true);
+    expect(topicRowKept('technical', terms, [SEO])).toBe(true);
+    expect(topicRowKept('crawl', terms, [SEO])).toBe(true);
+    expect(topicRowKept('seo', terms, [TECHNICAL])).toBe(false);
+    expect(topicRowKept('audit', terms, [SEO])).toBe(false);
+    expect(topicRowKept('paid', terms, [SEO, PAID])).toBe(true);
+  });
+
+  it('drops the row of no topic, and a topic no prompt carries, while a topic is chosen', () => {
+    expect(topicRowKept(null, terms, [SEO])).toBe(false);
+    expect(topicRowKept('above-seo', terms, [SEO])).toBe(false);
+  });
+
+  it('lists under a topic the prompts given it or a term below it, each once', () => {
+    const prompts = [row('a', 'seo'), row('b', 'crawl'), row('c', 'technical', 'crawl'), row('d', 'audit'), row('e')];
+    expect(ids(topicMembers('seo', prompts, terms))).toEqual(['a', 'b', 'c']);
+    expect(ids(topicMembers('technical', prompts, terms))).toEqual(['b', 'c']);
+    expect(ids(topicMembers('paid', prompts, terms))).toEqual([]);
+  });
+
+  it('lists the prompts without a topic under no topic, and none of the others', () => {
+    const prompts = [row('a', 'seo'), row('e'), row('f')];
+    expect(ids(topicMembers(null, prompts, terms))).toEqual(['e', 'f']);
+  });
+
+  it('cannot list the prompts of a topic whose place is not known, which only a term below it was given', () => {
+    expect(topicMembers('above-seo', [row('a', 'seo')], terms)).toBeNull();
   });
 });
 

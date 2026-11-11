@@ -1,4 +1,4 @@
-import type { MetricCell, ProjectEngine, Prompt, PromptsSummary } from '@/lib/api/types';
+import type { MetricCell, ProjectEngine, Prompt, PromptsSummary, PromptSummaryRow } from '@/lib/api/types';
 import { formatIsoDate, formatSampleCount } from '@/lib/format';
 import type { Country } from '@/lib/locations/countries';
 
@@ -69,8 +69,47 @@ export function collectTopicTerms(prompts: readonly Prompt[]): Map<string, Topic
  */
 export function matchesTopics(prompt: Prompt, chosen: readonly TopicTerm[]): boolean {
   if (chosen.length === 0) return true;
-  return topicTermsOf(prompt).some((term) =>
-    chosen.some((topic) => term.term_id === topic.term_id || term.path.startsWith(`${topic.path}/`)),
+  return topicTermsOf(prompt).some((term) => isWithin(term, chosen));
+}
+
+/** Whether the term is one of the topics or below one of them (its path starts with theirs and a slash). */
+const isWithin = (
+  term: Pick<TopicTerm, 'term_id' | 'path'>,
+  topics: readonly Pick<TopicTerm, 'term_id' | 'path'>[],
+): boolean => topics.some((topic) => term.term_id === topic.term_id || term.path.startsWith(`${topic.path}/`));
+
+/**
+ * Whether the summary's topic row stays under a topic filter: it is a chosen topic or below one, as
+ * `matchesTopics` takes it. `terms` are the topic terms the prompts carry; a topic none carries (it is only
+ * above a term that one carries) has no place known and stays out, as does the row of no topic.
+ */
+export function topicRowKept(
+  termId: string | null,
+  terms: ReadonlyMap<string, TopicTerm>,
+  chosen: readonly TopicTerm[],
+): boolean {
+  const term = termId === null ? undefined : terms.get(termId);
+  return term !== undefined && isWithin(term, chosen);
+}
+
+/**
+ * The prompts of the summary a topic row holds, as the API rolls them up: those given the topic or a term
+ * below it, each once; `null` termId is the prompts without a topic. `null` when the topic's place is not
+ * known (no prompt carries it), so its prompts cannot be told.
+ */
+export function topicMembers(
+  termId: string | null,
+  prompts: readonly PromptSummaryRow[],
+  terms: ReadonlyMap<string, TopicTerm>,
+): PromptSummaryRow[] | null {
+  if (termId === null) return prompts.filter((prompt) => prompt.topic_term_ids.length === 0);
+  const topic = terms.get(termId);
+  if (topic === undefined) return null;
+  return prompts.filter((prompt) =>
+    prompt.topic_term_ids.some((id) => {
+      const given = terms.get(id);
+      return given === undefined ? id === termId : isWithin(given, [topic]);
+    }),
   );
 }
 

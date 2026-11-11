@@ -14,12 +14,16 @@ import {
   DEFAULT_WINDOW,
   hasAnswers,
   matchesTopics,
+  parseTab,
   parseWindow,
+  PROMPTS_TABS,
   topicTermsOf,
   WINDOW_DAYS,
   windowRange,
+  type PromptsTab,
 } from './prompt-model';
 import { enginesQuery, summaryQuery, usePromptList, type PromptScope } from './prompt-queries';
+import { TopicsTable } from './topics-table';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { TableStatus } from '@/components/app/data-table/types';
 import { FilterBar } from '@/components/app/filters/filter-bar';
@@ -33,6 +37,7 @@ import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
+import { Tabs, TabsPanel } from '@/components/ui/tabs';
 import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { useErrorId } from '@/lib/api/use-error-id';
@@ -71,8 +76,12 @@ export interface PromptsScreenProps {
   project: PromptsProject;
 }
 
-/** The URL's keys besides the filters': the window and the table's state. */
+/**
+ * The URL's keys besides the filters': the tab (Topics has none), the window and the tables' state. They all
+ * stay when the tab changes; the sort and the columns are the Prompts table's, and the Topics table ignores them.
+ */
 const VIEW_STATE = {
+  tab: parseAsString,
   window: parseAsString,
   q: parseAsString.withDefault(''),
   sort: parseAsString,
@@ -112,6 +121,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const [addOpen, setAddOpen] = useState(false);
   const scope = useMemo((): PromptScope => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
+  const tab = parseTab(view.tab);
   const windowDays = parseWindow(view.window);
   // The same date all UTC day; a new day is read at midnight UTC
   const now = useUtcDay();
@@ -151,14 +161,20 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               : term.name,
         })),
       },
-      {
-        id: 'country',
-        kind: 'enum',
-        label: t('filters.country'),
-        multi: true,
-        optionsLoading: optionsPending,
-        options: [...isos].map((iso) => ({ value: iso, label: countryName.get(iso) ?? iso })),
-      },
+      // A topic's counts come from the API for all of its prompts, so the Topics tab takes no country filter. A
+      // country in the address stays there, unread, for the Prompts tab
+      ...(tab === 'prompts'
+        ? [
+            {
+              id: 'country',
+              kind: 'enum' as const,
+              label: t('filters.country'),
+              multi: true,
+              optionsLoading: optionsPending,
+              options: [...isos].map((iso) => ({ value: iso, label: countryName.get(iso) ?? iso })),
+            },
+          ]
+        : []),
       {
         id: 'engine',
         kind: 'enum',
@@ -176,7 +192,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         options: [{ value: 'include', label: t('filters.brandedInclude') }],
       },
     ];
-  }, [t, list.rows, optionsPending, topicTerms, countryName, enabled, engines.data]);
+  }, [t, tab, list.rows, optionsPending, topicTerms, countryName, enabled, engines.data]);
   // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
   const [values, setValues] = useUrlFilters(fields, {
     onDropped: (dropped) =>
@@ -214,17 +230,17 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   );
   // Counts kept from another window or branded choice are not this one's: a prompt without a row in them is unknown
   const countsLoaded = summary.data !== undefined && !summary.isPlaceholderData;
+  const topicIds = useMemo(() => enumValuesOf(values.topic), [values.topic]);
+  // A topic of the link that no prompt read so far carries matches nothing yet
+  const chosenTopics = useMemo(() => topicIds.flatMap((id) => topicTerms.get(id) ?? []), [topicIds, topicTerms]);
   // Branded prompts stay out of the table and the counts until included (16-metrics-methodology.md rule 4)
   const rows = useMemo((): PromptRow[] => {
-    const topics = enumValuesOf(values.topic);
-    // A topic of the link that no prompt read so far carries matches nothing yet
-    const chosen = topics.flatMap((id) => topicTerms.get(id) ?? []);
     const countries = enumValuesOf(values.country);
     return list.rows
       .filter(
         (prompt) =>
           (includeBranded || !prompt.is_branded) &&
-          (topics.length === 0 || (chosen.length > 0 && matchesTopics(prompt, chosen))) &&
+          (topicIds.length === 0 || (chosenTopics.length > 0 && matchesTopics(prompt, chosenTopics))) &&
           (countries.length === 0 || (prompt.country_iso !== null && countries.includes(prompt.country_iso))),
       )
       .map((prompt) => {
@@ -240,9 +256,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   }, [
     list.rows,
     includeBranded,
-    values.topic,
+    topicIds,
+    chosenTopics,
     values.country,
-    topicTerms,
     summaryById,
     countsLoaded,
     countryName,
@@ -278,6 +294,19 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const noAnswers =
     summary.data !== undefined && !summary.isPlaceholderData && rows.length > 0 && !hasAnswers(summary.data.data);
 
+  const summaryErrorId = useErrorId(summary.error);
+  // The Topics tab reads only the summary and the topics of the prompts; a topic of the link waits for the page that carries it
+  const summaryFailed = summary.isError && summary.data === undefined;
+  const topicsStatus = ((): TableStatus => {
+    // Without the prompts the topics could not be opened, which is as good as not having loaded
+    if (summaryFailed || (list.error !== null && list.rows.length === 0)) return 'error';
+    const waitingForTopic = topicIds.length > 0 && chosenTopics.length === 0 && list.fetching;
+    if (list.loading || engines.isPending || (enabled.length > 0 && summary.isPending) || waitingForTopic) {
+      return 'loading';
+    }
+    return summary.isFetching ? 'refetching' : 'ready';
+  })();
+
   // Not before the engines are known: the dialog takes the enabled ones
   const addButton =
     canWrite && engines.data !== undefined ? (
@@ -293,6 +322,17 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       errorId={listErrorId}
       onRetry={list.refetch}
       retrying={list.fetching}
+      retryLabel={common('retry')}
+      live
+    />
+  );
+  const summaryError = (
+    <InlineError
+      title={t('summaryLoadFailed')}
+      reason={t('loadFailedReason')}
+      errorId={summaryErrorId}
+      onRetry={() => void summary.refetch()}
+      retrying={summary.isFetching}
       retryLabel={common('retry')}
       live
     />
@@ -371,47 +411,80 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
             }
           />
         ) : null}
-        {summary.isError ? (
-          <Banner
-            tone="warning"
-            placement="region"
-            live
-            message={t('summaryFailed')}
-            actions={
-              <Button variant="secondary" size="sm" onClick={() => void summary.refetch()} loading={summary.isFetching}>
-                {common('retry')}
-              </Button>
-            }
-          />
-        ) : null}
-        <div className="flex min-h-0 flex-1 flex-col">
-          <DataTable<PromptRow>
-            caption={t('caption')}
-            itemNoun={{ one: t('noun.one'), other: t('noun.other') }}
-            columns={columns}
-            getRowId={promptRowId}
-            rows={rows}
-            total={rows.length}
-            sort={sort}
-            onSortChange={(next) => void setView({ sort: sameSort(next, DEFAULT_SORT) ? null : formatSort(next) })}
-            defaultSort={DEFAULT_SORT}
-            density={density}
-            onDensityChange={(next: Density) => void setView({ density: next === DEFAULT_DENSITY ? null : next })}
-            columnState={{
-              visible,
-              onChange: (next) => void setView({ cols: next === null ? null : formatColumns(next) }),
-            }}
-            search={view.q}
-            onSearchChange={(next) => void setView({ q: next === '' ? null : next })}
-            searchPlaceholder={t('search')}
-            searchText={searchText}
-            rowName={rowName}
-            status={status}
-            errorState={listError}
-            emptyState={noPrompts}
-            filteredEmptyState={filteredEmpty}
-          />
-        </div>
+        <Tabs
+          variant="underline"
+          label={t('tabs.label')}
+          value={tab}
+          onValueChange={(next: PromptsTab) => void setView({ tab: next === 'topics' ? null : next })}
+          items={PROMPTS_TABS.map((value) => ({ value, label: t(`tabs.${value}`) }))}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <TabsPanel value="topics" className="flex min-h-0 flex-1 flex-col pt-3">
+            <TopicsTable
+              summary={summary.data?.data}
+              engines={shown}
+              terms={topicTerms}
+              chosen={chosenTopics}
+              filtering={topicIds.length > 0}
+              status={topicsStatus}
+              errorState={summaryFailed ? summaryError : listError}
+              emptyState={noPrompts}
+              filteredEmptyState={filteredEmpty}
+              search={view.q}
+              onSearchChange={(next) => void setView({ q: next === '' ? null : next })}
+              density={density}
+              onDensityChange={(next: Density) => void setView({ density: next === DEFAULT_DENSITY ? null : next })}
+            />
+          </TabsPanel>
+          <TabsPanel value="prompts" className="flex min-h-0 flex-1 flex-col pt-3">
+            {summary.isError ? (
+              <Banner
+                tone="warning"
+                placement="region"
+                live
+                message={t('summaryFailed')}
+                actions={
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void summary.refetch()}
+                    loading={summary.isFetching}
+                  >
+                    {common('retry')}
+                  </Button>
+                }
+              />
+            ) : null}
+            <div className="flex min-h-0 flex-1 flex-col">
+              <DataTable<PromptRow>
+                caption={t('caption')}
+                itemNoun={{ one: t('noun.one'), other: t('noun.other') }}
+                columns={columns}
+                getRowId={promptRowId}
+                rows={rows}
+                total={rows.length}
+                sort={sort}
+                onSortChange={(next) => void setView({ sort: sameSort(next, DEFAULT_SORT) ? null : formatSort(next) })}
+                defaultSort={DEFAULT_SORT}
+                density={density}
+                onDensityChange={(next: Density) => void setView({ density: next === DEFAULT_DENSITY ? null : next })}
+                columnState={{
+                  visible,
+                  onChange: (next) => void setView({ cols: next === null ? null : formatColumns(next) }),
+                }}
+                search={view.q}
+                onSearchChange={(next) => void setView({ q: next === '' ? null : next })}
+                searchPlaceholder={t('search')}
+                searchText={searchText}
+                rowName={rowName}
+                status={status}
+                errorState={listError}
+                emptyState={noPrompts}
+                filteredEmptyState={filteredEmpty}
+              />
+            </div>
+          </TabsPanel>
+        </Tabs>
       </>
     );
   }

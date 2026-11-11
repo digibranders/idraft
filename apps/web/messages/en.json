@@ -3272,6 +3272,7 @@
     "loadFailedReason": "The server did not answer. Try again in a moment.",
     "listPartial": "Some prompts could not be loaded, so the list may be incomplete.",
     "summaryFailed": "The answer counts could not be loaded. The prompts are listed without them.",
+    "summaryLoadFailed": "The topics could not be loaded.",
     "noEngineTitle": "No AI engine is on",
     "noEngineReason": "Turn on ChatGPT, Gemini or Google AI Mode in the project settings to start asking your prompts.",
     "toEngines": "Open the Engines settings",
@@ -3310,6 +3311,23 @@
       "branded": "Branded prompts",
       "brandedInclude": "Included",
       "topicWithPath": "{name} ({path})"
+    },
+    "tabs": {
+      "label": "Topics and prompts",
+      "topics": "Topics",
+      "prompts": "Prompts"
+    },
+    "topics": {
+      "caption": "Topics",
+      "noun": {
+        "one": "topic",
+        "other": "topics"
+      },
+      "search": "Search topics and prompts",
+      "topic": "Topic",
+      "prompts": "Prompts",
+      "expand": "Expand {name}, {count, plural, one {# prompt} other {# prompts}}",
+      "collapse": "Collapse {name}, {count, plural, one {# prompt} other {# prompts}}"
     },
     "droppedFilters": {
       "title": "{count, plural, one {A filter from the link was left out} other {# filters from the link were left out}}",

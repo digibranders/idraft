@@ -1,0 +1,218 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
+import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
+
+import { useEngineColumns } from './prompt-columns';
+import { topicMembers, topicRowKept, type TopicTerm } from './prompt-model';
+import { col } from '@/components/app/data-table/columns';
+import { DataTable } from '@/components/app/data-table/data-table';
+import type { DataTableColumn, RowTree, TableStatus } from '@/components/app/data-table/types';
+import { Badge } from '@/components/ui/badge';
+import type { EngineSummary, ProjectEngine, PromptsSummary } from '@/lib/api/types';
+import { EMPTY_VALUE } from '@/lib/format';
+import type { Density, SortKey } from '@/lib/tables/table-state';
+
+/** A topic, or one of its prompts while the topic is open. */
+type TopicRow =
+  | {
+      kind: 'topic';
+      id: string;
+      /** The term id, or `__none` for the prompts without a topic. */
+      key: string;
+      name: string;
+      promptCount: number;
+      engines: readonly EngineSummary[];
+      position: number;
+      /** Whether the topic's prompts can be listed: a topic no prompt carries has no place known. */
+      openable: boolean;
+    }
+  | {
+      kind: 'prompt';
+      /** Topic and prompt: a prompt of two topics is a row under each. */
+      id: string;
+      name: string;
+      branded: boolean;
+      engines: readonly EngineSummary[];
+      position: number;
+      siblings: number;
+    };
+
+const NO_TOPIC = '__none';
+const NO_SORT: readonly SortKey[] = [];
+const rowId = (row: TopicRow): string => row.id;
+const rowName = (row: TopicRow): string => row.name;
+const cellsOf = (row: TopicRow): readonly EngineSummary[] => row.engines;
+/** The mention rate on the engine; a prompt without one comes last. */
+const mentionedOn = (engines: readonly EngineSummary[], code: string | undefined): number =>
+  engines.find((engine) => engine.engine_code === code)?.mentioned.value ?? -1;
+
+export interface TopicsTableProps {
+  /** The prompts summary of the window; `undefined` while it loads. */
+  summary: PromptsSummary | undefined;
+  /** The engines shown, in order. */
+  engines: readonly ProjectEngine[];
+  /** The topic terms the prompts carry, by id: where a topic sits in the tree. */
+  terms: ReadonlyMap<string, TopicTerm>;
+  /** The terms the topic filter names; with `filtering`, a topic stays when it is one of them or below one. */
+  chosen: readonly TopicTerm[];
+  /** Whether a topic filter is set, even when none of its terms is known yet. */
+  filtering: boolean;
+  status: TableStatus;
+  errorState: ReactNode;
+  /** No topic at all, and no search or topic filter to blame. */
+  emptyState: ReactNode;
+  filteredEmptyState: ReactNode;
+  search: string;
+  onSearchChange: (search: string) => void;
+  density: Density;
+  onDensityChange: (density: Density) => void;
+}
+
+/**
+ * The Topics tab (ADR-DS-022 decisions 2 and 3): one row per topic that has prompts in scope, the largest
+ * first (as the API sends them when two are equal), and per engine its Mentioned and Cited counts. The API
+ * rolls a topic up as the prompts given it or a topic below it and weights each prompt once, so a topic's
+ * count is the answers behind its prompts and its rate is the mean of theirs. A topic opens in place and lists
+ * those prompts, most mentioned first on the first engine shown. Prompts without a topic share a row, "No
+ * topic". The search finds a topic by its name or by one of its prompts. A topic filter keeps the topic and the
+ * topics below it, as on the Prompts tab.
+ */
+export function TopicsTable({
+  summary,
+  engines,
+  terms,
+  chosen,
+  filtering,
+  status,
+  errorState,
+  emptyState,
+  filteredEmptyState,
+  search,
+  onSearchChange,
+  density,
+  onDensityChange,
+}: TopicsTableProps): ReactElement {
+  const t = useTranslations('prompts');
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
+  const [visible, setVisible] = useState<readonly string[] | null>(null);
+  const engineColumns = useEngineColumns(engines, cellsOf, { sortable: false });
+  const columns = useMemo(
+    (): DataTableColumn<TopicRow>[] => [
+      col.keyword<TopicRow>('topic', rowName, {
+        header: t('topics.topic'),
+        sortable: false,
+        trailing: (row) => (row.kind === 'prompt' && row.branded ? <Badge>{t('branded')}</Badge> : null),
+      }),
+      col.count<TopicRow>('prompts', (row) => (row.kind === 'topic' ? row.promptCount : null), {
+        header: t('topics.prompts'),
+        sortable: false,
+        minWidth: 100,
+        unknown: () => ({ label: EMPTY_VALUE }),
+      }),
+      ...engineColumns,
+    ],
+    [t, engineColumns],
+  );
+  const firstEngine = engines[0]?.engine.engine_code;
+  const rows = useMemo((): TopicRow[] => {
+    if (summary === undefined) return [];
+    const query = search.trim().toLocaleLowerCase();
+    const groups = summary.topics
+      .filter((topic) => !filtering || topicRowKept(topic.term_id, terms, chosen))
+      .map((topic) => ({
+        topic,
+        name: topic.name ?? t('columns.noTopic'),
+        members: topicMembers(topic.term_id, summary.prompts, terms),
+      }))
+      .filter(
+        ({ name, members }) =>
+          query === '' ||
+          name.toLocaleLowerCase().includes(query) ||
+          (members ?? []).some((member) => member.text.toLocaleLowerCase().includes(query)),
+      )
+      // The sort is stable: topics of one size stay in the order the API sent them
+      .sort((a, b) => b.topic.prompt_count - a.topic.prompt_count);
+    return groups.flatMap(({ topic, name, members }, index): TopicRow[] => {
+      const key = topic.term_id ?? NO_TOPIC;
+      const head: TopicRow = {
+        kind: 'topic',
+        id: `topic:${key}`,
+        key,
+        name,
+        promptCount: topic.prompt_count,
+        engines: topic.engines,
+        position: index + 1,
+        openable: members !== null,
+      };
+      if (members === null || !open.has(key)) return [head];
+      const ordered = [...members].sort(
+        (a, b) => mentionedOn(b.engines, firstEngine) - mentionedOn(a.engines, firstEngine),
+      );
+      return [
+        head,
+        ...ordered.map((member, at): TopicRow => ({
+          kind: 'prompt',
+          id: `${key}:${member.prompt_id}`,
+          name: member.text,
+          branded: member.is_branded,
+          engines: member.engines,
+          position: at + 1,
+          siblings: ordered.length,
+        })),
+      ];
+    });
+  }, [summary, terms, chosen, filtering, search, open, t, firstEngine]);
+  const topicCount = rows.filter((row) => row.kind === 'topic').length;
+  const rowTree = (row: TopicRow): RowTree => {
+    if (row.kind === 'prompt') return { level: 2, setSize: row.siblings, posInSet: row.position };
+    // A row without `expanded` has no prompts to show and is an ordinary row
+    if (!row.openable) return { level: 1, setSize: topicCount, posInSet: row.position };
+    const expanded = open.has(row.key);
+    return {
+      level: 1,
+      expanded,
+      setSize: topicCount,
+      posInSet: row.position,
+      label: t(expanded ? 'topics.collapse' : 'topics.expand', { name: row.name, count: row.promptCount }),
+    };
+  };
+  const toggle = (row: TopicRow): void => {
+    if (row.kind !== 'topic') return;
+    setOpen((current) => {
+      const next = new Set(current);
+      if (next.has(row.key)) next.delete(row.key);
+      else next.add(row.key);
+      return next;
+    });
+  };
+  const settled = status === 'ready' || status === 'refetching';
+  const shownStatus: TableStatus =
+    settled && rows.length === 0 ? (search.trim() === '' && !filtering ? 'empty' : 'filtered-empty') : status;
+  return (
+    <DataTable<TopicRow>
+      caption={t('topics.caption')}
+      itemNoun={{ one: t('topics.noun.one'), other: t('topics.noun.other') }}
+      columns={columns}
+      getRowId={rowId}
+      rows={rows}
+      total={topicCount}
+      sort={NO_SORT}
+      onSortChange={() => undefined}
+      defaultSort={NO_SORT}
+      density={density}
+      onDensityChange={onDensityChange}
+      columnState={{ visible, onChange: setVisible }}
+      search={search}
+      onSearchChange={onSearchChange}
+      searchPlaceholder={t('topics.search')}
+      rowName={rowName}
+      rowTree={rowTree}
+      onToggleGroup={toggle}
+      status={shownStatus}
+      errorState={errorState}
+      emptyState={emptyState}
+      filteredEmptyState={filteredEmptyState}
+    />
+  );
+}
