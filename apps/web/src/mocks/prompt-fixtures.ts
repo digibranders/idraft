@@ -2,7 +2,7 @@ import { MOCK_TERM_IDS } from './entity-fixtures';
 import { usdOfMicros } from './factories/operations';
 import { MOCK_CREATED_AT, MOCK_PROJECTS, mockUser } from './fixtures';
 import { mockId } from './mock-ids';
-import type { EngineCode, ProjectEngine } from '@/lib/api/types';
+import type { EngineCode, ProjectEngine, Prompt } from '@/lib/api/types';
 
 /**
  * The AI prompt tracking fixtures (spec 2026-11-11, plan A): the three engines, Fynix's engines and its 24
@@ -63,10 +63,14 @@ export interface StoredPrompt {
   language_code: string;
   country_iso: string;
   term_ids: string[];
+  intent: Prompt['intent'];
+  funnel_stage: Prompt['funnel_stage'];
+  prompt_type: Prompt['prompt_type'];
   importance: number;
   is_branded: boolean;
   is_active: boolean;
   created_at: string;
+  updated_at: string;
   created_by: { user_id: string; name: string; email: string } | null;
 }
 
@@ -81,6 +85,14 @@ export const promptId = (n: number): string => mockId('prompt', n);
 export const versionId = (n: number): string => mockId('prompt', VERSION_OFFSET + n);
 
 const T = MOCK_TERM_IDS;
+/** "Which is the best SEO agency in India?" in Hindi, from code points so this file stays ASCII. */
+const HINDI_PROMPT = String.fromCodePoint(
+  ...[
+    0x92d, 0x93e, 0x930, 0x924, 0x20, 0x92e, 0x947, 0x902, 0x20, 0x938, 0x92c, 0x938, 0x947, 0x20, 0x905, 0x91a, 0x94d,
+    0x91b, 0x940, 0x20, 0x53, 0x45, 0x4f, 0x20, 0x90f, 0x91c, 0x947, 0x902, 0x938, 0x940, 0x20, 0x915, 0x94c, 0x928,
+    0x20, 0x938, 0x940, 0x20, 0x939, 0x948, 0x3f,
+  ],
+);
 /** Text, topic, language and country. Line 6 is Hindi and line 8 names the own brand. */
 const FYNIX_PROMPTS: readonly (readonly [string, string | null, string, string])[] = [
   ['Which SEO agency is best for a SaaS startup in Germany?', T.seo, 'en', 'DE'],
@@ -88,7 +100,7 @@ const FYNIX_PROMPTS: readonly (readonly [string, string | null, string, string])
   ['What does a local SEO agency do for a shop in Berlin?', T.localSeo, 'en', 'DE'],
   ['Which agencies write content strategies for B2B software?', T.contentMarketing, 'en', 'DE'],
   ['How often should a company blog publish new posts?', T.blogStrategy, 'en', 'DE'],
-  ['भारत में सबसे अच्छी SEO एजेंसी कौन सी है?', T.seo, 'hi', 'IN'],
+  [HINDI_PROMPT, T.seo, 'hi', 'IN'],
   ['What is the best way to manage paid search on a small budget?', T.paidSearch, 'en', 'DE'],
   ['Is Fynix a good SEO agency for software companies?', T.seo, 'en', 'DE'],
   ['How do I fix crawl errors that Google reports?', T.technicalSeo, 'en', 'DE'],
@@ -124,10 +136,14 @@ export const FIXTURE_PROMPTS: ReadonlyMap<string, readonly StoredPrompt[]> = new
       language_code: language,
       country_iso: country,
       term_ids: term === null ? [] : [term],
+      intent: 'unknown',
+      funnel_stage: 'unknown',
+      prompt_type: 'question',
       importance: 3,
       is_branded: text.includes('Fynix'),
       is_active: true,
       created_at: MOCK_CREATED_AT,
+      updated_at: MOCK_CREATED_AT,
       created_by: { user_id: owner.user_id, name: owner.name, email: owner.email },
     })),
   ],
