@@ -932,6 +932,66 @@ export interface paths {
         patch: operations["update_project_api_v1_workspaces__workspace_id__projects__project_id__patch"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The project's AI answers
+         * @description Newest first. `from` and `to` take timestamps or project-local dates (`to` included); without them the last 28 days. A request covers at most 92 days (`422 window_too_large`). `facts` is the current derivation's, null before extraction. A cursor is bound to its filters (`400 invalid_cursor` otherwise).
+         */
+        get: operations["list_observations_api_v1_workspaces__workspace_id__projects__project_id__ai_observations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One AI answer with its citations and mentions
+         * @description The answer text, the cited sources with their role (own, competitor, third party) and the tracked entities it names, with evidence spans. Offsets are UTF-16 code units into `answer_text`, as a JavaScript string indexes it.
+         */
+        get: operations["get_observation_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}/raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The provider's answer for an AI observation, as received
+         * @description `raw:read`. `410 raw_expired` once the answer is past its retention; `503 raw_unavailable` when it could not be read now.
+         */
+        get: operations["observation_raw_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alias-test": {
         parameters: {
             query?: never;
@@ -2616,6 +2676,40 @@ export interface components {
             /** Tracked Keyword Ids */
             tracked_keyword_ids: string[];
         };
+        /** CitationOut */
+        CitationOut: {
+            /** Answer Block Index */
+            answer_block_index: number | null;
+            /** Citation Index */
+            citation_index: number;
+            /** Citation Kind */
+            citation_kind: string;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /** First Char Offset */
+            first_char_offset: number | null;
+            /** Flags */
+            flags: string[];
+            /** Host */
+            host: string;
+            /** Occurrences */
+            occurrences: number;
+            /** Raw Url */
+            raw_url: string;
+            /** Referral Tag */
+            referral_tag: string | null;
+            /** Role Entity Id */
+            role_entity_id: string | null;
+            /** Source Name */
+            source_name: string | null;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string;
+        };
         /** CompetitorOverride */
         CompetitorOverride: {
             entity: components["schemas"]["EntityRef"];
@@ -4267,6 +4361,41 @@ export interface components {
         MembersRemovedResponse: {
             data: components["schemas"]["MembersRemoved"];
         };
+        /** MentionOut */
+        MentionOut: {
+            /** Confidence */
+            confidence: number;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Evidence Spans */
+            evidence_spans: [
+                number,
+                number
+            ][];
+            /** First Char Offset */
+            first_char_offset: number;
+            /** Match Method */
+            match_method: string;
+            /** Mention Count */
+            mention_count: number;
+            /** Mention Order */
+            mention_order: number | null;
+            /**
+             * Mention Status
+             * @enum {string}
+             */
+            mention_status: "accepted" | "uncertain";
+            /** Name */
+            name: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "own" | "competitor" | "watch" | "untracked";
+        };
         /**
          * MetricValue
          * @description A metric with what it was computed from. Fields of doc 19 section 2.6 that no route
@@ -4381,6 +4510,162 @@ export interface components {
          * @enum {string}
          */
         ObservationClass: "consumer_ui" | "official_api" | "serp_ai";
+        /** ObservationDetail */
+        ObservationDetail: {
+            /** Answer Char Count */
+            answer_char_count: number | null;
+            /** Answer Text */
+            answer_text: string | null;
+            /** Check Url */
+            check_url: string | null;
+            /** Citation Count */
+            citation_count: number;
+            /** Citations */
+            citations: components["schemas"]["CitationOut"][];
+            /** Device */
+            device: string | null;
+            /** Engine Code */
+            engine_code: string;
+            /** Error Code */
+            error_code: string | null;
+            facts: components["schemas"]["ObservationFacts"] | null;
+            /** Fanout Count */
+            fanout_count: number;
+            /** Language Code */
+            language_code: string | null;
+            /** Location Id */
+            location_id: number | null;
+            /** Mentions */
+            mentions: components["schemas"]["MentionOut"][];
+            /** Model Reported */
+            model_reported: string | null;
+            /** Observation Class */
+            observation_class: string;
+            /** Observation Id */
+            observation_id: string;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /**
+             * Observed Date
+             * Format: date
+             */
+            observed_date: string;
+            /**
+             * Offsets Unit
+             * @constant
+             */
+            offsets_unit: "utf16";
+            /** Query Text */
+            query_text: string;
+            /** Replicate Index */
+            replicate_index: number;
+            /** Run Id */
+            run_id: string | null;
+            /** Served From Cache */
+            served_from_cache: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "complete" | "partial" | "empty" | "refused" | "error";
+            subject: components["schemas"]["PromptSubject"];
+        };
+        /**
+         * ObservationFacts
+         * @description The fact row of the current derivation.
+         */
+        ObservationFacts: {
+            /** Competitor Cited */
+            competitor_cited: string[];
+            /** Competitor Mentions */
+            competitor_mentions: string[];
+            /** Derivation Id */
+            derivation_id: number;
+            /** Had Structured List */
+            had_structured_list: boolean;
+            /** Is Valid */
+            is_valid: boolean;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "mentioned_and_cited" | "mentioned_only" | "cited_only" | "neither";
+            /** Own Citation Count */
+            own_citation_count: number;
+            /** Own Domain Cited */
+            own_domain_cited: boolean;
+            /** Own Mention Order */
+            own_mention_order: number | null;
+            /** Own Mentioned */
+            own_mentioned: boolean;
+            /** Own Prominence */
+            own_prominence: number | null;
+            /** Total Citation Count */
+            total_citation_count: number;
+            /** Tracked Entities Mentioned */
+            tracked_entities_mentioned: number;
+        };
+        /** ObservationPage */
+        ObservationPage: {
+            /** Data */
+            data: components["schemas"]["ObservationSummary"][];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** ObservationResponse */
+        ObservationResponse: {
+            data: components["schemas"]["ObservationDetail"];
+        };
+        /** ObservationSummary */
+        ObservationSummary: {
+            /** Answer Char Count */
+            answer_char_count: number | null;
+            /** Citation Count */
+            citation_count: number;
+            /** Device */
+            device: string | null;
+            /** Engine Code */
+            engine_code: string;
+            facts: components["schemas"]["ObservationFacts"] | null;
+            /** Fanout Count */
+            fanout_count: number;
+            /** Language Code */
+            language_code: string | null;
+            /** Location Id */
+            location_id: number | null;
+            /** Model Reported */
+            model_reported: string | null;
+            /** Observation Class */
+            observation_class: string;
+            /** Observation Id */
+            observation_id: string;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /**
+             * Observed Date
+             * Format: date
+             */
+            observed_date: string;
+            /** Query Text */
+            query_text: string;
+            /** Replicate Index */
+            replicate_index: number;
+            /** Run Id */
+            run_id: string | null;
+            /** Served From Cache */
+            served_from_cache: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "complete" | "partial" | "empty" | "refused" | "error";
+            subject: components["schemas"]["PromptSubject"];
+        };
         /** OffsetPageInfo */
         OffsetPageInfo: {
             /** Limit */
@@ -5092,6 +5377,26 @@ export interface components {
             existing_id: string;
             /** Index */
             index: number;
+        };
+        /** PromptSubject */
+        PromptSubject: {
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /**
+             * Prompt Version Id
+             * Format: uuid
+             */
+            prompt_version_id: string;
+            /**
+             * Type
+             * @constant
+             */
+            type: "prompt";
+            /** Version No */
+            version_no: number;
         };
         /** PromptTerm */
         PromptTerm: {
@@ -9256,6 +9561,121 @@ export interface operations {
             };
         };
     };
+    list_observations_api_v1_workspaces__workspace_id__projects__project_id__ai_observations_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: string[] | null;
+                "filter[prompt_id]"?: string | null;
+                "filter[status_in]"?: ("complete" | "partial" | "empty" | "refused" | "error")[] | null;
+                "filter[is_valid]"?: boolean | null;
+                "filter[outcome_in]"?: ("mentioned_and_cited" | "mentioned_only" | "cited_only" | "neither")[] | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObservationPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_observation_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__get: {
+        parameters: {
+            query?: {
+                /** @description A hint to find the month. */
+                observed_at?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                observation_id: number;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObservationResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    observation_raw_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__raw_get: {
+        parameters: {
+            query?: {
+                /** @description A hint to find the month. */
+                observed_at?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                observation_id: number;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     alias_test_api_v1_workspaces__workspace_id__projects__project_id__alias_test_post: {
         parameters: {
             query?: never;
@@ -12155,6 +12575,8 @@ export const pathsApiV1WorkspacesWorkspace_idCostsGetParametersQueryGroup_byAnyO
 export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterEntity_typeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[entity_type]"]> = ["brand", "product", "organization", "person", "other"];
 export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idKeywordsKeyword_idMetricsHistoryGetParametersQuerySourceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}/metrics-history"]["get"]["parameters"]["query"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["complete", "partial", "empty", "refused", "error"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idDomainsGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordGroupsGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups"]["get"]["parameters"]["query"]["format"]> = ["tree", "flat"];
@@ -12193,6 +12615,7 @@ export const analyticsPropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRe
 export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["action_on_hard"]> = ["pause", "alert_only"];
 export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
+export const citationOutDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationOut"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
 export const configVersionDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ConfigVersion"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const connectionAuth_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["auth_method"]> = ["oauth", "api_key", "api_token", "service_account"];
@@ -12240,8 +12663,13 @@ export const keywordMetricsSourceValues: ReadonlyArray<FlattenedDeepRequired<com
 export const lintWarningRuleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LintWarning"]["rule"]> = ["contains_brand_alias", "engine_limit"];
 export const lintWarningSeverityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LintWarning"]["severity"]> = ["info", "warning", "error"];
 export const meWorkspaceStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MeWorkspace"]["status"]> = ["active", "suspended", "deleting"];
+export const mentionOutMention_statusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MentionOut"]["mention_status"]> = ["accepted", "uncertain"];
+export const mentionOutRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MentionOut"]["role"]> = ["own", "competitor", "watch", "untracked"];
 export const metricValueUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricValue"]["unit"]> = ["ratio", "count", "rank", "score", "usd", "clicks"];
 export const observationClassValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationClass"]> = ["consumer_ui", "official_api", "serp_ai"];
+export const observationDetailStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationDetail"]["status"]> = ["complete", "partial", "empty", "refused", "error"];
+export const observationFactsOutcomeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationFacts"]["outcome"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
+export const observationSummaryStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationSummary"]["status"]> = ["complete", "partial", "empty", "refused", "error"];
 export const operationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["kind"]> = ["collection_run", "keyword_import"];
 export const operationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["status"]> = ["queued", "running", "waiting_for_input", "succeeded", "succeeded_with_errors", "failed", "cancelled", "blocked"];
 export const progressUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Progress"]["unit"]> = ["tasks", "rows", "observations", "days", "items"];

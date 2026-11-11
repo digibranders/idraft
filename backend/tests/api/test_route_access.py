@@ -311,6 +311,18 @@ EXPECTED: dict[tuple[str, str], str] = {
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/serp-snapshots/"
         "{serp_snapshot_id}/raw",
     ): "raw:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"): (
+        "data:read"
+    ),
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/"
+        "{observation_id}/raw",
+    ): "raw:read",
     (
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/seo/rank-events",
@@ -445,6 +457,9 @@ PATH_PARAMETERS = {
     # Inside one project, after `{project_id}`: the service finds the snapshot within that
     # project, so a snapshot of another project is a 404.
     "serp_snapshot_id",
+    # Inside one project, after `{project_id}`: the service finds the observation within that
+    # project, so an observation of another project is a 404.
+    "observation_id",
     # A connection is a credential of the workspace, shared by its projects.
     "connection_id",
     # Inside one project, after `{project_id}`: the service finds it within that project.

@@ -41,6 +41,8 @@ from tests.api.auth.support import (
 from tests.api.keywords.support import LOCATION, ensure_locations
 from tests.api.test_route_access import PATH_PARAMETER
 from tests.api.workspaces.support import make_project
+from tests.collectors.ai_support import add_prompt, seed_observation
+from tests.collectors.support import Project
 from tests.conftest import PostgresServer
 from tests.db.support import insert_prompt, seed_rank
 from tests.providers.google.fake_google import FakeGoogle
@@ -252,6 +254,8 @@ class Tenant:
     import_id: uuid.UUID
     # A SERP snapshot of the tracked keyword, with its raw answer registered.
     serp_snapshot_id: int
+    # An AI answer of a prompt of the project, with its raw answer registered.
+    observation_id: int
     # A Google account connected to the workspace, and a property of it once linked to the
     # project and switched off (so that linking it again succeeds).
     connection_id: uuid.UUID
@@ -279,6 +283,7 @@ class Tenant:
             "budget_id": str(self.budget_id),
             "import_id": str(self.import_id),
             "serp_snapshot_id": str(self.serp_snapshot_id),
+            "observation_id": str(self.observation_id),
             "connection_id": str(self.connection_id),
             "integration_id": str(self.integration_id),
             "prompt_id": str(self.prompt_id),
@@ -542,6 +547,21 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
             digest(answer),
             snapshot_id,
         )
+    # An AI answer, its raw answer really in the store, so reading it would succeed.
+    seeded = await add_prompt(
+        pg, Project(workspace.id, project_id), f"Seeded AI prompt of tenant {label}?"
+    )
+    ai_answer = f'{{"tasks": [], "planted": "{label}-ai-{uuid.uuid4().hex}"}}'.encode()
+    ai_key = f"raw/v1/ai_raw/dataforseo/planted/{label}-{uuid.uuid4().hex}.json.zst"
+    if resources.import_store is not None:
+        await resources.import_store.put(ai_key, compress(ai_answer))
+    observation_id = await seed_observation(
+        pg,
+        Project(workspace.id, project_id),
+        seeded,
+        object_key=ai_key,
+        sha256=digest(ai_answer),
+    )
     # A real connection of the same Google account in both: its refresh token is sealed as the
     # application seals one, and the fake Google accepts it.
     account = fake.account(f"{label}@client.example", [("sc-domain:acme.example", "siteOwner")])
@@ -607,6 +627,7 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         budget_id=budget["id"],
         import_id=keyword_import["id"],
         serp_snapshot_id=snapshot_id,
+        observation_id=observation_id,
         connection_id=connection["id"],
         integration_id=integration["id"],
         prompt_id=prompt_id,
@@ -625,9 +646,11 @@ async def tenants(
 
 def _nowhere(ids: dict[str, str]) -> dict[str, str]:
     """Ids that name nothing, of the kind each path parameter takes: a UUID, or for a SERP
-    snapshot a number no sequence has reached."""
+    snapshot or an AI observation a number no sequence has reached."""
     return {
-        name: "9223372036854775000" if name == "serp_snapshot_id" else str(uuid.uuid4())
+        name: "9223372036854775000"
+        if name in ("serp_snapshot_id", "observation_id")
+        else str(uuid.uuid4())
         for name in ids
     }
 
@@ -793,6 +816,9 @@ _TENANT_ROWS = {
     "ai.prompts": "workspace_id",
     "ai.prompt_versions": "workspace_id",
     "ai.prompt_terms": "workspace_id",
+    # The citation, mention and fact tables have no row in the seeded tenants (the checksum
+    # needs a row per table); they are read through the observation.
+    "ai.observations": "workspace_id",
 }
 
 

@@ -9,7 +9,7 @@ sections 3.7.1 and 3.7.4).
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Final, Literal
 from uuid import UUID
 
@@ -331,3 +331,106 @@ class RunNow(Body):
     """The engines to ask the prompt on now, each once, through the standard queue."""
 
     engine_codes: Annotated[list[EngineCode], Field(min_length=1, max_length=3)]
+
+
+AnswerStatus = Literal["complete", "partial", "empty", "refused", "error"]
+# The cross product of own mentioned and own domain cited, never collapsed (doc 04 section 8.5).
+Outcome = Literal["mentioned_and_cited", "mentioned_only", "cited_only", "neither"]
+
+
+class ObservationFacts(BaseModel):
+    """The fact row of the current derivation."""
+
+    derivation_id: int
+    is_valid: bool
+    outcome: Outcome
+    own_mentioned: bool
+    own_domain_cited: bool
+    own_mention_order: int | None
+    own_prominence: float | None
+    own_citation_count: int
+    total_citation_count: int
+    tracked_entities_mentioned: int
+    competitor_mentions: list[UUID]
+    competitor_cited: list[UUID]
+    had_structured_list: bool
+
+
+class PromptSubject(BaseModel):
+    type: Literal["prompt"]
+    prompt_id: UUID
+    prompt_version_id: UUID
+    version_no: int
+
+
+class ObservationSummary(BaseModel):
+    # A 64-bit id, as a string: JavaScript numbers lose precision past 2^53.
+    observation_id: str
+    observed_at: datetime
+    observed_date: date
+    engine_code: str
+    observation_class: str
+    subject: PromptSubject
+    query_text: str
+    run_id: UUID | None
+    replicate_index: int
+    location_id: int | None
+    language_code: str | None
+    device: str | None
+    status: AnswerStatus
+    model_reported: str | None
+    answer_char_count: int | None
+    citation_count: int
+    fanout_count: int
+    served_from_cache: bool
+    # Null before extraction or without a current derivation.
+    facts: ObservationFacts | None
+
+
+class ObservationPage(BaseModel):
+    data: list[ObservationSummary]
+    page: CursorPageInfo
+
+
+class CitationOut(BaseModel):
+    citation_index: int
+    url: str
+    raw_url: str
+    host: str
+    title: str | None
+    source_name: str | None
+    citation_kind: str
+    domain_role: Literal["own", "competitor", "third_party"]
+    role_entity_id: UUID | None
+    occurrences: int
+    first_char_offset: int | None
+    answer_block_index: int | None
+    referral_tag: str | None
+    flags: list[str]
+
+
+class MentionOut(BaseModel):
+    entity_id: UUID
+    name: str
+    role: Literal["own", "competitor", "watch", "untracked"]
+    mention_count: int
+    first_char_offset: int
+    mention_order: int | None
+    match_method: str
+    mention_status: Literal["accepted", "uncertain"]
+    confidence: float
+    # Half-open [start, end) ranges in `answer_text`.
+    evidence_spans: list[tuple[int, int]]
+
+
+class ObservationDetail(ObservationSummary):
+    answer_text: str | None
+    error_code: str | None
+    check_url: str | None
+    offsets_unit: Literal["utf16"]
+    citations: list[CitationOut]
+    mentions: list[MentionOut]
+
+
+class ObservationResponse(BaseModel):
+    data: ObservationDetail

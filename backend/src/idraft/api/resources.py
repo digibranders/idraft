@@ -10,6 +10,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from idraft.api.ai.engine_service import EngineService
+from idraft.api.ai.observations import ObservationService
 from idraft.api.ai.prompt_service import PromptService
 from idraft.api.auth.service import AuthService
 from idraft.api.auth.sessions import SessionStore
@@ -68,6 +69,7 @@ class Resources:
     integrations: IntegrationService
     ai_engines: EngineService
     prompts: PromptService
+    ai_observations: ObservationService
 
 
 def get_resources(request: Request) -> Resources:

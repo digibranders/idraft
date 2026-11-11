@@ -1189,6 +1189,135 @@
         "title": "CheckNow",
         "type": "object"
       },
+      "CitationOut": {
+        "properties": {
+          "answer_block_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Block Index"
+          },
+          "citation_index": {
+            "title": "Citation Index",
+            "type": "integer"
+          },
+          "citation_kind": {
+            "title": "Citation Kind",
+            "type": "string"
+          },
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "first_char_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Char Offset"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "occurrences": {
+            "title": "Occurrences",
+            "type": "integer"
+          },
+          "raw_url": {
+            "title": "Raw Url",
+            "type": "string"
+          },
+          "referral_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referral Tag"
+          },
+          "role_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Entity Id"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "citation_index",
+          "url",
+          "raw_url",
+          "host",
+          "title",
+          "source_name",
+          "citation_kind",
+          "domain_role",
+          "role_entity_id",
+          "occurrences",
+          "first_char_offset",
+          "answer_block_index",
+          "referral_tag",
+          "flags"
+        ],
+        "title": "CitationOut",
+        "type": "object"
+      },
       "CompetitorOverride": {
         "properties": {
           "entity": {
@@ -5729,6 +5858,95 @@
         "title": "MembersRemovedResponse",
         "type": "object"
       },
+      "MentionOut": {
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "evidence_spans": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Evidence Spans",
+            "type": "array"
+          },
+          "first_char_offset": {
+            "title": "First Char Offset",
+            "type": "integer"
+          },
+          "match_method": {
+            "title": "Match Method",
+            "type": "string"
+          },
+          "mention_count": {
+            "title": "Mention Count",
+            "type": "integer"
+          },
+          "mention_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mention Order"
+          },
+          "mention_status": {
+            "enum": [
+              "accepted",
+              "uncertain"
+            ],
+            "title": "Mention Status",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "own",
+              "competitor",
+              "watch",
+              "untracked"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "name",
+          "role",
+          "mention_count",
+          "first_char_offset",
+          "mention_order",
+          "match_method",
+          "mention_status",
+          "confidence",
+          "evidence_spans"
+        ],
+        "title": "MentionOut",
+        "type": "object"
+      },
       "MetricValue": {
         "description": "A metric with what it was computed from. Fields of doc 19 section 2.6 that no route\nbuilt so far fills (`ci`, `aggregation`, `engines`, ...) are left out until one does.",
         "properties": {
@@ -6067,6 +6285,518 @@
         ],
         "title": "ObservationClass",
         "type": "string"
+      },
+      "ObservationDetail": {
+        "properties": {
+          "answer_char_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Char Count"
+          },
+          "answer_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Text"
+          },
+          "check_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check Url"
+          },
+          "citation_count": {
+            "title": "Citation Count",
+            "type": "integer"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/CitationOut"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          },
+          "engine_code": {
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "facts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservationFacts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fanout_count": {
+            "title": "Fanout Count",
+            "type": "integer"
+          },
+          "language_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Code"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "mentions": {
+            "items": {
+              "$ref": "#/components/schemas/MentionOut"
+            },
+            "title": "Mentions",
+            "type": "array"
+          },
+          "model_reported": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Reported"
+          },
+          "observation_class": {
+            "title": "Observation Class",
+            "type": "string"
+          },
+          "observation_id": {
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "observed_date": {
+            "format": "date",
+            "title": "Observed Date",
+            "type": "string"
+          },
+          "offsets_unit": {
+            "const": "utf16",
+            "title": "Offsets Unit",
+            "type": "string"
+          },
+          "query_text": {
+            "title": "Query Text",
+            "type": "string"
+          },
+          "replicate_index": {
+            "title": "Replicate Index",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "served_from_cache": {
+            "title": "Served From Cache",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "complete",
+              "partial",
+              "empty",
+              "refused",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/PromptSubject"
+          }
+        },
+        "required": [
+          "observation_id",
+          "observed_at",
+          "observed_date",
+          "engine_code",
+          "observation_class",
+          "subject",
+          "query_text",
+          "run_id",
+          "replicate_index",
+          "location_id",
+          "language_code",
+          "device",
+          "status",
+          "model_reported",
+          "answer_char_count",
+          "citation_count",
+          "fanout_count",
+          "served_from_cache",
+          "facts",
+          "answer_text",
+          "error_code",
+          "check_url",
+          "offsets_unit",
+          "citations",
+          "mentions"
+        ],
+        "title": "ObservationDetail",
+        "type": "object"
+      },
+      "ObservationFacts": {
+        "description": "The fact row of the current derivation.",
+        "properties": {
+          "competitor_cited": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Competitor Cited",
+            "type": "array"
+          },
+          "competitor_mentions": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Competitor Mentions",
+            "type": "array"
+          },
+          "derivation_id": {
+            "title": "Derivation Id",
+            "type": "integer"
+          },
+          "had_structured_list": {
+            "title": "Had Structured List",
+            "type": "boolean"
+          },
+          "is_valid": {
+            "title": "Is Valid",
+            "type": "boolean"
+          },
+          "outcome": {
+            "enum": [
+              "mentioned_and_cited",
+              "mentioned_only",
+              "cited_only",
+              "neither"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "own_citation_count": {
+            "title": "Own Citation Count",
+            "type": "integer"
+          },
+          "own_domain_cited": {
+            "title": "Own Domain Cited",
+            "type": "boolean"
+          },
+          "own_mention_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Own Mention Order"
+          },
+          "own_mentioned": {
+            "title": "Own Mentioned",
+            "type": "boolean"
+          },
+          "own_prominence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Own Prominence"
+          },
+          "total_citation_count": {
+            "title": "Total Citation Count",
+            "type": "integer"
+          },
+          "tracked_entities_mentioned": {
+            "title": "Tracked Entities Mentioned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "derivation_id",
+          "is_valid",
+          "outcome",
+          "own_mentioned",
+          "own_domain_cited",
+          "own_mention_order",
+          "own_prominence",
+          "own_citation_count",
+          "total_citation_count",
+          "tracked_entities_mentioned",
+          "competitor_mentions",
+          "competitor_cited",
+          "had_structured_list"
+        ],
+        "title": "ObservationFacts",
+        "type": "object"
+      },
+      "ObservationPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ObservationSummary"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "ObservationPage",
+        "type": "object"
+      },
+      "ObservationResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ObservationDetail"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ObservationResponse",
+        "type": "object"
+      },
+      "ObservationSummary": {
+        "properties": {
+          "answer_char_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Char Count"
+          },
+          "citation_count": {
+            "title": "Citation Count",
+            "type": "integer"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          },
+          "engine_code": {
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "facts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservationFacts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fanout_count": {
+            "title": "Fanout Count",
+            "type": "integer"
+          },
+          "language_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Code"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "model_reported": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Reported"
+          },
+          "observation_class": {
+            "title": "Observation Class",
+            "type": "string"
+          },
+          "observation_id": {
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "observed_date": {
+            "format": "date",
+            "title": "Observed Date",
+            "type": "string"
+          },
+          "query_text": {
+            "title": "Query Text",
+            "type": "string"
+          },
+          "replicate_index": {
+            "title": "Replicate Index",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "served_from_cache": {
+            "title": "Served From Cache",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "complete",
+              "partial",
+              "empty",
+              "refused",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/PromptSubject"
+          }
+        },
+        "required": [
+          "observation_id",
+          "observed_at",
+          "observed_date",
+          "engine_code",
+          "observation_class",
+          "subject",
+          "query_text",
+          "run_id",
+          "replicate_index",
+          "location_id",
+          "language_code",
+          "device",
+          "status",
+          "model_reported",
+          "answer_char_count",
+          "citation_count",
+          "fanout_count",
+          "served_from_cache",
+          "facts"
+        ],
+        "title": "ObservationSummary",
+        "type": "object"
       },
       "OffsetPageInfo": {
         "properties": {
@@ -7861,6 +8591,37 @@
           "existing_id"
         ],
         "title": "PromptSkipped",
+        "type": "object"
+      },
+      "PromptSubject": {
+        "properties": {
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "prompt_version_id": {
+            "format": "uuid",
+            "title": "Prompt Version Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "prompt",
+            "title": "Type",
+            "type": "string"
+          },
+          "version_no": {
+            "title": "Version No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "type",
+          "prompt_id",
+          "prompt_version_id",
+          "version_no"
+        ],
+        "title": "PromptSubject",
         "type": "object"
       },
       "PromptTerm": {
@@ -17625,6 +18386,403 @@
         "summary": "Change a project",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations": {
+      "get": {
+        "description": "Newest first. `from` and `to` take timestamps or project-local dates (`to` included); without them the last 28 days. A request covers at most 92 days (`422 window_too_large`). `facts` is the current derivation's, null before extraction. A cursor is bound to its filters (`400 invalid_cursor` otherwise).",
+        "operationId": "list_observations_api_v1_workspaces__workspace_id__projects__project_id__ai_observations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 10,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[prompt_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Prompt Id]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[status_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "complete",
+                      "partial",
+                      "empty",
+                      "refused",
+                      "error"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 5,
+              "title": "Filter[Status In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[is_valid]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Is Valid]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[outcome_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "mentioned_and_cited",
+                      "mentioned_only",
+                      "cited_only",
+                      "neither"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 4,
+              "title": "Filter[Outcome In]"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservationPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The project's AI answers",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}": {
+      "get": {
+        "description": "The answer text, the cited sources with their role (own, competitor, third party) and the tracked entities it names, with evidence spans. Offsets are UTF-16 code units into `answer_text`, as a JavaScript string indexes it.",
+        "operationId": "get_observation_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "observation_id",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Observation Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A hint to find the month.",
+            "in": "query",
+            "name": "observed_at",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A hint to find the month.",
+              "title": "Observed At"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One AI answer with its citations and mentions",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}/raw": {
+      "get": {
+        "description": "`raw:read`. `410 raw_expired` once the answer is past its retention; `503 raw_unavailable` when it could not be read now.",
+        "operationId": "observation_raw_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__raw_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "observation_id",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Observation Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A hint to find the month.",
+            "in": "query",
+            "name": "observed_at",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A hint to find the month.",
+              "title": "Observed At"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The provider's answer for an AI observation, as received",
+        "tags": [
+          "ai"
         ]
       }
     },
