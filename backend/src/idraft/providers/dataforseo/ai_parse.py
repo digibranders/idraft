@@ -14,6 +14,8 @@ text is kept as markdown: slice 1 has no markdown renderer, so `answer_text` equ
 `answer_markdown` and a plain-text renderer later is an extractor version change.
 
 Text the database cannot keep (NUL, a lone surrogate) is cleaned from the whole answer first.
+The whole body is held in memory while it is read: the client caps the size of a body, so this
+does not bound it again.
 """
 
 from __future__ import annotations
@@ -28,12 +30,15 @@ from idraft.extraction.urls import CanonicalUrl, UrlRejectedError, canonicalize
 from idraft.providers.dataforseo.serp_parse import scrub_text
 
 PARSER_VERSION: Final = 1
+# The task status code of an answer that can be read.
+TASK_OK: Final = 20000
 # provider_extras is a small column (doc 04 section 8.3): at most this many bytes of JSON.
 EXTRAS_MAX_BYTES: Final = 16 * 1024
 # An answer this short is not an answer (doc 07 section 5.5).
 REFUSAL_MAX_CHARS: Final = 40
-# Where a refusal says so: the opening of the answer, without case.
-REFUSAL_WINDOW: Final = 200
+# A text opening with a refusal phrase is a refusal when shorter than this or citing nothing.
+REFUSAL_LONG_CHARS: Final = 300
+# What a refusal opens with, without case.
 REFUSALS: Final = (
     "i can't help with",
     "i cannot help with",
@@ -87,9 +92,9 @@ class CitedSource:
     title: str | None
     source_name: str | None
     kind: CitationKind
-    # Times the answer's blocks cite it; at least 1.
+    # Cite entries across the answer's blocks (doc 14 section 9); at least 1.
     occurrences: int
-    # The answer block (item position, from 0) that first cites it; None for the source list.
+    # The first block (item position, from 0) that cites it; None when no block does.
     answer_block_index: int | None
 
 
@@ -142,8 +147,10 @@ def parse_ai_answer(engine_code: str, body: bytes | Mapping[str, Any]) -> Normal
     echoed = task.get("data")
     data: Mapping[str, Any] = echoed if isinstance(echoed, Mapping) else {}
     device, language = _text(data.get("device")), _text(data.get("language_code"))
-    if isinstance(status_code, int) and status_code >= 40000:
-        return _with(unreadable(str(status_code)), device=device, language_code=language)
+    # Only a task that is exactly "Ok." (20000) is read; any other code, or none, is an error.
+    if type(status_code) is not int or status_code != TASK_OK:
+        code = "missing" if status_code is None else str(status_code)
+        return _with(unreadable(code), device=device, language_code=language)
     results = task.get("result")
     if not results:
         return _empty(device, language)
@@ -174,7 +181,7 @@ def parse_ai_answer(engine_code: str, body: bytes | Mapping[str, Any]) -> Normal
         }
     )
     return NormalizedAnswer(
-        status=_status(text, result, blocks),
+        status=_status(text, result, blocks, sources),
         error_code=None,
         answer_text=text or None,
         model_reported=_model(result.get("model")),
@@ -189,13 +196,20 @@ def parse_ai_answer(engine_code: str, body: bytes | Mapping[str, Any]) -> Normal
 
 
 def _status(
-    text: str, result: Mapping[str, Any], blocks: Sequence[Mapping[str, Any]]
+    text: str,
+    result: Mapping[str, Any],
+    blocks: Sequence[Mapping[str, Any]],
+    sources: Sequence[CitedSource],
 ) -> AnswerStatus:
     if not text:
         return "empty"
+    stripped = text.strip()
     # A curly apostrophe reads as a straight one, so one list of phrases serves both.
-    opening = text[:REFUSAL_WINDOW].casefold().replace("\N{RIGHT SINGLE QUOTATION MARK}", "'")
-    if len(text.strip()) < REFUSAL_MAX_CHARS or any(phrase in opening for phrase in REFUSALS):
+    opening = stripped.casefold().replace("\N{RIGHT SINGLE QUOTATION MARK}", "'")
+    # A hedged answer opens with a refusal phrase and goes on to answer: only a short text, or one
+    # that cites nothing, is a refusal.
+    declines = opening.startswith(REFUSALS) and (len(stripped) < REFUSAL_LONG_CHARS or not sources)
+    if len(stripped) < REFUSAL_MAX_CHARS or declines:
         return "refused"
     if not blocks and _text(result.get("markdown")):
         # Markdown with no blocks behind it: whether an ad is in it cannot be told.
@@ -214,7 +228,7 @@ def _scraper(
         text = "".join(_text(block.get("markdown")) or "" for block in answer)
     else:
         text = _text(result.get("markdown")) or ""
-    sources = _Sources()
+    sources = _Sources(_ad_keys(ads))
     for source in _mappings(result.get("sources")):
         sources.add(source, "source_list", None, cited=False)
     for position, block in enumerate(blocks):
@@ -228,38 +242,51 @@ def _scraper(
 def _ai_mode(
     blocks: Sequence[Mapping[str, Any]],
 ) -> tuple[str, list[CitedSource], list[dict[str, Any]]]:
-    """AI Mode: the `ai_overview` item, its references as cards and its elements' links inline
-    when not a reference already (doc 07 section 5.3)."""
+    """AI Mode: the `ai_overview` items (their text joined in order), their references as cards
+    and their elements' links inline when not a reference already (doc 07 section 5.3)."""
     ads = [_ad(block) for block in blocks if block.get("type") in AD_TYPES]
-    overview = next((block for block in blocks if block.get("type") == "ai_overview"), None)
-    if overview is None:
+    overviews = [block for block in blocks if block.get("type") == "ai_overview"]
+    if not overviews:
         return "", [], ads
-    elements = _mappings(overview.get("items"))
-    paid = [element for element in elements if element.get("type") in AD_TYPES]
-    ads.extend(_ad(element) for element in paid)
-    if paid:
-        text = "\n\n".join(
-            _text(element.get("markdown")) or ""
-            for element in elements
-            if element.get("type") not in AD_TYPES
-        )
-    else:
-        text = _text(overview.get("markdown")) or ""
-    sources = _Sources()
-    for reference in _mappings(overview.get("references")):
+    parts: list[str] = []
+    references: list[Mapping[str, Any]] = []
+    cited: list[tuple[int, Mapping[str, Any]]] = []
+    position = 0
+    for overview in overviews:
+        elements = _mappings(overview.get("items"))
+        paid = [element for element in elements if element.get("type") in AD_TYPES]
+        ads.extend(_ad(element) for element in paid)
+        if paid:
+            parts.append(
+                "\n\n".join(
+                    _text(element.get("markdown")) or ""
+                    for element in elements
+                    if element.get("type") not in AD_TYPES
+                )
+            )
+        else:
+            parts.append(_text(overview.get("markdown")) or "")
+        references.extend(_mappings(overview.get("references")))
+        for element in elements:
+            if element.get("type") not in AD_TYPES:
+                cited.append((position, element))
+            position += 1
+    sources = _Sources(_ad_keys(ads))
+    for reference in references:
         sources.add(reference, "reference_card", None, cited=False, name_field="source")
-    for position, element in enumerate(elements):
-        if element.get("type") in AD_TYPES:
-            continue
+    for position, element in cited:
         for link in _mappings(element.get("links")):
             sources.add(link, "inline", position, cited=True)
-    return text, sources.found(), ads
+    return "\n\n".join(part for part in parts if part), sources.found(), ads
 
 
 class _Sources:
     """Sources in first-appearance order, one per canonical URL (doc 14 section 9)."""
 
-    def __init__(self) -> None:
+    def __init__(self, advertised: frozenset[str] = frozenset()) -> None:
+        # Keys of the addresses the answer's ads point at: an ad is never a citation (doc 07
+        # section 5.4), whichever list also carries the address.
+        self._advertised = advertised
         self._order: list[str] = []
         self._first: dict[str, CitedSource] = {}
         self._cited: dict[str, int] = {}
@@ -277,11 +304,9 @@ class _Sources:
         raw = _text(source.get("url"))
         if not raw:
             return
-        try:
-            url: CanonicalUrl | None = canonicalize(raw)
-        except UrlRejectedError:
-            url = None
-        key = url.url_hash.hex() if url is not None else f"raw:{raw}"
+        url, key = _identify(raw)
+        if key in self._advertised:
+            return
         if key not in self._first:
             self._order.append(key)
             self._first[key] = CitedSource(
@@ -316,6 +341,20 @@ class _Sources:
                 )
             )
         return found
+
+
+def _identify(raw: str) -> tuple[CanonicalUrl | None, str]:
+    """The canonical URL of an address (None when it is not a web page) and the key that tells
+    two addresses of one page apart from the rest."""
+    try:
+        url: CanonicalUrl | None = canonicalize(raw)
+    except UrlRejectedError:
+        url = None
+    return url, url.url_hash.hex() if url is not None else f"raw:{raw}"
+
+
+def _ad_keys(ads: Sequence[Mapping[str, Any]]) -> frozenset[str]:
+    return frozenset(_identify(ad["url"])[1] for ad in ads if isinstance(ad.get("url"), str))
 
 
 def _ad(block: Mapping[str, Any]) -> dict[str, Any]:

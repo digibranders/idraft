@@ -175,6 +175,187 @@ def test_a_task_the_provider_refused_is_an_error_with_its_code() -> None:
     assert not answer.is_valid
 
 
+FILLER = (
+    " Acme SOC, Rival Watch and Orbit Defence each run a 24x7 security operations centre in India,"
+    " with managed detection, incident response and compliance reporting for mid-sized firms."
+)
+
+
+def _cited_answer(text: str, *urls: str) -> dict[str, Any]:
+    """A ChatGPT answer whose one block cites every url, listed again in the source list."""
+    sources = [{"type": "chat_gpt_source", "title": "T", "url": url} for url in urls]
+    block = {"type": "chat_gpt_text", "markdown": text, "sources": sources}
+    return _answer([{"markdown": text, "sources": sources, "items": [block]}])
+
+
+@pytest.mark.parametrize(
+    "opening",
+    [
+        "I can't help with choosing just one, but here are the five best SOC providers in India:",
+        "I'm unable to help narrow this to one vendor without your budget. Here are ten options:",
+    ],
+)
+def test_a_hedged_answer_that_opens_with_a_refusal_phrase_is_still_an_answer(opening: str) -> None:
+    text = opening + FILLER * 2
+    assert len(text) >= 300
+
+    answer = parse_ai_answer("chatgpt_web", _cited_answer(text, "https://acme-soc.example/"))
+
+    assert answer.status == "complete"
+    assert answer.is_valid
+
+
+def test_a_short_answer_that_opens_with_a_refusal_phrase_is_a_refusal_even_with_sources() -> None:
+    text = "I can't help with comparing security vendors for you." + FILLER
+    assert 40 < len(text) < 300
+
+    answer = parse_ai_answer("chatgpt_web", _cited_answer(text, "https://acme-soc.example/"))
+
+    assert answer.status == "refused"
+
+
+def test_a_refusal_phrase_further_into_the_answer_is_not_a_refusal() -> None:
+    text = "Here is what I found. I can't help with pricing, which is not public." + FILLER
+
+    assert parse_ai_answer("chatgpt_web", _cited_answer(text)).status == "complete"
+
+
+def test_a_long_refusal_without_any_source_is_a_refusal() -> None:
+    text = "I cannot help with that request." + FILLER * 2
+    assert len(text) >= 300
+    body = _answer([{"markdown": text, "items": [{"type": "chat_gpt_text", "markdown": text}]}])
+
+    assert parse_ai_answer("chatgpt_web", body).status == "refused"
+
+
+@pytest.mark.parametrize(
+    ("code", "text"),
+    [("40501", "40501"), (20100, "20100"), (None, "missing"), (50000, "50000")],
+)
+def test_only_a_task_status_of_exactly_20000_is_read(code: object, text: str) -> None:
+    body = _answer([{"markdown": "Acme SOC runs a 24x7 operations centre in Mumbai."}])
+    body["tasks"][0]["status_code"] = code
+
+    answer = parse_ai_answer("chatgpt_web", body)
+
+    assert (answer.status, answer.error_code, answer.answer_text) == ("error", text, None)
+
+
+def test_an_address_that_is_not_a_web_page_is_kept_without_a_canonical_url() -> None:
+    answer = parse_ai_answer(
+        "chatgpt_web",
+        _cited_answer(
+            "Acme SOC runs a 24x7 security operations centre in Mumbai.",
+            "javascript:void(0)",
+            "ftp://files.acme-soc.example/report.pdf",
+            "https://acme-soc.example/",
+        ),
+    )
+
+    assert [(source.raw_url, source.url is None) for source in answer.sources] == [
+        ("javascript:void(0)", True),
+        ("ftp://files.acme-soc.example/report.pdf", True),
+        ("https://acme-soc.example/", False),
+    ]
+    assert answer.provider_extras is not None
+    assert answer.provider_extras["unreadable_sources"] == 2
+
+
+@pytest.mark.parametrize("stamp", [None, "yesterday", "2026-11-12", "2026-13-45 99:00:00 +00:00"])
+def test_a_missing_or_malformed_datetime_is_no_observation_time(stamp: str | None) -> None:
+    body = _cited_answer("Acme SOC runs a 24x7 security operations centre in Mumbai.")
+    body["tasks"][0]["result"][0]["datetime"] = stamp
+
+    assert parse_ai_answer("chatgpt_web", body).observed_at is None
+
+
+def test_a_gemini_answer_is_its_markdown_and_carries_its_time() -> None:
+    answer = _parse("gemini_web", CAPTURED / "gemini_scraper_answer.json")
+    result = _load(CAPTURED / "gemini_scraper_answer.json")["tasks"][0]["result"][0]
+
+    assert answer.answer_text == result["markdown"]
+    assert answer.observed_at == datetime(2026, 11, 11, 6, 42, 14, tzinfo=UTC)
+
+
+def test_an_ai_mode_answer_carries_its_time() -> None:
+    answer = _parse("google_ai_mode", CAPTURED / "ai_mode_answer.json")
+
+    assert answer.observed_at == datetime(2026, 11, 11, 6, 40, 56, tzinfo=UTC)
+
+
+def test_an_advertised_address_is_not_cited_even_when_the_source_list_has_it() -> None:
+    ad = {
+        "type": "chat_gpt_ad",
+        "markdown": "Sponsored: Rival Watch.",
+        "url": "https://rival-watch.example/offer",
+        "domain": "rival-watch.example",
+    }
+    text = "Acme SOC runs a 24x7 security operations centre in Mumbai and Pune."
+    organic = {"type": "chat_gpt_source", "title": "Acme", "url": "https://acme-soc.example/"}
+    advertised = {
+        "type": "chat_gpt_source",
+        "title": "Rival",
+        "url": "https://rival-watch.example/offer?utm_source=chatgpt.com",
+    }
+    block = {"type": "chat_gpt_text", "markdown": text, "sources": [organic]}
+    body = _answer(
+        [{"markdown": text, "sources": [organic, advertised], "items": [block, ad]}],
+    )
+
+    answer = parse_ai_answer("chatgpt_web", body)
+
+    assert [source.raw_url for source in answer.sources] == ["https://acme-soc.example/"]
+
+
+@pytest.mark.parametrize("paid_type", ["ai_overview_paid", "paid"])
+def test_an_advertised_address_in_an_ai_mode_overview_is_not_cited(paid_type: str) -> None:
+    text = "Acme SOC runs a 24x7 security operations centre in Mumbai and Pune."
+    paid = {
+        "type": paid_type,
+        "markdown": "Sponsored.",
+        "url": "https://rival-watch.example/offer",
+    }
+    element = {
+        "type": "ai_overview_element",
+        "markdown": text,
+        "links": [
+            {"url": "https://acme-soc.example/"},
+            {"url": "https://rival-watch.example/offer"},
+        ],
+    }
+    reference = {"url": "https://rival-watch.example/offer", "source": "Rival"}
+    overview = {"type": "ai_overview", "markdown": text, "references": [reference]}
+    overview["items"] = [element, paid]
+    body = _answer([{"items": [overview]}])
+
+    answer = parse_ai_answer("google_ai_mode", body)
+
+    assert [source.raw_url for source in answer.sources] == ["https://acme-soc.example/"]
+
+
+def test_several_ai_mode_overviews_are_one_answer_in_order() -> None:
+    first = {
+        "type": "ai_overview",
+        "markdown": "Acme SOC runs a 24x7 operations centre in Mumbai.",
+        "references": [{"url": "https://acme-soc.example/", "source": "Acme"}],
+        "items": [],
+    }
+    second = {
+        "type": "ai_overview",
+        "markdown": "Rival Watch runs a 24x7 operations centre in Pune.",
+        "references": [{"url": "https://rival-watch.example/", "source": "Rival"}],
+        "items": [],
+    }
+
+    answer = parse_ai_answer("google_ai_mode", _answer([{"items": [first, second]}]))
+
+    assert answer.answer_text == f"{first['markdown']}\n\n{second['markdown']}"
+    assert [source.raw_url for source in answer.sources] == [
+        "https://acme-soc.example/",
+        "https://rival-watch.example/",
+    ]
+
+
 def test_a_task_without_a_result_is_empty() -> None:
     assert parse_ai_answer("gemini_web", _answer(None)).status == "empty"
 
