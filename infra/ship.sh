@@ -77,7 +77,9 @@ fi
 
 # What to check: what is new on main. What to deploy: what the VPS does not serve yet, so a deploy that
 # failed after its push is retried by the next run.
-changed="$(git diff --name-only origin/main HEAD)"
+# A file, not a variable: bash 5.3 hangs feeding a long list to grep through a here-string (a release of many files).
+changed="$(mktemp "${TMPDIR:-/tmp}/idraft-ship-changed.XXXXXX")"
+git diff --name-only origin/main HEAD > "$changed"
 backend_paths='^(backend/|infra/compose/postgres/initdb/)'
 web_paths='^(apps/web/|package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|backend/openapi/v1\.json)'
 behind_vps() {
@@ -87,13 +89,14 @@ behind_vps() {
   git cat-file -e "$serving^{commit}" 2>/dev/null || return 0
   git diff --name-only "$serving" HEAD | grep -qE "$2"
 }
-part_changed() { [ "${SHIP_ALL:-0}" = 1 ] || grep -qE "$1" <<<"$changed"; }
+part_changed() { [ "${SHIP_ALL:-0}" = 1 ] || grep -qE "$1" "$changed"; }
 deploy_backend=0 deploy_web=0 backend=0 web=0 infra=0
 { [ "${SHIP_ALL:-0}" = 1 ] || behind_vps backend "$backend_paths"; } && deploy_backend=1
 { [ "${SHIP_ALL:-0}" = 1 ] || behind_vps web "$web_paths"; } && deploy_web=1
 { part_changed "$backend_paths" || [ "$deploy_backend" = 1 ]; } && backend=1
 { part_changed "$web_paths" || [ "$deploy_web" = 1 ]; } && web=1
 part_changed '^(infra/|\.github/)' && infra=1
+rm -f "$changed"
 if [ "$sha" = "$(git rev-parse origin/main)" ] && [ "$deploy_backend$deploy_web" = 00 ]; then
   say "main already has $source_ref and the VPS serves it: nothing to release"
   exit 0
