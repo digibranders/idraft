@@ -592,6 +592,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         timeZone={project.timeZone}
         range={range}
         engines={enabled}
+        allEngines={engines.data?.data ?? []}
         counts={counts}
         positionText={
           at === null

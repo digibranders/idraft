@@ -19,6 +19,7 @@ import { Switch } from '@/components/ui/switch';
 import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
+import { projectKey } from '@/lib/api/keys';
 import { isApiProblem } from '@/lib/api/problem';
 import { useErrorId } from '@/lib/api/use-error-id';
 import type { ProjectEngine } from '@/lib/api/types';
@@ -182,6 +183,9 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
     }
     setDraft(null);
     setTouched(false);
+    // The first engine on makes the project's AI schedules. The key is the Schedules screen's (project-settings
+    // keeps it, and features do not import each other), so it is spelled out here as the runs key is elsewhere
+    void queryClient.invalidateQueries({ queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'schedules'] });
     await refreshPrompts(queryClient, scope);
   };
 

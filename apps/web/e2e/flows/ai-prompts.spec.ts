@@ -104,6 +104,10 @@ test.describe('AI prompt tracking', () => {
     await expect(page.getByRole('button', { name: 'Add prompts' })).toHaveCount(0);
     const inspector = await openFirstPrompt(page);
     await expect(inspector.getByRole('table', { name: 'Answers to this prompt' })).toBeVisible();
+    // The facts and the counts are in (the country is named once the countries have loaded, which Run now waits
+    // for too), so a missing Run now is the viewer's and not an inspector still loading
+    await expect(inspector.getByText('Germany', { exact: true })).toBeVisible();
+    await expect(inspector.getByText(/^Mentioned \d+ of \d+, cited \d+ of \d+$/).first()).toBeVisible();
     await expect(inspector.getByRole('button', { name: 'Run now' })).toHaveCount(0);
     await expectNoArchive(page, inspector);
 

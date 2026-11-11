@@ -68,6 +68,8 @@ export interface PromptInspectorProps {
   range: DateRange;
   /** The project's enabled engines: the counts per engine and what Run now asks. */
   engines: readonly ProjectEngine[];
+  /** Every engine of the project, on or off: an engine turned off keeps its answers, which are named by its label. */
+  allEngines: readonly ProjectEngine[];
   counts: PromptCounts;
   /** "12 of 23"; `null` when the prompt is not in the list on screen. */
   positionText: string | null;
@@ -94,6 +96,7 @@ export function PromptInspector({
   timeZone,
   range,
   engines,
+  allEngines,
   counts,
   positionText,
   navigation,
@@ -128,7 +131,7 @@ export function PromptInspector({
   const prompt = detail.data?.data ?? null;
   const path = { workspace_id: scope.workspaceId, project_id: scope.projectId, prompt_id: promptId };
   const engineLabel = new Map<string, string>(
-    engines.map((engine) => [engine.engine.engine_code, engine.engine.label]),
+    allEngines.map((engine) => [engine.engine.engine_code, engine.engine.label]),
   );
   const labelOf = (code: string): string => engineLabel.get(code) ?? code;
   // The engines Run now asks: those that take the prompt's length and have a location in its country. The API

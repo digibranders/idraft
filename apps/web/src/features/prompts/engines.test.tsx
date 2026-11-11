@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { EnginesScreen } from './engines-screen';
 import type { ProjectEngine, Role } from '@/lib/api/types';
@@ -117,6 +117,18 @@ describe('Project settings > Engines', () => {
     expect(await screen.findByText('Gemini is on')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Gemini' })).toBeChecked());
     expect(puts).toEqual([{ location_ids: [2840], is_enabled: true }]);
+  });
+
+  it('reads the schedules of the project again after an engine is switched, since the first engine makes its schedules', async () => {
+    const { user, queryClient } = renderWithProviders(enginesAs('editor', cleanstart, 'US'));
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    await user.click(await screen.findByRole('switch', { name: 'Gemini' }));
+    await user.click(await screen.findByRole('button', { name: 'Turn on Gemini' }));
+    await screen.findByText('Gemini is on');
+    // The key of the Schedules screen (features/project-settings), spelled out: features do not import each other
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['ws', MOCK_WORKSPACE.workspace_id, 'p', cleanstart.project_id, 'schedules'],
+    });
   });
 
   it('sends nothing when the question is cancelled', async () => {

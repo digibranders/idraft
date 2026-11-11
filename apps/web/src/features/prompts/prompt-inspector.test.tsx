@@ -704,6 +704,33 @@ describe('the prompt inspector: Run now', () => {
     expect(within(inspector).queryByRole('button', { name: 'Run now' })).toBeNull();
   });
 
+  it('names an engine that is off in the answers it still has, and asks and counts only the engines that are on', async () => {
+    const bodies: unknown[] = [];
+    server.events.on('request:start', ({ request }) => {
+      if (request.method === 'POST' && new URL(request.url).pathname.endsWith('/run-now')) {
+        void request
+          .clone()
+          .json()
+          .then((body: unknown) => bodies.push(body));
+      }
+    });
+    // The backend keeps what an engine answered when it is turned off
+    const gemini = promptsOf(fynix.project_id).engines.find((engine) => engine.engine_code === 'gemini_web');
+    if (gemini === undefined) throw new Error('The Gemini fixture is missing');
+    gemini.is_enabled = false;
+    const { user } = renderOn('analyst', opened);
+    const inspector = await panel();
+    const answers = await within(inspector).findByRole('table', { name: 'Answers to this prompt' });
+    await waitFor(() => expect(within(answers).getAllByText('Gemini')).toHaveLength(8));
+    expect(within(answers).queryByText('gemini_web')).toBeNull();
+    // The counts say nothing of the engine that is off
+    expect(await within(inspector).findByText('Mentioned 3 of 6, cited 4 of 6')).toBeInTheDocument();
+    expect(within(inspector).queryByText('Mentioned 6 of 8, cited 0 of 8')).toBeNull();
+    await user.click(within(inspector).getByRole('button', { name: 'Run now' }));
+    await screen.findByText('Run queued');
+    await waitFor(() => expect(bodies).toEqual([{ engine_codes: ['chatgpt_web'] }]));
+  });
+
   it('shows neither Run now nor its reason to a member who may not run', async () => {
     for (const engine of promptsOf(fynix.project_id).engines) engine.location_ids = [2356];
     renderOn('viewer', opened);
