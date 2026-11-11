@@ -29,6 +29,7 @@ From `backend/`:
 | S-01 billing and tag echo | `uv run python -m spikes.s01_billing_and_tags --cap 5 --keywords keywords.txt` | $5 | up to 2 hours |
 | S-02 payload sizes | `uv run python -m spikes.s02_payload_sizes --cap 5 --keywords keywords.txt` | $5 (600 tasks) | up to 2 hours |
 | S-03 AI Overview with and without async | `uv run python -m spikes.s03_ai_overview --cap 2 --keywords keywords.txt` | $2 | up to 2 hours |
+| S-04 and S-06 AI engines (ChatGPT, Gemini, AI Mode; 49 tasks, a reduced run) | `uv run python -m spikes.s04_ai_engines --cap 0.15 --raw-dir <folder>`, then `--analyze <folder> --cap 0.15` to write the report again at no cost | $0.15 (spent $0.0624) | about 10 minutes |
 | S-15 turnaround by hour | `uv run python -m spikes.s15_turnaround --cap 0.05 --keywords keywords.txt`, once an hour for 24 hours | $0.05 a run | up to 2 hours a run |
 
 Each writes `docs/spikes/S-xx.md` (S-15 also keeps its rows in `S-15.csv`). S-01 keeps one answer

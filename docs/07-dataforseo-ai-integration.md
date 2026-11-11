@@ -133,9 +133,11 @@ Same shape; no `force_web_search`; optional `location_coordinate` (`lat,lng,radi
 
 The choice between `chatgpt_web` and `chatgpt_web_forced_search` as the default ChatGPT series is made after S-04 measures, on 200 prompts (doc 01 section 12), the citation presence rate and fan-out presence rate for both variants. Decision rule: if the natural variant returns citations on at least 60% of commercial-intent prompts, the natural variant is the default because it better represents what users see; otherwise the forced variant is the default and the UI labels the series "ChatGPT (web search forced)".
 
+Spike result (2026-11-11, reduced run of 12 prompts, [S-04](spikes/S-04.md)): the natural variant returned sources on 6 of 6 commercial prompts, so `chatgpt_web` is the default ChatGPT series and `chatgpt_web_forced_search` is not collected unless a project asks for it. The 200 prompt run of doc 01 section 12 has not been made; repeat the check on real project prompts after the first weeks of data.
+
 ### 4.3 Turnaround
 
-Published turnaround is inconsistent across DataForSEO pages (standard up to 45 minutes on the pricing cards, up to 5 minutes in the intro text; live up to 90 or 120 seconds). The planner assumes the worst published value and the run window for AI workloads is 8 hours, which leaves room for retries. S-04 measures the real distribution.
+Published turnaround is inconsistent across DataForSEO pages (standard up to 45 minutes on the pricing cards, up to 5 minutes in the intro text; live up to 90 or 120 seconds). Measured on 2026-11-11 (S-04, 49 standard tasks, polled every 30 seconds): ChatGPT 77 s median and 238 s slowest, Gemini 231 s and 261 s, AI Mode 264 s; the 8 hour window stays as the planning value. The planner assumes the worst published value and the run window for AI workloads is 8 hours, which leaves room for retries. S-04 measures the real distribution.
 
 ## 5. Normalization (normalizer version 1)
 

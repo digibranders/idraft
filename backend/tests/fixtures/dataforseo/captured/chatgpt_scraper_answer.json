@@ -1,0 +1,986 @@
+{
+  "version": "0.1.20261103",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "1.5011 sec.",
+  "cost": 0,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "11110640-2666-0626-0000-62929163309c",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "time": "0.1117 sec.",
+      "cost": 0,
+      "result_count": 1,
+      "path": [
+        "v3",
+        "ai_optimization",
+        "chat_gpt",
+        "llm_scraper",
+        "task_get",
+        "advanced",
+        "11110640-2666-0626-0000-62929163309c"
+      ],
+      "data": {
+        "api": "ai_optimization",
+        "function": "llm_scraper",
+        "se": "chat_gpt",
+        "keyword": "What are the best managed SOC providers in India?",
+        "location_code": 2356,
+        "language_code": "en",
+        "priority": 1,
+        "tag": "i:spike:t:1:a:1:r:25e1cf7add374decac3c2f4811ac9a3e",
+        "device": "desktop",
+        "os": "windows"
+      },
+      "result": [
+        {
+          "keyword": "What are the best managed SOC providers in India?",
+          "location_code": 2356,
+          "language_code": "en",
+          "model": "gpt-6",
+          "check_url": "https://chatgpt.com/?prompt=What%20are%20the%20best%20managed%20SOC%20providers%20in%20India%3F",
+          "datetime": "2026-11-11 06:41:08 +00:00",
+          "markdown": "# Best Managed SOC Providers in India (2026)\n\nIndia has several strong Managed Security Operations Centre (SOC) providers, ranging from large IT services companies to specialist cybersecurity firms.\n\nIf you're evaluating a provider for an enterprise, BFSI organisation, government department, or mid-sized business, I would shortlist the following companies.\n\nThere is no universally accepted independent ranking of India's best SOC providers, so the list below is based on service capabilities, enterprise suitability, India delivery presence, and managed security offerings.\n\n## 1\\. Top managed SOC providers in India\n\nRecommended shortlist, grouped by strengths rather than an absolute ranking.\n\n| Provider | Best suited for | Key strengths |\n|--------|--------|--------|\n| **Tata Communications** | Large enterprises | Managed SOC, MDR, network and cloud security |\n| **Airtel Business** | Indian enterprises | 24×7 SOC, India-based operations, network security |\n| **Sify Technologies** | Indian enterprises | Managed security and infrastructure operations |\n| **HCLTech** | Large multinational enterprises | Enterprise SOC, SIEM, cloud security |\n| **Wipro** | Global enterprises | Managed security, threat detection and response |\n| **Infosys** | Large digital enterprises | Cybersecurity operations, cloud and identity security |\n| **NTT DATA** | Multinational organisations | Global SOC and managed security |\n| **IBM Security** | Complex and regulated environments | Threat intelligence, incident response, managed security |\n| **Sequretek** | Mid-market and enterprises | Specialist Indian cybersecurity and SOC services |\n| **Inspira Enterprise** | Indian enterprises | Managed SOC and cybersecurity services |\n| **Microland** | Infrastructure-heavy organisations | Managed infrastructure and security operations |\n| **C-DAC** | Government and public-sector organisations | 24×7 managed security and MDR |\n\n\nSources: Provider portfolios and the 2026 India MSSP market shortlist. [www.itechguides.com](https://www.itechguides.com/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com)[sekin.in](https://sekin.in/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com)[cdac.gov.in](https://cdac.gov.in/index.aspx?id=product_details&productId=SOC-as-a-Service&utm_source=chatgpt.com)[www.airtel.in](https://www.airtel.in/b2b/security-operations-center-soc?utm_source=chatgpt.com)\n\n## 2\\. My top recommendations\n\n![Bharti Airtel: Airtel Business plans to woo startups to digital platform - The Economic Times](https://images.openai.com/static-rsc-4/HtPoqC9FcBqM_MiiugLtr0tcgGxExWTFB8SNhQLfwJK3WaNu6jRtEx38vXL38Q-G0v512c0bs4C0zn2h4l-yzsJ3Cdd_66bUAT50iik8ZExgkb6TDYaKGR_wReGpFNyS7bA38Z22cwLw2kxa0fLc_oMzVQF-9NlYG6KNVRAdNKJgIH30GITxBohR3SxOvuAw?purpose=fullsize)\n\n**1\\. Airtel Business**\n\n(Strong India-focused option)\n\n- 24×7 security monitoring.\n- Vendor-agnostic security operations.\n- India-based threat data and analyst operations.\n- Network-level threat visibility.\n\nAirtel advertises 350+ certified analysts and two monitoring centres. [www.itechguides.com](https://www.itechguides.com/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com)[sekin.in](https://sekin.in/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com)[cdac.gov.in](https://cdac.gov.in/index.aspx?id=product_details&productId=SOC-as-a-Service&utm_source=chatgpt.com)[www.airtel.in](https://www.airtel.in/b2b/security-operations-center-soc?utm_source=chatgpt.com)\n\n[Official SOC services](https://www.airtel.in/b2b/security-operations-center-soc)\n\n---\n\n![Tata Communications Logo PNG Vector (AI) Free Download](https://images.openai.com/static-rsc-4/H9UNhQDro640mFnyEw6G3lamuDLF7ZmZgznwpf3S0cK0D9HtVTbdFjc3r-M7QJb9lgLm7hsLGG4xfPGRCPECWkZZCsl8EXmYdalA01hPsc9QS_bUapnguwty93vYjpp_nZ0e7QVOLExAmmwBn3fGxtt6Fisp_I5Vt5UTs3558F7_-HrGtXwpfxUZgw_PRjGc?purpose=fullsize)\n\n**2\\. Tata Communications**\n\n- Managed Detection and Response.\n- Network and cloud security.\n- SASE and zero-trust capabilities.\n- Suitable for large, distributed enterprises.\n\n[Official website](https://www.tatacommunications.com/)\n\n---\n\n![HCL Technologies Ltd - Fortune India](https://images.openai.com/static-rsc-4/Mk-TSRWQMzCVDaC6RaMJ_GYOMghocHQlBRhVgajiiRYkemmUl4Uo50zp0r5jDa7s1n9HhP3Qu1t_4sN2xBVg4NeiHNZki5QGNjbr8Blj2L_r0OoemGM9MwL8eFv6RKrdcy3pQK4hH6F_aUMujibUrg71kEc5nMxdgELwu3xi8D36wnkVCiyN1aXleu4hXvXR?purpose=fullsize)\n\n**3\\. HCLTech**\n\n- Enterprise-grade security operations.\n- SIEM and security engineering.\n- Cloud and infrastructure security.\n- Suitable for complex multinational environments.\n\n[Official website](https://www.hcltech.com/)\n\n---\n\n![Sequretek Ensures Every Asset Matters with the Launch of Percept CTEM - The Tribune](https://images.openai.com/static-rsc-4/OfgtjXgElvN-1BWIcXlJJ8EzOxQohrgCnq5juyuHbcKWhHzZlSEWB_A_ss5AhImekLLvdPwysIMRf5fM6dHSI8JUvCclkAMAPci2J9of9OhnZx9m4y3ECmdJgLoaxPnoazVU07Jk5corZt_1M60dq1qlPBgjg4wwFMU9N93L9Dd2JrZzTxocikC9H3Xqhf9S?purpose=fullsize)\n\n**4\\. Sequretek**\n\n- Specialist cybersecurity provider.\n- Managed detection and SOC services.\n- SIEM and security analytics.\n- Worth evaluating for mid-market organisations.\n\n[Official website](https://www.sequretek.com/)\n\n---\n\n![National Conference on PKI and Digital Signature](https://images.openai.com/static-rsc-4/p-rr98-ZaNSjs2MN3LTVZvatBUtfoCsvV2RRl310QMm4KFlKw4nL1xEVDI3YfRgmodGTgTOiNXnDXb61d8MWsbMoZZrn6ApZDBReEm66hfN0ZWvmL_1j3HuvJ5YXFac7-ta91q2W4D3mnZFpdOWu2bgQe2Oyxo13ehIf5ZskJFtdfnJqM8p0Ll2sO1Leblg6?purpose=fullsize)\n\n**5\\. C-DAC**\n\n- 24×7 managed security services.\n- Managed Detection and Response.\n- Security monitoring using SIEM.\n- Particularly worth considering for government and public-sector requirements.\n\n[Official website](https://cdac.gov.in/)\n\n[www.itechguides.com](https://www.itechguides.com/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com)[sekin.in](https://sekin.in/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com)[cdac.gov.in](https://cdac.gov.in/index.aspx?id=product_details&productId=SOC-as-a-Service&utm_source=chatgpt.com)[www.airtel.in](https://www.airtel.in/b2b/security-operations-center-soc?utm_source=chatgpt.com)\n\n## 3\\. Which provider should you choose?\n\nMy recommendation depends on the operating model\\:\n\n| Requirement | Providers I'd evaluate first |\n|--------|--------|\n| Fully outsourced 24×7 SOC | Airtel, Tata Communications, Sify |\n| Large enterprise SOC | HCLTech, Wipro, IBM |\n| Global SOC operations | NTT DATA, IBM, Infosys |\n| Mid-market SOC | Sequretek, Inspira, Microland |\n| Government / PSU | C-DAC, Airtel, Tata Communications |\n| Co-managed SOC | Airtel, Sify, Tata Communications |\n\n\n## 4\\. Important capabilities to evaluate\n\nDon't select an SOC provider based only on its SIEM platform or the number of security analysts.\n\nI recommend evaluating these capabilities\\:\n\n| Evaluation parameter | What to verify |\n|--------|--------|\n| SOC availability | Genuine 24×7×365 analyst coverage |\n| SIEM | Microsoft Sentinel, Splunk, QRadar, or equivalent |\n| EDR/XDR | CrowdStrike, SentinelOne, Microsoft Defender, etc. |\n| Threat intelligence | Commercial and government intelligence feeds |\n| Incident response | Investigation, containment and remediation |\n| Threat hunting | Proactive threat detection |\n| Cloud security | AWS, Azure and GCP monitoring |\n| Compliance | CERT-In, RBI, SEBI, ISO 27001 and applicable DPDP requirements |\n| Reporting | MTTD, MTTR, incident reports and executive dashboards |\n| Data residency | Where logs, incident records and customer data are stored |\n\n\n**One particularly important point\\:** Ask whether the provider can actually isolate compromised endpoints, disable accounts and block malicious traffic, or merely generate alerts for your internal team.\n\n## 5\\. Questions to ask before finalising a provider\n\n1. Where is your SOC physically located?\n2. How many L1, L2 and L3 analysts are available per shift?\n3. Is the SOC operated by your own employees or subcontractors?\n4. Do you provide your own SIEM or support customer-owned SIEM?\n5. What is your guaranteed incident acknowledgement and response SLA?\n6. Do you provide proactive threat hunting?\n7. Can you demonstrate incident investigation using MITRE ATT&amp;CK?\n8. Do you provide incident response and forensic investigation?\n9. Can you share references from customers in our industry?\n10. What are your onboarding costs and recurring monthly charges?\n\n---\n\n## 6\\. Let me narrow down the best providers\n\nI can make a more useful shortlist if I understand what type of SOC you are looking for.\n\n**1\\. What type of organisation is this for?**\n\nLarge enterprise\n\nMid-sized business\n\nSME / Startup\n\nGovernment / PSU\n\nBanking / Financial services\n\nMSSP / MSP looking for SOC partnership\n\n---\n\n**2\\. What service model do you need?**\n\nFully managed SOC\n\nCo-managed SOC\n\nSOC as a Service\n\nManaged Detection and Response (MDR)\n\nWhite-label SOC\n\n---\n\n**3\\. Expected monthly budget**\n\nBelow ₹5 lakh\n\n₹5–15 lakh\n\n₹15–30 lakh\n\n₹30–50 lakh\n\nAbove ₹50 lakh\n\nNot decided\n\n---\n\n**4\\. Preferred technology**\n\nTechnology agnostic\n\nMicrosoft Sentinel\n\nSplunk\n\nIBM QRadar\n\nOpen-source SIEM\n\n---\n\n**5\\. Where will the SOC operate?**\n\nIndia-based operations\n\nGlobal operations\n\nBoth India and global operations\n\n[Find my best-fit SOC providers]\n\nI can then narrow this down to the **best 5 providers in India**, with a comparative vendor scorecard, strengths, weaknesses and an RFP checklist.",
+          "search_results": [
+            {
+              "type": "chatgpt_search_result",
+              "url": "https://www.itechguides.com/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/",
+              "domain": "www.itechguides.com",
+              "title": "Top 12 Managed Security Service Providers (MSSP) in India 2026",
+              "description": null,
+              "breadcrumb": "www.itechguides.com"
+            },
+            {
+              "type": "chatgpt_search_result",
+              "url": "https://sekin.in/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/",
+              "domain": "sekin.in",
+              "title": "Top 12 MSSPs in India (2026): Providers, Services & RFP Checklist",
+              "description": null,
+              "breadcrumb": "sekin.in"
+            },
+            {
+              "type": "chatgpt_search_result",
+              "url": "https://rottenwifi.com/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/",
+              "domain": "rottenwifi.com",
+              "title": "12 Best MSSPs in India for 2026: Shortlist and RFP Guide",
+              "description": null,
+              "breadcrumb": "rottenwifi.com"
+            },
+            {
+              "type": "chatgpt_search_result",
+              "url": "https://eventussecurity.com/cybersecurity/india/soc-service-providers/",
+              "domain": "eventussecurity.com",
+              "title": "Best SOC-as-a-Service Providers in India 2026 - Eventus Security",
+              "description": null,
+              "breadcrumb": "eventussecurity.com"
+            },
+            {
+              "type": "chatgpt_search_result",
+              "url": "https://eventussecurity.com/cybersecurity/india/mssp-companies/",
+              "domain": "eventussecurity.com",
+              "title": "Top 10 MSSP Companies in India 2026: Compared",
+              "description": null,
+              "breadcrumb": "eventussecurity.com"
+            },
+            {
+              "type": "chatgpt_search_result",
+              "url": "https://www.macksofy.com/blog/top-managed-soc-providers-india-2026",
+              "domain": "www.macksofy.com",
+              "title": "Top Managed SOC Providers India: 2026 Guide",
+              "description": null,
+              "breadcrumb": "www.macksofy.com"
+            },
+            {
+              "type": "chatgpt_search_result",
+              "url": "https://cdac.gov.in/index.aspx?id=product_details&productId=SOC-as-a-Service",
+              "domain": "cdac.gov.in",
+              "title": "Product Information",
+              "description": null,
+              "breadcrumb": "cdac.gov.in"
+            },
+            {
+              "type": "chatgpt_search_result",
+              "url": "https://www.techvendorindex.com/regions/india/cybersecurity-services/",
+              "domain": "www.techvendorindex.com",
+              "title": "Cybersecurity Services in India 2026 — TechVendorIndex",
+              "description": null,
+              "breadcrumb": "www.techvendorindex.com"
+            },
+            {
+              "type": "chatgpt_search_result",
+              "url": "https://www.ecsinfotech.com/top-soc-service-providers-in-india/",
+              "domain": "www.ecsinfotech.com",
+              "title": "Top 10 SOC Service Providers in India (2026)",
+              "description": null,
+              "breadcrumb": "www.ecsinfotech.com"
+            },
+            {
+              "type": "chatgpt_search_result",
+              "url": "https://revenuebase.ai/companies/managed-security-service-providers-mssp-suppliers/india",
+              "domain": "revenuebase.ai",
+              "title": "Top 19 Managed security service providers (mssp) suppliers based in India",
+              "description": null,
+              "breadcrumb": "revenuebase.ai"
+            },
+            {
+              "type": "chatgpt_search_result",
+              "url": "https://www.airtel.in/b2b/security-operations-center-soc",
+              "domain": "www.airtel.in",
+              "title": "Managed SOC Services for Cyber Threat Monitoring by Airtel",
+              "description": null,
+              "breadcrumb": "www.airtel.in"
+            },
+            {
+              "type": "chatgpt_search_result",
+              "url": "https://digialert.com/resources/blog/best-soc-service-providers-in-india-2026",
+              "domain": "digialert.com",
+              "title": "Best SOC Service Providers in India | 2026",
+              "description": null,
+              "breadcrumb": "digialert.com"
+            }
+          ],
+          "sources": [
+            {
+              "type": "chat_gpt_source",
+              "title": "Top 12 Managed Security Service Providers (MSSP) in India 2026",
+              "snippet": null,
+              "domain": "www.itechguides.com",
+              "url": "https://www.itechguides.com/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com",
+              "thumbnail": null,
+              "source_name": "iTechGuides",
+              "publication_date": "2026-09-30 00:00:00 +00:00",
+              "markdown": null
+            },
+            {
+              "type": "chat_gpt_source",
+              "title": "Top 12 MSSPs in India (2026): Providers, Services & RFP Checklist",
+              "snippet": null,
+              "domain": "sekin.in",
+              "url": "https://sekin.in/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com",
+              "thumbnail": null,
+              "source_name": "Sekin",
+              "publication_date": "2026-09-08 00:00:00 +00:00",
+              "markdown": null
+            },
+            {
+              "type": "chat_gpt_source",
+              "title": "Product Information",
+              "snippet": null,
+              "domain": "cdac.gov.in",
+              "url": "https://cdac.gov.in/index.aspx?id=product_details&productId=SOC-as-a-Service&utm_source=chatgpt.com",
+              "thumbnail": null,
+              "source_name": "C-DAC",
+              "publication_date": null,
+              "markdown": null
+            },
+            {
+              "type": "chat_gpt_source",
+              "title": "Managed SOC Services for Cyber Threat Monitoring by Airtel",
+              "snippet": null,
+              "domain": "www.airtel.in",
+              "url": "https://www.airtel.in/b2b/security-operations-center-soc?utm_source=chatgpt.com",
+              "thumbnail": null,
+              "source_name": "Airtel",
+              "publication_date": null,
+              "markdown": null
+            },
+            {
+              "type": "chat_gpt_source",
+              "title": "Official SOC services",
+              "snippet": null,
+              "domain": "www.airtel.in",
+              "url": "https://www.airtel.in/b2b/security-operations-center-soc",
+              "thumbnail": null,
+              "source_name": null,
+              "publication_date": null,
+              "markdown": "[Official SOC services](https://www.airtel.in/b2b/security-operations-center-soc)"
+            },
+            {
+              "type": "chat_gpt_source",
+              "title": "Official website",
+              "snippet": null,
+              "domain": "www.tatacommunications.com",
+              "url": "https://www.tatacommunications.com/",
+              "thumbnail": null,
+              "source_name": null,
+              "publication_date": null,
+              "markdown": "[Official website](https://www.tatacommunications.com/)"
+            },
+            {
+              "type": "chat_gpt_source",
+              "title": "Official website",
+              "snippet": null,
+              "domain": "www.hcltech.com",
+              "url": "https://www.hcltech.com/",
+              "thumbnail": null,
+              "source_name": null,
+              "publication_date": null,
+              "markdown": "[Official website](https://www.hcltech.com/)"
+            },
+            {
+              "type": "chat_gpt_source",
+              "title": "Official website",
+              "snippet": null,
+              "domain": "www.sequretek.com",
+              "url": "https://www.sequretek.com/",
+              "thumbnail": null,
+              "source_name": null,
+              "publication_date": null,
+              "markdown": "[Official website](https://www.sequretek.com/)"
+            },
+            {
+              "type": "chat_gpt_source",
+              "title": "Official website",
+              "snippet": null,
+              "domain": "cdac.gov.in",
+              "url": "https://cdac.gov.in/",
+              "thumbnail": null,
+              "source_name": null,
+              "publication_date": null,
+              "markdown": "[Official website](https://cdac.gov.in/)"
+            }
+          ],
+          "fan_out_queries": [
+            "best managed SOC providers in India 2026 MSSP 24x7 SOC services India"
+          ],
+          "brand_entities": [
+            {
+              "type": "chat_gpt_brand_entity",
+              "title": "Tata Communications",
+              "category": "company",
+              "markdown": "Tata Communications",
+              "urls": null
+            },
+            {
+              "type": "chat_gpt_brand_entity",
+              "title": "Airtel Business",
+              "category": "company",
+              "markdown": "Airtel Business",
+              "urls": null
+            },
+            {
+              "type": "chat_gpt_brand_entity",
+              "title": "Sify Technologies",
+              "category": "company",
+              "markdown": "Sify Technologies",
+              "urls": null
+            },
+            {
+              "type": "chat_gpt_brand_entity",
+              "title": "HCLTech",
+              "category": "company",
+              "markdown": "HCLTech",
+              "urls": null
+            },
+            {
+              "type": "chat_gpt_brand_entity",
+              "title": "Wipro",
+              "category": "company",
+              "markdown": "Wipro",
+              "urls": null
+            },
+            {
+              "type": "chat_gpt_brand_entity",
+              "title": "Infosys",
+              "category": "company",
+              "markdown": "Infosys",
+              "urls": null
+            },
+            {
+              "type": "chat_gpt_brand_entity",
+              "title": "NTT DATA",
+              "category": "company",
+              "markdown": "NTT DATA",
+              "urls": null
+            },
+            {
+              "type": "chat_gpt_brand_entity",
+              "title": "IBM Security",
+              "category": "company",
+              "markdown": "IBM Security",
+              "urls": null
+            },
+            {
+              "type": "chat_gpt_brand_entity",
+              "title": "Sequretek",
+              "category": "company",
+              "markdown": "Sequretek",
+              "urls": null
+            },
+            {
+              "type": "chat_gpt_brand_entity",
+              "title": "Inspira Enterprise",
+              "category": "company",
+              "markdown": "Inspira Enterprise",
+              "urls": null
+            },
+            {
+              "type": "chat_gpt_brand_entity",
+              "title": "Microland",
+              "category": "company",
+              "markdown": "Microland",
+              "urls": null
+            },
+            {
+              "type": "chat_gpt_brand_entity",
+              "title": "C-DAC",
+              "category": "organization",
+              "markdown": "C-DAC",
+              "urls": null
+            }
+          ],
+          "se_results_count": 0,
+          "item_types": [
+            "chat_gpt_text",
+            "chat_gpt_table",
+            "chat_gpt_images"
+          ],
+          "items_count": 17,
+          "items": [
+            {
+              "type": "chat_gpt_text",
+              "rank_group": 1,
+              "rank_absolute": 1,
+              "markdown": "# Best Managed SOC Providers in India (2026)\n\nIndia has several strong Managed Security Operations Centre (SOC) providers, ranging from large IT services companies to specialist cybersecurity firms.\n\nIf you're evaluating a provider for an enterprise, BFSI organisation, government department, or mid-sized business, I would shortlist the following companies.\n\nThere is no universally accepted independent ranking of India's best SOC providers, so the list below is based on service capabilities, enterprise suitability, India delivery presence, and managed security offerings.\n\n## 1\\. Top managed SOC providers in India\n\nRecommended shortlist, grouped by strengths rather than an absolute ranking.\n\n",
+              "sources": null,
+              "brand_entities": null
+            },
+            {
+              "type": "chat_gpt_table",
+              "rank_group": 1,
+              "rank_absolute": 2,
+              "text": null,
+              "markdown": "| Provider | Best suited for | Key strengths |\n|--------|--------|--------|\n| **Tata Communications** | Large enterprises | Managed SOC, MDR, network and cloud security |\n| **Airtel Business** | Indian enterprises | 24×7 SOC, India-based operations, network security |\n| **Sify Technologies** | Indian enterprises | Managed security and infrastructure operations |\n| **HCLTech** | Large multinational enterprises | Enterprise SOC, SIEM, cloud security |\n| **Wipro** | Global enterprises | Managed security, threat detection and response |\n| **Infosys** | Large digital enterprises | Cybersecurity operations, cloud and identity security |\n| **NTT DATA** | Multinational organisations | Global SOC and managed security |\n| **IBM Security** | Complex and regulated environments | Threat intelligence, incident response, managed security |\n| **Sequretek** | Mid-market and enterprises | Specialist Indian cybersecurity and SOC services |\n| **Inspira Enterprise** | Indian enterprises | Managed SOC and cybersecurity services |\n| **Microland** | Infrastructure-heavy organisations | Managed infrastructure and security operations |\n| **C-DAC** | Government and public-sector organisations | 24×7 managed security and MDR |\n\n",
+              "table": {
+                "table_header": [
+                  "Provider",
+                  "Best suited for",
+                  "Key strengths"
+                ],
+                "table_content": [
+                  [
+                    "**Tata Communications**",
+                    "Large enterprises",
+                    "Managed SOC, MDR, network and cloud security"
+                  ],
+                  [
+                    "**Airtel Business**",
+                    "Indian enterprises",
+                    "24×7 SOC, India-based operations, network security"
+                  ],
+                  [
+                    "**Sify Technologies**",
+                    "Indian enterprises",
+                    "Managed security and infrastructure operations"
+                  ],
+                  [
+                    "**HCLTech**",
+                    "Large multinational enterprises",
+                    "Enterprise SOC, SIEM, cloud security"
+                  ],
+                  [
+                    "**Wipro**",
+                    "Global enterprises",
+                    "Managed security, threat detection and response"
+                  ],
+                  [
+                    "**Infosys**",
+                    "Large digital enterprises",
+                    "Cybersecurity operations, cloud and identity security"
+                  ],
+                  [
+                    "**NTT DATA**",
+                    "Multinational organisations",
+                    "Global SOC and managed security"
+                  ],
+                  [
+                    "**IBM Security**",
+                    "Complex and regulated environments",
+                    "Threat intelligence, incident response, managed security"
+                  ],
+                  [
+                    "**Sequretek**",
+                    "Mid-market and enterprises",
+                    "Specialist Indian cybersecurity and SOC services"
+                  ],
+                  [
+                    "**Inspira Enterprise**",
+                    "Indian enterprises",
+                    "Managed SOC and cybersecurity services"
+                  ],
+                  [
+                    "**Microland**",
+                    "Infrastructure-heavy organisations",
+                    "Managed infrastructure and security operations"
+                  ],
+                  [
+                    "**C-DAC**",
+                    "Government and public-sector organisations",
+                    "24×7 managed security and MDR"
+                  ]
+                ]
+              },
+              "brand_entities": [
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "Tata Communications",
+                  "category": "company",
+                  "markdown": "Tata Communications",
+                  "urls": null
+                },
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "Airtel Business",
+                  "category": "company",
+                  "markdown": "Airtel Business",
+                  "urls": null
+                },
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "Sify Technologies",
+                  "category": "company",
+                  "markdown": "Sify Technologies",
+                  "urls": null
+                },
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "HCLTech",
+                  "category": "company",
+                  "markdown": "HCLTech",
+                  "urls": null
+                },
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "Wipro",
+                  "category": "company",
+                  "markdown": "Wipro",
+                  "urls": null
+                },
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "Infosys",
+                  "category": "company",
+                  "markdown": "Infosys",
+                  "urls": null
+                },
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "NTT DATA",
+                  "category": "company",
+                  "markdown": "NTT DATA",
+                  "urls": null
+                },
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "IBM Security",
+                  "category": "company",
+                  "markdown": "IBM Security",
+                  "urls": null
+                },
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "Sequretek",
+                  "category": "company",
+                  "markdown": "Sequretek",
+                  "urls": null
+                },
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "Inspira Enterprise",
+                  "category": "company",
+                  "markdown": "Inspira Enterprise",
+                  "urls": null
+                },
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "Microland",
+                  "category": "company",
+                  "markdown": "Microland",
+                  "urls": null
+                },
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "C-DAC",
+                  "category": "organization",
+                  "markdown": "C-DAC",
+                  "urls": null
+                }
+              ]
+            },
+            {
+              "type": "chat_gpt_text",
+              "rank_group": 2,
+              "rank_absolute": 3,
+              "markdown": "\nSources: Provider portfolios and the 2026 India MSSP market shortlist. [www.itechguides.com](https://www.itechguides.com/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com)[sekin.in](https://sekin.in/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com)[cdac.gov.in](https://cdac.gov.in/index.aspx?id=product_details&productId=SOC-as-a-Service&utm_source=chatgpt.com)[www.airtel.in](https://www.airtel.in/b2b/security-operations-center-soc?utm_source=chatgpt.com)\n\n## 2\\. My top recommendations\n\n",
+              "sources": [
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Top 12 Managed Security Service Providers (MSSP) in India 2026",
+                  "snippet": null,
+                  "domain": "www.itechguides.com",
+                  "url": "https://www.itechguides.com/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com",
+                  "thumbnail": null,
+                  "source_name": "iTechGuides",
+                  "publication_date": "2026-09-30 00:00:00 +00:00",
+                  "markdown": null
+                },
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Top 12 MSSPs in India (2026): Providers, Services & RFP Checklist",
+                  "snippet": null,
+                  "domain": "sekin.in",
+                  "url": "https://sekin.in/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com",
+                  "thumbnail": null,
+                  "source_name": "Sekin",
+                  "publication_date": "2026-09-08 00:00:00 +00:00",
+                  "markdown": null
+                },
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Product Information",
+                  "snippet": null,
+                  "domain": "cdac.gov.in",
+                  "url": "https://cdac.gov.in/index.aspx?id=product_details&productId=SOC-as-a-Service&utm_source=chatgpt.com",
+                  "thumbnail": null,
+                  "source_name": "C-DAC",
+                  "publication_date": null,
+                  "markdown": null
+                },
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Managed SOC Services for Cyber Threat Monitoring by Airtel",
+                  "snippet": null,
+                  "domain": "www.airtel.in",
+                  "url": "https://www.airtel.in/b2b/security-operations-center-soc?utm_source=chatgpt.com",
+                  "thumbnail": null,
+                  "source_name": "Airtel",
+                  "publication_date": null,
+                  "markdown": null
+                }
+              ],
+              "brand_entities": null
+            },
+            {
+              "type": "chat_gpt_images",
+              "rank_group": 1,
+              "rank_absolute": 4,
+              "markdown": "![Bharti Airtel: Airtel Business plans to woo startups to digital platform - The Economic Times](https://images.openai.com/static-rsc-4/HtPoqC9FcBqM_MiiugLtr0tcgGxExWTFB8SNhQLfwJK3WaNu6jRtEx38vXL38Q-G0v512c0bs4C0zn2h4l-yzsJ3Cdd_66bUAT50iik8ZExgkb6TDYaKGR_wReGpFNyS7bA38Z22cwLw2kxa0fLc_oMzVQF-9NlYG6KNVRAdNKJgIH30GITxBohR3SxOvuAw?purpose=fullsize)",
+              "items": [
+                {
+                  "type": "chat_gpt_images_element",
+                  "url": "https://m.economictimes.com/small-biz/startups/airtel-business-plans-to-woo-startups-to-digital-platform/articleshow/58991030.cms",
+                  "alt": "Bharti Airtel: Airtel Business plans to woo startups to digital platform - The Economic Times",
+                  "image_url": "https://images.openai.com/static-rsc-4/HtPoqC9FcBqM_MiiugLtr0tcgGxExWTFB8SNhQLfwJK3WaNu6jRtEx38vXL38Q-G0v512c0bs4C0zn2h4l-yzsJ3Cdd_66bUAT50iik8ZExgkb6TDYaKGR_wReGpFNyS7bA38Z22cwLw2kxa0fLc_oMzVQF-9NlYG6KNVRAdNKJgIH30GITxBohR3SxOvuAw?purpose=fullsize",
+                  "markdown": "![Bharti Airtel: Airtel Business plans to woo startups to digital platform - The Economic Times](https://images.openai.com/static-rsc-4/HtPoqC9FcBqM_MiiugLtr0tcgGxExWTFB8SNhQLfwJK3WaNu6jRtEx38vXL38Q-G0v512c0bs4C0zn2h4l-yzsJ3Cdd_66bUAT50iik8ZExgkb6TDYaKGR_wReGpFNyS7bA38Z22cwLw2kxa0fLc_oMzVQF-9NlYG6KNVRAdNKJgIH30GITxBohR3SxOvuAw?purpose=fullsize)"
+                }
+              ]
+            },
+            {
+              "type": "chat_gpt_text",
+              "rank_group": 3,
+              "rank_absolute": 5,
+              "markdown": "\n\n**1\\. Airtel Business**\n\n(Strong India-focused option)\n\n- 24×7 security monitoring.\n- Vendor-agnostic security operations.\n- India-based threat data and analyst operations.\n- Network-level threat visibility.\n\nAirtel advertises 350+ certified analysts and two monitoring centres. [www.itechguides.com](https://www.itechguides.com/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com)[sekin.in](https://sekin.in/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com)[cdac.gov.in](https://cdac.gov.in/index.aspx?id=product_details&productId=SOC-as-a-Service&utm_source=chatgpt.com)[www.airtel.in](https://www.airtel.in/b2b/security-operations-center-soc?utm_source=chatgpt.com)\n\n[Official SOC services](https://www.airtel.in/b2b/security-operations-center-soc)\n\n---\n\n",
+              "sources": [
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Top 12 Managed Security Service Providers (MSSP) in India 2026",
+                  "snippet": null,
+                  "domain": "www.itechguides.com",
+                  "url": "https://www.itechguides.com/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com",
+                  "thumbnail": null,
+                  "source_name": "iTechGuides",
+                  "publication_date": "2026-09-30 00:00:00 +00:00",
+                  "markdown": null
+                },
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Top 12 MSSPs in India (2026): Providers, Services & RFP Checklist",
+                  "snippet": null,
+                  "domain": "sekin.in",
+                  "url": "https://sekin.in/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com",
+                  "thumbnail": null,
+                  "source_name": "Sekin",
+                  "publication_date": "2026-09-08 00:00:00 +00:00",
+                  "markdown": null
+                },
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Product Information",
+                  "snippet": null,
+                  "domain": "cdac.gov.in",
+                  "url": "https://cdac.gov.in/index.aspx?id=product_details&productId=SOC-as-a-Service&utm_source=chatgpt.com",
+                  "thumbnail": null,
+                  "source_name": "C-DAC",
+                  "publication_date": null,
+                  "markdown": null
+                },
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Managed SOC Services for Cyber Threat Monitoring by Airtel",
+                  "snippet": null,
+                  "domain": "www.airtel.in",
+                  "url": "https://www.airtel.in/b2b/security-operations-center-soc?utm_source=chatgpt.com",
+                  "thumbnail": null,
+                  "source_name": "Airtel",
+                  "publication_date": null,
+                  "markdown": null
+                },
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Official SOC services",
+                  "snippet": null,
+                  "domain": "www.airtel.in",
+                  "url": "https://www.airtel.in/b2b/security-operations-center-soc",
+                  "thumbnail": null,
+                  "source_name": null,
+                  "publication_date": null,
+                  "markdown": "[Official SOC services](https://www.airtel.in/b2b/security-operations-center-soc)"
+                }
+              ],
+              "brand_entities": [
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "Airtel Business",
+                  "category": "company",
+                  "markdown": "Airtel Business",
+                  "urls": null
+                }
+              ]
+            },
+            {
+              "type": "chat_gpt_images",
+              "rank_group": 2,
+              "rank_absolute": 6,
+              "markdown": "![Tata Communications Logo PNG Vector (AI) Free Download](https://images.openai.com/static-rsc-4/H9UNhQDro640mFnyEw6G3lamuDLF7ZmZgznwpf3S0cK0D9HtVTbdFjc3r-M7QJb9lgLm7hsLGG4xfPGRCPECWkZZCsl8EXmYdalA01hPsc9QS_bUapnguwty93vYjpp_nZ0e7QVOLExAmmwBn3fGxtt6Fisp_I5Vt5UTs3558F7_-HrGtXwpfxUZgw_PRjGc?purpose=fullsize)",
+              "items": [
+                {
+                  "type": "chat_gpt_images_element",
+                  "url": "https://seeklogo.com/vector-logo/289632/tata-communications",
+                  "alt": "Tata Communications Logo PNG Vector (AI) Free Download",
+                  "image_url": "https://images.openai.com/static-rsc-4/H9UNhQDro640mFnyEw6G3lamuDLF7ZmZgznwpf3S0cK0D9HtVTbdFjc3r-M7QJb9lgLm7hsLGG4xfPGRCPECWkZZCsl8EXmYdalA01hPsc9QS_bUapnguwty93vYjpp_nZ0e7QVOLExAmmwBn3fGxtt6Fisp_I5Vt5UTs3558F7_-HrGtXwpfxUZgw_PRjGc?purpose=fullsize",
+                  "markdown": "![Tata Communications Logo PNG Vector (AI) Free Download](https://images.openai.com/static-rsc-4/H9UNhQDro640mFnyEw6G3lamuDLF7ZmZgznwpf3S0cK0D9HtVTbdFjc3r-M7QJb9lgLm7hsLGG4xfPGRCPECWkZZCsl8EXmYdalA01hPsc9QS_bUapnguwty93vYjpp_nZ0e7QVOLExAmmwBn3fGxtt6Fisp_I5Vt5UTs3558F7_-HrGtXwpfxUZgw_PRjGc?purpose=fullsize)"
+                }
+              ]
+            },
+            {
+              "type": "chat_gpt_text",
+              "rank_group": 4,
+              "rank_absolute": 7,
+              "markdown": "\n\n**2\\. Tata Communications**\n\n- Managed Detection and Response.\n- Network and cloud security.\n- SASE and zero-trust capabilities.\n- Suitable for large, distributed enterprises.\n\n[Official website](https://www.tatacommunications.com/)\n\n---\n\n",
+              "sources": [
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Official website",
+                  "snippet": null,
+                  "domain": "www.tatacommunications.com",
+                  "url": "https://www.tatacommunications.com/",
+                  "thumbnail": null,
+                  "source_name": null,
+                  "publication_date": null,
+                  "markdown": "[Official website](https://www.tatacommunications.com/)"
+                }
+              ],
+              "brand_entities": [
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "Tata Communications",
+                  "category": "company",
+                  "markdown": "Tata Communications",
+                  "urls": null
+                }
+              ]
+            },
+            {
+              "type": "chat_gpt_images",
+              "rank_group": 3,
+              "rank_absolute": 8,
+              "markdown": "![HCL Technologies Ltd - Fortune India](https://images.openai.com/static-rsc-4/Mk-TSRWQMzCVDaC6RaMJ_GYOMghocHQlBRhVgajiiRYkemmUl4Uo50zp0r5jDa7s1n9HhP3Qu1t_4sN2xBVg4NeiHNZki5QGNjbr8Blj2L_r0OoemGM9MwL8eFv6RKrdcy3pQK4hH6F_aUMujibUrg71kEc5nMxdgELwu3xi8D36wnkVCiyN1aXleu4hXvXR?purpose=fullsize)",
+              "items": [
+                {
+                  "type": "chat_gpt_images_element",
+                  "url": "https://www.fortuneindia.com/companies/hcl-technologies-ltd",
+                  "alt": "HCL Technologies Ltd - Fortune India",
+                  "image_url": "https://images.openai.com/static-rsc-4/Mk-TSRWQMzCVDaC6RaMJ_GYOMghocHQlBRhVgajiiRYkemmUl4Uo50zp0r5jDa7s1n9HhP3Qu1t_4sN2xBVg4NeiHNZki5QGNjbr8Blj2L_r0OoemGM9MwL8eFv6RKrdcy3pQK4hH6F_aUMujibUrg71kEc5nMxdgELwu3xi8D36wnkVCiyN1aXleu4hXvXR?purpose=fullsize",
+                  "markdown": "![HCL Technologies Ltd - Fortune India](https://images.openai.com/static-rsc-4/Mk-TSRWQMzCVDaC6RaMJ_GYOMghocHQlBRhVgajiiRYkemmUl4Uo50zp0r5jDa7s1n9HhP3Qu1t_4sN2xBVg4NeiHNZki5QGNjbr8Blj2L_r0OoemGM9MwL8eFv6RKrdcy3pQK4hH6F_aUMujibUrg71kEc5nMxdgELwu3xi8D36wnkVCiyN1aXleu4hXvXR?purpose=fullsize)"
+                }
+              ]
+            },
+            {
+              "type": "chat_gpt_text",
+              "rank_group": 5,
+              "rank_absolute": 9,
+              "markdown": "\n\n**3\\. HCLTech**\n\n- Enterprise-grade security operations.\n- SIEM and security engineering.\n- Cloud and infrastructure security.\n- Suitable for complex multinational environments.\n\n[Official website](https://www.hcltech.com/)\n\n---\n\n",
+              "sources": [
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Official website",
+                  "snippet": null,
+                  "domain": "www.hcltech.com",
+                  "url": "https://www.hcltech.com/",
+                  "thumbnail": null,
+                  "source_name": null,
+                  "publication_date": null,
+                  "markdown": "[Official website](https://www.hcltech.com/)"
+                }
+              ],
+              "brand_entities": [
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "HCLTech",
+                  "category": "company",
+                  "markdown": "HCLTech",
+                  "urls": null
+                }
+              ]
+            },
+            {
+              "type": "chat_gpt_images",
+              "rank_group": 4,
+              "rank_absolute": 10,
+              "markdown": "![Sequretek Ensures Every Asset Matters with the Launch of Percept CTEM - The Tribune](https://images.openai.com/static-rsc-4/OfgtjXgElvN-1BWIcXlJJ8EzOxQohrgCnq5juyuHbcKWhHzZlSEWB_A_ss5AhImekLLvdPwysIMRf5fM6dHSI8JUvCclkAMAPci2J9of9OhnZx9m4y3ECmdJgLoaxPnoazVU07Jk5corZt_1M60dq1qlPBgjg4wwFMU9N93L9Dd2JrZzTxocikC9H3Xqhf9S?purpose=fullsize)",
+              "items": [
+                {
+                  "type": "chat_gpt_images_element",
+                  "url": "https://www.tribuneindia.com/news/business/sequretek-ensures-every-asset-matters-with-the-launch-of-percept-ctem/",
+                  "alt": "Sequretek Ensures Every Asset Matters with the Launch of Percept CTEM - The Tribune",
+                  "image_url": "https://images.openai.com/static-rsc-4/OfgtjXgElvN-1BWIcXlJJ8EzOxQohrgCnq5juyuHbcKWhHzZlSEWB_A_ss5AhImekLLvdPwysIMRf5fM6dHSI8JUvCclkAMAPci2J9of9OhnZx9m4y3ECmdJgLoaxPnoazVU07Jk5corZt_1M60dq1qlPBgjg4wwFMU9N93L9Dd2JrZzTxocikC9H3Xqhf9S?purpose=fullsize",
+                  "markdown": "![Sequretek Ensures Every Asset Matters with the Launch of Percept CTEM - The Tribune](https://images.openai.com/static-rsc-4/OfgtjXgElvN-1BWIcXlJJ8EzOxQohrgCnq5juyuHbcKWhHzZlSEWB_A_ss5AhImekLLvdPwysIMRf5fM6dHSI8JUvCclkAMAPci2J9of9OhnZx9m4y3ECmdJgLoaxPnoazVU07Jk5corZt_1M60dq1qlPBgjg4wwFMU9N93L9Dd2JrZzTxocikC9H3Xqhf9S?purpose=fullsize)"
+                }
+              ]
+            },
+            {
+              "type": "chat_gpt_text",
+              "rank_group": 6,
+              "rank_absolute": 11,
+              "markdown": "\n\n**4\\. Sequretek**\n\n- Specialist cybersecurity provider.\n- Managed detection and SOC services.\n- SIEM and security analytics.\n- Worth evaluating for mid-market organisations.\n\n[Official website](https://www.sequretek.com/)\n\n---\n\n",
+              "sources": [
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Official website",
+                  "snippet": null,
+                  "domain": "www.sequretek.com",
+                  "url": "https://www.sequretek.com/",
+                  "thumbnail": null,
+                  "source_name": null,
+                  "publication_date": null,
+                  "markdown": "[Official website](https://www.sequretek.com/)"
+                }
+              ],
+              "brand_entities": [
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "Sequretek",
+                  "category": "company",
+                  "markdown": "Sequretek",
+                  "urls": null
+                }
+              ]
+            },
+            {
+              "type": "chat_gpt_images",
+              "rank_group": 5,
+              "rank_absolute": 12,
+              "markdown": "![National Conference on PKI and Digital Signature](https://images.openai.com/static-rsc-4/p-rr98-ZaNSjs2MN3LTVZvatBUtfoCsvV2RRl310QMm4KFlKw4nL1xEVDI3YfRgmodGTgTOiNXnDXb61d8MWsbMoZZrn6ApZDBReEm66hfN0ZWvmL_1j3HuvJ5YXFac7-ta91q2W4D3mnZFpdOWu2bgQe2Oyxo13ehIf5ZskJFtdfnJqM8p0Ll2sO1Leblg6?purpose=fullsize)",
+              "items": [
+                {
+                  "type": "chat_gpt_images_element",
+                  "url": "https://pkiindia.in/nc/",
+                  "alt": "National Conference on PKI and Digital Signature",
+                  "image_url": "https://images.openai.com/static-rsc-4/p-rr98-ZaNSjs2MN3LTVZvatBUtfoCsvV2RRl310QMm4KFlKw4nL1xEVDI3YfRgmodGTgTOiNXnDXb61d8MWsbMoZZrn6ApZDBReEm66hfN0ZWvmL_1j3HuvJ5YXFac7-ta91q2W4D3mnZFpdOWu2bgQe2Oyxo13ehIf5ZskJFtdfnJqM8p0Ll2sO1Leblg6?purpose=fullsize",
+                  "markdown": "![National Conference on PKI and Digital Signature](https://images.openai.com/static-rsc-4/p-rr98-ZaNSjs2MN3LTVZvatBUtfoCsvV2RRl310QMm4KFlKw4nL1xEVDI3YfRgmodGTgTOiNXnDXb61d8MWsbMoZZrn6ApZDBReEm66hfN0ZWvmL_1j3HuvJ5YXFac7-ta91q2W4D3mnZFpdOWu2bgQe2Oyxo13ehIf5ZskJFtdfnJqM8p0Ll2sO1Leblg6?purpose=fullsize)"
+                }
+              ]
+            },
+            {
+              "type": "chat_gpt_text",
+              "rank_group": 7,
+              "rank_absolute": 13,
+              "markdown": "\n\n**5\\. C-DAC**\n\n- 24×7 managed security services.\n- Managed Detection and Response.\n- Security monitoring using SIEM.\n- Particularly worth considering for government and public-sector requirements.\n\n[Official website](https://cdac.gov.in/)\n\n[www.itechguides.com](https://www.itechguides.com/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com)[sekin.in](https://sekin.in/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com)[cdac.gov.in](https://cdac.gov.in/index.aspx?id=product_details&productId=SOC-as-a-Service&utm_source=chatgpt.com)[www.airtel.in](https://www.airtel.in/b2b/security-operations-center-soc?utm_source=chatgpt.com)\n\n## 3\\. Which provider should you choose?\n\nMy recommendation depends on the operating model\\:\n\n",
+              "sources": [
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Official website",
+                  "snippet": null,
+                  "domain": "cdac.gov.in",
+                  "url": "https://cdac.gov.in/",
+                  "thumbnail": null,
+                  "source_name": null,
+                  "publication_date": null,
+                  "markdown": "[Official website](https://cdac.gov.in/)"
+                },
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Top 12 Managed Security Service Providers (MSSP) in India 2026",
+                  "snippet": null,
+                  "domain": "www.itechguides.com",
+                  "url": "https://www.itechguides.com/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com",
+                  "thumbnail": null,
+                  "source_name": "iTechGuides",
+                  "publication_date": "2026-09-30 00:00:00 +00:00",
+                  "markdown": null
+                },
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Top 12 MSSPs in India (2026): Providers, Services & RFP Checklist",
+                  "snippet": null,
+                  "domain": "sekin.in",
+                  "url": "https://sekin.in/top-12-managed-security-service-providers-mssp-in-india-2026-shortlist/?utm_source=chatgpt.com",
+                  "thumbnail": null,
+                  "source_name": "Sekin",
+                  "publication_date": "2026-09-08 00:00:00 +00:00",
+                  "markdown": null
+                },
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Product Information",
+                  "snippet": null,
+                  "domain": "cdac.gov.in",
+                  "url": "https://cdac.gov.in/index.aspx?id=product_details&productId=SOC-as-a-Service&utm_source=chatgpt.com",
+                  "thumbnail": null,
+                  "source_name": "C-DAC",
+                  "publication_date": null,
+                  "markdown": null
+                },
+                {
+                  "type": "chat_gpt_source",
+                  "title": "Managed SOC Services for Cyber Threat Monitoring by Airtel",
+                  "snippet": null,
+                  "domain": "www.airtel.in",
+                  "url": "https://www.airtel.in/b2b/security-operations-center-soc?utm_source=chatgpt.com",
+                  "thumbnail": null,
+                  "source_name": "Airtel",
+                  "publication_date": null,
+                  "markdown": null
+                }
+              ],
+              "brand_entities": [
+                {
+                  "type": "chat_gpt_brand_entity",
+                  "title": "C-DAC",
+                  "category": "organization",
+                  "markdown": "C-DAC",
+                  "urls": null
+                }
+              ]
+            },
+            {
+              "type": "chat_gpt_table",
+              "rank_group": 2,
+              "rank_absolute": 14,
+              "text": null,
+              "markdown": "| Requirement | Providers I'd evaluate first |\n|--------|--------|\n| Fully outsourced 24×7 SOC | Airtel, Tata Communications, Sify |\n| Large enterprise SOC | HCLTech, Wipro, IBM |\n| Global SOC operations | NTT DATA, IBM, Infosys |\n| Mid-market SOC | Sequretek, Inspira, Microland |\n| Government / PSU | C-DAC, Airtel, Tata Communications |\n| Co-managed SOC | Airtel, Sify, Tata Communications |\n\n",
+              "table": {
+                "table_header": [
+                  "Requirement",
+                  "Providers I'd evaluate first"
+                ],
+                "table_content": [
+                  [
+                    "Fully outsourced 24×7 SOC",
+                    "Airtel, Tata Communications, Sify"
+                  ],
+                  [
+                    "Large enterprise SOC",
+                    "HCLTech, Wipro, IBM"
+                  ],
+                  [
+                    "Global SOC operations",
+                    "NTT DATA, IBM, Infosys"
+                  ],
+                  [
+                    "Mid-market SOC",
+                    "Sequretek, Inspira, Microland"
+                  ],
+                  [
+                    "Government / PSU",
+                    "C-DAC, Airtel, Tata Communications"
+                  ],
+                  [
+                    "Co-managed SOC",
+                    "Airtel, Sify, Tata Communications"
+                  ]
+                ]
+              },
+              "brand_entities": null
+            },
+            {
+              "type": "chat_gpt_text",
+              "rank_group": 8,
+              "rank_absolute": 15,
+              "markdown": "\n## 4\\. Important capabilities to evaluate\n\nDon't select an SOC provider based only on its SIEM platform or the number of security analysts.\n\nI recommend evaluating these capabilities\\:\n\n",
+              "sources": null,
+              "brand_entities": null
+            },
+            {
+              "type": "chat_gpt_table",
+              "rank_group": 3,
+              "rank_absolute": 16,
+              "text": null,
+              "markdown": "| Evaluation parameter | What to verify |\n|--------|--------|\n| SOC availability | Genuine 24×7×365 analyst coverage |\n| SIEM | Microsoft Sentinel, Splunk, QRadar, or equivalent |\n| EDR/XDR | CrowdStrike, SentinelOne, Microsoft Defender, etc. |\n| Threat intelligence | Commercial and government intelligence feeds |\n| Incident response | Investigation, containment and remediation |\n| Threat hunting | Proactive threat detection |\n| Cloud security | AWS, Azure and GCP monitoring |\n| Compliance | CERT-In, RBI, SEBI, ISO 27001 and applicable DPDP requirements |\n| Reporting | MTTD, MTTR, incident reports and executive dashboards |\n| Data residency | Where logs, incident records and customer data are stored |\n\n",
+              "table": {
+                "table_header": [
+                  "Evaluation parameter",
+                  "What to verify"
+                ],
+                "table_content": [
+                  [
+                    "SOC availability",
+                    "Genuine 24×7×365 analyst coverage"
+                  ],
+                  [
+                    "SIEM",
+                    "Microsoft Sentinel, Splunk, QRadar, or equivalent"
+                  ],
+                  [
+                    "EDR/XDR",
+                    "CrowdStrike, SentinelOne, Microsoft Defender, etc."
+                  ],
+                  [
+                    "Threat intelligence",
+                    "Commercial and government intelligence feeds"
+                  ],
+                  [
+                    "Incident response",
+                    "Investigation, containment and remediation"
+                  ],
+                  [
+                    "Threat hunting",
+                    "Proactive threat detection"
+                  ],
+                  [
+                    "Cloud security",
+                    "AWS, Azure and GCP monitoring"
+                  ],
+                  [
+                    "Compliance",
+                    "CERT-In, RBI, SEBI, ISO 27001 and applicable DPDP requirements"
+                  ],
+                  [
+                    "Reporting",
+                    "MTTD, MTTR, incident reports and executive dashboards"
+                  ],
+                  [
+                    "Data residency",
+                    "Where logs, incident records and customer data are stored"
+                  ]
+                ]
+              },
+              "brand_entities": null
+            },
+            {
+              "type": "chat_gpt_text",
+              "rank_group": 9,
+              "rank_absolute": 17,
+              "markdown": "\n**One particularly important point\\:** Ask whether the provider can actually isolate compromised endpoints, disable accounts and block malicious traffic, or merely generate alerts for your internal team.\n\n## 5\\. Questions to ask before finalising a provider\n\n1. Where is your SOC physically located?\n2. How many L1, L2 and L3 analysts are available per shift?\n3. Is the SOC operated by your own employees or subcontractors?\n4. Do you provide your own SIEM or support customer-owned SIEM?\n5. What is your guaranteed incident acknowledgement and response SLA?\n6. Do you provide proactive threat hunting?\n7. Can you demonstrate incident investigation using MITRE ATT&amp;CK?\n8. Do you provide incident response and forensic investigation?\n9. Can you share references from customers in our industry?\n10. What are your onboarding costs and recurring monthly charges?\n\n---\n\n## 6\\. Let me narrow down the best providers\n\nI can make a more useful shortlist if I understand what type of SOC you are looking for.\n\n**1\\. What type of organisation is this for?**\n\nLarge enterprise\n\nMid-sized business\n\nSME / Startup\n\nGovernment / PSU\n\nBanking / Financial services\n\nMSSP / MSP looking for SOC partnership\n\n---\n\n**2\\. What service model do you need?**\n\nFully managed SOC\n\nCo-managed SOC\n\nSOC as a Service\n\nManaged Detection and Response (MDR)\n\nWhite-label SOC\n\n---\n\n**3\\. Expected monthly budget**\n\nBelow ₹5 lakh\n\n₹5–15 lakh\n\n₹15–30 lakh\n\n₹30–50 lakh\n\nAbove ₹50 lakh\n\nNot decided\n\n---\n\n**4\\. Preferred technology**\n\nTechnology agnostic\n\nMicrosoft Sentinel\n\nSplunk\n\nIBM QRadar\n\nOpen-source SIEM\n\n---\n\n**5\\. Where will the SOC operate?**\n\nIndia-based operations\n\nGlobal operations\n\nBoth India and global operations\n\n[Find my best-fit SOC providers]\n\nI can then narrow this down to the **best 5 providers in India**, with a comparative vendor scorecard, strengths, weaknesses and an RFP checklist.",
+              "sources": null,
+              "brand_entities": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
