@@ -10,12 +10,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.db.tables import provider_price_book
-from idraft.domain.ai_engines import ENGINES, PROVIDER_CODE
+from idraft.domain.ai_engines import ENGINES, PROVIDER_CODE, Queue
 
 
-async def task_prices(db: AsyncSession, *, queue: str, on: date) -> dict[str, Decimal]:
-    """The price of one task on each engine's endpoint and this queue (`standard` or
-    `priority`), valid on `on`, by endpoint. An endpoint the book has no price for is left out:
+async def task_prices(db: AsyncSession, *, queue: Queue, on: date) -> dict[str, Decimal]:
+    """The price of one task on each engine's endpoint and this queue, valid on `on`, by
+    endpoint. An endpoint the book has no price for is left out:
     an estimate is never made from a guess of zero."""
     p = provider_price_book.c
     rows = await db.execute(

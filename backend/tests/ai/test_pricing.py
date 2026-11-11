@@ -17,11 +17,10 @@ async def test_each_engine_has_a_task_price_on_each_queue(
     async with sessions() as db:
         standard = await task_prices(db, queue="standard", on=date(2026, 11, 11))
         priority = await task_prices(db, queue="priority", on=date(2026, 11, 11))
-        live = await task_prices(db, queue="live", on=date(2026, 11, 11))
         before = await task_prices(db, queue="standard", on=date(2026, 6, 30))
 
     endpoints = [engine.endpoint for engine in ENGINES.values()]
     assert standard == dict.fromkeys(endpoints, Decimal("0.0012"))
     assert priority == dict.fromkeys(endpoints, Decimal("0.0024"))
-    # No live price is in the book, and none before the prices were valid: no guess of zero.
-    assert live == before == {}
+    # None was in the book before the prices were valid: no guess of zero.
+    assert before == {}

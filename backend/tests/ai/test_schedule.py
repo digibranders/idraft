@@ -74,6 +74,12 @@ async def test_a_project_with_an_answer_schedule_gets_no_more(
     for _ in range(2):
         async with workspace_transaction(sessions, workspace.id) as db:
             await ensure_ai_schedule(db, workspace_id=workspace.id, project_id=project, now=NOW)
+    # A person paused both: they are not made again.
+    await execute(
+        migrated, "UPDATE ops.schedules SET is_active = false WHERE project_id = $1", project
+    )
+    async with workspace_transaction(sessions, workspace.id) as db:
+        await ensure_ai_schedule(db, workspace_id=workspace.id, project_id=project, now=NOW)
     # A person deleted both: they are not made again.
     await execute(
         migrated, "UPDATE ops.schedules SET deleted_at = now() WHERE project_id = $1", project
