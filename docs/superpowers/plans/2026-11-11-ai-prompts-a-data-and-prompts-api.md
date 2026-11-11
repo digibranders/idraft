@@ -237,7 +237,7 @@ from idraft.ai.text import normalize, text_hash
 
 
 def test_text_is_trimmed_and_composed() -> None:
-    assert normalize("  Café near me?  ") == "Café near me?"
+    assert normalize("  Cafe\u0301 near me?  ") == "Caf\u00e9 near me?"
 
 
 def test_case_and_inner_spacing_are_what_the_engine_receives() -> None:
@@ -245,8 +245,8 @@ def test_case_and_inner_spacing_are_what_the_engine_receives() -> None:
 
 
 def test_the_hash_is_the_sha256_of_the_normalized_text() -> None:
-    assert text_hash(" Café? ") == hashlib.sha256("Café?".encode()).digest()
-    assert text_hash("Café?") == text_hash("Café?")
+    assert text_hash(" Cafe\u0301? ") == hashlib.sha256("Caf\u00e9?".encode()).digest()
+    assert text_hash("Cafe\u0301?") == text_hash("Caf\u00e9?")
     assert text_hash("Best CRM?") != text_hash("best crm?")
     assert len(text_hash("x")) == 32
 ```
@@ -2522,8 +2522,9 @@ def test_a_body_breaking_a_rule_is_refused_with_its_code(
 
 
 def test_a_prompt_is_stored_trimmed_and_composed() -> None:
-    body = PromptCreate.model_validate({**ONE, "text": "  Café near me?  "})
-    assert body.text == "Café near me?"
+    # Written as escapes: an editor would otherwise compose the decomposed input again
+    body = PromptCreate.model_validate({**ONE, "text": "  Cafe\u0301 near me?  "})
+    assert body.text == "Caf\u00e9 near me?"
     assert (body.intent, body.funnel_stage, body.prompt_type, body.importance) == (
         "unknown",
         "unknown",
