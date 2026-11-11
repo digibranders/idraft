@@ -108,8 +108,25 @@ export type BudgetStatusList = Schemas['BudgetStatusList'];
 export type Price = Schemas['Price'];
 export type RankHistory = Schemas['RankHistory'];
 export type HistorySeries = Schemas['HistorySeries'];
+export type HistoryColumns = Schemas['HistoryColumns'];
 export type HistoryPoint = Schemas['HistoryPoint'];
 export type HistoryBand = Schemas['HistoryBand'];
+export type HistoryEvent = Schemas['HistoryEvent'];
+export type SerpCurrent = Schemas['SerpCurrent'];
+export type SerpResult = Schemas['SerpResult'];
+export type SerpSnapshotSummary = Schemas['SerpSnapshotSummary'];
+export type SerpSnapshotDetail = Schemas['SerpSnapshotDetail'];
+export type SerpOrganicItem = Schemas['SerpOrganicItem'];
+export type SerpFeatureOut = Schemas['SerpFeatureOut'];
+export type SerpFeatureHistory = Schemas['SerpFeatureHistory'];
+export type FeatureCheck = Schemas['FeatureCheck'];
+export type FeaturePresence = Schemas['FeaturePresence'];
+export type AioHistoryItem = Schemas['AioHistoryItem'];
+export type RankEventOut = Schemas['RankEventOut'];
+export type RankEventPage = Schemas['RankEventPage'];
+export type SerpSnapshotPage = Schemas['SerpSnapshotPage'];
+export type SerpDomain = Schemas['SerpDomain'];
+export type SerpProvenance = Schemas['SerpProvenance'];
 
 // Integrations: Google connections (Search Console and GA4) and the properties linked to projects
 export type Connection = Schemas['Connection'];

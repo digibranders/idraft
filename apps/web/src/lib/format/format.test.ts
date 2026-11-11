@@ -27,6 +27,7 @@ import {
   formatSignedInteger,
   formatTableDate,
   formatTableDateTime,
+  formatTime,
   formatUnitPrice,
   rankBucket,
   truncatePath,
@@ -168,6 +169,10 @@ describe('dates', () => {
     expect(formatTableDateTime('2025-09-29T13:02:00Z', 'Asia/Kolkata', now)).toBe('Sep 29, 2025, 18:32');
     expect(formatTableDate('2026-09-29T13:02:00Z', 'Asia/Kolkata', now)).toBe('Sep 29');
     expect(formatTableDate('2025-09-29T13:02:00Z', 'Asia/Kolkata', now)).toBe('Sep 29, 2025');
+  });
+  it('formats the clock time of an instant in the project timezone', () => {
+    expect(formatTime('2026-09-29T13:02:00Z', 'Asia/Kolkata')).toBe('18:32');
+    expect(formatTime('2026-09-29T22:30:00Z', 'Europe/Berlin')).toBe('00:30');
   });
   it('names the date of an instant in the project timezone for a file', () => {
     expect(formatIsoDate('2026-09-29T22:30:00Z', 'UTC')).toBe('2026-09-29');

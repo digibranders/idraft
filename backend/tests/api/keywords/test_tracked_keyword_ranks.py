@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import uuid
 from collections.abc import AsyncIterator
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -801,6 +801,17 @@ def _fixture(name: str) -> bytes:
     return (LIVE_FIXTURES / f"{name}.json").read_bytes()
 
 
+def _fixture_at(name: str, observed_at: datetime) -> bytes:
+    """The recorded answer, as if the provider had read the page at `observed_at`.
+
+    The recordings carry the day they were made, and a reading older than `TIME_BEFORE` is dated by
+    when it was fetched instead, so a test that orders two readings by their own time says when
+    they were taken."""
+    answer = json.loads(_fixture(name))
+    answer["tasks"][0]["result"][0]["datetime"] = observed_at.strftime("%Y-%m-%d %H:%M:%S +00:00")
+    return json.dumps(answer).encode()
+
+
 def _provider_rank(name: str) -> int:
     """The `rank_group` of the first organic result of the Fynix site in the raw answer."""
     items = json.loads(_fixture(name))["tasks"][0]["result"][0]["items"]
@@ -833,15 +844,16 @@ async def _read(
     *,
     days_ago: int,
     manual: bool,
+    hours_ago: int = 0,
 ) -> None:
-    when = NOW - days_ago * DAY
+    when = NOW - days_ago * DAY - timedelta(hours=hours_ago)
     selector = {"tracked_keyword_ids": [tracked]} if manual else None
     await fetched_task(
         worker_db,
         pg,
         world,
         uuid.UUID(tracked),
-        _fixture(fixture),
+        _fixture_at(fixture, when - timedelta(minutes=1)),
         store,
         fetched_at=when,
         selector=selector,
@@ -930,8 +942,12 @@ async def test_fynix_keeps_the_providers_rank_and_a_manual_check_equals_a_schedu
     parsed = parse_serp(_fixture(reading))
     renumbered = 1 + sum(1 for r in parsed.organic if r.organic_rank < _provider_rank(reading))
 
-    await _read(worker_db, migrated, world, manual, reading, store, days_ago=0, manual=True)
-    await _read(worker_db, migrated, world, scheduled, reading, store, days_ago=0, manual=False)
+    await _read(
+        worker_db, migrated, world, manual, reading, store, days_ago=0, hours_ago=3, manual=True
+    )
+    await _read(
+        worker_db, migrated, world, scheduled, reading, store, days_ago=0, hours_ago=3, manual=False
+    )
 
     rows = {r["keyword"]["text"]: r["state"] for r in await _list(api, workspace, project, owner)}
     assert _provider_rank(reading) == 21

@@ -38,9 +38,12 @@ export interface UseCheckNowArgs {
   onDrop: (trackedIds: ReadonlySet<string>) => void;
 }
 
+/** Where the button stands: the inspector's 32 px secondary button, or the page's primary 36 px one (24 section 9.4). */
+export type CheckNowPresentation = 'inspector' | 'page';
+
 export interface CheckNowResult {
   barAction: RecordAction<TrackedKeywordRow> | null;
-  inspectorAction: (trackedId: string, active: boolean) => ReactNode;
+  inspectorAction: (trackedId: string, active: boolean, presentation?: CheckNowPresentation) => ReactNode;
   progress: ReactNode;
   /** Whether Check now is offered at all (the person may trigger runs). */
   enabled: boolean;
@@ -183,7 +186,7 @@ export function useCheckNow({ scope, enabled, archived, chosen, pendingIds, onDr
     : null;
 
   const inspectorAction = useCallback(
-    (trackedId: string, active: boolean): ReactNode => {
+    (trackedId: string, active: boolean, presentation: CheckNowPresentation = 'inspector'): ReactNode => {
       if (!enabled || !active) return null;
       const reason = inFlight
         ? t('inProgress')
@@ -192,11 +195,12 @@ export function useCheckNow({ scope, enabled, archived, chosen, pendingIds, onDr
           : exhausted
             ? t('blocked.noneLeft')
             : null;
+      const onPage = presentation === 'page';
       return (
         <Tooltip content={reason ?? ''} disabled={reason === null}>
           <Button
-            variant="secondary"
-            size="sm"
+            variant={onPage ? 'primary' : 'secondary'}
+            size={onPage ? 'md' : 'sm'}
             icon={RefreshCw}
             disabled={reason !== null}
             focusableWhenDisabled

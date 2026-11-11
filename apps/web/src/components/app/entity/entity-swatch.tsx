@@ -21,6 +21,7 @@ export function EntitySwatch({ colorIndex, own }: { colorIndex: number | null; o
   return (
     <span
       aria-hidden="true"
+      data-color-index={own ? 1 : (colorIndex ?? undefined)}
       className={cn('size-2 shrink-0 rounded-xs', fill ?? 'border border-dashed border-chart-other')}
     />
   );

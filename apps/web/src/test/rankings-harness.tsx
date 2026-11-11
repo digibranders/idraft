@@ -71,6 +71,8 @@ export function rankingsAs(
           <RankingsScreen
             workspaceId={MOCK_WORKSPACE.workspace_id}
             projectId={projectId}
+            workspaceSlug={MOCK_WORKSPACE.slug}
+            projectSlug={MOCK_PROJECTS.find((candidate) => candidate.project_id === projectId)?.slug ?? fynix.slug}
             timeZone="Europe/Berlin"
             defaults={{
               location:

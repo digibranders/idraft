@@ -372,17 +372,12 @@ test.describe('rankings', () => {
   }) => {
     await signIn(page, EDITOR);
     const RANK = ['Rank', 'Volume', 'KD', 'CPC (USD)', 'AI Overview'];
-    for (const [width, columns, room, updated] of [
-      [1280, RANK, 250, false],
+    for (const [width, columns, room] of [
+      [1280, RANK, 200],
       // Capital headers need wider columns (12-tables.md section 5), so the Keyword column is at its 200 px minimum here
-      [1440, [...RANK.slice(0, 4), 'Intent', 'SERP features', 'AI Overview', 'Group'], 200, false],
+      [1440, [...RANK.slice(0, 4), 'Intent', 'SERP features', 'AI Overview', 'Group'], 200],
       // Every column of the set shows: the Keyword column is at its 200 px minimum, and the others give up width
-      [
-        1680,
-        [...RANK.slice(0, 4), 'Intent', 'SERP features', 'AI Overview', 'Group', 'Tags', 'Updated', 'Added'],
-        200,
-        true,
-      ],
+      [1680, [...RANK.slice(0, 4), 'Intent', 'SERP features', 'AI Overview', 'Group', 'Tags', 'Updated', 'Added'], 200],
     ] as const) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(KEYWORDS);
@@ -391,8 +386,8 @@ test.describe('rankings', () => {
       for (const name of columns) {
         await expect(headerOf(grid, name)).toBeVisible();
       }
-      // The tiers: Updated waits for 1680 px, Best rank for the chooser
-      await expect(headerOf(grid, 'Updated')).toHaveCount(updated ? 1 : 0);
+      // The tiers: Updated is shown by default at all widths (owner decision of 2026-10-30), Best rank for the chooser
+      await expect(headerOf(grid, 'Updated')).toHaveCount(1);
       await expect(headerOf(grid, 'Best rank')).toHaveCount(0);
       const keyword = await headerOf(grid, 'Keyword').boundingBox();
       if (keyword === null) throw new Error('The Keyword header has no box');
@@ -422,13 +417,11 @@ test.describe('rankings', () => {
       const ranks = await columnOf(grid, 'Rank');
       expect(ranks.filter((text) => text.includes('stale'))).toHaveLength(4);
       expect(ranks.filter((text) => text.includes('last check failed'))).toHaveLength(1);
-      await expect(headerOf(grid, 'Updated')).toHaveCount(width >= 1680 ? 1 : 0);
-      if (width >= 1680) {
-        const updated = await columnOf(grid, 'Updated');
-        expect(updated.filter((text) => text.includes('Stale'))).toHaveLength(4);
-        // The keyword whose every check failed says so and carries the marker too
-        expect(updated.filter((text) => text.includes('Check failed') && text.includes('Stale'))).toHaveLength(1);
-      }
+      await expect(headerOf(grid, 'Updated')).toHaveCount(1);
+      const updated = await columnOf(grid, 'Updated');
+      expect(updated.filter((text) => text.includes('Stale'))).toHaveLength(4);
+      // The keyword whose every check failed says so and carries the marker too
+      expect(updated.filter((text) => text.includes('Check failed') && text.includes('Stale'))).toHaveLength(1);
 
       // Enable Ranking URL via Columns menu to inspect its rendering
       await page.getByRole('button', { name: 'Columns' }).click();
@@ -747,9 +740,9 @@ test.describe('rankings', () => {
     expect(waiting).toBeGreaterThanOrEqual(5);
 
     // The 2 minutes pass: the next poll brings the metrics, and the row stops waiting for them. Its first
-    // rank check comes a minute later, so the rank, SERP features and AI Overview still say Pending
+    // rank check comes a minute later, so the rank, SERP features, AI Overview and Updated still say Pending
     await page.clock.runFor(150_000);
-    await expect(row.getByText('Pending')).toHaveCount(3);
+    await expect(row.getByText('Pending')).toHaveCount(4);
     await expect(row.getByRole('gridcell').filter({ hasText: /^\d[\d,]*$/ })).not.toHaveCount(0);
 
     // The first check has run: the poll that follows fills the rank in, with no reload
@@ -955,11 +948,12 @@ test.describe('rankings', () => {
     await page.getByRole('dialog').getByRole('button', { name: 'Apply' }).click();
     await expect(page).toHaveURL(/[?&]aio=present_cited/);
     await expect(page.getByRole('button', { name: 'AI Overview: Cited. Edit filter' })).toBeVisible();
-    // The rows are refetched after Apply: poll until every shown cell is a cited one (its "#N") rather than read them once
+    // The rows are refetched after Apply: poll until every shown cell is a cited one (its "#N") rather than read them once.
+    // A stale keyword's cell also carries its screen reader "stale" word before the position
     await expect
       .poll(async () => {
         const aioCells = await columnOf(grid, 'AI Overview');
-        return aioCells.length > 0 && aioCells.every((text) => /^#\d+$/.test(text));
+        return aioCells.length > 0 && aioCells.every((text) => /^(stale)?#\d+$/.test(text));
       })
       .toBe(true);
 

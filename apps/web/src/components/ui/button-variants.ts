@@ -6,7 +6,8 @@ import { cva, type VariantProps } from 'class-variance-authority';
  *
  * Hover and pressed fills are written for a button that is neither disabled nor loading: a loading button
  * keeps its resting look (08-interaction-states.md section 1 puts loading above hover). A button that has
- * opened a menu or a popover keeps the pressed fill while it is open (`data-popup-open`).
+ * opened a menu or a popover keeps the pressed fill while it is open (`data-popup-open`). A toggle that is
+ * on (`aria-pressed`) takes the primary outline and the selected fill.
  */
 export const buttonVariants = cva(
   'relative inline-flex shrink-0 items-center justify-center gap-2 rounded-md border type-body-strong whitespace-nowrap transition-colors duration-(--duration-fast) ease-standard select-none focus-visible:focus-ring aria-busy:cursor-progress data-disabled:cursor-not-allowed',
@@ -44,6 +45,13 @@ export const buttonVariants = cva(
           'data-disabled:border-transparent data-disabled:bg-surface-disabled data-disabled:text-foreground-disabled',
       },
       { variant: ['ghost', 'link'], className: 'data-disabled:text-foreground-disabled' },
+      {
+        // A toggle that is on: the primary outline and the selected fill, as the active tab and segment are,
+        // so on and off differ by more than 3:1 against the surface (WCAG 1.4.11)
+        variant: ['secondary', 'subtle', 'ghost'],
+        className:
+          'aria-pressed:border-primary aria-pressed:bg-surface-selected aria-pressed:text-foreground not-aria-busy:not-data-disabled:aria-pressed:hover:bg-surface-selected',
+      },
     ],
     defaultVariants: { variant: 'secondary', size: 'md' },
   },

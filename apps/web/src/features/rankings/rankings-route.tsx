@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams, useSelectedLayoutSegment } from 'next/navigation';
 import { useEffect, useRef, type ReactElement, type ReactNode } from 'react';
 
+import { rememberListHref, tabStorage } from './keyword-detail/list-return';
 import { RankingsScreen, type RankingsScreenProps } from './rankings-screen';
 import { useCan } from '@/lib/permissions';
 import { rankingsImportPath, rankingsPath, withQuery } from '@/lib/routes/paths';
@@ -10,9 +11,6 @@ import { rankingsImportPath, rankingsPath, withQuery } from '@/lib/routes/paths'
 const IMPORT_SEGMENT = 'import';
 
 export interface RankingsRouteProps extends Omit<RankingsScreenProps, 'importOpen' | 'onImportOpenChange'> {
-  /** The slugs of the workspace and the project in the URL, for the paths of the page and of the import. */
-  workspaceSlug: string;
-  projectSlug: string;
   children: ReactNode;
 }
 
@@ -31,6 +29,11 @@ export function RankingsRoute({ children, workspaceSlug, projectSlug, ...props }
   const canImport = useCan('imports:write');
   const atImport = segment === IMPORT_SEGMENT;
   const page = rankingsPath(workspaceSlug, projectSlug);
+
+  // The page of a keyword leads back to the list as it was left (24 section 5, "per tab")
+  useEffect(() => {
+    rememberListHref(tabStorage(), page, search);
+  }, [page, search]);
 
   useEffect(() => {
     if (atImport && !canImport) replace(withQuery(page, search), { scroll: false });
@@ -57,7 +60,13 @@ export function RankingsRoute({ children, workspaceSlug, projectSlug, ...props }
 
   return (
     <>
-      <RankingsScreen {...props} importOpen={atImport && canImport} onImportOpenChange={onImportOpenChange} />
+      <RankingsScreen
+        {...props}
+        workspaceSlug={workspaceSlug}
+        projectSlug={projectSlug}
+        importOpen={atImport && canImport}
+        onImportOpenChange={onImportOpenChange}
+      />
       {children}
     </>
   );

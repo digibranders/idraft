@@ -258,7 +258,7 @@ export function RankChangeView({ display }: { display: ChangeDisplay }): ReactEl
  * its room (`shrink-0`) and the start gives way to an ellipsis. The width is the browser's to know, so the
  * shortening is CSS and nothing here counts characters of the column. A screen reader gets the whole path.
  */
-function PathText({ path }: { path: string }): ReactElement {
+export function PathText({ path }: { path: string }): ReactElement {
   const letters = [...path];
   if (letters.length <= PATH_END_CHARS) {
     return (

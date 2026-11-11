@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Archive, Download, FolderTree, MoreHorizontal, Plus, Upload, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { parseAsBoolean, parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -81,9 +82,9 @@ import { useErrorId } from '@/lib/api/use-error-id';
 import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { useDebouncedValue } from '@/lib/dom/use-debounced-value';
 import { formatInteger, formatList, formatRelative } from '@/lib/format';
-import { formatInspectTarget } from '@/lib/inspector/placement';
 import { useLeaveGuard } from '@/lib/navigation/use-leave-guard';
 import { useCan } from '@/lib/permissions';
+import { keywordDetailPath } from '@/lib/routes/paths';
 import {
   DEFAULT_DENSITY,
   formatColumns,
@@ -124,6 +125,9 @@ const NO_ROWS: readonly PairedRow[] = [];
 /** The inspector's place in the URL, for closing the drawer of a group that is gone without a history step. */
 const INSPECT_STATE = { inspect: parseAsString, itab: parseAsString };
 export interface RankingsScreenProps extends ProjectScope {
+  /** The slugs of the workspace and the project in the URL, for the path of a keyword's page. */
+  workspaceSlug: string;
+  projectSlug: string;
   /** The project's time zone, for the Added column. */
   timeZone: string;
   /** The project's location and language, which new keywords start with. */
@@ -150,6 +154,8 @@ export interface RankingsScreenProps extends ProjectScope {
 export function RankingsScreen({
   workspaceId,
   projectId,
+  workspaceSlug,
+  projectSlug,
   timeZone,
   defaults,
   scopeOpensOn,
@@ -186,6 +192,7 @@ export function RankingsScreen({
   const [startedImports, setStartedImports] = useState<readonly string[]>([]);
   const [endedImports, setEndedImports] = useState<ReadonlySet<string>>(new Set());
   const queryClient = useQueryClient();
+  const router = useRouter();
   // Where focus returns to when Manage groups closes
   const moreButton = useRef<HTMLButtonElement>(null);
   // Where focus goes after a group's rename or delete: the table's current cell
@@ -481,11 +488,9 @@ export function RankingsScreen({
   const openRow = openId === null ? null : (rawList.rows.find((row) => row.tracked_keyword_id === openId) ?? null);
   const onRowOpen = (row: TrackedKeywordRow, intent: 'inspector' | 'new-tab'): void => {
     const target = { type: 'keyword' as const, id: row.tracked_keyword_id };
+    // A Cmd or Ctrl click or a middle click opens the keyword's page in a new tab (12-tables.md section 13)
     if (intent === 'new-tab') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('inspect', formatInspectTarget(target));
-      url.searchParams.delete('itab');
-      window.open(url, '_blank', 'noopener');
+      window.open(keywordDetailPath(workspaceSlug, projectSlug, row.tracked_keyword_id), '_blank', 'noopener');
       return;
     }
     if (row.tracked_keyword_id === openId) return;
@@ -786,6 +791,7 @@ export function RankingsScreen({
         discards={discards}
         hiddenByFilters={hiddenByFilters}
         frequentAction={checkNow.inspectorAction}
+        onOpenPage={() => guarded(() => router.push(keywordDetailPath(workspaceSlug, projectSlug, openId)))}
       />
     );
 

@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { MOCK_TRACKED_KEYWORDS, PENDING_TRACKED_IDS } from './keyword-fixtures';
 import { currentVersion } from './keywords-state';
 import { checksOf, FIRST_CHECK_DELAY_MS, type MockCheck } from './rank-history';
-import { changeOf, FAILED_IDS, FAILING_IDS, rankStateOf, STALE_IDS, stoppedAtOf } from './rank-state';
+import { changeOf, rankStateOf, stoppedAtOf } from './rank-state';
+import { entityWorld } from './entities-state';
+import { keywordWorld } from './keywords-state';
+import { effectiveCompetitors } from './factories/keyword';
+import { checksAt, FAILED_IDS, FAILING_IDS, STALE_IDS, worldChecks } from './serp-world';
 import { FEATURE_TYPES } from '@/lib/keywords/serp-features';
 import { TRACKED_KEYWORD_STATE } from '@/test/api-shapes';
 
@@ -419,7 +423,10 @@ describe('mock rank state of the fixtures', () => {
       const state = rankStateOf(row.tracked_keyword_id, row.created_at, now, 'fynix.digital');
       for (const code of state.feature_types_present) expect(FEATURE_TYPES).toContain(code);
       for (const code of state.owned_feature_types) expect(state.feature_types_present).toContain(code);
-      const showed = state.aio.state === 'present_cited' || state.aio.state === 'present_not_cited';
+      const showed =
+        state.aio.state === 'present_cited' ||
+        state.aio.state === 'present_not_cited' ||
+        state.aio.state === 'not_loaded';
       if (state.current.state !== 'not_checked')
         expect(state.feature_types_present.includes('ai_overview')).toBe(showed);
     }
@@ -434,5 +441,115 @@ describe('mock rank state of the fixtures', () => {
     expect(matches.some((match) => match === true)).toBe(true);
     expect(matches.some((match) => match === false)).toBe(true);
     expect(matches.some((match) => match === null)).toBe(true);
+  });
+
+  it('url_changed_at is set to the exact timestamp of the latest change for keywords whose path changed in their last 30 checks', () => {
+    let changedCount = 0;
+    for (const row of MOCK_TRACKED_KEYWORDS.slice(0, 60)) {
+      const state = rankStateOf(row.tracked_keyword_id, row.created_at, NOW, DOMAIN);
+      const checks = checksAt(row.tracked_keyword_id, row.created_at, NOW, DOMAIN);
+      const ranked = checks.filter((c) => c.rank !== null);
+      let changed = false;
+      for (let i = 1; i < ranked.length; i += 1) {
+        if (ranked[i]?.path !== ranked[i - 1]?.path) {
+          changed = true;
+          break;
+        }
+      }
+      if (changed) {
+        changedCount += 1;
+        let expectedTime: string | null = null;
+        for (let i = ranked.length - 1; i >= 1; i -= 1) {
+          if (ranked[i]?.path !== ranked[i - 1]?.path) {
+            expectedTime = ranked[i]?.observedAt ?? null;
+            break;
+          }
+        }
+        expect(state.url_changed_at).toBe(expectedTime);
+      } else {
+        expect(state.url_changed_at).toBeNull();
+      }
+    }
+    expect(changedCount).toBeGreaterThan(0);
+  });
+
+  it('ranking_url_count and current.url use the latest check path for ranked and unranked keywords', () => {
+    // 1. A ranked fixture keyword
+    const rankedRow = MOCK_TRACKED_KEYWORDS.find((r) => {
+      const checks = checksAt(r.tracked_keyword_id, r.created_at, NOW, DOMAIN);
+      return checks.at(-1)?.rank !== null && (checks.at(-1)?.rank ?? 0) > 0;
+    });
+    expect(rankedRow).toBeDefined();
+    if (!rankedRow) throw new Error('Missing ranked fixture');
+    const rankedState = rankStateOf(rankedRow.tracked_keyword_id, rankedRow.created_at, NOW, DOMAIN);
+    const rankedChecks = checksAt(rankedRow.tracked_keyword_id, rankedRow.created_at, NOW, DOMAIN);
+    const latestRanked = rankedChecks.at(-1);
+    expect(latestRanked).toBeDefined();
+    expect(rankedState.ranking_url_count).toBe(latestRanked?.urlCount);
+    expect(rankedState.current.url?.path).toBe(latestRanked?.path);
+
+    // 2. An unranked fixture keyword
+    const unrankedRow = MOCK_TRACKED_KEYWORDS.find((r) => {
+      const checks = checksAt(r.tracked_keyword_id, r.created_at, NOW, DOMAIN);
+      return checks.length > 0 && checks.at(-1)?.rank === null;
+    });
+    expect(unrankedRow).toBeDefined();
+    if (!unrankedRow) throw new Error('Missing unranked fixture');
+    const unrankedState = rankStateOf(unrankedRow.tracked_keyword_id, unrankedRow.created_at, NOW, DOMAIN);
+    expect(unrankedState.ranking_url_count).toBe(0);
+    expect(unrankedState.current.url).toBeNull();
+  });
+
+  it('for 60 fixtures with at least 2 effective competitors, at every check no two entities share a rank, competitor rank is null or within depth, depth equals own check', () => {
+    const kw = keywordWorld({});
+    const ew = entityWorld({}, {});
+    const own = {
+      entity_id: 'own',
+      canonical_name: 'Fynix',
+      entity_type: 'organization' as const,
+      role: 'own' as const,
+      color_index: null,
+    };
+    let fixturesTested = 0;
+    let nonNullCompRanks = 0;
+
+    for (const row of MOCK_TRACKED_KEYWORDS.slice(0, 60)) {
+      const competitors = effectiveCompetitors(kw, ew, row);
+      if (competitors.length < 2) continue;
+      fixturesTested += 1;
+
+      const checks = worldChecks({
+        trackedId: row.tracked_keyword_id,
+        createdAt: row.created_at,
+        now: NOW,
+        domain: DOMAIN,
+        stoppedAt: stoppedAtOf(row),
+        own,
+        competitors,
+      });
+
+      const ownChecks = checksAt(row.tracked_keyword_id, row.created_at, NOW, DOMAIN, stoppedAtOf(row));
+      let goodCheckIdx = 0;
+
+      for (const check of checks) {
+        if (check.failed) continue;
+        const ownCheck = ownChecks[goodCheckIdx++];
+        if (!ownCheck) throw new Error('Missing own check');
+        expect(check.depth).toBe(ownCheck.depth);
+
+        const ranks = [check.rank, ...check.competitorRanks.values()].filter((r): r is number => r !== null);
+        expect(new Set(ranks).size).toBe(ranks.length);
+
+        for (const [compId, compRank] of check.competitorRanks) {
+          expect(compRank === null || compRank <= check.depth).toBe(true);
+          if (compRank !== null) nonNullCompRanks++;
+
+          const compEntity = competitors.find((c) => c.entity_id === compId);
+          expect(compEntity).toBeDefined();
+        }
+      }
+    }
+    expect(fixturesTested).toBeGreaterThanOrEqual(10);
+    expect(nonNullCompRanks).toBeGreaterThan(0);
   });
 });

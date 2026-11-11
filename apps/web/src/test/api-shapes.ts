@@ -10,6 +10,7 @@ import type {
   Operation,
   Price,
   RankHistory,
+  HistoryColumns,
   Run,
   RunDetail,
   Schedule,
@@ -46,6 +47,21 @@ import type {
   TrackedKeywordDetail,
   TrackedKeywordRow,
   CompetitorRank,
+  HistoryEvent,
+  AioHistoryItem,
+  FeatureCheck,
+  FeaturePresence,
+  RankEventOut,
+  RankEventPage,
+  SerpCurrent,
+  SerpDomain,
+  SerpFeatureHistory,
+  SerpFeatureOut,
+  SerpProvenance,
+  SerpResult,
+  SerpSnapshotDetail,
+  SerpSnapshotPage,
+  SerpSnapshotSummary,
   UrlRef,
   Vocabulary,
 } from '@/lib/api/types';
@@ -794,6 +810,26 @@ export const PRICE: z.ZodType<Price> = z.object({
   verified_at: z.string(),
 });
 
+const HISTORY_EVENT: z.ZodType<HistoryEvent> = z.object({
+  entity_id: z.string(),
+  event_type: z.string(),
+  from_rank: z.number().nullable(),
+  occurred_at: z.string(),
+  rank_event_id: z.string(),
+  to_rank: z.number().nullable(),
+});
+
+const HISTORY_COLUMNS: z.ZodType<HistoryColumns> = z.object({
+  entity: ENTITY_REF,
+  t: z.array(z.string().nullable()),
+  state: z.array(z.enum(['ranked', 'beyond_depth', 'failed'])),
+  rank: z.array(z.number().nullable()),
+  absolute_rank: z.array(z.number().nullable()),
+  depth_requested: z.array(z.number().nullable()),
+  url_id: z.array(z.string().nullable()),
+  serp_snapshot_id: z.array(z.string().nullable()),
+});
+
 export const RANK_HISTORY: z.ZodType<RankHistory> = z.object({
   bands: z.array(
     z.object({
@@ -805,7 +841,7 @@ export const RANK_HISTORY: z.ZodType<RankHistory> = z.object({
       to: z.string(),
     }),
   ),
-  columns: z.null(),
+  columns: z.array(HISTORY_COLUMNS).nullable(),
   config_history: z.array(
     z.object({
       config_version: z.number(),
@@ -815,7 +851,7 @@ export const RANK_HISTORY: z.ZodType<RankHistory> = z.object({
     }),
   ),
   deep_check_weekday: z.number(),
-  events: z.null(),
+  events: z.array(HISTORY_EVENT).nullable(),
   series: z
     .array(
       z.object({
@@ -836,14 +872,14 @@ export const RANK_HISTORY: z.ZodType<RankHistory> = z.object({
     )
     .nullable(),
   summary: z.object({
-    average_rank: z.any().nullable(),
+    average_rank: METRIC_VALUE.nullable(),
     beyond_depth_checks: z.number(),
     checks: z.number(),
     failed_checks: z.number(),
     ranked_checks: z.number(),
   }),
   tracked_keyword_id: z.string(),
-  urls: z.record(z.string(), z.any()),
+  urls: z.record(z.string(), URL_REF),
   version_boundaries: z.array(z.any()),
   window: z.object({
     from: z.string(),
@@ -851,3 +887,139 @@ export const RANK_HISTORY: z.ZodType<RankHistory> = z.object({
     to: z.string(),
   }),
 });
+
+export const RANK_EVENT_OUT: z.ZodType<RankEventOut> = z.object({
+  rank_event_id: z.string(),
+  event_type: z.string(),
+  occurred_at: z.string(),
+  entity: ENTITY_REF,
+  other_entity: ENTITY_REF.nullable(),
+  from_rank: z.number().nullable(),
+  to_rank: z.number().nullable(),
+  from_url: URL_REF.nullable(),
+  to_url: URL_REF.nullable(),
+  feature_type: z.string().nullable(),
+  keyword: z.string(),
+  tracked_keyword_id: z.string(),
+  serp_snapshot_id: z.string(),
+});
+
+export const RANK_EVENT_PAGE: z.ZodType<RankEventPage> = z.object({
+  data: z.array(RANK_EVENT_OUT),
+  page: CURSOR_PAGE,
+});
+
+export const SERP_DOMAIN: z.ZodType<SerpDomain> = z.object({
+  domain_id: z.number(),
+  host: z.string(),
+  registrable_domain: z.string(),
+});
+
+export const SERP_RESULT: z.ZodType<SerpResult> = z.object({
+  organic_rank: z.number(),
+  absolute_rank: z.number().nullable(),
+  url: URL_REF,
+  domain: SERP_DOMAIN,
+  title: z.string().nullable(),
+  snippet: z.string().nullable(),
+  entity: ENTITY_REF.nullable(),
+});
+
+export const SERP_CURRENT: z.ZodType<SerpCurrent> = z.object({
+  serp_snapshot_id: z.string().nullable(),
+  observed_at: z.string().nullable(),
+  results: z.array(SERP_RESULT),
+});
+
+const SERP_SNAPSHOT_SUMMARY_SHAPE = {
+  serp_snapshot_id: z.string(),
+  observed_at: z.string(),
+  observed_date: z.string(),
+  config_version: z.number(),
+  provider_code: z.string(),
+  provider_endpoint: z.string(),
+  se_domain: z.string().nullable(),
+  location_id: z.number(),
+  language_code: z.string(),
+  device: z.string(),
+  os: z.string().nullable(),
+  depth_requested: z.number(),
+  depth_returned: z.number(),
+  se_results_count: z.number().nullable(),
+  item_types: z.array(z.string()),
+  has_ai_overview: z.boolean(),
+  ai_overview_state: z.enum(['absent', 'present', 'present_async_loaded', 'present_not_loaded']).nullable(),
+  has_ai_mode_link: z.boolean().nullable(),
+  served_from_cache: z.boolean(),
+  cost_usd: z.string().nullable(),
+  own: RANK_CELL,
+};
+
+export const SERP_SNAPSHOT_SUMMARY: z.ZodType<SerpSnapshotSummary> = z.object(SERP_SNAPSHOT_SUMMARY_SHAPE);
+
+export const SERP_SNAPSHOT_PAGE: z.ZodType<SerpSnapshotPage> = z.object({
+  data: z.array(SERP_SNAPSHOT_SUMMARY),
+  page: CURSOR_PAGE,
+});
+
+export const SERP_FEATURE_OUT: z.ZodType<SerpFeatureOut> = z.object({
+  feature_type: z.string(),
+  ordinal: z.number(),
+  rank_absolute: z.number().nullable(),
+  owned_by_project: z.boolean(),
+  owned_position: z.number().nullable(),
+  competitor_entity_ids: z.array(z.string()),
+  source_urls: z.array(URL_REF),
+  payload: z.record(z.string(), z.unknown()),
+});
+
+export const SERP_PROVENANCE: z.ZodType<SerpProvenance> = z.object({
+  raw_payload_id: z.string(),
+  parser_version: z.number(),
+  canonicalizer_version: z.number(),
+  provider_task_id: z.string().nullable(),
+  collection_task_id: z.string().nullable(),
+});
+
+export const SERP_SNAPSHOT_DETAIL: z.ZodType<SerpSnapshotDetail> = z.object({
+  ...SERP_SNAPSHOT_SUMMARY_SHAPE,
+  organic: z.array(SERP_RESULT),
+  features: z.array(SERP_FEATURE_OUT),
+  provenance: SERP_PROVENANCE,
+  titles_source: z.enum(['domain_rank_observations', 'serp_current_results', 'unavailable']),
+  ai_overview_observation_id: z.string().nullable(),
+});
+
+export const FEATURE_CHECK: z.ZodType<FeatureCheck> = z.object({
+  observed_at: z.string(),
+  serp_snapshot_id: z.string(),
+  depth_requested: z.number(),
+  features: z.array(SERP_FEATURE_OUT),
+});
+
+export const FEATURE_PRESENCE: z.ZodType<FeaturePresence> = z.object({
+  feature_type: z.string(),
+  presence_rate: METRIC_VALUE,
+  own_ownership_rate: METRIC_VALUE,
+});
+
+export const SERP_FEATURE_HISTORY: z.ZodType<SerpFeatureHistory> = z.object({
+  checks: z.array(FEATURE_CHECK),
+  presence: z.array(FEATURE_PRESENCE),
+});
+
+export const AIO_HISTORY_ITEM: z.ZodType<AioHistoryItem> = z.object({
+  observed_at: z.string(),
+  serp_snapshot_id: z.string(),
+  device: z.string(),
+  location_id: z.number(),
+  ai_overview_state: z.enum(['absent', 'present_not_cited', 'present_cited', 'not_loaded', 'unknown']),
+  own_cited: z.boolean().nullable(),
+  own_citation_position: z.number().nullable(),
+  competitors_cited: z.array(ENTITY_REF),
+  source_count: z.number(),
+  organic_rank: RANK_CELL,
+  observation_id: z.string().nullable(),
+});
+
+export const AIO_HISTORY: z.ZodType<AioHistoryItem[]> = z.array(AIO_HISTORY_ITEM);

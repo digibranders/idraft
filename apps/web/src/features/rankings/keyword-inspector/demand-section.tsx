@@ -16,6 +16,38 @@ import { formatCurrency, formatInteger, formatMonth, formatRelativeChange } from
 
 const COMPETITION_KEY = { LOW: 'low', MEDIUM: 'medium', HIGH: 'high' } as const;
 
+type MetricsTranslate = ReturnType<typeof useTranslations<'rankings.inspector.metrics'>>;
+
+/** A metric Labs has not answered ("Pending") or answered without a value ("No data", 12-tables.md section 7.3). */
+const unknownItem = (
+  metrics: KeywordDetail['metrics'] | null,
+  t: MetricsTranslate,
+  id: string,
+  label: string,
+): MetricStripItem =>
+  metrics === null
+    ? { id, label, value: t('pending'), unknown: { kind: 'pending' }, context: t('pendingNote') }
+    : { id, label, value: t('noData'), unknown: { kind: 'not-applicable' }, context: t('noDataNote') };
+
+/** The volume cell, for the inspector's strip and the page's: one source for its value, estimate badge and note. */
+export function volumeStripItem(detail: KeywordDetail | null, t: MetricsTranslate): MetricStripItem {
+  const metrics = detail?.metrics ?? null;
+  const volume = metrics?.search_volume ?? null;
+  if (metrics === null || volume === null || volume.value === null)
+    return unknownItem(metrics, t, 'volume', t('volume'));
+  return {
+    id: 'volume',
+    label: t('volume'),
+    labelAddon: volume.is_estimate ? (
+      <Badge tone="info" variant="text">
+        {t('estimate')}
+      </Badge>
+    ) : undefined,
+    value: formatInteger(volume.value),
+    context: monthOf(metrics.data_month, (month) => t('volumeNote', { month })) ?? t('volumeNoteUndated'),
+  };
+}
+
 /**
  * Volume, keyword difficulty and CPC as the inspector's key-value strip (23-application-patterns.md
  * section 4.2; the rank items join with rank collection). Before Labs answers, each reads "Pending"; after
@@ -24,29 +56,10 @@ const COMPETITION_KEY = { LOW: 'low', MEDIUM: 'medium', HIGH: 'high' } as const;
 export function KeywordMetricStrip({ detail }: { detail: KeywordDetail | null }): ReactElement {
   const t = useTranslations('rankings.inspector.metrics');
   const metrics = detail?.metrics ?? null;
-  const unknownItem = (id: string, label: string): MetricStripItem =>
-    metrics === null
-      ? { id, label, value: t('pending'), unknown: { kind: 'pending' }, context: t('pendingNote') }
-      : { id, label, value: t('noData'), unknown: { kind: 'not-applicable' }, context: t('noDataNote') };
 
-  const items: MetricStripItem[] = [];
-  const volume = metrics?.search_volume ?? null;
-  if (metrics === null || volume === null || volume.value === null) items.push(unknownItem('volume', t('volume')));
-  else {
-    items.push({
-      id: 'volume',
-      label: t('volume'),
-      labelAddon: volume.is_estimate ? (
-        <Badge tone="info" variant="text">
-          {t('estimate')}
-        </Badge>
-      ) : undefined,
-      value: formatInteger(volume.value),
-      context: monthOf(metrics.data_month, (month) => t('volumeNote', { month })) ?? t('volumeNoteUndated'),
-    });
-  }
+  const items: MetricStripItem[] = [volumeStripItem(detail, t)];
   const difficulty = metrics?.keyword_difficulty ?? null;
-  if (metrics === null || difficulty === null) items.push(unknownItem('difficulty', t('difficulty')));
+  if (metrics === null || difficulty === null) items.push(unknownItem(metrics, t, 'difficulty', t('difficulty')));
   else {
     const level = metrics.competition_level;
     items.push({
@@ -60,7 +73,7 @@ export function KeywordMetricStrip({ detail }: { detail: KeywordDetail | null })
     });
   }
   const cpc = metrics?.cpc_usd ?? null;
-  if (metrics === null || cpc === null) items.push(unknownItem('cpc', t('cpc')));
+  if (metrics === null || cpc === null) items.push(unknownItem(metrics, t, 'cpc', t('cpc')));
   else items.push({ id: 'cpc', label: t('cpc'), value: formatCurrency(Number(cpc)), context: t('cpcNote') });
   const groups: MetricStripGroup[] = [{ id: 'demand', items }];
 

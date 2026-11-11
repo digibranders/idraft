@@ -1,7 +1,18 @@
-import { MOCK_TRACKED_KEYWORDS, PENDING_TRACKED_IDS } from './keyword-fixtures';
-import { checksOf, hashOf, type MockCheck } from './rank-history';
+import { PENDING_TRACKED_IDS } from './keyword-fixtures';
+import { hashOf, type MockCheck } from './rank-history';
+import {
+  FAILED_IDS,
+  FAILING_IDS,
+  FAILING_RUN,
+  aioAt,
+  featuresAt,
+  snapshotIdOf,
+  worldChecks,
+  absoluteRankOf,
+  OWN_ENTITY_REF,
+  checksAt,
+} from './serp-world';
 import { registrableDomain } from './factories/domain';
-import type { FeatureType } from '@/lib/keywords/serp-features';
 import type { components } from '@/lib/api/schema';
 
 /**
@@ -21,33 +32,8 @@ type AioStateInfo = Schemas['AioStateInfo'];
 const HOUR_MS = 60 * 60 * 1000;
 /** No successful check for this long makes a keyword stale (a daily profile; the API computes it). */
 const STALE_AFTER_MS = 36 * HOUR_MS;
-/** The latest check of a stale fixture keyword is at least this old. */
-const STALE_FIXTURE_AGE_MS = 40 * HOUR_MS;
 /** How many checks in a row the failed fixture keyword has lost. */
 const FAILED_RUN = 3;
-
-/** The fixture keywords the rank world gives a state of its own, chosen by their place among the checked ones. */
-export const CHECKED_FIXTURES = MOCK_TRACKED_KEYWORDS.filter(
-  (row) => row.is_active && !PENDING_TRACKED_IDS.has(row.tracked_keyword_id),
-).map((row) => row.tracked_keyword_id);
-
-/** Every 17th fixture keyword: its latest check is 40 hours old or more, so it is stale. */
-export const STALE_IDS: ReadonlySet<string> = new Set(CHECKED_FIXTURES.filter((_, index) => index % 17 === 16));
-/** The first stale fixture keyword is stale because its checks fail, the others because none ran (a paused collector). */
-export const FAILING_IDS: ReadonlySet<string> = new Set([...STALE_IDS].slice(0, 1));
-/** How many checks in a row the failing fixture keyword has lost since its last good one. */
-const FAILING_RUN = 2;
-/** One fixture keyword whose checks all failed. */
-export const FAILED_IDS: ReadonlySet<string> = new Set(CHECKED_FIXTURES.filter((_, index) => index === 6));
-
-const FEATURES = [
-  'featured_snippet',
-  'people_also_ask',
-  'video',
-  'images',
-  'local_pack',
-  'top_stories',
-] as const satisfies readonly FeatureType[];
 
 /** An archived fixture keyword is collected this long after it was added; the mock stores no archive time for it. */
 const ARCHIVED_FIXTURE_COLLECTED_MS = 5 * 24 * HOUR_MS;
@@ -139,71 +125,6 @@ function urlRefOf(domain: string, path: string): UrlRef {
   };
 }
 
-/** The features on the first page of the keyword's results, from its id: about one in four of each, or none. */
-function featuresOf(trackedId: string): string[] {
-  const bits = hashOf(`${trackedId}:features`);
-  return FEATURES.filter((_, index) => ((bits >>> (index * 2)) & 3) === 0);
-}
-
-/** The AI Overview of the last check, from the keyword's id. */
-function aioOf(trackedId: string): AioStateInfo {
-  const roll = hashOf(`${trackedId}:aio`) % 10;
-  if (roll < 4) return { state: 'absent', citation_position: null, observation_id: null };
-  if (roll === 9) return { state: 'unknown', citation_position: null, observation_id: null };
-  const observation = String((hashOf(`${trackedId}:aio:observation`) % 1_000_000_000) + 1);
-  if (roll < 7) return { state: 'present_not_cited', citation_position: null, observation_id: observation };
-  return {
-    state: 'present_cited',
-    citation_position: (hashOf(`${trackedId}:aio:position`) % 5) + 1,
-    observation_id: observation,
-  };
-}
-
-interface ManualCheckRecord {
-  completedAt: number;
-}
-
-const manualChecks = new Map<string, ManualCheckRecord>();
-
-export function recordManualCheck(trackedId: string, completedAt: number): void {
-  manualChecks.set(trackedId, { completedAt });
-}
-
-export function clearManualChecks(): void {
-  manualChecks.clear();
-}
-
-/** The checks of a keyword up to `now` as the rank state and sparkline see them. */
-export function checksAt(
-  trackedId: string,
-  createdAt: string,
-  now: number,
-  domain: string | null,
-  stoppedAt: string | null = null,
-): MockCheck[] {
-  if (PENDING_TRACKED_IDS.has(trackedId) || FAILED_IDS.has(trackedId)) return [];
-  const collected = stoppedAt === null;
-  const staleAsOf = STALE_IDS.has(trackedId) ? now - STALE_FIXTURE_AGE_MS : now;
-  const asOf = collected ? staleAsOf : Math.min(staleAsOf, Date.parse(stoppedAt));
-  const checks = checksOf(trackedId, createdAt, asOf).map((check) =>
-    domain === null ? { ...check, rank: null, path: null, urlCount: 0 } : check,
-  );
-  const manual = manualChecks.get(trackedId);
-  if (manual !== undefined && now >= manual.completedAt && collected) {
-    const latest = checks.at(-1);
-    const prevRank = latest?.rank ?? null;
-    const newRank = prevRank === null ? 10 : prevRank > 1 ? prevRank - 1 : 2;
-    checks.push({
-      observedAt: new Date(manual.completedAt).toISOString(),
-      rank: domain === null ? null : newRank,
-      depth: latest?.depth ?? 20,
-      path: latest?.path ?? '/',
-      urlCount: latest?.urlCount ?? 1,
-    });
-  }
-  return checks;
-}
-
 const EXTRA_PAGES = [
   '/solutions/security-operations-center',
   '/managed-soc-service',
@@ -258,48 +179,56 @@ export function sparklineOf(
 }
 
 /**
- * The checks of a competitor on the keyword up to `now`: the same walk seeded by the keyword
- * and competitor, or empty if the keyword has no good checks yet.
+ * Competitor ranks on the keyword as `include=competitor_ranks` answers it: the placed competitor ranks
+ * from `worldChecks`, ending where the own checks end.
  */
-export function competitorChecksOf(
+export function competitorRanksOf(
   trackedId: string,
-  entityId: string,
   createdAt: string,
   now: number,
+  domain: string | null,
+  competitors: readonly Schemas['EntityRef'][],
   stoppedAt: string | null = null,
-): MockCheck[] {
-  if (checksAt(trackedId, createdAt, now, null, stoppedAt).length === 0) return [];
-  const until = stoppedAt === null ? now : Math.min(now, Date.parse(stoppedAt));
-  return checksOf(`${trackedId}:${entityId}`, createdAt, until);
-}
+): Schemas['CompetitorRank'][] {
+  if (competitors.length === 0) return [];
+  const all = worldChecks({
+    trackedId,
+    createdAt,
+    now,
+    domain,
+    stoppedAt,
+    own: OWN_ENTITY_REF,
+    competitors: [...competitors],
+  });
+  const goodChecks = all.filter((c) => !c.failed);
+  const latest = goodChecks.at(-1);
+  if (latest === undefined) return [];
+  const prev = goodChecks.at(-2);
 
-/**
- * A competitor's rank on the keyword as `include=competitor_ranks` answers it: the same walk as the keyword's
- * own, seeded by the keyword and the competitor, at the moments of the keyword's own checks.
- */
-export function competitorRankOf(
-  trackedId: string,
-  createdAt: string,
-  now: number,
-  entity: Schemas['EntityRef'],
-  stoppedAt: string | null = null,
-): Schemas['CompetitorRank'] | null {
-  const theirs = competitorChecksOf(trackedId, entity.entity_id, createdAt, now, stoppedAt);
-  const latest = theirs.at(-1);
-  if (latest === undefined) return null;
-  return {
-    entity,
-    current: {
-      state: latest.rank === null ? 'beyond_depth' : 'ranked',
-      rank: latest.rank,
-      absolute_rank: latest.rank,
-      depth_requested: latest.depth,
-      url: null,
-      observed_at: latest.observedAt,
-      serp_snapshot_id: null,
-    },
-    change: changeOf(theirs.at(-2) ?? null, latest),
-  };
+  return competitors.map((entity) => {
+    const rank = latest.competitorRanks.get(entity.entity_id) ?? null;
+    const prevRank = prev ? (prev.competitorRanks.get(entity.entity_id) ?? null) : null;
+    const prevSide: ChangeSide | null =
+      prev && prev.observedAt ? { rank: prevRank, depth: prev.depth, observedAt: prev.observedAt } : null;
+    const curSide: ChangeSide = {
+      rank,
+      depth: latest.depth,
+      observedAt: latest.observedAt ?? new Date(now).toISOString(),
+    };
+    return {
+      entity,
+      current: {
+        state: rank === null ? 'beyond_depth' : 'ranked',
+        rank,
+        absolute_rank: absoluteRankOf(rank, latest.features.length),
+        depth_requested: latest.depth,
+        url: null,
+        observed_at: latest.observedAt,
+        serp_snapshot_id: latest.snapshotId,
+      },
+      change: changeOf(prevSide, curSide),
+    };
+  });
 }
 
 /**
@@ -336,37 +265,47 @@ export function rankStateOf(
     (found, check) => (found === null ? check.rank : Math.max(found, check.rank)),
     null,
   );
-  const aio = aioOf(trackedId);
-  const showed = aio.state === 'present_cited' || aio.state === 'present_not_cited';
-  const features = [...(showed ? ['ai_overview'] : []), ...featuresOf(trackedId)];
+  const features = featuresAt(trackedId, latest.observedAt, latest.rank !== null);
+  const aioInfo = aioAt(trackedId, latest.observedAt);
+  const aio: AioStateInfo = {
+    state: aioInfo.state,
+    citation_position: aioInfo.position,
+    observation_id:
+      aioInfo.state === 'absent' || aioInfo.state === 'unknown'
+        ? null
+        : String((hashOf(`${trackedId}:aio:observation:${latest.observedAt}`) % 1_000_000_000) + 1),
+  };
   const url = domain !== null && latest.path !== null ? urlRefOf(domain, latest.path) : null;
+
+  let urlChangedAt: string | null = null;
+  for (let i = 1; i < ranked.length; i += 1) {
+    const cur = ranked[i];
+    const prev = ranked[i - 1];
+    if (cur !== undefined && prev !== undefined && cur.path !== prev.path) {
+      urlChangedAt = cur.observedAt;
+    }
+  }
+
   return {
     current: {
       state: latest.rank === null ? 'beyond_depth' : 'ranked',
       rank: latest.rank,
-      // The place counting what stands above the organic results
-      absolute_rank: latest.rank === null ? null : latest.rank + Math.min(features.length, 2),
+      absolute_rank: absoluteRankOf(latest.rank, features.length),
       depth_requested: latest.depth,
       url,
       observed_at: latest.observedAt,
-      serp_snapshot_id: String(hashOf(`${trackedId}:${latest.observedAt}`) + 1),
+      serp_snapshot_id: snapshotIdOf(trackedId, latest.observedAt),
     },
     change: changeOf(checks.at(-2) ?? null, latest),
     best_rank: best?.rank ?? null,
     best_rank_at: best?.observedAt ?? null,
     worst_rank: worst,
     first_ranked_at: ranked[0]?.observedAt ?? null,
-    feature_types_present: features,
-    owned_feature_types:
-      latest.rank === null
-        ? []
-        : [
-            ...(aio.state === 'present_cited' ? ['ai_overview'] : []),
-            ...featuresOf(trackedId).filter((feature) => hashOf(`${trackedId}:owned:${feature}`) % 4 === 0),
-          ],
+    feature_types_present: features.map((f) => f.type),
+    owned_feature_types: features.filter((f) => f.owned && f.type !== 'ai_overview').map((f) => f.type),
     aio,
     target_url_match: url === null || targetUrl === null ? null : url.canonical_url === targetUrl,
-    url_changed_at: null,
+    url_changed_at: urlChangedAt,
     consecutive_failures: FAILING_IDS.has(trackedId) ? FAILING_RUN : 0,
     is_stale: collected && now - Date.parse(latest.observedAt) > STALE_AFTER_MS,
     last_observed_at: latest.observedAt,

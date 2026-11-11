@@ -139,13 +139,17 @@ export const trackedKeywordQuotaKey = (workspaceId: string): QueryKey =>
 
 /**
  * After any change to tracked keywords: the list, its counts, every page, the countries in use (all under
- * `keywordsKey`), the open keyword and the workspace's quota. Resolves once the queries on screen have read
- * again.
+ * `keywordsKey`), the open keyword and the workspace's quota, and with them the reads of the keyword page
+ * that sit outside the keyword's own key: the project's rank events and the SERP snapshots (Decision 12).
+ * Resolves once the queries on screen have read again.
  */
 export async function refreshKeywords(queryClient: QueryClient, scope: ProjectScope): Promise<void> {
+  const project = projectKey(scope.workspaceId, scope.projectId);
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: keywordsKey(scope) }),
     queryClient.invalidateQueries({ queryKey: trackedKeywordQuotaKey(scope.workspaceId) }),
+    queryClient.invalidateQueries({ queryKey: [...project, 'seo', 'rank-events'] }),
+    queryClient.invalidateQueries({ queryKey: [...project, 'serp-snapshots'] }),
   ]);
 }
 
@@ -268,7 +272,7 @@ interface ListArgs {
 type AllPages = UseInfiniteQueryResult<InfiniteData<ListPage, string | null>>;
 
 /** How often the list is read again while a keyword has a check queued or being answered (standard queue: minutes). */
-const CHECK_POLL_MS = 20_000;
+export const CHECK_POLL_MS = 20_000;
 
 /** Whether a keyword's check is queued or being answered (`state.check`), so its rank is about to change. */
 export function hasPendingCheck(row: { state?: Pick<TrackedKeywordState, 'check'> | undefined }): boolean {

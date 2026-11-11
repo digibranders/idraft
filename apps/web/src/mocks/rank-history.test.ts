@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { MOCK_TRACKED_KEYWORDS } from './keyword-fixtures';
 import { checksOf, FIRST_CHECK_DELAY_MS } from './rank-history';
 
 const NOW = Date.parse('2026-10-06T12:00:00Z');
@@ -8,6 +9,57 @@ const CREATED = '2026-06-15T08:00:00Z';
 const ID = '0192d1a8-e007-7a10-8e07-000000000003';
 
 describe('mock rank history', () => {
+  it('keeps the rank and depth of every existing check', () => {
+    const NOW_PINNED = Date.parse('2026-11-02T12:00:00Z');
+    const f0 = MOCK_TRACKED_KEYWORDS[0];
+    const f1 = MOCK_TRACKED_KEYWORDS[1];
+    const f2 = MOCK_TRACKED_KEYWORDS[2];
+    if (!f0 || !f1 || !f2) throw new Error('Fixture keywords missing');
+
+    const pairs = (id: string, createdAt: string): Array<{ rank: number | null; depth: number }> =>
+      checksOf(id, createdAt, NOW_PINNED)
+        .slice(-10)
+        .map((c) => ({ rank: c.rank, depth: c.depth }));
+
+    expect(pairs(f0.tracked_keyword_id, f0.created_at)).toEqual([
+      { rank: 18, depth: 20 },
+      { rank: 18, depth: 20 },
+      { rank: 16, depth: 50 },
+      { rank: 12, depth: 20 },
+      { rank: 14, depth: 20 },
+      { rank: 13, depth: 20 },
+      { rank: 15, depth: 50 },
+      { rank: 12, depth: 100 },
+      { rank: 8, depth: 50 },
+      { rank: 10, depth: 20 },
+    ]);
+
+    expect(pairs(f1.tracked_keyword_id, f1.created_at)).toEqual([
+      { rank: null, depth: 20 },
+      { rank: null, depth: 20 },
+      { rank: null, depth: 20 },
+      { rank: 31, depth: 100 },
+      { rank: null, depth: 20 },
+      { rank: null, depth: 20 },
+      { rank: null, depth: 20 },
+      { rank: 27, depth: 50 },
+      { rank: null, depth: 20 },
+      { rank: null, depth: 20 },
+    ]);
+
+    expect(pairs(f2.tracked_keyword_id, f2.created_at)).toEqual([
+      { rank: null, depth: 20 },
+      { rank: null, depth: 20 },
+      { rank: null, depth: 20 },
+      { rank: null, depth: 20 },
+      { rank: null, depth: 20 },
+      { rank: 20, depth: 50 },
+      { rank: null, depth: 20 },
+      { rank: 25, depth: 100 },
+      { rank: null, depth: 20 },
+      { rank: null, depth: 20 },
+    ]);
+  });
   it('is the same every time for the same keyword', () => {
     const a = checksOf(ID, CREATED, NOW);
     const b = checksOf(ID, CREATED, NOW);
@@ -88,5 +140,33 @@ describe('mock rank history', () => {
     const a = checksOf('0192d1a8-e007-7a10-8e07-000000000007', CREATED, NOW).map((check) => check.rank);
     const b = checksOf('0192d1a8-e007-7a10-8e07-000000000008', CREATED, NOW).map((check) => check.rank);
     expect(a).not.toEqual(b);
+  });
+});
+
+describe('ranking URL walk', () => {
+  it('changes the ranking path of some keywords every 17 to 29 days and of the rest never', () => {
+    const changing = MOCK_TRACKED_KEYWORDS.filter((row) => {
+      const paths = checksOf(row.tracked_keyword_id, row.created_at, NOW).flatMap((c) =>
+        c.path === null ? [] : [c.path],
+      );
+      return new Set(paths).size > 1;
+    });
+    expect(changing.length).toBeGreaterThan(0);
+    expect(changing.length).toBeLessThan(MOCK_TRACKED_KEYWORDS.length / 2);
+  });
+
+  it('gives a check the same path whatever the clock says', () => {
+    let compared = 0;
+    for (const row of MOCK_TRACKED_KEYWORDS.slice(0, 40)) {
+      const early = checksOf(row.tracked_keyword_id, row.created_at, NOW);
+      const later = checksOf(row.tracked_keyword_id, row.created_at, NOW + 3 * 86_400_000);
+      for (const check of early) {
+        const same = later.find((candidate) => candidate.observedAt === check.observedAt);
+        if (same === undefined) continue; // slid out of the last 30
+        expect(same.path).toBe(check.path);
+        compared += 1;
+      }
+    }
+    expect(compared).toBeGreaterThan(40 * 20);
   });
 });

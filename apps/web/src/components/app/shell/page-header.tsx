@@ -8,6 +8,8 @@ export const PAGE_CLASS = 'flex flex-col gap-3 px-3 pt-3 pb-8 md:px-4 lg:px-5';
 export interface PageHeaderProps {
   /** The page's only `h1`. It never truncates and wraps to two lines at most. */
   title: string;
+  /** The title's language, when it is not the interface's (a keyword in German). */
+  lang?: string | undefined;
   /** The meta line under the title: freshness first, then one scope fact. */
   meta?: ReactNode | undefined;
   /** At most two secondary actions, then the one primary action, right-aligned. */
@@ -38,6 +40,7 @@ export interface PageHeaderProps {
  */
 export function PageHeader({
   title,
+  lang,
   meta,
   actions,
   tabs,
@@ -50,7 +53,7 @@ export function PageHeader({
     return (
       <div data-slot="page-header" className="@container flex flex-col gap-3">
         <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
-          <h1 id={headingId} tabIndex={-1} className="sr-only outline-none">
+          <h1 id={headingId} tabIndex={-1} lang={lang} className="sr-only outline-none">
             {title}
           </h1>
           {toolbar === undefined ? null : <div className="order-1 min-w-0 flex-1 basis-96">{toolbar}</div>}
@@ -74,7 +77,7 @@ export function PageHeader({
             compact ? 'order-1 items-baseline gap-3 md:flex-1 @6xl:flex-none' : 'flex-col gap-1 md:flex-1',
           )}
         >
-          <h1 id={headingId} tabIndex={-1} className="type-page-title outline-none">
+          <h1 id={headingId} tabIndex={-1} lang={lang} className="type-page-title break-words outline-none">
             {title}
           </h1>
           {meta === undefined ? null : <p className="type-meta">{meta}</p>}

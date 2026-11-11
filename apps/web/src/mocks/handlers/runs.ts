@@ -26,7 +26,7 @@ import {
 import { readingOf } from '../factories/keyword';
 import { labsMicros, runDetailView, runPath, runState, runView, RUN_WORKING_MS } from '../factories/operations';
 import { operationIdMinter, operationWorld, runTime, TRIGGERS, withRun, type StoredRun } from '../operations-state';
-import { recordManualCheck } from '../rank-state';
+import { recordManualCheck } from '../serp-world';
 import { invalid, mock, problem } from '../respond';
 import { projectList } from '../workspace-state';
 import type { ValidationItem } from '@/lib/api/types';

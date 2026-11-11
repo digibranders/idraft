@@ -167,6 +167,7 @@ export function DataTable<TRow extends RowData>({
   rowName,
   onRowOpen,
   activeRowId,
+  rowTone,
   onRowOrderChange,
   status,
   errorState,
@@ -1116,6 +1117,7 @@ export function DataTable<TRow extends RowData>({
                             aria-current={isActive ? 'true' : undefined}
                             data-selected={isSelected ? '' : undefined}
                             data-active={isActive ? '' : undefined}
+                            data-tone={rowTone?.(row)}
                             data-group-row={groupTree === undefined ? undefined : ''}
                             className={cn('group cursor-default', density === 'compact' ? 'h-row-compact' : 'h-row')}
                             onClick={(event: MouseEvent<HTMLTableRowElement>) => {
@@ -1162,6 +1164,7 @@ export function DataTable<TRow extends RowData>({
                                     groupTree === undefined
                                       ? 'bg-surface font-normal'
                                       : 'bg-surface-subtle type-body-strong',
+                                    'group-data-[tone=own]:bg-primary-subtle',
                                     'group-hover:bg-surface-hover group-data-active:bg-surface-selected group-data-selected:bg-surface-selected',
                                     left !== null && 'sticky z-(--z-pinned-cell)',
                                     first && 'group-data-active:row-active-edge',

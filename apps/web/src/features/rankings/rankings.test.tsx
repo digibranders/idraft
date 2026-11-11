@@ -10,7 +10,8 @@ import type { TrackedKeywordRow, TrackedKeywordState } from '@/lib/api/types';
 import { MOCK_ENTITY_IDS } from '@/mocks/entity-fixtures';
 import { MOCK_KEYWORDS, MOCK_TRACKED_KEYWORDS } from '@/mocks/keyword-fixtures';
 import { KEYWORD_TABLE } from '@/mocks/keyword-table';
-import { FAILED_IDS, FAILING_IDS, rankStateOf } from '@/mocks/rank-state';
+import { rankStateOf } from '@/mocks/rank-state';
+import { FAILED_IDS, FAILING_IDS } from '@/mocks/serp-world';
 import { mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { SORT_FIELDS } from './keyword-columns';
@@ -33,8 +34,9 @@ import {
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
+const router = vi.hoisted(() => ({ push: vi.fn<(path: string) => void>() }));
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ push: router.push, replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/digibranders/fynix/seo/keywords',
 }));
 
@@ -45,8 +47,15 @@ const DESKTOP = ACTIVE.filter((row) => row.device === 'desktop');
 /** Rows on screen: a keyword tracked on both devices is one row, and one tracked on mobile only is not listed. */
 const SHOWN = new Set(DESKTOP.map((row) => [row.text, row.location, row.language].join('|'))).size;
 
-beforeEach(stubWideScreen);
-afterEach(restoreWideScreen);
+beforeEach(() => {
+  stubWideScreen();
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-02T12:00:00Z'));
+});
+afterEach(() => {
+  vi.useRealTimers();
+  restoreWideScreen();
+});
 
 /** The query strings the screen wrote, newest last. */
 function urlWrites(): { onUrlUpdate: (event: UrlUpdateEvent) => void; latest: () => URLSearchParams } {
@@ -662,8 +671,8 @@ describe('Rankings rank columns', () => {
       const cell = rowCells(grid, at)(/^Rank$/);
       expect(within(cell).getByText('last check failed')).toHaveClass('sr-only');
       expect(within(cell).getByText('stale')).toHaveClass('sr-only');
-      // The rank of the last good check is still there
-      expect(cell.querySelector('.num')?.textContent).toMatch(/^\d+$|^>\d+$/);
+      // The rank of the last good check is still there: a number, or the not ranked mark when it was beyond the depth
+      expect(cell.querySelector('.num')?.textContent).toMatch(/^\d+$|^-$/);
       expect(keywordsIn(grid)[at]).toBe(textOfKeyword([...FAILING_IDS][0] ?? ''));
     }
   });
@@ -1260,6 +1269,118 @@ describe('Rankings import button', () => {
     renderWithProviders(as('viewer'));
     await loadedGrid();
     expect(screen.queryByRole('button', { name: 'More ways to add keywords' })).toBeNull();
+  });
+});
+
+describe('Rankings link to the keyword page', () => {
+  const PAGE_OF = /^\/digibranders\/fynix\/seo\/keywords\/([0-9a-f-]{36})$/;
+  const rowHeaderOf = (grid: HTMLElement, keyword: string): HTMLElement => {
+    const header = within(grid)
+      .getAllByRole('rowheader')
+      .find((cell) => cell.querySelector('.truncate')?.textContent === keyword);
+    if (header === undefined) throw new Error(`No row for ${keyword}`);
+    return header;
+  };
+
+  beforeEach(() => {
+    router.push.mockClear();
+  });
+  // The spy on window.open goes whether the test passed or not
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('opens the page of the keyword from Open page in the inspector, and the inspector id is the page id', async () => {
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('editor'), { onUrlUpdate: url.onUrlUpdate });
+    const grid = await loadedGrid();
+    await user.click(rowHeaderOf(grid, 'seo agency'));
+    await waitFor(() => expect(url.latest().get('inspect')).toMatch(/^keyword:/));
+    const id = url.latest().get('inspect')?.replace('keyword:', '');
+    await user.click(await screen.findByRole('button', { name: 'Open page' }));
+    expect(router.push).toHaveBeenCalledOnce();
+    const path = router.push.mock.calls[0]?.[0] ?? '';
+    expect(path).toMatch(PAGE_OF);
+    expect(PAGE_OF.exec(path)?.[1]).toBe(id);
+  });
+
+  it('asks before it leaves unsaved changes for the page, and goes only when they are discarded', async () => {
+    const { user } = renderWithProviders(as('editor'));
+    const grid = await loadedGrid();
+    await user.click(rowHeaderOf(grid, 'seo agency'));
+    const inspector = await screen.findByRole('complementary', { name: 'seo agency' });
+    await user.click(await within(inspector).findByRole('button', { name: 'Edit Tracking' }));
+    await user.type(within(inspector).getByRole('textbox', { name: /Target URL/ }), 'https://fynix.io/x');
+    await user.click(within(inspector).getByRole('button', { name: 'Open page' }));
+    const question = await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' });
+    expect(router.push).not.toHaveBeenCalled();
+    await user.click(within(question).getByRole('button', { name: 'Keep editing' }));
+    expect(router.push).not.toHaveBeenCalled();
+    await user.click(within(inspector).getByRole('button', { name: 'Open page' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' })).getByRole('button', {
+        name: 'Discard changes',
+      }),
+    );
+    expect(router.push).toHaveBeenCalledOnce();
+    expect(router.push.mock.calls[0]?.[0]).toMatch(PAGE_OF);
+  });
+
+  it('opens the page in a new tab on a Ctrl click on a row, and leaves this tab as it was', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
+    const grid = await loadedGrid();
+    await user.keyboard('{Control>}');
+    await user.click(rowHeaderOf(grid, 'seo agency'));
+    await user.keyboard('{/Control}');
+    expect(open).toHaveBeenCalledOnce();
+    const [target, name, features] = open.mock.calls[0] ?? [];
+    expect(String(target)).toMatch(PAGE_OF);
+    expect(name).toBe('_blank');
+    expect(features).toBe('noopener');
+    // No inspector in this tab, and no navigation
+    expect(url.latest().has('inspect')).toBe(false);
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it('opens the page in a new tab on a middle click, and leaves this tab as it was', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
+    const grid = await loadedGrid();
+    await user.pointer({ keys: '[MouseMiddle]', target: rowHeaderOf(grid, 'seo agency') });
+    expect(open).toHaveBeenCalledOnce();
+    const [target, name, features] = open.mock.calls[0] ?? [];
+    expect(String(target)).toMatch(PAGE_OF);
+    expect(name).toBe('_blank');
+    expect(features).toBe('noopener');
+    expect(url.latest().has('inspect')).toBe(false);
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it('opens the same page on a Cmd click as on a Ctrl click', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const { user } = renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    await user.keyboard('{Meta>}');
+    await user.click(rowHeaderOf(grid, 'seo agency'));
+    await user.keyboard('{/Meta}');
+    expect(open).toHaveBeenCalledOnce();
+    expect(String(open.mock.calls[0]?.[0])).toMatch(PAGE_OF);
+  });
+
+  it('still opens the inspector on a plain click, and opens no page', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
+    const grid = await loadedGrid();
+    await user.click(rowHeaderOf(grid, 'seo agency'));
+    await waitFor(() => expect(url.latest().get('inspect')).toMatch(/^keyword:/));
+    expect(await screen.findByRole('complementary', { name: 'seo agency' })).toBeInTheDocument();
+    expect(open).not.toHaveBeenCalled();
   });
 });
 

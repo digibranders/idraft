@@ -1442,7 +1442,8 @@
     "patterns": "Patterns",
     "legend": "Series in {title}",
     "noValue": "No data",
-    "failed": "Failed"
+    "failed": "Failed",
+    "tableRegion": "Table of {title}"
   },
   "inspector": {
     "resize": "Resize inspector",
@@ -2568,6 +2569,43 @@
         "stale": "Stale"
       }
     },
+    "rankHistory": {
+      "title": "Rank history",
+      "meta": "Last {days} days · {checks, plural, one {1 check} other {# checks}}, {ranked} ranked",
+      "metaWithFailed": "Last {days} days · {checks, plural, one {1 check} other {# checks}}, {ranked} ranked, {failed} failed",
+      "metaAllFailed": "Last {days} days · {failed, plural, one {1 check} other {# checks}}, all failed",
+      "you": "{name} (you)",
+      "axisName": "Rank (1 = best)",
+      "deepCheck": "Deep check",
+      "absolute": "{name} (absolute)",
+      "category": "Date",
+      "guide": "Top {rank}",
+      "band": "Not in top {depth}",
+      "bandSingle": "Not in top {depth} on {date}.",
+      "bandRange": "Not in top {depth} from {from} to {to}.",
+      "checkFailed": "Check failed",
+      "summary": "Organic rank of {name} over the last {days} days, 1 is best: from {first} to {last}, best {best}. {competitors, plural, =0 {} one {1 competitor is shown too.} other {# competitors are shown too.}}{failed, plural, =0 {} other { {failed} failed.}}",
+      "summaryUnranked": "Organic rank of {name} over the last {days} days: not ranked within the depth checked.",
+      "summaryAllFailed": "Organic rank of {name} over the last {days} days: every check failed.",
+      "deepNote": "{count, plural, one {1 deep check is not drawn.} other {# deep checks are not drawn.}}",
+      "eventsMarked": "{count, plural, =0 {No events are marked on the chart.} one {1 event is marked on the chart and listed under Events.} other {# events are marked on the chart and listed under Events.}}",
+      "eventMark": {
+        "urlChanged": "Ranking URL changed",
+        "enteredTop10": "Entered the top 10",
+        "lostTop10": "Left the top 10",
+        "aioAppeared": "An AI Overview appeared",
+        "aioDisappeared": "The AI Overview disappeared"
+      },
+      "eventKey": {
+        "label": "Marks on the chart",
+        "url": "Ranking URL changed",
+        "rank": "Entered or left the top 10",
+        "aio": "AI Overview appeared or disappeared"
+      },
+      "empty": "No checks yet",
+      "emptyReason": "The rank history fills in after the first check.",
+      "failed": "The rank history did not load."
+    },
     "inspector": {
       "type": "Keyword",
       "noun": "keyword",
@@ -2632,24 +2670,6 @@
         "pendingNote": "Arrives within minutes",
         "noData": "No data",
         "noDataNote": "None at this location"
-      },
-      "rankHistory": {
-        "title": "Rank history",
-        "meta": "Last 90 days · {checks, plural, one {1 check} other {# checks}}, {ranked} ranked",
-        "metaWithFailed": "Last 90 days · {checks, plural, one {1 check} other {# checks}}, {ranked} ranked, {failed} failed",
-        "you": "{name} (you)",
-        "category": "Date",
-        "guide": "Top {rank}",
-        "band": "Not in top {depth}",
-        "bandSingle": "Not in top {depth} on {date}.",
-        "bandRange": "Not in top {depth} from {from} to {to}.",
-        "checkFailed": "Check failed",
-        "summary": "Organic rank of {name} over the last 90 days, 1 is best: from {first} to {last}, best {best}. {competitors, plural, =0 {} one {1 competitor is shown too.} other {# competitors are shown too.}}{failed, plural, =0 {} other { {failed} failed.}}",
-        "summaryUnranked": "Organic rank of {name} over the last 90 days: not ranked within the depth checked.",
-        "summaryAllFailed": "Organic rank of {name} over the last 90 days: every check failed.",
-        "empty": "No checks yet",
-        "emptyReason": "The rank history fills in after the first check.",
-        "failed": "The rank history did not load."
       },
       "demand": {
         "title": "Search volume by month",
@@ -2738,6 +2758,240 @@
         "submit": "Change depth",
         "done": "Depth profile changed"
       }
+    }
+  },
+  "keywordDetail": {
+    "back": "Keywords",
+    "loading": "Loading the keyword",
+    "notFound": {
+      "title": "This keyword is no longer tracked",
+      "reason": "It was deleted, or you do not have access to its project.",
+      "toList": "Back to Keywords"
+    },
+    "noAccess": {
+      "title": "You do not have access to this keyword",
+      "reason": "You do not have permission to view rank data. Ask an admin of this workspace.",
+      "toOverview": "Back to the project"
+    },
+    "loadFailed": {
+      "title": "The keyword did not load",
+      "reason": "Nothing else on this page can be shown until it does."
+    },
+    "header": {
+      "facts": "{location} · {device} · {engine} · {language} · {depth}",
+      "updated": "Updated {time}",
+      "target": "Target {path}",
+      "noTarget": "No target URL",
+      "groups": "Groups {names}",
+      "terms": "Tags {names}",
+      "badges": {
+        "archived": "Archived",
+        "pending": "Not checked yet",
+        "failed": "Check failed",
+        "stale": "Stale",
+        "failing": "Last checks failed"
+      },
+      "openRankingPage": "Open ranking page",
+      "openRankingPageNewTab": "Open ranking page in a new tab",
+      "more": "More actions",
+      "copyLink": "Copy link",
+      "linkCopied": "Link copied",
+      "editSettings": "Edit settings",
+      "changeDepth": "Change depth",
+      "archive": "Archive",
+      "restore": "Restore"
+    },
+    "tabs": {
+      "label": "Keyword sections",
+      "overview": "Overview",
+      "snapshots": "SERP snapshots"
+    },
+    "noChecks": {
+      "title": "No checks yet",
+      "pending": "This keyword has not been checked yet. This fills in after the first check.",
+      "failed": "Every check of this keyword has failed, so there is nothing to show.",
+      "stale": "No check falls in this window, and the last good one is older. Choose a longer window.",
+      "archived": "This keyword is archived and no longer checked. No check falls in this window.",
+      "window": "No check falls in this window. Choose a longer window."
+    },
+    "history": {
+      "loading": "Loading the rank history",
+      "deepCheck": "deep check {weekday}",
+      "window": {
+        "label": "Window",
+        "last7Days": "Last 7 days",
+        "last30Days": "Last 30 days",
+        "last90Days": "Last 90 days",
+        "last180Days": "Last 180 days",
+        "last365Days": "Last 365 days"
+      },
+      "competitors": {
+        "label": "Competitors on the chart",
+        "button": "Competitors ({count})",
+        "limit": "At most 5 competitors on the chart",
+        "showing": "Showing {shown} of {total} competitors"
+      },
+      "layers": {
+        "label": "Chart layers",
+        "absolute": "Absolute",
+        "events": "Events",
+        "deep": "Deep checks",
+        "deepHidden": "Deep checks ({count} hidden)"
+      },
+      "statsAllFailed": "Every check in this window failed.",
+      "statsDrawn": "Best {best}, worst {worst}, median {median} over {ranked} of {checks} checks",
+      "stats": "Best {best}, worst {worst}, median {median}, average {average} over {ranked} of {checks} checks",
+      "statsUnranked": "Not ranked in any of the {checks, plural, one {1 check} other {# checks}} in this window"
+    },
+    "strip": {
+      "label": "Summary for this keyword",
+      "rank": "Rank",
+      "rankChecked": "Checked {time}",
+      "rankStale": "Stale, last good check {time}",
+      "rankFailing": "Checked {time}, later checks failed",
+      "rankBeyond": "Not in top {depth}",
+      "rankBeyondChecked": "Not in top {depth}, checked {time}",
+      "rankPending": "Not checked yet",
+      "rankFailed": "Check failed",
+      "best": "Best rank",
+      "bestAt": "{date}",
+      "bestNone": "Never ranked",
+      "average": "Average rank",
+      "averageOf": "{ranked} of {checks, plural, one {1 check} other {# checks}}",
+      "averageNone": "Not ranked in {checks, plural, one {1 check} other {# checks}}",
+      "topTen": "Days in top 10",
+      "topTenOf": "of {days, plural, one {1 day checked} other {# days checked}}",
+      "aio": "AI Overview",
+      "aioCited": "Cited",
+      "aioCitedAt": "Cited #{position}",
+      "aioChecks": "{present} of {of, plural, one {1 check} other {# checks}}",
+      "aioNoChecks": "No readable checks in this window",
+      "unavailable": "n/a",
+      "partialError": "Some figures did not load"
+    },
+    "snapshots": {
+      "picker": {
+        "label": "Snapshot",
+        "latest": "Latest check",
+        "option": "{when} · top {depth} · rank {rank}",
+        "optionBeyond": "{when} · top {depth} · not in top {depth}",
+        "urlChanged": "{option} · ranking URL changed",
+        "previous": "Previous snapshot",
+        "next": "Next snapshot",
+        "older": "Load older snapshots",
+        "atFirst": "This is the newest snapshot",
+        "atLast": "This is the oldest snapshot loaded",
+        "listFailed": "The list of snapshots did not load"
+      },
+      "heading": {
+        "latest": "Latest check, {when}",
+        "dated": "Snapshot of {when}"
+      },
+      "columns": {
+        "rank": "Rank",
+        "result": "Result",
+        "url": "URL",
+        "entity": "Entity",
+        "snippet": "Snippet"
+      },
+      "absoluteRank": "Position {absolute} counting the SERP features above it",
+      "openResult": "Open {address} in a new tab",
+      "entity": {
+        "you": "You",
+        "watch": "Watched",
+        "notTracked": "Not tracked"
+      },
+      "table": {
+        "caption": "Organic results",
+        "noun": {
+          "one": "result",
+          "other": "results"
+        },
+        "search": "Filter results",
+        "empty": {
+          "title": "This snapshot has no organic results",
+          "reason": "The provider returned none for this check."
+        },
+        "noMatch": {
+          "title": "No result matches the filter",
+          "reason": "Clear the filter to see every result.",
+          "clear": "Clear filter"
+        },
+        "failed": "The results did not load",
+        "failedReason": "The snapshot list and the picker above are still usable."
+      },
+      "loading": "Loading the results",
+      "titlesNote": "Titles are kept only for your pages, your competitors and the latest results.",
+      "returned": "{returned, plural, one {# of the top {depth} results was returned.} other {# of the top {depth} results were returned.}}",
+      "empty": {
+        "pending": "No SERP snapshot yet",
+        "pendingReason": "The first check creates one.",
+        "failed": "The check failed, so there is no snapshot",
+        "failedReason": "Check now tries again.",
+        "archived": "This archived keyword has no SERP snapshot",
+        "archivedReason": "It was never checked before it was archived."
+      },
+      "gone": {
+        "title": "This snapshot is no longer available",
+        "reason": "It may have been removed, or the link is out of date.",
+        "clear": "Show the latest check"
+      }
+    },
+    "events": {
+      "title": "Events",
+      "filter": "Event types",
+      "all": "All events",
+      "older": "Show older events",
+      "olderLoaded": "{count, plural, one {1 more event loaded} other {# more events loaded}}",
+      "open": "Open snapshot",
+      "openOf": "Open snapshot of {date}",
+      "loading": "Loading the events",
+      "kinds": {
+        "rank": "Rank",
+        "url": "Ranking URL",
+        "serpFeature": "SERP features",
+        "aiCitation": "AI Overview citation",
+        "competitor": "Competitors"
+      },
+      "rank": {
+        "ranked": "#{rank}",
+        "none": "not ranked"
+      },
+      "types": {
+        "enteredTop3": "Entered the top 3, from {from} to {to}",
+        "enteredTop10": "Entered the top 10, from {from} to {to}",
+        "enteredTop20": "Entered the top 20, from {from} to {to}",
+        "enteredTop100": "Entered the top 100, from {from} to {to}",
+        "lostTop3": "Left the top 3, from {from} to {to}",
+        "lostTop10": "Left the top 10, from {from} to {to}",
+        "lostTop20": "Left the top 20, from {from} to {to}",
+        "lostTop100": "Left the top 100, from {from} to {to}",
+        "newRanking": "Started ranking at {to}",
+        "lostRanking": "Stopped ranking, it was {from}",
+        "rankGain": "Rank improved from {from} to {to}",
+        "rankDrop": "Rank dropped from {from} to {to}",
+        "urlChanged": "Ranking URL changed from {fromPath} to {toPath}",
+        "featureGained": "You now own {feature}",
+        "featureLost": "You no longer own {feature}",
+        "aioAppeared": "An AI Overview appeared",
+        "aioDisappeared": "The AI Overview disappeared",
+        "aioCitationGained": "Your site is now cited in the AI Overview",
+        "aioCitationLost": "Your site is no longer cited in the AI Overview",
+        "overtakenBy": "{competitor} passed you, from {from} to {to}",
+        "overtook": "You passed {competitor}, now at {to}",
+        "unknown": "{code}"
+      },
+      "noPath": "an unknown page",
+      "noFeature": "a SERP feature",
+      "noCompetitor": "a competitor",
+      "empty": "No events yet",
+      "emptyPending": "This keyword has not been checked yet. Events appear after the first check.",
+      "emptyFailed": "Every check of this keyword has failed, so no event can be recorded.",
+      "emptyNone": "Nothing has changed since tracking began.",
+      "emptyFiltered": "No matching events",
+      "emptyFilteredReason": "No event of the chosen types has been recorded for this keyword.",
+      "failed": "The events did not load.",
+      "olderFailed": "More events did not load."
     }
   },
   "filters": {

@@ -26,6 +26,8 @@ export interface ChartFrameProps {
   meta?: string | null | undefined;
   /** Method and filters that change how to read it. */
   footnote?: ReactNode;
+  /** Controls that change what is drawn (a window, layers), between the header and the chart. */
+  controls?: ReactNode;
   kind: 'line' | 'bar';
   categories: readonly string[];
   /** The first column of the table view: "Month". */
@@ -52,6 +54,7 @@ export function ChartFrame({
   variant,
   meta,
   footnote,
+  controls,
   kind,
   categories,
   categoryHeader,
@@ -82,6 +85,24 @@ export function ChartFrame({
     },
     [kind, categories, series, hidden, patterns, formatValue, stacked, extendOption],
   );
+  const hasControls = controls !== undefined && controls !== null;
+  const views = (
+    <div
+      role="group"
+      aria-label={t('views', { title })}
+      className={cn('flex items-center gap-1', hasControls && 'ml-auto')}
+    >
+      {/* Toggle buttons: pressed reads as the secondary fill, released as ghost */}
+      {kind === 'bar' && !table ? (
+        <Button size="sm" variant="ghost" aria-pressed={patterns} onClick={() => setPatterns((on) => !on)}>
+          {t('patterns')}
+        </Button>
+      ) : null}
+      <Button size="sm" variant="ghost" aria-pressed={table} onClick={() => setTable((on) => !on)}>
+        {t('table')}
+      </Button>
+    </div>
+  );
   const inspector = variant === 'inspector';
   const Title = inspector ? 'h3' : 'h2';
   return (
@@ -90,7 +111,8 @@ export function ChartFrame({
       className={cn('flex flex-col gap-3', inspector ? 'py-1' : 'rounded-lg border border-border bg-surface p-4')}
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="flex min-w-0 flex-1 flex-col">
+        {/* The title keeps a readable measure: the legend and the views wrap to the next line before it narrows */}
+        <div className="flex min-w-0 shrink grow basis-64 flex-col">
           <Title className={inspector ? 'type-subsection-title' : 'type-section-title'}>{title}</Title>
           {meta === null || meta === undefined ? null : <p className="type-meta">{meta}</p>}
         </div>
@@ -124,28 +146,14 @@ export function ChartFrame({
             ))}
           </ul>
         ) : null}
-        <div role="group" aria-label={t('views', { title })} className="flex items-center gap-1">
-          {/* Toggle buttons: pressed reads as the secondary fill, released as ghost */}
-          {kind === 'bar' && !table ? (
-            <Button
-              size="sm"
-              variant={patterns ? 'secondary' : 'ghost'}
-              aria-pressed={patterns}
-              onClick={() => setPatterns((on) => !on)}
-            >
-              {t('patterns')}
-            </Button>
-          ) : null}
-          <Button
-            size="sm"
-            variant={table ? 'secondary' : 'ghost'}
-            aria-pressed={table}
-            onClick={() => setTable((on) => !on)}
-          >
-            {t('table')}
-          </Button>
-        </div>
+        {hasControls ? null : views}
       </div>
+      {hasControls ? (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+          {controls}
+          {views}
+        </div>
+      ) : null}
       {table ? (
         <ChartTable
           title={title}
@@ -190,7 +198,13 @@ function ChartTable({
 }): ReactElement {
   const t = useTranslations('chart');
   return (
-    <div className="max-h-70 overflow-auto rounded-lg border border-border-subtle">
+    // A scrolling region is reached by keyboard and named (WCAG 2.1.1, axe scrollable-region-focusable)
+    <div
+      role="region"
+      aria-label={t('tableRegion', { title })}
+      tabIndex={0}
+      className="max-h-70 overflow-auto rounded-lg border border-border-subtle outline-none focus-visible:focus-ring"
+    >
       <table className="w-full border-collapse type-table">
         <caption className="sr-only">{title}</caption>
         <thead>
@@ -208,7 +222,10 @@ function ChartTable({
         <tbody>
           {categories.map((category, index) => (
             <tr key={`${category}-${String(index)}`} className="border-t border-border-subtle">
-              <th scope="row" className="h-row-compact px-4 text-left font-normal text-foreground-secondary">
+              <th
+                scope="row"
+                className="h-row-compact px-4 text-left font-normal whitespace-nowrap text-foreground-secondary"
+              >
                 {category}
               </th>
               {series.map((entry) => {

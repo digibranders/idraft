@@ -1,0 +1,261 @@
+{
+  "version": "0.1.20261103",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "0.0811 sec.",
+  "cost": 0.0012,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "11110640-2666-0066-0000-03f74ce8d420",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "time": "0.0433 sec.",
+      "cost": 0.0012,
+      "result_count": 1,
+      "path": [
+        "v3",
+        "serp",
+        "google",
+        "ai_mode",
+        "task_get",
+        "advanced",
+        "11110640-2666-0066-0000-03f74ce8d420"
+      ],
+      "data": {
+        "api": "serp",
+        "function": "task_get",
+        "se": "google",
+        "se_type": "ai_mode",
+        "keyword": "What are the best managed SOC providers in India?",
+        "location_code": 2356,
+        "language_code": "en",
+        "priority": 1,
+        "tag": "i:spike:t:v:a:1:r:29303df7bf664862ba645f85cb7a08a3",
+        "device": "desktop",
+        "os": "windows"
+      },
+      "result": [
+        {
+          "keyword": "What are the best managed SOC providers in India?",
+          "type": "ai_mode",
+          "se_domain": "google.com",
+          "location_code": 2356,
+          "language_code": "en",
+          "check_url": "https://www.google.com/search?q=What%20are%20the%20best%20managed%20SOC%20providers%20in%20India%3F&hl=en&gl=IN&udm=50&uule=w+CAIQICIFSW5kaWE",
+          "datetime": "2026-11-11 06:40:56 +00:00",
+          "spell": null,
+          "refinement_chips": null,
+          "item_types": [
+            "ai_overview"
+          ],
+          "se_results_count": 0,
+          "items_count": 1,
+          "items": [
+            {
+              "type": "ai_overview",
+              "rank_group": 1,
+              "rank_absolute": 1,
+              "page": 1,
+              "position": "left",
+              "xpath": "/html[1]/body[1]/div[2]/div[1]/div[9]/div[1]/section[1]/div[1]/div[1]/div[4]/div[5]/div[1]/div[2]/div[1]/div[3]",
+              "markdown": "When selecting a Managed Security Operations Center (MSOC / Managed SOC) provider in India, the right choice depends on your organization's size, compliance requirements (such as `DPDPA, RBI/SEBI guidelines, or CERT-In directives), and infrastructure complexity`.\n\nThe top-performing providers operating in India are categorized below by their primary strengths:\n\n#### 1. Large-Scale Enterprise & Global IT Leaders\n\n- Tata Consultancy Services[Tata Consultancy Services](https://www.tcs.com/) ** (TCS):** Offers massive, global-scale security operations, managed detection and response (MDR), and continuous risk monitoring. Ideal for large enterprises with multi-region footprints and heavy regulatory workloads Embee.[[1]](https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/)\n- Wipro[Wipro](https://www.wipro.com/applications/managed-services/) **:** Delivers integrated cybersecurity, risk management, and 24/7 managed security services through specialized cyber-defense centers, tailored for large enterprise estates Embee[Embee](https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/).[[1]](https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/)\n- Infosys[Infosys](https://www.infosys.com/) **:** Features broad cybersecurity services backed by heavy AI, machine learning, and automation, supported by one of the largest dedicated security workforces in India Embee.[[1]](https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/)\n- HCLTech[HCLTech](https://www.hcltech.com/) **:** Known for enterprise security operations, governance, risk, and compliance (GRC), and deep infrastructure-level threat management Embee.[[1]](https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/)\n- Tech Mahindra[Tech Mahindra](https://www.techmahindra.com/) **:** Specializes in hybrid-cloud security, threat validation, SASE/Cisco architectures, and policy alignment (ISO 27001, DPDPA) [Tech Mahindra](https://www.techmahindra.com/insights/press-releases/techmahindra-q1-fy24-results/).\n\n#### 2. Specialized & Regional Security Specialists\n\n- Inspira Enterprise[Inspira Enterprise](https://inspiraenterprise.com/) **:** Widely recognized for security intelligence operations centers (SIOC) and managed detection and response (MDR) tailored heavily for BFSI, government, and scaling mid-sized businesses Factosecure.\n- SISA Information Security[SISA Information Security](https://sisa.ai/) **:** A prominent name in financial cybersecurity, payments, and compliance-driven SOC services (PCI-DSS, banking regulations) Factosecure.\n- CyberNX Technologies[CyberNX Technologies](https://www.cybernx.com/) **:** A CERT-In empanelled provider trusted by startups and enterprises needing rapid incident response and robust threat detection Factosecure.\n- Seqrite[Seqrite](https://www.seqrite.com/) ** (Quick Heal):** Offers cost-effective, India-centric endpoint and network-integrated SOC solutions ideal for budget-conscious organizations and growing businesses Factosecure.[[1]](https://factosecure.com/top-5-soc-service-providers-in-india-for-startups-2026/)[[2]](https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/)\n\n#### Key Factors to Evaluate\n\n- **Compliance Alignment:** Ensure the provider handles local Indian mandates (such as **CERT-In** reporting timelines and the **Digital Personal Data Protection Act - DPDPA** ) alongside global standards like ISO 27001 or SOC 2.\n- **Onboarding & Visibility:** Check whether they offer a \"bring-your-own-tool\" model (wrapping around your existing Microsoft, CrowdStrike, or Splunk stack) or require a full-platform rip-and-replace.\n- **Mean Time to Respond (MTTR):** Look for SLAs that promise rapid triage and active containment (ideally under 15–30 minutes for critical alerts).\n\nIf you share your **company size**, **industry** (e.g., BFSI, SaaS, healthcare), or **current tech stack** (Microsoft, AWS, CrowdStrike), I can help you **narrow down the best-fit provider**.",
+              "items": [
+                {
+                  "type": "ai_overview_element",
+                  "position": "left",
+                  "title": null,
+                  "text": "When selecting a Managed Security Operations Center (MSOC / Managed SOC) provider in India, the right choice depends on your organization's size, compliance requirements (such as DPDPA, RBI/SEBI guidelines, or CERT-In directives), and infrastructure complexity.",
+                  "markdown": "When selecting a Managed Security Operations Center (MSOC / Managed SOC) provider in India, the right choice depends on your organization's size, compliance requirements (such as `DPDPA, RBI/SEBI guidelines, or CERT-In directives), and infrastructure complexity`.",
+                  "links": null,
+                  "images": null,
+                  "references": null
+                },
+                {
+                  "type": "ai_overview_element",
+                  "position": "left",
+                  "title": null,
+                  "text": "The top-performing providers operating in India are categorized below by their primary strengths:",
+                  "markdown": "The top-performing providers operating in India are categorized below by their primary strengths:",
+                  "links": null,
+                  "images": null,
+                  "references": null
+                },
+                {
+                  "type": "ai_overview_element",
+                  "position": "left",
+                  "title": "1. Large-Scale Enterprise & Global IT Leaders",
+                  "text": "(TCS): Offers massive, global-scale security operations, managed detection and response (MDR), and continuous risk monitoring. Ideal for large enterprises with multi-region footprints and heavy regulatory workloads Embee. : Delivers integrated cybersecurity, risk management, and 24/7 managed security services through specialized cyber-defense centers, tailored for large enterprise estates Embee Embee. : Features broad cybersecurity services backed by heavy AI, machine learning, and automation, supported by one of the largest dedicated security workforces in India Embee. : Known for enterprise security operations, governance, risk, and compliance (GRC), and deep infrastructure-level threat management Embee. : Specializes in hybrid-cloud security, threat validation, SASE/Cisco architectures, and policy alignment (ISO 27001, DPDPA) Tech Mahindra.",
+                  "markdown": "- Tata Consultancy Services[Tata Consultancy Services](https://www.tcs.com/) ** (TCS):** Offers massive, global-scale security operations, managed detection and response (MDR), and continuous risk monitoring. Ideal for large enterprises with multi-region footprints and heavy regulatory workloads Embee.[[1]](https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/)\n- Wipro[Wipro](https://www.wipro.com/applications/managed-services/) **:** Delivers integrated cybersecurity, risk management, and 24/7 managed security services through specialized cyber-defense centers, tailored for large enterprise estates Embee[Embee](https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/).[[1]](https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/)\n- Infosys[Infosys](https://www.infosys.com/) **:** Features broad cybersecurity services backed by heavy AI, machine learning, and automation, supported by one of the largest dedicated security workforces in India Embee.[[1]](https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/)\n- HCLTech[HCLTech](https://www.hcltech.com/) **:** Known for enterprise security operations, governance, risk, and compliance (GRC), and deep infrastructure-level threat management Embee.[[1]](https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/)\n- Tech Mahindra[Tech Mahindra](https://www.techmahindra.com/) **:** Specializes in hybrid-cloud security, threat validation, SASE/Cisco architectures, and policy alignment (ISO 27001, DPDPA) [Tech Mahindra](https://www.techmahindra.com/insights/press-releases/techmahindra-q1-fy24-results/).",
+                  "links": [
+                    {
+                      "type": "link_element",
+                      "title": "Tata Consultancy Services",
+                      "description": null,
+                      "url": "https://www.tcs.com/",
+                      "domain": "www.tcs.com"
+                    },
+                    {
+                      "type": "link_element",
+                      "title": "Wipro",
+                      "description": null,
+                      "url": "https://www.wipro.com/applications/managed-services/",
+                      "domain": "www.wipro.com"
+                    },
+                    {
+                      "type": "link_element",
+                      "title": "Embee",
+                      "description": null,
+                      "url": "https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/",
+                      "domain": "embee.co.in"
+                    },
+                    {
+                      "type": "link_element",
+                      "title": "Infosys",
+                      "description": null,
+                      "url": "https://www.infosys.com/",
+                      "domain": "www.infosys.com"
+                    },
+                    {
+                      "type": "link_element",
+                      "title": "HCLTech",
+                      "description": null,
+                      "url": "https://www.hcltech.com/",
+                      "domain": "www.hcltech.com"
+                    },
+                    {
+                      "type": "link_element",
+                      "title": "Tech Mahindra",
+                      "description": null,
+                      "url": "https://www.techmahindra.com/",
+                      "domain": "www.techmahindra.com"
+                    },
+                    {
+                      "type": "link_element",
+                      "title": "Tech Mahindra",
+                      "description": null,
+                      "url": "https://www.techmahindra.com/insights/press-releases/techmahindra-q1-fy24-results/",
+                      "domain": "www.techmahindra.com"
+                    }
+                  ],
+                  "images": null,
+                  "references": [
+                    {
+                      "type": "ai_overview_reference",
+                      "position": "left",
+                      "source": "Embee Software",
+                      "domain": "embee.co.in",
+                      "url": "https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/",
+                      "title": "Custom Cybersecurity Solutions: Top 10 Providers in India",
+                      "text": "TCS offers global-scale security operations, managed detection, and risk services, best suited to large enterprises with complex, ..."
+                    }
+                  ]
+                },
+                {
+                  "type": "ai_overview_element",
+                  "position": "left",
+                  "title": "2. Specialized & Regional Security Specialists",
+                  "text": ": Widely recognized for security intelligence operations centers (SIOC) and managed detection and response (MDR) tailored heavily for BFSI, government, and scaling mid-sized businesses Factosecure. : A prominent name in financial cybersecurity, payments, and compliance-driven SOC services (PCI-DSS, banking regulations) Factosecure. : A CERT-In empanelled provider trusted by startups and enterprises needing rapid incident response and robust threat detection Factosecure. (Quick Heal): Offers cost-effective, India-centric endpoint and network-integrated SOC solutions ideal for budget-conscious organizations and growing businesses Factosecure.",
+                  "markdown": "- Inspira Enterprise[Inspira Enterprise](https://inspiraenterprise.com/) **:** Widely recognized for security intelligence operations centers (SIOC) and managed detection and response (MDR) tailored heavily for BFSI, government, and scaling mid-sized businesses Factosecure.\n- SISA Information Security[SISA Information Security](https://sisa.ai/) **:** A prominent name in financial cybersecurity, payments, and compliance-driven SOC services (PCI-DSS, banking regulations) Factosecure.\n- CyberNX Technologies[CyberNX Technologies](https://www.cybernx.com/) **:** A CERT-In empanelled provider trusted by startups and enterprises needing rapid incident response and robust threat detection Factosecure.\n- Seqrite[Seqrite](https://www.seqrite.com/) ** (Quick Heal):** Offers cost-effective, India-centric endpoint and network-integrated SOC solutions ideal for budget-conscious organizations and growing businesses Factosecure.[[1]](https://factosecure.com/top-5-soc-service-providers-in-india-for-startups-2026/)[[2]](https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/)",
+                  "links": [
+                    {
+                      "type": "link_element",
+                      "title": "Inspira Enterprise",
+                      "description": null,
+                      "url": "https://inspiraenterprise.com/",
+                      "domain": "inspiraenterprise.com"
+                    },
+                    {
+                      "type": "link_element",
+                      "title": "SISA Information Security",
+                      "description": null,
+                      "url": "https://sisa.ai/",
+                      "domain": "sisa.ai"
+                    },
+                    {
+                      "type": "link_element",
+                      "title": "CyberNX Technologies",
+                      "description": null,
+                      "url": "https://www.cybernx.com/",
+                      "domain": "www.cybernx.com"
+                    },
+                    {
+                      "type": "link_element",
+                      "title": "Seqrite",
+                      "description": null,
+                      "url": "https://www.seqrite.com/",
+                      "domain": "www.seqrite.com"
+                    }
+                  ],
+                  "images": null,
+                  "references": [
+                    {
+                      "type": "ai_overview_reference",
+                      "position": "left",
+                      "source": "Factosecure",
+                      "domain": "factosecure.com",
+                      "url": "https://factosecure.com/top-5-soc-service-providers-in-india-for-startups-2026/",
+                      "title": "Top 5 SOC Service Providers in India for Startups (2026)",
+                      "text": "2. CyberNX Technologies. 4. SISA Information Security. SISA is highly respected in the financial cybersecurity domain, Seqrite off..."
+                    },
+                    {
+                      "type": "ai_overview_reference",
+                      "position": "left",
+                      "source": "Embee Software",
+                      "domain": "embee.co.in",
+                      "url": "https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/",
+                      "title": "Custom Cybersecurity Solutions: Top 10 Providers in India",
+                      "text": "A specialist security firm known for security operations center and managed detection and response services across BFSI and government."
+                    }
+                  ]
+                },
+                {
+                  "type": "ai_overview_element",
+                  "position": "left",
+                  "title": "Key Factors to Evaluate",
+                  "text": "Compliance Alignment: Ensure the provider handles local Indian mandates (such as CERT-In reporting timelines and the Digital Personal Data Protection Act - DPDPA ) alongside global standards like ISO 27001 or SOC 2. Onboarding & Visibility: Check whether they offer a \"bring-your-own-tool\" model (wrapping around your existing Microsoft, CrowdStrike, or Splunk stack) or require a full-platform rip-and-replace. Mean Time to Respond (MTTR): Look for SLAs that promise rapid triage and active containment (ideally under 15–30 minutes for critical alerts).",
+                  "markdown": "- **Compliance Alignment:** Ensure the provider handles local Indian mandates (such as **CERT-In** reporting timelines and the **Digital Personal Data Protection Act - DPDPA** ) alongside global standards like ISO 27001 or SOC 2.\n- **Onboarding & Visibility:** Check whether they offer a \"bring-your-own-tool\" model (wrapping around your existing Microsoft, CrowdStrike, or Splunk stack) or require a full-platform rip-and-replace.\n- **Mean Time to Respond (MTTR):** Look for SLAs that promise rapid triage and active containment (ideally under 15–30 minutes for critical alerts).",
+                  "links": null,
+                  "images": null,
+                  "references": null
+                },
+                {
+                  "type": "ai_overview_element",
+                  "position": "left",
+                  "title": null,
+                  "text": "If you share your company size, industry (e.g., BFSI, SaaS, healthcare), or current tech stack (Microsoft, AWS, CrowdStrike), I can help you narrow down the best-fit provider.",
+                  "markdown": "If you share your **company size**, **industry** (e.g., BFSI, SaaS, healthcare), or **current tech stack** (Microsoft, AWS, CrowdStrike), I can help you **narrow down the best-fit provider**.",
+                  "links": null,
+                  "images": null,
+                  "references": null
+                }
+              ],
+              "references": [
+                {
+                  "type": "ai_overview_reference",
+                  "position": "right",
+                  "source": "Embee Software",
+                  "domain": "embee.co.in",
+                  "url": "https://embee.co.in/blog/custom-cybersecurity-solutions-providers-india/",
+                  "title": "Custom Cybersecurity Solutions: Top 10 Providers in India",
+                  "text": "A specialist security firm known for security operations center and managed detection and response services across BFSI and government."
+                },
+                {
+                  "type": "ai_overview_reference",
+                  "position": "right",
+                  "source": "Factosecure",
+                  "domain": "factosecure.com",
+                  "url": "https://factosecure.com/top-5-soc-service-providers-in-india-for-startups-2026/",
+                  "title": "Top 5 SOC Service Providers in India for Startups (2026)",
+                  "text": "2. CyberNX Technologies. 4. SISA Information Security. SISA is highly respected in the financial cybersecurity domain, Seqrite offers cost-effective SOC services..."
+                }
+              ],
+              "rectangle": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

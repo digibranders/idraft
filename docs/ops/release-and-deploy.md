@@ -26,7 +26,7 @@ describes another one (GitHub Actions deploys, the Docker Compose stack, pull re
 |---|---|
 | Owner's Mac (Apple silicon, 14 cores) | `infra/ship.sh`, the release worktree `.claude/worktrees/release`, Docker through Colima (10 CPUs, 16 GiB) for the backend tests |
 | GitHub `digibranders/idraft` | `develop` (integration) and `main` (live). Workflows disabled. |
-| VPS `root@187.126.121.25` (Ubuntu 24.04) | `app.idraft.ai`: systemd units `idraft-api` (127.0.0.1:8000), `idraft-worker`, `idraft-web` (127.0.0.1:3010), nginx on 80/443 with a certbot certificate, PostgreSQL 18 on 127.0.0.1:5433 (database `idraft`), Redis on 127.0.0.1:6379 |
+| VPS `root@201.18.204.36` (Ubuntu 24.04, shared with OyeChats and Social Auto; since 2026-11-11, the Hostinger VPS 187.126.121.25 expired) | `app.idraft.ai` behind Cloudflare (proxied, SSL mode Full strict): systemd units `idraft-api` (127.0.0.1:8010, not 8000: OyeChats holds 8000), `idraft-worker`, `idraft-web` (127.0.0.1:3010), nginx site `idraft` on 80/443 with a certbot certificate, its own PostgreSQL 18 cluster on 127.0.0.1:5433 (database `idraft`), its own Redis instance `redis-server@idraft` on 127.0.0.1:6380 |
 | Server-side script | `/usr/local/sbin/idraft-activate`, installed from `infra/vps/activate.sh` by every release |
 
 The marketing site (`idraft.ai`) is not part of this repository any more: it lives in
@@ -105,7 +105,7 @@ is why migrations must be expand-then-contract (`infra/README.md`, "Forward-Only
 | `migration failed; nothing was switched (backup above)` | The migration errored | The database backup from that run is in `/srv/idraft/backups`; the unswitched release folder is replaced by the next run. Fix the migration; never edit the schema by hand |
 | `STILL UNHEALTHY after switching back` | Both releases fail their checks | Look at `journalctl -u idraft-api -u idraft-worker -u idraft-web -n 200` on the VPS before anything else |
 | `another release is being activated` | A release holds `/run/idraft-activate.lock` | Wait for it |
-| `cannot ask the VPS what <part> serves` | SSH to the VPS fails | Check `ssh root@187.126.121.25 true` |
+| `cannot ask the VPS what <part> serves` | SSH to the VPS fails | Check `ssh root@201.18.204.36 true` |
 
 ## On the VPS
 
@@ -118,11 +118,20 @@ is why migrations must be expand-then-contract (`infra/README.md`, "Forward-Only
 | `/srv/idraft/backups/` | Database dump before every backend release (root only) |
 | `/etc/idraft/{api,worker,migrator,db,redis}.env` | Environment of the units (root and group `idraft` only; never print or copy them) |
 | `/etc/systemd/system/idraft-*.service.d/release.conf` | `RELEASE_SHA`, written by each release |
-| `ssh root@187.126.121.25 /usr/local/sbin/idraft-activate deployed backend` | The commit a part serves (or `web`) |
+| `ssh root@201.18.204.36 /usr/local/sbin/idraft-activate deployed backend` | The commit a part serves (or `web`) |
 | `GET /api/internal/health` with `Authorization: Bearer <HEALTH_TOKEN>` | The full health report; `versions.release` is the serving backend commit |
 
-`infra/vps/setup-releases.sh` turned the hand-built install into this layout once (2026-11-05). It is safe
-to run again but there is no need to.
+`infra/vps/provision.sh` builds this whole install on a fresh VPS (user, Python 3.13, Node 24, PostgreSQL 18 and
+Redis of its own, the three units, the nginx site, the release folders); the file headers say how to run it. It only
+adds to a host other projects use. `infra/vps/setup-releases.sh` is how the old Hostinger VPS was converted to the
+release layout on 2026-11-05 and is not needed on a new one.
+
+Moving to a new VPS, in order: `provision.sh install`; point `app.idraft.ai` at it in Cloudflare (proxied); `provision.sh
+tls`; set `SHIP_HOST` (or the default in `infra/ship.sh`); `infra/ship.sh` (the first release has `bootstrap` as its
+`previous`, so there is nothing to roll back to until the second one). Then, on the VPS as `idraft` with the worker's
+environment, fill the free DataForSEO location list with `python -m idraft.worker.sync_locations` and create the first
+operator with `python -m idraft.cli create-operator` (the person types the password). Restore a database dump before
+the first release if there is one: the data of a VPS is gone for good when its plan expires.
 
 ## Not in use (do not follow)
 
