@@ -1,5 +1,5 @@
-import type { ProjectEngine, Prompt } from '@/lib/api/types';
-import { formatIsoDate } from '@/lib/format';
+import type { MetricCell, ProjectEngine, Prompt, PromptsSummary } from '@/lib/api/types';
+import { formatIsoDate, formatSampleCount } from '@/lib/format';
 import type { Country } from '@/lib/locations/countries';
 
 /**
@@ -35,9 +35,27 @@ export const PROMPTS_TABS = ['topics', 'prompts'] as const;
 export type PromptsTab = (typeof PROMPTS_TABS)[number];
 export const parseTab = (value: string | null): PromptsTab => (value === 'prompts' ? 'prompts' : 'topics');
 
+/**
+ * "4 of 8": the valid answers that count over the valid answers of a cell; `null` where none is valid (the
+ * API sends `value` null for a denominator of 0), never "0 of 0". A prompt's cell counts answers in
+ * `numerator` and `denominator`. A topic's Mentioned, Cited and outcome cells are prompt weighted: their
+ * numerator is a sum of rates (2.5 is possible) over the prompts with a valid answer, so they read the answers
+ * from `pooled`. Share of voice stays counts of answers on both kinds of row and has no `pooled`.
+ */
+export function countText(cell: MetricCell | undefined): string | null {
+  if (cell === undefined || cell.value === null) return null;
+  return cell.pooled == null
+    ? formatSampleCount(cell.numerator, cell.denominator)
+    : formatSampleCount(cell.pooled.successes, cell.pooled.trials);
+}
+
 /** The prompt's topics: its terms of a topic vocabulary. */
 export const topicTermsOf = (prompt: Prompt): Prompt['terms'] =>
   prompt.terms.filter((term) => term.vocabulary_kind === 'topic');
+
+/** Whether any prompt has an answer on an engine in the window, valid or not: until one has, the page says when the first arrive. */
+export const hasAnswers = (summary: PromptsSummary): boolean =>
+  summary.prompts.some((row) => row.engines.some((engine) => engine.mentioned.n_observations > 0));
 
 /** The most prompts one add takes (plan A `BULK_CREATE_MAX`). */
 export const BULK_MAX = 1000;

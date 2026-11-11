@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 
+import type { DateRange } from './prompt-model';
 import { api, unwrap } from '@/lib/api/client';
 import { projectKey, type QueryKey } from '@/lib/api/keys';
 import { apiMutation, apiQuery, type ApiQueryOptions, type ApiResponse } from '@/lib/api/query';
@@ -30,6 +31,9 @@ const ENGINE = `${ENGINES}/{engine_code}` as const;
 const PROMPTS = `${P}/prompts` as const;
 const PROMPT = `${PROMPTS}/{prompt_id}` as const;
 const LINT = `${PROMPTS}/lint` as const;
+const OBSERVATIONS = `${P}/ai/observations` as const;
+const OBSERVATION = `${OBSERVATIONS}/{observation_id}` as const;
+const SUMMARY = `${P}/ai/prompts-summary` as const;
 const ENTITIES = `${P}/entities` as const;
 
 type PromptPage = ApiResponse<'get', typeof PROMPTS>;
@@ -39,6 +43,8 @@ export type LintAnswer = ApiResponse<'post', typeof LINT>;
 const PAGE = 200;
 /** The list stops here whatever the API says: the base plan allows 150 active prompts a workspace. */
 export const MAX_PROMPTS = 1000;
+/** A prompt's answers in one read: 90 days hold at most 78 (twice a week on three engines). */
+const ANSWERS_PAGE = 100;
 const FIRST_PAGE: string | null = null;
 
 const pathOf = (scope: PromptScope): { workspace_id: string; project_id: string } => ({
@@ -114,6 +120,61 @@ export function usePromptList(scope: PromptScope): PromptList {
 export const promptQuery = (scope: PromptScope, promptId: string): ApiQueryOptions<typeof PROMPT> =>
   apiQuery(PROMPT, { params: { path: { ...pathOf(scope), prompt_id: promptId } } });
 
+/** `GET {P}/ai/prompts-summary`: Mentioned, Cited and the rest per prompt, topic and engine over the window. */
+export const summaryQuery = (
+  scope: PromptScope,
+  range: DateRange,
+  includeBranded: boolean,
+): ApiQueryOptions<typeof SUMMARY> =>
+  apiQuery(SUMMARY, {
+    params: { path: pathOf(scope), query: { from: range.from, to: range.to, include_branded: includeBranded } },
+  });
+
+/** `GET {P}/ai/observations` for one prompt over the window, newest first. */
+export const observationsQuery = (
+  scope: PromptScope,
+  promptId: string,
+  range: DateRange,
+): ApiQueryOptions<typeof OBSERVATIONS> =>
+  apiQuery(OBSERVATIONS, {
+    params: {
+      path: pathOf(scope),
+      query: { 'filter[prompt_id]': promptId, from: range.from, to: range.to, limit: ANSWERS_PAGE },
+    },
+  });
+
+/**
+ * `GET {P}/ai/observations/{observation_id}`. The API sends the id as text and takes a 64-bit integer in the
+ * path; the typed path wants a number, which holds an id exactly only up to 2^53. Ids come from a sequence and
+ * stay far below that, so a larger one is refused here rather than read as another answer.
+ * `observedAt` is the `observed_at` of the list row: the API finds the month of the answer with it.
+ */
+export const observationQuery = (
+  scope: PromptScope,
+  observationId: string,
+  observedAt?: string,
+): ApiQueryOptions<typeof OBSERVATION> => {
+  const id = Number(observationId);
+  if (!/^[1-9]\d*$/.test(observationId) || !Number.isSafeInteger(id)) {
+    throw new Error(`The observation id ${observationId} is not an integer a path can carry exactly`);
+  }
+  return apiQuery(OBSERVATION, {
+    params: {
+      path: { ...pathOf(scope), observation_id: id },
+      ...(observedAt === undefined ? {} : { query: { observed_at: observedAt } }),
+    },
+  });
+};
+
+/**
+ * Where the raw provider answer is read (`raw:read`); the browser opens it as it is. The id stays the text the
+ * API sent, so it is exact whatever its size; `observedAt` is as for `observationQuery`.
+ */
+export const rawAnswerPath = (scope: PromptScope, observationId: string, observedAt?: string): string =>
+  `/api/v1/workspaces/${encodeURIComponent(scope.workspaceId)}/projects/${encodeURIComponent(scope.projectId)}/ai/observations/${encodeURIComponent(observationId)}/raw${
+    observedAt === undefined ? '' : `?observed_at=${encodeURIComponent(observedAt)}`
+  }`;
+
 /** The project's entities with their colors, for the marks of an answer. */
 export const projectEntitiesQuery = (scope: PromptScope): ApiQueryOptions<typeof ENTITIES> =>
   apiQuery(ENTITIES, { params: { path: pathOf(scope) } });
@@ -149,3 +210,12 @@ export const BULK_CREATE_PROMPTS = apiMutation('post', `${PROMPTS}/bulk-create`)
 export const UPDATE_PROMPT = apiMutation('patch', PROMPT);
 /** `DELETE {P}/prompts/{prompt_id}`: the archive; the prompt keeps its answers. */
 export const ARCHIVE_PROMPT = apiMutation('delete', PROMPT);
+/**
+ * `POST {P}/prompts/{prompt_id}/run-now`: a manual run through the standard queue, answered 202 with the run.
+ * A refusal rejects with an `ApiProblem`: `422 validation_failed` with an `engine_codes` item for each engine
+ * refused (`engine_not_enabled`, `prompt_too_long`, `location_not_enabled`, `price_unavailable`), `409
+ * check_pending` (`body.engine_codes`), `429 manual_run_limit` (`limit` only), `422 quota_exceeded` (`limit`,
+ * `used`, `requested`, `quota`) and `503 provider_paused` (`retryAfterSeconds`). On success the caller calls
+ * `refreshPrompts`, which reads again every answer under `aiKey`, and refreshes the project's runs.
+ */
+export const RUN_NOW = apiMutation('post', `${PROMPT}/run-now`);

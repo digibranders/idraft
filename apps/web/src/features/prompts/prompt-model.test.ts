@@ -2,16 +2,19 @@ import { describe, expect, it } from 'vitest';
 
 import {
   countriesForEngines,
+  countText,
   fitsEngine,
+  hasAnswers,
   parseTab,
   parseWindow,
   PROMPT_TEXT_MAX,
   promptKeyOf,
   readPromptLines,
   topicTermsOf,
+  WINDOW_DAYS,
   windowRange,
 } from './prompt-model';
-import type { ProjectEngine, Prompt } from '@/lib/api/types';
+import type { MetricCell, ProjectEngine, Prompt, PromptsSummary } from '@/lib/api/types';
 import type { Country } from '@/lib/locations/countries';
 
 /** Characters built from code points: the editing tools turn typed escapes into literal characters. */
@@ -68,6 +71,16 @@ describe('the window', () => {
     expect(windowRange(28, late, 'Asia/Kolkata')).toEqual({ from: '2026-10-06', to: '2026-11-02' });
     expect(windowRange(7, late, 'America/New_York')).toEqual({ from: '2026-10-26', to: '2026-11-01' });
   });
+
+  it('never asks for more days than the API takes, the 90 days across a clock change included', () => {
+    const MAX_DAYS = 92;
+    const DAY = 86_400_000;
+    for (const days of WINDOW_DAYS) {
+      const { from, to } = windowRange(days, new Date('2026-11-12T12:00:00Z'), 'America/New_York');
+      expect((Date.parse(to) - Date.parse(from)) / DAY + 1).toBe(days);
+      expect(days).toBeLessThanOrEqual(MAX_DAYS);
+    }
+  });
 });
 
 describe('the tabs', () => {
@@ -91,6 +104,80 @@ describe('the topics of a prompt', () => {
     });
     const prompt = { terms: [term('t1', 'topic'), term('t2', 'persona'), term('t3', 'topic')] } as Prompt;
     expect(topicTermsOf(prompt).map((item) => item.term_id)).toEqual(['t1', 't3']);
+  });
+});
+
+const cell = (parts: Partial<MetricCell> = {}): MetricCell => ({
+  value: null,
+  numerator: 0,
+  denominator: 0,
+  n_observations: 0,
+  ...parts,
+});
+
+describe('a count cell', () => {
+  it('reads 4 of 8 on a prompt, where numerator and denominator count the valid answers', () => {
+    expect(countText(cell({ value: 0.5, numerator: 4, denominator: 8, n_observations: 9, pooled: null }))).toBe(
+      '4 of 8',
+    );
+    expect(countText(cell({ value: 0, numerator: 0, denominator: 3, n_observations: 3 }))).toBe('0 of 3');
+  });
+
+  it('reads the answers behind a topic cell, never its sum of rates over its prompts', () => {
+    // Two prompts: one rated 1 of 2 answers, one rated 2 of 3; the numerator sums the rates, 1/2 + 2/3
+    const topic = cell({
+      value: 0.5833,
+      numerator: 1.1666,
+      denominator: 2,
+      n_observations: 6,
+      pooled: { successes: 3, trials: 5 },
+    });
+    expect(countText(topic)).toBe('3 of 5');
+  });
+
+  it('keeps the counts of a topic cell that has no pooled answers, such as Share of voice', () => {
+    expect(countText(cell({ value: 0.25, numerator: 5, denominator: 20, n_observations: 21 }))).toBe('5 of 20');
+  });
+
+  it('is nothing where no valid answer counts, whatever else the cell holds', () => {
+    expect(countText(cell({ n_observations: 2 }))).toBeNull();
+    expect(countText(cell({ n_observations: 2, pooled: { successes: 0, trials: 0 } }))).toBeNull();
+    expect(countText(undefined)).toBeNull();
+  });
+});
+
+describe('whether a window has answers', () => {
+  const summary = (n: number): PromptsSummary => {
+    const engineRow = {
+      engine_code: 'chatgpt_web',
+      mentioned: cell({ n_observations: n }),
+      cited: cell({ n_observations: n }),
+      outcomes: {
+        mentioned_and_cited: cell({ n_observations: n }),
+        mentioned_only: cell({ n_observations: n }),
+        cited_only: cell({ n_observations: n }),
+        neither: cell({ n_observations: n }),
+      },
+      share_of_voice: cell({ n_observations: n }),
+    };
+    return {
+      window: { from: '2026-10-16', to: '2026-11-12', timezone: 'UTC' },
+      include_branded: false,
+      engine_codes: ['chatgpt_web'],
+      entities: [],
+      entity_config_versions: [],
+      metric_context: {} as PromptsSummary['metric_context'],
+      topics: [],
+      prompts: [
+        { prompt_id: 'p1', text: 'Which agency?', is_branded: false, topic_term_ids: [], engines: [engineRow] },
+      ],
+    };
+  };
+
+  it('is false until a prompt has an answer on an engine, valid or not', () => {
+    expect(hasAnswers(summary(0))).toBe(false);
+    expect(hasAnswers(summary(1))).toBe(true);
+    expect(hasAnswers({ ...summary(1), prompts: [] })).toBe(false);
   });
 });
 
