@@ -8,6 +8,7 @@ route that is neither workspace-scoped nor listed in cross_tenant_exceptions.py.
 
 from __future__ import annotations
 
+import json
 import re
 import uuid
 from dataclasses import dataclass
@@ -710,6 +711,25 @@ def _shows(body: object, text: str, secret: str) -> bool:
     return False
 
 
+def _leaks(body: object, secret: str) -> bool:
+    """Whether a list response shows `secret`. The counts of its `page` (`total`, `limit`,
+    `offset`) are left out: they are small integers, and another tenant's small numeric id
+    equals one by chance (a price book of 12 rows against an id of 12)."""
+    scanned = body
+    if isinstance(body, dict) and isinstance(body.get("page"), dict):
+        page = {key: value for key, value in body["page"].items() if not isinstance(value, int)}
+        scanned = {**body, "page": page}
+    return _shows(scanned, json.dumps(scanned, ensure_ascii=False), secret)
+
+
+def test_a_page_count_is_not_an_id_of_another_tenant() -> None:
+    body = {"data": [{"id": "a"}], "page": {"offset": 0, "limit": 50, "total": 12}}
+    assert _shows(body, str(body), "12")
+    assert not _leaks(body, "12")
+    assert _leaks({**body, "data": [{"keyword_id": 12}]}, "12")
+    assert _leaks({"page": {"next_cursor": "tenant-b-cursor"}}, "tenant-b-cursor")
+
+
 def test_a_numeric_id_counts_as_shown_only_as_a_whole_value() -> None:
     hidden_inside = {
         "id": "5f0c2322-7a1b-4c22-9232-0d1e2f3a4b5c",
@@ -908,9 +928,7 @@ async def test_a_list_holds_nothing_of_another_workspace(
     assert response.status_code == 200, response.text
     body = response.json()
     for secret in b.secrets():
-        assert not _shows(body, response.text, secret), (
-            f"{path} shows {secret} of another workspace"
-        )
+        assert not _leaks(body, secret), f"{path} shows {secret} of another workspace"
     # The list is not empty for a trivial reason: it shows A's own data.
     if path not in PLATFORM_LISTS | COUNT_ROUTES:
         assert any(own in response.text for own in [*a.ids().values(), str(a.owner.id)])
