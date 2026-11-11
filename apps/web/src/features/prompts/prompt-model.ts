@@ -57,12 +57,24 @@ export interface PromptLines {
 /** What the API compares: composed (NFC) and trimmed. */
 const tidy = (text: string): string => text.normalize('NFC').trim();
 
+/** The most characters (code points) a prompt may have; a longer one fails the whole request (`prompt_too_long`). */
+export const PROMPT_TEXT_MAX = 2000;
+
+/** The zero width non-joiner and joiner: they hold emoji sequences and some scripts together. */
+const JOINERS = new Set([String.fromCodePoint(0x200c), String.fromCodePoint(0x200d)]);
+/** A line break of a pasted list: CR LF, or any one of LF, CR, the line separator and the paragraph separator. */
+const LINE_BREAK = new RegExp(`\\r\\n|[\\n\\r${String.fromCodePoint(0x2028)}${String.fromCodePoint(0x2029)}]`);
+
+/** White space stays (it becomes a space); a joiner stays; every other control or format character goes. */
+const keepsInvisible = (char: string): boolean => JOINERS.has(char) || (/\s/.test(char) && !/\p{Cf}/u.test(char));
+
 /**
- * One line as a prompt: control characters that are not white space are dropped (the API refuses them), and
- * every run of white space, a tab included, becomes one space.
+ * One line as a prompt: control and format characters are dropped (the API refuses them; a zero width space,
+ * a soft hyphen or a byte order mark comes along with text pasted from the web), except the joiners, and every
+ * run of white space, a tab included, becomes one space.
  */
 const cleanLine = (raw: string): string =>
-  tidy(raw.replace(/\p{Cc}/gu, (char) => (/\s/.test(char) ? char : '')).replace(/\s+/g, ' '));
+  tidy(raw.replace(/[\p{Cc}\p{Cf}]/gu, (char) => (keepsInvisible(char) ? char : '')).replace(/\s+/g, ' '));
 
 /**
  * One prompt per line, cleaned as the API stores it; blank lines and repeats are left out. A zero width joiner
@@ -72,7 +84,7 @@ export function readPromptLines(text: string): PromptLines {
   const seen = new Map<string, number>();
   const lines: PromptLine[] = [];
   const repeats: { line: number; first: number }[] = [];
-  text.split('\n').forEach((raw, index) => {
+  text.split(LINE_BREAK).forEach((raw, index) => {
     const value = cleanLine(raw);
     if (value === '') return;
     const first = seen.get(value);

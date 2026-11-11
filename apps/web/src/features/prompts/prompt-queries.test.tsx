@@ -10,6 +10,7 @@ import {
   BULK_CREATE_PROMPTS,
   enginesKey,
   enginesQuery,
+  MAX_PROMPTS,
   projectEntitiesQuery,
   PUT_ENGINE,
   promptQuery,
@@ -122,6 +123,26 @@ describe('the engines of the project', () => {
 });
 
 describe('usePromptList', () => {
+  it('stops reading pages at MAX_PROMPTS, whatever the API says', async () => {
+    let asked = 0;
+    server.use(
+      http.get(`${PROJECT}/prompts`, ({ request }) => {
+        asked += 1;
+        const limit = Number(new URL(request.url).searchParams.get('limit'));
+        return HttpResponse.json({
+          data: Array.from({ length: limit }, () => promptRow()),
+          page: { limit, next_cursor: 'more', has_more: true },
+        });
+      }),
+    );
+    const { result } = renderHook(() => usePromptList(scope), { wrapper });
+    await waitFor(() => expect(result.current.rows).toHaveLength(MAX_PROMPTS));
+    // Give a read that should not happen the time to start
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(result.current.rows).toHaveLength(MAX_PROMPTS);
+    expect(asked).toBe(MAX_PROMPTS / 200);
+  });
+
   it('reads every active prompt of the project', async () => {
     const { result } = renderHook(() => usePromptList(scope), { wrapper });
     expect(result.current.loading).toBe(true);

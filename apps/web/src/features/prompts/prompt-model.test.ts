@@ -5,6 +5,7 @@ import {
   fitsEngine,
   parseTab,
   parseWindow,
+  PROMPT_TEXT_MAX,
   promptKeyOf,
   readPromptLines,
   topicTermsOf,
@@ -130,6 +131,38 @@ describe('a pasted list', () => {
       { text: 'best CRM', line: 1 },
       { text: `family${ZWJ}tools`, line: 2 },
     ]);
+  });
+
+  it('drops invisible format characters pasted from the web, and keeps an emoji joined by a joiner whole', () => {
+    const invisible = [0x200b, 0xad, 0x200e, 0x200f, 0xfeff, 0x2060].map((point) => String.fromCodePoint(point));
+    const pasted = `best${invisible.join('')} CRM${invisible[4]}`;
+    const family = [0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467].map((point) => String.fromCodePoint(point)).join('');
+    const ZWNJ = String.fromCodePoint(0x200c);
+    expect(readPromptLines(`${pasted}\nfamily ${family}\nnon${ZWNJ}joiner`).lines).toEqual([
+      { text: 'best CRM', line: 1 },
+      { text: `family ${family}`, line: 2 },
+      { text: `non${ZWNJ}joiner`, line: 3 },
+    ]);
+  });
+
+  it('starts a new line at a lone carriage return, a line separator and a paragraph separator', () => {
+    const CR = String.fromCodePoint(13);
+    const LS = String.fromCodePoint(0x2028);
+    const PS = String.fromCodePoint(0x2029);
+    expect(readPromptLines(`one${CR}two${LS}three${PS}four\r\nfive\nsix`).lines).toEqual([
+      { text: 'one', line: 1 },
+      { text: 'two', line: 2 },
+      { text: 'three', line: 3 },
+      { text: 'four', line: 4 },
+      { text: 'five', line: 5 },
+      { text: 'six', line: 6 },
+    ]);
+  });
+
+  it('takes a line of the longest length the API accepts, counted in characters', () => {
+    const [line] = readPromptLines(GRINNING.repeat(PROMPT_TEXT_MAX)).lines;
+    expect([...(line?.text ?? '')]).toHaveLength(PROMPT_TEXT_MAX);
+    expect(PROMPT_TEXT_MAX).toBe(2000);
   });
 
   it('keys a prompt as the API finds duplicates: text, language and country', () => {
