@@ -25,7 +25,7 @@ import httpx
 from idraft.api.resources import Resources
 from idraft.collectors.ai_prompt import AiPromptWorkload
 from idraft.collectors.ai_prompt_ingest import ingest
-from idraft.collectors.dispatcher import dispatch
+from idraft.collectors.dispatcher import DispatchReport, dispatch
 from idraft.collectors.fetching import fetch_task, poll_ready
 from idraft.collectors.planner import plan_due, plan_manual_runs
 from idraft.collectors.registry import Registry
@@ -33,7 +33,7 @@ from idraft.collectors.submission import submit_batch
 from idraft.providers.dataforseo import ai
 from idraft.providers.dataforseo.client import DataForSeoClient
 from idraft.providers.dataforseo.provider import DataForSeo
-from tests.api.auth.support import Workspace, fetch, make_workspace
+from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.conftest import api, auth_app, import_store, mailbox, resources
 from tests.api.entities.support import Caller, member
 from tests.api.keywords.support import LOCATION, ensure_locations, project_url
@@ -80,7 +80,8 @@ TASK_PRICE = Decimal("0.0012")
 
 class Gateway:
     """DataForSEO as the HTTP client meets it: what each `task_post` carried, the tasks it made
-    ready, and every request that was not for one of its three endpoints."""
+    ready, and every request that was not as the adapter should make it: another host or path,
+    the wrong HTTP method, or no Basic authorization header (its value is never kept)."""
 
     def __init__(self) -> None:
         self.posts: dict[str, list[list[dict[str, Any]]]] = {endpoint: [] for endpoint in CAPTURED}
@@ -94,18 +95,27 @@ class Gateway:
         if request.url.host != urlsplit(ORIGIN).hostname:
             self.strangers.append(str(request.url))
             return httpx.Response(502)
+        if not request.headers.get("authorization", "").startswith("Basic "):
+            self.strangers.append(f"no Basic authorization: {request.url}")
         path = request.url.path
         for endpoint, name in CAPTURED.items():
             base = f"/v3/{endpoint}"
             if path == f"{base}/task_post":
+                self._method(request, "POST")
                 return self._post(endpoint, json.loads(request.content))
             if path == f"{base}/tasks_ready":
+                self._method(request, "GET")
                 ready = [{"id": pid, "tag": tag} for pid, tag in self._ready[endpoint]]
                 return httpx.Response(200, json=envelope([task_answer(result=ready)]))
             if path.startswith(f"{base}/task_get/advanced/"):
+                self._method(request, "GET")
                 return self._answer(endpoint, name, path.rsplit("/", 1)[1])
         self.strangers.append(str(request.url))
         return httpx.Response(404, json={"status_code": 40400, "status_message": "Not Found."})
+
+    def _method(self, request: httpx.Request, expected: str) -> None:
+        if request.method != expected:
+            self.strangers.append(f"{request.method} instead of {expected}: {request.url}")
 
     def _post(self, endpoint: str, tasks: list[dict[str, Any]]) -> httpx.Response:
         self.posts[endpoint].append(tasks)
@@ -148,12 +158,15 @@ class Pipeline:
     gateway: Gateway
     store: MemoryStore = field(default_factory=MemoryStore)
 
-    async def tick(self, at: datetime) -> None:
-        """One pass of every step, as of `at`: no waiting, the clock is the argument."""
-        outbox, pauses = Outbox(), Pauses()
+    async def plan(self, at: datetime) -> None:
+        """Plan the runs that were asked for and those whose schedule is due, as of `at`."""
         await plan_manual_runs(self.worker_db, self.registry, now=at)
         await plan_due(self.worker_db, self.registry, now=at)
-        await dispatch(self.worker_db, self.registry, outbox, pauses, now=at)
+
+    async def send_and_read(self, at: datetime) -> DispatchReport:
+        """Everything after planning: dispatch, submit, poll, fetch and ingest, as of `at`."""
+        outbox, pauses = Outbox(), Pauses()
+        report = await dispatch(self.worker_db, self.registry, outbox, pauses, now=at)
         for batch in outbox.batches:
             await submit_batch(
                 self.worker_db, self.registry, pauses, batch, store=self.store, jitter=lambda: 0.0
@@ -162,10 +175,14 @@ class Pipeline:
         for order in outbox.fetches:
             await fetch_task(self.worker_db, self.registry, self.store, order, jitter=lambda: 0.0)
         await ingest(self.worker_db, self.store)
+        return report
 
     async def run(self, start: datetime, *, minutes: int = 4) -> None:
+        """Every step, once a minute: no waiting, the clock is the argument."""
         for minute in range(minutes):
-            await self.tick(start + timedelta(minutes=minute))
+            at = start + timedelta(minutes=minute)
+            await self.plan(at)
+            await self.send_and_read(at)
 
 
 @asynccontextmanager
@@ -321,7 +338,8 @@ async def test_run_now_to_the_prompts_summary(
     assert await rows_written(migrated, scene) == written
 
     # Per prompt and engine, one answer: Gemini names and cites the project, the other two do
-    # not (the captured answers).
+    # not (the captured answers). Capturing `tests/fixtures/dataforseo/captured` again means
+    # updating these cells.
     summary = await api.get(scene.url("ai", "prompts-summary"), headers=scene.owner.headers)
     assert summary.status_code == 200, summary.text
     rows = summary.json()["data"]["prompts"]
@@ -368,6 +386,22 @@ async def run_rows(pg: PostgresServer, scene: Scene) -> list[Any]:
     )
 
 
+async def budget_ids(pg: PostgresServer, scene: Scene) -> list[Any]:
+    rows = await fetch(pg, "SELECT id FROM ops.budgets WHERE workspace_id = $1", scene.workspace.id)
+    return [row["id"] for row in rows]
+
+
+async def task_states(pg: PostgresServer, scene: Scene) -> Counter[tuple[str, bool]]:
+    """The tasks by status and whether the dispatcher has taken them."""
+    rows = await fetch(
+        pg,
+        "SELECT status, dispatched_at IS NOT NULL AS dispatched FROM ops.collection_tasks "
+        "WHERE project_id = $1",
+        scene.project.id,
+    )
+    return Counter((row["status"], row["dispatched"]) for row in rows)
+
+
 async def task_count(pg: PostgresServer, scene: Scene) -> int:
     (row,) = await fetch(
         pg, "SELECT count(*) AS n FROM ops.collection_tasks WHERE project_id = $1", scene.project.id
@@ -379,19 +413,26 @@ async def task_count(pg: PostgresServer, scene: Scene) -> int:
 async def test_a_project_with_no_ai_budget_is_sent(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, worker_db: Ledger
 ) -> None:
-    """The first-run guide sets the budget first because without one nothing stops a run."""
+    """The first-run guide sets the budget first because without one nothing stops a run, and
+    turning an engine on makes no default budget."""
     scene = await make_scene(resources, migrated, prompts=1)
     await turn_engines_on(api, scene)
+    assert await budget_ids(migrated, scene) == []
     await run_now(api, scene, scene.prompts[0])
 
     async with pipeline(worker_db) as worker:
         await worker.run(datetime.now(UTC))
         assert worker.gateway.tasks_posted == 3
 
+    # The run stays `running` after its last task: closing it is the reconciler's step.
     (run,) = await run_rows(migrated, scene)
-    assert run["status"] != "budget_blocked"
-    assert run["blocked_by_budget_id"] is None
+    assert (run["status"], run["status_reason"], run["blocked_by_budget_id"]) == (
+        "running",
+        None,
+        None,
+    )
     assert await task_count(migrated, scene) == 3
+    assert await budget_ids(migrated, scene) == []
 
 
 async def test_a_budget_of_zero_blocks_the_run_and_nothing_is_sent(
@@ -446,3 +487,92 @@ async def test_engines_that_are_on_with_paused_schedules_plan_nothing(
 
     assert await run_rows(migrated, scene) == []
     assert await task_count(migrated, scene) == 0
+
+
+async def test_the_same_schedules_left_active_plan_and_send_when_their_window_comes(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, worker_db: Ledger
+) -> None:
+    """The control of the paused test: without the pause, the first window plans its run and
+    its three tasks go out, so the paused test is not passing for want of anything to plan."""
+    scene = await make_scene(resources, migrated, prompts=1)
+    await turn_engines_on(api, scene)
+    first, second = await schedules_of(migrated, scene)
+
+    window = first["next_run_at"]
+    async with pipeline(worker_db) as worker:
+        # The window opens and the run is planned; its tasks are spread over the window, so they
+        # are sent as it closes (8 hours later).
+        await worker.plan(window + timedelta(minutes=1))
+        assert worker.gateway.requests == []
+        for minute in range(4):
+            await worker.send_and_read(window + timedelta(hours=9, minutes=minute))
+        assert worker.gateway.tasks_posted == 3
+
+    (run,) = await run_rows(migrated, scene)
+    assert (run["status"], run["tasks_total"]) == ("running", 3)
+    assert await task_states(migrated, scene) == {("ingested", False): 3}
+    # The second schedule's window is days away: it planned nothing.
+    assert second["next_run_at"] > first["next_run_at"] + timedelta(minutes=10)
+
+
+async def test_the_brake_pulled_while_work_is_under_way_holds_the_tasks_back(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, worker_db: Ledger
+) -> None:
+    """The first-run guide's emergency brake as written there, with a run planned and nothing
+    sent yet: the dispatcher holds the tasks, and sends them when the limit is raised."""
+    scene = await make_scene(resources, migrated, prompts=1)
+    await turn_engines_on(api, scene)
+    # Step A of the guide, as the migrator role runs it.
+    await execute(
+        migrated,
+        "INSERT INTO ops.budgets (workspace_id, project_id, workload, period, limit_usd) "
+        "VALUES ($1, $2, 'ai_prompt', 'month', 10.00) "
+        "ON CONFLICT (workspace_id, project_id, workload, period) DO UPDATE SET limit_usd = 10.00",
+        scene.workspace.id,
+        scene.project.id,
+    )
+    (budget_id,) = await budget_ids(migrated, scene)
+    await run_now(api, scene, scene.prompts[0])
+    at = datetime.now(UTC)
+
+    async with pipeline(worker_db) as worker:
+        # Planned under the budget, and not sent yet.
+        await worker.plan(at)
+        (run,) = await run_rows(migrated, scene)
+        assert (run["status"], run["status_reason"], run["tasks_total"]) == ("running", None, 3)
+        assert await task_states(migrated, scene) == {("pending", False): 3}
+
+        # The brake, word for word from the guide.
+        await execute(
+            migrated,
+            "UPDATE ops.budgets SET limit_usd = 0 WHERE workload = 'ai_prompt' AND project_id = $1",
+            scene.project.id,
+        )
+        report = await worker.send_and_read(at)
+        assert (report.held, report.claimed, report.batches) == (1, 0, 0)
+        assert worker.gateway.requests == []
+        assert await task_states(migrated, scene) == {("pending", False): 3}
+        (run,) = await run_rows(migrated, scene)
+        assert (run["status"], run["status_reason"], run["blocked_by_budget_id"]) == (
+            "running",
+            "budget_exceeded",
+            budget_id,
+        )
+
+        # The limit raised again: the tasks go out, and the run no longer says it is held.
+        await execute(
+            migrated,
+            "UPDATE ops.budgets SET limit_usd = 10 WHERE workload = 'ai_prompt' "
+            "AND project_id = $1",
+            scene.project.id,
+        )
+        await worker.run(at + timedelta(minutes=1))
+        assert worker.gateway.tasks_posted == 3
+
+    (run,) = await run_rows(migrated, scene)
+    assert (run["status"], run["status_reason"], run["blocked_by_budget_id"]) == (
+        "running",
+        None,
+        None,
+    )
+    assert await task_states(migrated, scene) == {("ingested", False): 3}
