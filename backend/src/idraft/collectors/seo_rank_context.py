@@ -86,15 +86,16 @@ async def load_context(
             entities.append(RankedEntity(row.entity_id, "competitor"))
 
     return RankContext(
-        resolver=DomainResolver(await _rules(db, workspace_id, project_id)),
+        resolver=DomainResolver(await domain_rules(db, workspace_id, project_id)),
         entities=tuple(entities),
         primary_own=primary_own,
     )
 
 
-async def _rules(
+async def domain_rules(
     db: AsyncSession, workspace_id: uuid.UUID, project_id: uuid.UUID
 ) -> list[DomainRule]:
+    """The domain rules of every entity the project has attached, kept or not."""
     rows = await db.execute(
         select(
             project_domain_roles.c.entity_id,
