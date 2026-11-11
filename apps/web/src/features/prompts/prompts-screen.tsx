@@ -27,7 +27,7 @@ import {
   windowRange,
   type PromptsTab,
 } from './prompt-model';
-import { enginesQuery, summaryQuery, usePromptList, type PromptScope } from './prompt-queries';
+import { enginesQuery, observationQuery, summaryQuery, usePromptList, type PromptScope } from './prompt-queries';
 import { TopicsTable } from './topics-table';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { TableStatus } from '@/components/app/data-table/types';
@@ -292,7 +292,18 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // An answer opens from a prompt's answers and takes the inspector's place until it goes back to the prompt
   const openAnswer = inspector.target?.type === 'answer' ? inspector.target.id : null;
   // The time of the row the answer was opened from, which the API finds the answer's month by; a link has none
-  const [answerRow, setAnswerRow] = useState<{ id: string; observedAt: string } | null>(null);
+  const [answerRow, setAnswerRow] = useState<{ id: string; observedAt: string; promptId: string | null } | null>(null);
+  const answerHint = answerRow?.id === openAnswer ? answerRow.observedAt : undefined;
+  // The viewer reads the same answer: the prompt it belongs to stays marked in the tables while it is open
+  const answerRead = useQuery({
+    ...observationQuery(scope, openAnswer ?? '', answerHint),
+    enabled: openAnswer !== null,
+  });
+  const selectedPrompt =
+    openPrompt ??
+    (openAnswer === null
+      ? null
+      : (answerRead.data?.data.subject.prompt_id ?? (answerRow?.id === openAnswer ? answerRow.promptId : null)));
   const [order, setOrder] = useState<readonly string[]>([]);
   const at = inspector.position(order);
   const step = (direction: 'next' | 'previous'): void => {
@@ -495,7 +506,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               onSearchChange={(next) => void setView({ q: next === '' ? null : next })}
               density={density}
               onDensityChange={(next: Density) => void setView({ density: next === DEFAULT_DENSITY ? null : next })}
-              activePromptId={openPrompt}
+              activePromptId={selectedPrompt}
               onOpenPrompt={openPromptRow}
               onPromptOrderChange={setOrder}
             />
@@ -546,7 +557,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 emptyState={noPrompts}
                 filteredEmptyState={filteredEmpty}
                 onRowOpen={(row, intent) => openPromptRow(row.prompt.prompt_id, intent)}
-                activeRowId={openPrompt}
+                activeRowId={selectedPrompt}
                 onRowOrderChange={setOrder}
               />
             </div>
@@ -600,7 +611,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         onStep={at === null ? undefined : step}
         onClose={() => inspector.close()}
         onOpenAnswer={(observationId, observedAt) => {
-          setAnswerRow({ id: observationId, observedAt });
+          setAnswerRow({ id: observationId, observedAt, promptId: openPrompt });
           inspector.open({ type: 'answer', id: observationId });
         }}
       />
@@ -612,7 +623,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         key={`${project.id}:${openAnswer}`}
         scope={scope}
         observationId={openAnswer}
-        observedAt={answerRow?.id === openAnswer ? answerRow.observedAt : undefined}
+        observedAt={answerHint}
         timeZone={project.timeZone}
         engines={engines.data?.data ?? []}
         onBack={(promptId) => inspector.open({ type: 'prompt', id: promptId })}

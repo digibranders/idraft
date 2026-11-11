@@ -114,9 +114,11 @@ export function AnswerInspector({
       <div className="flex flex-col gap-3">
         {shown.status === 'refused' ? <Banner tone="info" placement="region" message={t('refused')} /> : null}
         {shown.status === 'partial' ? <Banner tone="warning" placement="region" message={t('partial')} /> : null}
-        <p lang={shown.language_code ?? undefined} className="type-prose whitespace-pre-wrap">
+        <p lang={shown.language_code ?? undefined} className="type-prose wrap-anywhere whitespace-pre-wrap">
           {answerSegments(shown.answer_text, shown.mentions).map((segment) =>
-            segment.kind === 'text' ? (
+            // The own brand is always the accent; the others wait for their colors, so none is drawn in the
+            // style of "no color" and then recolored
+            segment.kind === 'text' || (entities.isPending && segment.mention.role !== 'own') ? (
               <span key={segment.start}>{segment.text}</span>
             ) : (
               <EvidenceHighlight
@@ -126,11 +128,9 @@ export function AnswerInspector({
                   own: segment.mention.role === 'own',
                   colorIndex: colorOf(colors.get(segment.mention.entity_id)),
                 }}
-                matchLabel={segment.mention.role === 'own' ? t('ownMatch') : t('competitorMatch')}
+                matchLabel={t(`matchLabels.${segment.mention.role}`)}
                 confidence={segment.mention.confidence}
                 certainty={segment.mention.mention_status === 'accepted' ? 'certain' : 'uncertain'}
-                // A product counts for its brand: the text of the span is the product's name
-                viaProduct={segment.mention.match_method === 'via_product' ? segment.text : undefined}
               >
                 {segment.text}
               </EvidenceHighlight>
@@ -269,6 +269,7 @@ export function AnswerInspector({
                       <span className="inline-flex flex-wrap items-center gap-1.5">
                         <Badge>{t(`roles.${mention.role}`)}</Badge>
                         {mention.mention_status === 'uncertain' ? <Badge tone="warning">{t('uncertain')}</Badge> : null}
+                        {mention.match_method === 'via_product' ? <Badge>{t('viaProduct')}</Badge> : null}
                         <span>{t('mentionCount', { count: mention.mention_count })}</span>
                         {mention.mention_order === null ? null : (
                           <span className="num">{t('mentionOrder', { order: mention.mention_order })}</span>
@@ -291,7 +292,7 @@ export function AnswerInspector({
                 <ol aria-label={t('sourcesCaption')} className="flex flex-col gap-2">
                   {answer.citations.map((citation) => (
                     <li key={citation.citation_index} className="flex items-start justify-between gap-3">
-                      <span className="flex min-w-0 flex-col">
+                      <span className="flex min-w-0 flex-col wrap-anywhere">
                         {/* The canonical address, never the raw one the provider sent */}
                         {isWebAddress(citation.url) ? (
                           <TextLink href={citation.url} target="_blank" rel="noopener noreferrer">

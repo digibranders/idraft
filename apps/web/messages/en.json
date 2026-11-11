@@ -3493,8 +3493,13 @@
       "refused": "The engine declined to answer. The answer is left out of every count.",
       "partial": "The answer was cut off. It counts with what it holds.",
       "adsNote": "Ads in the answer are left out of the mentions and the sources.",
-      "ownMatch": "own brand",
-      "competitorMatch": "tracked brand",
+      "matchLabels": {
+        "own": "own brand",
+        "competitor": "tracked brand",
+        "watch": "watched brand",
+        "untracked": "brand not tracked"
+      },
+      "viaProduct": "Through a product",
       "mentions": "Mentions",
       "noMentions": "No tracked brand is named",
       "noMentionsReason": "The answer names none of the project’s brands or competitors.",
@@ -3525,7 +3530,7 @@
       "outcome": "Outcome",
       "check": "Open the answer at the provider",
       "checkLabel": "At the provider",
-      "raw": "Open the raw answer",
+      "raw": "Download the raw answer",
       "rawLabel": "Raw answer"
     }
   }

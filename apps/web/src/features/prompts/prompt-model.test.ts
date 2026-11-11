@@ -23,12 +23,18 @@ import {
   WINDOW_DAYS,
   windowRange,
 } from './prompt-model';
-import type { ObservationDetail } from '@/lib/api/types';
+import type {
+  MetricCell,
+  ObservationDetail,
+  ProjectEngine,
+  Prompt,
+  PromptsSummary,
+  PromptSummaryRow,
+} from '@/lib/api/types';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
+import type { Country } from '@/lib/locations/countries';
 
 type Facts = NonNullable<ObservationDetail['facts']>;
-import type { MetricCell, ProjectEngine, Prompt, PromptsSummary, PromptSummaryRow } from '@/lib/api/types';
-import type { Country } from '@/lib/locations/countries';
 
 /** Characters built from code points: the editing tools turn typed escapes into literal characters. */
 const TAB = String.fromCharCode(9);

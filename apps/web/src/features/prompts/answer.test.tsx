@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PromptsScreen } from './prompts-screen';
 import type { EngineCode, ObservationDetail, Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
+import { MOCK_ENTITY_IDS } from '@/mocks/entity-fixtures';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { answerOf, DAY_MS, ENGINE_CODES, FIXTURE_PROMPTS, observationIdOf, runInstants } from '@/mocks/prompt-fixtures';
@@ -153,6 +154,23 @@ const detail = (overrides: Partial<ObservationDetail>): ObservationDetail => ({
   mentions: [],
   ...overrides,
 });
+/** A mention of a made-up entity as the API sends it; the entity ids are the project's own where the name says so. */
+const mentionOf = (
+  name: string,
+  spans: [number, number][],
+  role: ObservationDetail['mentions'][number]['role'] = 'competitor',
+): ObservationDetail['mentions'][number] => ({
+  entity_id: name.startsWith('Fynix') ? MOCK_ENTITY_IDS.fynix : MOCK_ENTITY_IDS.rankforge,
+  name,
+  role,
+  mention_count: spans.length,
+  first_char_offset: spans[0]?.[0] ?? 0,
+  mention_order: 1,
+  match_method: 'alias_word',
+  mention_status: 'accepted',
+  confidence: 0.9,
+  evidence_spans: spans,
+});
 const serve = (answer: ObservationDetail): void =>
   server.use(http.get(DETAIL, () => HttpResponse.json({ data: answer })));
 
@@ -165,8 +183,65 @@ describe('the answer viewer: what it shows', () => {
     expect(within(sources).getByText('Own')).toBeInTheDocument();
     expect(within(sources).getByText('Third party')).toBeInTheDocument();
     expect(screen.getByText('Ads in the answer are left out of the mentions and the sources.')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Open the raw answer' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Download the raw answer' })).toBeNull();
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('passes the accessibility checks for a member who sees the raw and provider links and an uncertain mark', async () => {
+    serve(
+      detail({
+        answer_text: 'Fynix and Rankforge lead.',
+        check_url: 'https://chatgpt.com/c/abc',
+        mentions: [
+          { ...mentionOf('Fynix', [[0, 5]], 'own'), mention_order: 1 },
+          { ...mentionOf('Rankforge', [[10, 19]], 'competitor'), mention_status: 'uncertain', mention_order: null },
+        ],
+      }),
+    );
+    const { container } = renderOn('analyst', opened('2000001'));
+    await screen.findByRole('link', { name: 'Download the raw answer' });
+    expect(screen.getByRole('link', { name: 'Open the answer at the provider' })).toBeInTheDocument();
+    expect((await screen.findAllByLabelText(/Uncertain match, excluded from rates/)).length).toBeGreaterThan(0);
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('passes the accessibility checks for an answer that could not be read', async () => {
+    const { container } = renderOn('viewer', opened(failed.id));
+    await screen.findByText('The answer could not be read');
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('lets long unbroken text wrap inside the card: the answer, a source title, a brand name', async () => {
+    const long = 'x'.repeat(300);
+    serve(
+      detail({
+        answer_text: `Fynix ${long}`,
+        mentions: [mentionOf(`Fynix${long}`, [[0, 5]], 'own')],
+        citations: [
+          {
+            citation_index: 1,
+            url: `https://example.org/${long}`,
+            raw_url: `https://example.org/${long}`,
+            host: `${long}.example.org`,
+            title: long,
+            source_name: null,
+            citation_kind: 'source_list',
+            domain_role: 'third_party',
+            role_entity_id: null,
+            occurrences: 1,
+            first_char_offset: null,
+            answer_block_index: null,
+            referral_tag: null,
+            flags: [],
+          },
+        ],
+      }),
+    );
+    renderOn('viewer', opened('2000001'));
+    const panel = await viewer();
+    expect((await within(panel).findByLabelText(/^Fynix.* mention/)).closest('p')).toHaveClass('wrap-anywhere');
+    expect(within(panel).getByRole('link', { name: long }).parentElement).toHaveClass('wrap-anywhere');
+    expect(within(panel).getByText(`Fynix${long}`, { selector: 'dt' })).toHaveClass('wrap-anywhere');
   });
 
   it('names the answer by its engine and its date, and its engine, model and outcome', async () => {
@@ -208,16 +283,118 @@ describe('the answer viewer: what it shows', () => {
     expect(within(row).queryByText(/^Order /)).toBeNull();
   });
 
-  it('marks a brand named through its product once, with the product it came through, and lists both', async () => {
+  it('marks a brand named through its product once, and says so in the list of mentions, not on the mark', async () => {
     renderOn('viewer', opened(product.id));
     const panel = await viewer();
-    const mark = await within(panel).findByLabelText(/^Fynix via Fynix Audit mention, own brand/);
     // Two mentions have the span, and one mark is drawn over it
+    const mark = await within(panel).findByLabelText(/^Fynix mention, own brand/);
     expect(within(panel).getAllByLabelText(/^Fynix.* mention, own brand/)).toHaveLength(1);
+    expect(mark.getAttribute('aria-label')).not.toMatch(/via/);
     expect(mark.textContent).toBe('Fynix Audit');
-    expect(within(panel).getByText('Fynix', { selector: 'dt' })).toBeInTheDocument();
-    expect(within(panel).getByText('Fynix Audit', { selector: 'dt' })).toBeInTheDocument();
     expect((mark.closest('p') as HTMLElement).textContent).toBe(product.answer.answer_text);
+    // The match method is the mention's, the best of its spans: the list says it, the mark does not claim it
+    const brand = within(panel).getByText('Fynix', { selector: 'dt' }).parentElement as HTMLElement;
+    expect(within(brand).getByText('Through a product')).toBeInTheDocument();
+    const productRow = within(panel).getByText('Fynix Audit', { selector: 'dt' }).parentElement as HTMLElement;
+    expect(within(productRow).queryByText('Through a product')).toBeNull();
+  });
+
+  it('words the mark by the role of the brand: a watched or an untracked brand is not called a tracked one', async () => {
+    serve(
+      detail({
+        answer_text: 'Fynix, Rankforge, SEO Weekly and Zoomly.',
+        mentions: [
+          mentionOf('Fynix', [[0, 5]], 'own'),
+          mentionOf('Rankforge', [[7, 16]], 'competitor'),
+          { ...mentionOf('SEO Weekly', [[18, 28]], 'watch'), entity_id: MOCK_ENTITY_IDS.seoWeekly },
+          { ...mentionOf('Zoomly', [[33, 39]], 'untracked'), entity_id: '0192f0a1-0000-7000-8000-0000000000ff' },
+        ],
+      }),
+    );
+    renderOn('viewer', opened('2000001'));
+    const panel = await viewer();
+    expect(await within(panel).findByLabelText(/^Fynix mention, own brand/)).toBeInTheDocument();
+    expect(within(panel).getByLabelText(/^Rankforge mention, tracked brand/)).toBeInTheDocument();
+    expect(within(panel).getByLabelText(/^SEO Weekly mention, watched brand/)).toBeInTheDocument();
+    expect(within(panel).getByLabelText(/^Zoomly mention, brand not tracked/)).toBeInTheDocument();
+  });
+
+  describe('the colors of the brands', () => {
+    const named = detail({
+      answer_text: 'Fynix and Rankforge lead.',
+      mentions: [mentionOf('Fynix', [[0, 5]], 'own'), mentionOf('Rankforge', [[10, 19]], 'competitor')],
+    });
+    const ENTITIES = mswPath(`${P}/entities`);
+
+    it('leaves a competitor unmarked until the colors are read, so it is not drawn grey and then recolored', async () => {
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      serve(named);
+      server.use(
+        http.get(ENTITIES, async () => {
+          await gate;
+          return HttpResponse.json({ data: [] });
+        }),
+      );
+      renderOn('viewer', opened('2000001'));
+      const panel = await viewer();
+      // The own brand needs no color; the text is whole and the competitor is plain text for now
+      const text = (await within(panel).findByLabelText(/^Fynix mention, own brand/)).closest('p') as HTMLElement;
+      expect(text.textContent).toBe('Fynix and Rankforge lead.');
+      expect(within(text).queryByLabelText(/^Rankforge mention/)).toBeNull();
+      release();
+      expect(await within(text).findByLabelText(/^Rankforge mention, tracked brand/)).toBeInTheDocument();
+    });
+
+    it('marks the competitor with the fallback style, and the viewer stays whole, when the colors cannot be read', async () => {
+      serve(named);
+      server.use(
+        http.get(ENTITIES, () =>
+          HttpResponse.json(
+            { type: 'about:blank', title: 'Server error', status: 500, code: 'internal_error' },
+            { status: 500 },
+          ),
+        ),
+      );
+      renderOn('viewer', opened('2000001'));
+      const panel = await viewer();
+      const text = (await within(panel).findByLabelText(/^Fynix mention, own brand/)).closest('p') as HTMLElement;
+      expect(await within(text).findByLabelText(/^Rankforge mention, tracked brand/)).toBeInTheDocument();
+      expect(text.textContent).toBe('Fynix and Rankforge lead.');
+      expect(within(panel).getByRole('heading', { name: 'Mentions' })).toBeInTheDocument();
+      expect(screen.queryByText('The answer could not be loaded.')).toBeNull();
+    });
+  });
+
+  it('keeps the prompt of the answer marked in the table while the answer is open, and after going back', async () => {
+    const { user } = renderOn('viewer', `?tab=prompts&inspect=${encodeURIComponent(`prompt:${first.prompt_id}`)}`);
+    const table = await screen.findByRole('grid', { name: 'Prompts' });
+    const rowOf = (): HTMLElement => within(table).getByText(first.text).closest<HTMLElement>('[role="row"]') ?? table;
+    await waitFor(() => expect(rowOf()).toHaveAttribute('aria-current', 'true'));
+    const inspector = await screen.findByRole('complementary', { name: first.text });
+    const [date] = await within(inspector).findAllByRole('button', { name: /^Open the ChatGPT answer of / });
+    await user.click(date as HTMLElement);
+    const panel = await viewer();
+    expect(screen.queryByRole('complementary', { name: first.text })).toBeNull();
+    expect(rowOf()).toHaveAttribute('aria-current', 'true');
+    await user.click(within(panel).getByRole('button', { name: 'Back to the prompt' }));
+    await screen.findByRole('complementary', { name: first.text });
+    expect(rowOf()).toHaveAttribute('aria-current', 'true');
+  });
+
+  it('marks the prompt of an answer opened from a link, once the answer is read', async () => {
+    const target = prompts.find((candidate) => candidate.prompt_id === cited.promptId);
+    renderOn('viewer', opened(cited.id));
+    const table = await screen.findByRole('grid', { name: 'Prompts' });
+    await viewer();
+    await waitFor(() => {
+      const row = within(table)
+        .queryByText(target?.text ?? '')
+        ?.closest<HTMLElement>('[role="row"]');
+      expect(row).toHaveAttribute('aria-current', 'true');
+    });
   });
 
   it('lists a watched brand without a number', async () => {
@@ -281,31 +458,23 @@ describe('the answer viewer: what it shows', () => {
   });
 
   it('keeps the text whole when the spans are hostile, and marks only the ones that are sound', async () => {
-    const mention = (name: string, spans: [number, number][]): ObservationDetail['mentions'][number] => ({
-      entity_id: `0192f0a1-0000-7000-8000-00000000000${name === 'Fynix' ? '1' : '2'}`,
-      name,
-      role: name === 'Fynix' ? 'own' : 'competitor',
-      mention_count: spans.length,
-      first_char_offset: 0,
-      mention_order: 1,
-      match_method: 'alias_word',
-      mention_status: 'accepted',
-      confidence: 0.9,
-      evidence_spans: spans,
-    });
     serve(
       detail({
         answer_text: 'Fynix and Rankforge lead.',
         mentions: [
-          mention('Rankforge', [
+          mentionOf('Rankforge', [
             [10, 99],
             [12, 12],
             [-4, 3],
           ]),
-          mention('Fynix', [
-            [0, 5],
-            [3, 8],
-          ]),
+          mentionOf(
+            'Fynix',
+            [
+              [0, 5],
+              [3, 8],
+            ],
+            'own',
+          ),
         ],
       }),
     );
@@ -354,7 +523,7 @@ describe('the answer viewer: what it shows', () => {
 describe('the answer viewer: the raw answer', () => {
   it('links to the raw answer for a member with raw:read, as a download in the same tab', async () => {
     renderOn('analyst', opened(cited.id));
-    const link = await screen.findByRole('link', { name: 'Open the raw answer' });
+    const link = await screen.findByRole('link', { name: 'Download the raw answer' });
     const href = link.getAttribute('href') ?? '';
     const path = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${projectId}/ai/observations/${cited.id}/raw`;
     expect(href.startsWith(path)).toBe(true);
@@ -368,7 +537,7 @@ describe('the answer viewer: the raw answer', () => {
     renderOn('viewer', opened(cited.id));
     await viewer();
     await screen.findByLabelText(/^Fynix mention, own brand/);
-    expect(screen.queryByRole('link', { name: 'Open the raw answer' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Download the raw answer' })).toBeNull();
   });
 });
 
