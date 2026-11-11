@@ -106,10 +106,10 @@ const CONTROL = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const normalized = (text: string): string => text.normalize('NFC').trim();
 const keyOf = (text: string, language: string, country: string): string =>
   `${normalized(text)}\u0000${language}\u0000${country}`;
-const isoOf = (instant: number): string => new Date(instant).toISOString();
+export const isoOf = (instant: number): string => new Date(instant).toISOString();
 
 /** The country of an active country location, or `null` for any other location. */
-const countryOf = (locationId: number): string | null =>
+export const countryOf = (locationId: number): string | null =>
   MOCK_LOCATIONS.find((location) => location.location_id === locationId && location.location_type === 'Country')
     ?.country_iso ?? null;
 
@@ -121,7 +121,7 @@ const countriesOf = (engine: StoredEngine): Set<string> =>
     }),
   );
 
-const enabledEngines = (projectId: string): StoredEngine[] =>
+export const enabledEngines = (projectId: string): StoredEngine[] =>
   promptsOf(projectId).engines.filter((engine) => engine.is_enabled);
 
 /** A sha256-shaped hex text, the same for the same text: the mocks never compare it with the API's. */
@@ -342,6 +342,7 @@ function newPrompt(caller: ProjectCaller, item: PromptItem, now: number): Stored
     prompt_id: promptId(n),
     version_id: versionId(n),
     project_id: caller.project.project_id,
+    index: null,
     text: item.text,
     language_code: item.language_code,
     country_iso: item.country_iso,
@@ -367,7 +368,7 @@ const quotaProblem = (request: Request, used: number, requested: number): Return
   });
 
 /** Every project of the workspace, not only those the caller may open: the quota is the workspace's. */
-const workspaceProjects = (caller: ProjectCaller): string[] =>
+export const workspaceProjects = (caller: ProjectCaller): string[] =>
   projectList(caller.changes, caller.access.workspace.workspace_id).map((project) => project.project_id);
 
 export const promptHandlers: HttpHandler[] = [

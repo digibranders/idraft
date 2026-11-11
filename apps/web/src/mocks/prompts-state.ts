@@ -11,10 +11,22 @@ import { onMockReset } from './state';
 export interface ProjectPrompts {
   engines: StoredEngine[];
   prompts: StoredPrompt[];
+  /** When Run now last asked each prompt on each engine, by `prompt_id engine_code`: epoch milliseconds. */
+  asked: Map<string, number>;
+  /** The manual runs of Run now, by UTC day number. */
+  manualRuns: Map<number, number>;
+  /** The answers Run now asked for, by UTC month (`2026-11`): they count against the workspace's monthly limit. */
+  answersAsked: Map<string, number>;
 }
+
+/** A Run now answer counts as on its way this long: the standard queue answers within minutes. */
+export const PENDING_MS = 10 * 60_000;
+/** The workspace's AI answers a month (`workspace_quotas.max_ai_observations_per_month`, 20,000 by default). */
+export const AI_ANSWER_QUOTA = 20_000;
 
 const STATE = new Map<string, ProjectPrompts>();
 let minted = FIRST_MINTED - 1;
+let providerPaused = false;
 
 /** The project's AI prompt state, made from the fixtures on first use. */
 export function promptsOf(projectId: string): ProjectPrompts {
@@ -26,6 +38,9 @@ export function promptsOf(projectId: string): ProjectPrompts {
       location_ids: [...engine.location_ids],
     })),
     prompts: (FIXTURE_PROMPTS.get(projectId) ?? []).map((prompt) => ({ ...prompt, term_ids: [...prompt.term_ids] })),
+    asked: new Map(),
+    manualRuns: new Map(),
+    answersAsked: new Map(),
   };
   STATE.set(projectId, fresh);
   return fresh;
@@ -41,7 +56,16 @@ export function mintPromptNumber(): number {
   return minted;
 }
 
+/** Whether the data provider is refusing every request: Run now then answers `503 provider_paused`. */
+export const isProviderPaused = (): boolean => providerPaused;
+
+/** Puts the provider on pause or takes it off, for a test or a session that wants to see the pause. */
+export function setProviderPaused(paused: boolean): void {
+  providerPaused = paused;
+}
+
 onMockReset(() => {
   STATE.clear();
   minted = FIRST_MINTED - 1;
+  providerPaused = false;
 });
