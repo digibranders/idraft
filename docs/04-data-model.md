@@ -1312,6 +1312,8 @@ CREATE INDEX ON ai.observation_facts (prompt_id, engine_code, observed_at) WHERE
 
 The four mandatory outcomes (mentioned and cited, mentioned only, cited only, neither) are the cross product of `own_mentioned` and `own_domain_cited`. They are never collapsed.
 
+**As built (step 8, slice 1, migration 0018).** The ten tables of sections 8.1 to 8.5 exist without the panels, fan-out and retrieval tables. Every tenant table carries `workspace_id` with the `tenant_isolation` policy, `ai.derivations` and `ai.prompt_terms` included, and keys between tenant tables include it: a prompt's current version is one of its own versions (`(current_version_id, id, workspace_id)`, checked at commit), and answer rows refer to their answer through `(observation_id, observed_at, workspace_id)`. `ai.observations` keeps its raw payload by key and has one answer per task (`observations_one_per_task`). Partitions are monthly on `observed_at` for observations, citations, entity mentions and observation facts. The raw payload of an answer is read through `ai.observation_raw(bigint)`. The engines and their DataForSEO task prices (standard and priority queue) are seeded. `core.workspace_quotas.max_active_prompts` defaults to 150 (the base plan of 2026-11-11), not 1,000, and quota rows still at 1,000 were moved to 150.
+
 ### 8.6 Claims (post-MVP, schema reserved)
 
 ```sql

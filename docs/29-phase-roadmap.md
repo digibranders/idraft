@@ -202,6 +202,8 @@ The product owner's rule: build what makes the product show data first, and move
 
 ### Phase 6: AI prompt system
 
+**As built (step 8, slice 1, plan A, 2026-11-11).** The `ai.*` tables of slice 1 (migration 0018), the engine registry and the base plan (150 prompts, twice a week, standard queue, one answer per engine; enforced through the quota row and the schedules until billing exists), the AI answer schedules, and the prompt and engine routes with their OpenAPI contract are built (plan `docs/superpowers/plans/2026-11-11-ai-prompts-a-data-and-prompts-api.md`). Collection, extraction, the answer and summary routes (plan B) and the screens (plan C) follow. Doc 04 section 8 and doc 19 sections 3.7.1 and 3.7.4 have "As built (step 8, slice 1)" notes.
+
 **Objective:** Manage prompts as versioned measurement instruments.
 
 | Area | Content |
