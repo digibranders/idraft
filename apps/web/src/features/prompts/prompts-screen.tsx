@@ -5,7 +5,7 @@ import { Ban, MessageSquare, Plus, Power } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { parseAsString, useQueryStates } from 'nuqs';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
 import { AddPromptsDialog } from './add-prompts-dialog';
 import { DEFAULT_SORT, usePromptColumns, type PromptRow } from './prompt-columns';
@@ -13,6 +13,10 @@ import { DEFAULT_WINDOW, hasAnswers, parseWindow, topicTermsOf, WINDOW_DAYS, win
 import { enginesQuery, summaryQuery, usePromptList, type PromptScope } from './prompt-queries';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { TableStatus } from '@/components/app/data-table/types';
+import { FilterBar } from '@/components/app/filters/filter-bar';
+import { ReadOnlyFilterChips } from '@/components/app/filters/read-only-chips';
+import type { FilterField } from '@/components/app/filters/types';
+import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
 import { TopBarPortal } from '@/components/app/shell/top-bar-slot';
 import { Banner } from '@/components/app/status/banner';
@@ -21,8 +25,10 @@ import { InlineError } from '@/components/app/status/inline-error';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { TextLink } from '@/components/ui/text-link';
+import { toast } from '@/components/ui/toast';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { useUtcDay } from '@/lib/dom/use-utc-day';
+import { enumValuesOf } from '@/lib/filters/filter-values';
 import { formatBusinessDate, formatList } from '@/lib/format';
 import { useCountries } from '@/lib/locations/countries';
 import { useCan } from '@/lib/permissions';
@@ -69,7 +75,9 @@ const promptRowId = (row: PromptRow): string => row.prompt.prompt_id;
 
 /**
  * AI > Topics & Prompts (spec 2026-11-11 section 4.6, ADR-DS-022): the project's prompts over a window of
- * days (28 by default, in the top bar as a project-wide scope), with what each engine answered. A project
+ * days (28 by default, in the top bar as a project-wide scope), with Mentioned and Cited per enabled engine.
+ * The filter bar narrows by topic, country and engine; branded prompts are left out of the table and the
+ * counts until the Branded filter includes them (16-metrics-methodology.md rule 4). A project
  * without an engine on is sent to Settings > Engines; until the first answers arrive the page says when they
  * come, so an empty table is not read as a failure.
  */
@@ -110,34 +118,103 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   );
   const list = usePromptList(scope);
   const listErrorId = useErrorId(list.error);
-  // The table stays on the last counts while a new window is read
+
+  // The options are the topics and countries the prompts carry: a value from a link waits until every page is in
+  const optionsPending = list.loading || list.fetching || list.error !== null;
+  const fields = useMemo((): FilterField[] => {
+    const topicNames = new Map<string, string>();
+    for (const prompt of list.rows) for (const term of topicTermsOf(prompt)) topicNames.set(term.term_id, term.name);
+    const isos = new Set(list.rows.flatMap((prompt) => (prompt.country_iso === null ? [] : [prompt.country_iso])));
+    return [
+      {
+        id: 'topic',
+        kind: 'enum',
+        label: t('filters.topic'),
+        multi: true,
+        optionsLoading: optionsPending,
+        options: [...topicNames].map(([value, label]) => ({ value, label })),
+      },
+      {
+        id: 'country',
+        kind: 'enum',
+        label: t('filters.country'),
+        multi: true,
+        optionsLoading: optionsPending,
+        options: [...isos].map((iso) => ({ value: iso, label: countryName.get(iso) ?? iso })),
+      },
+      {
+        id: 'engine',
+        kind: 'enum',
+        label: t('filters.engine'),
+        multi: true,
+        optionsLoading: engines.isPending,
+        options: enabled.map((engine) => ({ value: engine.engine.engine_code, label: engine.engine.label })),
+      },
+      {
+        id: 'branded',
+        kind: 'enum',
+        label: t('filters.branded'),
+        multi: false,
+        options: [{ value: 'include', label: t('filters.brandedInclude') }],
+      },
+    ];
+  }, [t, list.rows, optionsPending, countryName, enabled, engines.isPending]);
+  // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
+  const [values, setValues] = useUrlFilters(fields, {
+    onDropped: (dropped) =>
+      toast({
+        type: 'info',
+        title: t('droppedFilters.title', { count: dropped.length }),
+        description: t('droppedFilters.description', {
+          fields: formatList(
+            dropped.map((field) => field.label),
+            locale,
+          ),
+        }),
+      }),
+  });
+  const filtered = Object.keys(values).length > 0;
+  const clearFilters = useCallback(() => setValues({}), [setValues]);
+  const includeBranded = enumValuesOf(values.branded).includes('include');
+  // Only the engines the Engine filter names, else every engine that is on
+  const shown = useMemo(() => {
+    const chosen = enumValuesOf(values.engine);
+    return chosen.length === 0 ? enabled : enabled.filter((engine) => chosen.includes(engine.engine.engine_code));
+  }, [enabled, values.engine]);
+
+  // The table stays on the last counts while a new window, or the Branded filter, is read
   const summary = useQuery({
-    ...summaryQuery(scope, range, false),
+    ...summaryQuery(scope, range, includeBranded),
     enabled: enabled.length > 0,
     placeholderData: keepPreviousData,
   });
-  // Branded prompts stay out, as the rates leave them out (16-metrics-methodology.md rule 4)
   const summaryById = useMemo(
     () => new Map((summary.data?.data.prompts ?? []).map((row) => [row.prompt_id, row])),
     [summary.data],
   );
-  const rows = useMemo(
-    (): PromptRow[] =>
-      list.rows
-        .filter((prompt) => !prompt.is_branded)
-        .map((prompt) => {
-          const topics = topicTermsOf(prompt).map((term) => term.name);
-          return {
-            prompt,
-            summary: summaryById.get(prompt.prompt_id),
-            topics: topics.length === 0 ? null : formatList(topics, locale),
-            country: prompt.country_iso === null ? null : (countryName.get(prompt.country_iso) ?? prompt.country_iso),
-          };
-        }),
-    [list.rows, summaryById, countryName, locale],
-  );
+  // Branded prompts stay out of the table and the counts until included (16-metrics-methodology.md rule 4)
+  const rows = useMemo((): PromptRow[] => {
+    const topics = enumValuesOf(values.topic);
+    const countries = enumValuesOf(values.country);
+    return list.rows
+      .filter(
+        (prompt) =>
+          (includeBranded || !prompt.is_branded) &&
+          (topics.length === 0 || topicTermsOf(prompt).some((term) => topics.includes(term.term_id))) &&
+          (countries.length === 0 || (prompt.country_iso !== null && countries.includes(prompt.country_iso))),
+      )
+      .map((prompt) => {
+        const topicNames = topicTermsOf(prompt).map((term) => term.name);
+        return {
+          prompt,
+          summary: summaryById.get(prompt.prompt_id),
+          topics: topicNames.length === 0 ? null : formatList(topicNames, locale),
+          country: prompt.country_iso === null ? null : (countryName.get(prompt.country_iso) ?? prompt.country_iso),
+        };
+      });
+  }, [list.rows, includeBranded, values.topic, values.country, summaryById, countryName, locale]);
 
-  const { columns, sortFields, searchText, rowName } = usePromptColumns();
+  const { columns, sortFields, searchText, rowName } = usePromptColumns(shown);
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const sort = useMemo((): readonly SortKey[] => {
     const parsed = parseSort(view.sort, sortFields);
@@ -151,8 +228,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const status = ((): TableStatus => {
     if (list.error !== null && list.rows.length === 0) return 'error';
     if (waiting) return 'loading';
-    // Without a search, nothing to show means no prompts (an all branded project too), not a search with no match
-    if (rows.length === 0) return view.q === '' ? 'empty' : 'filtered-empty';
+    // Without a search or a filter, nothing to show means no prompts (an all branded project too), not no match
+    if (rows.length === 0) return view.q === '' && !filtered ? 'empty' : 'filtered-empty';
     // Later pages of the list may still be on their way
     return summary.isFetching || list.fetching ? 'refetching' : 'ready';
   })();
@@ -180,7 +257,21 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       live
     />
   );
-  const filteredEmpty = <EmptyState title={t('emptyFiltered')} reason={t('emptyFilteredReason')} headingLevel={2} />;
+  const filteredEmpty = (
+    <EmptyState
+      title={t('emptyFiltered')}
+      reason={t('emptyFilteredReason')}
+      headingLevel={2}
+      details={filtered ? <ReadOnlyFilterChips fields={fields} values={values} /> : undefined}
+      primaryAction={
+        filtered ? (
+          <Button variant="secondary" onClick={clearFilters}>
+            {t('clearFilters')}
+          </Button>
+        ) : undefined
+      }
+    />
+  );
   const noPrompts = (
     <EmptyState
       icon={MessageSquare}
@@ -192,6 +283,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   );
 
   let content: ReactNode;
+  // The filters belong to the table: the other states have nothing to filter
+  let toolbar: ReactNode;
   // A failed read in the background leaves the page as it is
   if (engines.isError && engines.data === undefined) {
     content = (
@@ -221,6 +314,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   } else if (engines.data !== undefined && !list.loading && list.error === null && list.rows.length === 0) {
     content = noPrompts;
   } else {
+    toolbar = <FilterBar fields={fields} values={values} onChange={setValues} />;
     content = (
       <>
         {noAnswers ? <Banner tone="info" placement="region" message={t('noAnswers')} /> : null}
@@ -302,6 +396,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
             from: formatBusinessDate(range.from, { withYear: false }),
             to: formatBusinessDate(range.to),
           })}
+          toolbar={toolbar}
           actions={list.rows.length > 0 ? addButton : undefined}
         />
         {content}

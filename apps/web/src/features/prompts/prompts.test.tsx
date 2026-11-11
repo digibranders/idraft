@@ -12,6 +12,8 @@ import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { mswPath } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
+import { MOCK_TERM_IDS } from '@/mocks/entity-fixtures';
+import { NO_COUNTS, promptCells, type Counts } from '@/mocks/prompt-summary';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
@@ -390,5 +392,179 @@ describe('Topics & Prompts: what the list and the counts do while they load or f
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await within(await grid()).findByText('Question number 3?')).toBeInTheDocument();
     expect(screen.queryByText('Some prompts could not be loaded, so the list may be incomplete.')).toBeNull();
+  });
+});
+
+const BRANDED_TEXT = 'Is Fynix a good SEO agency for software companies?';
+const FIRST_TEXT = 'Which SEO agency is best for a SaaS startup in Germany?';
+
+describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', () => {
+  it('shows Mentioned and Cited per enabled engine as counts of valid answers, and only for enabled engines', async () => {
+    renderWithProviders(promptsAs('viewer'), { searchParams: '?tab=prompts' });
+    const table = await grid();
+    expect(await within(table).findByRole('columnheader', { name: /^ChatGPT mentioned/ })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: /^ChatGPT cited/ })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: /^Gemini mentioned/ })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: /^Gemini cited/ })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: /^Google AI Mode/ })).toBeNull();
+    // Eight runs in the 28 days (Monday and Thursday, 16 October to 12 November); an answer that failed, was
+    // refused or was empty leaves the denominator, so a count reads "n of 5" to "n of 8"
+    const counts = (await within(table).findAllByText(/^\d of \d+$/)).map((node) => node.textContent ?? '');
+    expect(counts.length).toBeGreaterThan(20);
+    const parts = counts.map((text) => text.split(' of ').map(Number));
+    expect(Math.max(...parts.map(([, valid]) => valid ?? 0))).toBe(8);
+    expect(parts.every(([hits, valid]) => hits !== undefined && valid !== undefined && hits <= valid)).toBe(true);
+    expect(parts.every(([, valid]) => (valid ?? 0) >= 5)).toBe(true);
+  });
+
+  it('leaves branded prompts out until the Branded filter includes them, and asks the summary the same', async () => {
+    const asked: string[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (url.pathname.endsWith('/ai/prompts-summary')) asked.push(url.searchParams.get('include_branded') ?? '');
+    });
+    const first = renderWithProviders(promptsAs('viewer'), { searchParams: '?tab=prompts' });
+    await within(await grid()).findByText(FIRST_TEXT);
+    expect(within(await grid()).queryByText(BRANDED_TEXT)).toBeNull();
+    first.unmount();
+    renderWithProviders(promptsAs('viewer'), { searchParams: '?tab=prompts&branded=include' });
+    const table = await grid();
+    expect(await within(table).findByText(BRANDED_TEXT)).toBeInTheDocument();
+    expect(within(table).getByText('Branded')).toBeInTheDocument();
+    expect(asked).toContain('false');
+    expect(asked).toContain('true');
+    server.events.removeAllListeners();
+  });
+
+  it('filters by topic and country from the URL, and sorts by an engine column', async () => {
+    const { user } = renderWithProviders(promptsAs('viewer'), {
+      searchParams: `?tab=prompts&topic=${encodeURIComponent(MOCK_TERM_IDS.technicalSeo)}&country=DE`,
+    });
+    const table = await grid();
+    expect(await within(table).findByText('How do I run a technical SEO audit on a large site?')).toBeInTheDocument();
+    expect(within(table).queryByText('Which tools track local rankings by city?')).toBeNull();
+    expect(within(table).queryByText(FIRST_TEXT)).toBeNull();
+    await user.click(within(table).getByRole('button', { name: 'ChatGPT mentioned' }));
+    expect(within(table).getByRole('columnheader', { name: /^ChatGPT mentioned/ })).toHaveAttribute(
+      'aria-sort',
+      'ascending',
+    );
+  });
+
+  it('shows only the engines the Engine filter names', async () => {
+    renderWithProviders(promptsAs('viewer'), { searchParams: '?tab=prompts&engine=gemini_web' });
+    const table = await grid();
+    expect(await within(table).findByRole('columnheader', { name: /^Gemini mentioned/ })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: /^ChatGPT mentioned/ })).toBeNull();
+  });
+
+  it('says no prompt matches the filters together, and Clear filters brings the list back', async () => {
+    const termOf = (name: string, termId: string): Prompt['terms'][number] => ({
+      name,
+      path: name,
+      term_id: termId,
+      vocabulary_kind: 'topic',
+    });
+    const german = { ...promptOf(1), terms: [termOf('Pricing', idOf(3, 1))] };
+    const austrian = { ...promptOf(2), country_iso: 'AT', terms: [termOf('Tools', idOf(3, 2))] };
+    server.use(
+      http.get(LIST_PATH, () => HttpResponse.json(pageOf([german, austrian], null))),
+      http.get(SUMMARY_PATH, () => HttpResponse.json(EMPTY_SUMMARY)),
+    );
+    const { user } = renderWithProviders(promptsAs('viewer'), {
+      searchParams: `?topic=${idOf(3, 1)}&country=AT`,
+    });
+    expect(await screen.findByRole('heading', { name: NO_MATCH_TITLE })).toBeInTheDocument();
+    // The filter bar has the same button, above the empty state's
+    const clears = screen.getAllByRole('button', { name: 'Clear filters' });
+    expect(clears).toHaveLength(2);
+    await user.click(clears[1] as HTMLElement);
+    const table = await grid();
+    expect(await within(table).findByText('Question number 1?')).toBeInTheDocument();
+    expect(within(table).getByText('Question number 2?')).toBeInTheDocument();
+  });
+
+  it('tells a person a filter from the link was left out when this project has nothing for it', async () => {
+    renderWithProviders(promptsAs('viewer'), { searchParams: '?engine=google_ai_mode' });
+    expect(await screen.findByText('A filter from the link was left out')).toBeInTheDocument();
+    expect(await within(await grid()).findByRole('columnheader', { name: /^ChatGPT mentioned/ })).toBeInTheDocument();
+  });
+
+  describe('with counts the test sets', () => {
+    const ENGINES = ['chatgpt_web', 'gemini_web'] as const;
+    const counted = (valid: number, mentioned: number, observations = valid): Counts => ({
+      ...NO_COUNTS,
+      n_valid: valid,
+      n_observations: observations,
+      mentioned,
+    });
+    /** Prompt 1 ChatGPT 1 of 4, prompt 2 2 of 4, prompt 3 1 of 10, prompt 4 no answer, prompt 5 two answers, none valid. */
+    const CHATGPT: readonly Counts[] = [counted(4, 1), counted(4, 2), counted(10, 1), NO_COUNTS, counted(0, 0, 2)];
+    const SUMMARY = {
+      data: {
+        ...EMPTY_SUMMARY.data,
+        engine_codes: [...ENGINES],
+        prompts: CHATGPT.map((counts, index) => ({
+          prompt_id: idOf(1, index + 1),
+          text: `Question number ${String(index + 1)}?`,
+          is_branded: false,
+          topic_term_ids: [],
+          engines: [promptCells('chatgpt_web', counts), promptCells('gemini_web', NO_COUNTS)],
+        })),
+      },
+    };
+    const serve = (): void =>
+      server.use(
+        http.get(LIST_PATH, () =>
+          HttpResponse.json(
+            pageOf(
+              CHATGPT.map((_, index) => promptOf(index + 1)),
+              null,
+            ),
+          ),
+        ),
+        http.get(SUMMARY_PATH, () => HttpResponse.json(SUMMARY)),
+      );
+    const order = async (): Promise<string[]> => {
+      const table = await grid();
+      await within(table).findByText('Question number 1?');
+      return within(table)
+        .getAllByText(/^Question number \d\?$/)
+        .map((node) => node.textContent ?? '');
+    };
+
+    it('reads a rate by its value, not its text, with no answers last either way', async () => {
+      serve();
+      const up = renderWithProviders(promptsAs('viewer'), { searchParams: '?sort=chatgpt_web_mentioned' });
+      expect(await order()).toEqual([
+        'Question number 3?',
+        'Question number 1?',
+        'Question number 2?',
+        'Question number 4?',
+        'Question number 5?',
+      ]);
+      up.unmount();
+      renderWithProviders(promptsAs('viewer'), { searchParams: '?sort=-chatgpt_web_mentioned' });
+      expect(await order()).toEqual([
+        'Question number 2?',
+        'Question number 1?',
+        'Question number 3?',
+        'Question number 4?',
+        'Question number 5?',
+      ]);
+    });
+
+    it('shows the count, and says why a cell has none: no answer, or none valid', async () => {
+      serve();
+      renderWithProviders(promptsAs('viewer'));
+      const table = await grid();
+      expect(await within(table).findByText('1 of 4')).toBeInTheDocument();
+      expect(within(table).getByText('2 of 4')).toBeInTheDocument();
+      expect(within(table).getByText('1 of 10')).toBeInTheDocument();
+      // Prompt 4 has no answer on ChatGPT, nor have any on Gemini; prompt 5's two answers are all invalid
+      expect(within(table).getAllByText('No answers').length).toBeGreaterThanOrEqual(2);
+      expect(within(table).getAllByText('n/a').length).toBeGreaterThanOrEqual(1);
+      expect(within(table).queryByText(/^0 of 0$/)).toBeNull();
+    });
   });
 });

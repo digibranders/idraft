@@ -3,10 +3,12 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
-import { col } from '@/components/app/data-table/columns';
+import { countText } from './prompt-model';
+import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { Badge } from '@/components/ui/badge';
-import type { Prompt, PromptSummaryRow } from '@/lib/api/types';
+import type { EngineSummary, MetricCell, ProjectEngine, Prompt, PromptSummaryRow } from '@/lib/api/types';
+import { EMPTY_VALUE } from '@/lib/format';
 import type { SortKey } from '@/lib/tables/table-state';
 
 /** A row of the Prompts tab: the prompt, its counts when the summary has them, and its facts in words. */
@@ -22,6 +24,54 @@ export interface PromptRow {
 /** A to Z by the prompt's text. */
 export const DEFAULT_SORT: readonly SortKey[] = [{ id: 'prompt', desc: false }];
 
+const METRICS = ['mentioned', 'cited'] as const;
+type EngineMetric = (typeof METRICS)[number];
+/** "Google AI Mode mentioned" in capitals with its sort arrow needs about 176 px. */
+const ENGINE_COLUMN_WIDTH = 176;
+
+/**
+ * Two columns per engine, Mentioned and Cited, each a count of valid answers ("4 of 8", spec section 4.5).
+ * A prompt without an answer on the engine in the window says so; one whose answers were all invalid shows
+ * "n/a" with how many there were. Counts that are not there (the summary has not loaded) show "n/a" alone.
+ * Each column sorts by its rate, an empty cell last. `cellsOf` must keep its identity between renders (a
+ * module-level function).
+ */
+export function useEngineColumns<TRow>(
+  engines: readonly ProjectEngine[],
+  cellsOf: (row: TRow) => readonly EngineSummary[] | undefined,
+  { sortable }: { sortable: boolean },
+): DataTableColumn<TRow>[] {
+  const t = useTranslations('prompts.columns');
+  return useMemo(
+    () =>
+      engines.flatMap((engine) => {
+        const code = engine.engine.engine_code;
+        const label = engine.engine.label;
+        const cellOf = (row: TRow, metric: EngineMetric): MetricCell | undefined =>
+          cellsOf(row)?.find((cell) => cell.engine_code === code)?.[metric];
+        const unknown = (row: TRow, metric: EngineMetric): UnknownValue => {
+          if (cellsOf(row) === undefined) return { label: EMPTY_VALUE };
+          const cell = cellOf(row, metric);
+          return cell === undefined || cell.n_observations === 0
+            ? { label: t('noAnswers'), tooltip: t('noAnswersTip') }
+            : { label: EMPTY_VALUE, tooltip: t('noValidTip', { count: cell.n_observations }) };
+        };
+        return METRICS.map((metric): DataTableColumn<TRow> => ({
+          ...col.text<TRow>(`${code}_${metric}`, (row) => countText(cellOf(row, metric)), {
+            header: t(metric, { engine: label }),
+            headerTooltip: t(`${metric}Tip`),
+            width: ENGINE_COLUMN_WIDTH,
+            sortable,
+            unknown: (row) => unknown(row, metric),
+          }),
+          // A count sorts by its rate, not by its text; a cell without one sorts last both ways
+          ...(sortable ? { sortValue: (row: TRow) => cellOf(row, metric)?.value ?? null } : {}),
+        }));
+      }),
+    [engines, cellsOf, sortable, t],
+  );
+}
+
 export interface PromptColumns {
   columns: readonly DataTableColumn<PromptRow>[];
   /** The ids `?sort=` may name. */
@@ -30,10 +80,13 @@ export interface PromptColumns {
   rowName: (row: PromptRow) => string;
 }
 
-/** The columns of the Prompts tab (ADR-DS-022 decision 9): Prompt, Topic and Country. */
-export function usePromptColumns(): PromptColumns {
+const cellsOfPrompt = (row: PromptRow): readonly EngineSummary[] | undefined => row.summary?.engines;
+
+/** The columns of the Prompts tab (ADR-DS-022 decision 9): Prompt, Topic, Country, then each engine shown. */
+export function usePromptColumns(engines: readonly ProjectEngine[]): PromptColumns {
   const t = useTranslations('prompts');
   const locale = useLocale();
+  const engineColumns = useEngineColumns(engines, cellsOfPrompt, { sortable: true });
   return useMemo(() => {
     const columns: DataTableColumn<PromptRow>[] = [
       col.keyword<PromptRow>('prompt', (row) => row.prompt.current_version.text, {
@@ -46,6 +99,7 @@ export function usePromptColumns(): PromptColumns {
         unknown: () => ({ label: t('columns.noTopic') }),
       }),
       col.text<PromptRow>('country', (row) => row.country, { header: t('columns.country'), priority: 3, width: 136 }),
+      ...engineColumns,
     ];
     return {
       columns,
@@ -53,5 +107,5 @@ export function usePromptColumns(): PromptColumns {
       searchText: (row) => `${row.prompt.current_version.text} ${row.topics ?? ''}`.toLocaleLowerCase(locale),
       rowName: (row) => row.prompt.current_version.text,
     };
-  }, [t, locale]);
+  }, [t, locale, engineColumns]);
 }

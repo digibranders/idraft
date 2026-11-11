@@ -3292,7 +3292,25 @@
       "prompt": "Prompt",
       "topic": "Topic",
       "country": "Country",
-      "noTopic": "No topic"
+      "noTopic": "No topic",
+      "mentioned": "{engine} mentioned",
+      "cited": "{engine} cited",
+      "mentionedTip": "Answers that name your brand, of the valid answers in the window",
+      "citedTip": "Answers that cite your domain, of the valid answers in the window",
+      "noAnswers": "No answers",
+      "noAnswersTip": "No answer in this window yet. Each prompt is asked twice a week.",
+      "noValidTip": "{count, plural, one {# answer} other {# answers}} in this window, none of them valid"
+    },
+    "filters": {
+      "topic": "Topic",
+      "country": "Country",
+      "engine": "Engine",
+      "branded": "Branded prompts",
+      "brandedInclude": "Included"
+    },
+    "droppedFilters": {
+      "title": "{count, plural, one {A filter from the link was left out} other {# filters from the link were left out}}",
+      "description": "{fields}: the link holds a value this project has nothing for."
     },
     "addPrompts": "Add prompts",
     "add": {
