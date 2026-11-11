@@ -992,6 +992,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mentioned, Cited, outcomes and Share of voice per prompt, engine and topic
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null.
+         */
+        get: operations["prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alias-test": {
         parameters: {
             query?: never;
@@ -2997,6 +3017,15 @@ export interface components {
          * @enum {string}
          */
         EngineCode: "chatgpt_web" | "gemini_web" | "google_ai_mode";
+        /** EngineSummary */
+        EngineSummary: {
+            cited: components["schemas"]["MetricCell"];
+            /** Engine Code */
+            engine_code: string;
+            mentioned: components["schemas"]["MetricCell"];
+            outcomes: components["schemas"]["OutcomeCells"];
+            share_of_voice: components["schemas"]["MetricCell"];
+        };
         /** EngineUpdate */
         EngineUpdate: {
             /**
@@ -4397,6 +4426,27 @@ export interface components {
             role: "own" | "competitor" | "watch" | "untracked";
         };
         /**
+         * MetricCell
+         * @description One count of answers over another, with every answer of the cell: "5 of 8". The
+         *     compact form of `MetricValue` (docs/19 section 2.6); the window is the response's.
+         */
+        MetricCell: {
+            /** Denominator */
+            denominator: number;
+            /**
+             * N Observations
+             * @description Every answer of the cell, valid or not.
+             */
+            n_observations: number;
+            /** Numerator */
+            numerator: number;
+            /**
+             * Value
+             * @description numerator / denominator; null when it is 0.
+             */
+            value: number | null;
+        };
+        /**
          * MetricValue
          * @description A metric with what it was computed from. Fields of doc 19 section 2.6 that no route
          *     built so far fills (`ci`, `aggregation`, `engines`, ...) are left out until one does.
@@ -4707,6 +4757,13 @@ export interface components {
             result?: string | null;
             /** Self */
             self: string;
+        };
+        /** OutcomeCells */
+        OutcomeCells: {
+            cited_only: components["schemas"]["MetricCell"];
+            mentioned_and_cited: components["schemas"]["MetricCell"];
+            mentioned_only: components["schemas"]["MetricCell"];
+            neither: components["schemas"]["MetricCell"];
         };
         /**
          * OverlapWarning
@@ -5395,6 +5452,22 @@ export interface components {
             /** Version No */
             version_no: number;
         };
+        /** PromptSummaryRow */
+        PromptSummaryRow: {
+            /** Engines */
+            engines: components["schemas"]["EngineSummary"][];
+            /** Is Branded */
+            is_branded: boolean;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /** Text */
+            text: string;
+            /** Topic Term Ids */
+            topic_term_ids: string[];
+        };
         /** PromptTerm */
         PromptTerm: {
             /** Name */
@@ -5438,6 +5511,32 @@ export interface components {
             text_hash: string;
             /** Version No */
             version_no: number;
+        };
+        /** PromptsSummary */
+        PromptsSummary: {
+            /** Engine Codes */
+            engine_codes: string[];
+            /**
+             * Entities
+             * @description The tracked entity set Share of voice is computed over now: the own brand and the competitors (watched entities are not in it).
+             */
+            entities: components["schemas"]["SummaryEntity"][];
+            /**
+             * Entity Config Versions
+             * @description The entity configuration versions of the answers counted. More than one means the entity set changed inside the window and older answers keep their set.
+             */
+            entity_config_versions: number[];
+            /** Include Branded */
+            include_branded: boolean;
+            /** Prompts */
+            prompts: components["schemas"]["PromptSummaryRow"][];
+            /** Topics */
+            topics: components["schemas"]["TopicSummaryRow"][];
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** PromptsSummaryResponse */
+        PromptsSummaryResponse: {
+            data: components["schemas"]["PromptsSummary"];
         };
         /**
          * RankCell
@@ -6471,6 +6570,21 @@ export interface components {
              */
             t: string;
         };
+        /** SummaryEntity */
+        SummaryEntity: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "own" | "competitor";
+        };
         /** Term */
         Term: {
             /**
@@ -6660,6 +6774,17 @@ export interface components {
             parent_id?: string | null;
             /** Slug */
             slug?: string;
+        };
+        /** TopicSummaryRow */
+        TopicSummaryRow: {
+            /** Engines */
+            engines: components["schemas"]["EngineSummary"][];
+            /** Name */
+            name: string | null;
+            /** Prompt Count */
+            prompt_count: number;
+            /** Term Id */
+            term_id: string | null;
         };
         /** TotpConfirmRequest */
         TotpConfirmRequest: {
@@ -9660,6 +9785,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: string[] | null;
+                include_branded?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptsSummaryResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -12728,6 +12890,7 @@ export const serpSnapshotSummaryAi_overview_stateAnyOf0Values: ReadonlyArray<Fla
 export const signInResponseStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SignInResponse"]["status"]> = ["signed_in", "totp_required"];
 export const sitePropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SiteProperty"]["property_type"]> = ["domain", "url_prefix"];
 export const sparklinePointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SparklinePoint"]["state"]> = ["ranked", "beyond_depth"];
+export const summaryEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SummaryEntity"]["role"]> = ["own", "competitor"];
 export const termSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Term"]["source"]> = ["manual", "import", "auto_cluster", "ai_suggestion"];
 export const termAssignmentOpValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["op"]> = ["add", "remove", "replace"];
 export const termAssignmentSubject_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["subject_type"]> = ["tracked_keyword", "prompt"];

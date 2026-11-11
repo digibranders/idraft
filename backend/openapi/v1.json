@@ -2081,6 +2081,35 @@
         "title": "EngineCode",
         "type": "string"
       },
+      "EngineSummary": {
+        "properties": {
+          "cited": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "engine_code": {
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "mentioned": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "outcomes": {
+            "$ref": "#/components/schemas/OutcomeCells"
+          },
+          "share_of_voice": {
+            "$ref": "#/components/schemas/MetricCell"
+          }
+        },
+        "required": [
+          "engine_code",
+          "mentioned",
+          "cited",
+          "outcomes",
+          "share_of_voice"
+        ],
+        "title": "EngineSummary",
+        "type": "object"
+      },
       "EngineUpdate": {
         "additionalProperties": false,
         "properties": {
@@ -5947,6 +5976,44 @@
         "title": "MentionOut",
         "type": "object"
       },
+      "MetricCell": {
+        "description": "One count of answers over another, with every answer of the cell: \"5 of 8\". The\ncompact form of `MetricValue` (docs/19 section 2.6); the window is the response's.",
+        "properties": {
+          "denominator": {
+            "title": "Denominator",
+            "type": "integer"
+          },
+          "n_observations": {
+            "description": "Every answer of the cell, valid or not.",
+            "title": "N Observations",
+            "type": "integer"
+          },
+          "numerator": {
+            "title": "Numerator",
+            "type": "number"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "numerator / denominator; null when it is 0.",
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "numerator",
+          "denominator",
+          "n_observations"
+        ],
+        "title": "MetricCell",
+        "type": "object"
+      },
       "MetricValue": {
         "description": "A metric with what it was computed from. Fields of doc 19 section 2.6 that no route\nbuilt so far fills (`ci`, `aggregation`, `engines`, ...) are left out until one does.",
         "properties": {
@@ -6956,6 +7023,30 @@
           "self"
         ],
         "title": "OperationLinks",
+        "type": "object"
+      },
+      "OutcomeCells": {
+        "properties": {
+          "cited_only": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "mentioned_and_cited": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "mentioned_only": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "neither": {
+            "$ref": "#/components/schemas/MetricCell"
+          }
+        },
+        "required": [
+          "mentioned_and_cited",
+          "mentioned_only",
+          "cited_only",
+          "neither"
+        ],
+        "title": "OutcomeCells",
         "type": "object"
       },
       "OverlapWarning": {
@@ -8631,6 +8722,47 @@
         "title": "PromptSubject",
         "type": "object"
       },
+      "PromptSummaryRow": {
+        "properties": {
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/EngineSummary"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "is_branded": {
+            "title": "Is Branded",
+            "type": "boolean"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "topic_term_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Topic Term Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "text",
+          "is_branded",
+          "topic_term_ids",
+          "engines"
+        ],
+        "title": "PromptSummaryRow",
+        "type": "object"
+      },
       "PromptTerm": {
         "properties": {
           "name": {
@@ -8706,6 +8838,77 @@
           "created_at"
         ],
         "title": "PromptVersion",
+        "type": "object"
+      },
+      "PromptsSummary": {
+        "properties": {
+          "engine_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Engine Codes",
+            "type": "array"
+          },
+          "entities": {
+            "description": "The tracked entity set Share of voice is computed over now: the own brand and the competitors (watched entities are not in it).",
+            "items": {
+              "$ref": "#/components/schemas/SummaryEntity"
+            },
+            "title": "Entities",
+            "type": "array"
+          },
+          "entity_config_versions": {
+            "description": "The entity configuration versions of the answers counted. More than one means the entity set changed inside the window and older answers keep their set.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Entity Config Versions",
+            "type": "array"
+          },
+          "include_branded": {
+            "title": "Include Branded",
+            "type": "boolean"
+          },
+          "prompts": {
+            "items": {
+              "$ref": "#/components/schemas/PromptSummaryRow"
+            },
+            "title": "Prompts",
+            "type": "array"
+          },
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/TopicSummaryRow"
+            },
+            "title": "Topics",
+            "type": "array"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow"
+          }
+        },
+        "required": [
+          "window",
+          "include_branded",
+          "engine_codes",
+          "entities",
+          "entity_config_versions",
+          "prompts",
+          "topics"
+        ],
+        "title": "PromptsSummary",
+        "type": "object"
+      },
+      "PromptsSummaryResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PromptsSummary"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PromptsSummaryResponse",
         "type": "object"
       },
       "RankCell": {
@@ -11716,6 +11919,34 @@
         "title": "SparklinePoint",
         "type": "object"
       },
+      "SummaryEntity": {
+        "properties": {
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "own",
+              "competitor"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "name",
+          "role"
+        ],
+        "title": "SummaryEntity",
+        "type": "object"
+      },
       "Term": {
         "properties": {
           "created_at": {
@@ -12201,6 +12432,52 @@
           }
         },
         "title": "TermUpdate",
+        "type": "object"
+      },
+      "TopicSummaryRow": {
+        "properties": {
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/EngineSummary"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "prompt_count": {
+            "title": "Prompt Count",
+            "type": "integer"
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id"
+          }
+        },
+        "required": [
+          "term_id",
+          "name",
+          "prompt_count",
+          "engines"
+        ],
+        "title": "TopicSummaryRow",
         "type": "object"
       },
       "TotpConfirmRequest": {
@@ -18788,6 +19065,124 @@
           }
         },
         "summary": "The provider's answer for an AI observation, as received",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null.",
+        "operationId": "prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 10,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Mentioned, Cited, outcomes and Share of voice per prompt, engine and topic",
         "tags": [
           "ai"
         ]

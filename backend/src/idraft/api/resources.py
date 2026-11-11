@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from idraft.api.ai.engine_service import EngineService
 from idraft.api.ai.observations import ObservationService
 from idraft.api.ai.prompt_service import PromptService
+from idraft.api.ai.summary import SummaryService
 from idraft.api.auth.service import AuthService
 from idraft.api.auth.sessions import SessionStore
 from idraft.api.entities.project_service import ProjectEntityService
@@ -70,6 +71,7 @@ class Resources:
     ai_engines: EngineService
     prompts: PromptService
     ai_observations: ObservationService
+    ai_summary: SummaryService
 
 
 def get_resources(request: Request) -> Resources:

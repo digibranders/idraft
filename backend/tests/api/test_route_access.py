@@ -323,6 +323,9 @@ EXPECTED: dict[tuple[str, str], str] = {
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/"
         "{observation_id}/raw",
     ): "raw:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"): (
+        "data:read"
+    ),
     (
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/seo/rank-events",

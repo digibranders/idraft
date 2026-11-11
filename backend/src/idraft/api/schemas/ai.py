@@ -30,7 +30,7 @@ from idraft.api.pagination import CursorPageInfo
 from idraft.api.schemas.common import Body, LanguageCode, Patch, UserRef, printable, refuse_null
 from idraft.api.schemas.entities import EntityRef
 from idraft.api.schemas.keywords import FunnelStage, Intent, LocationId
-from idraft.api.schemas.metrics import Usd
+from idraft.api.schemas.metrics import MetricWindow, Usd
 from idraft.domain.ai_engines import PROMPT_TEXT_MAX, EngineCode, ObservationClass
 
 PromptType = Literal[
@@ -441,3 +441,70 @@ class ObservationDetail(ObservationSummary):
 
 class ObservationResponse(BaseModel):
     data: ObservationDetail
+
+
+class MetricCell(BaseModel):
+    """One count of answers over another, with every answer of the cell: "5 of 8". The
+    compact form of `MetricValue` (docs/19 section 2.6); the window is the response's."""
+
+    value: float | None = Field(description="numerator / denominator; null when it is 0.")
+    numerator: float
+    denominator: int
+    n_observations: int = Field(description="Every answer of the cell, valid or not.")
+
+
+class OutcomeCells(BaseModel):
+    mentioned_and_cited: MetricCell
+    mentioned_only: MetricCell
+    cited_only: MetricCell
+    neither: MetricCell
+
+
+class EngineSummary(BaseModel):
+    engine_code: str
+    mentioned: MetricCell
+    cited: MetricCell
+    outcomes: OutcomeCells
+    share_of_voice: MetricCell
+
+
+class PromptSummaryRow(BaseModel):
+    prompt_id: UUID
+    text: str
+    is_branded: bool
+    topic_term_ids: list[UUID]
+    engines: list[EngineSummary]
+
+
+class TopicSummaryRow(BaseModel):
+    # Null for the prompts without a topic.
+    term_id: UUID | None
+    name: str | None
+    prompt_count: int
+    engines: list[EngineSummary]
+
+
+class SummaryEntity(BaseModel):
+    entity_id: UUID
+    name: str
+    role: Literal["own", "competitor"]
+
+
+class PromptsSummary(BaseModel):
+    window: MetricWindow
+    include_branded: bool
+    engine_codes: list[str]
+    entities: list[SummaryEntity] = Field(
+        description="The tracked entity set Share of voice is computed over now: the own brand "
+        "and the competitors (watched entities are not in it)."
+    )
+    entity_config_versions: list[int] = Field(
+        description="The entity configuration versions of the answers counted. More than one "
+        "means the entity set changed inside the window and older answers keep their set."
+    )
+    prompts: list[PromptSummaryRow]
+    topics: list[TopicSummaryRow]
+
+
+class PromptsSummaryResponse(BaseModel):
+    data: PromptsSummary
