@@ -95,7 +95,7 @@ async def load_context(
 async def domain_rules(
     db: AsyncSession, workspace_id: uuid.UUID, project_id: uuid.UUID
 ) -> list[DomainRule]:
-    """The domain rules of every entity the project has attached, kept or not."""
+    """The domain rules of every entity with a live role in the project, tracked or not."""
     rows = await db.execute(
         select(
             project_domain_roles.c.entity_id,

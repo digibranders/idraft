@@ -11,7 +11,7 @@ from idraft.collectors.ai_context import AiContextCache, load_ai_context
 from idraft.extraction.urls import canonicalize
 from tests.api.auth.support import execute
 from tests.collectors.ai_support import AiWorld, make_ai_world
-from tests.collectors.rank_support import Ledger
+from tests.collectors.rank_support import Ledger, _entity
 from tests.conftest import PostgresServer
 
 
@@ -73,6 +73,32 @@ async def test_an_entity_not_tracked_in_ai_answers_and_other_workspaces_are_left
     # Its site is still a rule, so it does not fall through to a broader one.
     rival_page = context.resolver.resolve_url(canonicalize("https://cybernx.com/"))
     assert (rival_page.domain_role, rival_page.entity_id) == ("competitor", world.rival)
+
+
+async def test_an_entity_whose_role_was_removed_is_in_no_part_of_the_context(
+    worker_db: Ledger, migrated: PostgresServer, world: AiWorld
+) -> None:
+    project = world.project
+    gone = await _entity(migrated, project, "Gone Security", "gonesecurity.example", "competitor")
+    await execute(
+        migrated,
+        "UPDATE core.project_entities SET removed_at = now() "
+        "WHERE project_id = $1 AND entity_id = $2",
+        project.id,
+        gone,
+    )
+
+    async with worker_db() as db:
+        context = await load_ai_context(
+            db, workspace_id=project.workspace_id, project_id=project.id
+        )
+
+    assert context is not None
+    found = context.matcher.match("Gone Security and gonesecurity.example run SOCs.")
+    assert found.mentions == ()
+    assert gone not in context.roles
+    page = context.resolver.resolve_url(canonicalize("https://gonesecurity.example/soc"))
+    assert (page.domain_role, page.entity_id) == ("third_party", None)
 
 
 async def test_a_pass_builds_each_projects_context_once(
