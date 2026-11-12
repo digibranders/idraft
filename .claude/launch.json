@@ -8,6 +8,12 @@
       "port": 3000
     },
     {
+      "name": "web-mock",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["NEXT_PUBLIC_API_MOCKING=all", "pnpm", "--dir", "apps/web", "dev"],
+      "port": 3000
+    },
+    {
       "name": "web-3002",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--dir", "apps/web", "dev", "--port", "3002"],
