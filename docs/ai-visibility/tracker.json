@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T03:30:45+05:30",
+ "updated": "2026-11-13T03:32:20+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -344,7 +344,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-09-table-extensions.md; estimate 6 tasks; decisions D-40 | steps 1/7; plan committed; 10,000 bulk cap not enforced, needs owner call"
+   "notes": "file work-packages/WP-09-table-extensions.md; estimate 6 tasks; decisions D-40 | steps 5/7; tasks 1-4 reviewed PASS; nothing pushed yet"
   },
   {
    "id": "WP-10",
@@ -3971,6 +3971,18 @@
    "granted": "2026-11-13T03:13:15+05:30",
    "scope": "additive: bg-seq-1..7 utilities (WP-05 adds first, WP-06 reuses or rebases); no other edits",
    "until": "WP-05 and WP-06 merged"
+  }
+ ],
+ "followups": [
+  {
+   "id": "F-01",
+   "found": "2026-11-13T03:32:20+05:30",
+   "by": "WP-09",
+   "title": "Rankings bulk 'Select all N matching' can act on more rows than the list shows",
+   "detail": "rankings-screen.tsx ~373-384: in client mode with the list not fully loaded, if Select all N matching was pressed and the search then changes from outside the table (URL back or link), the bulk action goes to every filter match while the list shows only narrowed rows (bulkSearch is '' in client mode). Pre-existing. Fix: reached.allMatching must be false when list.mode is client and search is not blank. WP-09's table-side fix already makes scope.allMatching false when the table narrows itself.",
+   "owner": "Rankings screen (rank tracking is on hold)",
+   "severity": "data safety, low frequency",
+   "status": "open"
   }
  ]
 }
