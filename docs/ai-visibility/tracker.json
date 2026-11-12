@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T01:56:33+05:30",
+ "updated": "2026-11-13T02:07:38+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -189,7 +189,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-04-chart-frame.md; estimate 6 tasks; decisions D-05 | steps 0/6; plan on develop"
+   "notes": "file work-packages/WP-04-chart-frame.md; estimate 6 tasks; decisions D-05 | steps 3/6; frame, menu, legend, tip row, boundaries, band and sparkline kinds reviewed PASS; next T4 registry entries"
   },
   {
    "id": "WP-05",
