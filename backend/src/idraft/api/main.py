@@ -18,6 +18,8 @@ from idraft.api.ai.observation_routes import router as ai_observations_router
 from idraft.api.ai.observations import ObservationService
 from idraft.api.ai.prompt_routes import router as prompt_routes_router
 from idraft.api.ai.prompt_service import PromptService
+from idraft.api.ai.source_routes import router as ai_sources_router
+from idraft.api.ai.sources import SourceService
 from idraft.api.ai.summary import SummaryService
 from idraft.api.ai.summary_routes import router as ai_summary_router
 from idraft.api.auth.passwords import BreachedPasswords
@@ -232,6 +234,7 @@ def create_app(
                 prompts=PromptService(sessions=sessions),
                 ai_observations=ObservationService(sessions=sessions, raw_store=sources),
                 ai_summary=SummaryService(sessions=sessions),
+                ai_sources=SourceService(sessions=sessions),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -274,6 +277,7 @@ def create_app(
     app.include_router(rank_events_router)
     app.include_router(ai_observations_router)
     app.include_router(ai_summary_router)
+    app.include_router(ai_sources_router)
     app.include_router(keyword_groups_router)
     app.include_router(term_assignments_router)
     app.include_router(run_routes_router)

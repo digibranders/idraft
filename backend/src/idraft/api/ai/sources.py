@@ -1,0 +1,193 @@
+"""Cited sources and the citations behind them (docs/16 section 7, docs/19 section 3.7.7 cut to
+slice 1; plan D2): what the Citations page and the prompt inspector's Citations tab read, over a
+window of project-local days and the answers the prompts summary counts."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from contextlib import AbstractAsyncContextManager
+from dataclasses import dataclass
+from datetime import date, datetime
+from typing import cast
+from uuid import UUID
+from zoneinfo import ZoneInfo
+
+from fastapi.exceptions import RequestValidationError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from idraft.api.ai import source_repository as repository
+from idraft.api.ai.source_repository import Counted, SourceScope, Totals
+from idraft.api.ai.summary import summary_dates
+from idraft.api.pagination import OffsetPageInfo, OffsetParams
+from idraft.api.problems import NotFoundError
+from idraft.api.ranks.repository import project_zone
+from idraft.api.ranks.service import instants
+from idraft.api.schemas.ai import MetricCell
+from idraft.api.schemas.ai_sources import (
+    DomainRole,
+    EngineUnits,
+    RoleUnits,
+    SourceDomainPage,
+    SourceDomainRow,
+    SourcesMeta,
+    SourceSort,
+)
+from idraft.api.schemas.metrics import MetricWindow
+from idraft.api.workspaces.access import WorkspaceAccess
+from idraft.db.engine import workspace_transaction
+from idraft.domain.ai_engines import EngineCode
+
+
+@dataclass(frozen=True, slots=True)
+class SourceQuery:
+    """The scope parameters every source route takes."""
+
+    start: date | None = None
+    end: date | None = None
+    engine_codes: Sequence[EngineCode] | None = None
+    include_branded: bool = False
+    prompt_id: UUID | None = None
+    term_id: UUID | None = None
+    roles: Sequence[DomainRole] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Scoped:
+    """A request's scope, with its window as local days and as the answer states it."""
+
+    scope: SourceScope
+    window: MetricWindow
+    first: date
+    last: date
+    zone: ZoneInfo
+
+
+def out_of_range(field: str) -> RequestValidationError:
+    return RequestValidationError(
+        [{"loc": ("query", field), "type": "out_of_range", "msg": f"`{field}` is out of range."}]
+    )
+
+
+def local_instants(first: date, last: date, zone: ZoneInfo) -> tuple[datetime, datetime]:
+    try:
+        return instants(first, last, zone)
+    except (OverflowError, ValueError):
+        raise out_of_range("to") from None
+
+
+def shown_engines(asked: Sequence[EngineCode] | None) -> list[str]:
+    """The engines a read counts: those asked for, else the three of slice 1, in code order."""
+    return sorted({str(code) for code in (asked or list(EngineCode))})
+
+
+async def scoped(
+    db: AsyncSession,
+    access: WorkspaceAccess,
+    project_id: UUID,
+    query: SourceQuery,
+    engines: Sequence[str],
+) -> Scoped:
+    """The request's scope in the project's timezone; `404` for a deleted or unknown project."""
+    zone_row = await project_zone(db, access.workspace_id, project_id)
+    if zone_row is None:
+        raise NotFoundError
+    zone = ZoneInfo(zone_row.timezone)
+    first, last = summary_dates(query.start, query.end, datetime.now(zone).date())
+    since, until = local_instants(first, last, zone)
+    return Scoped(
+        scope=SourceScope(
+            workspace_id=access.workspace_id,
+            project_id=project_id,
+            since=since,
+            until=until,
+            engine_codes=tuple(engines),
+            include_branded=query.include_branded,
+            prompt_id=query.prompt_id,
+            term_id=query.term_id,
+        ),
+        window=MetricWindow(
+            from_=first.isoformat(), to=last.isoformat(), timezone=zone_row.timezone
+        ),
+        first=first,
+        last=last,
+        zone=zone,
+    )
+
+
+def engine_units(counted: Counted, engines: Sequence[str]) -> list[EngineUnits]:
+    return [
+        EngineUnits(engine_code=EngineCode(code), citation_units=units)
+        for code, units in zip(engines, counted.engine_units, strict=True)
+    ]
+
+
+def share(units: int, totals: Totals) -> MetricCell:
+    """A source's units over every unit in scope (docs/16 C1)."""
+    whole = totals.citation_units
+    return MetricCell(
+        value=None if whole == 0 else units / whole,
+        numerator=units,
+        denominator=whole,
+        n_observations=totals.answers,
+    )
+
+
+def sources_meta(
+    now: Scoped, query: SourceQuery, engines: Sequence[str], totals: Totals
+) -> SourcesMeta:
+    return SourcesMeta(
+        window=now.window,
+        include_branded=query.include_branded,
+        engine_codes=[EngineCode(code) for code in engines],
+        answers=totals.answers,
+        answers_citing=totals.answers_citing,
+        citation_units=totals.citation_units,
+        by_role=[
+            RoleUnits(domain_role=cast(DomainRole, role), citation_units=units, observations=seen)
+            for role, (units, seen) in totals.by_role.items()
+        ],
+    )
+
+
+class SourceService:
+    def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
+        self._sessions = sessions
+
+    def _transaction(self, access: WorkspaceAccess) -> AbstractAsyncContextManager[AsyncSession]:
+        return workspace_transaction(self._sessions, access.workspace_id, user_id=access.user_id)
+
+    async def domains(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        query: SourceQuery,
+        *,
+        sort: SourceSort,
+        page: OffsetParams,
+    ) -> SourceDomainPage:
+        engines = shown_engines(query.engine_codes)
+        async with self._transaction(access) as db:
+            now = await scoped(db, access, project_id, query, engines)
+            rows, total = await repository.domain_counts(
+                db, now.scope, roles=query.roles, sort=sort, offset=page.offset, limit=page.limit
+            )
+            whole = await repository.totals(db, now.scope)
+        return SourceDomainPage(
+            data=[
+                SourceDomainRow(
+                    registrable_domain=row.registrable_domain,
+                    domain_role=cast(DomainRole, row.domain_role),
+                    role_entity_id=row.role_entity_id,
+                    citation_units=row.counted.citation_units,
+                    observations=row.counted.observations,
+                    prompts=row.counted.prompts,
+                    engines=engine_units(row.counted, engines),
+                    source_share=share(row.counted.citation_units, whole),
+                    first_seen_at=row.counted.first_seen_at,
+                    last_seen_at=row.counted.last_seen_at,
+                )
+                for row in rows
+            ],
+            page=OffsetPageInfo(offset=page.offset, limit=page.limit, total=total),
+            meta=sources_meta(now, query, engines, whole),
+        )
