@@ -42,6 +42,22 @@ async def test_annotations_answer_501_for_a_reader(
     assert problem(response) == NOT_BUILT
 
 
+@pytest.mark.parametrize("tail", [("ai", "annotations"), ("notes",)])
+async def test_annotations_and_notes_reads_need_data_read(
+    tail: tuple[str, ...],
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+) -> None:
+    workspace = await make_workspace(migrated)
+    billing = await member(resources, migrated, workspace, "billing")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.get(project_url(workspace, project, *tail), headers=billing.headers)
+
+    assert problem(response) == FORBIDDEN
+
+
 async def test_notes_list_answers_501_for_a_reader(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -68,6 +84,22 @@ async def test_writing_a_note_needs_notes_write(
     assert problem(await api.delete(one, headers=viewer.headers)) == FORBIDDEN
     assert problem(await api.post(notes, json=NOTE, headers=editor.headers)) == NOT_BUILT
     assert problem(await api.delete(one, headers=editor.headers)) == NOT_BUILT
+
+
+async def test_a_note_of_the_longest_length_is_accepted(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.post(
+        project_url(workspace, project, "notes"),
+        json={**NOTE, "text": "x" * 140},
+        headers=editor.headers,
+    )
+
+    assert problem(response) == NOT_BUILT
 
 
 @pytest.mark.parametrize(

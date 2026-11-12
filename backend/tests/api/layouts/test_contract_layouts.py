@@ -115,9 +115,14 @@ async def test_layouts_refuse_another_workspace(
         {"schema": 1, "numbers": [{"id": f"n{n}", "metric": "ai.mentions"} for n in range(7)]},
         {"schema": 1, "cards": [{**CARD, "width": "wide"}]},
         {"schema": 1, "cards": [{**CARD, "id": "has space"}]},
+        {"schema": 1, "cards": [{**CARD, "id": "a" * 65}]},
         {"schema": 1, "cards": [{**CARD, "type": "AI By Engine"}]},
         {"schema": 1, "cards": [{**CARD, "options": {"rows": 5}}]},
         {"schema": 1, "cards": [{**CARD, "options": {"Rows": "5"}}]},
+        {"schema": 1, "cards": [{**CARD, "options": {"a" * 65: "x"}}]},
+        {"schema": 1, "cards": [{**CARD, "options": {"rows": "x" * 257}}]},
+        {"schema": 1, "cards": [{**CARD, "options": {"rows": "a\u0000b"}}]},
+        {"schema": 1, "numbers": [{"id": "n1", "metric": "AI Mentions"}]},
         {"schema": 1, "extra": 1},
         {
             "schema": 1,
@@ -143,15 +148,14 @@ async def test_a_document_out_of_bounds_is_refused_before_501(
     assert problem(response) == INVALID
 
 
+@pytest.mark.parametrize("screen", ["AI-Overview", "a" * 65])
 async def test_a_screen_that_is_not_a_key_is_refused(
-    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+    screen: str, api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
     workspace = await make_workspace(migrated)
     viewer = await member(resources, migrated, workspace, "viewer")
 
-    response = await api.get(
-        layout_url(workspace.id, "layouts", "AI-Overview"), headers=viewer.headers
-    )
+    response = await api.get(layout_url(workspace.id, "layouts", screen), headers=viewer.headers)
 
     assert problem(response) == INVALID
 
