@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T04:51:48+05:30",
+ "updated": "2026-11-13T04:54:21+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -4013,6 +4013,13 @@
    "granted": "2026-11-13T04:51:48+05:30",
    "scope": "new file, owner WP-12 (POOL_BELOW_PROMPTS, POOL_WEEKS, pools(), pool_window()); other lanes import, never edit",
    "until": "WP-12 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/cells/copy-button.tsx",
+   "wp": "WP-08",
+   "granted": "2026-11-13T04:54:21+05:30",
+   "scope": "additive optional prop inGrid (default true = unchanged); plus its test",
+   "until": "WP-08 merged"
   }
  ],
  "followups": [
