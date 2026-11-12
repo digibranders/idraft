@@ -932,6 +932,46 @@ export interface paths {
         patch: operations["update_project_api_v1_workspaces__workspace_id__projects__project_id__patch"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The citations behind the source counts, newest answer first
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per citation of a counted answer, in the answer's order (a URL listed twice is two rows and one unit). `filter[registrable_domain]` and `filter[url_id]` give the citations behind a domain or page row. Keyset pages `(observed_at DESC, observation_id DESC, citation_index)`; a cursor is bound to its filters (`400 invalid_cursor` otherwise).
+         */
+        get: operations["citation_list_api_v1_workspaces__workspace_id__projects__project_id__ai_citations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/fanout-queries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The queries ChatGPT issued while answering, by how many answers issued them
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). Read from the lists ingest stored with each answer (engines that show them: ChatGPT; `filter[engine_code_in]` naming another is `422 engine_has_no_fanout`, and `meta.engines_without_fanout` lists them so they read as not exposed, never zero). One row per normalized text (lower case, trimmed, inner whitespace as one space) and engine, the most issued first: the most common spelling, the answers and prompts that issued it, when it was first and last seen, and the 5 registrable domains with the most citation units in those answers (an association: which query found which source is not stored). A query issued by fewer than `min_support` answers (default 2) is left out. `meta.answers` is the denominator; `meta.answers_truncated` counts the answers whose stored list is shorter than the queries they issued (the 16 KB bound keeps the first ones). Offset pages.
+         */
+        get: operations["fanout_queries_api_v1_workspaces__workspace_id__projects__project_id__ai_fanout_queries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations": {
         parameters: {
             query?: never;
@@ -1004,6 +1044,66 @@ export interface paths {
          * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most 20); across all the entities an answer names, its shares add up to 1.
          */
         get: operations["prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask many prompts now, as one manual run through the provider's standard queue
+         * @description Up to 150 prompts the project asks (`422 validation_failed` with `prompt_unknown` at `prompt_ids` for an archived, deleted or unknown one), each once on each of `engine_codes` (default: every engine the project has turned on; one it has not is `engine_not_enabled`), through the standard queue, the path a schedule uses. It is one of the project's 20 manual runs a day (`429 manual_run_limit`) and each task one of the month's AI answers (`422 quota_exceeded`). What the planner would skip (`prompt_too_long`, `location_not_enabled`) and every engine of a prompt with an answer already on its way (`check_pending` there, `prompt_pending` on its other engines) is left out and listed in `meta.skipped`; the rest runs. Nothing left is `409 check_pending` (with `prompt_ids`) when something was pending, else `422 nothing_to_run`; both carry `skipped`. `422 price_unavailable` without a price; `503 provider_paused` while the provider is refusing every request. A budget used up blocks the run when the worker plans it (`budget_blocked`).
+         */
+        post: operations["ai_bulk_run_api_v1_workspaces__workspace_id__projects__project_id__ai_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cited sources by registrable domain, with their share of every citation
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per registrable domain and role (and the entity whose domain rule matched): citation units, answers, prompts, units per engine and `source_share` (its units over every unit in scope; `filter[domain_role_in]` narrows the rows, not the denominator). `meta` states the answers, the units and the units of each role. Offset pages; `sort` is `-citation_units` (default), `-observations` or `-prompts`. `compare=previous_period` (default `none`) adds `previous` to each row, its units and citing answers over as many days just before the window (0 when not cited there: docs/16 C5), with `meta.compare_window` and `meta.previous_answers`.
+         */
+        get: operations["source_domains_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_domains_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cited pages, with their share of every citation
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per canonical page and role: as the domain rows, plus the URL, host, registrable domain and a title an answer gave it. `filter[registrable_domain]` keeps one domain's pages, whose units add up to its row's. Offset pages; the same sorts as the domains. `compare=previous_period` (default `none`) adds `previous` to each row, its units and citing answers over as many days just before the window (0 when not cited there: docs/16 C5), with `meta.compare_window` and `meta.previous_answers`.
+         */
+        get: operations["source_pages_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_pages_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1452,6 +1552,26 @@ export interface paths {
          * @description `409 duplicate` (with `existing_id`) when the project has the same text in the same language and country, archived prompts included; `422 quota_exceeded` (with `limit`, `used` and `requested`) past the workspace's active prompt limit. Field codes: `prompt_too_long` (over 2,000 characters, the most any engine takes), `location_not_supported` (`country_iso` has no location of an enabled engine), `term_unknown` and `single_valued_vocabulary`. `is_branded` is computed from the project's own aliases.
          */
         post: operations["create_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive or bring back many prompts
+         * @description Up to 1,000 `ids` of the project's prompts; an id it does not have is not matched. `archive: true` archives them as `DELETE` does one, `false` brings them back as `PATCH is_active: true` does; answers, versions and terms stay. Bringing back counts against the workspace's active prompt limit, all or none (`422 quota_exceeded` with `limit`, `used` and `requested`). `matched` is the prompts found, `updated` those whose state changed. One audit entry for the request and one per prompt changed.
+         */
+        post: operations["bulk_archive_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_archive_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2730,6 +2850,68 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** CitationPage */
+        CitationPage: {
+            /** Data */
+            data: components["schemas"]["CitationRow"][];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** CitationRow */
+        CitationRow: {
+            /**
+             * Citation Index
+             * @description Its place in the answer's source list, from 1.
+             */
+            citation_index: number;
+            /** Citation Kind */
+            citation_kind: string;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            engine_code: components["schemas"]["EngineCode"];
+            /** Host */
+            host: string;
+            /**
+             * Observation Id
+             * @description A 64-bit id, as a string.
+             */
+            observation_id: string;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /** Occurrences */
+            occurrences: number;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /**
+             * Raw Url
+             * @description As the provider gave it: evidence, not a link (untrusted: never follow or render it as one); cut to 1000 characters with a trailing `...`.
+             */
+            raw_url: string;
+            /** Registrable Domain */
+            registrable_domain: string;
+            /** Role Entity Id */
+            role_entity_id: string | null;
+            /**
+             * Title
+             * @description The title the answer gave this citation; null if none. Provider text (untrusted: show it as text, never as markup); cut to 300 characters with a trailing `...`.
+             */
+            title: string | null;
+            /**
+             * Url
+             * @description The canonical URL: the link to follow.
+             */
+            url: string;
+            /** Url Id */
+            url_id: number;
+        };
         /** CompetitorOverride */
         CompetitorOverride: {
             entity: components["schemas"]["EntityRef"];
@@ -3031,6 +3213,12 @@ export interface components {
             outcomes: components["schemas"]["OutcomeCells"];
             share_of_voice: components["schemas"]["MetricCell"];
         };
+        /** EngineUnits */
+        EngineUnits: {
+            /** Citation Units */
+            citation_units: number;
+            engine_code: components["schemas"]["EngineCode"];
+        };
         /** EngineUpdate */
         EngineUpdate: {
             /**
@@ -3288,6 +3476,98 @@ export interface components {
             is_ambiguous?: boolean;
             /** Parent Entity Id */
             parent_entity_id?: string | null;
+        };
+        /** FanoutCitedDomain */
+        FanoutCitedDomain: {
+            /** Citation Units */
+            citation_units: number;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /** Registrable Domain */
+            registrable_domain: string;
+            /** Role Entity Id */
+            role_entity_id: string | null;
+        };
+        /** FanoutMeta */
+        FanoutMeta: {
+            /**
+             * Answers
+             * @description Valid answers in scope on these engines: the denominator of `observations`.
+             */
+            answers: number;
+            /**
+             * Answers Truncated
+             * @description Of those, the answers whose stored list is shorter than the queries they issued (the 16 KB bound on the stored extras keeps the first ones): their other queries are in no row.
+             */
+            answers_truncated: number;
+            /**
+             * Answers With Fanout
+             * @description Of those, the answers that issued a query (docs/16 F1).
+             */
+            answers_with_fanout: number;
+            /** Engine Codes */
+            engine_codes: components["schemas"]["EngineCode"][];
+            /**
+             * Engines Without Fanout
+             * @description Engines that do not show the queries they issue: not exposed, never zero.
+             */
+            engines_without_fanout: components["schemas"]["EngineCode"][];
+            /** Include Branded */
+            include_branded: boolean;
+            /** Min Support */
+            min_support: number;
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** FanoutQueryPage */
+        FanoutQueryPage: {
+            /** Data */
+            data: components["schemas"]["FanoutQueryRow"][];
+            meta: components["schemas"]["FanoutMeta"];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** FanoutQueryRow */
+        FanoutQueryRow: {
+            /**
+             * Cited Domains
+             * @description The 5 registrable domains with the most citation units in the answers that issued it: an association, not a link (which query found which source is not stored).
+             */
+            cited_domains: components["schemas"]["FanoutCitedDomain"][];
+            engine_code: components["schemas"]["EngineCode"];
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /**
+             * Normalized Text
+             * @description Lower case, trimmed, inner whitespace as one space: what queries are grouped by (docs/16 F4). Provider text (untrusted: show it as text, never as markup); cut to 300 characters with a trailing `...`.
+             */
+            normalized_text: string;
+            /**
+             * Observations
+             * @description Answers that issued it, each once (docs/16 F4); `meta.answers` is the denominator.
+             */
+            observations: number;
+            /**
+             * Prompt Ids
+             * @description The prompts whose answers issued it.
+             */
+            prompt_ids: string[];
+            /** Prompts */
+            prompts: number;
+            /**
+             * Query Text
+             * @description Its most common spelling in the answers. Provider text (untrusted: show it as text, never as markup); cut to 300 characters with a trailing `...`.
+             */
+            query_text: string;
         };
         /** FeatureCheck */
         FeatureCheck: {
@@ -4874,6 +5154,16 @@ export interface components {
             /** Trials */
             trials: number;
         };
+        /** PreviousUnits */
+        PreviousUnits: {
+            /** Citation Units */
+            citation_units: number;
+            /**
+             * Observations
+             * @description Answers that cited it then.
+             */
+            observations: number;
+        };
         /** Price */
         Price: {
             /** Conditions */
@@ -5318,6 +5608,19 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /**
+         * PromptBulkArchive
+         * @description The project's prompts to archive (`archive: true`) or bring back (`false`).
+         */
+        PromptBulkArchive: {
+            /**
+             * Archive
+             * @description false brings the prompts back, within the active prompt quota.
+             */
+            archive: boolean;
+            /** Ids */
+            ids: string[];
         };
         /** PromptBulkCreate */
         PromptBulkCreate: {
@@ -5843,6 +6146,21 @@ export interface components {
          * @enum {string}
          */
         Role: "owner" | "admin" | "editor" | "analyst" | "viewer" | "billing";
+        /** RoleUnits */
+        RoleUnits: {
+            /** Citation Units */
+            citation_units: number;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /**
+             * Observations
+             * @description Answers that cite a source of this role.
+             */
+            observations: number;
+        };
         /** RowActionInput */
         RowActionInput: {
             /**
@@ -5920,6 +6238,50 @@ export interface components {
              * @enum {string}
              */
             workload: "seo_rank" | "ai_prompt" | "ai_mode_keyword" | "keyword_metrics" | "discovery" | "ai_benchmark" | "gsc_sync" | "bing_sync" | "ga4_sync" | "cloudflare_sync";
+        };
+        /**
+         * RunBulk
+         * @description The prompts to ask now, each once on each engine, through the standard queue. Without
+         *     `engine_codes`, every engine the project has turned on.
+         */
+        RunBulk: {
+            /** Engine Codes */
+            engine_codes?: components["schemas"]["EngineCode"][] | null;
+            /**
+             * Prompt Ids
+             * @description Up to 150, the base plan's prompts; a repeat is dropped.
+             */
+            prompt_ids: string[];
+        };
+        /** RunBulkMeta */
+        RunBulkMeta: {
+            /**
+             * Answers
+             * @description Tasks the run makes, one answer each: what counts against the month's AI answers.
+             */
+            answers: number;
+            /**
+             * Estimated Cost Usd
+             * @description The price book's estimate on the standard queue; the worker checks the budget against it when it plans the run.
+             * @example 0.012000
+             */
+            estimated_cost_usd: string;
+            manual_runs_today: components["schemas"]["ManualRuns"];
+            /**
+             * Prompts
+             * @description Prompts the run asks.
+             */
+            prompts: number;
+            /**
+             * Skipped
+             * @description Every prompt and engine left out, with why.
+             */
+            skipped: components["schemas"]["RunSkip"][];
+        };
+        /** RunBulkResponse */
+        RunBulkResponse: {
+            data: components["schemas"]["Run"];
+            meta: components["schemas"]["RunBulkMeta"];
         };
         /** RunCancel */
         RunCancel: {
@@ -6034,6 +6396,20 @@ export interface components {
         RunResults: {
             /** Tracked Keyword Ids */
             tracked_keyword_ids?: string[] | null;
+        };
+        /** RunSkip */
+        RunSkip: {
+            engine_code: components["schemas"]["EngineCode"];
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "prompt_too_long" | "location_not_enabled" | "check_pending" | "prompt_pending";
         };
         /** Schedule */
         Schedule: {
@@ -6623,6 +6999,165 @@ export interface components {
         SitePropertyList: {
             /** Data */
             data: components["schemas"]["SiteProperty"][];
+        };
+        /** SourceDomainPage */
+        SourceDomainPage: {
+            /** Data */
+            data: components["schemas"]["SourceDomainRow"][];
+            meta: components["schemas"]["SourcesMeta"];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** SourceDomainRow */
+        SourceDomainRow: {
+            /**
+             * Citation Units
+             * @description Citation units: distinct canonical URLs per answer (docs/16 C2); a URL an answer cites twice is one, and `occurrences` never counts.
+             */
+            citation_units: number;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /**
+             * Engines
+             * @description Its citation units per engine of `meta.engine_codes`, in that order.
+             */
+            engines: components["schemas"]["EngineUnits"][];
+            /**
+             * First Seen At
+             * Format: date-time
+             * @description Its first citation in the window.
+             */
+            first_seen_at: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             * @description Its last citation in the window.
+             */
+            last_seen_at: string;
+            /**
+             * Observations
+             * @description Answers that cite it.
+             */
+            observations: number;
+            /** @description With `compare=previous_period`: its citation units and citing answers over as many days just before the window, 0 when it was not cited there (docs/16 C5). Left out otherwise. */
+            previous?: components["schemas"]["PreviousUnits"] | null;
+            /**
+             * Prompts
+             * @description Prompts whose answers cite it.
+             */
+            prompts: number;
+            /**
+             * Registrable Domain
+             * @description What sources are grouped by (docs/14 section 3, docs/16 C1): every host of one registrable domain, `www.` included.
+             */
+            registrable_domain: string;
+            /**
+             * Role Entity Id
+             * @description The tracked entity whose domain rule the citations matched; null for a third party. A registrable domain whose citations matched different rules has a row per role and entity.
+             */
+            role_entity_id: string | null;
+            /** @description Its citation units over every citation unit in scope (docs/16 C1); `n_observations` is the valid answers in scope. */
+            source_share: components["schemas"]["MetricCell"];
+        };
+        /** SourcePagePage */
+        SourcePagePage: {
+            /** Data */
+            data: components["schemas"]["SourcePageRow"][];
+            meta: components["schemas"]["SourcesMeta"];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** SourcePageRow */
+        SourcePageRow: {
+            /**
+             * Citation Units
+             * @description Citation units: distinct canonical URLs per answer (docs/16 C2); a URL an answer cites twice is one, and `occurrences` never counts.
+             */
+            citation_units: number;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /** Engines */
+            engines: components["schemas"]["EngineUnits"][];
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /** Host */
+            host: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /**
+             * Observations
+             * @description Answers that cite it.
+             */
+            observations: number;
+            /** @description With `compare=previous_period`: its citation units and citing answers over as many days just before the window, 0 when it was not cited there (docs/16 C5). Left out otherwise. */
+            previous?: components["schemas"]["PreviousUnits"] | null;
+            /**
+             * Prompts
+             * @description Prompts whose answers cite it.
+             */
+            prompts: number;
+            /** Registrable Domain */
+            registrable_domain: string;
+            /** Role Entity Id */
+            role_entity_id: string | null;
+            source_share: components["schemas"]["MetricCell"];
+            /**
+             * Title
+             * @description A title an answer gave the page; null if none did. Provider text (untrusted: show it as text, never as markup); cut to 300 characters with a trailing `...`.
+             */
+            title: string | null;
+            /**
+             * Url
+             * @description The canonical URL: the link to follow.
+             */
+            url: string;
+            /** Url Id */
+            url_id: number;
+        };
+        /** SourcesMeta */
+        SourcesMeta: {
+            /**
+             * Answers
+             * @description Valid answers in scope, citing or not.
+             */
+            answers: number;
+            /**
+             * Answers Citing
+             * @description Of those, the answers that cite a source.
+             */
+            answers_citing: number;
+            /**
+             * By Role
+             * @description Own, competitor and third party, each once.
+             */
+            by_role: components["schemas"]["RoleUnits"][];
+            /**
+             * Citation Units
+             * @description Every citation unit in scope: the denominator of `source_share`. `filter[domain_role_in]` narrows the rows, not this.
+             */
+            citation_units: number;
+            /** @description With `compare`: the window `previous` counts, as many days just before. */
+            compare_window?: components["schemas"]["MetricWindow"] | null;
+            /** Engine Codes */
+            engine_codes: components["schemas"]["EngineCode"][];
+            /** Include Branded */
+            include_branded: boolean;
+            /**
+             * Previous Answers
+             * @description With `compare`: the valid answers in scope in that window. 0 means it has no data, so a `previous` of 0 there says nothing about the source.
+             */
+            previous_answers?: number | null;
+            window: components["schemas"]["MetricWindow"];
         };
         /** Sparkline */
         Sparkline: {
@@ -9785,6 +10320,99 @@ export interface operations {
             };
         };
     };
+    citation_list_api_v1_workspaces__workspace_id__projects__project_id__ai_citations_get: {
+        parameters: {
+            query?: {
+                /** @description The sources of one registrable domain, as a domain row names it. */
+                "filter[registrable_domain]"?: string | null;
+                "filter[url_id]"?: number | null;
+                "filter[domain_role_in]"?: ("own" | "competitor" | "third_party")[] | null;
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description One prompt's answers, whether it is active, archived or branded. */
+                "filter[prompt_id]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CitationPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    fanout_queries_api_v1_workspaces__workspace_id__projects__project_id__ai_fanout_queries_get: {
+        parameters: {
+            query?: {
+                /** @description The fewest answers a query is listed for. */
+                min_support?: number;
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description One prompt's answers, whether it is active, archived or branded. */
+                "filter[prompt_id]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FanoutQueryPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_observations_api_v1_workspaces__workspace_id__projects__project_id__ai_observations_get: {
         parameters: {
             query?: {
@@ -9932,6 +10560,136 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PromptsSummaryResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    ai_bulk_run_api_v1_workspaces__workspace_id__projects__project_id__ai_runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunBulk"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunBulkResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    source_domains_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_domains_get: {
+        parameters: {
+            query?: {
+                sort?: "-citation_units" | "-observations" | "-prompts";
+                compare?: "none" | "previous_period";
+                "filter[domain_role_in]"?: ("own" | "competitor" | "third_party")[] | null;
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description One prompt's answers, whether it is active, archived or branded. */
+                "filter[prompt_id]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceDomainPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    source_pages_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_pages_get: {
+        parameters: {
+            query?: {
+                /** @description The sources of one registrable domain, as a domain row names it. */
+                "filter[registrable_domain]"?: string | null;
+                sort?: "-citation_units" | "-observations" | "-prompts";
+                compare?: "none" | "previous_period";
+                "filter[domain_role_in]"?: ("own" | "competitor" | "third_party")[] | null;
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description One prompt's answers, whether it is active, archived or branded. */
+                "filter[prompt_id]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourcePagePage"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -11026,6 +11784,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PromptResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    bulk_archive_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_archive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptBulkArchive"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkArchiveResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -12844,8 +13638,15 @@ export const pathsApiV1WorkspacesWorkspace_idCostsGetParametersQueryGroup_byAnyO
 export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterEntity_typeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[entity_type]"]> = ["brand", "product", "organization", "person", "other"];
 export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idKeywordsKeyword_idMetricsHistoryGetParametersQuerySourceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}/metrics-history"]["get"]["parameters"]["query"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCitationsGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["complete", "partial", "empty", "refused", "error"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDomainsGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains"]["get"]["parameters"]["query"]["sort"]> = ["-citation_units", "-observations", "-prompts"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDomainsGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDomainsGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages"]["get"]["parameters"]["query"]["sort"]> = ["-citation_units", "-observations", "-prompts"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idDomainsGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordGroupsGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups"]["get"]["parameters"]["query"]["format"]> = ["tree", "flat"];
@@ -12885,6 +13686,7 @@ export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<com
 export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
 export const citationOutDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationOut"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const citationRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationRow"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
 export const configVersionDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ConfigVersion"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const connectionAuth_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["auth_method"]> = ["oauth", "api_key", "api_token", "service_account"];
@@ -12902,6 +13704,7 @@ export const entityProjectRoleRoleValues: ReadonlyArray<FlattenedDeepRequired<co
 export const entityRefEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityRef"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
 export const entityRefRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityRef"]["role"]> = ["own", "competitor", "watch"];
 export const entityUpdateEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityUpdate"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
+export const fanoutCitedDomainDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FanoutCitedDomain"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const filterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
 export const filterList_Literal__informational____navigational____commercial____transactional____local____unknown___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
 export const filterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
@@ -12968,6 +13771,7 @@ export const readinessStatusValues: ReadonlyArray<FlattenedDeepRequired<componen
 export const reservedProjectSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedProjectSlug"]> = ["billing", "costs", "members", "new", "onboarding", "ops", "projects", "settings"];
 export const reservedWorkspaceSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedWorkspaceSlug"]> = ["account", "admin", "api", "assets", "design-system", "docs", "favicon", "forgot-password", "health", "healthz", "help", "icon", "invite", "login", "logout", "new", "null", "onboarding", "public", "reset-password", "robots", "settings", "sign-in", "sign-up", "signup", "sitemap", "static", "two-factor", "undefined", "verify-email", "www"];
 export const roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Role"]> = ["owner", "admin", "editor", "analyst", "viewer", "billing"];
+export const roleUnitsDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RoleUnits"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const rowActionInputActionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RowActionInput"]["action"]> = ["create", "skip", "merge", "force_separate"];
 export const runStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Run"]["status"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
 export const runTriggerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Run"]["trigger"]> = ["schedule", "manual", "backfill", "retry"];
@@ -12975,6 +13779,7 @@ export const runWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>[
 export const runDetailStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RunDetail"]["status"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
 export const runDetailTriggerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RunDetail"]["trigger"]> = ["schedule", "manual", "backfill", "retry"];
 export const runDetailWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RunDetail"]["workload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
+export const runSkipReasonValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RunSkip"]["reason"]> = ["prompt_too_long", "location_not_enabled", "check_pending", "prompt_pending"];
 export const scheduleCadenceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Schedule"]["cadence"]> = ["daily", "weekly", "monthly", "cron"];
 export const schedulePriorityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Schedule"]["priority"]> = ["high", "standard", "low"];
 export const scheduleProvider_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Schedule"]["provider_mode"]> = ["standard_queue", "priority_queue", "live"];
@@ -13001,6 +13806,8 @@ export const serpSnapshotDetailTitles_sourceValues: ReadonlyArray<FlattenedDeepR
 export const serpSnapshotSummaryAi_overview_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotSummary"]["ai_overview_state"]> = ["absent", "present", "present_async_loaded", "present_not_loaded"];
 export const signInResponseStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SignInResponse"]["status"]> = ["signed_in", "totp_required"];
 export const sitePropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SiteProperty"]["property_type"]> = ["domain", "url_prefix"];
+export const sourceDomainRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SourceDomainRow"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const sourcePageRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SourcePageRow"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const sparklinePointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SparklinePoint"]["state"]> = ["ranked", "beyond_depth"];
 export const summaryEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SummaryEntity"]["role"]> = ["own", "competitor"];
 export const termSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Term"]["source"]> = ["manual", "import", "auto_cluster", "ai_suggestion"];
