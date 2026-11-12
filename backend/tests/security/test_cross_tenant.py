@@ -218,6 +218,8 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
         "language_code": "en",
     },
     ("GET", _W + "/costs"): {"from": "2026-01-01", "to": "2026-12-31", "group_by": "project"},
+    # Every option, so the opt-in reads are scanned too.
+    ("GET", _W + "/projects/{project_id}/ai/prompts-summary"): {"include": "entities"},
 }
 # Lists under a workspace's path that hold the platform's data, the same for every workspace:
 # they have no tenant data of their own to show.

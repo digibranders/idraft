@@ -56,6 +56,10 @@ CHATGPT = "chatgpt_web"
 GEMINI = "gemini_web"
 ENGINES = ("chatgpt_web", "gemini_web", "google_ai_mode")
 OUTCOMES = ("mentioned_and_cited", "mentioned_only", "cited_only", "neither")
+# Every option of the summary at once; each later task of plan D1 adds its own.
+EVERY_OPTION = {"include": "entities"}
+# One grouped query more for each option.
+OPTION_QUERIES = 1
 
 
 @dataclass(frozen=True)
@@ -826,7 +830,7 @@ async def _full_project(resources: Resources, migrated: PostgresServer) -> Summa
     owner = await member(resources, migrated, workspace, "owner")
     await ensure_locations(migrated)
     project = Project(workspace.id, await make_project(migrated, workspace.id))
-    await _entity(migrated, project, OWN_NAME, OWN_HOST, "own", primary=True)
+    own = await _entity(migrated, project, OWN_NAME, OWN_HOST, "own", primary=True)
     for engine_code in ENGINES:
         await enable_engine(migrated, project, engine_code)
     topic = await _topic(migrated, project, "Managed SOC")
@@ -884,7 +888,51 @@ async def _full_project(resources: Resources, migrated: PostgresServer) -> Summa
         project.id,
         derivation["id"],
     )
-    return Summary(workspace, project, owner, {}, {}, uuid.uuid4(), uuid.uuid4())
+    return Summary(workspace, project, owner, {}, {}, own, uuid.uuid4())
+
+
+async def _mention_every_answer(migrated: PostgresServer, world: Summary) -> None:
+    """The own brand's mention row on every answer of a full project, as ingest writes one."""
+    await execute(
+        migrated,
+        "INSERT INTO ai.entity_mentions (observation_id, observed_at, entity_id, derivation_id, "
+        "workspace_id, project_id, engine_code, role, mention_count, first_char_offset, "
+        "mention_order, prominence, match_method, confidence, evidence_spans) "
+        "SELECT f.observation_id, f.observed_at, $2::uuid, f.derivation_id, f.workspace_id, "
+        "f.project_id, f.engine_code, 'own', 1, 0, 1, 1, 'alias_word', 1, "
+        "ARRAY['[0,8)'::int4range] FROM ai.observation_facts f WHERE f.project_id = $1",
+        world.project.id,
+        world.own,
+    )
+
+
+def _entity_cell(engine: dict[str, Any], entity: uuid.UUID) -> dict[str, Any]:
+    cell: dict[str, Any] = next(c for c in engine["entities"] if c["entity_id"] == str(entity))
+    return cell
+
+
+async def test_every_option_at_full_capacity_is_one_query_each(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The base plan's 3,600 facts, each naming the own brand, with every option: each adds one
+    grouped query, not one per prompt. A first read warms the session cache so both counted
+    reads start alike."""
+    world = await _full_project(resources, migrated)
+    await _mention_every_answer(migrated, world)
+    await _summary(world, api)
+    with _statements(resources) as plain:
+        await _summary(world, api)
+    with _statements(resources) as seen:
+        response = await _summary(world, api, **EVERY_OPTION)
+
+    assert response.status_code == 200, response.text
+    assert len(seen) - len(plain) <= OPTION_QUERIES, seen
+    data = response.json()["data"]
+    for engine in data["topics"][0]["engines"]:
+        own = _entity_cell(engine, world.own)
+        assert _cell(own["mentioned"]) == (150, 150, 1200)
+        assert _pooled(own["mentioned"]) == (1200, 1200)
+        assert _cell(own["share_of_voice"]) == (1200, 1200, 1200)
 
 
 async def test_a_full_project_is_a_handful_of_statements(
@@ -1268,3 +1316,114 @@ async def test_a_term_of_a_non_topic_vocabulary_filters_but_makes_no_topic_row(
     assert [row["prompt_id"] for row in data["prompts"]] == [str(misc.id)]
     assert data["prompts"][0]["topic_term_ids"] == []
     assert data["topics"] == []
+
+
+async def test_entity_cells_split_each_answer_among_the_entities_it_names(
+    api: httpx.AsyncClient, summary: Summary
+) -> None:
+    response = await _summary(summary, api, include="entities")
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    rows = _by(data["prompts"], "prompt_id")
+    chatgpt, gemini = rows[str(summary.prompts["providers"].id)]["engines"]
+    # The own brand first, then the competitors.
+    assert [c["entity_id"] for c in chatgpt["entities"]] == [str(summary.own), str(summary.rival)]
+    own, rival = (_entity_cell(chatgpt, entity) for entity in (summary.own, summary.rival))
+    # Of five valid answers, 1 and 2 name the own brand and 1 and 4 the rival; answer 1 names
+    # both, so each has half of it.
+    assert _cell(own["mentioned"]) == (2, 5, 6)
+    assert _cell(own["share_of_voice"]) == (1.5, 3, 6)
+    assert _cell(rival["mentioned"]) == (2, 5, 6)
+    assert _cell(rival["share_of_voice"]) == (1.5, 3, 6)
+    # One own brand: its cells are the engine's own.
+    assert own["mentioned"] == chatgpt["mentioned"]
+    assert own["share_of_voice"] == chatgpt["share_of_voice"]
+    assert _cell(_entity_cell(gemini, summary.rival)["share_of_voice"]) == (0.5, 1, 1)
+    # `pricing` cites the rival's page but names nobody.
+    pricing = rows[str(summary.prompts["pricing"].id)]["engines"][0]
+    assert _cell(_entity_cell(pricing, summary.rival)["mentioned"]) == (0, 1, 1)
+    # Each answer that names a tracked entity is shared out among them: the shares add up to
+    # the answers.
+    for row in data["prompts"]:
+        for engine in row["engines"]:
+            assert sum(c["share_of_voice"]["numerator"] for c in engine["entities"]) == (
+                pytest.approx(engine["share_of_voice"]["denominator"])
+            )
+    soc = _by(data["topics"], "name")["Managed SOC"]["engines"][0]
+    rival_soc = _entity_cell(soc, summary.rival)
+    # Prompt weighted as Mentioned is: `providers` 2 of 5, `pricing` 0 of 1.
+    assert _cell(rival_soc["mentioned"]) == (pytest.approx(0.4), 2, 7)
+    assert _pooled(rival_soc["mentioned"]) == (2, 6)
+    assert _cell(rival_soc["share_of_voice"]) == (1.5, 3, 7)
+    plain = (await _summary(summary, api)).json()["data"]
+    assert "entities" not in plain["prompts"][0]["engines"][0]
+
+
+async def test_a_mention_outside_the_share_of_voice_set_is_not_counted(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+) -> None:
+    """An uncertain mention of the rival, stored without an order as ingest stores one (doc 13,
+    as built), counts for no entity cell: the answer stays the own brand's alone."""
+    world = await _world(resources, migrated)
+    prompts = await _prompts(migrated, world, ["x"])
+    world = replace(world, prompts=prompts)
+    await _ingested(world, migrated, worker_db, import_store, [Answer("x", OWN_ONLY, (), 1)])
+    fact = await fetchrow(
+        migrated,
+        "SELECT observation_id, observed_at, derivation_id, engine_code "
+        "FROM ai.observation_facts WHERE prompt_id = $1",
+        prompts["x"].id,
+    )
+    await execute(
+        migrated,
+        "INSERT INTO ai.entity_mentions (observation_id, observed_at, entity_id, derivation_id, "
+        "workspace_id, project_id, engine_code, role, mention_count, first_char_offset, "
+        "mention_order, prominence, match_method, mention_status, confidence, evidence_spans) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7::text, 'competitor', 1, 40, NULL, 0.5, "
+        "'alias_word', 'uncertain', 0.4, ARRAY['[40,47)'::int4range])",
+        fact["observation_id"],
+        fact["observed_at"],
+        world.rival,
+        fact["derivation_id"],
+        world.workspace.id,
+        world.project.id,
+        fact["engine_code"],
+    )
+
+    response = await _summary(world, api, include="entities")
+
+    assert response.status_code == 200, response.text
+    engine = response.json()["data"]["prompts"][0]["engines"][0]
+    assert _cell(_entity_cell(engine, world.rival)["mentioned"]) == (0, 1, 1)
+    assert _cell(_entity_cell(engine, world.own)["share_of_voice"]) == (1, 1, 1)
+
+
+async def test_entity_cells_stop_at_twenty_entities(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The own brand, CyberNX and twenty more competitors: 22 tracked; cells for the own brand
+    and the first 19 competitors by name."""
+    world = await _world(resources, migrated)
+    extra = [
+        await _entity(
+            migrated, world.project, f"Rival {n:02d}", f"rival{n:02d}.example", "competitor"
+        )
+        for n in range(1, 21)
+    ]
+    world = replace(world, prompts=await _prompts(migrated, world, ["x"]))
+
+    response = await _summary(world, api, include="entities")
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert len(data["entities"]) == 22
+    cells = data["prompts"][0]["engines"][0]["entities"]
+    assert [c["entity_id"] for c in cells] == [
+        str(entity) for entity in (world.own, world.rival, *extra[:18])
+    ]
+    assert _cell(cells[0]["mentioned"]) == (0, 0, 0)

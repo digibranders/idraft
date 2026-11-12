@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Collection, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Any, Final, Literal, cast
 from uuid import UUID
@@ -15,12 +15,13 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.ai import summary_repository as repository
-from idraft.api.ai.summary_repository import Counts, SummaryPrompt
+from idraft.api.ai.summary_repository import Counts, EntityCounts, SummaryPrompt
 from idraft.api.problems import NotFoundError, WindowTooLargeError
 from idraft.api.ranks.repository import project_zone
 from idraft.api.ranks.service import instants
 from idraft.api.schemas.ai import (
     EngineSummary,
+    EntityCells,
     MetricCell,
     MetricContext,
     OutcomeCells,
@@ -28,6 +29,7 @@ from idraft.api.schemas.ai import (
     PromptsSummary,
     PromptSummaryRow,
     SummaryEntity,
+    SummaryInclude,
     SummaryMetricContext,
     TopicSummaryRow,
 )
@@ -39,6 +41,9 @@ from idraft.db.engine import workspace_transaction
 SUMMARY_DAYS: Final = 28
 SUMMARY_MAX_DAYS: Final = 92
 _NONE: Final = Counts()
+_NOT_NAMED: Final = EntityCounts()
+# Entity cells are given for at most this many tracked entities, the own ones first.
+ENTITY_CELLS_MAX: Final = 20
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +57,7 @@ class SummaryQuery:
     branded_only: bool = False
     country_iso: str | None = None
     term_id: UUID | None = None
+    include: frozenset[SummaryInclude] = frozenset()
 
 
 def _out_of_range(field: str) -> RequestValidationError:
@@ -104,20 +110,27 @@ def _engine(engine_code: str, counts: Counts) -> EngineSummary:
     )
 
 
-def _weighted(members: Sequence[Counts], pick: Callable[[Counts], int]) -> MetricCell:
-    """The prompt weighted rate of a topic (docs/16 section 3, docs/17 section 4.1): each prompt
-    with a valid answer counts once, as `pick(counts) / n_valid`. The numerator is the sum of
-    those rates, the denominator the number of such prompts, and `pooled` the answers."""
-    rated = [counts for counts in members if counts.n_valid > 0]
-    numerator = sum(pick(counts) / counts.n_valid for counts in rated)
-    cell = _cell(numerator, len(rated), sum(counts.n_observations for counts in members))
+def _prompt_weighted(parts: Sequence[tuple[int, int]], n_observations: int) -> MetricCell:
+    """The prompt weighted rate of a topic (docs/16 section 3, docs/17 section 4.1) from each
+    prompt's (successes, valid answers): each prompt with a valid answer counts once, as
+    successes / valid answers. The numerator is the sum of those rates, the denominator the
+    number of such prompts, and `pooled` the answers."""
+    rated = [(successes, valid) for successes, valid in parts if valid > 0]
+    cell = _cell(sum(successes / valid for successes, valid in rated), len(rated), n_observations)
     return cell.model_copy(
         update={
             "pooled": Pooled(
-                successes=sum(pick(counts) for counts in rated),
-                trials=sum(counts.n_valid for counts in rated),
+                successes=sum(successes for successes, _ in rated),
+                trials=sum(valid for _, valid in rated),
             )
         }
+    )
+
+
+def _weighted(members: Sequence[Counts], pick: Callable[[Counts], int]) -> MetricCell:
+    return _prompt_weighted(
+        [(pick(counts), counts.n_valid) for counts in members],
+        sum(counts.n_observations for counts in members),
     )
 
 
@@ -142,18 +155,66 @@ def _topic_engine(engine_code: str, members: Sequence[Counts]) -> EngineSummary:
     )
 
 
-def _topic_engines(
-    engine_codes: Sequence[str],
-    prompt_ids: Collection[UUID],
-    by_prompt: Mapping[tuple[UUID, str], Counts],
-) -> list[EngineSummary]:
-    return [
-        _topic_engine(
-            code,
-            [by_prompt[(prompt, code)] for prompt in prompt_ids if (prompt, code) in by_prompt],
+@dataclass(frozen=True, slots=True)
+class _Read:
+    """What the queries read, by prompt and engine. `entity_ids` is None unless the entity cells
+    were asked for."""
+
+    counts: Mapping[tuple[UUID, str], Counts]
+    entity_ids: Sequence[UUID] | None = None
+    named: Mapping[tuple[UUID, str, UUID], EntityCounts] = field(default_factory=dict)
+
+
+def _entity_cells(
+    code: str, entity_id: UUID, prompt_ids: Collection[UUID], read: _Read, *, topic: bool
+) -> EntityCells:
+    parts = [
+        (
+            read.counts.get((prompt, code), _NONE),
+            read.named.get((prompt, code, entity_id), _NOT_NAMED),
         )
-        for code in engine_codes
+        for prompt in prompt_ids
     ]
+    n_observations = sum(counts.n_observations for counts, _ in parts)
+    if topic:
+        mentioned = _prompt_weighted(
+            [(named.mentioned, counts.n_valid) for counts, named in parts], n_observations
+        )
+    else:
+        mentioned = _cell(
+            sum(named.mentioned for _, named in parts),
+            sum(counts.n_valid for counts, _ in parts),
+            n_observations,
+        )
+    return EntityCells(
+        entity_id=entity_id,
+        mentioned=mentioned,
+        share_of_voice=_cell(
+            sum(named.sov_share for _, named in parts),
+            sum(counts.sov_answers for counts, _ in parts),
+            n_observations,
+        ),
+    )
+
+
+def _engine_row(
+    code: str, prompt_ids: Collection[UUID], read: _Read, *, topic: bool
+) -> EngineSummary:
+    """One engine's cells for a prompt row (`prompt_ids` holds the prompt alone) or a topic row
+    (its prompts)."""
+    counts = read.counts
+    members = [counts[(prompt, code)] for prompt in prompt_ids if (prompt, code) in counts]
+    row = _topic_engine(code, members) if topic else _engine(code, members[0] if members else _NONE)
+    if read.entity_ids is None:
+        return row
+    return row.model_copy(
+        update={
+            "entities": [
+                _entity_cells(code, entity_id, prompt_ids, read, topic=topic)
+                for entity_id in read.entity_ids
+            ]
+        }
+    )
 
 
 def _last_answers(
@@ -175,11 +236,9 @@ def _last_answers(
 
 
 def _prompt_row(
-    prompt: SummaryPrompt,
-    engine_codes: Sequence[str],
-    by_prompt: Mapping[tuple[UUID, str], Counts],
+    prompt: SummaryPrompt, engine_codes: Sequence[str], read: _Read
 ) -> PromptSummaryRow:
-    last_observed, last_valid = _last_answers([prompt.id], engine_codes, by_prompt)
+    last_observed, last_valid = _last_answers([prompt.id], engine_codes, read.counts)
     return PromptSummaryRow(
         prompt_id=prompt.id,
         text=prompt.text,
@@ -187,7 +246,7 @@ def _prompt_row(
         topic_term_ids=list(prompt.topic_term_ids),
         last_observed_at=last_observed,
         last_valid_at=last_valid,
-        engines=[_engine(code, by_prompt.get((prompt.id, code), _NONE)) for code in engine_codes],
+        engines=[_engine_row(code, [prompt.id], read, topic=False) for code in engine_codes],
     )
 
 
@@ -196,16 +255,16 @@ def _topic_row(
     name: str | None,
     members: Collection[UUID],
     engine_codes: Sequence[str],
-    by_prompt: Mapping[tuple[UUID, str], Counts],
+    read: _Read,
 ) -> TopicSummaryRow:
-    last_observed, last_valid = _last_answers(members, engine_codes, by_prompt)
+    last_observed, last_valid = _last_answers(members, engine_codes, read.counts)
     return TopicSummaryRow(
         term_id=term_id,
         name=name,
         prompt_count=len(members),
         last_observed_at=last_observed,
         last_valid_at=last_valid,
-        engines=_topic_engines(engine_codes, members, by_prompt),
+        engines=[_engine_row(code, members, read, topic=True) for code in engine_codes],
     )
 
 
@@ -291,6 +350,19 @@ class SummaryService:
             versions = await repository.entity_config_versions(db, ws, project_id, ids, **window)
             enabled = await repository.enabled_engine_codes(db, ws, project_id)
             tracked = await repository.tracked_entities(db, ws, project_id)
+            # The own entities first, so the cut keeps them; then the competitors by name.
+            cell_ids = (
+                [entity.id for entity in sorted(tracked, key=lambda e: e.role != "own")][
+                    :ENTITY_CELLS_MAX
+                ]
+                if "entities" in query.include
+                else None
+            )
+            named: Mapping[tuple[UUID, str, UUID], EntityCounts] = (
+                {}
+                if cell_ids is None
+                else await repository.entity_counts(db, ws, project_id, ids, cell_ids, **window)
+            )
             names = await repository.topic_names(db, ws, held.keys())
         seen = {engine for _, engine in by_prompt}
         shown = sorted(
@@ -298,17 +370,18 @@ class SummaryService:
             for code in set(enabled) | seen
             if query.engine_codes is None or code in query.engine_codes
         )
-        prompt_rows = [_prompt_row(prompt, shown, by_prompt) for prompt in prompts]
+        read = _Read(counts=by_prompt, entity_ids=cell_ids, named=named)
+        prompt_rows = [_prompt_row(prompt, shown, read) for prompt in prompts]
         # Topic rows are sums of the prompts' counts. Each topic row holds the prompts given the
         # term or a term below it, each once; the last row holds the prompts given no topic,
         # except under a term filter.
         topic_rows = [
-            _topic_row(term_id, names.get(term_id), held[term_id], shown, by_prompt)
+            _topic_row(term_id, names.get(term_id), held[term_id], shown, read)
             for term_id in sorted(held, key=lambda term: (names.get(term, ""), str(term)))
         ]
         untopiced = [prompt.id for prompt in prompts if not prompt.topic_term_ids]
         if untopiced and query.term_id is None:
-            topic_rows.append(_topic_row(None, None, untopiced, shown, by_prompt))
+            topic_rows.append(_topic_row(None, None, untopiced, shown, read))
         return PromptsSummary(
             window=MetricWindow(
                 from_=first.isoformat(), to=last.isoformat(), timezone=zone_row.timezone

@@ -358,6 +358,20 @@ async def test_run_now_to_the_prompts_summary(
             "gemini_web": (1, 1, 1, 1),
             "google_ai_mode": (0, 1, 0, 1),
         }
+    # The entity cells read the mentions ingest wrote: the project owns one brand, so its cells
+    # are the engine's own.
+    detailed = await api.get(
+        scene.url("ai", "prompts-summary"),
+        params={"include": "entities"},
+        headers=scene.owner.headers,
+    )
+    assert detailed.status_code == 200, detailed.text
+    own = next(e["entity_id"] for e in detailed.json()["data"]["entities"] if e["role"] == "own")
+    for row in detailed.json()["data"]["prompts"]:
+        for engine in row["engines"]:
+            cell = next(c for c in engine["entities"] if c["entity_id"] == own)
+            assert cell["mentioned"] == engine["mentioned"]
+            assert cell["share_of_voice"] == engine["share_of_voice"]
 
 
 async def rows_written(pg: PostgresServer, scene: Scene) -> dict[str, int]:

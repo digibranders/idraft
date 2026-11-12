@@ -12,7 +12,7 @@ from idraft.api.ai.summary import SummaryQuery, SummaryService
 from idraft.api.pagination import Commas
 from idraft.api.permissions import Permission
 from idraft.api.resources import Resources, get_resources
-from idraft.api.schemas.ai import PromptsSummaryResponse
+from idraft.api.schemas.ai import PromptsSummaryResponse, SummaryInclude
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 
@@ -43,7 +43,9 @@ Summaries = Annotated[SummaryService, Depends(get_summary_service)]
     "`filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts "
     "given the term or one under it; the topic rows then hold only those prompts, and under "
     "`filter[term]` they are the term and the topics below it, with no row for prompts without "
-    "a topic. Each row says when its last counted answer and its last valid one came.",
+    "a topic. Each row says when its last counted answer and its last valid one came."
+    " `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each "
+    "tracked entity (the own ones first, at most 20); an answer's shares add up to 1.",
 )
 async def prompts_summary(
     project_id: UUID,
@@ -70,6 +72,11 @@ async def prompts_summary(
         UUID | None,
         Query(alias="filter[term]", description="The prompts given the term or one under it."),
     ] = None,
+    include: Annotated[
+        list[SummaryInclude] | None,
+        Commas,
+        Query(description="Blocks to add: `entities`."),
+    ] = None,
 ) -> PromptsSummaryResponse:
     return PromptsSummaryResponse(
         data=await summaries.summary(
@@ -83,6 +90,7 @@ async def prompts_summary(
                 branded_only=branded_only,
                 country_iso=country_iso,
                 term_id=term_id,
+                include=frozenset(include or ()),
             ),
         )
     )

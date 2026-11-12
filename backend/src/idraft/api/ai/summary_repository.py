@@ -17,11 +17,12 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Float, and_, cast, func, or_, select, tuple_
+from sqlalchemy import Float, and_, cast, func, literal, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.db.tables import (
     ai_derivations,
+    ai_entity_mentions,
     ai_observation_facts,
     ai_observations,
     ai_project_engines,
@@ -54,6 +55,13 @@ class Counts:
     # The newest counted answer of the group, of any status, and the newest valid one.
     last_observed_at: datetime | None = None
     last_valid_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EntityCounts:
+    # Valid answers whose share of voice set holds the entity, and the entity's shares of them.
+    mentioned: int = 0
+    sov_share: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -305,6 +313,66 @@ async def counts_by_prompt(
         .group_by(_F.prompt_id, _F.engine_code)
     )
     return {(row.prompt_id, row.engine_code): _counts(row) for row in rows}
+
+
+async def entity_counts(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    prompt_ids: Collection[UUID],
+    entity_ids: Collection[UUID],
+    *,
+    since: datetime,
+    until: datetime,
+    engine_codes: Sequence[str] | None,
+) -> dict[tuple[UUID, str, UUID], EntityCounts]:
+    """Per prompt, engine and entity: the valid answers whose share of voice set holds the
+    entity, and its share of each, 1 / the entities the set holds (docs/16 section 5). The set
+    is the mentions with an order (`extraction.ai_facts`: accepted, own or competitor, a product
+    counted as its brand), the same set `tracked_entities_mentioned` counts, so an answer's
+    shares add up to 1 and the own entities' add up to the fact row's own share."""
+    if not prompt_ids or not entity_ids:
+        return {}
+    m = ai_entity_mentions.c
+    rows = await db.execute(
+        select(
+            _F.prompt_id,
+            _F.engine_code,
+            m.entity_id,
+            func.count().label("mentioned"),
+            func.sum(cast(literal(1), Float) / _F.tracked_entities_mentioned).label("sov_share"),
+        )
+        .select_from(
+            ai_observation_facts.join(
+                ai_entity_mentions,
+                and_(
+                    m.observation_id == _F.observation_id,
+                    m.observed_at == _F.observed_at,
+                    m.derivation_id == _F.derivation_id,
+                    m.workspace_id == _F.workspace_id,
+                ),
+            )
+        )
+        .where(
+            *_window(workspace_id, project_id, prompt_ids, since, until, engine_codes),
+            _F.is_valid,
+            _F.tracked_entities_mentioned >= 1,
+            m.project_id == project_id,
+            m.is_current,
+            # The mentions' own partitions, bounded by the same instants.
+            m.observed_at >= since,
+            m.observed_at < until,
+            m.mention_order.is_not(None),
+            m.entity_id.in_(list(entity_ids)),
+        )
+        .group_by(_F.prompt_id, _F.engine_code, m.entity_id)
+    )
+    return {
+        (row.prompt_id, row.engine_code, row.entity_id): EntityCounts(
+            mentioned=row.mentioned, sov_share=float(row.sov_share)
+        )
+        for row in rows
+    }
 
 
 async def topic_rollup(
