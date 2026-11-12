@@ -137,7 +137,9 @@ test.describe('AI prompt tracking', () => {
     await inspector.getByRole('tab', { name: 'Competitors' }).click();
     await expect(inspector.getByRole('table', { name: 'Brands named in the answers to this prompt' })).toBeVisible();
     await inspector.getByRole('tab', { name: 'Stats' }).click();
-    await expect(inspector.getByText(/^Wilson interval over valid answers in this window\./)).toBeVisible();
+    await expect(
+      inspector.getByText(/^The interval is the 95 percent Wilson interval over the valid answers/),
+    ).toBeVisible();
     await openHistory(inspector);
 
     await openAnswerButton(namingTheBrand(inspector).first()).click();
