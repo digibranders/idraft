@@ -360,6 +360,48 @@ class QueryTimeoutError(ProblemError):
     status, code, title = 503, "query_timeout", "The request took too long"
 
 
+# Codes the AI visibility specifications name, added once (docs/ai-visibility/MASTER-PLAN.md
+# section 3.6). A package's own new code is a ProblemError subclass in its own module.
+
+
+class PreconditionFailedError(ProblemError):
+    """The `If-Match` sent is not the resource's current ETag: it changed since it was read."""
+
+    status, code, title = 412, "precondition_failed", "The resource has changed"
+
+
+class PanelLockedError(ProblemError):
+    """A change to the locked core panel, or to one of its prompts, without
+    `panels:core:modify`."""
+
+    status, code, title = 422, "panel_locked", "The core panel is locked"
+
+
+class ReasonRequiredError(ProblemError):
+    """A change to the locked core panel without a reason."""
+
+    status, code, title = 422, "reason_required", "Say why the core panel changes"
+
+
+class CorePanelExistsError(ProblemError):
+    """A project has one core panel, made with the project."""
+
+    status, code, title = 422, "core_panel_exists", "The project has a core panel"
+
+
+class TemplateLanguageUnsupportedError(ProblemError):
+    """Carries `language_code`: no prompt templates are written in that language."""
+
+    status, code, title = 422, "template_language_unsupported", "No templates in this language"
+
+
+class NotImplementedProblemError(ProblemError):
+    """A route whose contract is published and whose body is not built yet (MASTER-PLAN section
+    3.8). It answers after the permission check."""
+
+    status, code, title = 501, "not_implemented", "Not built yet"
+
+
 # What PostgreSQL reports when a statement could not finish because of other work, not because
 # of a fault: the row is locked by another request (55P03), two requests waited on each other
 # and this one was chosen to give way (40P01), or the statement ran into its timeout (57014).

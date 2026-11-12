@@ -9,14 +9,22 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from idraft.api.main import create_app
+from idraft.api.openapi import placeholder_settings
 from idraft.api.problems import (
     MAX_VALIDATION_ERRORS,
     BadRequestError,
     ConflictError,
+    CorePanelExistsError,
     ForbiddenError,
     NotFoundError,
+    NotImplementedProblemError,
+    PanelLockedError,
+    PreconditionFailedError,
     ProblemError,
     RateLimitedError,
+    ReasonRequiredError,
+    TemplateLanguageUnsupportedError,
     UnauthenticatedError,
     register_problem_handlers,
 )
@@ -308,3 +316,46 @@ async def test_a_response_that_breaks_its_model_is_logged_without_the_value(
     assert line["msg"] == "response did not match its model"
     assert line["route"] == "/bad-response"
     assert line["locations"] == ["response.count"]
+
+
+@pytest.mark.parametrize(
+    ("error", "status", "code"),
+    [
+        (PreconditionFailedError, 412, "precondition_failed"),
+        (PanelLockedError, 422, "panel_locked"),
+        (ReasonRequiredError, 422, "reason_required"),
+        (CorePanelExistsError, 422, "core_panel_exists"),
+        (TemplateLanguageUnsupportedError, 422, "template_language_unsupported"),
+        (NotImplementedProblemError, 501, "not_implemented"),
+    ],
+)
+async def test_the_ai_visibility_codes_answer_with_their_status_and_code(
+    error: type[ProblemError], status: int, code: str
+) -> None:
+    app = FastAPI()
+    register_problem_handlers(app, app_origin=ORIGIN)
+
+    @app.get("/raise")
+    async def raise_it() -> None:
+        raise error()
+
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as test_client:
+        body = _assert_problem(await test_client.get("/raise"), status, code)
+    assert body["title"] == error.title
+    assert "detail" not in body
+
+
+def _problem_classes(base: type[ProblemError]) -> list[type[ProblemError]]:
+    found: list[type[ProblemError]] = []
+    for subclass in base.__subclasses__():
+        found += [subclass, *_problem_classes(subclass)]
+    return found
+
+
+def test_a_code_belongs_to_one_problem_class() -> None:
+    """Packages add codes in their own modules; the app loads every one of them."""
+    create_app(placeholder_settings())
+    classes = _problem_classes(ProblemError)
+    codes = [cls.code for cls in classes]
+    assert sorted(code for code in set(codes) if codes.count(code) > 1) == []
