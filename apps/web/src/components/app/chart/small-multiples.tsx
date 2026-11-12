@@ -70,6 +70,14 @@ export type SmallMultiplesProps = MultiplesState & {
 const LABEL_ROOM = 24;
 /** Grid columns from 768 px: panels in the last row carry the x labels. */
 const WIDE_COLUMNS = 2;
+/** One array for every render, so a panel's option is not rebuilt when a feature gives no boundaries. */
+const NO_BOUNDARIES: readonly ChartBoundary[] = [];
+
+/** The marker of each engine by its role, as the line chart has it: circle, square, triangle, diamond (inventory 4.2). */
+const PALETTE_SYMBOLS = ['rect', 'triangle', 'diamond', 'roundRect', 'pin'] as const;
+function markerOf(role: SeriesRole): string {
+  return role.kind === 'palette' ? (PALETTE_SYMBOLS[role.index - 2] ?? 'circle') : 'circle';
+}
 
 const highest = (top: number, value: number | null | undefined): number => Math.max(top, value ?? 0);
 
@@ -126,7 +134,16 @@ export function smallMultipleOption(input: SmallMultipleOptionInput, tokens: Cha
     tokens,
     formatValue,
   });
-  const banded = rateBandOption(base, tokens, {
+  // `categoryChartOption` picks a marker by the series' place in its chart, which is always the first here; the
+  // thin point copies the marker, so it is set before `rateBandOption`
+  const marker = markerOf(panel.role);
+  const marked = {
+    ...base,
+    series: (base.series as { id?: string }[]).map((entry) =>
+      entry.id === panel.id ? { ...entry, symbol: marker } : entry,
+    ),
+  };
+  const banded = rateBandOption(marked, tokens, {
     points: { [panel.id]: panel.points },
     ceiling,
     // The band is a little stronger on the dark ground (15 section 4); the theme is a class of the page
@@ -188,7 +205,7 @@ interface TableRow {
 export function SmallMultiples(props: SmallMultiplesProps): ReactElement {
   const { title, variant, meta, notice, footnote, categories, categoryHeader, titles, panels, height, summary, menu } =
     props;
-  const { boundaries = [] } = props;
+  const { boundaries = NO_BOUNDARIES } = props;
   const t = useTranslations('chart');
   const multiples = useTranslations('chart.multiples');
   const group = useId();
@@ -204,7 +221,8 @@ export function SmallMultiples(props: SmallMultiplesProps): ReactElement {
     if (panel === undefined) return;
     if (!hidden.has(id) && shown.length <= 1) {
       // The legend has already said it is hidden; this says what really happened, after it
-      announce(multiples('keepOne', { name: panel.name }), { debounceMs: 100 });
+      // Its own key: the legend's announcement has none, and a keyless one cancels a waiting keyless message
+      announce(multiples('keepOne', { name: panel.name }), { debounceMs: 100, key: 'multiples-keep-one' });
       return;
     }
     setHidden((current) => {
@@ -214,14 +232,16 @@ export function SmallMultiples(props: SmallMultiplesProps): ReactElement {
       return next;
     });
   };
-  const legend: LegendItem[] = panels.map((panel) => ({
+  const legend: readonly LegendItem[] = panels.map((panel) => ({
     id: panel.id,
     name: panel.name,
     role: panel.role,
     pressed: shown.includes(panel),
   }));
 
-  // In a grid of two columns the last row is the bottom of the charts; one column has a single last panel
+  // In a grid of two columns the last row is the bottom of the charts; one column has a single last panel.
+  // Limit: below 768 px a grid of four or more is one column, and the panel before the last also shows labels
+  // (the canvas cannot follow a breakpoint without a media query hook).
   const columns = shown.length > WIDE_COLUMNS ? WIDE_COLUMNS : 1;
   const labelledFrom = shown.length - (shown.length % columns === 0 ? columns : shown.length % columns);
   const body = (
@@ -267,8 +287,8 @@ export function SmallMultiples(props: SmallMultiplesProps): ReactElement {
   );
 
   // One table for all the panels shown, a column each; a gap is "No data", never 0 (R6)
-  const rows: TableRow[] = categories.map((category, index) => ({ category, index }));
-  const columnsOfTable: PlainColumn<TableRow>[] = [
+  const rows: readonly TableRow[] = categories.map((category, index) => ({ category, index }));
+  const columnsOfTable: readonly PlainColumn<TableRow>[] = [
     { id: 'category', header: categoryHeader, cell: (row) => row.category },
     ...shown.map((panel) => ({
       id: panel.id,

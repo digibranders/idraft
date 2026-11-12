@@ -67,15 +67,20 @@ interface SeriesOut {
   id: string;
   type: string;
   data: unknown[];
+  symbol?: string;
+  areaStyle?: { opacity?: number };
   connectNulls?: boolean;
   lineStyle?: { type?: unknown };
   markLine?: { data: { xAxis: string }[] };
 }
 const seriesOf = (option: Record<string, unknown>): SeriesOut[] => option.series as SeriesOut[];
-const axisOf = (
-  option: Record<string, unknown>,
-  name: 'xAxis' | 'yAxis',
-): { max?: number; axisLabel?: { show?: boolean } } => option[name] as { max?: number; axisLabel?: { show?: boolean } };
+interface AxisOut {
+  min?: number;
+  max?: number;
+  interval?: number;
+  axisLabel?: { show?: boolean };
+}
+const axisOf = (option: Record<string, unknown>, name: 'xAxis' | 'yAxis'): AxisOut => option[name] as AxisOut;
 const optionOf = (id: string): Record<string, unknown> => {
   const option = built.options.get(id);
   if (option === undefined) throw new Error(`No canvas was drawn for ${id}`);
@@ -168,8 +173,40 @@ describe('rateCeilingOf', () => {
     expect(rateCeilingOf([{ ...CHATGPT, points: [point(0.98, 't', 0.02)], previous: undefined }])).toBe(1);
   });
 
+  it('counts the band too: a value of 0.28 with a band to 0.32 needs 0.4 (guard)', () => {
+    expect(rateCeilingOf([{ ...CHATGPT, points: [point(0.28, 't', 0.04)], previous: undefined }])).toBe(0.4);
+  });
+
   it('counts the previous period too, so its line is never cut off', () => {
     expect(rateCeilingOf([{ ...CHATGPT, points: [point(0.2, 't', 0)], previous: [0.85] }])).toBe(0.9);
+  });
+});
+
+describe('smallMultipleOption', () => {
+  it('labels the y axis at 0, half and the ceiling, so the one scale reads at a glance (guard)', () => {
+    const yAxis = axisOf(smallMultipleOption(optionInput(CHATGPT, { ceiling: 0.7 }), TOKENS), 'yAxis');
+    expect(yAxis).toMatchObject({ min: 0, max: 0.7, interval: 0.35 });
+  });
+
+  it('gives each engine its own marker shape, also on a hollow thin point (guard)', () => {
+    const symbolOf = (panel: SmallMultiplePanel): unknown =>
+      seriesOf(smallMultipleOption(optionInput(panel), TOKENS)).find((entry) => entry.id === panel.id)?.symbol;
+    expect(symbolOf(CHATGPT)).toBe('circle');
+    expect(symbolOf(GEMINI)).toBe('rect');
+    expect(symbolOf(AI_MODE)).toBe('triangle');
+    expect(symbolOf({ ...AI_MODE, role: { kind: 'palette', index: 4 } })).toBe('diamond');
+    const thinGemini: SmallMultiplePanel = { ...GEMINI, points: [THIN, ...GEMINI.points.slice(1)] };
+    const line = seriesOf(smallMultipleOption(optionInput(thinGemini), TOKENS)).find((entry) => entry.id === 'gemini');
+    expect(line?.data[0]).toMatchObject({ symbol: 'rect', symbolSize: 5 });
+  });
+
+  it('draws the band stronger on the dark ground (guard)', () => {
+    const opacityOf = (): unknown =>
+      seriesOf(smallMultipleOption(optionInput(GEMINI), TOKENS)).find((entry) => entry.id === 'gemini:band')?.areaStyle
+        ?.opacity;
+    expect(opacityOf()).toBe(0.12);
+    document.documentElement.classList.add('dark');
+    expect(opacityOf()).toBe(0.18);
   });
 });
 
@@ -377,6 +414,18 @@ describe('SmallMultiples', () => {
       );
       await user.click(within(legend).getByRole('button', { name: 'ChatGPT' }));
       await waitFor(() => expect(canvases()).toHaveLength(2));
+    });
+
+    it('speaks the correction after the legend says "hidden", through the live region (guard)', async () => {
+      const { user } = renderWithProviders(<SmallMultiples {...BASE} />);
+      await screen.findAllByTestId('echart-canvas');
+      const legend = screen.getByRole('list', { name: 'Series in Mention rate by engine' });
+      await user.click(within(legend).getByRole('button', { name: 'ChatGPT' }));
+      await user.click(within(legend).getByRole('button', { name: 'Gemini' }));
+      await user.click(within(legend).getByRole('button', { name: 'AI Mode' }));
+      // The legend's own "AI Mode hidden" comes first and must not cancel the correction that follows it
+      const region = document.getElementById('live-region-polite');
+      await waitFor(() => expect(region).toHaveTextContent('AI Mode stays shown: at least one chart must be visible'));
     });
   });
 
