@@ -17,8 +17,10 @@ from pydantic import (
     AfterValidator,
     BaseModel,
     BeforeValidator,
+    Discriminator,
     Field,
     StringConstraints,
+    Tag,
     field_validator,
     model_validator,
 )
@@ -27,7 +29,17 @@ from pydantic_core import PydanticCustomError
 
 from idraft.ai.text import normalize
 from idraft.api.pagination import CursorPageInfo
-from idraft.api.schemas.common import Body, LanguageCode, Patch, UserRef, printable, refuse_null
+from idraft.api.schemas.common import (
+    BATCH_TAG,
+    ONE_TAG,
+    Body,
+    LanguageCode,
+    Patch,
+    UserRef,
+    body_shape,
+    printable,
+    refuse_null,
+)
 from idraft.api.schemas.entities import EntityRef
 from idraft.api.schemas.keywords import FunnelStage, Intent, LocationId
 from idraft.api.schemas.metrics import MetricWindow, Usd
@@ -45,7 +57,16 @@ PromptType = Literal[
 ]
 ChangeKind = Literal["initial", "wording", "typo", "context"]
 CreationMethod = Literal["human", "template", "llm_generated", "imported"]
-LintRule = Literal["contains_brand_alias", "engine_limit"]
+LintRule = Literal[
+    "contains_brand_alias",
+    "engine_limit",
+    # Contract C1 (prompt-dialogs section 16): not returned yet.
+    "word_count",
+    "multiple_questions",
+    "leading_wording",
+    "language_mismatch",
+    "contains_competitor_alias",
+]
 LintSeverity = Literal["info", "warning", "error"]
 PromptSort = Literal[
     "text",
@@ -293,6 +314,32 @@ class PromptLintRequest(Body):
     engine_codes: Annotated[list[EngineCode], Field(min_length=1)] | None = Field(
         default=None, description="The engines whose length limits apply. Left out: every one."
     )
+    language_code: LanguageCode | None = Field(
+        default=None,
+        description="The language the texts should be in, for `language_mismatch`. " + _NOT_BUILT,
+    )
+
+
+class PromptLintItem(Body):
+    text: LintText
+    language_code: LanguageCode
+    country_iso: CountryIso
+
+
+class PromptLintItems(Body):
+    """Texts with their language and country, so the lint can say which are tracked already."""
+
+    items: Annotated[list[PromptLintItem], Field(min_length=1, max_length=LINT_MAX)]
+    engine_codes: Annotated[list[EngineCode], Field(min_length=1)] | None = Field(
+        default=None, description="The engines whose length limits apply. Left out: every one."
+    )
+
+
+# `texts` or `items`: the shape sent is the one validated. `items`: not built yet (`501`).
+PromptLintBody = Annotated[
+    Annotated[PromptLintRequest, Tag(ONE_TAG)] | Annotated[PromptLintItems, Tag(BATCH_TAG)],
+    Discriminator(body_shape),
+]
 
 
 class LintSpan(BaseModel):
@@ -315,21 +362,71 @@ class MatchedAlias(BaseModel):
     alias: str = Field(description="The text that matched.")
 
 
+class LintTracked(BaseModel):
+    prompt_id: UUID
+    is_active: bool
+
+
+class LintNearDuplicate(BaseModel):
+    prompt_id: UUID
+    text: str
+
+
 class PromptLint(BaseModel):
     text: str = Field(description="As it would be saved.")
     is_branded: bool
     matched_aliases: list[MatchedAlias] = Field(description="Own brand names found, each once.")
     warnings: list[LintWarning]
+    tracked: LintTracked | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="The project's prompt with this identity, archived ones too (with `items`). "
+        + _NOT_RETURNED,
+    )
+    near_duplicate_of: LintNearDuplicate | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="A prompt that differs only in case and spacing. " + _NOT_RETURNED,
+    )
+    suggested_prompt_type: PromptType | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="The type the server rule gives the text. " + _NOT_RETURNED,
+    )
 
 
 class PromptQuota(BaseModel):
     limit: int
     used: int = Field(description="Active prompts in the whole workspace.")
+    would_create: int | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="Of the items, those neither tracked nor repeated. " + _NOT_RETURNED,
+    )
+
+
+class EngineEstimate(BaseModel):
+    engine_code: EngineCode
+    prompts_fit: int = Field(description="Prompts it would create that the engine takes.")
+    answers_per_month: int
+    monthly_cost_usd: Usd | None = Field(description="Null when the price book has no price.")
+    run_now_answers: int
+    run_now_cost_usd: Usd | None
+
+
+class LintEstimate(BaseModel):
+    """What the prompts that would be created cost on the standard queue (prompt-dialogs N05)."""
+
+    engines: list[EngineEstimate]
+    total_monthly_cost_usd: Usd | None
 
 
 class PromptLintResponse(BaseModel):
     data: list[PromptLint]
     quota: PromptQuota
+    estimate: LintEstimate | None = Field(
+        default=None, exclude_if=_absent, description=_NOT_RETURNED
+    )
 
 
 class Engine(BaseModel):

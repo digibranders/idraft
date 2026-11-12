@@ -31,7 +31,8 @@ from idraft.api.schemas.ai import (
     PromptBulkResult,
     PromptCreate,
     PromptLint,
-    PromptLintRequest,
+    PromptLintBody,
+    PromptLintItems,
     PromptLintResponse,
     PromptPage,
     PromptPatch,
@@ -43,7 +44,12 @@ from idraft.api.schemas.ai import (
     PromptType,
     RunNow,
 )
-from idraft.api.schemas.ai_bulk import PromptBulkArchive
+from idraft.api.schemas.ai_bulk import (
+    PromptBulkArchiveBody,
+    PromptBulkArchiveByFilter,
+    PromptBulkUpdate,
+    PromptBulkUpdateResponse,
+)
 from idraft.api.schemas.common import LanguageCode, QueryText
 from idraft.api.schemas.entities import EntityRef
 from idraft.api.schemas.keywords import (
@@ -53,7 +59,7 @@ from idraft.api.schemas.keywords import (
     Intent,
 )
 from idraft.api.schemas.operations import RunResponse
-from idraft.api.stubs import not_built_yet, refuse_unbuilt
+from idraft.api.stubs import not_built, not_built_yet, refuse_unbuilt
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 
@@ -309,11 +315,16 @@ async def bulk_create_prompts(
     description="Nothing is stored. For each text, as it would be saved: whether it names an own "
     "brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine "
     "it is too long for (`engine_limit`: a warning when the engine skips it, an error when it "
-    "is too long to save). `quota` is the workspace's active prompt limit and use.",
+    "is too long to save). `quota` is the workspace's active prompt limit and use. `items` (with "
+    "language and country, to say what is tracked) and `language_code` are published and not "
+    "built yet (`501`).",
 )
 async def lint_prompts(
-    project_id: UUID, body: PromptLintRequest, access: ReadData, prompts: Prompts
+    project_id: UUID, body: PromptLintBody, access: ReadData, prompts: Prompts
 ) -> PromptLintResponse:
+    if isinstance(body, PromptLintItems):
+        raise not_built_yet("Not built yet: items.")
+    refuse_unbuilt({"language_code": body.language_code is not None})
     outcome = await prompts.lint(access, project_id, body)
     return PromptLintResponse(
         data=[_lint_view(item) for item in outcome.prompts],
@@ -329,13 +340,36 @@ async def lint_prompts(
     "`PATCH is_active: true` does; answers, versions and terms stay. Bringing back counts "
     "against the workspace's active prompt limit, all or none (`422 quota_exceeded` with "
     "`limit`, `used` and `requested`). `matched` is the prompts found, `updated` those whose "
-    "state changed. One audit entry for the request and one per prompt changed.",
+    "state changed. One audit entry for the request and one per prompt changed. `filter` in "
+    "place of `ids` is published and not built yet (`501`).",
 )
 async def bulk_archive_prompts(
-    project_id: UUID, body: PromptBulkArchive, access: WritePrompts, prompts: Prompts, info: Info
+    project_id: UUID,
+    body: PromptBulkArchiveBody,
+    access: WritePrompts,
+    prompts: Prompts,
+    info: Info,
 ) -> BulkArchiveResponse:
+    if isinstance(body, PromptBulkArchiveByFilter):
+        raise not_built_yet("Not built yet: filter.")
     matched, updated = await prompts.bulk_archive(access, project_id, body, info)
     return BulkArchiveResponse(data=BulkArchiveResult(matched=matched, updated=updated))
+
+
+@router.post(
+    "/bulk-update",
+    summary="Change the metadata of many prompts",
+    description="Up to 1,000 `ids` of the project's prompts, or `filter` (the list's filters), "
+    "exactly one. `set` changes intent, funnel stage, type, importance and the branded flag; "
+    "`add_term_ids` and `remove_term_ids` add and remove terms. `matched` is the prompts found, "
+    "`updated` those that changed. One transaction; one `prompt.bulk_changed` audit entry and "
+    "one `prompt.updated` per prompt changed. Not built yet: `501 not_implemented`.",
+)
+@not_built
+async def bulk_update_prompts(
+    project_id: UUID, body: PromptBulkUpdate, access: WritePrompts
+) -> PromptBulkUpdateResponse:
+    raise not_built_yet()
 
 
 @router.get("/{prompt_id}", summary="A prompt")
