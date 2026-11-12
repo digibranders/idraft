@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T04:44:28+05:30",
+ "updated": "2026-11-13T04:47:37+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -475,7 +475,7 @@
     "done": 8
    },
    "owner": "",
-   "notes": "file work-packages/WP-12-summary-lane.md; estimate 10 tasks; decisions D-04"
+   "notes": "file work-packages/WP-12-summary-lane.md; estimate 10 tasks; decisions D-04 | steps 1/10, rows 0/24; plan committed (9 tasks); decisions: API pools per C2 (D-04), include=cells opt-in, filter rules, previous_year, by_country"
   },
   {
    "id": "WP-13",
@@ -4013,6 +4013,34 @@
    "granted": "2026-11-13T04:44:28+05:30",
    "scope": "WIDTH_CLASS.content only: cap becomes min(var(--size-popover-max), var(--available-width)); plus a test",
    "until": "WP-08 merged"
+  },
+  {
+   "path": "backend/tests/security/test_cross_tenant.py",
+   "wp": "WP-12 (alongside WP-11)",
+   "granted": "2026-11-13T04:47:37+05:30",
+   "scope": "additive: the summary QUERIES entry only; both lanes additive, rebase and keep both sides",
+   "until": "lane merged"
+  },
+  {
+   "path": "backend/tests/api/ai/test_contract_summary.py",
+   "wp": "WP-12",
+   "granted": "2026-11-13T04:47:37+05:30",
+   "scope": "replace with real tests (C2)",
+   "until": "lane merged"
+  },
+  {
+   "path": "docs/ai-visibility/contracts/c2-summary.md",
+   "wp": "WP-12",
+   "granted": "2026-11-13T04:47:37+05:30",
+   "scope": "change log section only (Q13)",
+   "until": "lane merged"
+  },
+  {
+   "path": "backend/src/idraft/api/schemas/ai.py",
+   "wp": "SHARED WP-12/WP-13/WP-14",
+   "granted": "2026-11-13T04:47:37+05:30",
+   "scope": "additive new models only; hot file: rebase before every push, keep both sides, never reorder",
+   "until": "lane merged"
   }
  ],
  "followups": [
