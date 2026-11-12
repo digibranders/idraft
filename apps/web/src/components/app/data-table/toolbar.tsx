@@ -88,8 +88,8 @@ export function DataTableToolbar({
       {countText === null ? null : (
         <p className="hidden shrink-0 num type-meta whitespace-nowrap sm:block">{countText}</p>
       )}
-      {/* Shown from 1280 px, and always readable, since aria-sort names only the first key */}
-      {sortSummary === null ? null : <p className="sr-only type-meta xl:not-sr-only">{sortSummary}</p>}
+      {/* Shown from 1536 px, so the toolbar stays on one row below it, and always readable, since aria-sort names only the first key */}
+      {sortSummary === null ? null : <p className="sr-only type-meta 2xl:not-sr-only">{sortSummary}</p>}
       {updating ? (
         <p className="flex items-center gap-1.5 type-meta">
           <Spinner size="sm" />
