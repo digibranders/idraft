@@ -67,6 +67,12 @@ describe('divergingBin', () => {
     expect(divergingBin(-6, true).fill).toBe('bg-div-neg-2');
   });
 
+  it('is neutral when the printed size is 0, as when the change is exactly 0', () => {
+    expect(divergingBin(0.04, true).fill).toBe('bg-div-zero');
+    expect(divergingBin(-0.04, true).fill).toBe('bg-div-zero');
+    expect(divergingBin(0.05, true).fill).toBe('bg-div-pos-1');
+  });
+
   it('bins a detectable change by its size in points, per side', () => {
     expect(divergingBin(2.1, true).fill).toBe('bg-div-pos-1');
     expect(divergingBin(5, true).fill).toBe('bg-div-pos-2');
@@ -105,6 +111,7 @@ describe('one bin function', () => {
   // The utility form (bg-seq-3) and the variable shorthand (bg-(--seq-3)) of a sequential or diverging fill
   const FILL_CLASS = /bg-(?:seq|div)-|bg-\(--(?:seq|div)-/;
 
+  // Limits: scans non-test .ts and .tsx under src, and only the bg-seq-, bg-div-, bg-(--seq- and bg-(--div- forms.
   it('finds seq and div fill class strings only in heat-bins.ts', () => {
     const files = sources();
     expect(files.map(([file]) => file)).toContain('components/app/chart/heat-bins.ts');

@@ -68,13 +68,13 @@ export function sequentialBin(rate: number): HeatBin {
 
 /**
  * The bin of a change in points. Colour is only for a change that is detectable (R5: the 95% interval of the
- * change excludes 0); anything else, and a change of exactly 0, is the neutral bin.
+ * change excludes 0); anything else, and a change that prints as 0, is the neutral bin.
  */
 export function divergingBin(points: number, detectable: boolean | null): HeatBin {
   if (!Number.isFinite(points)) throw new RangeError(`A change is a finite number of points, got ${points}`);
   const neutral = DIVERGING_BINS[3] as HeatBin;
-  if (detectable !== true || points === 0) return neutral;
   const size = Math.round(Math.abs(points) * 10) / 10;
+  if (detectable !== true || size === 0) return neutral;
   const step = 1 + CHANGE_EDGES_POINTS.filter((edge) => size >= edge).length;
   return DIVERGING_BINS[points > 0 ? 3 + step : 3 - step] as HeatBin;
 }
