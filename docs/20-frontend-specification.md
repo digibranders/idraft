@@ -1153,6 +1153,24 @@ Opened from any AI rate tile, rate column header, or trend chart via "Statistics
 
 > Superseded by design system: this content renders as a non-modal `StatisticsPanel` in the inspector region (560 px, `stats=<metric>:<engine>`, replacing an open record inspector with "Back to <record>") or in a record inspector's Stats tab, never as a focus-trapped modal drawer. See [23-application-patterns.md](design-system/23-application-patterns.md) §8.6.
 
+> As built (AI visibility app parts A, WP-07, 2026-11-13, plan `docs/superpowers/plans/2026-11-13-ai-wp-07-app-parts-a.md`): the parts live in `apps/web/src/components/app/`.
+>
+> - `metric/delta.tsx` (Delta), `metric/delta-cell.tsx` (DeltaCell)
+> - `engine/engine-logo.tsx` (EngineLogo), `engine/engine-badge.tsx` (EngineBadge)
+> - `metric/meter.tsx` (Meter and BudgetMeter). `apps/web/src/features/costs/budget-meter.tsx` re-exports BudgetMeter, so there is one meter.
+> - `status/banner.tsx` (Banner, with tone `neutral` and placement `inspector`)
+> - `metric/sample-count.tsx` (SampleCount), `metric/metric-info.tsx` (MetricInfo), `metric/statistics-panel.tsx` (StatisticsPanel)
+>
+> Departures from this section and from 25:
+>
+> - The paths follow the work package brief, not the component inventory: `delta-cell.tsx` and `meter.tsx` sit in `metric/`, and the engine parts sit in `engine/`.
+> - MetricInfo and StatisticsPanel take typed content props instead of a `metricKey`, because no metric registry exists yet. Consumers map API data to them.
+> - No `RefetchBar` exists. A refetching StatisticsPanel keeps its data at full opacity with `aria-busy`, and the consuming inspector draws the 2 px bar.
+> - The movers (item 4) and panel sizing (item 6) are not rendered. WP-58 and the panels packages add them.
+> - The Banner tone `neutral` (a fact with no judgement, used for "not cited") and placement `inspector` are additive. WP-41 reuses them.
+> - EngineBadge with a logo repeats the neutral subtle classes of `Badge` in a span. Revisit this when `ui/badge.tsx` exports `badgeVariants`.
+> - The "interim" test label stays until the API sends `is_detectable` (D-2).
+
 ```
 +----------------------------------------------------------+
 | Mention rate · ChatGPT · core panel · 28 days       [x]  |

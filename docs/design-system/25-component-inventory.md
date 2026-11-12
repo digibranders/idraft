@@ -1263,6 +1263,8 @@ interface ProgressProps {
 ### 3.42 Meter
 `ui/meter.tsx` · V1 · [23 §11.2](23-application-patterns.md)
 
+> As built (WP-07): the file is `apps/web/src/components/app/metric/meter.tsx`, not `ui/meter.tsx`, and it also holds BudgetMeter (17.2). The props are `warnFrom`, `allWarning` and `tick` in place of `thresholds` and `fillTone`; `label` is the accessible name and `width` takes `summary` or `cell`.
+
 Purpose: a static measure of a share of a known extent (budget use).
 
 ```ts
@@ -2844,6 +2846,8 @@ interface RankDeltaCellProps {
 ### 8.5 DeltaCell
 `app/cells/delta-cell.tsx` · V1 · [12 §6](12-tables.md), [02 §6](02-color-system.md)
 
+> As built (WP-07): the file is `apps/web/src/components/app/metric/delta-cell.tsx`, not `app/cells/`. The tooltip fields arrive as a `DeltaTip` object (`previousText`, `intervalText`, `method`), and `tip={false}` hands the tooltip to the container. With no comparison it shows `n/a`.
+
 Purpose: a metric change as a signed value in its unit, from `formatMetricDelta(input)`: `+5.3 pts`, `+12`, `+12.4%`.
 
 ```ts
@@ -3094,6 +3098,8 @@ interface MetricCardProps extends Omit<MetricItemProps, 'sparkline'> { chart?: S
 ### 9.4 Delta
 `app/metric/delta.tsx` · V1 · [14 §5](14-badges-status.md), [02 §6](02-color-system.md)
 
+> As built (WP-07): the file is `apps/web/src/components/app/metric/delta.tsx`. The tooltip prop is `tip` (a `DeltaTip`, or `false`), and `test` (`paired` or `interim`) labels the interim test until the API sends `is_detectable` (D-2). With no comparison it renders nothing.
+
 Purpose: inline signed metric change outside tables (strips, inspector, sentences), from `formatMetricDelta`.
 
 ```ts
@@ -3128,6 +3134,8 @@ interface ConfidenceIndicatorProps {
 ### 9.6 SampleCount
 `app/metric/sample-count.tsx` · V1 · [23 §8.3](23-application-patterns.md)
 
+> As built (WP-07): the file is `apps/web/src/components/app/metric/sample-count.tsx`. The noun is a typed `noun` prop (`observations`, `answers`, `checks`, `prompts` or `keywords`), and a null count renders `n/a`.
+
 Purpose: "612 of 1,296 obs" from `formatSampleCount`, with the noun always present.
 
 ```ts
@@ -3139,6 +3147,8 @@ interface SampleCountProps { k: number | null; n: number | null; noun: SampleNou
 
 ### 9.7 MetricInfo
 `app/metric/metric-info.tsx` · V1 · [22 §10](22-content-formatting.md), [23 §8.1](23-application-patterns.md)
+
+> As built (WP-07): the file is `apps/web/src/components/app/metric/metric-info.tsx`. It takes `name`, `definition`, `formula` and `methodologyHref` as content props in place of `metricKey`, because no metric registry exists yet. The popover is non-modal and the Methodology link is always last.
 
 Purpose: the (i) button and 360 px popover that explain a metric's meaning in a fixed order.
 
@@ -3171,6 +3181,8 @@ interface MetricSwitcherProps { value: MetricKey; options: ReadonlyArray<{ key: 
 
 ### 9.9 StatisticsPanel
 `app/metric/statistics-panel.tsx` · V1 · [23 §8.6](23-application-patterns.md), [20-frontend-specification.md](../20-frontend-specification.md) §6
+
+> As built (WP-07): the file is `apps/web/src/components/app/metric/statistics-panel.tsx`. It takes `state` (loading, error, empty, ready or refetching) and a typed `StatisticsContent` object, in place of `metric`, `engine` and the API value types, because no metric registry or stats API exists yet. There is no `RefetchBar`: a refetching panel keeps its data with `aria-busy`, and the consumer draws the bar. Movers and panel sizing are not rendered.
 
 Purpose: estimate, uncertainty, period comparison, movers, version boundaries and panel sizing for one AI rate.
 
@@ -3569,6 +3581,8 @@ interface ErrorPageProps { errorId: string | null; onReset: () => void; homeHref
 
 ### 11.10 Banner
 `app/status/banner.tsx` · V1 · [18 §4](18-notifications-alerts.md)
+
+> As built (WP-07): the file is `apps/web/src/components/app/status/banner.tsx`. `tone` adds `neutral` (a fact with no judgement) and `placement` adds `inspector` (full width under the inspector header); both are additive. `live` replaces `liveOnAppear`, `actions` takes a ReactNode, and `dismissId` and `more` are not built.
 
 Purpose: a condition of the page, inspector, dialog or panel the user is looking at.
 
@@ -3996,6 +4010,8 @@ Mention and citation are separate facts everywhere: `MentionStatus` and `Citatio
 
 ### 15.1 EngineBadge
 `app/ai/engine-badge.tsx` · V1 · [14 §4](14-badges-status.md), [07 §5](07-icons.md)
+
+> As built (WP-07): the file is `apps/web/src/components/app/engine/engine-badge.tsx`, with `EngineLogo` in `engine-logo.tsx` beside it. The props are `engine`, `name` (the API's label) and `logo`. `label` and `observationClass` are not built: the observation class badge is out of scope, with no wave 1 consumer.
 
 Purpose: neutral text badge for an engine, with an optional leading `EngineLogo`; no brand colors. Adds a neutral outline observation class badge ("Consumer UI", "SERP AI", "Official API") where engines of different classes appear together.
 
@@ -4546,6 +4562,8 @@ interface CostSummaryProps { monthToDate: MetricValue; projected: MetricValue; b
 
 ### 17.2 BudgetMeter
 `app/metric/budget-meter.tsx` · V1 · [23 §11.2](23-application-patterns.md)
+
+> As built (WP-07): the component is in `apps/web/src/components/app/metric/meter.tsx`, not `metric/budget-meter.tsx`, and `apps/web/src/features/costs/budget-meter.tsx` re-exports it. The props are the costs ones (`pct`, `softLimitPct`, `state`, `size`, `label`), not `spentUsd` and `limitUsd`, so the costs screens and this preset share one implementation.
 
 Purpose: `Meter` preset: 6 px outline-track meter, fill `foreground-muted` below the soft limit and `warning-solid` from it, tick at the soft limit, text value always beside it.
 
