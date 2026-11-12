@@ -2,7 +2,16 @@
 
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
-import { useCallback, useId, useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import {
+  useCallback,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 
 import { ChartFrame, type ChartEmpty, type ChartError, type ChartNotice } from './chart-frame';
 import type { LegendItem } from './chart-legend';
@@ -68,6 +77,8 @@ export type SmallMultiplesProps = MultiplesState & {
 
 /** Room the x labels take under the plot, in px: the panel that carries them is this much taller, so plots stay equal. */
 const LABEL_ROOM = 24;
+/** Room above the plot for a boundary's 12 px label, in px (the rank chart's room for its axis title). */
+const BOUNDARY_ROOM = 24;
 /** Grid columns from 768 px: panels in the last row carry the x labels. */
 const WIDE_COLUMNS = 2;
 /** One array for every render, so a panel's option is not rebuilt when a feature gives no boundaries. */
@@ -107,6 +118,11 @@ export interface SmallMultipleOptionInput {
   /** Only the last panel (or row) draws the week labels. */
   showXLabels: boolean;
   formatValue: (value: number) => string;
+  /**
+   * Asked each time the tooltip is drawn: connected panels all show the axis pointer, but only the hovered one
+   * shows the box. Left out: the panel always shows it.
+   */
+  isActive?: (() => boolean) | undefined;
 }
 
 const asRecord = (value: unknown): Record<string, unknown> =>
@@ -117,7 +133,7 @@ const asRecord = (value: unknown): Record<string, unknown> =>
  * thin points, boundaries and tooltip of `rateBandOption`, on the one ceiling. A point with no value is a gap, never 0.
  */
 export function smallMultipleOption(input: SmallMultipleOptionInput, tokens: ChartTokens): Record<string, unknown> {
-  const { panel, categories, titles, boundaries, ceiling, showXLabels, formatValue } = input;
+  const { panel, categories, titles, boundaries, ceiling, showXLabels, formatValue, isActive } = input;
   const previousId = `${panel.id}:previous`;
   const series: CategorySeries[] = [
     { id: panel.id, name: panel.name, role: panel.role, values: panel.points.map((point) => point?.value ?? null) },
@@ -153,8 +169,23 @@ export function smallMultipleOption(input: SmallMultipleOptionInput, tokens: Cha
     boundaries,
   });
   const xAxis = asRecord(banded.xAxis);
+  const tooltip = asRecord(banded.tooltip);
+  const format = tooltip.formatter;
+  // The label of a boundary sits above the plot, outside the grid; every panel gets the same room (as the rank
+  // chart gives its axis title), so plots stay equal and the shared ceiling lines up
+  const labelled = boundaries.some((boundary) => categories.includes(boundary.at));
+  const grid = asRecord(banded.grid);
   return {
     ...banded,
+    grid: labelled ? { ...grid, top: BOUNDARY_ROOM } : grid,
+    // An empty string hides the box and keeps the axis pointer, which is what connected panels need
+    tooltip:
+      isActive === undefined || typeof format !== 'function'
+        ? tooltip
+        : {
+            ...tooltip,
+            formatter: (params: unknown): string => (isActive() ? (format as (p: unknown) => string)(params) : ''),
+          },
     // Three labels, 0, half and the ceiling, so the one scale reads at a glance and the labels stay clear of each other
     yAxis: { ...asRecord(banded.yAxis), interval: ceiling / 2 },
     xAxis: showXLabels ? xAxis : { ...xAxis, axisLabel: { ...asRecord(xAxis.axisLabel), show: false } },
@@ -175,19 +206,30 @@ interface PanelChartProps {
   showXLabels: boolean;
   height: number;
   group: string;
+  /** The id of the panel the pointer is over; read when the tooltip is drawn, so it never goes stale. */
+  hovered: RefObject<string | null>;
 }
 
 const formatRate = (value: number): string => formatPercent(value, { decimals: 0 });
 
-function PanelChart({ panel, showXLabels, height, group, ...shared }: PanelChartProps): ReactElement {
+function PanelChart({ panel, showXLabels, height, group, hovered, ...shared }: PanelChartProps): ReactElement {
   const { categories, titles, boundaries, ceiling } = shared;
   const option = useCallback(
     (tokens: ChartTokens): Record<string, unknown> =>
       smallMultipleOption(
-        { panel, categories, titles, boundaries, ceiling, showXLabels, formatValue: formatRate },
+        {
+          panel,
+          categories,
+          titles,
+          boundaries,
+          ceiling,
+          showXLabels,
+          formatValue: formatRate,
+          isActive: () => hovered.current === panel.id,
+        },
         tokens,
       ),
-    [panel, categories, titles, boundaries, ceiling, showXLabels],
+    [panel, categories, titles, boundaries, ceiling, showXLabels, hovered],
   );
   return <EChart option={option} height={height} group={group} />;
 }
@@ -209,6 +251,8 @@ export function SmallMultiples(props: SmallMultiplesProps): ReactElement {
   const t = useTranslations('chart');
   const multiples = useTranslations('chart.multiples');
   const group = useId();
+  // The panel under the pointer: a ref, so moving between panels redraws nothing
+  const hovered = useRef<string | null>(null);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
 
   // At least one panel shows: turned-off ids that no longer match a panel never empty the grid
@@ -251,7 +295,16 @@ export function SmallMultiples(props: SmallMultiplesProps): ReactElement {
         const latest = latestIndex(panel.points);
         const latestId = `${group}-${panel.id}`;
         return (
-          <figure key={panel.id} className="flex min-w-0 flex-col gap-1">
+          <figure
+            key={panel.id}
+            className="flex min-w-0 flex-col gap-1"
+            onPointerEnter={() => {
+              hovered.current = panel.id;
+            }}
+            onPointerLeave={() => {
+              if (hovered.current === panel.id) hovered.current = null;
+            }}
+          >
             <figcaption className="flex flex-wrap items-baseline gap-x-2">
               <span className="type-label">{panel.name}</span>
               <span id={latestId} className="type-meta">
@@ -278,6 +331,7 @@ export function SmallMultiples(props: SmallMultiplesProps): ReactElement {
                 showXLabels={showXLabels}
                 height={showXLabels ? height + LABEL_ROOM : height}
                 group={group}
+                hovered={hovered}
               />
             </div>
           </figure>

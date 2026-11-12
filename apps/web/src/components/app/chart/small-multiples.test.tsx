@@ -5,6 +5,7 @@ import {
   rateCeilingOf,
   smallMultipleOption,
   SmallMultiples,
+  type SmallMultipleOptionInput,
   type SmallMultiplePanel,
   type SmallMultiplesProps,
 } from './small-multiples';
@@ -200,6 +201,17 @@ describe('smallMultipleOption', () => {
     expect(line?.data[0]).toMatchObject({ symbol: 'rect', symbolSize: 5 });
   });
 
+  it('leaves room above the plot for the label of a boundary, and none when no boundary is drawn (guard)', () => {
+    const topOf = (boundaries: SmallMultipleOptionInput['boundaries']): number | undefined =>
+      (smallMultipleOption(optionInput(CHATGPT, { boundaries }), TOKENS).grid as { top?: number }).top;
+    const without = topOf([]);
+    const labelled = topOf([{ at: 'Oct 26', label: 'Extractor v4' }]);
+    expect(without).toBeDefined();
+    expect(labelled).toBeGreaterThanOrEqual((without ?? 0) + 16);
+    // A boundary that is not a week of the chart is not drawn, so it takes no room
+    expect(topOf([{ at: 'Sep 1', label: 'Elsewhere' }])).toBe(without);
+  });
+
   it('draws the band stronger on the dark ground (guard)', () => {
     const opacityOf = (): unknown =>
       seriesOf(smallMultipleOption(optionInput(GEMINI), TOKENS)).find((entry) => entry.id === 'gemini:band')?.areaStyle
@@ -207,6 +219,49 @@ describe('smallMultipleOption', () => {
     expect(opacityOf()).toBe(0.12);
     document.documentElement.classList.add('dark');
     expect(opacityOf()).toBe(0.18);
+  });
+});
+
+type TipFormatter = (params: readonly { dataIndex: number; axisValueLabel: string }[]) => string;
+const tipOf = (option: Record<string, unknown>): TipFormatter =>
+  (option.tooltip as { formatter: TipFormatter }).formatter;
+const HOVERED_WEEK = [{ dataIndex: 0, axisValueLabel: 'Oct 12' }] as const;
+
+describe('the tooltip of one panel', () => {
+  it('is empty while the panel is not the hovered one, and says name, value and counts when it is (guard)', () => {
+    let active = false;
+    const tip = tipOf(smallMultipleOption(optionInput(GEMINI, { isActive: () => active }), TOKENS));
+    expect(tip(HOVERED_WEEK)).toBe('');
+    active = true;
+    const html = tip(HOVERED_WEEK);
+    expect(html).toContain('Gemini');
+    expect(html).toContain('62%, 50 of 81 answers');
+  });
+
+  it('is the usual tooltip when no panel tracks the pointer', () => {
+    expect(tipOf(smallMultipleOption(optionInput(GEMINI), TOKENS))(HOVERED_WEEK)).toContain('62%, 50 of 81 answers');
+  });
+
+  it('follows the pointer from panel to panel without a new option: the formatter reads it when it is called (guard)', async () => {
+    const { user } = renderWithProviders(<SmallMultiples {...BASE} />);
+    await screen.findAllByTestId('echart-canvas');
+    // The options as first drawn: hovering must not need another draw
+    const gemini = tipOf(optionOf('gemini'));
+    const chatgpt = tipOf(optionOf('chatgpt'));
+    expect(gemini(HOVERED_WEEK)).toBe('');
+    const figureOf = (name: string): HTMLElement => {
+      const figure = screen.getByRole('img', { name }).closest('figure');
+      if (figure === null) throw new Error(`No figure for ${name}`);
+      return figure;
+    };
+    await user.hover(figureOf('Gemini'));
+    expect(gemini(HOVERED_WEEK)).toContain('62%, 50 of 81 answers');
+    expect(chatgpt(HOVERED_WEEK)).toBe('');
+    await user.hover(figureOf('ChatGPT'));
+    expect(chatgpt(HOVERED_WEEK)).toContain('31%, 25 of 81 answers');
+    expect(gemini(HOVERED_WEEK)).toBe('');
+    await user.unhover(figureOf('ChatGPT'));
+    expect(chatgpt(HOVERED_WEEK)).toBe('');
   });
 });
 
@@ -266,6 +321,14 @@ describe('SmallMultiples', () => {
       const boundaries = seriesOf(optionOf(panel.id)).find((entry) => entry.id === 'boundaries');
       expect(boundaries?.markLine?.data.map((mark) => mark.xAxis)).toEqual(['Oct 26']);
     }
+  });
+
+  it('gives every panel the same room above the plot, so plots and the shared ceiling line up', async () => {
+    renderWithProviders(<SmallMultiples {...BASE} boundaries={[{ at: 'Oct 26', label: 'Extractor v4' }]} />);
+    await screen.findAllByTestId('echart-canvas');
+    const tops = PANELS.map((panel) => (optionOf(panel.id).grid as { top?: number }).top);
+    expect(new Set(tops).size).toBe(1);
+    expect(tops[0]).toBeGreaterThan(8);
   });
 
   it('connects the crosshair: every panel is in one group, and another chart is not', async () => {
