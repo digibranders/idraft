@@ -46,6 +46,20 @@ describe('ChartLegend', () => {
     expect(onToggle).toHaveBeenCalledWith('b');
   });
 
+  it('shows a hidden series by strike-through and a muted colour, never by opacity (text contrast)', () => {
+    const toggles = renderWithProviders(
+      <ChartLegend title="Mention rate" items={ITEMS} onToggle={vi.fn<(id: string) => void>()} />,
+    );
+    const hidden = screen.getByRole('button', { name: 'Gemini' });
+    expect(hidden.className).toContain('aria-[pressed=false]:line-through');
+    expect(hidden.className).not.toContain('opacity-50');
+    toggles.unmount();
+    renderWithProviders(<ChartLegend title="Key" items={ITEMS} />);
+    const key = screen.getByText('Gemini');
+    expect(key.className).toContain('line-through');
+    expect(key.className).not.toContain('opacity-50');
+  });
+
   it('toggles from the keyboard with Enter and Space', async () => {
     const onToggle = vi.fn<(id: string) => void>();
     const { user } = renderWithProviders(<ChartLegend title="Mention rate" items={ITEMS} onToggle={onToggle} />);

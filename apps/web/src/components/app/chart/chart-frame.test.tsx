@@ -146,6 +146,34 @@ describe('ChartFrame', () => {
     expect(screen.getByRole('button', { name: 'Patterns' })).toHaveAttribute('aria-pressed', 'false');
   });
 
+  it('draws the inspector variant as a level 3 title without the panel border and padding', async () => {
+    const { container, rerender } = renderWithProviders(frame());
+    const panel = container.querySelector('section');
+    expect(panel).toHaveClass('border', 'p-4');
+    expect(screen.getByRole('heading', { level: 2, name: 'Search volume by month' })).toBeInTheDocument();
+
+    rerender(
+      <ChartFrame
+        title="Search volume by month"
+        variant="inspector"
+        kind="line"
+        categories={['Jul', 'Aug', 'Sep']}
+        categoryHeader="Month"
+        series={SERIES}
+        formatValue={(value) => String(value)}
+        height={180}
+        summary="Searches."
+        status="ready"
+      />,
+    );
+    expect(await screen.findByTestId('echart-canvas')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'Search volume by month' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2 })).toBeNull();
+    const inspector = container.querySelector('section');
+    expect(inspector).not.toHaveClass('border');
+    expect(inspector).not.toHaveClass('p-4');
+  });
+
   it('passes extended option to EChart when extendOption is provided', async () => {
     renderWithProviders(
       <ChartFrame

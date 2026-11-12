@@ -88,7 +88,7 @@ export function ChartLegend({ title, items, onToggle }: ChartLegendProps): React
                 className={
                   item.pressed
                     ? 'inline-flex items-center gap-1.5 rounded-xs type-label'
-                    : 'inline-flex items-center gap-1.5 rounded-xs type-label opacity-50'
+                    : 'inline-flex items-center gap-1.5 rounded-xs type-label text-foreground-tertiary line-through'
                 }
               >
                 {content}
@@ -98,7 +98,7 @@ export function ChartLegend({ title, items, onToggle }: ChartLegendProps): React
                 type="button"
                 aria-pressed={item.pressed}
                 onClick={() => toggle(item)}
-                className="inline-flex items-center gap-1.5 rounded-xs type-label outline-none focus-visible:focus-ring aria-[pressed=false]:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-xs type-label outline-none focus-visible:focus-ring aria-[pressed=false]:text-foreground-tertiary aria-[pressed=false]:line-through"
               >
                 {content}
               </button>

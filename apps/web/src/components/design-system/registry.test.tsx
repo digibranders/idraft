@@ -5,6 +5,9 @@ import { PREVIEW_SECTION_SLUGS } from './section-slugs';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
+// The canvas stub of the test setup cannot draw: the Charts section mounts real charts, so the canvas is stood in for
+vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
+
 // A whole section holds every variant of a dozen components, and axe walks all of it
 const SECTION_TIMEOUT_MS = 30_000;
 
