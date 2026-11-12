@@ -39,9 +39,14 @@ export function competitorCounts(
   observations: readonly ObservationSummary[],
   entities: readonly SummaryEntity[],
   engine: string,
+  /** The engines in scope (the enabled ones); the answers of another are left out. Every engine when not given. */
+  inScope?: readonly string[],
 ): CompetitorCounts {
   const valid = observations.filter(
-    (answer) => isValidAnswer(answer) && (engine === ALL_ENGINES || answer.engine_code === engine),
+    (answer) =>
+      isValidAnswer(answer) &&
+      (inScope === undefined || inScope.includes(answer.engine_code)) &&
+      (engine === ALL_ENGINES || answer.engine_code === engine),
   );
   const rows = entities.map((entity): CompetitorRow => {
     const own = entity.role === 'own';

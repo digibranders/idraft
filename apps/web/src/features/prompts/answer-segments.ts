@@ -1,3 +1,5 @@
+import { graphemeBoundaryBefore } from '@/lib/text/graphemes';
+
 /** What the cutting needs of a mention: the response's mentions fit it, whatever else they carry. */
 interface Spanned {
   /** `[start, end)` pairs, as the API sends them; a payload is not checked on the way in, so they are read warily. */
@@ -67,7 +69,8 @@ export function answerSegments<M extends Spanned>(text: string, mentions: readon
 
 /**
  * The first `max` UTF-16 units of the segments of an answer (an excerpt): a mention the limit cuts through keeps
- * the part before it, and the limit moves back rather than split a character past U+FFFF. `clipped` says whether
+ * the part before it, and the limit moves back rather than split a character as it looks on screen (a letter and its
+ * accent, a joined emoji, a flag). `clipped` says whether
  * anything was left out. The segments are those of `answerSegments`, which cover the text from its start.
  */
 export function clipSegments<M extends Spanned>(
@@ -76,7 +79,7 @@ export function clipSegments<M extends Spanned>(
 ): { segments: AnswerSegment<M>[]; clipped: boolean } {
   const text = segments.map((segment) => segment.text).join('');
   if (text.length <= max) return { segments: [...segments], clipped: false };
-  const limit = splitsCharacter(text, max) ? max - 1 : max;
+  const limit = graphemeBoundaryBefore(text, max);
   const kept: AnswerSegment<M>[] = [];
   for (const segment of segments) {
     if (segment.start >= limit) break;

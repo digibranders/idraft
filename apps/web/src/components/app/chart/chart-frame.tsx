@@ -34,6 +34,11 @@ export interface ChartFrameProps {
   categoryHeader: string;
   series: readonly CategorySeries[];
   formatValue: (value: number) => string;
+  /**
+   * The words of one point in the Table view, where the bare value is not all there is to say ("40%, 4 of 10
+   * answers, 15% to 70%"); `null` keeps the value. Keep it stable (`useCallback`).
+   */
+  cellText?: ((seriesId: string, index: number) => string | null) | undefined;
   /** Adds to the line or bar option, such as a rank axis (`lib/charts/rank-chart.ts`). Keep it stable (`useCallback`). */
   extendOption?: ((option: Record<string, unknown>, tokens: ChartTokens) => Record<string, unknown>) | undefined;
   /** Bars of a category stack into one column; lines ignore it. */
@@ -60,6 +65,7 @@ export function ChartFrame({
   categoryHeader,
   series,
   formatValue,
+  cellText,
   stacked,
   height,
   summary,
@@ -161,6 +167,7 @@ export function ChartFrame({
           categories={categories}
           series={series}
           formatValue={formatValue}
+          cellText={cellText}
           noValue={t('noValue')}
         />
       ) : (
@@ -187,6 +194,7 @@ function ChartTable({
   categories,
   series,
   formatValue,
+  cellText,
   noValue,
 }: {
   title: string;
@@ -194,6 +202,7 @@ function ChartTable({
   categories: readonly string[];
   series: readonly CategorySeries[];
   formatValue: (value: number) => string;
+  cellText: ChartFrameProps['cellText'];
   noValue: string;
 }): ReactElement {
   const t = useTranslations('chart');
@@ -237,7 +246,7 @@ function ChartTable({
                     ) : value === null || value === undefined ? (
                       <span className="text-foreground-tertiary">{noValue}</span>
                     ) : (
-                      formatValue(value)
+                      (cellText?.(entry.id, index) ?? formatValue(value))
                     )}
                   </td>
                 );

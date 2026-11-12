@@ -3643,14 +3643,15 @@
       "tabStats": "Stats",
       "stripLabel": "Mention and citation rates of this prompt",
       "latest": {
-        "noValidTitle": "No valid answer yet on {engine}",
+        "noValidTitle": "No valid answer on {engine} in the last {days, number} days",
         "noAnswerReason": "Each prompt is asked twice a week. The first answer on this engine arrives after the next run.",
+        "noText": "The answer text is not available.",
         "pendingReason": "The newest answer has not been read yet. It counts once it has been.",
         "mentioned": "Mentioned",
         "notMentioned": "Not mentioned",
         "cited": "Cited",
         "notCited": "Not cited",
-        "order": "{place, select, first {First mentioned} second {Mentioned second} third {Mentioned third} other {Mentioned {order, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}}}",
+        "order": "{place, select, first {Mentioned first} second {Mentioned second} third {Mentioned third} other {Mentioned {order, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}}} among the tracked brands",
         "source": "{host} ({role})",
         "factsLabel": "Facts of this answer",
         "sourcesLabel": "Top sources of this answer",
@@ -3661,11 +3662,12 @@
       },
       "history": {
         "chartTitle": "Mention rate by engine",
-        "chartFootnote": "The share of valid answers that name your brand, by week. The shaded band is the 95% Wilson interval. Interval computed in the browser; the server will provide it later. A hollow point is a week with fewer than {min, number} valid answers, which has no band.",
-        "chartSummary": "Mention rate of this prompt by week on {engines}, over {weeks, plural, one {# week} other {# weeks}} from {from} to {to}. Every week and its counts are in the table that follows.",
-        "tableCaption": "Weekly mention rate of this prompt",
-        "weekColumn": "Week of",
-        "cell": "{value}, {basis}",
+        "chartFootnote": "Each point is the share of valid answers that name your brand over the 4 weeks to its date, so one week of scheduled runs is not read on its own. The shaded band is the 95 percent Wilson interval over those valid answers. A hollow point has fewer than {min, number} valid answers and no band.",
+        "chartSummary": "Mention rate of this prompt on {engines}, each point over the 4 weeks to its date, from {from} to {to}. Every point with its counts and interval is in the Table view.",
+        "weekColumn": "4 weeks to",
+        "pointTitle": "{weeks, plural, one {# week} other {# weeks}} to {date}",
+        "cell": "{value}, {basis}, 95% interval {interval}",
+        "cellPlain": "{value}, {basis}",
         "cellThin": "{value}, {basis}, too few for an interval",
         "cellNone": "No valid answer",
         "noSeriesTitle": "No weekly rates yet",
@@ -3699,7 +3701,7 @@
         "intervalLabel": "95% interval {range}",
         "tooFew": "Too few answers for a reliable rate",
         "none": "No valid answers",
-        "method": "Wilson interval over valid answers in this window. Computed in the browser until the server provides it."
+        "method": "The interval is the 95 percent Wilson interval over the valid answers of this window."
       }
     },
     "answer": {

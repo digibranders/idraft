@@ -212,6 +212,31 @@ export const observationsQuery = (
   });
 
 /**
+ * `GET {P}/ai/observations` for the newest answer of one prompt on one engine over `range`, the one row: the newest
+ * valid one with `validOnly`, else the newest of any status (which tells why an engine has no valid one).
+ */
+export const newestAnswerQuery = (
+  scope: PromptScope,
+  promptId: string,
+  engineCode: string,
+  range: DateRange,
+  validOnly: boolean,
+): ApiQueryOptions<typeof OBSERVATIONS> =>
+  apiQuery(OBSERVATIONS, {
+    params: {
+      path: pathOf(scope),
+      query: {
+        'filter[prompt_id]': promptId,
+        'filter[engine_code_in]': [engineCode],
+        ...(validOnly ? { 'filter[is_valid]': true } : {}),
+        from: range.from,
+        to: range.to,
+        limit: 1,
+      },
+    },
+  });
+
+/**
  * Whether `id` is an observation id a path number holds exactly. The API sends the id as text and takes a
  * 64-bit integer; the typed path wants a number, exact only up to 2^53. Ids come from a sequence and stay far
  * below that, so a larger one is no answer of ours and is not looked up as another one.

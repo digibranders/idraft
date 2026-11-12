@@ -45,8 +45,9 @@ describe('the weekly history of a prompt', () => {
     );
     expect(history?.weeks).toEqual([W1, W2, W3]);
     expect(history?.engines.map((entry) => entry.engineCode)).toEqual([CHATGPT, GEMINI]);
-    expect(history?.engines[0]?.points.map((point) => point?.value ?? null)).toEqual([0.5, 0.6, null]);
-    // A week an engine's series does not list is a gap, not a week with no answers
+    // The window of the third week still holds the first two, so the engine's rate goes on over a week it has no point for
+    expect(history?.engines[0]?.points.map((point) => point?.value ?? null)).toEqual([0.5, 5 / 9, 5 / 9]);
+    // An engine whose series lists no week of the window has a gap there, not a week with no answers
     expect(history?.engines[1]?.points.map((point) => point === null)).toEqual([true, true, false]);
   });
 
@@ -55,35 +56,74 @@ describe('the weekly history of a prompt', () => {
     expect(history?.engines.map((entry) => entry.engineCode)).toEqual([GEMINI]);
   });
 
-  it('gives a week with no valid answer no value and no band, never a zero', () => {
-    const point = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 0, 0)])])?.engines[0]?.points[0];
-    expect(point).toEqual({ weekStart: W1, k: 0, n: 0, value: null, band: null, thin: false });
-  });
+  describe('as the trailing four weeks pooled', () => {
+    /** Five Mondays, 4 weeks apart from the first to the fourth and one more after. */
+    const MONDAYS = ['2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02'] as const;
+    // Two answers a week, as a prompt is asked: (mentioned, valid) of each week
+    const COUNTS = [
+      [1, 2],
+      [0, 2],
+      [2, 2],
+      [1, 2],
+      [2, 2],
+    ] as const;
+    const points = () =>
+      weeklyHistory(
+        [CHATGPT],
+        [
+          engine(
+            CHATGPT,
+            COUNTS.map(([k, n], at) => week(MONDAYS[at] ?? '', k, n)),
+          ),
+        ],
+      )?.engines[0]?.points;
 
-  it('gives a rate of 0 over enough answers a value of 0 with its band', () => {
-    const point = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 0, 8)])])?.engines[0]?.points[0];
-    expect(point?.value).toBe(0);
-    expect(point?.band).toEqual(wilsonInterval(0, 8));
-    expect(point?.thin).toBe(false);
-  });
+    it('adds the numerators and the denominators of the week and the three before it', () => {
+      const [, , , , last] = points() ?? [];
+      // Weeks 2 to 5: 0 + 2 + 1 + 2 mentioned of 8 valid answers
+      expect(last).toMatchObject({ weekStart: MONDAYS[4], k: 5, n: 8, value: 5 / 8, thin: false, span: 4 });
+      expect(last?.band).toEqual(wilsonInterval(5, 8));
+    });
 
-  it('draws a week over fewer than the minimum valid answers as thin, with its value and no band', () => {
-    const point = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 1, MIN_OBSERVATIONS - 1)])])?.engines[0]
-      ?.points[0];
-    expect(point?.thin).toBe(true);
-    expect(point?.band).toBeNull();
-    expect(point?.value).toBeCloseTo(1 / (MIN_OBSERVATIONS - 1));
-  });
+    it('pools fewer weeks for the first three, which are thin until the valid answers reach the minimum', () => {
+      const pooled = points() ?? [];
+      expect(pooled.map((point) => [point?.k, point?.n, point?.span, point?.thin])).toEqual([
+        [1, 2, 1, true],
+        [1, 4, 2, false],
+        [3, 6, 3, false],
+        [4, 8, 4, false],
+        [5, 8, 4, false],
+      ]);
+      expect(pooled[0]?.band).toBeNull();
+      // A hand built case where a band appears: the second point is the first to hold four valid answers
+      expect(pooled[1]?.band).toEqual(wilsonInterval(1, 4));
+      expect(pooled[1]?.band?.low).toBeLessThan(0.25);
+    });
 
-  it('gives a week of the minimum itself a 95 percent Wilson band from its own counts', () => {
-    const point = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 2, MIN_OBSERVATIONS)])])?.engines[0]?.points[0];
-    expect(point?.thin).toBe(false);
-    expect(point?.band).toEqual(wilsonInterval(2, MIN_OBSERVATIONS));
-  });
+    it('leaves a window with no valid answer a gap, and a window with no week of the engine too', () => {
+      const empty = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(MONDAYS[0], 0, 0)])])?.engines[0]?.points[0];
+      expect(empty).toMatchObject({ k: 0, n: 0, value: null, band: null, thin: false });
+    });
 
-  it('leaves a week with counts that cannot be real without a band', () => {
-    const point = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 9, 5)])])?.engines[0]?.points[0];
-    expect(point?.band).toBeNull();
+    it('draws a window of fewer than the minimum valid answers as thin, with its value and no band', () => {
+      const point = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 1, MIN_OBSERVATIONS - 1)])])?.engines[0]
+        ?.points[0];
+      expect(point?.thin).toBe(true);
+      expect(point?.band).toBeNull();
+      expect(point?.value).toBeCloseTo(1 / (MIN_OBSERVATIONS - 1));
+    });
+
+    it('gives a rate of 0 over enough answers a value of 0 with its band', () => {
+      const point = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 0, 8)])])?.engines[0]?.points[0];
+      expect(point?.value).toBe(0);
+      expect(point?.band).toEqual(wilsonInterval(0, 8));
+    });
+
+    it('lets a week with counts that cannot be real add nothing', () => {
+      const point = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 9, 5), week(W2, 2, 4)])])?.engines[0]
+        ?.points[1];
+      expect(point).toMatchObject({ k: 2, n: 4 });
+    });
   });
 });
 

@@ -7,15 +7,23 @@ import { rateState, wilsonInterval, type Interval } from '@/lib/stats';
  * with its Wilson band, and the events read from its answers. Plain data; the tab puts words and a chart to it.
  */
 
-/** One week of one engine: the valid answers that name the brand over all the valid ones. */
+/** The weeks one point pools: the week it is dated by and the three before it. */
+export const POOLED_WEEKS = 4;
+
+/**
+ * One point of one engine: the valid answers that name the brand over all the valid ones of the week it is dated by
+ * and the three weeks before it (a prompt is asked twice a week, so one week alone never holds the answers a rate needs).
+ */
 export interface WeekPoint {
-  /** The Monday of the week, a project day. */
+  /** The Monday of the last week of the point, a project day. */
   weekStart: string;
+  /** How many weeks the point pools: 4, fewer for the first three points of the window. */
+  span: number;
   k: number;
   n: number;
-  /** `k / n`; `null` for a week with no valid answer (a gap, never a 0) and for counts that cannot be real. */
+  /** `k / n`; `null` with no valid answer in the weeks (a gap, never a 0). */
   value: number | null;
-  /** The 95 percent Wilson interval of the week; only for a week over enough valid answers. */
+  /** The 95 percent Wilson interval of the pooled counts; only over enough valid answers. */
   band: Interval | null;
   /** Fewer valid answers than `MIN_OBSERVATIONS`: drawn as a hollow point with no band. */
   thin: boolean;
@@ -34,9 +42,9 @@ export interface History {
 }
 
 /**
- * The weekly series of the engines in `engineCodes`, in that order, from a summary read with `include=series`. A week
- * the series of an engine does not list is a gap of that engine. `null` when no engine asked for has a series (not
- * loaded, an older API, or a read made without it).
+ * The trailing four week points of the engines in `engineCodes`, in that order, from a summary read with
+ * `include=series`, one for each week of the series of any of them. An engine whose series lists no week of a window
+ * has a gap there. `null` when no engine asked for has a series (not loaded, an older API, or a read made without it).
  */
 export function weeklyHistory(
   engineCodes: readonly string[],
@@ -52,19 +60,26 @@ export function weeklyHistory(
     weeks,
     engines: chosen.map(({ engineCode, series }) => ({
       engineCode,
-      points: weeks.map((weekStart): WeekPoint | null => {
-        const entry = series.find((candidate) => candidate.week_start === weekStart);
-        if (entry === undefined) return null;
-        const { numerator: k, denominator: n } = entry.mentioned;
-        const real = Number.isInteger(k) && Number.isInteger(n) && k >= 0 && k <= n;
+      points: weeks.map((weekStart, at): WeekPoint | null => {
+        const window = weeks.slice(Math.max(0, at - POOLED_WEEKS + 1), at + 1);
+        // The weeks add up exactly on a prompt row; a week with counts that cannot be real adds nothing
+        const counts = series.flatMap((entry) => {
+          const { numerator: k, denominator: n } = entry.mentioned;
+          const real = Number.isInteger(k) && Number.isInteger(n) && k >= 0 && k <= n;
+          return window.includes(entry.week_start) && real ? [{ k, n }] : [];
+        });
+        if (counts.length === 0) return null;
+        const k = counts.reduce((sum, week) => sum + week.k, 0);
+        const n = counts.reduce((sum, week) => sum + week.n, 0);
         const state = rateState(n);
         return {
           weekStart,
+          span: window.length,
           k,
           n,
-          value: real && n > 0 ? k / n : null,
-          band: real && state === 'ok' ? wilsonInterval(k, n) : null,
-          thin: real && state === 'insufficient',
+          value: n > 0 ? k / n : null,
+          band: state === 'ok' ? wilsonInterval(k, n) : null,
+          thin: state === 'insufficient',
         };
       }),
     })),

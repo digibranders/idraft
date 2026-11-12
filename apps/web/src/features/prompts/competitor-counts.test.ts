@@ -48,6 +48,14 @@ describe('the brands named in the answers to a prompt', () => {
     ]);
   });
 
+  it('leaves out the answers of an engine that is not in scope, which the list keeps when an engine is turned off', () => {
+    const counts = competitorCounts(answers, entities, ALL_ENGINES, [CHATGPT]);
+    expect(counts.answers).toBe(3);
+    expect(counts.rows.find((row) => row.name === 'Beta')?.mentions).toBe(1);
+    // An engine chosen that is not in scope has no answer to count
+    expect(competitorCounts(answers, entities, GEMINI, [CHATGPT]).answers).toBe(0);
+  });
+
   it('counts the answers of one engine only when one is chosen', () => {
     const counts = competitorCounts(answers, entities, GEMINI);
     expect(counts.answers).toBe(2);

@@ -32,13 +32,22 @@ export interface DateRange {
   to: string;
 }
 
-/** The last `days` days in the project's time zone, today included. */
-export function windowRange(days: WindowDays, now: Date, timeZone: string): DateRange {
-  const to = formatIsoDate(now, timeZone);
+/**
+ * How far back the Latest tab looks: the longest window of the page. The API refuses more than 92 days of elapsed time
+ * (`422 window_too_large`), so 92 calendar days would be refused across the clock change of a project's zone.
+ */
+export const WIDEST_WINDOW = 90;
+
+/** The `days` days ending on the project day `to`, both included. Calendar arithmetic in UTC, so a clock change moves no day. */
+export function trailingRange(to: string, days: number): DateRange {
   const [year = 1970, month = 1, day = 1] = to.split('-').map(Number);
-  // Calendar arithmetic in UTC, so a clock change in the project's zone moves no day
   const from = new Date(Date.UTC(year, month - 1, day - (days - 1)));
   return { from: from.toISOString().slice(0, 10), to };
+}
+
+/** The last `days` days in the project's time zone, today included. */
+export function windowRange(days: WindowDays, now: Date, timeZone: string): DateRange {
+  return trailingRange(formatIsoDate(now, timeZone), days);
 }
 
 /**

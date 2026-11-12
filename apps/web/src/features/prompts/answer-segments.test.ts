@@ -237,6 +237,19 @@ describe('clipSegments', () => {
     ).toBe(`ab${MAGNIFIER}`);
   });
 
+  it('never cuts a letter from its accent, a joined emoji or a flag', () => {
+    const cases = [
+      [`ab${cp(0x65, 0x301)}cd`, 3, 'ab'],
+      [`ab${cp(0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467)}cd`, 6, 'ab'],
+      [`ab${cp(0x1f1ee, 0x1f1f3)}cd`, 4, 'ab'],
+    ] as const;
+    for (const [text, max, kept] of cases) {
+      const clip = clipSegments(answerSegments(text, []), max);
+      expect(clip.segments.map((segment) => segment.text).join('')).toBe(kept);
+      expect(clip.clipped).toBe(true);
+    }
+  });
+
   it('gives nothing back for a text with no segments', () => {
     expect(clipSegments([], 280)).toEqual({ segments: [], clipped: false });
   });

@@ -133,9 +133,10 @@ export function PromptInspector({
   const detail = useQuery(promptQuery(scope, promptId));
   // An id that is no prompt's (a hand-typed address, or one the API refuses) is a prompt that is not there
   const notFound = isApiProblem(detail.error, 'not_found') || isApiProblem(detail.error, 'validation_failed');
+  // The window's answers are read for the tabs that list or count them, History and Competitors, and for no other
   const answers = useQuery({
     ...observationsQuery(scope, promptId, range),
-    enabled: isPromptId(promptId) && !notFound,
+    enabled: isPromptId(promptId) && !notFound && (tab === 'history' || tab === 'competitors'),
   });
   const runNow = useMutation(RUN_NOW);
   const archive = useMutation(ARCHIVE_PROMPT);
@@ -390,9 +391,11 @@ export function PromptInspector({
             <InspectorPanel<PromptTab> value="latest">
               <InspectorLatest
                 scope={scope}
+                promptId={promptId}
+                exists={isPromptId(promptId) && !notFound}
+                range={range}
                 timeZone={timeZone}
                 engines={engines}
-                answers={promptAnswers}
                 onOpenAnswer={onOpenAnswer}
               >
                 <InspectorSection

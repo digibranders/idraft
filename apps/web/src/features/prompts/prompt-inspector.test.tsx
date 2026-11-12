@@ -174,8 +174,8 @@ describe('the prompt inspector: what it shows', () => {
     );
     renderOn('viewer', opened);
     const inspector = await panel();
-    expect(await within(inspector).findByText('No valid answer yet on ChatGPT')).toBeInTheDocument();
-    expect(within(inspector).getByText('No valid answer yet on Gemini')).toBeInTheDocument();
+    expect(await within(inspector).findByText('No valid answer on ChatGPT in the last 90 days')).toBeInTheDocument();
+    expect(within(inspector).getByText('No valid answer on Gemini in the last 90 days')).toBeInTheDocument();
   });
 
   it('says the answers could not be loaded and reads them again on Try again', async () => {

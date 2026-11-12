@@ -50,6 +50,29 @@ describe('ChartFrame', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it('puts the words a caller gives for a point in the table view, in place of the bare value', async () => {
+    const { user } = renderWithProviders(
+      <ChartFrame
+        title="Search volume by month"
+        variant="panel"
+        kind="line"
+        categories={['Jul', 'Aug', 'Sep']}
+        categoryHeader="Month"
+        series={SERIES}
+        formatValue={(value) => String(value)}
+        cellText={(seriesId, index) => (seriesId === 'volume' && index === 0 ? '8100, 7000 to 9000' : null)}
+        height={180}
+        summary="Searches."
+        status="ready"
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Table' }));
+    const table = screen.getByRole('table', { name: 'Search volume by month' });
+    expect(within(table).getByText('8100, 7000 to 9000')).toBeInTheDocument();
+    // A point the caller says nothing of keeps its value
+    expect(within(table).getByText('9900')).toBeInTheDocument();
+  });
+
   it('toggles a series from the legend', async () => {
     const { user } = renderWithProviders(frame());
     const legend = screen.getByRole('list', { name: 'Series in Search volume by month' });

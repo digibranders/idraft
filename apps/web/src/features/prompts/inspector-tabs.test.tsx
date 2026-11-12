@@ -7,6 +7,7 @@ import { PromptsScreen } from './prompts-screen';
 import type { ObservationDetail, ObservationSummary, Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
 import { MOCK_ENTITY_IDS } from '@/mocks/entity-fixtures';
+import { promptsOf } from '@/mocks/prompts-state';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { FIXTURE_PROMPTS } from '@/mocks/prompt-fixtures';
@@ -194,11 +195,21 @@ const detail = (row: ObservationSummary): ObservationDetail => ({
 const CHATGPT_ROW = summary('3000002', 'chatgpt_web', '2026-11-12T02:00:00Z');
 const GEMINI_ROW = summary('3000001', 'gemini_web', '2026-11-09T02:00:00Z');
 /** The list and the detail reads of two answers, one for each engine. */
+/** The list as the API answers it: the rows the filters keep, in the order given (newest first), up to the limit. */
+const listOf =
+  (rows: ObservationSummary[]) =>
+  ({ request }: { request: Request }): Response => {
+    const params = new URL(request.url).searchParams;
+    const engines = params.getAll('filter[engine_code_in]').flatMap((value) => value.split(','));
+    const kept = rows
+      .filter((row) => engines.length === 0 || engines.includes(row.engine_code))
+      .filter((row) => params.get('filter[is_valid]') !== 'true' || row.facts?.is_valid === true)
+      .slice(0, Number(params.get('limit') ?? 200));
+    return HttpResponse.json({ data: kept, page: { has_more: false, next_cursor: null, limit: 200 } });
+  };
 const serveTwoAnswers = (): void =>
   server.use(
-    http.get(LIST, () =>
-      HttpResponse.json({ data: [CHATGPT_ROW, GEMINI_ROW], page: { has_more: false, next_cursor: null, limit: 200 } }),
-    ),
+    http.get(LIST, listOf([CHATGPT_ROW, GEMINI_ROW])),
     http.get(DETAIL, ({ params }) =>
       HttpResponse.json({ data: detail(params.observation_id === '3000002' ? CHATGPT_ROW : GEMINI_ROW) }),
     ),
@@ -244,6 +255,43 @@ describe('the tabs of the prompt inspector', () => {
     expect(await within(await panel()).findByRole('tab', { name: 'Latest' })).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('falls back to Latest for the tab of the topic drawer a prompt was opened from', async () => {
+    // The topic drawer's Prompts tab is `itab=prompts`; the prompt has no tab of that name
+    renderOn('viewer', openedOn('prompts'));
+    expect(await within(await panel()).findByRole('tab', { name: 'Latest' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('reads only what the tab shown draws on', async () => {
+    serveTwoAnswers();
+    const lists: URLSearchParams[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (url.pathname.endsWith('/ai/observations')) lists.push(url.searchParams);
+    });
+    // Latest: one row of the newest valid answer of each engine over the widest window, and none of the window's list
+    const first = renderOn('viewer', opened);
+    await within(await panel()).findByText('gpt-5');
+    expect(lists.length).toBeGreaterThan(0);
+    expect(lists.every((params) => params.get('limit') === '1' && params.get('filter[is_valid]') === 'true')).toBe(
+      true,
+    );
+    expect(lists.map((params) => params.get('filter[engine_code_in]')).sort()).toEqual(['chatgpt_web', 'gemini_web']);
+    first.unmount();
+    // Stats: no list at all
+    lists.length = 0;
+    const stats = renderOn('viewer', openedOn('stats'));
+    await within(await panel()).findByRole('heading', { name: 'ChatGPT' });
+    await screen.findByText(/^The interval is the 95 percent Wilson interval/);
+    expect(lists).toEqual([]);
+    stats.unmount();
+    // History: the window's list, once, and nothing of Latest
+    renderOn('viewer', openedOn('history'));
+    await within(await panel()).findByRole('table', { name: 'Answers to this prompt' });
+    expect(lists).toHaveLength(1);
+    expect(lists[0]?.get('limit')).toBe('200');
+    expect(lists[0]?.get('filter[is_valid]')).toBeNull();
+  });
+
   it('keeps the tab while J and K, or Next, step to another prompt', async () => {
     const { user } = renderOn('viewer', openedOn('stats'));
     const inspector = await panel();
@@ -273,7 +321,7 @@ describe('the Latest tab', () => {
     expect(marks[0]?.tagName).toBe('MARK');
     expect(within(chatgpt).queryByText('Rankforge')).toBeNull();
     expect(chatgpt.textContent).not.toContain('follows far behind');
-    expect(within(chatgpt).getByText('First mentioned')).toBeInTheDocument();
+    expect(within(chatgpt).getByText('Mentioned first among the tracked brands')).toBeInTheDocument();
     expect(within(chatgpt).getByText('Mentioned')).toBeInTheDocument();
     expect(within(chatgpt).getByText('Cited')).toBeInTheDocument();
     // No rank and no recommendation: only where the brand stands among the brands named
@@ -306,9 +354,7 @@ describe('the Latest tab', () => {
   it('says why an engine has no valid answer when its newest answer failed, in the words of the viewer', async () => {
     const failed: ObservationSummary = { ...GEMINI_ROW, status: 'error', facts: null };
     server.use(
-      http.get(LIST, () =>
-        HttpResponse.json({ data: [CHATGPT_ROW, failed], page: { has_more: false, next_cursor: null, limit: 200 } }),
-      ),
+      http.get(LIST, listOf([CHATGPT_ROW, failed])),
       http.get(DETAIL, ({ params }) =>
         HttpResponse.json({
           data:
@@ -320,12 +366,86 @@ describe('the Latest tab', () => {
     );
     renderOn('viewer', opened);
     const inspector = await panel();
-    expect(await within(inspector).findByText('No valid answer yet on Gemini')).toBeInTheDocument();
+    expect(await within(inspector).findByText('No valid answer on Gemini in the last 90 days')).toBeInTheDocument();
     expect(
       within(inspector).getByText(
         'The provider had an error while it answered. The answer is left out of every count.',
       ),
     ).toBeInTheDocument();
+  });
+
+  it('looks for the newest answer further back than the window of the page', async () => {
+    // The newest valid answer of ChatGPT is 9 days old, and the window of the page is 7
+    const old: ObservationSummary = {
+      ...CHATGPT_ROW,
+      observed_at: '2026-11-03T02:00:00Z',
+      observed_date: '2026-11-03',
+    };
+    server.use(
+      http.get(LIST, listOf([old])),
+      http.get(DETAIL, () => HttpResponse.json({ data: detail(old) })),
+    );
+    const asked: URLSearchParams[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (url.pathname.endsWith('/ai/observations')) asked.push(url.searchParams);
+    });
+    renderOn('viewer', `${opened}&window=7`);
+    const inspector = await panel();
+    expect(await within(inspector).findByText('gpt-5')).toBeInTheDocument();
+    expect(within(inspector).queryByText(/No valid answer on ChatGPT/)).toBeNull();
+    expect(asked[0]?.get('from')).toBe('2026-08-15');
+    expect(asked[0]?.get('to')).toBe('2026-11-12');
+  });
+
+  it('marks a partial answer, and says so when a valid answer has no text', async () => {
+    const partial: ObservationSummary = { ...CHATGPT_ROW, status: 'partial' };
+    server.use(
+      http.get(LIST, listOf([partial, GEMINI_ROW])),
+      http.get(DETAIL, ({ params }) =>
+        HttpResponse.json({
+          data:
+            params.observation_id === '3000002'
+              ? detail(partial)
+              : { ...detail(GEMINI_ROW), answer_text: null, mentions: [] },
+        }),
+      ),
+    );
+    renderOn('viewer', opened);
+    const inspector = await panel();
+    const chatgpt = (await within(inspector).findByRole('heading', { name: 'ChatGPT' })).closest('section');
+    const gemini = within(inspector).getByRole('heading', { name: 'Gemini' }).closest('section');
+    if (chatgpt === null || gemini === null) throw new Error('A card is missing');
+    expect(await within(chatgpt).findByText('Partial')).toBeInTheDocument();
+    expect(within(chatgpt).getByText('The answer was cut off. It counts with what it holds.')).toBeInTheDocument();
+    expect(await within(gemini).findByText('The answer text is not available.')).toBeInTheDocument();
+    expect(within(gemini).queryByText(/has not been read yet/)).toBeNull();
+    // The facts and the button to the viewer stay
+    expect(within(gemini).getByRole('button', { name: 'Open the full answer from Gemini' })).toBeInTheDocument();
+  });
+
+  it('gives the relative time a tab stop, so the keyboard reaches its tooltip', async () => {
+    serveTwoAnswers();
+    renderOn('viewer', opened);
+    const inspector = await panel();
+    const time = (await within(inspector).findAllByText('10h ago'))[0];
+    expect(time?.closest('time')).toHaveAttribute('tabindex', '0');
+  });
+
+  it('says one error for the newest answers when their read fails, and reads them again on Try again', async () => {
+    serveTwoAnswers();
+    let failing = true;
+    server.use(
+      http.get(LIST, (info) =>
+        failing ? HttpResponse.json({ code: 'boom' }, { status: 500 }) : listOf([CHATGPT_ROW, GEMINI_ROW])(info),
+      ),
+    );
+    const { user } = renderOn('viewer', opened);
+    const inspector = await panel();
+    expect(await within(inspector).findAllByText('The answers could not be loaded.')).toHaveLength(1);
+    failing = false;
+    await user.click(within(inspector).getByRole('button', { name: 'Try again' }));
+    expect(await within(inspector).findByText('gpt-5')).toBeInTheDocument();
   });
 
   it('fails one card on its own, with a retry', async () => {
@@ -349,31 +469,36 @@ describe('the Latest tab', () => {
 });
 
 describe('the History tab', () => {
-  it('has the weekly rates as a table for assistive technology, and the events', async () => {
-    renderOn('viewer', openedOn('history'));
+  it('plots the trailing four weeks of each engine with a band, and says the numbers in the Table view', async () => {
+    const { user } = renderOn('viewer', openedOn('history'));
     const inspector = await panel();
-    const table = await within(inspector).findByRole('table', { name: 'Weekly mention rate of this prompt' });
-    const headers = within(table)
-      .getAllByRole('columnheader')
-      .map((cell) => cell.textContent);
-    expect(headers).toEqual(['Week of', 'ChatGPT', 'Gemini']);
-    // A week over enough valid answers says its rate and its counts; the mock answers twice a week
-    expect(within(table).getAllByText(/^\d+%, \d+ of \d+ answers/).length).toBeGreaterThan(0);
-    expect(within(inspector).getByRole('img', { name: 'Mention rate by engine' })).toBeInTheDocument();
+    expect(await within(inspector).findByRole('img', { name: 'Mention rate by engine' })).toBeInTheDocument();
+    // The frame's own table is the one text equivalent: there is no second, hidden one
+    expect(within(inspector).queryByRole('table', { name: 'Mention rate by engine' })).toBeNull();
+    await user.click(within(inspector).getByRole('button', { name: 'Table' }));
+    const table = within(inspector).getByRole('table', { name: 'Mention rate by engine' });
     expect(
-      within(inspector).getByText(/Interval computed in the browser; the server will provide it later/),
+      within(table)
+        .getAllByRole('columnheader')
+        .map((cell) => cell.textContent),
+    ).toEqual(['4 weeks to', 'ChatGPT', 'Gemini']);
+    // A point over enough valid answers says its rate, its counts and its interval
+    expect(within(table).getAllByText(/^\d+%, \d+ of \d+ answers, 95% interval \d+% to \d+%$/).length).toBeGreaterThan(
+      0,
+    );
+    expect(
+      within(inspector).getByText(/Each point is the share of valid answers that name your brand/),
     ).toBeInTheDocument();
+    expect(within(inspector).queryByText(/computed in the browser/i)).toBeNull();
     const events = within(inspector).getByRole('list', { name: 'Events of this prompt' });
     expect(within(events).getByText('Prompt added')).toBeInTheDocument();
-    // One line for each engine. A prompt is asked twice a week, so no week has the four valid answers an interval
-    // needs: every point is hollow and there is no band
-    const series = (echartOptions.at(-1)?.series ?? []) as { id: string; data: unknown[] }[];
-    expect(series.map((entry) => entry.id)).toEqual(['chatgpt_web', 'gemini_web']);
-    const points = series[0]?.data.filter((point) => point !== null) ?? [];
-    expect(points.length).toBeGreaterThan(0);
-    expect(
-      points.every((point) => typeof point === 'object' && (point as { symbolSize?: number }).symbolSize === 5),
-    ).toBe(true);
+    // One line for each engine, with the band of the engines that have a point over four valid answers
+    const series = (echartOptions.at(-1)?.series ?? []) as { id: string }[];
+    expect(series.filter((entry) => !entry.id.includes(':band')).map((entry) => entry.id)).toEqual([
+      'chatgpt_web',
+      'gemini_web',
+    ]);
+    expect(series.some((entry) => entry.id === 'chatgpt_web:band')).toBe(true);
   });
 
   it('lists a change of the model an engine reports', async () => {
@@ -383,11 +508,7 @@ describe('the History tab', () => {
       observed_at: '2026-11-05T02:00:00Z',
       model_reported: 'gpt-4.1',
     };
-    server.use(
-      http.get(LIST, () =>
-        HttpResponse.json({ data: [CHATGPT_ROW, older], page: { has_more: false, next_cursor: null, limit: 200 } }),
-      ),
-    );
+    server.use(http.get(LIST, listOf([CHATGPT_ROW, older])));
     renderOn('viewer', openedOn('history'));
     const inspector = await panel();
     expect(await within(inspector).findByText('Answer model changed on ChatGPT: gpt-4.1 to gpt-5')).toBeInTheDocument();
@@ -416,18 +537,30 @@ describe('the Competitors tab', () => {
   it('says no competitor was named when the answers name none', async () => {
     const quiet = (row: ObservationSummary): ObservationSummary =>
       row.facts === null ? row : { ...row, facts: { ...row.facts, competitor_mentions: [] } };
-    server.use(
-      http.get(LIST, () =>
-        HttpResponse.json({
-          data: [quiet(CHATGPT_ROW), quiet(GEMINI_ROW)],
-          page: { has_more: false, next_cursor: null, limit: 200 },
-        }),
-      ),
-    );
+    server.use(http.get(LIST, listOf([quiet(CHATGPT_ROW), quiet(GEMINI_ROW)])));
     renderOn('viewer', openedOn('competitors'));
+    const inspector = await panel();
     expect(
-      await within(await panel()).findByText('No competitor was named in the answers of this window'),
+      await within(inspector).findByText('No competitor was named in the answers of this window'),
     ).toBeInTheDocument();
+    // The own brand stays in view, with its own count
+    const table = within(inspector).getByRole('table', { name: 'Brands named in the answers to this prompt' });
+    expect(within(table).getAllByRole('row')).toHaveLength(2);
+    expect(within(table).getByText('Fynix')).toBeInTheDocument();
+  });
+
+  it('counts only the engines that are on in All, and falls back to All when the engine chosen is turned off', async () => {
+    serveTwoAnswers();
+    const gemini = promptsOf(fynix.project_id).engines.find((engine) => engine.engine_code === 'gemini_web');
+    if (gemini === undefined) throw new Error('The Gemini fixture is missing');
+    gemini.is_enabled = false;
+    renderOn('viewer', openedOn('competitors'));
+    const inspector = await panel();
+    const table = await within(inspector).findByRole('table', { name: 'Brands named in the answers to this prompt' });
+    // The list holds a Gemini answer too: it is no part of All
+    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('1 of 1 answer');
+    expect(within(inspector).queryByRole('radio', { name: 'Gemini' })).toBeNull();
+    expect(within(inspector).getByRole('radio', { name: 'All' })).toBeChecked();
   });
 });
 
@@ -449,9 +582,10 @@ describe('the Stats tab', () => {
     expect(citation).toHaveTextContent('4 of 6 valid answers');
     expect(
       within(inspector).getByText(
-        'Wilson interval over valid answers in this window. Computed in the browser until the server provides it.',
+        'The interval is the 95 percent Wilson interval over the valid answers of this window.',
       ),
     ).toBeInTheDocument();
+    expect(within(inspector).queryByText(/server provides it/)).toBeNull();
   });
 
   it('shows the sample and no interval below the minimum of valid answers', async () => {

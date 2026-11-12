@@ -36,10 +36,14 @@ export function InspectorCompetitors({ scope, counts, engines, answers }: Inspec
   const t = useTranslations('prompts.inspector');
   const words = useTranslations('prompts.inspector.competitors');
   const common = useTranslations('common');
-  const [engine, setEngine] = useState<string>(ALL_ENGINES);
+  const [chosen, setEngine] = useState<string>(ALL_ENGINES);
   const entities = useQuery(projectEntitiesQuery(scope));
   const colors = new Map((entities.data?.data ?? []).map((entry) => [entry.entity.entity_id, entry.color_index]));
-  const result = competitorCounts(answers.rows, counts.entities, engine);
+  // The list keeps the answers of an engine that was turned off: they are no part of "All", and a choice of that
+  // engine falls back to All
+  const codes: string[] = engines.map((entry) => entry.engine.engine_code);
+  const engine = codes.includes(chosen) ? chosen : ALL_ENGINES;
+  const result = competitorCounts(answers.rows, counts.entities, engine, codes);
 
   const columns: PlainColumn<CompetitorRow>[] = [
     {
@@ -124,13 +128,13 @@ export function InspectorCompetitors({ scope, counts, engines, answers }: Inspec
       <div className="flex flex-col gap-3">
         <p className="type-meta">{words('explain')}</p>
         {answers.hasMore ? <p className="type-meta">{words('basedOn', { count: answers.rows.length })}</p> : null}
-        {nothing ? (
-          empty
-        ) : (
+        {nothing ? empty : null}
+        {/* The own brand stays in view when no competitor is named; with no answer there is nothing to count */}
+        {result.tracked === 0 || result.answers === 0 ? null : (
           <PlainTable<CompetitorRow>
             caption={words('caption')}
             columns={columns}
-            rows={result.rows}
+            rows={result.named ? result.rows : result.rows.filter((row) => row.own)}
             rowKey={(row) => row.entityId}
             status="ready"
             errorState={null}

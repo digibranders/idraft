@@ -4,7 +4,7 @@ import { History, LineChart, ListChecks, Plus, Sparkles } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useMemo, type ReactElement } from 'react';
 
-import { engineRole, historyEvents, rateCeiling, weeklyHistory, type WeekPoint } from './history-model';
+import { engineRole, historyEvents, POOLED_WEEKS, rateCeiling, weeklyHistory, type WeekPoint } from './history-model';
 import type { PromptAnswers, PromptCounts } from './inspector-reads';
 import { outcomeKey, type DateRange } from './prompt-model';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
@@ -17,7 +17,14 @@ import { Icon } from '@/components/ui/icon';
 import type { ObservationSummary, ProjectEngine } from '@/lib/api/types';
 import { rateBandOption, type RateBandPoint } from '@/lib/charts/rate-band-chart';
 import type { ChartTokens } from '@/lib/design/read-tokens';
-import { formatChartDate, formatDateRange, formatPercent, formatTableDate, formatTableDateTime } from '@/lib/format';
+import {
+  formatChartDate,
+  formatDateRange,
+  formatInterval,
+  formatPercent,
+  formatTableDate,
+  formatTableDateTime,
+} from '@/lib/format';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 /** The answers the table lists. */
@@ -77,9 +84,27 @@ export function InspectorHistory({
         value: formatRate(point.value),
         basis: rate('basis', { successes: point.k, answers: point.n }),
       };
-      return point.thin ? history('cellThin', values) : history('cell', values);
+      if (point.thin) return history('cellThin', values);
+      return point.band === null
+        ? history('cellPlain', values)
+        : history('cell', { ...values, interval: formatInterval(point.band.low, point.band.high) });
     },
     [history, rate],
+  );
+  /** What each point pools, in words: "4 weeks to Oct 26" (fewer weeks for the first points). */
+  const titles = useMemo(
+    () =>
+      (model?.weeks ?? []).map((week, at) =>
+        history('pointTitle', { weeks: Math.min(POOLED_WEEKS, at + 1), date: formatChartDate(week) }),
+      ),
+    [model, history],
+  );
+  const cellText = useCallback(
+    (seriesId: string, index: number): string | null => {
+      const point = model?.engines.find((engine) => engine.engineCode === seriesId)?.points[index] ?? null;
+      return point === null ? null : weekText(point);
+    },
+    [model, weekText],
   );
   const bands = useMemo((): Record<string, (RateBandPoint | null)[]> => {
     const bySeries: Record<string, (RateBandPoint | null)[]> = {};
@@ -95,11 +120,12 @@ export function InspectorHistory({
     (option: Record<string, unknown>, tokens: ChartTokens): Record<string, unknown> =>
       rateBandOption(option, tokens, {
         points: bands,
+        titles,
         ceiling,
         // The band is a little stronger on the dark ground (15 section 4); the theme is a class of the page
         dark: document.documentElement.classList.contains('dark'),
       }),
-    [bands, ceiling],
+    [bands, titles, ceiling],
   );
 
   const chartTitle = history('chartTitle');
@@ -149,6 +175,7 @@ export function InspectorHistory({
           kind="line"
           categories={model.weeks.map((week) => formatChartDate(week))}
           categoryHeader={history('weekColumn')}
+          cellText={cellText}
           series={model.engines.map((engine) => ({
             id: engine.engineCode,
             name: labelOf(engine.engineCode),
@@ -159,36 +186,12 @@ export function InspectorHistory({
           height={180}
           summary={history('chartSummary', {
             engines: model.engines.map((engine) => labelOf(engine.engineCode)).join(', '),
-            weeks: model.weeks.length,
             from: formatChartDate(model.weeks[0] ?? range.from),
             to: formatChartDate(model.weeks.at(-1) ?? range.to),
           })}
           status="ready"
           extendOption={extendOption}
         />
-        <table className="sr-only">
-          <caption>{history('tableCaption')}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{history('weekColumn')}</th>
-              {model.engines.map((engine) => (
-                <th key={engine.engineCode} scope="col">
-                  {labelOf(engine.engineCode)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {model.weeks.map((week, index) => (
-              <tr key={week}>
-                <th scope="row">{formatChartDate(week)}</th>
-                {model.engines.map((engine) => (
-                  <td key={engine.engineCode}>{weekText(engine.points[index] ?? null)}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
     ));
 

@@ -38,6 +38,8 @@ import {
   topicOriginOf,
   topicSummaryRow,
   topicTermsOf,
+  trailingRange,
+  WIDEST_WINDOW,
   WINDOW_DAYS,
   windowRange,
 } from './prompt-model';
@@ -648,6 +650,18 @@ describe('the topic a prompt was opened from', () => {
     expect(topicOriginOf(origin, { ...open, projectId: 'other' })).toBeNull();
     expect(topicOriginOf(origin, { ...open, promptId: null })).toBeNull();
     expect(topicOriginOf(null, open)).toBeNull();
+  });
+});
+
+describe('the widest window of the API', () => {
+  it('ends on the day the page ends on and holds 90 days, both included: 92 would be refused across a clock change', () => {
+    expect(trailingRange('2026-11-12', WIDEST_WINDOW)).toEqual({ from: '2026-08-15', to: '2026-11-12' });
+    expect(WIDEST_WINDOW).toBe(90);
+  });
+
+  it('counts calendar days across a month and a year, whatever the zone', () => {
+    expect(trailingRange('2026-01-05', 7)).toEqual({ from: '2025-12-30', to: '2026-01-05' });
+    expect(trailingRange('2026-03-01', 2)).toEqual({ from: '2026-02-28', to: '2026-03-01' });
   });
 });
 

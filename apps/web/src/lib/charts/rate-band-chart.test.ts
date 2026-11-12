@@ -38,6 +38,8 @@ const base = (ids: readonly string[] = ['a', 'b']): Record<string, unknown> => (
     id,
     name: `Engine ${id}`,
     type: 'line',
+    // The marker shape of the engine, which tells the series apart without colour
+    symbol: id === 'b' ? 'rect' : 'circle',
     color: tokens.palette[index],
     data: id === 'b' ? [0.5, null, null] : [0.5, 0.75, null],
   })),
@@ -88,7 +90,8 @@ describe('the rate chart with its Wilson bands', () => {
     const [first] = series.filter((entry) => entry.id === 'b');
     expect(first?.data[0]).toMatchObject({
       value: 0.5,
-      symbol: 'circle',
+      // Hollow, and still the marker shape of its engine
+      symbol: 'rect',
       symbolSize: 5,
       itemStyle: { color: '#elevated', borderColor: '#c2', borderWidth: 2 },
     });
@@ -114,6 +117,30 @@ describe('the rate chart with its Wilson bands', () => {
     const gap = formatter([{ dataIndex: 2, axisValueLabel: 'Oct 26' }]);
     expect(gap).toContain('Oct 26');
     expect(gap).not.toContain('Engine a');
+  });
+
+  it('titles the tooltip with the words a caller gives for the point, else with the category', () => {
+    const option = rateBandOption(base(), tokens, {
+      points,
+      ceiling: 0.9,
+      dark: false,
+      titles: ['4 weeks to Oct 12'],
+    });
+    const formatter = (option.tooltip as { formatter: (params: unknown[]) => string }).formatter;
+    expect(formatter([{ dataIndex: 0, axisValueLabel: 'Oct 12' }])).toContain('4 weeks to Oct 12');
+    expect(formatter([{ dataIndex: 1, axisValueLabel: 'Oct 19' }])).toContain('Oct 19');
+  });
+
+  it('lists the engines of the week by value, the highest first', () => {
+    const option = rateBandOption(base(), tokens, {
+      points: { a: [point(0.25, null, false, 'LOW')], b: [point(0.75, null, false, 'HIGH')] },
+      ceiling: 0.9,
+      dark: false,
+    });
+    const formatter = (option.tooltip as { formatter: (params: unknown[]) => string }).formatter;
+    const html = formatter([{ dataIndex: 0, axisValueLabel: 'Oct 12' }]);
+    expect(html.indexOf('HIGH')).toBeGreaterThan(-1);
+    expect(html.indexOf('HIGH')).toBeLessThan(html.indexOf('LOW'));
   });
 
   it('never lets a name reach the tooltip as markup', () => {

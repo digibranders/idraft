@@ -1,3 +1,4 @@
+import { escapeHtml } from './category-chart';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 
 /**
@@ -24,6 +25,8 @@ export interface RateBandExtras {
   /** The top of the axis, a ratio. */
   ceiling: number;
   dark: boolean;
+  /** The title of the tooltip for each category, where the category's own label is not all there is to say. */
+  titles?: readonly string[] | undefined;
 }
 
 const BAND_OPACITY = { light: 0.12, dark: 0.18 } as const;
@@ -33,12 +36,10 @@ interface SeriesOption {
   id?: string;
   name?: string;
   color?: string;
+  symbol?: string;
   data?: readonly unknown[];
   [key: string]: unknown;
 }
-
-const escapeHtml = (text: string): string =>
-  text.replace(/[&<>"']/g, (character) => `&#${String(character.codePointAt(0) ?? 0)};`);
 
 interface TooltipParam {
   dataIndex?: number;
@@ -48,7 +49,7 @@ interface TooltipParam {
 export function rateBandOption(
   base: Record<string, unknown>,
   tokens: ChartTokens,
-  { points, ceiling, dark }: RateBandExtras,
+  { points, ceiling, dark, titles }: RateBandExtras,
 ): Record<string, unknown> {
   const shown = (Array.isArray(base.series) ? base.series : []) as SeriesOption[];
   const opacity = dark ? BAND_OPACITY.dark : BAND_OPACITY.light;
@@ -62,7 +63,8 @@ export function rateBandOption(
         return at?.thin === true && typeof value === 'number'
           ? {
               value,
-              symbol: 'circle',
+              // Hollow, and still the marker shape of its engine: the shapes tell the series apart without colour
+              symbol: entry.symbol ?? 'circle',
               symbolSize: HOLLOW_SIZE,
               itemStyle: { color: tokens.surfaceElevated, borderColor: entry.color, borderWidth: 2 },
             }
@@ -97,12 +99,17 @@ export function rateBandOption(
   const formatter = (params: readonly TooltipParam[]): string => {
     const [first] = params;
     const index = first?.dataIndex ?? -1;
-    const rows = shown.flatMap((entry) => {
-      const at = points[entry.id ?? '']?.[index];
-      if (at == null) return [];
+    // Best first (15-data-visualization.md, the time series tooltip): a point with no value comes last
+    const ranked = shown
+      .flatMap((entry) => {
+        const at = points[entry.id ?? '']?.[index];
+        return at == null ? [] : [{ entry, at }];
+      })
+      .sort((a, b) => (b.at.value ?? -1) - (a.at.value ?? -1));
+    const rows = ranked.map(({ entry, at }) => {
       return `<div style="display:flex;gap:8px;align-items:center"><span style="width:8px;height:8px;border-radius:50%;background:${escapeHtml(entry.color ?? tokens.other)}"></span><span style="color:${tokens.foregroundSecondary}">${escapeHtml(entry.name ?? '')}</span><span style="margin-left:auto;font-variant-numeric:tabular-nums">${escapeHtml(at.tip)}</span></div>`;
     });
-    return `<div style="font-size:14px;line-height:20px;font-weight:600;margin-bottom:4px">${escapeHtml(first?.axisValueLabel ?? '')}</div>${rows.join('')}`;
+    return `<div style="font-size:14px;line-height:20px;font-weight:600;margin-bottom:4px">${escapeHtml(titles?.[index] ?? first?.axisValueLabel ?? '')}</div>${rows.join('')}`;
   };
 
   return {
