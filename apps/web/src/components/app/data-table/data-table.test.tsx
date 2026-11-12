@@ -80,7 +80,10 @@ function Harness({
   pinActions = false,
   columnGroups = false,
   startDensity,
+  search: searchFromOutside,
 }: {
+  /** A search the page sets from outside (a link, the browser's Back), over what was typed in the table. */
+  search?: string;
   pinActions?: boolean;
   columnGroups?: boolean;
   startDensity?: Density;
@@ -99,7 +102,8 @@ function Harness({
   const [sort, setSort] = useState<readonly SortKey[]>(DEFAULT_SORT);
   const [density, setDensity] = useState<Density>(startDensity ?? parseDensity(null));
   const [visible, setVisible] = useState<readonly string[] | null>(null);
-  const [search, setSearch] = useState('');
+  const [typed, setSearch] = useState('');
+  const search = searchFromOutside ?? typed;
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [allMatching, setAllMatching] = useState(false);
   return (
@@ -2565,5 +2569,118 @@ describe('DataTable pinned actions column', () => {
     const { container } = renderWithProviders(<Harness rows={rowsOf(3)} pinActions />);
     scrollTo(0);
     expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('DataTable server paging and Select all N matching', () => {
+  const PAGE_ONE = rowsOf(200).slice(0, 100);
+  const PAGE_TWO = rowsOf(200).slice(100);
+  const SERVER_ONE: ServerPaging = { ...SERVER_PAGE, offset: 0, hasPrevious: false };
+  const SERVER_TWO: ServerPaging = { ...SERVER_PAGE, offset: 100 };
+  const ALL_ON_PAGE = 'Select all 100 keywords loaded';
+  const ANNOUNCEMENT = 'All 4,812 matching keywords selected. Bulk actions apply to all of them.';
+  const offerOf = (): HTMLElement | null => within(bulkBar()).queryByRole('button', { name: /matching$/ });
+  const liveRegion = (): HTMLElement => {
+    const element = document.getElementById('live-region-polite');
+    if (element === null) throw new Error('No live region');
+    return element;
+  };
+
+  it('keeps the selection across server pages: ids from page 1 stay selected on page 2, the bar says so', async () => {
+    const { user, rerender } = renderWithProviders(<Harness rows={PAGE_ONE} server={SERVER_ONE} />);
+    await user.click(screen.getByRole('checkbox', { name: ALL_ON_PAGE }));
+    expect(within(bulkBar()).getByText('100 selected')).toBeInTheDocument();
+    rerender(<Harness rows={PAGE_TWO} server={SERVER_TWO} />);
+    expect(within(bulkBar()).getByText('100 selected')).toBeInTheDocument();
+    expect(within(bulkBar()).getByText('100 selected rows are on other pages')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: ALL_ON_PAGE })).not.toBeChecked();
+    await user.click(screen.getByRole('checkbox', { name: ALL_ON_PAGE }));
+    // Page 1's ids are still on another page, so the bar still says so
+    expect(within(bulkBar()).getByText('200 selected')).toBeInTheDocument();
+    expect(within(bulkBar()).getByText('100 selected rows are on other pages')).toBeInTheDocument();
+  });
+
+  it('offers all matching from a server page once every row of that page is selected, and the header checkbox stays checked on the next page while all matching is on', async () => {
+    const { user, rerender } = renderWithProviders(
+      <Harness rows={PAGE_ONE} server={SERVER_ONE} matchingTotal={4812} />,
+    );
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 000' }));
+    expect(offerOf()).toBeNull();
+    await user.click(screen.getByRole('checkbox', { name: ALL_ON_PAGE }));
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Select all 4,812 matching' }));
+    expect(within(bulkBar()).getByText('All 4,812 matching selected')).toBeInTheDocument();
+    rerender(<Harness rows={PAGE_TWO} server={SERVER_TWO} matchingTotal={4812} />);
+    expect(screen.getByRole('checkbox', { name: ALL_ON_PAGE })).toBeChecked();
+    expect(within(bulkBar()).getByText('All 4,812 matching selected')).toBeInTheDocument();
+    expect(within(bulkBar()).queryByText(/on other pages/)).toBeNull();
+    expect(offerOf()).toBeNull();
+  });
+
+  it('announces that every matching keyword is selected, once', async () => {
+    const spoken: string[] = [];
+    const observer = new MutationObserver(() => {
+      if (liveRegion().textContent === ANNOUNCEMENT) spoken.push(ANNOUNCEMENT);
+    });
+    const { user, rerender } = renderWithProviders(
+      <Harness rows={PAGE_ONE} server={SERVER_ONE} matchingTotal={4812} />,
+    );
+    observer.observe(liveRegion(), { childList: true, characterData: true, subtree: true });
+    await user.click(screen.getByRole('checkbox', { name: ALL_ON_PAGE }));
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Select all 4,812 matching' }));
+    await waitFor(() => expect(liveRegion()).toHaveTextContent(ANNOUNCEMENT));
+    rerender(<Harness rows={PAGE_TWO} server={SERVER_TWO} matchingTotal={4812} />);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    observer.disconnect();
+    expect(spoken).toEqual([ANNOUNCEMENT]);
+  });
+
+  it('sends the filters, not ids: the action gets allMatching true across a page change', async () => {
+    const { user, rerender } = renderWithProviders(
+      <Harness rows={PAGE_ONE} server={SERVER_ONE} matchingTotal={4812} />,
+    );
+    await user.click(screen.getByRole('checkbox', { name: ALL_ON_PAGE }));
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Select all 4,812 matching' }));
+    rerender(<Harness rows={PAGE_TWO} server={SERVER_TWO} matchingTotal={4812} />);
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Archive' }));
+    expect(archive).toHaveBeenCalledTimes(1);
+    expect(archive).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ allMatching: true }));
+  });
+
+  it('keeps Select all N matching out of reach while matchingTotal is null (unknown total)', async () => {
+    const { user } = renderWithProviders(<Harness rows={PAGE_ONE} server={SERVER_ONE} matchingTotal={null} />);
+    await user.click(screen.getByRole('checkbox', { name: ALL_ON_PAGE }));
+    expect(within(bulkBar()).getByText('100 selected')).toBeInTheDocument();
+    expect(offerOf()).toBeNull();
+  });
+
+  it('keeps focus in the bulk bar after Select all N matching', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(5)} matchingTotal={4812} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select all 5 keywords loaded' }));
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Select all 4,812 matching' }));
+    expect(offerOf()).toBeNull();
+    expect(document.activeElement).not.toBe(document.body);
+    expect(bulkBar()).toContainElement(document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    expect(document.activeElement).toHaveTextContent('All 4,812 matching selected');
+    // A way to focus the count, not a tab stop of its own
+    expect(document.activeElement).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('does not offer all matching while a search in memory narrows the loaded rows (client mode)', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(5)} matchingTotal={4812} />);
+    await user.type(screen.getByRole('searchbox', { name: 'Search in table' }), '003');
+    await user.click(screen.getByRole('checkbox', { name: 'Select all 1 keyword loaded' }));
+    expect(within(bulkBar()).getByText('1 selected')).toBeInTheDocument();
+    expect(offerOf()).toBeNull();
+  });
+
+  it('does offer it again when the search is cleared', async () => {
+    const { user, rerender } = renderWithProviders(<Harness rows={rowsOf(5)} matchingTotal={4812} search="003" />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select all 1 keyword loaded' }));
+    expect(offerOf()).toBeNull();
+    rerender(<Harness rows={rowsOf(5)} matchingTotal={4812} search="" />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select all 5 keywords loaded' }));
+    expect(offerOf()).toHaveTextContent('Select all 4,812 matching');
   });
 });

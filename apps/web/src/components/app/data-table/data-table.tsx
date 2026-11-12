@@ -1042,7 +1042,8 @@ export function DataTable<TRow extends RowData>({
         <BulkActionBar
           selectedCount={selectedCount}
           selectedLabel={selectedLabel}
-          matchingTotal={selection.matchingTotal}
+          // A search in memory narrows the loaded rows, and "every matching row" would then not be what is in view
+          matchingTotal={asGiven || needle === '' || searchText === undefined ? selection.matchingTotal : null}
           allLoadedSelected={allLoadedSelected}
           allMatching={allMatching}
           onSelectAllMatching={() => {
