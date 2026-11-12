@@ -46,9 +46,15 @@ Summaries = Annotated[SummaryService, Depends(get_summary_service)]
     "a topic. Each row says when its last counted answer and its last valid one came."
     " `include=series` adds a point for each week the window touches (weeks start on Monday in "
     "the project's timezone), with Mentioned, Cited and Share of voice over the week's "
-    "answers. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for "
-    "each tracked entity (the own ones first, at most 20); across all the entities an answer "
-    "names, its shares add up to 1. Blocks not asked for are left out.",
+    "answers. The first and last points may be partial weeks (cut at the window bounds; the "
+    "first `week_start` can precede `window.from`). On a prompt row the weeks' numerators, "
+    "denominators and n_observations add up to the window cell. On a topic row the weekly "
+    "Mentioned and Cited are prompt weighted per week, so their numerators and denominators "
+    "(sums of per-week prompt rates and prompt counts) do not add up to the window cell, while "
+    "`pooled`, Share of voice and n_observations do. `include=entities` adds, per engine, a "
+    "Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most "
+    "20); across all the entities an answer names, its shares add up to 1. Blocks not asked for "
+    "are left out.",
 )
 async def prompts_summary(
     project_id: UUID,

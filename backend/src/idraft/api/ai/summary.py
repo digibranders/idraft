@@ -167,6 +167,11 @@ def _topic_engine(engine_code: str, members: Sequence[Counts]) -> EngineSummary:
 
 
 def _week(week: date, cells: EngineSummary) -> WeekCells:
+    """One point of a series. The first and last weeks are cut at the window bounds. On a prompt
+    row the weeks add up to the window cell (numerators, denominators, n_observations). On a
+    topic row `mentioned` and `cited` are prompt weighted per week, so their numerators and
+    denominators (sums of per-week prompt rates and prompt counts) do not add up to the window
+    cell; `pooled`, share of voice and n_observations do."""
     return WeekCells(
         week_start=week,
         mentioned=cells.mentioned,

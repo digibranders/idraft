@@ -17,8 +17,10 @@ import httpx
 import pytest
 from sqlalchemy import event
 
+from idraft.api.ai.summary_repository import weekly_counts
 from idraft.api.resources import Resources
 from idraft.collectors.ai_prompt_ingest import ingest
+from idraft.db.engine import workspace_transaction
 from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import ensure_locations, project_url
@@ -1623,7 +1625,12 @@ async def test_a_series_has_a_point_for_each_week_of_the_window(
 
     assert response.status_code == 200, response.text
     data = response.json()["data"]
-    today = datetime.now(UTC).date()
+    # Today is the project's: the summary counts days in the project's timezone (UTC unless set,
+    # core.projects.timezone defaults to it), read here rather than assumed.
+    zone = await fetchrow(
+        migrated, "SELECT timezone FROM core.projects WHERE id = $1", world.project.id
+    )
+    today = datetime.now(ZoneInfo(zone["timezone"])).date()
     weeks = _week_starts(today - timedelta(days=27), today)
     one, two, three = (_monday(today - timedelta(days=7 * n)).isoformat() for n in (1, 2, 3))
     rows = _by(data["prompts"], "prompt_id")
@@ -1706,9 +1713,18 @@ async def test_a_series_follows_the_scope_and_the_engine_filter(
     api: httpx.AsyncClient, summary: Summary
 ) -> None:
     """Only the valid, current, not superseded answers of the prompts and engines in scope are in
-    a week, so the weeks of a row add up to the row's window whatever the options."""
+    a week, so the weeks of a row add up to the row's window whatever the options. On a topic
+    row the weekly Mentioned and Cited numerators and denominators are sums of per-week prompt
+    rates and prompt counts, so they do NOT add up to the window cell: only `pooled`, Share of
+    voice and n_observations do."""
     for params in ({}, {"filter[engine_code_in]": GEMINI}, {"include_branded": "true"}):
         data = (await _summary(summary, api, include="series", **params)).json()["data"]
+        engine_codes = {
+            engine["engine_code"] for row in data["prompts"] for engine in row["engines"]
+        }
+        assert engine_codes == (
+            {GEMINI} if params.get("filter[engine_code_in]") else {CHATGPT, GEMINI}
+        )
         for row in [*data["prompts"], *data["topics"]]:
             for engine in row["engines"]:
                 for name in ("mentioned", "cited", "share_of_voice"):
@@ -1716,11 +1732,47 @@ async def test_a_series_follows_the_scope_and_the_engine_filter(
                     assert (
                         sum(p["n_observations"] for p in points) == engine[name]["n_observations"]
                     )
-                    if row.get("prompt_id"):
+                    is_prompt = bool(row.get("prompt_id"))
+                    if is_prompt or name == "share_of_voice":
                         assert sum(p["denominator"] for p in points) == engine[name]["denominator"]
                         assert sum(p["numerator"] for p in points) == pytest.approx(
                             engine[name]["numerator"]
                         )
+                    else:
+                        assert (
+                            sum(p["pooled"]["successes"] for p in points)
+                            == engine[name]["pooled"]["successes"]
+                        )
+                        assert (
+                            sum(p["pooled"]["trials"] for p in points)
+                            == engine[name]["pooled"]["trials"]
+                        )
+
+
+async def test_the_weekly_counts_follow_the_engine_filter(
+    resources: Resources, summary: Summary
+) -> None:
+    """The weekly read keeps to the engines asked for: the summary looks a week up by prompt and
+    engine, so a read that ignored the filter would show in no response, only in the work done."""
+    providers = summary.prompts["providers"].id
+    now = datetime.now(UTC)
+
+    async def engines(codes: list[str] | None) -> set[str]:
+        async with workspace_transaction(resources.sessions, summary.workspace.id) as db:
+            read = await weekly_counts(
+                db,
+                summary.workspace.id,
+                summary.project.id,
+                [providers],
+                since=now - timedelta(days=28),
+                until=now + timedelta(days=1),
+                engine_codes=codes,
+                timezone="UTC",
+            )
+        return {engine for _, engine, _ in read}
+
+    assert await engines(None) == {CHATGPT, GEMINI}
+    assert await engines([GEMINI]) == {GEMINI}
 
 
 async def test_the_series_is_cut_at_the_window(api: httpx.AsyncClient, summary: Summary) -> None:
@@ -1730,3 +1782,24 @@ async def test_the_series_is_cut_at_the_window(api: httpx.AsyncClient, summary: 
     providers = _by(data["prompts"], "prompt_id")[str(summary.prompts["providers"].id)]
     chatgpt = providers["engines"][0]
     assert sum(p["mentioned"]["n_observations"] for p in chatgpt["series"]) == 6
+
+
+async def test_the_longest_window_has_a_point_for_each_week_it_touches(
+    api: httpx.AsyncClient, summary: Summary
+) -> None:
+    """92 days (`from` and `to` 91 days apart, both included) start and end on the same weekday,
+    so they touch 14 weeks whatever today is: the first week's Monday, then 13 more. The seeded
+    answers are all in the last 28 days, so the weeks before them are zero-filled points."""
+    today = datetime.now(UTC).date()  # The project is in UTC.
+    first = today - timedelta(days=91)
+    response = await _summary(
+        summary, api, include="series", **{"from": first.isoformat(), "to": today.isoformat()}
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    weeks = _week_starts(first, today)
+    assert len(weeks) == 14
+    chatgpt = data["prompts"][0]["engines"][0]
+    assert [point["week_start"] for point in chatgpt["series"]] == weeks
+    assert _cell(chatgpt["series"][0]["mentioned"]) == (0, 0, 0)

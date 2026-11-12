@@ -24,6 +24,13 @@ def test_the_weeks_are_the_mondays_the_days_touch() -> None:
     ]
 
 
+def test_a_one_day_window_touches_the_week_of_that_day() -> None:
+    # 2026-11-12 is a Thursday, 2026-11-09 a Monday, 2026-11-15 a Sunday.
+    assert summary_weeks(date(2026, 11, 12), date(2026, 11, 12)) == [date(2026, 11, 9)]
+    assert summary_weeks(date(2026, 11, 9), date(2026, 11, 9)) == [date(2026, 11, 9)]
+    assert summary_weeks(date(2026, 11, 15), date(2026, 11, 15)) == [date(2026, 11, 9)]
+
+
 def test_the_longest_window_touches_at_most_14_weeks() -> None:
     for offset in range(7):
         first = date(2026, 1, 1) + timedelta(days=offset)

@@ -501,7 +501,12 @@ class EntityCells(BaseModel):
 
 
 class WeekCells(BaseModel):
-    """One week of a series: the week's answers inside the window, weighted as the window's."""
+    """One week of a series: the week's answers inside the window, weighted as the window's. The
+    first and last weeks may be partial (cut at the window bounds), so the first `week_start` can
+    precede `window.from`. On a prompt row the weeks add up to the window cell. On a topic row
+    the weekly `mentioned` and `cited` are prompt weighted per week, so their numerators and
+    denominators do not add up to the window cell, while `pooled`, share of voice and
+    `n_observations` do."""
 
     week_start: date = Field(description="The Monday the week starts on, in the project's zone.")
     mentioned: MetricCell
@@ -519,7 +524,10 @@ class EngineSummary(BaseModel):
         default=None,
         exclude_if=_absent,
         description="With `include=series`: a point for each week the window touches, oldest "
-        "first, at most 14; a week without answers has counts of 0. Left out otherwise.",
+        "first, at most 14; a week without answers has counts of 0. The first and last points "
+        "may be partial weeks (cut at the window bounds). On a prompt row the weeks add up to "
+        "the window cell; on a topic row only `pooled`, share of voice and `n_observations` do, "
+        "as `mentioned` and `cited` are prompt weighted per week. Left out otherwise.",
     )
     entities: list[EntityCells] | None = Field(
         default=None,
