@@ -161,6 +161,22 @@ async def test_a_viewer_is_refused_before_the_new_members_are_looked_at(
     assert problem(response) == FORBIDDEN
 
 
+async def test_a_viewer_is_refused_before_the_new_members_of_a_bulk_create_are_looked_at(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.post(
+        project_url(workspace, project, "prompts", "bulk-create"),
+        json={"items": [prompt_body("Which CRM suits a startup?", is_branded=True)]},
+        headers=viewer.headers,
+    )
+
+    assert problem(response) == FORBIDDEN
+
+
 @pytest.mark.parametrize(
     "extra",
     [
@@ -204,6 +220,40 @@ async def test_if_match_on_a_change_answers_501_and_changes_nothing(
 
     assert problem(changed) == NOT_BUILT
     assert read.json()["data"]["importance"] == 3
+
+
+async def test_a_viewer_is_refused_before_if_match_is_looked_at(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+    (prompt_id,) = await seed_prompts(migrated, workspace, project, 1)
+
+    response = await api.patch(
+        project_url(workspace, project, "prompts", prompt_id),
+        json={"importance": 1},
+        headers={**viewer.headers, "If-Match": '"x"'},
+    )
+
+    assert problem(response) == FORBIDDEN
+
+
+async def test_an_if_match_over_128_characters_is_refused(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    (prompt_id,) = await seed_prompts(migrated, workspace, project, 1)
+
+    response = await api.patch(
+        project_url(workspace, project, "prompts", prompt_id),
+        json={"importance": 1},
+        headers={**editor.headers, "If-Match": '"' + "x" * 128 + '"'},
+    )
+
+    assert problem(response) == INVALID
 
 
 async def test_a_change_without_if_match_works_as_before(
