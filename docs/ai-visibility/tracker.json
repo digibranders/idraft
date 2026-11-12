@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T03:53:49+05:30",
+ "updated": "2026-11-13T04:01:26+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -196,7 +196,7 @@
    "title": "Chart parts: BarList, StackedShareBar, StepBars, IntervalBar",
    "wave": "W1",
    "kind": "web",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-02"
    ],
@@ -215,10 +215,10 @@
    },
    "counts": {
     "total": 1,
-    "done": 0
+    "done": 1
    },
    "owner": "",
-   "notes": "file work-packages/WP-05-chart-bars.md; estimate 5 tasks; decisions none | steps 1/6; plan and T0 on develop; early registry commit and en.json chart.* keys pushed"
+   "notes": "file work-packages/WP-05-chart-bars.md; estimate 5 tasks; decisions none | merged f3d87925; 5329 tests, e2e 15/15; prop differences from inventory section 6 in As built"
   },
   {
    "id": "WP-06",
@@ -247,7 +247,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-06-chart-grids.md; estimate 5 tasks; decisions D-04, D-05 | tasks 0/7; plan on develop; defaults Q3-Q5 accepted"
+   "notes": "file work-packages/WP-06-chart-grids.md; estimate 5 tasks; decisions D-04, D-05 | tasks 2/7; HeatmapGrid + heat-bins + dark seq-5 on develop"
   },
   {
    "id": "WP-07",
@@ -289,12 +289,12 @@
    "title": "App components B: DomainCell, URLCell, count popover, ChangeFeed, inspector stepping",
    "wave": "W1",
    "kind": "web",
-   "status": "not_started",
+   "status": "building",
    "dependsOn": [
     "WP-02"
    ],
-   "session": null,
-   "branch": null,
+   "session": "wp-02-web-scaffold",
+   "branch": "ai/wp-08-app-parts-b",
    "rows": {
     "BE": [],
     "WB": [],
