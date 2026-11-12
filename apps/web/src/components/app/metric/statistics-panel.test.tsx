@@ -67,6 +67,17 @@ describe('StatisticsPanel', () => {
     expect(screen.getByText('250 prompts')).toBeInTheDocument();
   });
 
+  it('shows the count beside the one percent of the single estimate layout', () => {
+    const { container } = render(ready({ estimate: { ...DATA.estimate, observationWeighted: null } }));
+    const percents = Array.from(container.querySelectorAll('span')).filter((node) =>
+      /^\d+(\.\d+)?%$/.test(node.textContent),
+    );
+    expect(percents).toHaveLength(1);
+    expect(percents[0]).toHaveTextContent('34.0%');
+    // The count sits in the same line as the percent, not further down with the prompt count
+    expect(percents[0]?.parentElement?.querySelector('[data-slot="sample-count"]')).toHaveTextContent('612 of 1,800');
+  });
+
   it('unknown is never zero', () => {
     const insufficient = render(
       ready({
