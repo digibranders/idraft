@@ -32,6 +32,42 @@
       "interimTip": "Interim test: unpaired, may understate uncertainty",
       "boundary": "Version boundary: {text}"
     },
+    "sampleCount": {
+      "unit": "{noun, select, observations {obs} answers {{count, plural, one {answer} other {answers}}} checks {{count, plural, one {check} other {checks}}} prompts {{count, plural, one {prompt} other {prompts}}} keywords {{count, plural, one {keyword} other {keywords}}} other {}}",
+      "unitSpoken": "{noun, select, observations {{count, plural, one {observation} other {observations}}} answers {{count, plural, one {answer} other {answers}}} checks {{count, plural, one {check} other {checks}}} prompts {{count, plural, one {prompt} other {prompts}}} keywords {{count, plural, one {keyword} other {keywords}}} other {}}"
+    },
+    "metricInfo": {
+      "trigger": "About {name}",
+      "formula": "Formula: {formula}",
+      "sample": "Sample: {text}",
+      "promptWeighted": "Prompt-weighted: every prompt counts once.",
+      "observationWeighted": "Observation-weighted: every answer counts once.",
+      "methodVersion": "Method version {version}",
+      "openStatistics": "Open statistics",
+      "methodology": "Methodology"
+    },
+    "statistics": {
+      "backTo": "Back to {record}",
+      "partialLead": "Partial data:",
+      "emptyTitle": "No statistics to show",
+      "estimate": "Estimate",
+      "uncertainty": "Uncertainty",
+      "comparison": "Period comparison",
+      "boundaries": "Version boundaries",
+      "promptWeighted": "Prompt-weighted",
+      "observationWeighted": "Observation-weighted",
+      "insufficient": "Insufficient data",
+      "insufficientCounts": "{valid, plural, one {# valid answer} other {# valid answers}}; {required, number} needed",
+      "interval": "95% interval {interval}",
+      "noInterval": "No interval: the estimate has no spread to report for this view",
+      "noIntervalInsufficient": "No interval: too few valid answers",
+      "noComparison": "No earlier period to compare with in this view",
+      "comparedWith": "Compared with {period}",
+      "gainedLost": "Gained in {gained, plural, one {# prompt} other {# prompts}}, lost in {lost, number}",
+      "resultDetectable": "Result: detectable change",
+      "resultWithin": "Result: within normal variation",
+      "noBoundaries": "No version change in this window"
+    },
     "fileDropzone": {
       "dropzone": "Drop a CSV file here, or choose one",
       "dropzoneActive": "Drop to upload",
