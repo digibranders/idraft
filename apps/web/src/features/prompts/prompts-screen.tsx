@@ -718,7 +718,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               onOpenPrompt={openPromptRow}
               onOpenTopic={openTopicDrawer}
               onPromptOrderChange={setOrder}
-              toolbarStart={viewSwitch}
+              viewSwitch={viewSwitch}
             />
           </div>
         ) : (
@@ -754,17 +754,21 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                   void setView({ sort: sameSort(next, DEFAULT_PROMPT_SORT) ? null : formatSort(next) })
                 }
                 defaultSort={DEFAULT_PROMPT_SORT}
+                // The metric of the engine columns, then the view switch, as Rankings has its switch before the icons
                 toolbarEnd={
-                  <div className="w-44">
-                    <Select<RateMetric>
-                      aria-label={t('metric.label')}
-                      size="sm"
-                      value={metric}
-                      onValueChange={(next) => void setView({ metric: next === 'mention' ? null : next })}
-                      placeholder={t('metric.placeholder')}
-                      options={RATE_METRICS.map((value) => ({ value, label: t(`metric.${value}`) }))}
-                    />
-                  </div>
+                  <>
+                    <div className="w-44">
+                      <Select<RateMetric>
+                        aria-label={t('metric.label')}
+                        size="sm"
+                        value={metric}
+                        onValueChange={(next) => void setView({ metric: next === 'mention' ? null : next })}
+                        placeholder={t('metric.placeholder')}
+                        options={RATE_METRICS.map((value) => ({ value, label: t(`metric.${value}`) }))}
+                      />
+                    </div>
+                    {viewSwitch}
+                  </>
                 }
                 density={density}
                 onDensityChange={(next: Density) => void setView({ density: next === DEFAULT_DENSITY ? null : next })}
@@ -784,7 +788,6 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 onRowOpen={(row, intent) => openPromptRow(row.prompt.prompt_id, intent)}
                 activeRowId={selectedPrompt}
                 onRowOrderChange={setOrder}
-                toolbarStart={viewSwitch}
                 compactToolbar
               />
             </div>

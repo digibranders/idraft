@@ -3401,6 +3401,8 @@
       "rollupNote": "A parent row counts every prompt under it, so rows do not add up to the parent.",
       "footerPrompts": "{count, plural, one {# prompt} other {# prompts}}",
       "openTopic": "Open the topic {name}",
+      "childTopics": "{count, plural, one {# topic} other {# topics}}",
+      "promptCount": "{count, plural, one {# prompt} other {# prompts}}",
       "showAll": "{count, plural, one {Show the prompt} other {Show all {count, number} prompts}}",
       "showAllFor": "{count, plural, one {Show the prompt of {name}} other {Show all {count, number} prompts of {name}}}"
     },

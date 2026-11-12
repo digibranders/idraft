@@ -2563,7 +2563,7 @@ Purpose: 48 px bar above the header (the panel title row height; 32 px `h-contro
 interface DataTableToolbarProps { search: Slot; countText: string; sortSummary?: string | null; extras?: Slot; density: Slot; columns: Slot; exportMenu: Slot; updating: boolean }
 ```
 
-- **Variants:** `compact` (opt in through `DataTable` `compactToolbar`, with a `start` slot before the search): the search flexes on a phone, the count is hidden below 640 px and the sort summary is drawn from 1440 px instead of 1280 px; the default is unchanged. **States:** idle, updating (spinner plus "Updating" after 400 ms), new results available (`NewResultsNotice` in this slot).
+- **Variants:** `compact` (opt in through `DataTable` `compactToolbar`): the sort summary is drawn from 1440 px instead of 1280 px, for an end slot that holds more than a view switch; the default is unchanged. **States:** idle, updating (spinner plus "Updating" after 400 ms), new results available (`NewResultsNotice` in this slot).
 - **A11y:** search outside the `Toolbar`; view controls inside a `Toolbar` named "{Caption} table actions". **Use:** every `DataTable`. **Not for:** page filters (`FilterBar`), the saved view menu (page header).
 
 ### 7.3 BulkActionBar

@@ -161,7 +161,6 @@ export function DataTable<TRow extends RowData>({
   rowTree,
   onToggleGroup,
   toolbarEnd,
-  toolbarStart,
   compactToolbar = false,
   identityCap = false,
   bulkActions,
@@ -927,7 +926,6 @@ export function DataTable<TRow extends RowData>({
           updating={showUpdating}
           density={density}
           onDensityChange={onDensityChange}
-          start={toolbarStart}
           compact={compactToolbar}
           end={toolbarEnd}
           columns={(trigger) => (

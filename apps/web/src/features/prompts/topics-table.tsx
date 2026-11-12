@@ -124,8 +124,8 @@ export interface TopicsTableProps {
   onOpenTopic: (key: string, tab: TopicTab, intent: 'inspector' | 'new-tab') => void;
   /** The prompts the open topics list, in the order of the rows, each once: what the inspector steps through. */
   onPromptOrderChange: (promptIds: readonly string[]) => void;
-  /** The switch between the views of the page, at the start of the toolbar. */
-  toolbarStart?: ReactNode;
+  /** The switch between the views of the page, at the end of the toolbar before the density and columns, as on Rankings. */
+  viewSwitch?: ReactNode;
 }
 
 /**
@@ -171,7 +171,7 @@ export function TopicsTable({
   onOpenPrompt,
   onOpenTopic,
   onPromptOrderChange,
-  toolbarStart,
+  viewSwitch,
 }: TopicsTableProps): ReactElement {
   const t = useTranslations('prompts');
   const locale = useLocale();
@@ -200,7 +200,7 @@ export function TopicsTable({
   const columns = useMemo((): DataTableColumn<TopicRow>[] => {
     const name = col.keyword<TopicRow>('topic', rowName, {
       header: t('topics.topic'),
-      // The name column is the one the resolver squeezes first, and a topic's name needs about 240 px to read
+      // Room for a name and the count after it, which the identity column's default leaves too little of
       width: 280,
       minWidth: 240,
       sortable: false,
@@ -209,31 +209,53 @@ export function TopicsTable({
     return [
       {
         ...name,
-        // The name of a topic and the row of "Show all" are buttons: F2 reaches them from the cell
+        // The name of a top level topic and the row of "Show all" are buttons: F2 reaches them from the cell
         hasControls: true,
+        // As Rankings draws its rows: a prompt and a topic under a topic are text, as a keyword is (a click on the row
+        // opens them), a parent is a name with a muted count after it, and "Show all" is a link like "Show more"
         cell: (row) => {
-          if (row.kind === 'prompt') return name.cell(row);
-          const showAll = row.kind === 'more';
-          const button = (
-            <Button
-              {...CELL_CONTROL}
-              variant="link"
-              size="sm"
-              aria-label={showAll ? rowName(row) : t('topics.openTopic', { name: row.name })}
-              className="max-w-full min-w-0 justify-start"
-              onClick={(event) =>
-                openTopic(
-                  row.key,
-                  showAll ? 'prompts' : 'overview',
-                  event.metaKey || event.ctrlKey ? 'new-tab' : 'inspector',
-                )
-              }
-            >
-              <span className="truncate">{showAll ? t('topics.showAll', { count: row.total }) : row.name}</span>
-            </Button>
+          if (row.kind === 'prompt' || (row.kind === 'topic' && row.level === 2)) return name.cell(row);
+          if (row.kind === 'more') {
+            return (
+              <Button
+                {...CELL_CONTROL}
+                variant="link"
+                size="sm"
+                aria-label={rowName(row)}
+                className="max-w-full min-w-0 justify-start"
+                onClick={(event) =>
+                  openTopic(row.key, 'prompts', event.metaKey || event.ctrlKey ? 'new-tab' : 'inspector')
+                }
+              >
+                <span className="truncate">{t('topics.showAll', { count: row.total })}</span>
+              </Button>
+            );
+          }
+          return (
+            <span className="flex min-w-0 items-baseline gap-2">
+              <Button
+                {...CELL_CONTROL}
+                variant="link"
+                size="sm"
+                aria-label={t('topics.openTopic', { name: row.name })}
+                // The text color of a group's name on Rankings; the link color shows on hover
+                className="max-w-full min-w-0 shrink justify-start text-foreground"
+                onClick={(event) =>
+                  openTopic(row.key, 'overview', event.metaKey || event.ctrlKey ? 'new-tab' : 'inspector')
+                }
+              >
+                <span className="truncate">{row.name}</span>
+              </Button>
+              {/* Only a row that opens (its prompts are known) has the count of what it opens onto */}
+              {row.members === null ? null : (
+                <span className="shrink-0 num font-normal text-foreground-tertiary">
+                  {row.childCount > 0
+                    ? t('topics.childTopics', { count: row.childCount })
+                    : t('topics.promptCount', { count: row.promptCount })}
+                </span>
+              )}
+            </span>
           );
-          // How many topics a parent holds is in its chevron's name ("Expand SEO, 2 topics"), not on the row
-          return button;
         },
       },
       blankOnMore(
@@ -436,14 +458,17 @@ export function TopicsTable({
         sort={sort}
         onSortChange={(next) => onSortTextChange(sameSort(next, DEFAULT_TOPIC_SORT) ? null : formatSort(next))}
         defaultSort={DEFAULT_TOPIC_SORT}
-        toolbarStart={toolbarStart}
         compactToolbar
         toolbarEnd={
-          groupKeys.length === 0 ? undefined : (
-            <Button variant="ghost" size="sm" icon={allOpen ? ChevronsDownUp : ChevronsUpDown} onClick={toggleAll}>
-              {t(allOpen ? 'topics.collapseAll' : 'topics.expandAll')}
-            </Button>
-          )
+          <>
+            {groupKeys.length === 0 ? null : (
+              <Button variant="ghost" size="sm" icon={allOpen ? ChevronsDownUp : ChevronsUpDown} onClick={toggleAll}>
+                {/* Icon only on a phone, where the end of the toolbar also holds the switch and two icons */}
+                <span className="sr-only sm:not-sr-only">{t(allOpen ? 'topics.collapseAll' : 'topics.expandAll')}</span>
+              </Button>
+            )}
+            {viewSwitch}
+          </>
         }
         density={density}
         onDensityChange={onDensityChange}

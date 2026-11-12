@@ -958,7 +958,7 @@ describe('Topics & Prompts: the Topics tab', () => {
     // A child is a row of its own, with its own numbers and no disclosure button, and opens the topic's drawer
     expect(within(rowOf(tree, 'Technical SEO')).getByText('4')).toBeInTheDocument();
     expect(rowOf(tree, 'Technical SEO')).not.toHaveAttribute('aria-expanded');
-    expect(within(tree).getByRole('button', { name: 'Open the topic Technical SEO' })).toBeInTheDocument();
+    expect(within(tree).queryByRole('button', { name: 'Open the topic Technical SEO' })).toBeNull();
     expect(within(tree).getByRole('button', { name: 'Collapse SEO, 2 topics' })).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
   });
@@ -984,14 +984,29 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(screen.queryByText(ROLLUP_NOTE)).toBeNull();
   });
 
-  it('says how many topics a parent holds in its chevron, not beside its name where it would cover the next column', async () => {
+  it('reads a parent as Rankings reads a group: its name with a muted count of what it opens onto, as "12 keywords" there', async () => {
     renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
     await within(tree).findByText('Paid Search');
+    const count = within(rowOf(tree, 'SEO')).getByText('2 topics');
+    expect(count).toHaveClass('text-foreground-tertiary', 'shrink-0');
+    expect(within(rowOf(tree, 'Content Marketing')).getByText('1 topic')).toBeInTheDocument();
+    // A topic with none below it opens onto its prompts
+    expect(within(rowOf(tree, 'Paid Search')).getByText('2 prompts')).toBeInTheDocument();
     expect(within(tree).getByRole('button', { name: 'Expand SEO, 2 topics' })).toBeInTheDocument();
-    expect(within(tree).getByRole('button', { name: 'Expand Content Marketing, 1 topic' })).toBeInTheDocument();
-    expect(within(rowOf(tree, 'SEO')).queryByText('2 topics')).toBeNull();
-    expect(within(rowOf(tree, 'Paid Search')).queryByText(/topic/)).toBeNull();
+  });
+
+  it('draws the name of a parent in the text color of a group name, and a topic under it as text that a click on the row opens', async () => {
+    const { user } = renderWithProviders(promptsAs('viewer'));
+    const tree = await treegrid();
+    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 2 topics' }));
+    const name = within(tree).getByRole('button', { name: 'Open the topic SEO' });
+    expect(name).toHaveClass('text-foreground');
+    expect(name).not.toHaveClass('text-link');
+    // The row's height and type are the table's: no class of the topic rows sets them
+    expect(rowOf(tree, 'SEO').className).not.toMatch(/\bh-(9|11)\b/);
+    await user.click(within(tree).getByText('Technical SEO'));
+    expect(await screen.findByRole('complementary', { name: 'Technical SEO' })).toBeInTheDocument();
   });
 
   it('counts the topics and the prompts in the footer, each once: the topics shown with those under them, the prompts in scope', async () => {
@@ -1321,7 +1336,7 @@ describe('Topics & Prompts: the Topics tab', () => {
     await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'Topics' })).toHaveFocus());
   });
 
-  it('is a radio group named for the two views, in the toolbar before the search, and the table keeps its own name', async () => {
+  it('is a radio group named for the two views, at the end of the toolbar before the density and columns as on Rankings, and the table keeps its own name', async () => {
     renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
     const group = screen.getByRole('radiogroup', { name: 'Topics and prompts' });
@@ -1329,7 +1344,10 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(within(group).getByRole('radio', { name: 'Prompts' })).not.toBeChecked();
     expect(within(group).getByRole('radio', { name: 'Topics' })).toBeChecked();
     const search = screen.getByRole('searchbox');
-    expect(group.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(search.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const controls = screen.getByRole('toolbar', { name: /Topics table actions/ });
+    expect(group.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(controls).not.toContainElement(group);
     expect(tree).toHaveAccessibleName('Topics');
     expect(screen.queryByRole('tablist')).toBeNull();
   });
@@ -1924,10 +1942,11 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     within(rowOf(table, name))
       .getAllByRole('gridcell')
       .map((cell) => cell.textContent);
+  // A parent's name is its row's label, which its muted count ("2 prompts") follows in the cell
   const order = (table: HTMLElement): string[] =>
     within(table)
       .getAllByRole('rowheader')
-      .map((cell) => cell.textContent ?? '');
+      .map((cell) => cell.getAttribute('aria-label') ?? cell.textContent ?? '');
 
   it('shows the Mention rate and Citation rate of the engines in scope, an insufficient one as its answers, highest Mention rate first', async () => {
     serveRates();

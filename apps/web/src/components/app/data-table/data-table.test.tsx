@@ -1416,14 +1416,12 @@ describe('DataTable tree mode', () => {
     sort = [],
     selection = {},
     toolbarEnd,
-    toolbarStart,
     rows = TREE_ROWS,
     tree = TREE,
   }: {
     sort?: readonly SortKey[];
     selection?: Partial<Selection>;
     toolbarEnd?: ReactElement;
-    toolbarStart?: ReactElement;
     rows?: Row[];
     tree?: Readonly<Record<string, RowTree>>;
   }): ReactElement {
@@ -1453,7 +1451,6 @@ describe('DataTable tree mode', () => {
           rowTree={(row) => tree[row.id]}
           onToggleGroup={toggle}
           toolbarEnd={toolbarEnd}
-          toolbarStart={toolbarStart}
           status="ready"
           errorState={<p>The keywords did not load.</p>}
           emptyState={<p>No keywords yet.</p>}
@@ -1672,14 +1669,6 @@ describe('DataTable tree mode', () => {
     expect(search.compareDocumentPosition(end) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(end.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(controls).not.toContainElement(end);
-  });
-
-  it('renders toolbarStart first, before the search field', () => {
-    renderWithProviders(<TreeHarness toolbarStart={<button type="button">Topics</button>} />);
-    const start = screen.getByRole('button', { name: 'Topics' });
-    const search = screen.getByRole('searchbox', { name: 'Search in table' });
-    expect(start.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByRole('toolbar', { name: /Keywords/ })).not.toContainElement(start);
   });
 
   it('wraps the toolbar on a narrow table: the switch and the controls drop to a second line together', () => {

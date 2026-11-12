@@ -189,9 +189,7 @@ export interface DataTableProps<TRow> {
   onToggleGroup?: ((row: TRow) => void) | undefined;
   /** A slot at the end of the toolbar, before density and columns: the view switch. */
   toolbarEnd?: ReactNode;
-  /** A slot at the start of the toolbar, before the search: the switch between the views of a page. */
-  toolbarStart?: ReactNode;
-  /** Opt in to the compact toolbar (`DataTableToolbar` `compact`): one row beside a view switch, down to a phone. */
+  /** Opt in to the compact toolbar (`DataTableToolbar` `compact`): the sort summary is drawn from 1440 px, not 1280. */
   compactToolbar?: boolean;
   /**
    * Hold the identity column at its type maximum while the other columns can still widen toward theirs
