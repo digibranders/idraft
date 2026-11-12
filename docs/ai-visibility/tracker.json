@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T01:37:54+05:30",
+ "updated": "2026-11-13T01:44:47+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -282,7 +282,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-07-app-parts-a.md; estimate 5 tasks; decisions none"
+   "notes": "file work-packages/WP-07-app-parts-a.md; estimate 5 tasks; decisions none | tasks 0/7; plan on develop; banner tones: cited=info, not cited=neutral (new additive tone)"
   },
   {
    "id": "WP-08",
@@ -3936,6 +3936,41 @@
    "granted": "2026-11-13T01:37:54+05:30",
    "scope": "one-line additions per package; on rebase keep both sides",
    "until": "all of those merged"
+  },
+  {
+   "path": "apps/web/messages/en.json",
+   "wp": "SHARED WP-07 (and any package adding under common)",
+   "granted": "2026-11-13T01:44:47+05:30",
+   "scope": "additive: new sub-objects only under common: delta, sampleCount, metricInfo, statistics; never reorder or edit others' keys",
+   "until": "WP-07 merged"
+  },
+  {
+   "path": "apps/web/src/features/costs/budget-meter.tsx",
+   "wp": "WP-07",
+   "granted": "2026-11-13T01:44:47+05:30",
+   "scope": "body replaced by re-export of the shared BudgetMeter; costs.test.tsx unchanged",
+   "until": "WP-07 merged"
+  },
+  {
+   "path": "apps/web/src/components/design-system/metric-parts-section.tsx",
+   "wp": "WP-07",
+   "granted": "2026-11-13T01:44:47+05:30",
+   "scope": "new gallery section; registry lines are covered by the shared registry lease",
+   "until": "WP-07 merged"
+  },
+  {
+   "path": "docs/design-system/25-component-inventory.md",
+   "wp": "SHARED WP-07",
+   "granted": "2026-11-13T01:44:47+05:30",
+   "scope": "append one As built line per part",
+   "until": "WP-07 merged"
+  },
+  {
+   "path": "docs/20-frontend-specification.md",
+   "wp": "SHARED WP-07",
+   "granted": "2026-11-13T01:44:47+05:30",
+   "scope": "append As built blockquote in section 6 only",
+   "until": "WP-07 merged"
   }
  ]
 }
