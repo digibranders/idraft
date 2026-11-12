@@ -86,8 +86,8 @@ const WORKLOAD_RULES: Readonly<
     providerModes: ['standard_queue', 'priority_queue'],
     needsSelector: true,
   },
-  // AI answers: every active prompt, on the standard queue, weekly, and as many schedules as the base plan has
-  // runs a week (the backend's `ai_prompt` rules)
+  // AI answers: every active prompt, on the standard queue, twice a week as two weekly schedules (Monday and
+  // Thursday), and at most two schedules a project (the backend's `ai_prompt` rules)
   ai_prompt: {
     selectors: ['all'],
     providerModes: ['standard_queue'],
