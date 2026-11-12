@@ -7405,6 +7405,25 @@
         "title": "Pooled",
         "type": "object"
       },
+      "PreviousUnits": {
+        "properties": {
+          "citation_units": {
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "observations": {
+            "description": "Answers that cited it then.",
+            "title": "Observations",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "citation_units",
+          "observations"
+        ],
+        "title": "PreviousUnits",
+        "type": "object"
+      },
       "Price": {
         "properties": {
           "conditions": {
@@ -12244,6 +12263,17 @@
             "title": "Observations",
             "type": "integer"
           },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreviousUnits"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `compare=previous_period`: its citation units and citing answers over as many days just before the window, 0 when it was not cited there (docs/16 C5). Left out otherwise."
+          },
           "prompts": {
             "description": "Prompts whose answers cite it.",
             "title": "Prompts",
@@ -12353,6 +12383,17 @@
             "title": "Observations",
             "type": "integer"
           },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreviousUnits"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `compare=previous_period`: its citation units and citing answers over as many days just before the window, 0 when it was not cited there (docs/16 C5). Left out otherwise."
+          },
           "prompts": {
             "description": "Prompts whose answers cite it.",
             "title": "Prompts",
@@ -12443,6 +12484,17 @@
             "title": "Citation Units",
             "type": "integer"
           },
+          "compare_window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `compare`: the window `previous` counts, as many days just before."
+          },
           "engine_codes": {
             "items": {
               "$ref": "#/components/schemas/EngineCode"
@@ -12453,6 +12505,18 @@
           "include_branded": {
             "title": "Include Branded",
             "type": "boolean"
+          },
+          "previous_answers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `compare`: the valid answers in scope in that window. 0 means it has no data, so a `previous` of 0 there says nothing about the source.",
+            "title": "Previous Answers"
           },
           "window": {
             "$ref": "#/components/schemas/MetricWindow"
@@ -20178,7 +20242,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains": {
       "get": {
-        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per registrable domain and role (and the entity whose domain rule matched): citation units, answers, prompts, units per engine and `source_share` (its units over every unit in scope; `filter[domain_role_in]` narrows the rows, not the denominator). `meta` states the answers, the units and the units of each role. Offset pages; `sort` is `-citation_units` (default), `-observations` or `-prompts`.",
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per registrable domain and role (and the entity whose domain rule matched): citation units, answers, prompts, units per engine and `source_share` (its units over every unit in scope; `filter[domain_role_in]` narrows the rows, not the denominator). `meta` states the answers, the units and the units of each role. Offset pages; `sort` is `-citation_units` (default), `-observations` or `-prompts`. `compare=previous_period` (default `none`) adds `previous` to each row, its units and citing answers over as many days just before the window (0 when not cited there: docs/16 C5), with `meta.compare_window` and `meta.previous_answers`.",
         "operationId": "source_domains_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_domains_get",
         "parameters": [
           {
@@ -20213,6 +20277,20 @@
                 "-prompts"
               ],
               "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "default": "none",
+              "enum": [
+                "none",
+                "previous_period"
+              ],
+              "title": "Compare",
               "type": "string"
             }
           },
@@ -20398,7 +20476,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages": {
       "get": {
-        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per canonical page and role: as the domain rows, plus the URL, host, registrable domain and a title an answer gave it. `filter[registrable_domain]` keeps one domain's pages, whose units add up to its row's. Offset pages; the same sorts as the domains.",
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per canonical page and role: as the domain rows, plus the URL, host, registrable domain and a title an answer gave it. `filter[registrable_domain]` keeps one domain's pages, whose units add up to its row's. Offset pages; the same sorts as the domains. `compare=previous_period` (default `none`) adds `previous` to each row, its units and citing answers over as many days just before the window (0 when not cited there: docs/16 C5), with `meta.compare_window` and `meta.previous_answers`.",
         "operationId": "source_pages_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_pages_get",
         "parameters": [
           {
@@ -20453,6 +20531,20 @@
                 "-prompts"
               ],
               "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "default": "none",
+              "enum": [
+                "none",
+                "previous_period"
+              ],
+              "title": "Compare",
               "type": "string"
             }
           },

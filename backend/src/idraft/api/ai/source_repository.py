@@ -17,7 +17,7 @@ first and filter the facts as a literal list, and the superseded answers are loo
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Final
@@ -363,6 +363,58 @@ async def page_counts(
         )
         for row in rows
     ], total
+
+
+async def previous_domains(
+    db: AsyncSession, scope: SourceScope, names: Collection[str]
+) -> dict[tuple[str, str, UUID | None], tuple[int, int]]:
+    """The citation units and citing answers of these registrable domains, by role and entity,
+    in the scope: the rows of a page, counted over the window before."""
+    if not names:
+        return {}
+    _, source = _cited(scope)
+    keys = (_D.registrable_domain, _C.domain_role, _C.role_entity_id)
+    rows = await db.execute(
+        select(
+            *keys,
+            func.count(unit()).label("units"),
+            func.count(_C.observation_id.distinct()).label("observations"),
+        )
+        .select_from(source)
+        .where(*citation_bounds(scope), _D.registrable_domain.in_(sorted(names)))
+        .group_by(*keys)
+    )
+    return {
+        (row.registrable_domain, row.domain_role, row.role_entity_id): (
+            row.units,
+            row.observations,
+        )
+        for row in rows
+    }
+
+
+async def previous_pages(
+    db: AsyncSession, scope: SourceScope, url_ids: Collection[int]
+) -> dict[tuple[int, str, UUID | None], tuple[int, int]]:
+    """As `previous_domains`, for pages."""
+    if not url_ids:
+        return {}
+    _, source = _cited(scope)
+    keys = (_C.url_id, _C.domain_role, _C.role_entity_id)
+    rows = await db.execute(
+        select(
+            *keys,
+            func.count(unit()).label("units"),
+            func.count(_C.observation_id.distinct()).label("observations"),
+        )
+        .select_from(source)
+        .where(*citation_bounds(scope), _C.url_id.in_(sorted(url_ids)))
+        .group_by(*keys)
+    )
+    return {
+        (row.url_id, row.domain_role, row.role_entity_id): (row.units, row.observations)
+        for row in rows
+    }
 
 
 async def citation_rows(

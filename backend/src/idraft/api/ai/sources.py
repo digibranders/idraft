@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
-from datetime import date, datetime
+from dataclasses import dataclass, replace
+from datetime import date, datetime, timedelta
 from typing import cast
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -37,7 +37,9 @@ from idraft.api.schemas.ai_sources import (
     CitationRow,
     DomainRole,
     EngineUnits,
+    PreviousUnits,
     RoleUnits,
+    SourceCompare,
     SourceDomainPage,
     SourceDomainRow,
     SourcePagePage,
@@ -168,6 +170,40 @@ def sources_meta(
     )
 
 
+def previous_dates(first: date, last: date) -> tuple[date, date]:
+    """As many local days as `first` to `last`, ending the day before `first`."""
+    try:
+        return first - timedelta(days=(last - first).days + 1), first - timedelta(days=1)
+    except OverflowError:
+        raise out_of_range("from") from None
+
+
+def before(now: Scoped) -> Scoped:
+    """The scope over the window just before `now`'s."""
+    first, last = previous_dates(now.first, now.last)
+    since, until = local_instants(first, last, now.zone)
+    return Scoped(
+        scope=replace(now.scope, since=since, until=until),
+        window=MetricWindow(
+            from_=first.isoformat(), to=last.isoformat(), timezone=now.window.timezone
+        ),
+        first=first,
+        last=last,
+        zone=now.zone,
+    )
+
+
+def previous_units(found: tuple[int, int] | None) -> PreviousUnits:
+    units, seen = found or (0, 0)
+    return PreviousUnits(citation_units=units, observations=seen)
+
+
+def compared(meta: SourcesMeta, prior: Scoped | None, answers: int | None) -> SourcesMeta:
+    if prior is None:
+        return meta
+    return meta.model_copy(update={"compare_window": prior.window, "previous_answers": answers})
+
+
 def _cursor_scope(
     project_id: UUID,
     query: SourceQuery,
@@ -239,15 +275,25 @@ class SourceService:
         query: SourceQuery,
         *,
         sort: SourceSort,
+        compare: SourceCompare = "none",
         page: OffsetParams,
     ) -> SourceDomainPage:
         engines = shown_engines(query.engine_codes)
+        prior: Scoped | None = None
+        found: dict[tuple[str, str, UUID | None], tuple[int, int]] = {}
+        prior_answers: int | None = None
         async with self._transaction(access) as db:
             now = await scoped(db, access, project_id, query, engines)
             rows, total = await repository.domain_counts(
                 db, now.scope, roles=query.roles, sort=sort, offset=page.offset, limit=page.limit
             )
             whole = await repository.totals(db, now.scope)
+            if compare == "previous_period":
+                prior = before(now)
+                found = await repository.previous_domains(
+                    db, prior.scope, {row.registrable_domain for row in rows}
+                )
+                prior_answers = await repository.answer_count(db, prior.scope)
         return SourceDomainPage(
             data=[
                 SourceDomainRow(
@@ -261,11 +307,16 @@ class SourceService:
                     source_share=share(row.counted.citation_units, whole),
                     first_seen_at=row.counted.first_seen_at,
                     last_seen_at=row.counted.last_seen_at,
+                    previous=None
+                    if prior is None
+                    else previous_units(
+                        found.get((row.registrable_domain, row.domain_role, row.role_entity_id))
+                    ),
                 )
                 for row in rows
             ],
             page=OffsetPageInfo(offset=page.offset, limit=page.limit, total=total),
-            meta=sources_meta(now, query, engines, whole),
+            meta=compared(sources_meta(now, query, engines, whole), prior, prior_answers),
         )
 
     async def pages(
@@ -276,9 +327,13 @@ class SourceService:
         *,
         registrable_domain: str | None,
         sort: SourceSort,
+        compare: SourceCompare = "none",
         page: OffsetParams,
     ) -> SourcePagePage:
         engines = shown_engines(query.engine_codes)
+        prior: Scoped | None = None
+        found: dict[tuple[int, str, UUID | None], tuple[int, int]] = {}
+        prior_answers: int | None = None
         async with self._transaction(access) as db:
             now = await scoped(db, access, project_id, query, engines)
             rows, total = await repository.page_counts(
@@ -291,6 +346,12 @@ class SourceService:
                 limit=page.limit,
             )
             whole = await repository.totals(db, now.scope)
+            if compare == "previous_period":
+                prior = before(now)
+                found = await repository.previous_pages(
+                    db, prior.scope, {row.url_id for row in rows}
+                )
+                prior_answers = await repository.answer_count(db, prior.scope)
         return SourcePagePage(
             data=[
                 SourcePageRow(
@@ -308,11 +369,16 @@ class SourceService:
                     source_share=share(row.counted.citation_units, whole),
                     first_seen_at=row.counted.first_seen_at,
                     last_seen_at=row.counted.last_seen_at,
+                    previous=None
+                    if prior is None
+                    else previous_units(
+                        found.get((row.url_id, row.domain_role, row.role_entity_id))
+                    ),
                 )
                 for row in rows
             ],
             page=OffsetPageInfo(offset=page.offset, limit=page.limit, total=total),
-            meta=sources_meta(now, query, engines, whole),
+            meta=compared(sources_meta(now, query, engines, whole), prior, prior_answers),
         )
 
     async def citations(

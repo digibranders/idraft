@@ -17,6 +17,23 @@ from idraft.domain.ai_engines import EngineCode
 
 DomainRole = Literal["own", "competitor", "third_party"]
 SourceSort = Literal["-citation_units", "-observations", "-prompts"]
+SourceCompare = Literal["none", "previous_period"]
+
+
+def _absent(value: object) -> bool:
+    """A block nobody asked for is left out of the answer, not sent as null."""
+    return value is None
+
+
+class PreviousUnits(BaseModel):
+    citation_units: int
+    observations: int = Field(description="Answers that cited it then.")
+
+
+_PREVIOUS = (
+    "With `compare=previous_period`: its citation units and citing answers over as many days "
+    "just before the window, 0 when it was not cited there (docs/16 C5). Left out otherwise."
+)
 
 _UNITS = (
     "Citation units: distinct canonical URLs per answer (docs/16 C2); a URL an answer cites "
@@ -52,6 +69,7 @@ class SourceDomainRow(BaseModel):
     )
     first_seen_at: datetime = Field(description="Its first citation in the window.")
     last_seen_at: datetime = Field(description="Its last citation in the window.")
+    previous: PreviousUnits | None = Field(default=None, exclude_if=_absent, description=_PREVIOUS)
 
 
 class RoleUnits(BaseModel):
@@ -71,6 +89,17 @@ class SourcesMeta(BaseModel):
         "`filter[domain_role_in]` narrows the rows, not this."
     )
     by_role: list[RoleUnits] = Field(description="Own, competitor and third party, each once.")
+    compare_window: MetricWindow | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `compare`: the window `previous` counts, as many days just before.",
+    )
+    previous_answers: int | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `compare`: the valid answers in scope in that window. 0 means it has no "
+        "data, so a `previous` of 0 there says nothing about the source.",
+    )
 
 
 class SourceDomainPage(BaseModel):
@@ -94,6 +123,7 @@ class SourcePageRow(BaseModel):
     source_share: MetricCell
     first_seen_at: datetime
     last_seen_at: datetime
+    previous: PreviousUnits | None = Field(default=None, exclude_if=_absent, description=_PREVIOUS)
 
 
 class SourcePagePage(BaseModel):

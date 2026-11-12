@@ -18,6 +18,7 @@ from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai_sources import (
     CitationPage,
     DomainRole,
+    SourceCompare,
     SourceDomainPage,
     SourcePagePage,
     SourceSort,
@@ -90,6 +91,12 @@ SCOPE = (
     "table: a 28 day window of a full project is about 3,600 answers). "
 )
 
+COMPARE = (
+    " `compare=previous_period` (default `none`) adds `previous` to each row, its units and "
+    "citing answers over as many days just before the window (0 when not cited there: docs/16 "
+    "C5), with `meta.compare_window` and `meta.previous_answers`."
+)
+
 
 @router.get(
     "/sources/domains",
@@ -99,7 +106,7 @@ SCOPE = (
     "citation units, answers, prompts, units per engine and `source_share` (its units over every "
     "unit in scope; `filter[domain_role_in]` narrows the rows, not the denominator). `meta` "
     "states the answers, the units and the units of each role. Offset pages; `sort` is "
-    "`-citation_units` (default), `-observations` or `-prompts`.",
+    "`-citation_units` (default), `-observations` or `-prompts`." + COMPARE,
 )
 async def source_domains(
     project_id: UUID,
@@ -108,8 +115,9 @@ async def source_domains(
     scope: Scope,
     page: Offset,
     sort: SourceSort = "-citation_units",
+    compare: SourceCompare = "none",
 ) -> SourceDomainPage:
-    return await sources.domains(access, project_id, scope, sort=sort, page=page)
+    return await sources.domains(access, project_id, scope, sort=sort, compare=compare, page=page)
 
 
 RegistrableDomain = Annotated[
@@ -129,7 +137,8 @@ RegistrableDomain = Annotated[
     description=SCOPE
     + "One row per canonical page and role: as the domain rows, plus the URL, host, registrable "
     "domain and a title an answer gave it. `filter[registrable_domain]` keeps one domain's "
-    "pages, whose units add up to its row's. Offset pages; the same sorts as the domains.",
+    "pages, whose units add up to its row's. Offset pages; the same sorts as the domains."
+    + COMPARE,
 )
 async def source_pages(
     project_id: UUID,
@@ -139,9 +148,16 @@ async def source_pages(
     page: Offset,
     registrable_domain: RegistrableDomain = None,
     sort: SourceSort = "-citation_units",
+    compare: SourceCompare = "none",
 ) -> SourcePagePage:
     return await sources.pages(
-        access, project_id, scope, registrable_domain=registrable_domain, sort=sort, page=page
+        access,
+        project_id,
+        scope,
+        registrable_domain=registrable_domain,
+        sort=sort,
+        compare=compare,
+        page=page,
     )
 
 
