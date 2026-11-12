@@ -52,6 +52,12 @@ def _codes(model: Any, body: dict[str, Any]) -> list[str]:
         ({"ids": [ID], "set": {"importance": None}}, "null_not_allowed"),
         ({"ids": [ID], "set": {"expected_frequency": "daily"}}, "extra_forbidden"),
         ({"filter": {"importance_in": [6]}, "set": {"is_branded": True}}, "less_than_equal"),
+        ({"ids": [ID] * 1001, "set": {"importance": 1}}, "too_long"),
+        ({"filter": {"q": "x" * 201}, "set": {"importance": 1}}, "string_too_long"),
+        ({"filter": {"intent_in": []}, "set": {"importance": 1}}, "too_short"),
+        ({"filter": {"intent_in": ["commercial"] * 101}, "set": {"importance": 1}}, "too_long"),
+        ({"ids": [ID], "add_term_ids": [TERM] * 21}, "too_long"),
+        ({"ids": [ID], "set": {"importance": 6}}, "less_than_equal"),
     ],
 )
 def test_a_bulk_update_body_breaking_a_rule_is_refused_with_its_code(
@@ -74,6 +80,7 @@ def test_a_bulk_update_body_that_says_something_is_accepted() -> None:
     ("body", "code"),
     [
         ({"items": []}, "too_short"),
+        ({"items": [ITEM] * 1001}, "too_long"),
         ({"items": [{"text": "x?", "language_code": "en"}]}, "missing"),
         ({"items": [ITEM], "texts": ["x?"]}, "extra_forbidden"),
         ({"texts": []}, "too_short"),
