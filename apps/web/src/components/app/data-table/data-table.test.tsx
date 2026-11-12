@@ -2093,6 +2093,14 @@ describe('DataTable column groups', () => {
     expect(grid()).not.toHaveAttribute('aria-colcount');
   });
 
+  it('draws the refetch bar on the leaf and tall header cells, whose bottom edge ends the header, and not on a group cell', () => {
+    renderWithProviders(<GroupHarness status="refetching" />);
+    const bar = 'after:h-0.5';
+    for (const name of [/^Keyword/, /^Volume/, /^KD/, /^Score/, /^Actions/]) expect(headerCell(name)).toHaveClass(bar);
+    expect(headerCell('Engine A')).not.toHaveClass(bar);
+    expect(headerCell('Engine B')).not.toHaveClass(bar);
+  });
+
   it('passes the accessibility check with groups', async () => {
     const { container } = renderWithProviders(<GroupHarness />);
     expect(await axe(container)).toHaveNoViolations();

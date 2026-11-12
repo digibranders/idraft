@@ -6,7 +6,7 @@ import { useState, type ReactNode } from 'react';
 import { SpecimenGroup } from './specimen';
 import { col } from '@/components/app/data-table/columns';
 import { DataTable } from '@/components/app/data-table/data-table';
-import type { PageSize, RecordAction, TableStatus } from '@/components/app/data-table/types';
+import type { DataTableColumn, PageSize, RecordAction, RowTree, TableStatus } from '@/components/app/data-table/types';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { formatInteger } from '@/lib/format';
@@ -81,17 +81,69 @@ const ACTIONS: RecordAction<SampleRow>[] = [
   { id: 'archive', label: 'Archive', icon: Archive, group: 'destructive', onSelect: () => undefined },
 ];
 
+// The extension samples (WP-09): every column is priority 1, so each width shows the same columns
+const GROUP_DEMAND = { id: 'demand', label: 'Demand' };
+const GROUP_COST = { id: 'cost', label: 'Cost' };
+/** A two-column group (Demand), a one-column group (Cost, which collapses to a tall header) and an ungrouped column. */
+const GROUPED_COLUMNS = [
+  col.keyword<SampleRow>('keyword', (row) => row.keyword, { header: 'Keyword', detail: (row) => row.location }),
+  col.volume<SampleRow>('search_volume', (row) => row.volume, {
+    header: 'Volume',
+    group: GROUP_DEMAND,
+    unknown: () => PENDING,
+  }),
+  col.count<SampleRow>('keyword_difficulty', (row) => row.difficulty, {
+    header: 'KD',
+    group: GROUP_DEMAND,
+    unknown: () => PENDING,
+  }),
+  col.currency<SampleRow>('cpc_usd', (row) => row.cpc, {
+    header: 'CPC (USD)',
+    group: GROUP_COST,
+    unknown: () => PENDING,
+  }),
+  col.badge<SampleRow>('intent', (row) => (row.intent === null ? null : { label: row.intent }), {
+    header: 'Intent',
+    unknown: () => PENDING,
+  }),
+];
+/** Twelve columns, wider than any viewport the gallery is seen at, so the actions column has something to stay in front of. */
+const WIDE_COLUMNS: DataTableColumn<SampleRow>[] = [
+  ...COLUMNS.map((column) => ({ ...column, priority: 1 as const })),
+  ...(
+    [
+      ['clicks', 'Clicks', 4],
+      ['pages', 'Pages', 40],
+      ['links', 'Links', 9],
+      ['leads', 'Leads', 60],
+      ['visits', 'Visits', 2],
+    ] as const
+  ).map(([id, header, divisor]) =>
+    col.count<SampleRow>(id, (row) => (row.volume === null ? null : Math.round(row.volume / divisor)), {
+      header,
+      unknown: () => PENDING,
+    }),
+  ),
+];
+const DEMO_ROWS = SAMPLE.slice(0, 20);
+
 /** One table with its own state, as a screen would hold it. */
 function SampleTable({
   caption,
   rows,
   status,
   server,
+  columns = COLUMNS,
+  columnGroups = false,
+  pinActions = false,
 }: {
   caption: string;
   rows: readonly SampleRow[];
   status: TableStatus;
   server?: boolean;
+  columns?: readonly DataTableColumn<SampleRow>[];
+  columnGroups?: boolean;
+  pinActions?: boolean;
 }): ReactNode {
   const [sort, setSort] = useState<readonly SortKey[]>(DEFAULT_SORT);
   const [density, setDensity] = useState<Density>(DEFAULT_DENSITY);
@@ -108,7 +160,9 @@ function SampleTable({
       <DataTable<SampleRow>
         caption={caption}
         itemNoun={{ one: 'keyword', other: 'keywords' }}
-        columns={COLUMNS}
+        columns={columns}
+        columnGroups={columnGroups}
+        pinActions={pinActions}
         getRowId={rowId}
         rows={shown}
         total={rows.length}
@@ -178,6 +232,160 @@ function SampleTable({
   );
 }
 
+interface Run {
+  id: string;
+  label: string;
+  citations: number;
+}
+interface Prompt {
+  id: string;
+  label: string;
+  runs: readonly Run[];
+}
+interface Topic {
+  id: string;
+  label: string;
+  prompts: readonly Prompt[];
+}
+
+/** Fixed sample: a topic holds prompts, a prompt holds the runs that answered it. */
+const TOPICS: readonly Topic[] = [
+  {
+    id: 'crm',
+    label: 'CRM software',
+    prompts: [
+      {
+        id: 'crm-best',
+        label: 'Best CRM for startups',
+        runs: [
+          { id: 'crm-best-1', label: 'ChatGPT, 12 Nov', citations: 4 },
+          { id: 'crm-best-2', label: 'Gemini, 12 Nov', citations: 2 },
+          { id: 'crm-best-3', label: 'AI Mode, 12 Nov', citations: 5 },
+        ],
+      },
+      {
+        id: 'crm-price',
+        label: 'CRM pricing compared',
+        runs: [
+          { id: 'crm-price-1', label: 'ChatGPT, 12 Nov', citations: 1 },
+          { id: 'crm-price-2', label: 'Gemini, 12 Nov', citations: 3 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'email',
+    label: 'Email marketing',
+    prompts: [
+      {
+        id: 'email-tools',
+        label: 'Email tools for small teams',
+        runs: [
+          { id: 'email-tools-1', label: 'ChatGPT, 12 Nov', citations: 6 },
+          { id: 'email-tools-2', label: 'AI Mode, 12 Nov', citations: 0 },
+        ],
+      },
+    ],
+  },
+];
+
+interface TreeSampleRow {
+  id: string;
+  label: string;
+  citations: number;
+  tree: RowTree;
+}
+
+const sumRuns = (prompts: readonly Prompt[]): number =>
+  prompts.reduce((total, prompt) => total + prompt.runs.reduce((runs, run) => runs + run.citations, 0), 0);
+
+/** The rows in display order: a closed group hides what is under it, as a screen sends them. */
+function treeRows(open: ReadonlySet<string>): TreeSampleRow[] {
+  const rows: TreeSampleRow[] = [];
+  TOPICS.forEach((topic, topicIndex) => {
+    const topicOpen = open.has(topic.id);
+    rows.push({
+      id: topic.id,
+      label: topic.label,
+      citations: sumRuns(topic.prompts),
+      tree: { level: 1, expanded: topicOpen, setSize: TOPICS.length, posInSet: topicIndex + 1 },
+    });
+    if (!topicOpen) return;
+    topic.prompts.forEach((prompt, promptIndex) => {
+      const promptOpen = open.has(prompt.id);
+      rows.push({
+        id: prompt.id,
+        label: prompt.label,
+        citations: sumRuns([prompt]),
+        tree: { level: 2, expanded: promptOpen, setSize: topic.prompts.length, posInSet: promptIndex + 1 },
+      });
+      if (!promptOpen) return;
+      prompt.runs.forEach((run, runIndex) =>
+        rows.push({
+          id: run.id,
+          label: run.label,
+          citations: run.citations,
+          tree: { level: 3, setSize: prompt.runs.length, posInSet: runIndex + 1 },
+        }),
+      );
+    });
+  });
+  return rows;
+}
+
+const TREE_COLUMNS = [
+  col.keyword<TreeSampleRow>('label', (row) => row.label, { header: 'Topic, prompt and run', sortable: false }),
+  col.count<TreeSampleRow>('citations', (row) => row.citations, { header: 'Citations', sortable: false }),
+];
+const treeRowId = (row: TreeSampleRow): string => row.id;
+const treeRowTree = (row: TreeSampleRow): RowTree => row.tree;
+const treeRowName = (row: TreeSampleRow): string => row.label;
+const NO_SORT: readonly SortKey[] = [];
+const nothing = (): void => undefined;
+
+/** Three levels: the caller sends the rows in display order and keeps which groups are open. */
+function ThreeLevelTable(): ReactNode {
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set(['crm']));
+  const [density, setDensity] = useState<Density>(DEFAULT_DENSITY);
+  const [visible, setVisible] = useState<readonly string[] | null>(null);
+  const [search, setSearch] = useState('');
+  const rows = treeRows(open);
+  return (
+    <div className="flex h-120 flex-col">
+      <DataTable<TreeSampleRow>
+        caption="Citations by topic, three levels"
+        itemNoun={{ one: 'row', other: 'rows' }}
+        columns={TREE_COLUMNS}
+        getRowId={treeRowId}
+        rows={rows}
+        total={rows.length}
+        rowTree={treeRowTree}
+        onToggleGroup={(row) =>
+          setOpen((current) => {
+            const next = new Set(current);
+            if (!next.delete(row.id)) next.add(row.id);
+            return next;
+          })
+        }
+        sort={NO_SORT}
+        onSortChange={nothing}
+        defaultSort={NO_SORT}
+        density={density}
+        onDensityChange={setDensity}
+        columnState={{ visible, onChange: setVisible }}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search rows"
+        rowName={treeRowName}
+        status="ready"
+        errorState={null}
+        emptyState={null}
+        filteredEmptyState={null}
+      />
+    </div>
+  );
+}
+
 export function TablesSection(): ReactNode {
   return (
     <>
@@ -199,6 +407,36 @@ export function TablesSection(): ReactNode {
           <SampleTable caption="Keywords, empty" rows={[]} status="empty" />
           <SampleTable caption="Keywords, error" rows={[]} status="error" />
         </div>
+      </SpecimenGroup>
+      <SpecimenGroup
+        title="DataTable extension: column groups"
+        note="12 section 16, WP-09. columnGroups draws a group cell over adjacent columns that share a group. Demand holds two columns. Cost holds one, so its column keeps one tall header; hide KD in Columns and Demand does the same. When every group is down to one column the table keeps one header row."
+      >
+        <SampleTable
+          caption="Keywords, column groups"
+          rows={DEMO_ROWS}
+          status="ready"
+          columns={GROUPED_COLUMNS}
+          columnGroups
+        />
+      </SpecimenGroup>
+      <SpecimenGroup
+        title="DataTable extension: three levels"
+        note="12 section 16, WP-09. RowTree level 3: a topic holds prompts, a prompt holds runs. Right Arrow opens a group or moves into it, Left Arrow closes it or moves to its parent. Rows that load later are the caller's: it sends a row with selectable false in their place."
+      >
+        <ThreeLevelTable />
+      </SpecimenGroup>
+      <SpecimenGroup
+        title="DataTable extension: pinned actions"
+        note="12 section 10, WP-09. pinActions keeps the actions column at the right edge while twelve columns scroll under it; a 1 px border marks the edge while columns are behind it."
+      >
+        <SampleTable
+          caption="Keywords, pinned actions"
+          rows={DEMO_ROWS}
+          status="ready"
+          columns={WIDE_COLUMNS}
+          pinActions
+        />
       </SpecimenGroup>
     </>
   );
