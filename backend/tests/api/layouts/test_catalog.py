@@ -169,6 +169,34 @@ def test_a_retired_card_type_is_accepted() -> None:
     assert catalog.document_errors("overview", document, catalog=hand_built) == []
 
 
+def test_a_width_on_a_screen_whose_zones_have_no_widths_is_refused() -> None:
+    # The card type itself lists "half": only the screen's `widths: false` can refuse it.
+    hand_built = catalog.build(
+        CatalogFile.model_validate(
+            {
+                "generated_by": "test",
+                "source_sha256": "0" * 64,
+                "limits": {"cards": CARDS_MAX, "numbers": NUMBERS_MAX},
+                "screens": {"overview": {"numbers": True, "cards": True, "widths": False}},
+                "card_types": [
+                    {
+                        "key": "some.card",
+                        "screens": ["overview"],
+                        "widths": ["half"],
+                        "status": "active",
+                    }
+                ],
+                "numbers": [],
+            }
+        )
+    )
+    document = LayoutDocument.model_validate(
+        {"schema": 1, "cards": [{"id": "c1", "type": "some.card", "width": "half"}]}
+    )
+    found = catalog.document_errors("overview", document, catalog=hand_built)
+    assert [(error.path, error.code) for error in found] == [("cards.0.width", "width_not_allowed")]
+
+
 def test_the_size_is_the_stored_text() -> None:
     assert catalog.document_size({"schema": 1}) == len('{"schema": 1}') == 13
     document = {"note": chr(0xE9)}

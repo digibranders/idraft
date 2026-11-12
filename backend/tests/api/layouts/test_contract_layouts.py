@@ -129,6 +129,11 @@ async def test_layouts_refuse_another_workspace(
             "schema": 1,
             "numbers": [{"id": "n1", "metric": "ai.mentions", "engine": "perplexity_web"}],
         },
+        # Owner decision Q8: this engine is not accepted until slice 2.
+        {
+            "schema": 1,
+            "numbers": [{"id": "n1", "metric": "ai.mention_rate", "engine": "google_ai_overview"}],
+        },
     ],
 )
 async def test_a_document_out_of_bounds_is_refused_before_501(
