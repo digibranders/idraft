@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T03:12:21+05:30",
+ "updated": "2026-11-13T03:13:15+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -196,7 +196,7 @@
    "title": "Chart parts: BarList, StackedShareBar, StepBars, IntervalBar",
    "wave": "W1",
    "kind": "web",
-   "status": "planning",
+   "status": "building",
    "dependsOn": [
     "WP-02"
    ],
@@ -218,7 +218,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-05-chart-bars.md; estimate 5 tasks; decisions none"
+   "notes": "file work-packages/WP-05-chart-bars.md; estimate 5 tasks; decisions none | steps 1/6; plan and T0 on develop; early registry commit and en.json chart.* keys pushed"
   },
   {
    "id": "WP-06",
@@ -3964,6 +3964,13 @@
    "granted": "2026-11-13T03:12:21+05:30",
    "scope": "new file; registry lines covered by the shared registry lease",
    "until": "WP-06 merged"
+  },
+  {
+   "path": "apps/web/src/app/globals.css",
+   "wp": "SHARED WP-05/WP-06",
+   "granted": "2026-11-13T03:13:15+05:30",
+   "scope": "additive: bg-seq-1..7 utilities (WP-05 adds first, WP-06 reuses or rebases); no other edits",
+   "until": "WP-05 and WP-06 merged"
   }
  ]
 }
