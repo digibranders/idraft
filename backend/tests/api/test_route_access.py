@@ -4,6 +4,7 @@ The table is the contract. A new route must be added here with its access, and a
 access changes must change here too, so both show up in review.
 """
 
+import importlib
 import re
 from typing import Annotated
 
@@ -17,6 +18,7 @@ from idraft.api.main import create_app
 from idraft.api.openapi import placeholder_settings
 from idraft.api.pagination import _query_names
 from idraft.api.permissions import Permission
+from idraft.api.workspaces.routes import router as workspaces_router
 
 EXPECTED: dict[tuple[str, str], str] = {
     ("GET", "/api/healthz"): "public",
@@ -520,6 +522,87 @@ def test_no_router_adds_a_query_parameter_to_the_routes_it_includes() -> None:
         assert set(_query_names(route.dependant)) == set(
             _query_names(route.original_route.dependant)
         ), route.path
+
+
+# The routers of docs/ai-visibility/MASTER-PLAN.md section 3.3, in that table's order. Each work
+# package fills its own; api/main.py includes them all already.
+SCAFFOLDED = (
+    "idraft.api.layouts.routes",
+    "idraft.api.ai.limits_routes",
+    "idraft.api.operations.collection_routes",
+    "idraft.api.ai.metrics_routes",
+    "idraft.api.ai.competitor_routes",
+    "idraft.api.ai.annotation_routes",
+    "idraft.api.notes.routes",
+    "idraft.api.ai.version_routes",
+    "idraft.api.ai.panel_routes",
+    "idraft.api.ai.link_routes",
+    "idraft.api.ai.candidate_routes",
+    "idraft.api.uploads.routes",
+    "idraft.api.alerts.routes",
+    "idraft.api.views.routes",
+    "idraft.api.exports.routes",
+    "idraft.api.reports.routes",
+    "idraft.api.ai.derivation_routes",
+    "idraft.api.entities.candidate_routes",
+    "idraft.api.ai.retrieval_routes",
+    "idraft.api.ai.stats_routes",
+    "idraft.api.ai.source_intel_routes",
+    "idraft.api.webhooks.routes",
+)
+
+
+def test_the_scaffolded_routers_are_included_once_in_order_before_the_older_ones() -> None:
+    included = [
+        getattr(route, "original_router", None)
+        for route in create_app(placeholder_settings()).routes
+    ]
+    positions: list[int] = []
+    for name in SCAFFOLDED:
+        router = importlib.import_module(name).router
+        found = [index for index, candidate in enumerate(included) if candidate is router]
+        assert len(found) == 1, name
+        positions.append(found[0])
+    assert positions == sorted(positions)
+    older = [index for index, candidate in enumerate(included) if candidate is workspaces_router]
+    assert positions[-1] < older[0]
+
+
+# `{name}` or `{name:converter}` once the path is escaped for a regular expression.
+_ESCAPED_PARAMETER = re.compile(r"\\\{\w+(?::\w+)?\\\}")
+
+
+def _matcher(path: str) -> re.Pattern[str]:
+    """What the router matches for a route's path: any one segment where it has a parameter."""
+    return re.compile(_ESCAPED_PARAMETER.sub("[^/]+", re.escape(path)))
+
+
+def test_a_parameter_matches_any_one_segment() -> None:
+    matcher = _matcher("/projects/{project_id}/prompts/{prompt_id:uuid}")
+    assert matcher.fullmatch("/projects/{project_id}/prompts/limits")
+    assert matcher.fullmatch("/projects/p-1/prompts/{other_id}")
+    assert not matcher.fullmatch("/projects/{project_id}/prompts")
+    assert not matcher.fullmatch("/projects/{project_id}/prompts/a/b")
+
+
+def test_no_route_is_hidden_by_an_earlier_one() -> None:
+    """A request goes to the first route whose path matches, and a parameter matches any word:
+    `GET .../prompts/limits` after `GET .../prompts/{prompt_id}` would answer 422. The routers
+    of the AI visibility packages are included before the older ones, so a new word is safe and
+    a new parameter where an older route has a word is not."""
+    earlier: list[tuple[str, str, re.Pattern[str]]] = []
+    hidden: list[tuple[str, str, str]] = []
+    for route in iter_route_contexts(create_app(placeholder_settings()).routes):
+        assert route.path is not None
+        assert route.methods
+        for method in sorted(route.methods):
+            hidden += [
+                (method, path, route.path)
+                for seen, path, matcher in earlier
+                if seen == method and matcher.fullmatch(route.path)
+            ]
+        earlier += [(method, route.path, _matcher(route.path)) for method in sorted(route.methods)]
+    assert hidden == []
 
 
 def test_every_requirement_of_a_route_is_reported() -> None:
