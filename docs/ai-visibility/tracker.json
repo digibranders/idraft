@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T04:01:26+05:30",
+ "updated": "2026-11-13T04:20:25+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -314,7 +314,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-08-app-parts-b.md; estimate 5 tasks; decisions none"
+   "notes": "file work-packages/WP-08-app-parts-b.md; estimate 5 tasks; decisions none | steps 1/6; plan + T0 on develop"
   },
   {
    "id": "WP-09",
@@ -344,7 +344,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-09-table-extensions.md; estimate 6 tasks; decisions D-40 | steps 5/7; tasks 1-4 reviewed PASS; nothing pushed yet"
+   "notes": "file work-packages/WP-09-table-extensions.md; estimate 6 tasks; decisions D-40 | steps 6/7; full suite 5505 passed; e2e and push pending"
   },
   {
    "id": "WP-10",
@@ -4013,6 +4013,13 @@
    "granted": "2026-11-13T03:53:49+05:30",
    "scope": "new web freshness test (task T5b); WP-15 owns the rest of lib/layouts",
    "until": "WP-11 merged"
+  },
+  {
+   "path": "docs/design-system/25-component-inventory.md",
+   "wp": "WP-08",
+   "granted": "2026-11-13T04:20:25+05:30",
+   "scope": "append one As built line per part (same as WP-07)",
+   "until": "WP-08 merged"
   }
  ],
  "followups": [
@@ -4024,6 +4031,16 @@
    "detail": "rankings-screen.tsx ~373-384: in client mode with the list not fully loaded, if Select all N matching was pressed and the search then changes from outside the table (URL back or link), the bulk action goes to every filter match while the list shows only narrowed rows (bulkSearch is '' in client mode). Pre-existing. Fix: reached.allMatching must be false when list.mode is client and search is not blank. WP-09's table-side fix already makes scope.allMatching false when the table narrows itself.",
    "owner": "Rankings screen (rank tracking is on hold)",
    "severity": "data safety, low frequency",
+   "status": "open"
+  },
+  {
+   "id": "F-02",
+   "found": "2026-11-13T04:20:25+05:30",
+   "by": "WP-08",
+   "title": "Favicon setting does not exist in the API or preferences",
+   "detail": "DomainCell favicons are a show/hide prop with a placeholder square fallback and the host text always visible. A per-user or workspace favicon preference needs a backend and settings decision.",
+   "owner": "owner decision (optional)",
+   "severity": "low",
    "status": "open"
   }
  ]
