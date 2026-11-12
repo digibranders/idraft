@@ -303,4 +303,46 @@ describe('schedules', () => {
     expect(await editor.call('GET', `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}`)).toMatchObject({ status: 404 });
     expect(pageOf(await editor.call('GET', S), OFFSET_PAGE).total).toBe(2);
   });
+
+  describe('the AI prompt workload (the base plan: weekly, two a project)', () => {
+    const ai = {
+      name: 'AI answers',
+      workload: 'ai_prompt',
+      window_start_local: '01:00',
+      timezone: 'UTC',
+      selector: { all: true },
+    };
+
+    it('runs weekly only, on a create and on a change', async () => {
+      const editor = mockBrowser('editor');
+      expect(fieldCodes(await editor.call('POST', S, { ...ai, cadence: 'daily' }))).toEqual([
+        'cadence:cadence_not_supported',
+      ]);
+      const made = await editor.call('POST', S, { ...ai, cadence: 'weekly', weekday: 1 });
+      expect(made.status).toBe(201);
+      const id = dataOf(made, SCHEDULE).schedule_id;
+      expect(fieldCodes(await editor.call('PATCH', `${S}/${id}`, { cadence: 'daily' }))).toEqual([
+        'cadence:cadence_not_supported',
+      ]);
+    });
+
+    it('refuses a third schedule, counting the live ones, and takes one again once one is deleted', async () => {
+      const editor = mockBrowser('editor');
+      const weekly = (weekday: number): Record<string, unknown> => ({ ...ai, cadence: 'weekly', weekday });
+      const first = await editor.call('POST', S, weekly(1));
+      expect((await editor.call('POST', S, weekly(4))).status).toBe(201);
+      expect(fieldCodes(await editor.call('POST', S, weekly(2)))).toEqual(['workload:too_many_schedules']);
+      expect((await editor.call('DELETE', `${S}/${dataOf(first, SCHEDULE).schedule_id}`)).status).toBe(204);
+      expect((await editor.call('POST', S, weekly(2))).status).toBe(201);
+      // Another workload has no such limit
+      const rank = {
+        name: 'Ranks',
+        workload: 'seo_rank',
+        cadence: 'daily',
+        window_start_local: '02:00',
+        timezone: 'UTC',
+      };
+      expect((await editor.call('POST', S, { ...rank, selector: { all: true } })).status).toBe(201);
+    });
+  });
 });

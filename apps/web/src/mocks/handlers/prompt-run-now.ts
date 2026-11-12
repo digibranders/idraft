@@ -30,6 +30,10 @@ import { textLength } from '@/lib/text/length';
  * one valid answer per engine, in the project's observations (./prompt-answers.ts), which live in memory with the
  * prompts: a page reload keeps the run but not its answers.
  * shortcut: the answers are kept in memory, not in a cookie like the runs; move them there if a reload should keep them.
+ * shortcut: the answers exist from the first instant, whatever the run's own state says, and cancelling the run leaves
+ * them; the run's `config_snapshot` is the keyword runs' (`provider_mode` live, a keyword count) and not the backend's
+ * `{prompt_ids, engine_codes}` on the standard queue, since the stored run keeps no prompt or engine ids. Keep them on
+ * the run if a screen reads them.
  */
 
 const PROMPT = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}';

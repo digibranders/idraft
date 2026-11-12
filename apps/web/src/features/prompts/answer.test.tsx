@@ -558,16 +558,20 @@ describe('the answer viewer: the raw answer', () => {
     await waitFor(() => expect(names).toEqual([`answer-${cited.id}.json`]));
     expect(saved).toHaveLength(1);
     expect(saved[0]?.size).toBeGreaterThan(0);
-    await waitFor(() => expect(revoked).toEqual(['blob:raw-answer']));
+    // The address is released a second after the click, not at once
+    expect(revoked).toEqual([]);
+    await waitFor(() => expect(revoked).toEqual(['blob:raw-answer']), { timeout: 3000 });
   });
 
-  it('is disabled and busy while the raw answer is on its way', async () => {
+  it('is busy, and keeps its focus, while the raw answer is on its way, and a second click asks for nothing', async () => {
     let open: () => void = () => undefined;
     const held = new Promise<void>((resolve) => {
       open = () => resolve();
     });
+    let asked = 0;
     server.use(
       http.get(RAW, async () => {
+        asked += 1;
         await held;
         return HttpResponse.json({ tasks: [] });
       }),
@@ -575,11 +579,15 @@ describe('the answer viewer: the raw answer', () => {
     const { user } = renderOn('analyst', opened(cited.id));
     const button = await screen.findByRole('button', { name: 'Download the raw answer' });
     await user.click(button);
-    expect(button).toBeDisabled();
     expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    // Not disabled: a loading button keeps its place in the tab order
+    expect(button).not.toHaveAttribute('disabled');
+    await user.click(button);
     open();
     await waitFor(() => expect(names).toHaveLength(1));
-    expect(button).toBeEnabled();
+    expect(asked).toBe(1);
+    expect(button).not.toHaveAttribute('aria-busy');
   });
 
   it('says the raw answer is past its retention and is no longer kept, and downloads nothing', async () => {

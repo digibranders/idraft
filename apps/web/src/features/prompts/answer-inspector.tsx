@@ -36,6 +36,8 @@ import { useCan } from '@/lib/permissions';
 const colorOf = (value: number | null | undefined): EntityColorIndex | null =>
   value === 1 || value === 2 || value === 3 || value === 4 || value === 5 || value === 6 ? value : null;
 
+/** How long the address of a downloaded raw answer lives, in milliseconds. */
+const RAW_URL_RELEASE_MS = 1000;
 const SOURCE_ROLE_KEYS = { own: 'own', competitor: 'competitor', third_party: 'thirdParty' } as const;
 
 /** Only an http or https address becomes a link; anything else (`javascript:`, say) stays text. */
@@ -103,8 +105,8 @@ export function AnswerInspector({
       const file = await fetchRawAnswer(scope, observationId, at);
       const url = URL.createObjectURL(file);
       downloadUrl(url, `answer-${observationId}.json`);
-      // The browser has the file once the click returns, so the address is released after it
-      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      // A browser may read the address a moment after the click returns, so it is released after a while
+      window.setTimeout(() => URL.revokeObjectURL(url), RAW_URL_RELEASE_MS);
     } catch (error) {
       if (isApiProblem(error, 'raw_expired')) toast({ type: 'info', title: t('rawExpired') });
       else if (isApiProblem(error, 'raw_unavailable')) toast({ type: 'error', title: t('rawUnavailable') });
@@ -198,7 +200,7 @@ export function AnswerInspector({
               <Button
                 variant="link"
                 size="sm"
-                disabled={rawPending}
+                // Loading, not disabled: the button keeps its focus, and a second click is ignored
                 loading={rawPending}
                 onClick={() => void rawAnswer(shown.observed_at)}
               >

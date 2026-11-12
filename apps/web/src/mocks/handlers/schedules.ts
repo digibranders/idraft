@@ -61,7 +61,18 @@ const SELECTOR_MEMBERS = ['all', 'groups', 'terms', 'priority_lte', 'stale_days'
 type Workload = (typeof SCHEDULE_WORKLOADS)[number];
 /** What each workload takes (D10): its selector members, its provider modes, and whether it needs a selector. */
 const WORKLOAD_RULES: Readonly<
-  Record<Workload, { selectors: readonly string[]; providerModes: readonly string[]; needsSelector: boolean }>
+  Record<
+    Workload,
+    {
+      selectors: readonly string[];
+      providerModes: readonly string[];
+      needsSelector: boolean;
+      /** The cadences a schedule may have; without it every one. */
+      cadences?: readonly string[];
+      /** How many live schedules a project may have, checked on a create only; without it any number. */
+      maxPerProject?: number;
+    }
+  >
 > = {
   // Labs is called live (D6)
   keyword_metrics: {
@@ -75,11 +86,14 @@ const WORKLOAD_RULES: Readonly<
     providerModes: ['standard_queue', 'priority_queue'],
     needsSelector: true,
   },
-  // AI answers: every active prompt, on the standard queue (the backend's `ai_prompt` rules)
+  // AI answers: every active prompt, on the standard queue, weekly, and as many schedules as the base plan has
+  // runs a week (the backend's `ai_prompt` rules)
   ai_prompt: {
     selectors: ['all'],
     providerModes: ['standard_queue'],
     needsSelector: true,
+    cadences: ['weekly'],
+    maxPerProject: 2,
   },
 };
 const CREATE_FIELDS = [
@@ -230,7 +244,16 @@ function plannerErrors(workload: unknown, cadence: unknown, providerMode: string
   if (!isOneOf(cadence, CADENCES)) {
     return [bodyError('cadence', 'cadence_not_supported', 'A schedule runs daily, weekly or monthly.')];
   }
-  const modes = WORKLOAD_RULES[workload].providerModes;
+  const { providerModes: modes, cadences } = WORKLOAD_RULES[workload];
+  if (cadences !== undefined && !cadences.includes(cadence)) {
+    return [
+      bodyError(
+        'cadence',
+        'cadence_not_supported',
+        `A ${workload} schedule runs ${[...cadences].sort().join(' or ')}.`,
+      ),
+    ];
+  }
   if (!modes.includes(providerMode)) {
     return [
       bodyError(
@@ -345,6 +368,23 @@ function scheduled(
       ...termErrors(caller, selector.terms ?? [], 'selector.terms', { removing: true }),
     ];
     if (references.length > 0) return references;
+  }
+  // Only a create adds a schedule: it counts the live ones the project has (a deleted one is not one)
+  const limit = WORKLOAD_RULES[known].maxPerProject;
+  if (
+    create &&
+    limit !== undefined &&
+    caller.operations.schedules.filter(
+      (row) => row.project_id === caller.project.project_id && row.workload === known && row.deleted_at === null,
+    ).length >= limit
+  ) {
+    return [
+      bodyError(
+        'workload',
+        'too_many_schedules',
+        `A project has at most ${String(limit)} ${known} schedules: change one.`,
+      ),
+    ];
   }
   return {
     ...base,
