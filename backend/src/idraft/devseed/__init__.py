@@ -1,3 +1,3 @@
 """Development data seeds, run by hand: `python -m idraft.cli seed-eventus`
-(docs/ops/dev-eventus-seed.md). Nothing in the API or the worker imports this package; an import
-contract in pyproject.toml will say so (added in Task 9 of the D3 plan)."""
+(docs/ops/dev-eventus-seed.md). Nothing in the API or the worker imports this package; the import
+contract "the dev seed is reached only from the operator CLI" in pyproject.toml enforces it."""

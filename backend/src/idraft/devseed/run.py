@@ -52,11 +52,18 @@ class SeedReport:
             f"Workspace {self.workspace_slug} ({self.workspace_id}), project "
             f"{self.project_slug} ({self.project_id}): {state}.",
             f"Entities: {entities.created} made, {entities.aliases_added} aliases and "
-            f"{entities.domains_added} domains added, {entities.updated} changed, "
-            f"{entities.roles_given} roles given.",
+            f"{entities.domains_added} domains added, {entities.roles_given} roles given.",
             *(
                 f"WARNING: {conflict}. The seed kept it, as the API does (domain_role_conflict)."
                 for conflict in entities.domain_conflicts
+            ),
+            *(
+                [
+                    "WARNING: found competitors whose ambiguity or hints differ from the "
+                    f"fixture: {', '.join(entities.differing)}. They were left as they are."
+                ]
+                if entities.differing
+                else []
             ),
             f"Topics: {self.terms_created} terms made.",
             f"Engines turned on: {_names(engines.turned_on)}. "
@@ -70,8 +77,8 @@ class SeedReport:
         if engines.paused:
             lines.append(
                 f"WARNING: AI schedules paused: {engines.paused}. The seed pauses every active "
-                "AI schedule of the project so nothing spends by itself. They stay paused until "
-                "a person resumes them in the app, and resuming them starts weekly spend."
+                "AI answer schedule of the project so nothing spends by itself. They stay paused "
+                "until a person resumes them in the app, and resuming them starts weekly spend."
             )
         else:
             lines.append("AI schedules paused: 0.")
@@ -147,7 +154,8 @@ async def run_seed(settings: Settings, fixture: EventusFixture, workspace_slug: 
     except ProblemError as error:
         detail = f" {error.detail}" if error.detail else ""
         raise SeedError(
-            f"The API refused a step: {error.title} ({error.problem_code}).{detail}"
+            f"The API refused a step: {error.title} ({error.problem_code}).{detail} "
+            "Earlier steps may already be written; run the seed again after the fix."
         ) from None
     except RequestValidationError as error:
         found = "; ".join(
@@ -155,6 +163,9 @@ async def run_seed(settings: Settings, fixture: EventusFixture, workspace_slug: 
             f"({item['type']})"
             for item in error.errors()
         )
-        raise SeedError(f"The API refused a step: {found}.") from None
+        raise SeedError(
+            f"The API refused a step: {found}. "
+            "Earlier steps may already be written; run the seed again after the fix."
+        ) from None
     finally:
         await engine.dispose()

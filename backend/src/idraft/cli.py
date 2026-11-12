@@ -186,7 +186,10 @@ def _seed_eventus(arguments: argparse.Namespace) -> int:
         return _fail(str(error))
     except (OSError, TimeoutError, SQLAlchemyError, asyncpg.PostgresError) as error:
         # The type only: a driver's message can quote the connection string.
-        return _fail(f"The database could not be used ({type(error).__name__}).")
+        return _fail(
+            f"The database could not be used ({type(error).__name__}). Earlier steps may already "
+            "be written; run the seed again once the database is reachable."
+        )
     sys.stdout.write("\n".join(report.lines()) + "\n")
     return 0
 

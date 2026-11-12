@@ -243,3 +243,30 @@ async def test_a_code_given_twice_keeps_its_first_entry(
     )
     assert (await sync_locations(worker_db, listed)).listed == 1
     assert [row[1] for row in await _rows(migrated)] == ["First"]
+
+
+@pytest.mark.usefixtures("no_locations")
+async def test_the_three_country_list_after_the_nine_test_locations_keeps_all_eleven_active(
+    worker_db: async_sessionmaker[AsyncSession], migrated: PostgresServer
+) -> None:
+    """The dev seed runbook (docs/ops/dev-eventus-seed.md, step 2): the order that keeps both."""
+    await sync_locations(worker_db, read_locations(fixture_bytes("locations")))
+
+    report = await sync_locations(worker_db, read_locations(fixture_bytes("locations-india-gulf")))
+
+    assert (report.listed, report.deactivated, report.deactivation_skipped) == (3, 0, True)
+    assert [row[3] for row in await _rows(migrated)] == [True] * 11
+
+
+@pytest.mark.usefixtures("no_locations")
+async def test_the_nine_test_locations_after_the_three_country_list_switch_off_the_gulf(
+    worker_db: async_sessionmaker[AsyncSession], migrated: PostgresServer
+) -> None:
+    """The reverse order, which the runbook warns against."""
+    await sync_locations(worker_db, read_locations(fixture_bytes("locations-india-gulf")))
+
+    report = await sync_locations(worker_db, read_locations(fixture_bytes("locations")))
+
+    assert (report.listed, report.deactivated, report.deactivation_skipped) == (9, 2, False)
+    off = {row[0] for row in await _rows(migrated) if not row[3]}
+    assert off == {2784, 2682}

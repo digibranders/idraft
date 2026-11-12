@@ -3,10 +3,11 @@
 One command makes the Eventus Security AI prompt tracking project in your development database from
 `fixtures/ai-prompts/eventus-security.json`: the project, the brand and its 8 competitors, 29 topics, the
 ChatGPT and Gemini engines in India, the UAE and Saudi Arabia, and 72 prompts. It makes no answers, and it
-leaves every AI schedule paused.
+leaves its AI answer schedules paused.
 
-The seed only creates what is missing. It never changes a project, prompt, engine or topic that a person
-edited, and it reports each difference it finds instead of fixing it.
+The seed only creates what is missing. It never overwrites a value a person set (a project, entity, prompt,
+engine or topic), and it reports each difference it finds instead of fixing it. The one thing it undoes on
+purpose is a resumed AI answer schedule: it pauses it again, so nothing spends by itself.
 
 All commands run from `backend/`.
 
@@ -39,21 +40,49 @@ audit entry it writes names that owner as the actor and `python -m idraft.cli se
 
 ### Step 2: load the three countries
 
-The seed never creates a location. It needs India, the UAE and Saudi Arabia as active countries, and the
-development database has India only. Copy the worker settings once (`cp .env.worker.example .env.worker`),
-then load them with the saved list that holds exactly those three:
+The seed never creates a location. It needs India, the UAE and Saudi Arabia as active countries. Copy the
+worker settings once (`cp .env.worker.example .env.worker`), then load them with the saved list that holds
+exactly those three:
 
 ```bash
 uv run --env-file .env.worker python -m idraft.worker.sync_locations \
   --from-file tests/fixtures/dataforseo/locations-india-gulf.json
 ```
 
-It prints `3 locations, 0 skipped, 0 deactivated`. The ids are the Google Ads geo target ids that DataForSEO
-uses: India 2356, United Arab Emirates 2784 and Saudi Arabia 2682. With DataForSEO credentials in
-`.env.worker` you can load the full free list instead (no `--from-file`), which is the better source.
+The ids are the Google Ads geo target ids that DataForSEO uses: India 2356, United Arab Emirates 2784 and
+Saudi Arabia 2682. With DataForSEO credentials in `.env.worker` you can load the full free list instead (no
+`--from-file`), which is the better source. Without credentials and without `--from-file` the command prints
+`No DataForSEO credentials, so there is nothing to sync.` and exits 1.
 
-If the last number is not 0, the saved list deactivated other locations that your database had active. Run
-the sync without `--from-file` to bring them back.
+What it prints depends on how many other locations your database has active (not India, the UAE or Saudi
+Arabia). The sync writes the three, then counts the active locations that DataForSEO maps. A list shorter
+than half of that count is not trusted and deactivates nothing (`_DEACTIVATE_FROM_SHARE` in
+`collectors/locations.py`), so the cut is at more than 3 other active locations:
+
+| Other active locations | It prints | What it did |
+|---|---|---|
+| 0 (an empty database, or one with India only) | `3 locations, 0 skipped, 0 deactivated` | Nothing to deactivate. |
+| 1 to 3 | `3 locations, 0 skipped, N deactivated`, N above 0 | The three-country list was trusted and switched those N off. They are deactivated, not deleted. |
+| 4 or more, for example the 8 non-India locations of the 9 test locations that `backend/README.md` loads from `tests/fixtures/dataforseo/locations.json` | `3 locations, 0 skipped, 0 deactivated (deactivation skipped: the list was not trusted)` | The three are active and every other location stays as it was. This is the normal output on a database loaded from that file, and it needs no action. |
+
+If N is above 0, switch the others back on with the full sync (no `--from-file`; it needs DataForSEO
+credentials). Without credentials, and only if the others were the 9 test locations, load that file and then
+the three-country file again:
+
+```bash
+uv run --env-file .env.worker python -m idraft.worker.sync_locations \
+  --from-file tests/fixtures/dataforseo/locations.json
+uv run --env-file .env.worker python -m idraft.worker.sync_locations \
+  --from-file tests/fixtures/dataforseo/locations-india-gulf.json
+```
+
+The first load makes the 9 active and, as its list is long enough to be trusted, deactivates the UAE and Saudi
+Arabia and any other mapped location outside the 9 (it prints `N deactivated`). The second load writes the UAE
+and Saudi Arabia active again, finds 11 active, reads 3 as under half and deactivates nothing. So the end state
+is the 9 test locations plus the UAE and Saudi Arabia, all active. Keep that order: loaded the other way round,
+the 9-location list deactivates the UAE and Saudi Arabia. A location outside the 9 that the first load
+deactivated stays off; only the full sync brings it back. You can also load the two files in this order on a
+fresh database to keep the 9 test locations as well.
 
 ## The command
 
@@ -71,10 +100,10 @@ The first run on an empty workspace:
 
 ```text
 Workspace digibranders (<workspace id>), project eventus-security (<project id>): created.
-Entities: 9 made, 0 aliases and 0 domains added, 0 changed, 9 roles given.
+Entities: 9 made, 0 aliases and 0 domains added, 9 roles given.
 Topics: 29 terms made.
 Engines turned on: chatgpt_web, gemini_web. Engines widened: none.
-WARNING: AI schedules paused: 2. The seed pauses every active AI schedule of the project so nothing spends by itself. They stay paused until a person resumes them in the app, and resuming them starts weekly spend.
+WARNING: AI schedules paused: 2. The seed pauses every active AI answer schedule of the project so nothing spends by itself. They stay paused until a person resumes them in the app, and resuming them starts weekly spend.
 Prompts: 72 made, 0 found, 0 archived, 0 differing from the fixture.
 Active prompts in the workspace: 72 of 150.
 No answers were made: they come from a run (docs/ops/dev-eventus-seed.md).
@@ -87,9 +116,11 @@ A line that starts with `WARNING` needs a person. Besides the schedule warning a
 | `<engine> was turned off by a person, so the seed left it off.` | The engine had been configured and turned off, and the seed does not turn it back on. Prompts for countries it does not run in will not be answered by it. Turn it on in the app if you want it. |
 | `found prompts that differ from the fixture: N.` | N prompts already existed with another intent, funnel stage, type, importance, branded flag or topics. They were left as they are. |
 | `found prompts that are archived: N.` | N prompts already existed and are archived. They stay archived. |
+| `found competitors whose ambiguity or hints differ from the fixture: <names>.` | These competitors already existed with another ambiguity flag or other disambiguation hints. They were left as they are: the fixture's values apply only to a competitor the seed makes. Change them in the app if you want the fixture's. |
 | `<host> was added to <entity>, and another entity of a project that names it claims it too.` | The domain was added, as the API allows. Check it in the app. |
 
-The command exits 0 when it finishes, and 1 with a one line message when it stops (see "If it stops").
+Exit codes: 0 when it is done, 1 when it refused or stopped (a message on standard error says why; see "If it
+stops"), and 2 when the settings (a variable in `backend/.env`) or the command line arguments are invalid.
 
 ## Running it again
 
@@ -110,10 +141,12 @@ What it does when something is already there:
 - **Topics:** a term is found by its path, or by its name among its siblings, and is reused as it is. Missing
   terms are made. Nothing is renamed or removed.
 - **Entities:** missing aliases and domains are added and a missing role is given. A role that is not the
-  fixture's, or that a person removed, stops the seed before anything is written. The one thing it brings
-  in line is the ambiguity and hints of an existing competitor.
-- **Schedules:** every active AI schedule of the project is paused again, so a schedule you resumed is paused
-  by the next run. Resume it after the seed, not before.
+  fixture's, or that a person removed, stops the seed before any entity is written. The ambiguity flag and
+  hints of an existing entity are never written: the fixture's apply only to a competitor the seed makes, and
+  a found competitor that differs is named in a `WARNING` line.
+- **Schedules:** every active AI answer schedule of the project (the `ai_prompt` workload) is paused again, so
+  a schedule you resumed is paused by the next run. Other schedules, such as rank checks, are not touched.
+  Resume it after the seed, not before.
 
 What you added stays: extra prompts, competitors, aliases, domains and topics.
 
@@ -131,8 +164,8 @@ reach it from a development env file. Never point a local env file at an SSH tun
 tunnel looks like `127.0.0.1` and the seed cannot tell.
 
 It is also safe in what it writes. It goes through the services the API routes use (permissions, quotas,
-locks and audit entries are the API's own), it is create-only as described above, every AI schedule is paused
-in the same transaction that turns the engines on, and it makes no answer, run or task.
+locks and audit entries are the API's own), it is create-only as described above, every AI answer schedule is
+paused in the same transaction that turns the engines on, and it makes no answer, run or task.
 
 ## Getting answers in development
 
@@ -157,13 +190,21 @@ const list = await (await fetch(`${P}/prompts?limit=200`)).json();
 const run = await fetch(`${P}/ai/runs`, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ prompt_ids: list.data.map((p) => p.prompt_id) }),
+  body: JSON.stringify({
+    prompt_ids: list.data.map((p) => p.prompt_id),
+    engine_codes: ['chatgpt_web', 'gemini_web'],
+  }),
 });
 console.log(run.status, await run.json());
 ```
 
+Keep `engine_codes`. Without it the run asks every engine the project has turned on: with `google_ai_mode`
+on, that is 72 x 3 = 216 answers (about 0.26 USD), not 144. With exactly these two engines the cost is
+72 x 2 = 144 answers x 0.0012 = 0.1728 USD.
+
 `202` with `meta.answers: 144` and `meta.estimated_cost_usd` means it is queued; the answers arrive in minutes.
-It counts as one of the project's 20 manual runs of the day.
+If `meta.answers` is not 144, stop and check the body. It counts as one of the project's 20 manual runs of
+the day.
 
 **Do not resume the paused schedules unless you want recurring spend.** A resumed schedule asks every active
 prompt on every engine that is on, every Monday and Thursday at 01:00 project time: 144 answers, about 0.17
@@ -171,7 +212,12 @@ USD, each time.
 
 ## If it stops
 
-Nothing was written when a message says so. Fix the cause and run it again.
+Most stops come before the first write, and their message ends with `Nothing was written.` Fix the cause and
+run it again. Other stops can come after earlier writes: a stop in the entity step (`The project's roles are
+not the fixture's.` or `The fixture's entity ... is not valid for the API`) may follow the project being made
+or filled in, `Prompts were refused` follows the prompts that were accepted, and `The API refused a step` or
+`The database could not be used` may follow any earlier step. Their messages say so. A rerun after the fix
+completes the rest and never repeats what is done.
 
 | Message starts with | What to do |
 |---|---|
@@ -180,7 +226,7 @@ Nothing was written when a message says so. Fix the cause and run it again.
 | `core.locations has no active country location for ...` | Step 2. |
 | `The project 'eventus-security' exists and is archived` (or deleted or paused) | Bring it back in the app, then run again. |
 | `The project 'eventus-security' differs from the fixture: ...` | The project has another name, time zone, language, domain or default location than the fixture. Change it in the app or the fixture. The seed does not overwrite it. |
-| `The project's roles are not the fixture's.` | An entity has another role than the fixture gives it. Change it in the app. |
+| `The project's roles are not the fixture's.` | An entity has another role than the fixture gives it. Change it in the app. No entity, topic, engine or prompt was written; the project may be. |
 | `The workspace has U of L active prompts and the fixture needs N more` | Archive prompts in the app, or raise `core.workspace_quotas.max_active_prompts` for the workspace in the dev database. |
 | `Prompts were refused: p.. location_not_supported ...` | Another engine (AI Mode) is on without that country. Turn it off or add the country. Some prompts may already be saved; the next run finishes the rest. |
 | `The API refused a step: ...` | A service refused a write, with the API's own title and code. Read it, fix the cause in the app, run again. |

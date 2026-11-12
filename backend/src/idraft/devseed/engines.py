@@ -1,5 +1,6 @@
-"""The fixture's engines on, with every active AI schedule of the project paused in the same
-transaction (plan D3 decision 10).
+"""The fixture's engines on, with every active AI answer schedule (the `ai_prompt` workload) of the
+project paused in the same transaction (plan D3 decision 10). Other schedules of the project, such
+as rank checks, are not touched.
 
 The seed never overwrites what a person set. An engine never configured is turned on at the
 fixture's countries. An engine already on gains the fixture's missing countries (the union, never
@@ -9,7 +10,7 @@ off and is reported in `EngineChanges.left_off`.
 
 Turning the first engine on makes the project's two AI answer schedules (`ensure_ai_schedule`),
 which would spend at their next window. Both are paused before the transaction commits, so they
-never exist active. Spend safety wins: every active AI schedule is paused on every run.
+never exist active. Spend safety wins: every active AI answer schedule is paused on every run.
 """
 
 from __future__ import annotations
@@ -41,7 +42,7 @@ _SCHEDULES_MAX: Final = 100
 class EngineChanges:
     """`turned_on` were never configured and now run at the fixture's countries; `widened` were
     on and gained countries; `left_off` were turned off by a person and stay off. `paused` is the
-    number of active AI schedules the run paused."""
+    number of active AI answer schedules the run paused."""
 
     turned_on: tuple[EngineCode, ...]
     widened: tuple[EngineCode, ...]

@@ -177,9 +177,7 @@ async def test_the_brand_and_competitors_are_made_with_their_roles(
         sessions, access, project_id, FIXTURE.brand, FIXTURE.competitors
     )
 
-    assert changes == EntityChanges(
-        created=9, aliases_added=0, domains_added=0, updated=0, roles_given=9
-    )
+    assert changes == EntityChanges(created=9, aliases_added=0, domains_added=0, roles_given=9)
     roles = await fetch(
         migrated,
         "SELECT e.canonical_name, pe.role, pe.is_primary, pe.track_seo, pe.track_ai "
@@ -216,9 +214,7 @@ async def test_the_brand_and_competitors_are_made_with_their_roles(
 
     before = await audit_count(migrated, workspace)
     again = await ensure_entities(sessions, access, project_id, FIXTURE.brand, FIXTURE.competitors)
-    assert again == EntityChanges(
-        created=0, aliases_added=0, domains_added=0, updated=0, roles_given=0
-    )
+    assert again == EntityChanges(created=0, aliases_added=0, domains_added=0, roles_given=0)
     assert await audit_count(migrated, workspace) == before
 
 
@@ -431,7 +427,7 @@ async def test_a_brand_a_person_made_ambiguous_keeps_it(
 
     changes = await _run(sessions, access, project_id)
 
-    assert changes.updated == 0
+    assert changes.differing == ()
     kept = await fetchrow(
         migrated,
         "SELECT is_ambiguous, disambiguation_hints FROM core.entities "
@@ -441,7 +437,7 @@ async def test_a_brand_a_person_made_ambiguous_keeps_it(
     assert tuple(kept) == (True, ["security", "events"])
 
 
-async def test_a_competitor_keeps_the_fixtures_ambiguity(
+async def test_a_competitor_a_person_made_keeps_its_ambiguity_and_the_difference_is_reported(
     migrated: PostgresServer, sessions: Sessions
 ) -> None:
     access, workspace, project_id = await seeded_project(migrated, sessions)
@@ -449,14 +445,20 @@ async def test_a_competitor_keeps_the_fixtures_ambiguity(
 
     changes = await _run(sessions, access, project_id)
 
-    assert changes.updated == 1
+    assert changes.differing == ("Darkwatch SOC",)
     darkwatch = await fetchrow(
         migrated,
         "SELECT is_ambiguous, disambiguation_hints FROM core.entities "
         "WHERE workspace_id = $1 AND canonical_name = 'Darkwatch SOC'",
         workspace.id,
     )
-    assert tuple(darkwatch) == (True, ["soc", "security", "mdr"])
+    assert tuple(darkwatch) == (False, ["old"])
+    updates = await fetch(
+        migrated,
+        "SELECT 1 FROM ops.audit_logs WHERE workspace_id = $1 AND action = 'entity.updated'",
+        workspace.id,
+    )
+    assert updates == []
 
 
 async def test_hints_are_normalised_as_the_api_does_and_a_second_run_changes_nothing(
@@ -478,7 +480,7 @@ async def test_hints_are_normalised_as_the_api_does_and_a_second_run_changes_not
         workspace.id,
     )
     assert stored["disambiguation_hints"] == ["soc", "mdr"]
-    assert again.updated == 0
+    assert again.differing == ()
     assert await written(migrated, workspace) == before
 
 
@@ -562,8 +564,6 @@ async def test_a_failure_midway_is_finished_by_the_next_run(
 
     again = await _run(sessions, access, project_id)
 
-    assert again == EntityChanges(
-        created=6, aliases_added=0, domains_added=0, updated=0, roles_given=7
-    )
+    assert again == EntityChanges(created=6, aliases_added=0, domains_added=0, roles_given=7)
     _, entity_count, _, _, role_count, _ = await written(migrated, workspace)
     assert (entity_count, role_count) == (9, 9)

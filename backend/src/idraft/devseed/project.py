@@ -45,6 +45,11 @@ from idraft.extraction.urls import normalize_host
 ENTITY_TYPE: Final = "brand"
 # The API's default (`ProjectCreate.deep_check_weekday`).
 DEEP_CHECK_WEEKDAY: Final = 1
+# The project is made before the entities are read, so a stop in the entity step can follow it.
+_PROJECT_MAY_BE_WRITTEN: Final = (
+    "No entity, topic, engine or prompt was written. The project itself may already be made or "
+    "filled in; run the seed again after the fix and it completes the rest."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,8 +57,10 @@ class EntityChanges:
     created: int
     aliases_added: int
     domains_added: int
-    updated: int
     roles_given: int
+    # Competitors that were already there with an ambiguity or hints other than the fixture's.
+    # They are left as they are: the fixture's values apply only to a competitor made by the seed.
+    differing: tuple[str, ...] = ()
     # A domain added to an entity that another entity of one of its projects claims too. The API
     # allows it and answers with a `domain_role_conflict` warning, so the seed keeps going and
     # reports it: stopping after the write would leave the domain behind and a second run would
@@ -200,7 +207,7 @@ def _body(part: EntityPart) -> EntityCreate:
         )
         raise SeedError(
             f"The fixture's entity {part.name!r} is not valid for the API: {problems}. "
-            "Nothing was written."
+            f"{_PROJECT_MAY_BE_WRITTEN}"
         ) from error
 
 
@@ -243,12 +250,12 @@ async def _ensure_entity(
     access: WorkspaceAccess,
     body: EntityCreate,
     *,
-    keep_flags: bool,
     counts: Counter[str],
     conflicts: list[str],
-) -> UUID:
-    """The entity of this body, made or completed. With `keep_flags`, a found entity keeps its
-    ambiguity and hints: the fixture says nothing about them."""
+) -> tuple[UUID, _Found | None]:
+    """The entity of this body, made or completed, and what was found of it (None when it was
+    made now). The body's ambiguity and hints apply only to an entity made here: a found entity
+    keeps its own, and the caller reports a difference."""
     service = EntityService(sessions=sessions)
     found = await _found(sessions, access, body.canonical_name)
     if found is None:
@@ -265,7 +272,7 @@ async def _ensure_entity(
             info=SEED_INFO,
         )
         counts["created"] += 1
-        return row.entity.id
+        return row.entity.id, None
     missing_aliases = [
         alias for alias in body.aliases if alias.alias.casefold() not in found.aliases
     ]
@@ -282,16 +289,7 @@ async def _ensure_entity(
                     f"{host} was added to {body.canonical_name}, and another entity of a project "
                     "that names it claims it too"
                 )
-    changes: dict[str, object] = {}
-    if not keep_flags:
-        if found.is_ambiguous != body.is_ambiguous:
-            changes["is_ambiguous"] = body.is_ambiguous
-        if found.hints != body.disambiguation_hints:
-            changes["disambiguation_hints"] = body.disambiguation_hints
-    if changes:
-        await service.update(access, found.entity_id, changes, SEED_INFO)
-        counts["updated"] += 1
-    return found.entity_id
+    return found.entity_id, found
 
 
 def _role_problem(current: roles.RoleRow | None, name: str, role: ProjectRole) -> str | None:
@@ -346,7 +344,7 @@ async def _check_roles(
                 )
     if problems:
         raise SeedError(
-            "The project's roles are not the fixture's. Nothing was written.\n- "
+            f"The project's roles are not the fixture's. {_PROJECT_MAY_BE_WRITTEN}\n- "
             + "\n- ".join(problems)
         )
 
@@ -401,22 +399,28 @@ async def ensure_entities(
     await _check_roles(sessions, access, project_id, brand_body, competitor_bodies)
     counts: Counter[str] = Counter()
     conflicts: list[str] = []
-    brand_id = await _ensure_entity(
-        sessions, access, brand_body, keep_flags=True, counts=counts, conflicts=conflicts
+    differing: list[str] = []
+    # The fixture names no ambiguity or hints for the brand, so a brand's own are never compared.
+    brand_id, _ = await _ensure_entity(
+        sessions, access, brand_body, counts=counts, conflicts=conflicts
     )
     if await _give_role(sessions, access, project_id, brand_id, brand.name, role="own"):
         counts["roles_given"] += 1
     for part, body in zip(competitors, competitor_bodies, strict=True):
-        entity_id = await _ensure_entity(
-            sessions, access, body, keep_flags=False, counts=counts, conflicts=conflicts
+        entity_id, found = await _ensure_entity(
+            sessions, access, body, counts=counts, conflicts=conflicts
         )
+        if found is not None and (
+            found.is_ambiguous != body.is_ambiguous or found.hints != body.disambiguation_hints
+        ):
+            differing.append(part.name)
         if await _give_role(sessions, access, project_id, entity_id, part.name, role="competitor"):
             counts["roles_given"] += 1
     return EntityChanges(
         created=counts["created"],
         aliases_added=counts["aliases_added"],
         domains_added=counts["domains_added"],
-        updated=counts["updated"],
         roles_given=counts["roles_given"],
+        differing=tuple(differing),
         domain_conflicts=tuple(conflicts),
     )

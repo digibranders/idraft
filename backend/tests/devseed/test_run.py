@@ -27,9 +27,7 @@ _ALIASES = sum(
     len({alias.casefold() for alias in part.aliases} - {part.name.casefold()})
     for part in [FIXTURE.brand, *FIXTURE.competitors]
 )
-_NO_ENTITY_CHANGES = EntityChanges(
-    created=0, aliases_added=0, domains_added=0, updated=0, roles_given=0
-)
+_NO_ENTITY_CHANGES = EntityChanges(created=0, aliases_added=0, domains_added=0, roles_given=0)
 
 
 def _report(
@@ -64,7 +62,7 @@ async def test_the_seed_makes_the_project_and_a_second_run_changes_nothing(
 
     assert report.project_created
     assert report.entities == EntityChanges(
-        created=9, aliases_added=0, domains_added=0, updated=0, roles_given=9
+        created=9, aliases_added=0, domains_added=0, roles_given=9
     )
     assert report.terms_created == 29
     assert report.engines == EngineChanges(
@@ -175,9 +173,7 @@ async def test_a_missing_country_stops_the_seed_with_nothing_written(
 def test_the_report_of_a_first_run_names_each_step() -> None:
     report = _report(
         created=True,
-        entities=EntityChanges(
-            created=9, aliases_added=1, domains_added=2, updated=0, roles_given=9
-        ),
+        entities=EntityChanges(created=9, aliases_added=1, domains_added=2, roles_given=9),
         engines=EngineChanges(
             turned_on=(EngineCode.CHATGPT_WEB, EngineCode.GEMINI_WEB),
             widened=(),
@@ -191,10 +187,11 @@ def test_the_report_of_a_first_run_names_each_step() -> None:
 
     assert "project eventus-security (" in text
     assert "created." in text
-    assert "Entities: 9 made, 1 aliases and 2 domains added, 0 changed, 9 roles given." in text
+    assert "Entities: 9 made, 1 aliases and 2 domains added, 9 roles given." in text
     assert "Topics: 0 terms made." in text
     assert "Engines turned on: chatgpt_web, gemini_web. Engines widened: none." in text
     assert "WARNING: AI schedules paused: 2." in text
+    assert "pauses every active AI answer schedule of the project" in text
     assert "resumes them in the app" in text
     assert "Prompts: 72 made, 0 found" in text
     assert "Active prompts in the workspace: 72 of 150." in text
@@ -236,8 +233,8 @@ def test_differences_and_domain_conflicts_are_reported() -> None:
             created=0,
             aliases_added=0,
             domains_added=1,
-            updated=0,
             roles_given=0,
+            differing=("Darkwatch SOC", "Nexus MDR"),
             domain_conflicts=(
                 "example.com was added to Darkwatch SOC, and another entity of a project that "
                 "names it claims it too",
@@ -253,6 +250,10 @@ def test_differences_and_domain_conflicts_are_reported() -> None:
         in text
     )
     assert "WARNING: found prompts that are archived: 3. They were left archived." in text
+    assert (
+        "WARNING: found competitors whose ambiguity or hints differ from the fixture: "
+        "Darkwatch SOC, Nexus MDR. They were left as they are."
+    ) in text
     assert (
         "WARNING: example.com was added to Darkwatch SOC, and another entity of a project that "
         "names it claims it too. The seed kept it, as the API does (domain_role_conflict)."
@@ -279,7 +280,8 @@ async def test_a_refusal_of_the_api_becomes_a_message(monkeypatch: pytest.Monkey
         await run_seed(_settings(), FIXTURE, "digibranders")
 
     assert str(caught.value) == (
-        "The API refused a step: Workspace limit reached (quota_exceeded). Too many prompts."
+        "The API refused a step: Workspace limit reached (quota_exceeded). Too many prompts. "
+        "Earlier steps may already be written; run the seed again after the fix."
     )
 
 
@@ -299,5 +301,6 @@ async def test_a_refused_field_names_its_code(monkeypatch: pytest.MonkeyPatch) -
 
     assert str(caught.value) == (
         "The API refused a step: location_ids: ChatGPT runs in active countries only "
-        "(location_not_supported)."
+        "(location_not_supported). "
+        "Earlier steps may already be written; run the seed again after the fix."
     )
