@@ -18,6 +18,7 @@ from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai_sources import (
     CitationPage,
     DomainRole,
+    FanoutQueryPage,
     SourceCompare,
     SourceDomainPage,
     SourcePagePage,
@@ -187,3 +188,34 @@ async def citation_list(
         url_id=url_id,
         page=page,
     )
+
+
+AnswerScope = Annotated[SourceQuery, Depends(answer_scope)]
+
+
+@router.get(
+    "/fanout-queries",
+    summary="The queries ChatGPT issued while answering, by how many answers issued them",
+    description=SCOPE
+    + "Read from the lists ingest stored with each answer (engines that show them: ChatGPT; "
+    "`filter[engine_code_in]` naming another is `422 engine_has_no_fanout`, and "
+    "`meta.engines_without_fanout` lists them so they read as not exposed, never zero). One row "
+    "per normalized text (lower case, trimmed, inner whitespace as one space) and engine, the "
+    "most issued first: the most common spelling, the answers and prompts that issued it, when "
+    "it was first and last seen, and the 5 registrable domains with the most citation units in "
+    "those answers (an association: which query found which source is not stored). A query "
+    "issued by fewer than `min_support` answers (default 2) is left out. `meta.answers` is the "
+    "denominator; `meta.answers_truncated` counts the answers whose stored list is shorter than "
+    "the queries they issued (the 16 KB bound keeps the first ones). Offset pages.",
+)
+async def fanout_queries(
+    project_id: UUID,
+    access: ReadData,
+    sources: Sources,
+    scope: AnswerScope,
+    page: Offset,
+    min_support: Annotated[
+        int, Query(ge=1, le=1000, description="The fewest answers a query is listed for.")
+    ] = 2,
+) -> FanoutQueryPage:
+    return await sources.fanout(access, project_id, scope, min_support=min_support, page=page)

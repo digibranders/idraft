@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
-from typing import cast
+from typing import Final, cast
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -29,7 +29,7 @@ from idraft.api.pagination import (
     encode_cursor,
     invalid_cursor,
 )
-from idraft.api.problems import NotFoundError
+from idraft.api.problems import EngineHasNoFanoutError, NotFoundError
 from idraft.api.ranks.repository import project_zone
 from idraft.api.ranks.service import instants
 from idraft.api.schemas.ai import MetricCell
@@ -38,6 +38,10 @@ from idraft.api.schemas.ai_sources import (
     CitationRow,
     DomainRole,
     EngineUnits,
+    FanoutCitedDomain,
+    FanoutMeta,
+    FanoutQueryPage,
+    FanoutQueryRow,
     PreviousUnits,
     RoleUnits,
     SourceCompare,
@@ -51,7 +55,13 @@ from idraft.api.schemas.ai_sources import (
 from idraft.api.schemas.metrics import MetricWindow
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
-from idraft.domain.ai_engines import EngineCode
+from idraft.domain.ai_engines import ENGINES, EngineCode
+
+# Fan-out rows name at most this many cited domains.
+CITED_DOMAINS_MAX: Final = 5
+# The engines that show the queries they issue (doc 07: ChatGPT), and the others.
+FANOUT_ENGINES: Final = tuple(sorted(str(c) for c, e in ENGINES.items() if e.exposes_fanout))
+NO_FANOUT: Final = tuple(sorted(str(c) for c, e in ENGINES.items() if not e.exposes_fanout))
 
 
 @dataclass(frozen=True, slots=True)
@@ -434,5 +444,70 @@ class SourceService:
             ],
             page=CursorPageInfo(
                 limit=page.limit, next_cursor=next_cursor, has_more=next_cursor is not None
+            ),
+        )
+
+    async def fanout(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        query: SourceQuery,
+        *,
+        min_support: int,
+        page: OffsetParams,
+    ) -> FanoutQueryPage:
+        """The queries the engines issued while answering (docs/16 F4), the most issued first.
+        An engine that does not show them is refused, never read as zero."""
+        engines = shown_engines(query.engine_codes) if query.engine_codes else list(FANOUT_ENGINES)
+        refused = [code for code in engines if code in NO_FANOUT]
+        if refused:
+            raise EngineHasNoFanoutError(
+                "These engines do not show the queries they issue.", engine_codes=refused
+            )
+        async with self._transaction(access) as db:
+            now = await scoped(db, access, project_id, query, engines)
+            rows, total = await repository.fanout_counts(
+                db, now.scope, min_support=min_support, offset=page.offset, limit=page.limit
+            )
+            cited = await repository.fanout_cited(
+                db,
+                now.scope,
+                [(row.normalized_text, row.engine_code) for row in rows],
+                top=CITED_DOMAINS_MAX,
+            )
+            counts = await repository.fanout_totals(db, now.scope)
+        return FanoutQueryPage(
+            data=[
+                FanoutQueryRow(
+                    query_text=row.query_text,
+                    normalized_text=row.normalized_text,
+                    engine_code=EngineCode(row.engine_code),
+                    observations=row.observations,
+                    prompts=row.prompts,
+                    prompt_ids=list(row.prompt_ids),
+                    first_seen_at=row.first_seen_at,
+                    last_seen_at=row.last_seen_at,
+                    cited_domains=[
+                        FanoutCitedDomain(
+                            registrable_domain=domain.registrable_domain,
+                            domain_role=cast(DomainRole, domain.domain_role),
+                            role_entity_id=domain.role_entity_id,
+                            citation_units=domain.citation_units,
+                        )
+                        for domain in cited.get((row.normalized_text, row.engine_code), [])
+                    ],
+                )
+                for row in rows
+            ],
+            page=OffsetPageInfo(offset=page.offset, limit=page.limit, total=total),
+            meta=FanoutMeta(
+                window=now.window,
+                include_branded=query.include_branded,
+                engine_codes=[EngineCode(code) for code in engines],
+                min_support=min_support,
+                answers=counts.answers,
+                answers_with_fanout=counts.answers_with_fanout,
+                answers_truncated=counts.answers_truncated,
+                engines_without_fanout=[EngineCode(code) for code in NO_FANOUT],
             ),
         )

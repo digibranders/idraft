@@ -21,6 +21,7 @@ SourceCompare = Literal["none", "previous_period"]
 
 TITLE_MAX = 300
 RAW_URL_MAX = 1000
+QUERY_MAX = 300
 
 
 def _bounded(limit: int) -> BeforeValidator:
@@ -38,6 +39,12 @@ def _bounded(limit: int) -> BeforeValidator:
 _TITLE = (
     f"Provider text (untrusted: show it as text, never as markup); cut to {TITLE_MAX} characters "
     "with a trailing `...`."
+)
+
+
+_QUERY = (
+    f"Provider text (untrusted: show it as text, never as markup); cut to {QUERY_MAX} "
+    "characters with a trailing `...`."
 )
 
 
@@ -181,3 +188,60 @@ class CitationRow(BaseModel):
 class CitationPage(BaseModel):
     data: list[CitationRow]
     page: CursorPageInfo
+
+
+class FanoutCitedDomain(BaseModel):
+    registrable_domain: str
+    domain_role: DomainRole
+    role_entity_id: UUID | None
+    citation_units: int
+
+
+class FanoutQueryRow(BaseModel):
+    query_text: Annotated[str, _bounded(QUERY_MAX)] = Field(
+        description="Its most common spelling in the answers. " + _QUERY
+    )
+    normalized_text: Annotated[str, _bounded(QUERY_MAX)] = Field(
+        description="Lower case, trimmed, inner whitespace as one space: what queries are "
+        "grouped by (docs/16 F4). " + _QUERY
+    )
+    engine_code: EngineCode
+    observations: int = Field(
+        description="Answers that issued it, each once (docs/16 F4); `meta.answers` is the "
+        "denominator."
+    )
+    prompts: int
+    prompt_ids: list[UUID] = Field(description="The prompts whose answers issued it.")
+    first_seen_at: datetime
+    last_seen_at: datetime
+    cited_domains: list[FanoutCitedDomain] = Field(
+        description="The 5 registrable domains with the most citation units in the answers that "
+        "issued it: an association, not a link (which query found which source is not stored)."
+    )
+
+
+class FanoutMeta(BaseModel):
+    window: MetricWindow
+    include_branded: bool
+    engine_codes: list[EngineCode]
+    min_support: int
+    answers: int = Field(
+        description="Valid answers in scope on these engines: the denominator of `observations`."
+    )
+    answers_with_fanout: int = Field(
+        description="Of those, the answers that issued a query (docs/16 F1)."
+    )
+    answers_truncated: int = Field(
+        description="Of those, the answers whose stored list is shorter than the queries they "
+        "issued (the 16 KB bound on the stored extras keeps the first ones): their other "
+        "queries are in no row."
+    )
+    engines_without_fanout: list[EngineCode] = Field(
+        description="Engines that do not show the queries they issue: not exposed, never zero."
+    )
+
+
+class FanoutQueryPage(BaseModel):
+    data: list[FanoutQueryRow]
+    page: OffsetPageInfo
+    meta: FanoutMeta

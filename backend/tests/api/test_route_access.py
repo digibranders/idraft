@@ -333,6 +333,9 @@ EXPECTED: dict[tuple[str, str], str] = {
         "data:read"
     ),
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations"): ("data:read"),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/fanout-queries"): (
+        "data:read"
+    ),
     (
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/seo/rank-events",

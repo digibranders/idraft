@@ -220,6 +220,8 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     ("GET", _W + "/costs"): {"from": "2026-01-01", "to": "2026-12-31", "group_by": "project"},
     # Every option, so the opt-in reads are scanned too.
     ("GET", _W + "/projects/{project_id}/ai/prompts-summary"): {"include": "entities"},
+    # A tenant's answer issued one query; the default needs two answers.
+    ("GET", _W + "/projects/{project_id}/ai/fanout-queries"): {"min_support": "1"},
 }
 # Lists under a workspace's path that hold the platform's data, the same for every workspace:
 # they have no tenant data of their own to show.
@@ -566,6 +568,13 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     )
     # Its extraction: a citation, a mention of the entity and the facts, read through the routes.
     await seed_extraction(pg, Project(workspace.id, project_id), observation_id, entity["id"])
+    # The queries ChatGPT issued while answering, as ingest stores them.
+    await execute(
+        pg,
+        "UPDATE ai.observations SET provider_extras = $2::jsonb, fanout_count = 1 WHERE id = $1",
+        observation_id,
+        json.dumps({"fan_out_queries": ["best crm software"]}),
+    )
     # A real connection of the same Google account in both: its refresh token is sealed as the
     # application seals one, and the fake Google accepts it.
     account = fake.account(f"{label}@client.example", [("sc-domain:acme.example", "siteOwner")])

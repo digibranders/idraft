@@ -2921,6 +2921,194 @@
         "title": "EntityUpdate",
         "type": "object"
       },
+      "FanoutCitedDomain": {
+        "properties": {
+          "citation_units": {
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "registrable_domain": {
+            "title": "Registrable Domain",
+            "type": "string"
+          },
+          "role_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Entity Id"
+          }
+        },
+        "required": [
+          "registrable_domain",
+          "domain_role",
+          "role_entity_id",
+          "citation_units"
+        ],
+        "title": "FanoutCitedDomain",
+        "type": "object"
+      },
+      "FanoutMeta": {
+        "properties": {
+          "answers": {
+            "description": "Valid answers in scope on these engines: the denominator of `observations`.",
+            "title": "Answers",
+            "type": "integer"
+          },
+          "answers_truncated": {
+            "description": "Of those, the answers whose stored list is shorter than the queries they issued (the 16 KB bound on the stored extras keeps the first ones): their other queries are in no row.",
+            "title": "Answers Truncated",
+            "type": "integer"
+          },
+          "answers_with_fanout": {
+            "description": "Of those, the answers that issued a query (docs/16 F1).",
+            "title": "Answers With Fanout",
+            "type": "integer"
+          },
+          "engine_codes": {
+            "items": {
+              "$ref": "#/components/schemas/EngineCode"
+            },
+            "title": "Engine Codes",
+            "type": "array"
+          },
+          "engines_without_fanout": {
+            "description": "Engines that do not show the queries they issue: not exposed, never zero.",
+            "items": {
+              "$ref": "#/components/schemas/EngineCode"
+            },
+            "title": "Engines Without Fanout",
+            "type": "array"
+          },
+          "include_branded": {
+            "title": "Include Branded",
+            "type": "boolean"
+          },
+          "min_support": {
+            "title": "Min Support",
+            "type": "integer"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow"
+          }
+        },
+        "required": [
+          "window",
+          "include_branded",
+          "engine_codes",
+          "min_support",
+          "answers",
+          "answers_with_fanout",
+          "answers_truncated",
+          "engines_without_fanout"
+        ],
+        "title": "FanoutMeta",
+        "type": "object"
+      },
+      "FanoutQueryPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/FanoutQueryRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/FanoutMeta"
+          },
+          "page": {
+            "$ref": "#/components/schemas/OffsetPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page",
+          "meta"
+        ],
+        "title": "FanoutQueryPage",
+        "type": "object"
+      },
+      "FanoutQueryRow": {
+        "properties": {
+          "cited_domains": {
+            "description": "The 5 registrable domains with the most citation units in the answers that issued it: an association, not a link (which query found which source is not stored).",
+            "items": {
+              "$ref": "#/components/schemas/FanoutCitedDomain"
+            },
+            "title": "Cited Domains",
+            "type": "array"
+          },
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "first_seen_at": {
+            "format": "date-time",
+            "title": "First Seen At",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "normalized_text": {
+            "description": "Lower case, trimmed, inner whitespace as one space: what queries are grouped by (docs/16 F4). Provider text (untrusted: show it as text, never as markup); cut to 300 characters with a trailing `...`.",
+            "title": "Normalized Text",
+            "type": "string"
+          },
+          "observations": {
+            "description": "Answers that issued it, each once (docs/16 F4); `meta.answers` is the denominator.",
+            "title": "Observations",
+            "type": "integer"
+          },
+          "prompt_ids": {
+            "description": "The prompts whose answers issued it.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Prompt Ids",
+            "type": "array"
+          },
+          "prompts": {
+            "title": "Prompts",
+            "type": "integer"
+          },
+          "query_text": {
+            "description": "Its most common spelling in the answers. Provider text (untrusted: show it as text, never as markup); cut to 300 characters with a trailing `...`.",
+            "title": "Query Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query_text",
+          "normalized_text",
+          "engine_code",
+          "observations",
+          "prompts",
+          "prompt_ids",
+          "first_seen_at",
+          "last_seen_at",
+          "cited_domains"
+        ],
+        "title": "FanoutQueryRow",
+        "type": "object"
+      },
       "FeatureCheck": {
         "properties": {
           "depth_requested": {
@@ -19649,6 +19837,200 @@
           }
         },
         "summary": "The citations behind the source counts, newest answer first",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/fanout-queries": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). Read from the lists ingest stored with each answer (engines that show them: ChatGPT; `filter[engine_code_in]` naming another is `422 engine_has_no_fanout`, and `meta.engines_without_fanout` lists them so they read as not exposed, never zero). One row per normalized text (lower case, trimmed, inner whitespace as one space) and engine, the most issued first: the most common spelling, the answers and prompts that issued it, when it was first and last seen, and the 5 registrable domains with the most citation units in those answers (an association: which query found which source is not stored). A query issued by fewer than `min_support` answers (default 2) is left out. `meta.answers` is the denominator; `meta.answers_truncated` counts the answers whose stored list is shorter than the queries they issued (the 16 KB bound keeps the first ones). Offset pages.",
+        "operationId": "fanout_queries_api_v1_workspaces__workspace_id__projects__project_id__ai_fanout_queries_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The fewest answers a query is listed for.",
+            "in": "query",
+            "name": "min_support",
+            "required": false,
+            "schema": {
+              "default": 2,
+              "description": "The fewest answers a query is listed for.",
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Min Support",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "One prompt's answers, whether it is active, archived or branded.",
+            "in": "query",
+            "name": "filter[prompt_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One prompt's answers, whether it is active, archived or branded.",
+              "title": "Filter[Prompt Id]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FanoutQueryPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The queries ChatGPT issued while answering, by how many answers issued them",
         "tags": [
           "ai"
         ]

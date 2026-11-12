@@ -244,6 +244,12 @@ class WindowTooLargeError(ProblemError):
     status, code, title = 422, "window_too_large", "The window is too large"
 
 
+class EngineHasNoFanoutError(ProblemError):
+    """Carries `engine_codes`: engines that do not show the queries they issue."""
+
+    status, code, title = 422, "engine_has_no_fanout", "The engine does not show its fan-out"
+
+
 class RawExpiredError(ProblemError):
     """The provider's answer was kept for its retention period, and that has passed."""
 

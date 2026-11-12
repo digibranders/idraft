@@ -23,7 +23,20 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any, Final
 from uuid import UUID
 
-from sqlalchemy import Select, and_, desc, func, literal_column, or_, select, tuple_
+from sqlalchemy import (
+    BigInteger,
+    Select,
+    and_,
+    case,
+    cast,
+    desc,
+    func,
+    literal_column,
+    or_,
+    select,
+    true,
+    tuple_,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.db.tables import (
@@ -473,6 +486,267 @@ async def citation_rows(
         _C.observed_at.desc(), _C.observation_id.desc(), _C.citation_index
     ).limit(limit)
     return list(await db.execute(statement))
+
+
+@dataclass(frozen=True, slots=True)
+class FanoutCount:
+    normalized_text: str
+    engine_code: str
+    query_text: str
+    observations: int
+    prompts: int
+    prompt_ids: tuple[UUID, ...]
+    first_seen_at: datetime
+    last_seen_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class CitedDomain:
+    registrable_domain: str
+    domain_role: str
+    role_entity_id: UUID | None
+    citation_units: int
+
+
+@dataclass(frozen=True, slots=True)
+class FanoutTotals:
+    answers: int
+    answers_with_fanout: int
+    answers_truncated: int
+
+
+def _answers_with_queries(scope: SourceScope) -> Any:
+    """The counted answers with what ingest stored of their fan-out: `fanout_count` (the queries
+    issued, before the 16 KB bound) and `fan_out`, the stored list (an empty array when there is
+    none: no extras, or extras the bound cut to `{"truncated": true}`). The observations are
+    joined after the counted answers are known, on their key, bounded to the window's
+    partitions."""
+    answers = counted_answers(scope)
+    stored = _O.provider_extras["fan_out_queries"]
+    return (
+        select(
+            answers.c.observation_id,
+            answers.c.observed_at,
+            answers.c.prompt_id,
+            answers.c.engine_code,
+            _O.fanout_count,
+            case(
+                (func.jsonb_typeof(stored) == "array", stored),
+                else_=literal_column("'[]'::jsonb"),
+            ).label("fan_out"),
+        )
+        .select_from(
+            answers.join(
+                ai_observations,
+                and_(
+                    _O.id == answers.c.observation_id,
+                    _O.observed_at == answers.c.observed_at,
+                    _O.workspace_id == scope.workspace_id,
+                ),
+            )
+        )
+        .where(
+            _O.project_id == scope.project_id,
+            _O.observed_at >= scope.since,
+            _O.observed_at < scope.until,
+            _O.observed_date >= _shifted(scope.since, -1),
+            _O.observed_date <= _shifted(scope.until, 1),
+        )
+        .subquery("answers")
+    )
+
+
+def _issued(scope: SourceScope) -> Any:
+    """One row per query a counted answer stored, with its normalized text computed here, so
+    the outer query groups by a plain column (a bound parameter in a GROUP BY expression is a
+    new parameter at each use)."""
+    answers = _answers_with_queries(scope)
+    queries = (
+        func.jsonb_array_elements_text(answers.c.fan_out).table_valued("value").lateral("queries")
+    )
+    normalized = func.lower(func.btrim(func.regexp_replace(queries.c.value, r"\s+", " ", "g")))
+    return (
+        select(
+            answers.c.observation_id,
+            answers.c.observed_at,
+            answers.c.prompt_id,
+            answers.c.engine_code,
+            queries.c.value.label("query_text"),
+            normalized.label("normalized_text"),
+        )
+        .select_from(answers.join(queries, true()))
+        .subquery("issued")
+    )
+
+
+async def fanout_counts(
+    db: AsyncSession, scope: SourceScope, *, min_support: int, offset: int, limit: int
+) -> tuple[list[FanoutCount], int]:
+    """A page of queries by (normalized text, engine), the most issued first, and how many
+    there are. A query an answer lists twice counts once for it."""
+    issued = _issued(scope)
+    observations = func.count(issued.c.observation_id.distinct())
+    grouped = (
+        select(
+            issued.c.normalized_text,
+            issued.c.engine_code,
+            func.mode().within_group(issued.c.query_text).label("query_text"),
+            observations.label("observations"),
+            func.count(issued.c.prompt_id.distinct()).label("prompts"),
+            func.array_agg(issued.c.prompt_id.distinct()).label("prompt_ids"),
+            func.min(issued.c.observed_at).label("first_seen_at"),
+            func.max(issued.c.observed_at).label("last_seen_at"),
+        )
+        .where(issued.c.normalized_text != "")
+        .group_by(issued.c.normalized_text, issued.c.engine_code)
+        .having(observations >= min_support)
+    )
+    rows, total = await page_of(
+        db,
+        grouped,
+        [desc(literal_column("observations")), issued.c.normalized_text, issued.c.engine_code],
+        offset=offset,
+        limit=limit,
+    )
+    return [
+        FanoutCount(
+            normalized_text=row.normalized_text,
+            engine_code=row.engine_code,
+            query_text=row.query_text,
+            observations=row.observations,
+            prompts=row.prompts,
+            prompt_ids=tuple(sorted(UUID(str(value)) for value in row.prompt_ids)),
+            first_seen_at=row.first_seen_at,
+            last_seen_at=row.last_seen_at,
+        )
+        for row in rows
+    ], total
+
+
+async def fanout_cited(
+    db: AsyncSession, scope: SourceScope, keys: Sequence[tuple[str, str]], *, top: int
+) -> dict[tuple[str, str], list[CitedDomain]]:
+    """For each (normalized text, engine), the `top` registrable domains with the most citation
+    units in the answers that issued it, most first, then by name."""
+    if not keys:
+        return {}
+    issued = _issued(scope)
+    pairs = (
+        select(
+            issued.c.observation_id,
+            issued.c.observed_at,
+            issued.c.normalized_text,
+            issued.c.engine_code,
+        )
+        # One list of texts, not of (text, engine) pairs: a pair list becomes an OR of
+        # comparisons that normalizes every stored query once per pair. The engine is in the
+        # grouping, and a group of a text the page does not name by that engine is never read.
+        .where(issued.c.normalized_text.in_(sorted({text for text, _ in keys})))
+        .distinct()
+        .subquery("pairs")
+    )
+    # Units are counted once per answer and domain, then added up over the answers of each
+    # query: a pair is one answer once, so the sum is the distinct count, without sorting every
+    # (query, answer, citation) row (an answer issues up to a few hundred queries).
+    _, source = _cited(scope)
+    cites = (
+        select(
+            _C.observation_id,
+            _C.observed_at,
+            _D.registrable_domain,
+            _C.domain_role,
+            _C.role_entity_id,
+            func.count(_C.url_id.distinct()).label("units"),
+        )
+        .select_from(source)
+        .where(*citation_bounds(scope))
+        .group_by(
+            _C.observation_id,
+            _C.observed_at,
+            _D.registrable_domain,
+            _C.domain_role,
+            _C.role_entity_id,
+        )
+        .subquery("cites")
+    )
+    grouped = (
+        select(
+            pairs.c.normalized_text,
+            pairs.c.engine_code,
+            cites.c.registrable_domain,
+            cites.c.domain_role,
+            cites.c.role_entity_id,
+            cast(func.sum(cites.c.units), BigInteger).label("units"),
+        )
+        .select_from(
+            pairs.join(
+                cites,
+                and_(
+                    cites.c.observation_id == pairs.c.observation_id,
+                    cites.c.observed_at == pairs.c.observed_at,
+                ),
+            )
+        )
+        .group_by(
+            pairs.c.normalized_text,
+            pairs.c.engine_code,
+            cites.c.registrable_domain,
+            cites.c.domain_role,
+            cites.c.role_entity_id,
+        )
+        .subquery("grouped")
+    )
+    ranked = select(
+        grouped,
+        func.row_number()
+        .over(
+            partition_by=(grouped.c.normalized_text, grouped.c.engine_code),
+            order_by=(
+                grouped.c.units.desc(),
+                grouped.c.registrable_domain,
+                grouped.c.domain_role,
+                grouped.c.role_entity_id.asc().nulls_first(),
+            ),
+        )
+        .label("place"),
+    ).subquery("ranked")
+    rows = await db.execute(
+        select(ranked)
+        .where(ranked.c.place <= top)
+        .order_by(ranked.c.normalized_text, ranked.c.engine_code, ranked.c.place)
+    )
+    found: dict[tuple[str, str], list[CitedDomain]] = {}
+    for row in rows:
+        found.setdefault((row.normalized_text, row.engine_code), []).append(
+            CitedDomain(
+                registrable_domain=row.registrable_domain,
+                domain_role=row.domain_role,
+                role_entity_id=row.role_entity_id,
+                citation_units=row.units,
+            )
+        )
+    return found
+
+
+async def fanout_totals(db: AsyncSession, scope: SourceScope) -> FanoutTotals:
+    """The counted answers, those that issued a query (docs/16 F1) and those whose stored list
+    is shorter than what they issued: a list is complete exactly when its length is the
+    answer's `fanout_count` (the `truncated` flag is also set when only another list was cut)."""
+    answers = _answers_with_queries(scope)
+    row = (
+        await db.execute(
+            select(
+                func.count().label("answers"),
+                func.count().filter(answers.c.fanout_count > 0).label("with_fanout"),
+                func.count()
+                .filter(func.jsonb_array_length(answers.c.fan_out) < answers.c.fanout_count)
+                .label("truncated"),
+            ).select_from(answers)
+        )
+    ).one()
+    return FanoutTotals(
+        answers=row.answers, answers_with_fanout=row.with_fanout, answers_truncated=row.truncated
+    )
 
 
 async def answer_count(db: AsyncSession, scope: SourceScope) -> int:
