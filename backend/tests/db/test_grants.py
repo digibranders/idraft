@@ -118,6 +118,14 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     # Imports file keywords under terms, creating the missing ones.
     "core.taxonomy_vocabularies": (CRUD, READ),
     "core.taxonomy_terms": (CRUD, access("SELECT, INSERT")),
+    # The API may change a layout's document, never its owner, screen or workspace.
+    "core.layouts": (
+        access(
+            "SELECT, INSERT, DELETE",
+            UPDATE=("document", "schema_version", "updated_by", "updated_at"),
+        ),
+        NONE,
+    ),
     "seo.keywords": (
         access("SELECT", INSERT=KEYWORD_COLUMNS),
         access("SELECT", INSERT=KEYWORD_COLUMNS),
