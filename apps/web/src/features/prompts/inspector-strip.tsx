@@ -4,12 +4,12 @@ import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import type { PromptCounts } from './inspector-reads';
-import { averageRate, cellFigure } from './rate-model';
 import { useRateWords } from './rate-view';
 import { MetricStrip, type MetricStripGroup, type MetricStripItem } from '@/components/app/metric/metric-strip';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import type { ProjectEngine } from '@/lib/api/types';
+import { averageRate, cellFigure } from '@/lib/rates/rate-model';
 
 export interface InspectorStripProps {
   /** The enabled engines, in order. */

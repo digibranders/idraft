@@ -1,10 +1,9 @@
 import type { PromptRow } from './prompt-columns';
 import type { DateRange } from './prompt-model';
-import { validAnswers } from './prompt-model';
-import { averageRate } from './rate-model';
 import type { MetricCell, ProjectEngine } from '@/lib/api/types';
 import type { CsvCell, CsvTable } from '@/lib/csv/csv-write';
 import { safeText } from '@/lib/csv/csv-write';
+import { averageRate, validAnswers } from '@/lib/rates/rate-model';
 
 /** The words of the file, from the catalog, so the model holds no text a person reads. */
 export interface PromptExportLabels {

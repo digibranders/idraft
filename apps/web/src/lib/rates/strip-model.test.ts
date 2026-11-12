@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { topicDescendants } from './prompt-model';
-import { engineRates, shareOfVoiceTotals, topicsSpanned, type StripPrompt } from './strip-model';
-import type { TopicSummaryRow } from '@/lib/api/types';
+import { engineRates, shareOfVoiceTotals, type StripPrompt } from './strip-model';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 import { NO_COUNTS, promptCells, topicCells, type Counts } from '@/mocks/prompt-summary';
 
@@ -151,46 +149,5 @@ describe('shareOfVoiceTotals: one answer, one weight', () => {
   it('is insufficient under the minimum of answers that name a brand', () => {
     const { shareOfVoice } = engineRates([promptOf(counted(9, 4, { naming: 3, share: 1 }))], CHATGPT);
     expect(shareOfVoice).toMatchObject({ state: 'insufficient', value: null, answers: 3 });
-  });
-});
-
-describe('topicsSpanned', () => {
-  const topic = (term_id: string | null, name: string | null): TopicSummaryRow => ({
-    term_id,
-    name,
-    prompt_count: 1,
-    last_observed_at: null,
-    last_valid_at: null,
-    engines: [],
-  });
-  const topics = [topic('seo', 'SEO'), topic('technical', 'Technical SEO'), topic('paid', 'Paid'), topic(null, null)];
-  const tree = [
-    { termId: 'seo', parentId: null },
-    { termId: 'technical', parentId: 'seo' },
-    { termId: 'paid', parentId: null },
-  ].map((term) => ({ ...term, name: term.termId, path: term.termId }));
-  const below = topicDescendants(tree, []);
-  const inScope = (...ids: string[][]): StripPrompt[] => ids.map((topicIds) => promptOf(NO_COUNTS, topicIds));
-
-  it('counts each topic that has a prompt in scope, the topics above a prompt included, once', () => {
-    expect(topicsSpanned(topics, inScope(['technical'], ['technical'], ['paid']), below, null)).toBe(3);
-  });
-
-  it('never counts the row of the prompts without a topic: No topic is no topic', () => {
-    expect(topicsSpanned(topics, inScope([], ['paid']), below, null)).toBe(1);
-    expect(topicsSpanned(topics, inScope([], []), below, null)).toBe(0);
-  });
-
-  it('leaves out a topic no prompt in scope belongs to, and every topic a topic filter does not keep', () => {
-    expect(topicsSpanned(topics, inScope(['paid']), below, null)).toBe(1);
-    expect(topicsSpanned(topics, inScope(['technical']), below, new Set(['technical']))).toBe(1);
-  });
-
-  it('is 0 without a prompt', () => {
-    expect(topicsSpanned(topics, [], below, null)).toBe(0);
-  });
-
-  it('counts a topic a prompt carries when the tree does not hold it yet', () => {
-    expect(topicsSpanned([topic('seo', 'SEO'), topic('paid', 'Paid')], inScope(['paid']), new Map(), null)).toBe(1);
   });
 });

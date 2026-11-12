@@ -19,6 +19,18 @@
       "chipsHint": "{count, plural, one {# chosen. From the start of the field, press Left Arrow to reach it.} other {# chosen. From the start of the field, press Left Arrow to reach them.}}",
       "chipHint": "Press Backspace or Delete to remove"
     },
+    "insufficient": {
+      "answers": "{count, plural, one {# answer} other {# answers}}",
+      "tip": "Too few valid answers for a rate: {count, number} of the {min, number} it needs."
+    },
+    "fileDropzone": {
+      "dropzone": "Drop a CSV file here, or choose one",
+      "dropzoneActive": "Drop to upload",
+      "chooseFile": "Choose file",
+      "fileRow": "{name}, {size}",
+      "removeFile": "Remove file",
+      "uploading": "Uploading {name}"
+    },
     "depths": {
       "light": "Light",
       "standard": "Standard",
@@ -1764,12 +1776,7 @@
       "source": "Source",
       "sourceFile": "CSV file",
       "sourcePaste": "Paste",
-      "dropzone": "Drop a CSV file here, or choose one",
-      "dropzoneActive": "Drop to upload",
-      "chooseFile": "Choose file",
       "constraints": "CSV, UTF-8, up to 50 MB. One column must hold the keywords.",
-      "fileRow": "{name}, {size}",
-      "removeFile": "Remove file",
       "fileTooLarge": "This file is larger than 50 MB. Split it into smaller files.",
       "fileNotUtf8": "This file is not UTF-8. Export it again as CSV UTF-8.",
       "fileNotCsv": "Only CSV files can be imported.",
@@ -1794,7 +1801,6 @@
       "tagsVocabulary": "Vocabulary for tags",
       "topicVocabulary": "Vocabulary for topics",
       "vocabularyPlaceholder": "Choose a vocabulary",
-      "uploading": "Uploading {name}",
       "uploadProgress": "{percent}% uploaded",
       "reading": "Reading the file",
       "readingRows": "{done} of {total} rows read",

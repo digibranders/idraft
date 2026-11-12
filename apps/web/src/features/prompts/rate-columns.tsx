@@ -3,14 +3,15 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
-import { CELL_OF_METRIC, countText, engineSortId, hasRate, SORT_ID, type RateMetric } from './prompt-model';
-import { averageRate, cellFigure, engineRatesOf, topEngine, type AverageRate } from './rate-model';
-import { InsufficientPill, useRateWords } from './rate-view';
-import type { RateReading } from './strip-model';
+import { CELL_OF_METRIC, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
+import { useRateWords } from './rate-view';
 import { col } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
+import { InsufficientPill } from '@/components/app/metric/insufficient-pill';
 import type { EngineSummary, ProjectEngine } from '@/lib/api/types';
 import { EMPTY_VALUE, formatList } from '@/lib/format';
+import { averageRate, cellFigure, engineRatesOf, hasRate, topEngine, type AverageRate } from '@/lib/rates/rate-model';
+import type { RateReading } from '@/lib/rates/strip-model';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 /**

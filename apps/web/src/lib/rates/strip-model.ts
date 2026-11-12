@@ -1,5 +1,4 @@
-import { topicMembers, topicRowKept, type TopicDescendants } from './prompt-model';
-import type { MetricCell, PromptSummaryRow, TopicSummaryRow } from '@/lib/api/types';
+import type { MetricCell, PromptSummaryRow } from '@/lib/api/types';
 import { pooledCounts, promptWeightedRate, rateState, type RateState } from '@/lib/stats';
 
 /**
@@ -105,26 +104,4 @@ export function engineRates(prompts: readonly StripPrompt[], engineCode: string)
       ? figure(state, null, 0, null, 0, reason)
       : figure(state, numerator / denominator, denominator, null, mentioned.prompts, null);
   return { mentioned, cited, shareOfVoice };
-}
-
-/**
- * How many topics the prompts in scope span: the topics of the summary that hold at least one of them, as the
- * Topics tab lists them (the topic a prompt is given and every topic above it; the "No topic" row is not a
- * topic), within `kept` when a topic filter is set (`null` otherwise). The caller must not ask before the
- * vocabulary trees are read: a topic the tree does not hold cannot be rolled up, and this counts it only when a
- * prompt carries it itself.
- */
-export function topicsSpanned(
-  topics: readonly TopicSummaryRow[],
-  prompts: readonly StripPrompt[],
-  descendants: TopicDescendants,
-  kept: ReadonlySet<string> | null,
-): number {
-  return topics.filter((topic) => {
-    // The row of no topic is not a topic the prompts span
-    const termId = topic.term_id;
-    if (termId === null || (kept !== null && !topicRowKept(termId, kept))) return false;
-    const members = topicMembers(termId, prompts, descendants);
-    return members === null ? prompts.some((prompt) => prompt.topic_term_ids.includes(termId)) : members.length > 0;
-  }).length;
 }

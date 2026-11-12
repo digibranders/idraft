@@ -1,30 +1,8 @@
 import type { RankCell, TrackedKeywordRow } from '@/lib/api/types';
-import { safeText, type CsvCell } from '@/lib/csv/csv-write';
+import { safeText } from '@/lib/csv/csv-write';
+import type { ExportCell, ExportColumnKind, ExportKpi, KeywordExport } from '@/lib/export/export-file';
 import { gscCount } from '../gsc-counts';
 import type { Device, PairedRow } from '../keyword-pairs';
-
-/** A cell of the exported table: text, a number, or nothing. */
-export type ExportCell = CsvCell;
-
-export interface ExportKpi {
-  label: string;
-  value: number;
-}
-
-/** What a column holds, so the workbook can align, format and size it without reading its header. */
-export type ExportColumnKind =
-  | 'keyword'
-  | 'rank'
-  | 'url'
-  | 'volume'
-  | 'clicks'
-  | 'impressions'
-  | 'difficulty'
-  | 'cpc'
-  | 'intent'
-  | 'priority'
-  | 'groups'
-  | 'checked';
 
 /** The words of the file, from the catalog, so the model itself holds no text a person reads. */
 export interface ExportLabels {
@@ -48,15 +26,6 @@ export interface ExportLabels {
   top20: string;
   /** The name of each intent as the table shows it; an intent without a name leaves its cell empty. */
   intents: Readonly<Record<string, string>>;
-}
-
-export interface KeywordExport {
-  /** Counts of the tracked keywords of the device shown, as the strip above the table shows them. */
-  kpis: ExportKpi[];
-  header: string[];
-  /** The kind of each column, in the order of the header. */
-  kinds: ExportColumnKind[];
-  rows: ExportCell[][];
 }
 
 const TOPS = [3, 10, 20] as const;

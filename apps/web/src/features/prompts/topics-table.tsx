@@ -19,7 +19,6 @@ import {
   type TopicTab,
 } from './prompt-model';
 import { useRateColumns } from './rate-columns';
-import { sortByKeys } from './rate-model';
 import { applyRowChange, rowSelection, topicsChosen, type RowPrompts } from './selection-model';
 import { buildTopicTree, countTopicRows, sortTopicTree, type TopicBranch } from './topic-tree';
 import { useTrendColumn } from './trend-column';
@@ -32,6 +31,7 @@ import { Tooltip } from '@/components/ui/tooltip';
 import type { EngineSummary, ProjectEngine, PromptsSummary, PromptSummaryRow, TopicSummaryRow } from '@/lib/api/types';
 import { EMPTY_VALUE } from '@/lib/format';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
+import { sortByKeys } from '@/lib/rates/rate-model';
 import { CELL_CONTROL } from '@/lib/tables/grid-focus';
 import { formatSort, parseSort, sameSort, type Density, type SortKey } from '@/lib/tables/table-state';
 

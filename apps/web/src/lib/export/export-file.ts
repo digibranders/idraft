@@ -1,11 +1,42 @@
 import type { CellObject, SheetData } from 'write-excel-file/universal';
 
 import type { WorkbookColors } from './export-colors';
-import type { ExportCell, ExportColumnKind, KeywordExport } from './export-model';
-import { csvBlob } from '@/lib/csv/csv-write';
+import { csvBlob, type CsvCell } from '@/lib/csv/csv-write';
 
 /** The file types of the Export menu. */
 export type ExportFormat = 'xlsx' | 'csv';
+
+/** A cell of the exported table: text, a number, or nothing. */
+export type ExportCell = CsvCell;
+
+export interface ExportKpi {
+  label: string;
+  value: number;
+}
+
+/** What a column holds, so the workbook can align, format and size it without reading its header. */
+export type ExportColumnKind =
+  | 'keyword'
+  | 'rank'
+  | 'url'
+  | 'volume'
+  | 'clicks'
+  | 'impressions'
+  | 'difficulty'
+  | 'cpc'
+  | 'intent'
+  | 'priority'
+  | 'groups'
+  | 'checked';
+
+export interface KeywordExport {
+  /** Counts of the tracked keywords of the device shown, as the strip above the table shows them. */
+  kpis: ExportKpi[];
+  header: string[];
+  /** The kind of each column, in the order of the header. */
+  kinds: ExportColumnKind[];
+  rows: ExportCell[][];
+}
 
 export const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 

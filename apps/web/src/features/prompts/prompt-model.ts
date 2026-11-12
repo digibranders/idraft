@@ -10,7 +10,7 @@ import type {
 import { formatIsoDate, formatSampleCount } from '@/lib/format';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 import type { Country } from '@/lib/locations/countries';
-import { rateState } from '@/lib/stats';
+import type { StripPrompt } from '@/lib/rates/strip-model';
 import type { SortKey } from '@/lib/tables/table-state';
 
 /**
@@ -192,6 +192,28 @@ export function topicMembers<T extends Pick<PromptSummaryRow, 'topic_term_ids'>>
   return prompts.filter((prompt) => prompt.topic_term_ids.some((id) => below.has(id)));
 }
 
+/**
+ * How many topics the prompts in scope span: the topics of the summary that hold at least one of them, as the
+ * Topics tab lists them (the topic a prompt is given and every topic above it; the "No topic" row is not a
+ * topic), within `kept` when a topic filter is set (`null` otherwise). The caller must not ask before the
+ * vocabulary trees are read: a topic the tree does not hold cannot be rolled up, and this counts it only when a
+ * prompt carries it itself.
+ */
+export function topicsSpanned(
+  topics: readonly TopicSummaryRow[],
+  prompts: readonly StripPrompt[],
+  descendants: TopicDescendants,
+  kept: ReadonlySet<string> | null,
+): number {
+  return topics.filter((topic) => {
+    // The row of no topic is not a topic the prompts span
+    const termId = topic.term_id;
+    if (termId === null || (kept !== null && !topicRowKept(termId, kept))) return false;
+    const members = topicMembers(termId, prompts, descendants);
+    return members === null ? prompts.some((prompt) => prompt.topic_term_ids.includes(termId)) : members.length > 0;
+  }).length;
+}
+
 /** The topic key of the prompts without a topic, in the address (`topic:__none`) and in the table's row ids. */
 export const NO_TOPIC = '__none';
 
@@ -262,24 +284,6 @@ export function topicOriginOf(
 ): TopicOrigin | null {
   if (origin === null || open.promptId === null || origin.projectId !== open.projectId) return null;
   return origin.promptId === open.promptId || open.order?.includes(open.promptId) === true ? origin : null;
-}
-
-/** The answers behind a cell: a topic's cell is prompt weighted and counts them in `pooled`, a prompt's in its denominator. */
-export const validAnswers = (cell: MetricCell): number => cell.pooled?.trials ?? cell.denominator;
-
-/** Whether the engine shows a rate of its own: a value over at least `MIN_OBSERVATIONS` valid answers. */
-export const hasRate = (cell: MetricCell): boolean => cell.value !== null && rateState(validAnswers(cell)) === 'ok';
-
-/**
- * The equal-weight average of the engines' rates, and how many engines took part (ADR-DS-022 decision 3): only
- * an engine that shows a rate of its own takes part (`hasRate`), so "avg of N" is the number of percents in the
- * engines' columns. An engine with no valid answer, or too few of them, is left out, not counted as 0. `null` when
- * no engine has a rate.
- */
-export function acrossEngines(cells: readonly MetricCell[]): { value: number; engines: number } | null {
-  const values = cells.flatMap((cell) => (hasRate(cell) && cell.value !== null ? [cell.value] : []));
-  if (values.length === 0) return null;
-  return { value: values.reduce((sum, value) => sum + value, 0) / values.length, engines: values.length };
 }
 
 export interface TopicChoice {

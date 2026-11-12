@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { averageRate, cellFigure, engineRatesOf, sortByKeys, topEngine, type SortValue } from './rate-model';
+import {
+  acrossEngines,
+  averageRate,
+  cellFigure,
+  engineRatesOf,
+  hasRate,
+  sortByKeys,
+  topEngine,
+  validAnswers,
+  type SortValue,
+} from './rate-model';
 import type { MetricCell } from '@/lib/api/types';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 import { NO_COUNTS, promptCells, topicCells, type Counts } from '@/mocks/prompt-summary';
@@ -21,6 +31,42 @@ const counted = (
 });
 
 const mentionedOf = (counts: Counts): MetricCell => promptCells('chatgpt_web', counts).mentioned;
+
+const rated = (value: number | null, answers = value === null ? 0 : 4): MetricCell => ({
+  value,
+  numerator: 0,
+  denominator: answers,
+  n_observations: answers,
+});
+
+describe('validAnswers and hasRate: the answers behind a cell, and whether it shows a rate of its own', () => {
+  it('counts the valid answers of a prompt in its denominator and of a topic in `pooled`', () => {
+    expect(validAnswers(rated(0.5, 6))).toBe(6);
+    expect(validAnswers({ ...rated(0.5, 6), pooled: { successes: 3, trials: 9 } })).toBe(9);
+  });
+
+  it('shows a rate for a value over at least the minimum of valid answers only', () => {
+    expect(hasRate(rated(0.5, MIN_OBSERVATIONS))).toBe(true);
+    expect(hasRate(rated(0.5, MIN_OBSERVATIONS - 1))).toBe(false);
+    expect(hasRate(rated(null, MIN_OBSERVATIONS))).toBe(false);
+  });
+});
+
+describe('acrossEngines: the equal weight average of the engines that have a rate', () => {
+  it('averages the rates of the engines that have one, and counts those engines', () => {
+    expect(acrossEngines([rated(0.25), rated(0.5), rated(0.75)])).toEqual({ value: 0.5, engines: 3 });
+    // An engine with no valid answer takes no part: it is not a rate of 0
+    expect(acrossEngines([rated(0.5), rated(null), rated(0)])).toEqual({ value: 0.25, engines: 2 });
+    expect(acrossEngines([rated(null)])).toBeNull();
+    expect(acrossEngines([])).toBeNull();
+  });
+
+  it('leaves out an engine with too few valid answers for a rate, as the table does', () => {
+    // 2 answers is a pill in the engine's own column, so it takes no part in "avg of N"
+    expect(acrossEngines([rated(0.25), rated(1, 2)])).toEqual({ value: 0.25, engines: 1 });
+    expect(acrossEngines([rated(1, 2), rated(0, 3)])).toBeNull();
+  });
+});
 
 describe('averageRate: the equal weight average of the engines in scope', () => {
   it('averages the engines rates, each engine once, and says how many took part', () => {

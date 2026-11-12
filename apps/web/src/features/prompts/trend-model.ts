@@ -1,5 +1,5 @@
-import { validAnswers } from './prompt-model';
 import type { EngineSummary } from '@/lib/api/types';
+import { validAnswers } from '@/lib/rates/rate-model';
 import { equalWeightAverage, MIN_OBSERVATIONS } from '@/lib/stats';
 
 /**

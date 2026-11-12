@@ -5,7 +5,6 @@ import { useTranslations } from 'next-intl';
 import { Fragment, type ReactElement, type ReactNode } from 'react';
 
 import {
-  acrossEngines,
   countText,
   NO_TOPIC,
   TOPIC_TAB,
@@ -27,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import type { ErrorIdWords } from '@/lib/api/use-error-id';
 import type { MetricCell, ProjectEngine, PromptsSummary, PromptSummaryRow } from '@/lib/api/types';
 import { EMPTY_VALUE, formatPercent } from '@/lib/format';
+import { acrossEngines } from '@/lib/rates/rate-model';
 
 /** What the screen has of the topic's counts: the summary of the window the page is on. */
 export interface TopicCounts {

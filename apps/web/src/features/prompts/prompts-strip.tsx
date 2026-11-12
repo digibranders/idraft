@@ -4,10 +4,10 @@ import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import { useRateWords } from './rate-view';
-import { engineRates, type RateFigure, type StripPrompt } from './strip-model';
 import { MetricStrip, type MetricStripGroup, type MetricStripItem } from '@/components/app/metric/metric-strip';
 import type { ProjectEngine } from '@/lib/api/types';
 import { formatInteger } from '@/lib/format';
+import { engineRates, type RateFigure, type StripPrompt } from '@/lib/rates/strip-model';
 
 export interface PromptsStripProps {
   /** The prompts in scope: those the Prompts tab lists after the filters. */

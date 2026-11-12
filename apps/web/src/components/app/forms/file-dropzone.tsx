@@ -47,7 +47,7 @@ export function FileDropzone({
   progressText,
   disabled,
 }: FileDropzoneProps): ReactElement {
-  const t = useTranslations('rankings.import');
+  const t = useTranslations('common.fileDropzone');
   const input = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);

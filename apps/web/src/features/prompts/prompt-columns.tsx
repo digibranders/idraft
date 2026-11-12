@@ -3,9 +3,8 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
-import { countText, engineSortId, SORT_ID, validAnswers, type RateMetric } from './prompt-model';
+import { countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
 import { ENGINE_COLUMN_WIDTH, useEngineRateColumns, useRateColumns } from './rate-columns';
-import { cellFigure } from './rate-model';
 import { PROMPT_COLUMN_ENTRIES, withColumnEntries } from './seams/columns';
 import { useTrendColumn } from './trend-column';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
@@ -13,6 +12,7 @@ import type { DataTableColumn } from '@/components/app/data-table/types';
 import { Badge } from '@/components/ui/badge';
 import type { EngineSummary, MetricCell, ProjectEngine, Prompt, PromptSummaryRow } from '@/lib/api/types';
 import { EMPTY_VALUE, formatList } from '@/lib/format';
+import { cellFigure, validAnswers } from '@/lib/rates/rate-model';
 
 /** A row of the Prompts tab: the prompt, its counts when the summary has them, and its facts in words. */
 export interface PromptRow {

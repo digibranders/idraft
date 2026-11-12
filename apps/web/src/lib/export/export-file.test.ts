@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { WorkbookColors } from './export-colors';
-import { buildCsv, buildWorkbook, fileName, tileSpans } from './export-file';
-import type { KeywordExport } from './export-model';
+import { buildCsv, buildWorkbook, fileName, tileSpans, type KeywordExport } from './export-file';
 
 const TABLE: KeywordExport = {
   kpis: [

@@ -43,6 +43,7 @@ import {
   topicPrompts,
   topicOriginOf,
   topicsBelow,
+  topicsSpanned,
   topicSummaryRow,
   topicTermsOf,
   windowRange,
@@ -56,7 +57,6 @@ import { PromptsCountryControl, PromptsWindowControl } from './prompts-scope';
 import { PromptsStrip } from './prompts-strip';
 import { PROMPT_ACTION_ENTRIES, withActionEntries } from './seams/actions';
 import { PROMPTS_TOOLBAR_ENTRIES, promptsToolbarItems } from './seams/toolbar';
-import { topicsSpanned, type StripPrompt } from './strip-model';
 import { usePromptActions } from './use-prompt-actions';
 import { TopicInspector } from './topic-inspector';
 import { selectionKeyOf } from './selection-model';
@@ -93,6 +93,7 @@ import { formatInspectTarget } from '@/lib/inspector/placement';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { useCountries } from '@/lib/locations/countries';
 import { useCan, useMembership } from '@/lib/permissions';
+import type { StripPrompt } from '@/lib/rates/strip-model';
 import { projectPath } from '@/lib/routes/paths';
 import {
   DEFAULT_DENSITY,

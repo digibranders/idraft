@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  acrossEngines,
   asksIn,
   countriesForEngines,
   countryChoices,
@@ -34,6 +33,7 @@ import {
   topicsBelow,
   topicOriginOf,
   topicSummaryRow,
+  topicsSpanned,
   topicTermsOf,
   trailingRange,
   WIDEST_WINDOW,
@@ -47,9 +47,11 @@ import type {
   Prompt,
   PromptsSummary,
   PromptSummaryRow,
+  TopicSummaryRow,
 } from '@/lib/api/types';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 import type { Country } from '@/lib/locations/countries';
+import type { StripPrompt } from '@/lib/rates/strip-model';
 
 type Facts = NonNullable<ObservationDetail['facts']>;
 
@@ -290,6 +292,48 @@ describe('the topic rows of the summary', () => {
 
   it('cannot list the prompts of a topic the tree does not hold', () => {
     expect(topicMembers('elsewhere', [row('a', 'seo')], below)).toBeNull();
+  });
+});
+
+describe('topicsSpanned', () => {
+  const topic = (term_id: string | null, name: string | null): TopicSummaryRow => ({
+    term_id,
+    name,
+    prompt_count: 1,
+    last_observed_at: null,
+    last_valid_at: null,
+    engines: [],
+  });
+  const topics = [topic('seo', 'SEO'), topic('technical', 'Technical SEO'), topic('paid', 'Paid'), topic(null, null)];
+  const tree = [
+    { termId: 'seo', parentId: null },
+    { termId: 'technical', parentId: 'seo' },
+    { termId: 'paid', parentId: null },
+  ].map((term) => ({ ...term, name: term.termId, path: term.termId }));
+  const below = topicDescendants(tree, []);
+  const inScope = (...ids: string[][]): StripPrompt[] =>
+    ids.map((topicIds) => ({ topic_term_ids: topicIds, engines: [] }));
+
+  it('counts each topic that has a prompt in scope, the topics above a prompt included, once', () => {
+    expect(topicsSpanned(topics, inScope(['technical'], ['technical'], ['paid']), below, null)).toBe(3);
+  });
+
+  it('never counts the row of the prompts without a topic: No topic is no topic', () => {
+    expect(topicsSpanned(topics, inScope([], ['paid']), below, null)).toBe(1);
+    expect(topicsSpanned(topics, inScope([], []), below, null)).toBe(0);
+  });
+
+  it('leaves out a topic no prompt in scope belongs to, and every topic a topic filter does not keep', () => {
+    expect(topicsSpanned(topics, inScope(['paid']), below, null)).toBe(1);
+    expect(topicsSpanned(topics, inScope(['technical']), below, new Set(['technical']))).toBe(1);
+  });
+
+  it('is 0 without a prompt', () => {
+    expect(topicsSpanned(topics, [], below, null)).toBe(0);
+  });
+
+  it('counts a topic a prompt carries when the tree does not hold it yet', () => {
+    expect(topicsSpanned([topic('seo', 'SEO'), topic('paid', 'Paid')], inScope(['paid']), new Map(), null)).toBe(1);
   });
 });
 
@@ -605,20 +649,6 @@ describe('the topic drawer', () => {
     expect(topicSummaryRow(summary, NO_TOPIC)?.term_id).toBeNull();
     expect(topicSummaryRow(summary, 'paid')).toBeUndefined();
     expect(topicSummaryRow(undefined, 'seo')).toBeUndefined();
-  });
-
-  it('averages the rates of the engines that have one, and counts those engines', () => {
-    expect(acrossEngines([rated(0.25), rated(0.5), rated(0.75)])).toEqual({ value: 0.5, engines: 3 });
-    // An engine with no valid answer takes no part: it is not a rate of 0
-    expect(acrossEngines([rated(0.5), rated(null), rated(0)])).toEqual({ value: 0.25, engines: 2 });
-    expect(acrossEngines([rated(null)])).toBeNull();
-    expect(acrossEngines([])).toBeNull();
-  });
-
-  it('leaves out an engine with too few valid answers for a rate, as the table does', () => {
-    // 2 answers is a pill in the engine's own column, so it takes no part in "avg of N"
-    expect(acrossEngines([rated(0.25), rated(1, 2)])).toEqual({ value: 0.25, engines: 1 });
-    expect(acrossEngines([rated(1, 2), rated(0, 3)])).toBeNull();
   });
 });
 

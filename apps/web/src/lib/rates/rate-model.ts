@@ -1,4 +1,3 @@
-import { acrossEngines, hasRate, validAnswers } from './prompt-model';
 import type { RateReading, RateReason } from './strip-model';
 import type { EngineSummary, MetricCell } from '@/lib/api/types';
 import { rateState } from '@/lib/stats';
@@ -12,6 +11,24 @@ import type { SortKey } from '@/lib/tables/table-state';
 
 /** The cells of an engine a column can show. */
 export type CellMetric = 'mentioned' | 'cited' | 'share_of_voice';
+
+/** The answers behind a cell: a topic's cell is prompt weighted and counts them in `pooled`, a prompt's in its denominator. */
+export const validAnswers = (cell: MetricCell): number => cell.pooled?.trials ?? cell.denominator;
+
+/** Whether the engine shows a rate of its own: a value over at least `MIN_OBSERVATIONS` valid answers. */
+export const hasRate = (cell: MetricCell): boolean => cell.value !== null && rateState(validAnswers(cell)) === 'ok';
+
+/**
+ * The equal-weight average of the engines' rates, and how many engines took part (ADR-DS-022 decision 3): only
+ * an engine that shows a rate of its own takes part (`hasRate`), so "avg of N" is the number of percents in the
+ * engines' columns. An engine with no valid answer, or too few of them, is left out, not counted as 0. `null` when
+ * no engine has a rate.
+ */
+export function acrossEngines(cells: readonly MetricCell[]): { value: number; engines: number } | null {
+  const values = cells.flatMap((cell) => (hasRate(cell) && cell.value !== null ? [cell.value] : []));
+  if (values.length === 0) return null;
+  return { value: sum(values) / values.length, engines: values.length };
+}
 
 /** The answers of a cell that count, when they are whole: a topic's in `pooled`, a prompt's in its numerator. */
 const successesOf = (cell: MetricCell): number | null => {
