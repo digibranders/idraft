@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T04:20:25+05:30",
+ "updated": "2026-11-13T04:37:55+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -321,7 +321,7 @@
    "title": "DataTable extensions: column groups, third tree level, right pin, context menu",
    "wave": "W1",
    "kind": "web",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-02"
    ],
@@ -341,10 +341,10 @@
    },
    "counts": {
     "total": 2,
-    "done": 0
+    "done": 2
    },
    "owner": "",
-   "notes": "file work-packages/WP-09-table-extensions.md; estimate 6 tasks; decisions D-40 | steps 6/7; full suite 5505 passed; e2e and push pending"
+   "notes": "file work-packages/WP-09-table-extensions.md; estimate 6 tasks; decisions D-40 | merged 6afda411; 5505 tests; table-extensions e2e 14/14; 10,000 bulk cap not built (owner)"
   },
   {
    "id": "WP-10",
@@ -428,12 +428,12 @@
    "title": "Summary additions: compare, total, rows, entities per week, co-mentions, filters",
    "wave": "W1",
    "kind": "backend",
-   "status": "not_started",
+   "status": "building",
    "dependsOn": [
     "WP-03"
    ],
-   "session": null,
-   "branch": null,
+   "session": "ai-prompts-web",
+   "branch": "ai/wp-12-summary",
    "rows": {
     "BE": [
      "BE-METRICS-01",
@@ -3889,20 +3889,6 @@
    "until": "WP-11 merged"
   },
   {
-   "path": "apps/web/src/components/design-system/tables-section.tsx",
-   "wp": "WP-09",
-   "granted": "2026-11-13T01:28:45+05:30",
-   "scope": "additive demo tables (groups, 3 levels, right pin); last task only",
-   "until": "WP-09 merged"
-  },
-  {
-   "path": "apps/web/e2e/flows/table-extensions.spec.ts",
-   "wp": "WP-09",
-   "granted": "2026-11-13T01:28:45+05:30",
-   "scope": "new file",
-   "until": "WP-09 merged"
-  },
-  {
    "path": "apps/web/src/components/design-system/registry.ts",
    "wp": "SHARED WP-04/05/07/08/09/10",
    "granted": "2026-11-13T01:37:54+05:30",
@@ -4041,6 +4027,16 @@
    "detail": "DomainCell favicons are a show/hide prop with a placeholder square fallback and the host text always visible. A per-user or workspace favicon preference needs a backend and settings decision.",
    "owner": "owner decision (optional)",
    "severity": "low",
+   "status": "open"
+  },
+  {
+   "id": "F-03",
+   "found": "2026-11-13T04:37:55+05:30",
+   "by": "WP-09",
+   "title": "10 e2e tests already fail on plain develop",
+   "detail": "costs-runs x2, keyword-detail-snapshots, keyword-detail, rankings 'Rank shows' and 'keywords are added', schedules x2, shell x2. Cause: the /rankings URL moved to /keywords and rank text drifted; not table related. Release does not run e2e (ship.sh), so this did not block shipping, but the specs need updating.",
+   "owner": "web (rankings and shell owners); schedule in the quality sweep at wave end",
+   "severity": "test debt",
    "status": "open"
   }
  ]
