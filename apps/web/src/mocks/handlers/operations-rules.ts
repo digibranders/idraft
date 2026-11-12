@@ -7,7 +7,7 @@ import {
   type KeywordWorkspaceCaller,
   type ScheduleCheck,
 } from './keyword-rules';
-import { labsMicros, runState } from '../factories/operations';
+import { runMicros, runState } from '../factories/operations';
 import { KEYWORD_OVERVIEW_ENDPOINT, MOCK_BUDGETS, type BudgetGroup, type StoredBudget } from '../operations-fixtures';
 import {
   OPERATIONS_COOKIE,
@@ -159,6 +159,7 @@ export function systemMetricsRun(
 export const BUDGET_GROUP_OF: Readonly<Record<ScheduleWorkload, BudgetGroup>> = {
   keyword_metrics: 'keyword_research',
   seo_rank: 'seo_rank',
+  ai_prompt: 'ai_prompt',
 };
 
 export interface CostEvent {
@@ -181,9 +182,13 @@ export const budgetScopeOf = (caller: KeywordWorkspaceCaller | KeywordProjectCal
   projectIds: new Set(projectList(caller.changes, caller.access.workspace.workspace_id).map((p) => p.project_id)),
 });
 
-/** The cost events of the runs that have spent something by `now`. */
+/**
+ * The cost events of the runs that have spent something by `now`. shortcut: AI answers are not booked here yet
+ * (their provider and endpoint differ from Labs'), so an AI run spends nothing on the costs page.
+ */
 export function costEvents(world: OperationWorld, now: number): CostEvent[] {
   return world.runs.flatMap((run) => {
+    if (run.workload === 'ai_prompt') return [];
     const state = runState(run, now);
     if (state.costMicros === null || state.costMicros === 0 || state.completedAt === null) return [];
     return [
@@ -257,7 +262,7 @@ export function budgetReadings(
         const { status } = runState(run, now);
         return status === 'planned' || status === 'running';
       })
-      .reduce((sum, run) => sum + labsMicros(run.calls, run.tasks_total), 0);
+      .reduce((sum, run) => sum + runMicros(run, run.calls, run.tasks_total), 0);
     const limit = microsOfUsd(budget.limit_usd);
     const state =
       spentMicros >= limit

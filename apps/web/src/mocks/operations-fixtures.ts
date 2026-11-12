@@ -298,6 +298,8 @@ const LABS_ENDPOINTS = [
 export const KEYWORD_OVERVIEW_ENDPOINT = 'dataforseo_labs/google/keyword_overview/live';
 export const LABS_TASK_MICROS = 12_000;
 export const LABS_ITEM_MICROS = 120;
+/** One AI answer on the standard queue: $0.0012 (plan A's price of an answer; prompt-fixtures asks it too). */
+export const AI_ANSWER_MICROS = 1200;
 
 const LABS_PRICES: readonly StoredPrice[] = LABS_ENDPOINTS.flatMap((name, index) => {
   const endpoint = `dataforseo_labs/google/${name}/live`;

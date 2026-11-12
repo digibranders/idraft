@@ -75,6 +75,12 @@ const WORKLOAD_RULES: Readonly<
     providerModes: ['standard_queue', 'priority_queue'],
     needsSelector: true,
   },
+  // AI answers: every active prompt, on the standard queue (the backend's `ai_prompt` rules)
+  ai_prompt: {
+    selectors: ['all'],
+    providerModes: ['standard_queue'],
+    needsSelector: true,
+  },
 };
 const CREATE_FIELDS = [
   'name',
@@ -122,6 +128,7 @@ const fullTime = (value: string): string => `${value.slice(0, 5)}:00`;
 const DEFAULT_PROVIDER_MODE: Readonly<Record<Workload, (typeof PROVIDER_MODES)[number]>> = {
   keyword_metrics: 'live',
   seo_rank: 'standard_queue',
+  ai_prompt: 'standard_queue',
 };
 
 function selectorShapeErrors(value: unknown): ValidationItem[] {

@@ -73,7 +73,7 @@ describe('schedules', () => {
     // The workload, then the cadence, then the provider mode
     expect(
       fieldCodes(
-        await editor.call('POST', S, { ...daily, workload: 'ai_prompt', cadence: 'cron', timezone: 'Mars/Olympus' }),
+        await editor.call('POST', S, { ...daily, workload: 'discovery', cadence: 'cron', timezone: 'Mars/Olympus' }),
       ),
     ).toEqual(['workload:workload_not_available']);
     expect(fieldCodes(await editor.call('POST', S, { ...daily, workload: 'seo_rank', cadence: 'cron' }))).toEqual([

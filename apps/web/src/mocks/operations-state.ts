@@ -16,7 +16,8 @@ import { OPERATIONS_COOKIE } from './session';
  */
 export { OPERATIONS_COOKIE };
 
-export const SCHEDULE_WORKLOADS = ['keyword_metrics', 'seo_rank'] as const;
+/** Appended, never reordered: the cookie keeps each workload as its place in this list. */
+export const SCHEDULE_WORKLOADS = ['keyword_metrics', 'seo_rank', 'ai_prompt'] as const;
 export const CADENCES = ['daily', 'weekly', 'monthly'] as const;
 export const SCHEDULE_PRIORITIES = ['standard', 'high', 'low'] as const;
 export const PROVIDER_MODES = ['standard_queue', 'priority_queue', 'live'] as const;

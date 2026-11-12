@@ -2,6 +2,7 @@ import { MOCK_ENTITY_IDS, MOCK_TERM_IDS } from './entity-fixtures';
 import { usdOfMicros } from './factories/operations';
 import { MOCK_CREATED_AT, MOCK_PROJECTS, mockUser } from './fixtures';
 import { mockId } from './mock-ids';
+import { AI_ANSWER_MICROS } from './operations-fixtures';
 import type { CitationOut, EngineCode, MentionOut, ObservationDetail, ProjectEngine, Prompt } from '@/lib/api/types';
 
 /**
@@ -48,14 +49,12 @@ export const ENGINE_FACTS: Readonly<Record<EngineCode, ProjectEngine['engine']>>
 export const PROMPT_QUOTA = 150;
 /** The longest prompt any engine takes (plan A `PROMPT_TEXT_MAX`). */
 export const PROMPT_TEXT_MAX = 2000;
-/** One answer on the standard queue: $0.0012, in micro dollars. */
-const TASK_PRICE_MICROS = 1200;
 const RUNS_PER_WEEK = 2;
 const MICROS_PER_CENT = 10_000;
 
 /** Plan A's `monthly_cost`: prompts x runs a week x 52 / 12 x the price, to the cent, as the API writes money. */
 export const monthlyCostUsd = (prompts: number): string =>
-  usdOfMicros(Math.round((prompts * RUNS_PER_WEEK * TASK_PRICE_MICROS * 52) / 12 / MICROS_PER_CENT) * MICROS_PER_CENT);
+  usdOfMicros(Math.round((prompts * RUNS_PER_WEEK * AI_ANSWER_MICROS * 52) / 12 / MICROS_PER_CENT) * MICROS_PER_CENT);
 
 export interface StoredPrompt {
   prompt_id: string;
@@ -377,6 +376,18 @@ export function answerOf(index: number, languageCode: string, engine: EngineCode
   const made = makeAnswer(index, languageCode, engine, day);
   cache.set(key, made);
   return made;
+}
+
+/**
+ * The answer Run now delivers: `answerOf` for the first day from `day` on whose answer holds facts (one in
+ * 29 days fails, is refused or comes back empty, and the days cycle through every case in 29). Deterministic.
+ */
+export function validAnswerOf(index: number, languageCode: string, engine: EngineCode, day: number): Answer {
+  for (let shift = 0; shift < 29; shift += 1) {
+    const answer = answerOf(index, languageCode, engine, day + shift);
+    if (answer.facts.is_valid) return answer;
+  }
+  throw new Error('No day of 29 gives a valid answer');
 }
 
 function makeAnswer(index: number, languageCode: string, engine: EngineCode, day: number): Answer {

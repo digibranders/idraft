@@ -26,7 +26,6 @@ import {
 import { readingOf } from '../factories/keyword';
 import { labsMicros, runDetailView, runPath, runState, runView, RUN_WORKING_MS } from '../factories/operations';
 import { operationIdMinter, operationWorld, runTime, TRIGGERS, withRun, type StoredRun } from '../operations-state';
-import { runNowRunsToday } from '../prompts-state';
 import { recordManualCheck } from '../serp-world';
 import { invalid, mock, problem } from '../respond';
 import { projectList } from '../workspace-state';
@@ -173,7 +172,7 @@ function refreshReadings(
 
 /** The manual runs of the project today: every kind of manual run shares the 20, Run now's of AI prompts included. */
 const manualRunsUsed = (caller: OperationsProjectCaller, now: number): number =>
-  manualRunsToday(caller.operations, caller.project.project_id, now) + runNowRunsToday(caller.project.project_id, now);
+  manualRunsToday(caller.operations, caller.project.project_id, now);
 
 export const runHandlers: HttpHandler[] = [
   mock('get', `${P}/runs`, ({ request, cookies, params }) => {

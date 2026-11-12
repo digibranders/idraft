@@ -16,6 +16,8 @@ import {
   parseObservationId,
   RUN_OFFSET_MS,
   runInstants,
+  validAnswerOf,
+  type Answer,
   type StoredEngine,
   type StoredPrompt,
 } from '../prompt-fixtures';
@@ -102,20 +104,25 @@ function scopeOf(url: URL): string {
   return scope.toString();
 }
 
-/** The answer of a fixture prompt on an engine at a run. */
-function detailOf(prompt: StoredPrompt, index: number, engine: StoredEngine, at: number): ObservationDetail {
-  const day = Math.floor(at / DAY_MS);
+/** An answer of a prompt on an engine, observed at `at`, with the answer the mock makes of it. */
+function detailFrom(
+  prompt: StoredPrompt,
+  engine: StoredEngine,
+  at: number,
+  observationId: string,
+  runId: string | null,
+  answer: Answer,
+): ObservationDetail {
   const code = engine.engine_code;
-  const answer = answerOf(index, prompt.language_code, code, day);
   return {
-    observation_id: observationIdOf(day, index, ENGINE_CODES.indexOf(code)),
+    observation_id: observationId,
     observed_at: isoOf(at),
     observed_date: isoOf(at).slice(0, 10),
     engine_code: code,
     observation_class: ENGINE_FACTS[code].observation_class,
     subject: { type: 'prompt', prompt_id: prompt.prompt_id, prompt_version_id: prompt.version_id, version_no: 1 },
     query_text: prompt.text,
-    run_id: null,
+    run_id: runId,
     replicate_index: 1,
     location_id: engine.location_ids.find((id) => countryOf(id) === prompt.country_iso) ?? null,
     language_code: prompt.language_code,
@@ -136,24 +143,48 @@ function detailOf(prompt: StoredPrompt, index: number, engine: StoredEngine, at:
   };
 }
 
+/** The answer of a fixture prompt on an engine at a run. */
+function detailOf(prompt: StoredPrompt, index: number, engine: StoredEngine, at: number): ObservationDetail {
+  const day = Math.floor(at / DAY_MS);
+  const id = observationIdOf(day, index, ENGINE_CODES.indexOf(engine.engine_code));
+  return detailFrom(prompt, engine, at, id, null, answerOf(index, prompt.language_code, engine.engine_code, day));
+}
+
 /**
- * Every answer a project's fixture prompts got, newest first. The history is the fixtures': a prompt added here,
- * and an engine turned on here, have none, and an engine turned off keeps what it answered.
+ * The observation Run now delivers: a valid answer of the prompt on the engine, observed at `at` for the run
+ * `runId`. `index` is the prompt's place among the fixtures, or 0 for a prompt added here (it has none).
+ */
+export function deliveredOf(
+  prompt: StoredPrompt,
+  index: number,
+  engine: StoredEngine,
+  at: number,
+  observationId: string,
+  runId: string,
+): ObservationDetail {
+  const answer = validAnswerOf(index, prompt.language_code, engine.engine_code, Math.floor(at / DAY_MS));
+  return detailFrom(prompt, engine, at, observationId, runId, answer);
+}
+
+/**
+ * Every answer a project's fixture prompts got and every one Run now delivered, newest first. The fixtures'
+ * history has no prompt added here nor an engine turned on here, and an engine turned off keeps what it answered.
  */
 function answersOf(projectId: string, now: number): ObservationDetail[] {
   const prompts = FIXTURE_PROMPTS.get(projectId) ?? [];
   const engines = FIXTURE_ENGINES.get(projectId) ?? [];
-  return runInstants(now)
-    .flatMap((at) =>
+  return [
+    ...runInstants(now).flatMap((at) =>
       prompts.flatMap((prompt) =>
         prompt.index === null ? [] : engines.map((engine) => detailOf(prompt, prompt.index ?? 0, engine, at)),
       ),
-    )
-    .sort(
-      (a, b) =>
-        Date.parse(b.observed_at) - Date.parse(a.observed_at) ||
-        Number(BigInt(b.observation_id) - BigInt(a.observation_id)),
-    );
+    ),
+    ...promptsOf(projectId).observations,
+  ].sort(
+    (a, b) =>
+      Date.parse(b.observed_at) - Date.parse(a.observed_at) ||
+      Number(BigInt(b.observation_id) - BigInt(a.observation_id)),
+  );
 }
 
 /** The list's row of an answer: the detail without its text, its link, its sources and its mentions. */
@@ -208,6 +239,10 @@ function hintOf(url: URL): number | null | ValidationItem {
 
 /** The answer an id names, when it is a fixture prompt's on an engine it was asked on at a run, within the hint. */
 function findAnswer(projectId: string, id: bigint, hint: number | null, now: number): ObservationDetail | null {
+  const delivered = promptsOf(projectId).observations.find((row) => row.observation_id === id.toString());
+  if (delivered !== undefined) {
+    return hint !== null && Math.abs(Date.parse(delivered.observed_at) - hint) > HINT_SLACK_MS ? null : delivered;
+  }
   const parsed = parseObservationId(id.toString());
   if (parsed === null) return null;
   const prompt = (FIXTURE_PROMPTS.get(projectId) ?? []).find((candidate) => candidate.index === parsed.index);
