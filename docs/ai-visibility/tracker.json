@@ -1,0 +1,3884 @@
+{
+ "updated": "2026-11-12T23:30:00+05:30",
+ "base": "develop 246d3574",
+ "waves": [
+  {
+   "id": "W0",
+   "name": "Scaffolding, contracts and the lock",
+   "status": "not_started"
+  },
+  {
+   "id": "W1",
+   "name": "Shared web packages and the first backend lanes",
+   "status": "not_started"
+  },
+  {
+   "id": "W2",
+   "name": "Topics & Prompts, inspectors, Citations, dialogs, runs and settings",
+   "status": "not_started"
+  },
+  {
+   "id": "W3",
+   "name": "AI Visibility Overview, Competitors page, notes",
+   "status": "not_started"
+  },
+  {
+   "id": "W4",
+   "name": "Slice 4 management: versions, panels, links and generate, inbox, alerts, views, exports, reports, Prompt Detail, command palette",
+   "status": "not_started"
+  },
+  {
+   "id": "W5",
+   "name": "Slice 2 and 3 data: extraction, recommendation, candidates, retrieval, statistics, source intelligence, performance, SSRF and webhooks",
+   "status": "not_started"
+  },
+  {
+   "id": "W6",
+   "name": "Blocked by the provider or the owner: AI Overview engine and cross-channel, discovery sources, engine expansion, LLM features, first-party signals",
+   "status": "not_started"
+  },
+  {
+   "id": "W7",
+   "name": "Optional: page-level AI readiness",
+   "status": "not_started"
+  },
+  {
+   "id": "X",
+   "name": "Cross-wave: quality sweeps, docs, releases and acceptance",
+   "status": "not_started"
+  }
+ ],
+ "workPackages": [
+  {
+   "id": "WP-00",
+   "title": "Coordination kit: heavy-job lock, status files, worktree helper",
+   "wave": "W0",
+   "kind": "infra",
+   "status": "not_started",
+   "dependsOn": [],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 0,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-00-coordination-kit.md; estimate 4 tasks; decisions none"
+  },
+  {
+   "id": "WP-01",
+   "title": "Backend scaffolding: routers, permissions, problem codes, test anchors",
+   "wave": "W0",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-OPS-01",
+     "BE-OPS-02",
+     "BE-OPS-09",
+     "BE-LAYOUTS-05"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 4,
+    "done": 2
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-01-backend-scaffold.md; estimate 5 tasks; decisions D-11, D-18"
+  },
+  {
+   "id": "WP-02",
+   "title": "Web scaffolding: routes, navigation, seams, namespaces, mocks, moves, deps",
+   "wave": "W0",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-NAV-01"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-12",
+     "SC-17",
+     "SC-18"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 4,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-02-web-scaffold.md; estimate 7 tasks; decisions D-16"
+  },
+  {
+   "id": "WP-03",
+   "title": "Contract pack: OpenAPI shapes for the wave 1 and wave 2 backend items",
+   "wave": "W0",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-01"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 0,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-03-contract-pack.md; estimate 6 tasks; decisions D-01, D-09, D-10"
+  },
+  {
+   "id": "WP-04",
+   "title": "Chart platform: ChartFrame html mode, legend, tooltips, sample markers, boundaries",
+   "wave": "W1",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [],
+    "CH": [
+     "CH-14"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 1,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-04-chart-frame.md; estimate 6 tasks; decisions D-05"
+  },
+  {
+   "id": "WP-05",
+   "title": "Chart parts: BarList, StackedShareBar, StepBars, IntervalBar",
+   "wave": "W1",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-13"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 1,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-05-chart-bars.md; estimate 5 tasks; decisions none"
+  },
+  {
+   "id": "WP-06",
+   "title": "Chart parts: HeatmapGrid with tree rows, SmallMultiples, connected crosshair",
+   "wave": "W1",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-14"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 1,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-06-chart-grids.md; estimate 5 tasks; decisions D-04, D-05"
+  },
+  {
+   "id": "WP-07",
+   "title": "App components A: Delta, EngineLogo, Meter, Banner variants, statistics parts",
+   "wave": "W1",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-A11Y-11"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-01",
+     "SC-02",
+     "SC-10",
+     "SC-15",
+     "SC-19"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 6,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-07-app-parts-a.md; estimate 5 tasks; decisions none"
+  },
+  {
+   "id": "WP-08",
+   "title": "App components B: DomainCell, URLCell, count popover, ChangeFeed, inspector stepping",
+   "wave": "W1",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-07",
+     "SC-09",
+     "SC-16",
+     "SC-22"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 4,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-08-app-parts-b.md; estimate 5 tasks; decisions none"
+  },
+  {
+   "id": "WP-09",
+   "title": "DataTable extensions: column groups, third tree level, right pin, context menu",
+   "wave": "W1",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-03",
+     "SC-05"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 2,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-09-table-extensions.md; estimate 6 tasks; decisions D-40"
+  },
+  {
+   "id": "WP-10",
+   "title": "Mobile list rows, saved view presets menu, date range picker",
+   "wave": "W1",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-NAV-06"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-04",
+     "SC-06",
+     "SC-08"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 4,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-10-controls.md; estimate 5 tasks; decisions none"
+  },
+  {
+   "id": "WP-11",
+   "title": "Layouts API: core.layouts, five routes, catalog validation, audit",
+   "wave": "W1",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-01",
+    "WP-03"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-LAYOUTS-01",
+     "BE-LAYOUTS-02",
+     "BE-LAYOUTS-03",
+     "BE-LAYOUTS-04",
+     "BE-LAYOUTS-06",
+     "BE-LAYOUTS-07",
+     "BE-LAYOUTS-08",
+     "BE-LAYOUTS-09",
+     "BE-LAYOUTS-10",
+     "BE-LAYOUTS-11",
+     "BE-LAYOUTS-13",
+     "BE-LAYOUTS-14",
+     "BE-LAYOUTS-15"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-29"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 14,
+    "done": 2
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-11-layouts-api.md; estimate 8 tasks; decisions D-01, D-09, D-10, D-11, D-12"
+  },
+  {
+   "id": "WP-12",
+   "title": "Summary additions: compare, total, rows, entities per week, co-mentions, filters",
+   "wave": "W1",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-03"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-METRICS-01",
+     "BE-METRICS-02",
+     "BE-METRICS-03",
+     "BE-METRICS-04",
+     "BE-METRICS-05",
+     "BE-METRICS-06",
+     "BE-METRICS-07",
+     "BE-METRICS-13",
+     "BE-METRICS-14",
+     "BE-METRICS-15",
+     "BE-METRICS-21",
+     "BE-METRICS-22",
+     "BE-TOPICS-04",
+     "BE-TOPICS-05",
+     "BE-TOPICS-06"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-01",
+     "CF-06"
+    ],
+    "N": [
+     "OV-N1",
+     "OV-N2",
+     "OV-N3",
+     "OV-N4",
+     "OV-N10",
+     "OV-N14",
+     "OV-N15"
+    ]
+   },
+   "counts": {
+    "total": 24,
+    "done": 8
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-12-summary-lane.md; estimate 10 tasks; decisions D-04"
+  },
+  {
+   "id": "WP-13",
+   "title": "Prompt records: lint upgrade, type rule, filters, bulk update, quotas, provenance",
+   "wave": "W1",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-03"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-PROMPTS-01",
+     "BE-PROMPTS-02",
+     "BE-PROMPTS-03",
+     "BE-PROMPTS-04",
+     "BE-PROMPTS-05",
+     "BE-PROMPTS-06",
+     "BE-PROMPTS-07",
+     "BE-PROMPTS-08",
+     "BE-PROMPTS-09",
+     "BE-PROMPTS-10",
+     "BE-PROMPTS-11",
+     "BE-PROMPTS-12",
+     "BE-PROMPTS-15",
+     "BE-PROMPTS-16",
+     "BE-PROMPTS-25",
+     "BE-TOPICS-01",
+     "BE-TOPICS-02",
+     "BE-TOPICS-03"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-11",
+     "CF-12",
+     "CF-13"
+    ],
+    "N": [
+     "PD-N01",
+     "PD-N02",
+     "PD-N03",
+     "PD-N04",
+     "PD-N05",
+     "PD-N06",
+     "PD-N07",
+     "PD-N09",
+     "PD-N11",
+     "PD-N13"
+    ]
+   },
+   "counts": {
+    "total": 31,
+    "done": 8
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-13-prompts-lane.md; estimate 10 tasks; decisions D-21, D-22, D-23, D-46"
+  },
+  {
+   "id": "WP-14",
+   "title": "Sources and fan-out reads: series, country, min_support, lost, cited with, ads",
+   "wave": "W1",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-03"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-SOURCES-01",
+     "BE-SOURCES-02",
+     "BE-SOURCES-03",
+     "BE-SOURCES-04",
+     "BE-SOURCES-05",
+     "BE-SOURCES-06",
+     "BE-SOURCES-07",
+     "BE-SOURCES-11",
+     "BE-SOURCES-20",
+     "BE-SOURCES-22",
+     "BE-SOURCES-25",
+     "BE-FANOUT-01",
+     "BE-FANOUT-03",
+     "BE-TOPICS-12"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-05",
+     "CF-07",
+     "CF-08",
+     "CF-09",
+     "CF-10"
+    ],
+    "N": [
+     "OV-N6",
+     "OV-N7"
+    ]
+   },
+   "counts": {
+    "total": 21,
+    "done": 5
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-14-sources-lane.md; estimate 8 tasks; decisions D-41"
+  },
+  {
+   "id": "WP-15",
+   "title": "Layouts React core: registry, use-layout, provider, grid with dnd-kit, card frame",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-02",
+    "WP-03"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-LAY-01",
+     "WB-LAY-02",
+     "WB-LAY-03",
+     "WB-LAY-04",
+     "WB-LAY-05",
+     "WB-LAY-06",
+     "WB-LAY-07",
+     "WB-LAY-08",
+     "WB-LAY-09",
+     "WB-LAY-10",
+     "WB-LAY-11",
+     "WB-LAY-12",
+     "WB-LAY-13",
+     "WB-LAY-14",
+     "WB-LAY-15",
+     "WB-LAY-16",
+     "WB-LAY-17",
+     "WB-LAY-18",
+     "WB-LAY-19",
+     "WB-LAY-20",
+     "WB-LAY-21",
+     "WB-LAY-22",
+     "WB-LAY-23",
+     "WB-LAY-24"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-25"
+    ],
+    "CF": [
+     "CF-30"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 26,
+    "done": 7
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-15-layouts-react-core.md; estimate 9 tasks; decisions D-14"
+  },
+  {
+   "id": "WP-16",
+   "title": "Layouts customize UI: catalog, numbers, save bar, team default, presets, undo",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-15"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-LAY-25",
+     "WB-LAY-26",
+     "WB-LAY-27",
+     "WB-LAY-28",
+     "WB-LAY-29",
+     "WB-LAY-30",
+     "WB-LAY-31",
+     "WB-LAY-32",
+     "WB-LAY-33",
+     "WB-LAY-34",
+     "WB-LAY-35",
+     "WB-LAY-36",
+     "WB-LAY-37",
+     "WB-LAY-38",
+     "WB-LAY-39",
+     "WB-LAY-40",
+     "WB-LAY-41",
+     "WB-LAY-42",
+     "WB-LAY-43",
+     "WB-LAY-44",
+     "WB-LAY-45",
+     "WB-LAY-46",
+     "WB-LAY-47",
+     "WB-LAY-48"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 24,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42"
+  },
+  {
+   "id": "WP-17",
+   "title": "Topics & Prompts: header, filters, facets, strip, menus and shell items",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-02",
+    "WP-07",
+    "WP-10",
+    "WP-13"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-TPH-01",
+     "WB-TPH-02",
+     "WB-TPH-03",
+     "WB-TPH-04",
+     "WB-TPH-07",
+     "WB-TPH-08",
+     "WB-TPH-09",
+     "WB-TPH-13",
+     "WB-TPH-15",
+     "WB-TPH-17",
+     "WB-TPF-01",
+     "WB-TPF-02",
+     "WB-TPF-03",
+     "WB-TPF-04",
+     "WB-TPF-05",
+     "WB-TPF-10",
+     "WB-TPF-11",
+     "WB-TPF-12",
+     "WB-TPF-13",
+     "WB-TPF-08",
+     "WB-TPF-16",
+     "WB-TPF-17",
+     "WB-TPF-18",
+     "WB-TPS-01",
+     "WB-TPS-02",
+     "WB-TPS-03",
+     "WB-TPS-04",
+     "WB-TPS-06",
+     "WB-TPS-09",
+     "WB-TPS-10",
+     "WB-MNU-01",
+     "WB-MNU-02",
+     "WB-MNU-03",
+     "WB-MNU-04",
+     "WB-MNU-08",
+     "WB-MNU-09",
+     "WB-MNU-10",
+     "WB-MNU-11",
+     "WB-MNU-12",
+     "WB-MNU-13",
+     "WB-MNU-14",
+     "WB-MNU-15",
+     "WB-BLK-01",
+     "WB-BLK-02",
+     "WB-BLK-04",
+     "WB-BLK-05",
+     "WB-BLK-06",
+     "WB-BLK-07",
+     "WB-BLK-08",
+     "WB-BLK-13",
+     "WB-NAV-05",
+     "WB-NAV-07",
+     "WB-NAV-11",
+     "WB-NAV-12",
+     "WB-KEY-01",
+     "WB-KEY-02",
+     "WB-KEY-03",
+     "WB-KEY-04",
+     "WB-KEY-05",
+     "WB-KEY-06",
+     "WB-KEY-10",
+     "WB-KEY-11",
+     "WB-IA-02",
+     "WB-E2E-06",
+     "WB-E2E-07",
+     "WB-E2E-08",
+     "WB-STATE-01",
+     "WB-STATE-02",
+     "WB-STATE-03",
+     "WB-STATE-04",
+     "WB-STATE-05",
+     "WB-STATE-06",
+     "WB-STATE-07",
+     "WB-STATE-10",
+     "WB-STATE-14"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 75,
+    "done": 53
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-17-tp-header-filters.md; estimate 8 tasks; decisions D-03, D-35"
+  },
+  {
+   "id": "WP-18",
+   "title": "Topics & Prompts: table polish, stale, mobile rows, grouped header, In search counts",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-09",
+    "WP-10",
+    "WP-07",
+    "WP-13"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-TOPICS-07",
+     "BE-TOPICS-08"
+    ],
+    "WB": [
+     "WB-TOP-01",
+     "WB-TOP-02",
+     "WB-TOP-03",
+     "WB-TOP-05",
+     "WB-TOP-06",
+     "WB-TOP-07",
+     "WB-TOP-08",
+     "WB-TOP-09",
+     "WB-TOP-10",
+     "WB-TOP-11",
+     "WB-TOP-12",
+     "WB-TOP-13",
+     "WB-TOP-14",
+     "WB-TOP-16",
+     "WB-TOP-17",
+     "WB-TOP-18",
+     "WB-TOP-19",
+     "WB-TOP-20",
+     "WB-TOP-21",
+     "WB-TOP-23",
+     "WB-TOP-24",
+     "WB-TOP-25",
+     "WB-TOP-26",
+     "WB-TOP-27",
+     "WB-TOP-28",
+     "WB-TOP-29",
+     "WB-TOP-30",
+     "WB-TOP-31",
+     "WB-TOP-32",
+     "WB-TOP-33",
+     "WB-TOP-34",
+     "WB-TOP-35",
+     "WB-TOP-36",
+     "WB-TOP-37",
+     "WB-TOP-38",
+     "WB-PRM-01",
+     "WB-PRM-02",
+     "WB-PRM-03",
+     "WB-PRM-05",
+     "WB-PRM-06",
+     "WB-PRM-07",
+     "WB-PRM-08",
+     "WB-PRM-09",
+     "WB-PRM-11",
+     "WB-PRM-14",
+     "WB-PRM-15",
+     "WB-PRM-16",
+     "WB-PRM-17",
+     "WB-PRM-23",
+     "WB-PRM-25",
+     "WB-PRM-26",
+     "WB-PRM-27",
+     "WB-PRM-28",
+     "WB-PRM-29",
+     "WB-PRM-30",
+     "WB-PRM-31",
+     "WB-PRM-32",
+     "WB-PRM-33",
+     "WB-STATE-11",
+     "WB-RSP-01",
+     "WB-RSP-02",
+     "WB-RSP-03",
+     "WB-RSP-04",
+     "WB-RSP-05",
+     "WB-RSP-06",
+     "WB-RSP-09",
+     "WB-DATA-06"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-15",
+     "CF-27",
+     "CF-28"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 72,
+    "done": 46
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-18-tp-tables.md; estimate 7 tasks; decisions D-36, D-37, D-38"
+  },
+  {
+   "id": "WP-19",
+   "title": "Compare with the previous period and deltas everywhere (W3)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-07",
+    "WP-12"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-TPF-06",
+     "WB-TPF-07",
+     "WB-TPS-05",
+     "WB-TOP-15",
+     "WB-PRM-12",
+     "WB-PI-11",
+     "WB-TI-09",
+     "WB-TI-16",
+     "WB-DATA-02",
+     "WB-E2E-09"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 10,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-19-compare-deltas.md; estimate 6 tasks; decisions D-03"
+  },
+  {
+   "id": "WP-20",
+   "title": "Topics by engine and the topic drawer (R-09, R-11 topic part)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-05",
+    "WP-06",
+    "WP-07",
+    "WP-12"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-TPE-02",
+     "WB-TPE-03",
+     "WB-TPE-04",
+     "WB-TPE-05",
+     "WB-TPE-06",
+     "WB-TPE-07",
+     "WB-TPE-08",
+     "WB-TPE-09",
+     "WB-TPE-10",
+     "WB-TPE-11",
+     "WB-TPE-12",
+     "WB-TPE-13",
+     "WB-TPE-14",
+     "WB-TPE-15",
+     "WB-TPE-16",
+     "WB-TPE-17",
+     "WB-TPE-18",
+     "WB-TI-01",
+     "WB-TI-02",
+     "WB-TI-03",
+     "WB-TI-04",
+     "WB-TI-05",
+     "WB-TI-06",
+     "WB-TI-07",
+     "WB-TI-08",
+     "WB-TI-10",
+     "WB-TI-11",
+     "WB-TI-12",
+     "WB-TI-13",
+     "WB-TI-15",
+     "WB-TI-17",
+     "WB-TI-19",
+     "WB-TI-21",
+     "WB-TI-22",
+     "WB-TI-23"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-26"
+    ],
+    "CF": [
+     "CF-31"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 37,
+    "done": 9
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16"
+  },
+  {
+   "id": "WP-21",
+   "title": "Citations tab in the prompt inspector and the Citations page (Domains, Pages)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-08",
+    "WP-05",
+    "WP-10"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-PIC-01",
+     "WB-PIC-02",
+     "WB-PIC-03",
+     "WB-PIC-04",
+     "WB-PIC-05",
+     "WB-PIC-06",
+     "WB-PIC-07",
+     "WB-PIC-08",
+     "WB-PIC-09",
+     "WB-PIC-10",
+     "WB-PI-13",
+     "WB-PI-21",
+     "WB-IA-03",
+     "WB-CIT-01",
+     "WB-CIT-02",
+     "WB-CIT-03",
+     "WB-CIT-04",
+     "WB-CIT-05",
+     "WB-CIT-06",
+     "WB-CIT-07",
+     "WB-CIT-08",
+     "WB-CIT-09",
+     "WB-CIT-10",
+     "WB-CIT-11",
+     "WB-CIT-14",
+     "WB-CIT-15",
+     "WB-CIT-16",
+     "WB-CIT-19",
+     "WB-E2E-10"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-02",
+     "CF-03"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 31,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02"
+  },
+  {
+   "id": "WP-22",
+   "title": "Citations: New and lost, domain and source inspectors, country, mobile",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-21",
+    "WP-14"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-CIT-13",
+     "WB-CIT-18",
+     "WB-CIT-20",
+     "WB-CIT-21",
+     "WB-NAV-08",
+     "WB-DOM-01",
+     "WB-DOM-02",
+     "WB-DOM-03",
+     "WB-DOM-04",
+     "WB-DOM-05",
+     "WB-DOM-06",
+     "WB-DOM-07",
+     "WB-DOM-08",
+     "WB-SRC-01",
+     "WB-SRC-02",
+     "WB-SRC-03"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 16,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-22-citations-inspectors.md; estimate 6 tasks; decisions none"
+  },
+  {
+   "id": "WP-23",
+   "title": "Competitor views inside Topics & Prompts (W8)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-07",
+    "WP-05",
+    "WP-20"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-PRM-13",
+     "WB-PICO-01",
+     "WB-PICO-02",
+     "WB-PICO-05",
+     "WB-PICO-06",
+     "WB-TI-18"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-17"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 7,
+    "done": 2
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-23-competitor-views.md; estimate 5 tasks; decisions none"
+  },
+  {
+   "id": "WP-24",
+   "title": "Fan-out tab and views (W9)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-08",
+    "WP-05"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-PI-14",
+     "WB-PIF-01",
+     "WB-PIF-02",
+     "WB-PIF-03",
+     "WB-PIF-04",
+     "WB-PIF-05",
+     "WB-PIF-06",
+     "WB-PIF-07",
+     "WB-PIF-10",
+     "WB-PRM-18",
+     "WB-STATE-08",
+     "WB-STATE-12"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-04"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 13,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-24-fanout-views.md; estimate 5 tasks; decisions D-02"
+  },
+  {
+   "id": "WP-25",
+   "title": "Prompt inspector completion: header, Latest, History, Stats (R-11 prompt part)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-07",
+    "WP-08",
+    "WP-04"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-PI-01",
+     "WB-PI-02",
+     "WB-PI-04",
+     "WB-PI-05",
+     "WB-PI-06",
+     "WB-PI-08",
+     "WB-PI-09",
+     "WB-PI-10",
+     "WB-PI-12",
+     "WB-PI-15",
+     "WB-PI-16",
+     "WB-PI-17",
+     "WB-PI-18",
+     "WB-PI-19",
+     "WB-PI-22",
+     "WB-PI-23",
+     "WB-PIL-01",
+     "WB-PIL-02",
+     "WB-PIL-03",
+     "WB-PIL-04",
+     "WB-PIL-05",
+     "WB-PIL-06",
+     "WB-PIH-01",
+     "WB-PIH-02",
+     "WB-PIH-03",
+     "WB-PIH-04",
+     "WB-PIH-05",
+     "WB-PIH-07",
+     "WB-PIH-08",
+     "WB-PIH-11",
+     "WB-PIS-01",
+     "WB-PIS-02",
+     "WB-PIS-03",
+     "WB-PIS-04",
+     "WB-PIS-06"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 35,
+    "done": 26
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-25-inspector-completion.md; estimate 6 tasks; decisions D-02"
+  },
+  {
+   "id": "WP-26",
+   "title": "Evidence viewer completion: citation markers, entity toggles, views, answer diff",
+   "wave": "W2",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-08"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-SOURCES-21",
+     "BE-REPORTS-04"
+    ],
+    "WB": [
+     "WB-ANS-01",
+     "WB-ANS-02",
+     "WB-ANS-03",
+     "WB-ANS-04",
+     "WB-ANS-05",
+     "WB-ANS-06",
+     "WB-ANS-07",
+     "WB-ANS-08",
+     "WB-ANS-09",
+     "WB-ANS-10",
+     "WB-ANS-11",
+     "WB-ANS-12",
+     "WB-ANS-13",
+     "WB-ANS-14",
+     "WB-ANS-15",
+     "WB-ANS-16",
+     "WB-SRC-04"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-11",
+     "SC-23"
+    ],
+    "CF": [
+     "CF-25",
+     "CF-26"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 23,
+    "done": 9
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-26-evidence-viewer.md; estimate 7 tasks; decisions none"
+  },
+  {
+   "id": "WP-27",
+   "title": "Add prompts dialog redesign: plan block, checks, fields, topics, after the add (R-10)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-13",
+    "WP-07"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-ADD-01",
+     "WB-ADD-02",
+     "WB-ADD-03",
+     "WB-ADD-04",
+     "WB-ADD-05",
+     "WB-ADD-06",
+     "WB-ADD-07",
+     "WB-ADD-08",
+     "WB-ADD-09",
+     "WB-ADD-10",
+     "WB-ADD-11",
+     "WB-ADD-12",
+     "WB-ADD-13",
+     "WB-ADD-15",
+     "WB-ADD-16",
+     "WB-ADD-18",
+     "WB-TPH-14",
+     "WB-TPH-18",
+     "WB-PI-20",
+     "WB-BLK-09",
+     "WB-KEY-07"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-ADD-01",
+     "PD-ADD-02",
+     "PD-ADD-03",
+     "PD-ADD-04",
+     "PD-ADD-05",
+     "PD-ADD-06",
+     "PD-ADD-08",
+     "PD-ADD-09",
+     "PD-ADD-10",
+     "PD-ADD-11",
+     "PD-ADD-12",
+     "PD-ADD-13",
+     "PD-ADD-14",
+     "PD-ADD-15",
+     "PD-ADD-16",
+     "PD-ADD-19",
+     "PD-ADD-20",
+     "PD-ADD-21",
+     "PD-ADD-22",
+     "PD-ADD-23",
+     "PD-ADD-24",
+     "PD-ADD-25",
+     "PD-ADD-26",
+     "PD-ADD-27",
+     "PD-ADD-28",
+     "PD-ADD-29",
+     "PD-TOP-01",
+     "PD-TOP-02",
+     "PD-TOP-03",
+     "PD-TOP-04",
+     "PD-TOP-06",
+     "PD-QC-01",
+     "PD-QC-02",
+     "PD-QC-03",
+     "PD-QC-04",
+     "PD-QC-05",
+     "PD-QC-06",
+     "PD-QC-07",
+     "PD-LINT-01",
+     "PD-LINT-02",
+     "PD-LINT-03",
+     "PD-LINT-04",
+     "PD-LINT-05",
+     "PD-LINT-06",
+     "PD-LINT-07",
+     "PD-LINT-08",
+     "PD-LINT-09",
+     "PD-POST-01",
+     "PD-POST-02",
+     "PD-POST-03",
+     "PD-POST-04",
+     "PD-POST-05",
+     "PD-POST-06",
+     "PD-POST-07",
+     "PD-ROLE-01",
+     "PD-ROLE-02",
+     "PD-ROLE-03",
+     "PD-ROLE-04",
+     "PD-ROLE-05",
+     "PD-ROLE-06",
+     "PD-ERR-01",
+     "PD-ERR-02",
+     "PD-ERR-03",
+     "PD-ERR-04",
+     "PD-ERR-05",
+     "PD-ERR-06",
+     "PD-ERR-07",
+     "PD-ERR-08",
+     "PD-ERR-09",
+     "PD-ERR-10",
+     "PD-ERR-11",
+     "PD-ERR-12",
+     "PD-ERR-13",
+     "PD-ERR-14",
+     "PD-ERR-15",
+     "PD-ERR-16",
+     "PD-ERR-17",
+     "PD-ERR-18",
+     "PD-ERR-19",
+     "PD-ERR-20",
+     "PD-ERR-21",
+     "PD-ERR-22",
+     "PD-STATE-01",
+     "PD-STATE-02",
+     "PD-STATE-03",
+     "PD-STATE-04",
+     "PD-STATE-05",
+     "PD-STATE-06",
+     "PD-A11Y-01",
+     "PD-A11Y-02",
+     "PD-A11Y-03",
+     "PD-A11Y-04",
+     "PD-A11Y-05",
+     "PD-A11Y-06",
+     "PD-A11Y-07",
+     "PD-A11Y-08",
+     "PD-A11Y-09",
+     "PD-TEST-01",
+     "PD-TEST-02",
+     "PD-TEST-03",
+     "PD-TEST-04",
+     "PD-TEST-05",
+     "PD-TEST-06",
+     "PD-TEST-07",
+     "PD-TEST-12",
+     "PD-TEST-13",
+     "PD-TEST-17",
+     "PD-TEST-18",
+     "PD-TEST-20",
+     "PD-TEST-23",
+     "PD-TEST-24"
+    ],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 132,
+    "done": 20
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-27-add-dialog.md; estimate 10 tasks; decisions D-07, D-21, D-35"
+  },
+  {
+   "id": "WP-28",
+   "title": "Paste with columns and CSV import (R-10)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-27"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-TPH-10",
+     "WB-TPH-11",
+     "WB-ADD-17"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-PASTE-01",
+     "PD-PASTE-02",
+     "PD-PASTE-03",
+     "PD-PASTE-04",
+     "PD-PASTE-05",
+     "PD-PASTE-06",
+     "PD-CSV-01",
+     "PD-CSV-02",
+     "PD-CSV-03",
+     "PD-CSV-04",
+     "PD-CSV-05",
+     "PD-CSV-06",
+     "PD-CSV-07",
+     "PD-CSV-08",
+     "PD-CSV-09",
+     "PD-CSV-10",
+     "PD-CSV-11",
+     "PD-CSV-12",
+     "PD-CSV-13",
+     "PD-CSV-14",
+     "PD-CSV-15",
+     "PD-CSV-16",
+     "PD-CSV-17",
+     "PD-CSV-18",
+     "PD-STATE-12",
+     "PD-TEST-08",
+     "PD-TEST-09",
+     "PD-TEST-10",
+     "PD-TEST-21"
+    ],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 32,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-28-import-csv.md; estimate 6 tasks; decisions none"
+  },
+  {
+   "id": "WP-29",
+   "title": "Edit details, archive and restore, row, bulk and inspector menus",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-13"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-EDT-01",
+     "WB-EDT-02",
+     "WB-EDT-03",
+     "WB-EDT-04",
+     "WB-EDT-05",
+     "WB-MNU-05",
+     "WB-BLK-12",
+     "WB-BLK-11"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-EDIT-01",
+     "PD-EDIT-02",
+     "PD-EDIT-03",
+     "PD-EDIT-04",
+     "PD-EDIT-05",
+     "PD-EDIT-06",
+     "PD-EDIT-07",
+     "PD-EDIT-08",
+     "PD-EDIT-09",
+     "PD-EDIT-10",
+     "PD-ARC-01",
+     "PD-ARC-02",
+     "PD-ARC-03",
+     "PD-ARC-04",
+     "PD-ARC-05",
+     "PD-ARC-06",
+     "PD-ARC-07",
+     "PD-STATE-11",
+     "PD-ROW-01",
+     "PD-ROW-02",
+     "PD-ROW-03",
+     "PD-ROW-05",
+     "PD-ROW-07",
+     "PD-ROW-08",
+     "PD-ROW-09",
+     "PD-BULK-01",
+     "PD-BULK-02",
+     "PD-BULK-03",
+     "PD-BULK-04",
+     "PD-BULK-05",
+     "PD-BULK-06",
+     "PD-BULK-07",
+     "PD-BULK-09",
+     "PD-BULK-10",
+     "PD-INS-01",
+     "PD-INS-02",
+     "PD-INS-04",
+     "PD-INS-05",
+     "PD-INS-06",
+     "PD-TOP-05",
+     "PD-TEST-14",
+     "PD-TEST-16"
+    ],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 50,
+    "done": 12
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-29-edit-archive.md; estimate 6 tasks; decisions D-43, D-46"
+  },
+  {
+   "id": "WP-30",
+   "title": "Runs, costs, budgets and collection health (W21 freshness)",
+   "wave": "W2",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-03",
+    "WP-07"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-COLLECT-01",
+     "BE-COLLECT-02",
+     "BE-COLLECT-03",
+     "BE-COLLECT-04",
+     "BE-COLLECT-05",
+     "BE-COLLECT-06",
+     "BE-COLLECT-07",
+     "BE-COLLECT-08",
+     "BE-COLLECT-09",
+     "BE-COLLECT-10",
+     "BE-COLLECT-16",
+     "BE-COLLECT-17",
+     "BE-COLLECT-18",
+     "BE-COLLECT-19",
+     "BE-BILLING-PLAN-LINKS-08",
+     "BE-BILLING-PLAN-LINKS-09",
+     "BE-BILLING-PLAN-LINKS-10",
+     "BE-BILLING-PLAN-LINKS-11",
+     "BE-BILLING-PLAN-LINKS-14",
+     "BE-BILLING-PLAN-LINKS-15",
+     "BE-OPS-03",
+     "BE-OPS-04",
+     "BE-OPS-05",
+     "BE-OPS-06",
+     "BE-REPORTS-10"
+    ],
+    "WB": [
+     "WB-NAV-03",
+     "WB-OPS-01",
+     "WB-OPS-02",
+     "WB-OPS-03",
+     "WB-OPS-04",
+     "WB-OPS-05",
+     "WB-OPS-06",
+     "WB-OPS-07",
+     "WB-SET-15"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": [
+     "OV-N5"
+    ]
+   },
+   "counts": {
+    "total": 35,
+    "done": 22
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-30-runs-costs-health.md; estimate 8 tasks; decisions D-26"
+  },
+  {
+   "id": "WP-31",
+   "title": "Settings: engines page extras, data retention, setup checklist",
+   "wave": "W2",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-07"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-ENGINES-01",
+     "BE-ENGINES-02",
+     "BE-ENGINES-03",
+     "BE-ENGINES-04",
+     "BE-ENGINES-10",
+     "BE-ENGINES-12"
+    ],
+    "WB": [
+     "WB-SET-01",
+     "WB-SET-02",
+     "WB-SET-03",
+     "WB-SET-06",
+     "WB-SET-07",
+     "WB-SET-08",
+     "WB-SET-09",
+     "WB-SET-10",
+     "WB-SET-11",
+     "WB-SET-12",
+     "WB-SET-14",
+     "WB-SET-17",
+     "WB-IA-09"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 19,
+    "done": 12
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-31-settings-engines.md; estimate 5 tasks; decisions none"
+  },
+  {
+   "id": "WP-32",
+   "title": "Overview aggregate routes and the competitors read",
+   "wave": "W3",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-12",
+    "WP-14"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-METRICS-08",
+     "BE-METRICS-09",
+     "BE-METRICS-10",
+     "BE-METRICS-11",
+     "BE-METRICS-24",
+     "BE-REPORTS-01",
+     "BE-COMPETITORS-01",
+     "BE-COMPETITORS-02",
+     "BE-COMPETITORS-03",
+     "BE-COMPETITORS-05",
+     "BE-REPORTS-03"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-16"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 12,
+    "done": 2
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-32-overview-aggregates.md; estimate 8 tasks; decisions D-17"
+  },
+  {
+   "id": "WP-33",
+   "title": "AI Visibility Overview page: shell, scope, numbers, notices, presets, export",
+   "wave": "W3",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-16",
+    "WP-04",
+    "WP-07"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-IA-01",
+     "WB-OV-01",
+     "WB-OV-02",
+     "WB-OV-03",
+     "WB-OV-04",
+     "WB-OV-13",
+     "WB-OV-14"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 7,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20"
+  },
+  {
+   "id": "WP-34",
+   "title": "Overview cards: rates by engine, outcomes, funnel, change summary, movers",
+   "wave": "W3",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-33",
+    "WP-05",
+    "WP-06",
+    "WP-19"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-OV-05",
+     "WB-OV-06"
+    ],
+    "CH": [
+     "CH-01",
+     "CH-03",
+     "CH-09",
+     "CH-10",
+     "CH-13",
+     "CH-18",
+     "CH-23",
+     "CH-36",
+     "CH-37"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 11,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-34-overview-cards-engines.md; estimate 8 tasks; decisions D-04"
+  },
+  {
+   "id": "WP-35",
+   "title": "Overview cards: share of voice, lost to a competitor, competitor trends",
+   "wave": "W3",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-33",
+    "WP-05",
+    "WP-12"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-OV-08",
+     "WB-OV-09"
+    ],
+    "CH": [
+     "CH-02",
+     "CH-05",
+     "CH-06",
+     "CH-19",
+     "CH-29",
+     "CH-38"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 8,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-35-overview-cards-competitors.md; estimate 6 tasks; decisions none"
+  },
+  {
+   "id": "WP-36",
+   "title": "Overview cards: topics by engine and prompts",
+   "wave": "W3",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-33",
+    "WP-06",
+    "WP-20"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-TPE-01"
+    ],
+    "CH": [
+     "CH-04",
+     "CH-11",
+     "CH-12",
+     "CH-15",
+     "CH-33",
+     "CH-40",
+     "CH-41",
+     "CH-42",
+     "CH-43",
+     "CH-44",
+     "CH-45",
+     "CH-46"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 13,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-36-overview-cards-topics.md; estimate 7 tasks; decisions D-04, D-05"
+  },
+  {
+   "id": "WP-37",
+   "title": "Overview cards: sources, fan-out, activity and operations",
+   "wave": "W3",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-33",
+    "WP-05",
+    "WP-06",
+    "WP-30",
+    "WP-08"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-OV-07",
+     "WB-OV-10",
+     "WB-OV-11",
+     "WB-OV-12"
+    ],
+    "CH": [
+     "CH-07",
+     "CH-08",
+     "CH-16",
+     "CH-17",
+     "CH-20",
+     "CH-21",
+     "CH-22",
+     "CH-26",
+     "CH-34"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 13,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-37-overview-cards-sources.md; estimate 6 tasks; decisions none"
+  },
+  {
+   "id": "WP-38",
+   "title": "Chart notes and annotations (N9, N13, CH-35, M-14)",
+   "wave": "W3",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-01",
+    "WP-04"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-REPORTS-09"
+    ],
+    "WB": [
+     "WB-RPT-06"
+    ],
+    "CH": [
+     "CH-35"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": [
+     "OV-N9",
+     "OV-N13"
+    ]
+   },
+   "counts": {
+    "total": 5,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-38-notes-annotations.md; estimate 6 tasks; decisions D-18, D-29"
+  },
+  {
+   "id": "WP-39",
+   "title": "Competitors page (Comparison, AI tab, inspector)",
+   "wave": "W3",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-32",
+    "WP-05",
+    "WP-06",
+    "WP-07"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-IA-05",
+     "WB-CMP-01",
+     "WB-CMP-02",
+     "WB-CMP-03",
+     "WB-CMP-04",
+     "WB-CMP-05",
+     "WB-CMP-06",
+     "WB-CMP-07",
+     "WB-CMP-10",
+     "WB-CMP-11",
+     "WB-CMP-12"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 11,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-39-competitors-page.md; estimate 8 tasks; decisions none"
+  },
+  {
+   "id": "WP-40",
+   "title": "Project Overview: AI cards and items (cross-channel)",
+   "wave": "W3",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-33"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-IA-13",
+     "WB-XCH-02"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 2,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-40-project-overview-ai.md; estimate 4 tasks; decisions none"
+  },
+  {
+   "id": "WP-41",
+   "title": "Versions: edit text, versions, restore, project feed, boundaries (B11, B12)",
+   "wave": "W4",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-13",
+    "WP-25"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-VERSIONS-01",
+     "BE-VERSIONS-02",
+     "BE-VERSIONS-03",
+     "BE-VERSIONS-04",
+     "BE-VERSIONS-06",
+     "BE-VERSIONS-08",
+     "BE-PROMPTS-14"
+    ],
+    "WB": [
+     "WB-PRM-34",
+     "WB-EDT-06",
+     "WB-MNU-06",
+     "WB-VER-01",
+     "WB-VER-02",
+     "WB-VER-03",
+     "WB-VER-04",
+     "WB-VER-05",
+     "WB-VER-06",
+     "WB-VER-07",
+     "WB-VER-08",
+     "WB-PRM-21",
+     "WB-PIH-10",
+     "WB-STATE-13"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-EDIT-20",
+     "PD-EDIT-21",
+     "PD-EDIT-22",
+     "PD-EDIT-23",
+     "PD-EDIT-24",
+     "PD-EDIT-25",
+     "PD-ROW-04",
+     "PD-INS-03",
+     "PD-VER-01",
+     "PD-VER-02",
+     "PD-VER-03",
+     "PD-VER-04",
+     "PD-VER-05",
+     "PD-VER-06",
+     "PD-INS-07",
+     "PD-STATE-10",
+     "PD-TEST-15",
+     "PD-ERR-24"
+    ],
+    "SC": [],
+    "CF": [
+     "CF-21"
+    ],
+    "N": [
+     "PD-B11",
+     "PD-N12",
+     "PD-B12"
+    ]
+   },
+   "counts": {
+    "total": 43,
+    "done": 1
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-41-versions.md; estimate 10 tasks; decisions D-24"
+  },
+  {
+   "id": "WP-42",
+   "title": "Panels backend: tables, core seed, routes, memberships, planner (B10)",
+   "wave": "W4",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-41"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-PANELS-01",
+     "BE-PANELS-02",
+     "BE-PANELS-03",
+     "BE-PANELS-04",
+     "BE-PANELS-05",
+     "BE-PANELS-06",
+     "BE-PANELS-07",
+     "BE-PANELS-09",
+     "BE-PANELS-10",
+     "BE-PROMPTS-13",
+     "BE-VERSIONS-05"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-20"
+    ],
+    "N": [
+     "PD-N14",
+     "PD-B10"
+    ]
+   },
+   "counts": {
+    "total": 14,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-42-panels-api.md; estimate 10 tasks; decisions D-49"
+  },
+  {
+   "id": "WP-43",
+   "title": "Panels web: Panels tab, add to panel, locked core flows, filters",
+   "wave": "W4",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-42",
+    "WP-29"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-PNL-01",
+     "WB-PNL-02",
+     "WB-PNL-03",
+     "WB-PNL-04",
+     "WB-PNL-05",
+     "WB-PNL-06",
+     "WB-PNL-07",
+     "WB-PNL-09",
+     "WB-PNL-10",
+     "WB-PNL-11",
+     "WB-TPH-16",
+     "WB-TPF-09",
+     "WB-PRM-04",
+     "WB-PRM-22",
+     "WB-ADD-14",
+     "WB-BLK-10",
+     "WB-TPH-05",
+     "WB-PIH-09",
+     "WB-PI-07"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-PAN-01",
+     "PD-PAN-02",
+     "PD-PAN-03",
+     "PD-PAN-04",
+     "PD-PAN-05",
+     "PD-PAN-06",
+     "PD-PAN-07",
+     "PD-PAN-08",
+     "PD-PAN-09",
+     "PD-PAN-10",
+     "PD-PAN-11",
+     "PD-PAN-12",
+     "PD-PAN-13",
+     "PD-ERR-23",
+     "PD-ARC-08",
+     "PD-ADD-17",
+     "PD-ADD-18",
+     "PD-ROW-06",
+     "PD-BULK-08",
+     "PD-INS-08"
+    ],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 39,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-43-panels-web.md; estimate 8 tasks; decisions none"
+  },
+  {
+   "id": "WP-44",
+   "title": "Keyword links and Generate from keywords (B18, N08, M-25)",
+   "wave": "W4",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-13",
+    "WP-27"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-BILLING-PLAN-LINKS-01",
+     "BE-BILLING-PLAN-LINKS-02",
+     "BE-BILLING-PLAN-LINKS-04",
+     "BE-PROMPTS-17"
+    ],
+    "WB": [
+     "WB-XCH-05",
+     "WB-EDT-07",
+     "WB-TPH-12",
+     "WB-DSC-09",
+     "WB-EDT-08",
+     "WB-TPF-14",
+     "WB-PRM-20",
+     "WB-PICO-04"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-GEN-01",
+     "PD-GEN-02",
+     "PD-GEN-03",
+     "PD-GEN-04",
+     "PD-GEN-05",
+     "PD-GEN-06",
+     "PD-GEN-07",
+     "PD-GEN-08",
+     "PD-GEN-09",
+     "PD-GEN-10",
+     "PD-GEN-11",
+     "PD-GEN-12",
+     "PD-GEN-13",
+     "PD-GEN-14",
+     "PD-GEN-15",
+     "PD-GEN-16",
+     "PD-STATE-07",
+     "PD-STATE-08",
+     "PD-TEST-11",
+     "PD-TEST-22"
+    ],
+    "SC": [],
+    "CF": [],
+    "N": [
+     "PD-N08",
+     "PD-B18"
+    ]
+   },
+   "counts": {
+    "total": 34,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-44-links-generate.md; estimate 9 tasks; decisions none"
+  },
+  {
+   "id": "WP-45",
+   "title": "Prompt candidates inbox backend (B18 inbox, N10)",
+   "wave": "W4",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-44"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-PROMPTS-18",
+     "BE-PROMPTS-19",
+     "BE-PROMPTS-20",
+     "BE-PROMPTS-21",
+     "BE-PROMPTS-23",
+     "BE-EXPORT-05"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-22"
+    ],
+    "N": [
+     "PD-N10"
+    ]
+   },
+   "counts": {
+    "total": 8,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-45-candidates-api.md; estimate 8 tasks; decisions D-27"
+  },
+  {
+   "id": "WP-46",
+   "title": "Discover > Prompts: candidates inbox and suggestions (W12)",
+   "wave": "W4",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-45",
+    "WP-10"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-IA-06",
+     "WB-DSC-01",
+     "WB-DSC-02",
+     "WB-DSC-03",
+     "WB-DSC-04",
+     "WB-DSC-05",
+     "WB-DSC-06",
+     "WB-DSC-07",
+     "WB-DSC-08",
+     "WB-DSC-10",
+     "WB-DSC-12",
+     "WB-DSC-13",
+     "WB-NAV-02",
+     "WB-KEY-08"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-CAND-01",
+     "PD-CAND-02",
+     "PD-CAND-03",
+     "PD-CAND-04",
+     "PD-CAND-05",
+     "PD-CAND-06",
+     "PD-CAND-07",
+     "PD-CAND-08",
+     "PD-CAND-09",
+     "PD-CAND-10",
+     "PD-CAND-11",
+     "PD-CAND-12",
+     "PD-CAND-13",
+     "PD-CAND-14",
+     "PD-CAND-20",
+     "PD-STATE-09",
+     "PD-ERR-25"
+    ],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 31,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-46-discover-web.md; estimate 8 tasks; decisions none"
+  },
+  {
+   "id": "WP-47",
+   "title": "Alerts backend: rules, events, evaluation, AI rule types, digests",
+   "wave": "W4",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-01",
+    "WP-14"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-ALERTS-01",
+     "BE-ALERTS-02",
+     "BE-ALERTS-03",
+     "BE-ALERTS-04",
+     "BE-ALERTS-05",
+     "BE-ALERTS-06",
+     "BE-ALERTS-07",
+     "BE-ALERTS-08",
+     "BE-ALERTS-09",
+     "BE-ALERTS-10",
+     "BE-ALERTS-11",
+     "BE-ALERTS-12",
+     "BE-ALERTS-13"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-23"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 14,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-47-alerts-api.md; estimate 10 tasks; decisions none"
+  },
+  {
+   "id": "WP-48",
+   "title": "Alerts web: rule list, builder, bell, digest archive",
+   "wave": "W4",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-47",
+    "WP-08"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-ALR-01",
+     "WB-ALR-02",
+     "WB-ALR-03",
+     "WB-ALR-04",
+     "WB-ALR-05",
+     "WB-ALR-06",
+     "WB-ALR-07",
+     "WB-SET-13",
+     "WB-IA-10",
+     "WB-NAV-09"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-21",
+     "SC-24"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 12,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-48-alerts-web.md; estimate 7 tasks; decisions none"
+  },
+  {
+   "id": "WP-49",
+   "title": "Saved views persistence (B8) on every AI table",
+   "wave": "W4",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-10",
+    "WP-01"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-SAVEDVIEWS-01",
+     "BE-SAVEDVIEWS-02",
+     "BE-SAVEDVIEWS-03",
+     "BE-SAVEDVIEWS-04"
+    ],
+    "WB": [
+     "WB-TPH-06"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-14"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 6,
+    "done": 1
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-49-saved-views.md; estimate 6 tasks; decisions none"
+  },
+  {
+   "id": "WP-50",
+   "title": "Server exports with AI kinds and the caveat header",
+   "wave": "W4",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-01"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-OPS-08",
+     "BE-EXPORT-01",
+     "BE-EXPORT-02",
+     "BE-EXPORT-03",
+     "BE-REPORTS-11",
+     "BE-METRICS-16"
+    ],
+    "WB": [
+     "WB-RPT-01",
+     "WB-RPT-02"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 8,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-50-exports.md; estimate 8 tasks; decisions none"
+  },
+  {
+   "id": "WP-51",
+   "title": "Reports page, shareable report and scheduled digests (M-12, M-13)",
+   "wave": "W4",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-50",
+    "WP-47",
+    "WP-49"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-REPORTS-07",
+     "BE-REPORTS-08"
+    ],
+    "WB": [
+     "WB-IA-07",
+     "WB-RPT-03",
+     "WB-RPT-04",
+     "WB-RPT-05",
+     "WB-RPT-07"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 7,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-51-reports.md; estimate 8 tasks; decisions D-29"
+  },
+  {
+   "id": "WP-52",
+   "title": "Prompt Detail page `/ai/prompts/[promptId]` (T3)",
+   "wave": "W4",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-41",
+    "WP-21",
+    "WP-24",
+    "WP-06"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-IA-08",
+     "WB-PD-01",
+     "WB-PD-02",
+     "WB-PD-03",
+     "WB-PD-04",
+     "WB-PD-05",
+     "WB-PD-06",
+     "WB-PD-08",
+     "WB-PD-09",
+     "WB-PD-10",
+     "WB-PD-12",
+     "WB-PD-13",
+     "WB-PD-14",
+     "WB-PI-03",
+     "WB-MNU-07",
+     "WB-NAV-04",
+     "WB-PIH-12"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 17,
+    "done": 1
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-52-prompt-detail.md; estimate 8 tasks; decisions D-47"
+  },
+  {
+   "id": "WP-53",
+   "title": "Command palette (platform)",
+   "wave": "W4",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-NAV-10",
+     "WB-KEY-09"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-ADD-07"
+    ],
+    "SC": [
+     "SC-20"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 4,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-53-command-palette.md; estimate 5 tasks; decisions D-48"
+  },
+  {
+   "id": "WP-54",
+   "title": "Extraction: markdown structure, structured rank, recommendation, sentiment",
+   "wave": "W5",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-12"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-EXTRACT-01",
+     "BE-EXTRACT-02",
+     "BE-EXTRACT-03",
+     "BE-EXTRACT-04",
+     "BE-EXTRACT-05",
+     "BE-EXTRACT-06",
+     "BE-EXTRACT-07",
+     "BE-EXTRACT-08",
+     "BE-EXTRACT-09",
+     "BE-EXTRACT-17",
+     "BE-RECOMMEND-01",
+     "BE-RECOMMEND-02",
+     "BE-RECOMMEND-03",
+     "BE-RECOMMEND-05",
+     "BE-RECOMMEND-06",
+     "BE-RECOMMEND-07"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-18"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 17,
+    "done": 8
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-54-extract-recommend.md; estimate 10 tasks; decisions D-44, D-45"
+  },
+  {
+   "id": "WP-55",
+   "title": "Recommendation, structured rank and sentiment on every AI page",
+   "wave": "W5",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-54"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-TPS-07",
+     "WB-PRM-10",
+     "WB-PIL-07",
+     "WB-PIH-06",
+     "WB-PICO-03",
+     "WB-PD-07"
+    ],
+    "CH": [
+     "CH-24",
+     "CH-25",
+     "CH-39"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 9,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-55-recommend-web.md; estimate 6 tasks; decisions D-19"
+  },
+  {
+   "id": "WP-56",
+   "title": "Re-derivation, derivations routes and entity candidates (competitor discovery)",
+   "wave": "W5",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-54",
+    "WP-50"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-EXTRACT-10",
+     "BE-EXTRACT-11",
+     "BE-EXTRACT-12",
+     "BE-EXTRACT-13",
+     "BE-EXTRACT-14",
+     "BE-EXTRACT-15",
+     "BE-EXTRACT-16",
+     "BE-EXTRACT-18",
+     "BE-COLLECT-15",
+     "BE-COMPETITORS-06",
+     "BE-COMPETITORS-11",
+     "BE-METRICS-17"
+    ],
+    "WB": [
+     "WB-CMP-09"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 13,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-56-rederive-candidates.md; estimate 10 tasks; decisions none"
+  },
+  {
+   "id": "WP-57",
+   "title": "Retrieved but not cited, fan-out table and keyword match (C8, FO-07, F3)",
+   "wave": "W5",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-14",
+    "WP-24"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-SOURCES-13",
+     "BE-FANOUT-02",
+     "BE-FANOUT-04",
+     "BE-FANOUT-06"
+    ],
+    "WB": [
+     "WB-CIT-12",
+     "WB-PIF-08",
+     "WB-PIF-09"
+    ],
+    "CH": [
+     "CH-27",
+     "CH-28"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": [
+     "OV-N11"
+    ]
+   },
+   "counts": {
+    "total": 10,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-57-retrieval-fanout.md; estimate 8 tasks; decisions none"
+  },
+  {
+   "id": "WP-58",
+   "title": "Statistics backend: intervals, paired verdict, flip rate, movers, sizing (slice 3)",
+   "wave": "W5",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-12",
+    "WP-42"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-STATS-01",
+     "BE-STATS-02",
+     "BE-STATS-03",
+     "BE-STATS-04",
+     "BE-STATS-05",
+     "BE-STATS-06",
+     "BE-STATS-07",
+     "BE-STATS-08",
+     "BE-STATS-11",
+     "BE-STATS-12",
+     "BE-STATS-13",
+     "BE-METRICS-25",
+     "BE-REPORTS-02",
+     "BE-VERSIONS-07",
+     "BE-COMPETITORS-04",
+     "BE-PANELS-08",
+     "BE-COLLECT-11"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-24"
+    ],
+    "N": [
+     "OV-N12"
+    ]
+   },
+   "counts": {
+    "total": 19,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-58-stats-api.md; estimate 10 tasks; decisions D-25"
+  },
+  {
+   "id": "WP-59",
+   "title": "Statistics web: server intervals, verdicts, volatility, sizing, replicates",
+   "wave": "W5",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-58",
+    "WP-52"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-PIS-05",
+     "WB-PRM-19",
+     "WB-PNL-08",
+     "WB-PIL-08",
+     "WB-SET-04",
+     "WB-PD-11"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 6,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-59-stats-web.md; estimate 5 tasks; decisions none"
+  },
+  {
+   "id": "WP-60",
+   "title": "Source intelligence backend: categories, publishers, overlap, opportunities",
+   "wave": "W5",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-14"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-SOURCES-08",
+     "BE-SOURCES-09",
+     "BE-SOURCES-10",
+     "BE-SOURCES-12",
+     "BE-SOURCES-14",
+     "BE-SOURCES-15",
+     "BE-SOURCES-16",
+     "BE-SOURCES-17",
+     "BE-SOURCES-18",
+     "BE-SOURCES-19",
+     "BE-SOURCES-23",
+     "BE-TOPICS-11"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": [
+     "OV-N8"
+    ]
+   },
+   "counts": {
+    "total": 13,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-60-source-intel-api.md; estimate 10 tasks; decisions D-27, D-30, D-31, D-32"
+  },
+  {
+   "id": "WP-61",
+   "title": "Sources page, opportunities and source overlap views",
+   "wave": "W5",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-60",
+    "WP-05"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-IA-04",
+     "WB-SRCS-01",
+     "WB-SRCS-02",
+     "WB-SRCS-03",
+     "WB-SRCS-04",
+     "WB-SRCS-05",
+     "WB-CIT-17",
+     "WB-DSC-11",
+     "WB-CMP-08",
+     "WB-TOP-40"
+    ],
+    "CH": [
+     "CH-32"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 11,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-61-sources-page.md; estimate 7 tasks; decisions none"
+  },
+  {
+   "id": "WP-62",
+   "title": "Performance: rollups, caching, EXPLAIN gate, quality counters",
+   "wave": "W5",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-12",
+    "WP-32"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-METRICS-18",
+     "BE-METRICS-19",
+     "BE-METRICS-20",
+     "BE-OPS-07",
+     "BE-OPS-14"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 5,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-62-performance.md; estimate 6 tasks; decisions D-33"
+  },
+  {
+   "id": "WP-63",
+   "title": "SSRF-safe fetcher and outbound webhooks",
+   "wave": "W5",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-47"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-GEO-01",
+     "BE-ALERTS-14"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 2,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-63-ssrf-webhooks.md; estimate 7 tasks; decisions none"
+  },
+  {
+   "id": "WP-64",
+   "title": "AI Overview engine and cross-channel backend (needs rank data, OD-13)",
+   "wave": "W6",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-44",
+    "WP-58"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-ENGINES-06",
+     "BE-AIO-01",
+     "BE-AIO-02",
+     "BE-AIO-03",
+     "BE-AIO-04",
+     "BE-AIO-05",
+     "BE-AIO-06",
+     "BE-COLLECT-12",
+     "BE-TOPICS-09",
+     "BE-BILLING-PLAN-LINKS-03",
+     "BE-BILLING-PLAN-LINKS-05",
+     "BE-BILLING-PLAN-LINKS-06",
+     "BE-BILLING-PLAN-LINKS-07",
+     "BE-FANOUT-05",
+     "BE-COMPETITORS-07",
+     "BE-COMPETITORS-09"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-19"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 17,
+    "done": 1
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-64-aio-xch-api.md; estimate 12 tasks; decisions D-50"
+  },
+  {
+   "id": "WP-65",
+   "title": "AI Overview and cross-channel web: AIO columns, Matrix, keyword AI tab, pages",
+   "wave": "W6",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-64"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-TPS-08",
+     "WB-PRM-24",
+     "WB-TOP-39",
+     "WB-SET-05",
+     "WB-XCH-01",
+     "WB-XCH-03",
+     "WB-XCH-04",
+     "WB-IA-12",
+     "WB-TOP-22",
+     "WB-TI-14",
+     "WB-TI-20"
+    ],
+    "CH": [
+     "CH-31"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 12,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-65-aio-xch-web.md; estimate 9 tasks; decisions D-19"
+  },
+  {
+   "id": "WP-66",
+   "title": "Discovery sources: PAA, GSC questions, fan-out to inbox, modeled demand",
+   "wave": "W6",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-45",
+    "WP-64"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-PROMPTS-22",
+     "BE-FANOUT-07",
+     "BE-PROMPTS-24"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 3,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-66-discovery-sources.md; estimate 8 tasks; decisions D-27, D-50"
+  },
+  {
+   "id": "WP-67",
+   "title": "Engine and data expansion: forced search, official APIs, other surfaces, API keys",
+   "wave": "W6",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-58"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-ENGINES-05",
+     "BE-ENGINES-07",
+     "BE-ENGINES-08",
+     "BE-ENGINES-09",
+     "BE-ENGINES-11",
+     "BE-COLLECT-14",
+     "BE-FANOUT-08",
+     "BE-COLLECT-21",
+     "BE-COMPETITORS-08",
+     "BE-EXPORT-04"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 10,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-67-engine-expansion.md; estimate 12 tasks; decisions D-26, D-27"
+  },
+  {
+   "id": "WP-68",
+   "title": "LLM-backed and Phase 15 analytics: adjudication, claims, diagnostics, experiments",
+   "wave": "W6",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-54",
+    "WP-58"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-OPS-11",
+     "BE-BILLING-PLAN-LINKS-12",
+     "BE-RECOMMEND-04",
+     "BE-RECOMMEND-08",
+     "BE-COMPETITORS-10",
+     "BE-REPORTS-05",
+     "BE-REPORTS-06",
+     "BE-GEO-10",
+     "BE-PANELS-11",
+     "BE-STATS-09",
+     "BE-STATS-10"
+    ],
+    "WB": [
+     "WB-SET-16",
+     "WB-PD-15"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 13,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-68-llm-advanced.md; estimate 14 tasks; decisions D-27"
+  },
+  {
+   "id": "WP-69",
+   "title": "First-party AI signals: GA4 referrals, crawlers, GSC generative, Bing AI (Ph 12)",
+   "wave": "W6",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-50"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-GEO-11",
+     "BE-GEO-12",
+     "BE-GEO-13",
+     "BE-GEO-14",
+     "BE-GEO-15",
+     "BE-GEO-16"
+    ],
+    "WB": [
+     "WB-XCH-06"
+    ],
+    "CH": [
+     "CH-30"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 8,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-69-first-party-signals.md; estimate 12 tasks; decisions D-51"
+  },
+  {
+   "id": "WP-70",
+   "title": "Page-level AI readiness (optional, only if the owner opens it, OD-11)",
+   "wave": "W7",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-63"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-GEO-02",
+     "BE-GEO-03",
+     "BE-GEO-04",
+     "BE-GEO-05",
+     "BE-GEO-06",
+     "BE-GEO-07",
+     "BE-GEO-08",
+     "BE-GEO-09",
+     "BE-SOURCES-24"
+    ],
+    "WB": [
+     "WB-IA-11",
+     "WB-GEO-01",
+     "WB-GEO-02",
+     "WB-GEO-03",
+     "WB-GEO-04",
+     "WB-GEO-05",
+     "WB-GEO-06",
+     "WB-GEO-07",
+     "WB-GEO-08",
+     "WB-GEO-09",
+     "WB-GEO-10",
+     "WB-GEO-11"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 21,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-70-geo-readiness.md; estimate 12 tasks; decisions D-08"
+  },
+  {
+   "id": "WP-71",
+   "title": "Quality sweeps: e2e, axe at four widths, visual, responsive, copy rules",
+   "wave": "X",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-A11Y-01",
+     "WB-A11Y-02",
+     "WB-A11Y-03",
+     "WB-A11Y-04",
+     "WB-A11Y-05",
+     "WB-A11Y-06",
+     "WB-A11Y-07",
+     "WB-A11Y-08",
+     "WB-A11Y-09",
+     "WB-A11Y-10",
+     "WB-A11Y-12",
+     "WB-A11Y-13",
+     "WB-A11Y-14",
+     "WB-RSP-07",
+     "WB-RSP-08",
+     "WB-RSP-10",
+     "WB-E2E-01",
+     "WB-E2E-02",
+     "WB-E2E-03",
+     "WB-E2E-04",
+     "WB-E2E-05",
+     "WB-E2E-11",
+     "WB-E2E-12",
+     "WB-STATE-09",
+     "WB-COPY-01",
+     "WB-COPY-02",
+     "WB-COPY-03",
+     "WB-DATA-01",
+     "WB-DATA-03",
+     "WB-DATA-04",
+     "WB-DATA-05"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 31,
+    "done": 21
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-71-quality-sweeps.md; estimate 8 tasks; decisions none"
+  },
+  {
+   "id": "WP-72",
+   "title": "Docs: As built notes, drift fixes, design-system additions",
+   "wave": "X",
+   "kind": "docs",
+   "status": "not_started",
+   "dependsOn": [],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-OPS-10",
+     "BE-TOPICS-10"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 2,
+    "done": 1
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-72-docs.md; estimate 5 tasks; decisions D-20, D-28"
+  },
+  {
+   "id": "WP-73",
+   "title": "Release gates and the first real-data acceptance run",
+   "wave": "X",
+   "kind": "infra",
+   "status": "not_started",
+   "dependsOn": [],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-COLLECT-20"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 1,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-73-release-acceptance.md; estimate 4 tasks; decisions D-26"
+  }
+ ],
+ "decisions": [
+  {
+   "id": "D-01",
+   "title": "Overview presets: code (built-in documents behind a Start from menu) or stored named layouts",
+   "default": "Code. No table change; the person saves the result as their layout or the team default",
+   "status": "open"
+  },
+  {
+   "id": "D-02",
+   "title": "Prompt inspector tabs: 5 or 6 (and where Versions and Runs go)",
+   "default": "6 tabs: Latest, History, Citations, Competitors, Fan-out (only when an enabled engine exposes it), Stats. Versions and runs are sections of History; the full timeline is on Prompt Detail. DS 23 4.1 amended to allow 6",
+   "status": "open"
+  },
+  {
+   "id": "D-03",
+   "title": "Compare on by default (Overview and Topics & Prompts)",
+   "default": "On: vs previous period by default on both, `cmp=off` in the URL turns it off",
+   "status": "open"
+  },
+  {
+   "id": "D-04",
+   "title": "Pooling threshold POOL_BELOW_PROMPTS for topic and project weekly points",
+   "default": "10 prompts",
+   "status": "open"
+  },
+  {
+   "id": "D-05",
+   "title": "Heat-map bins shared by every rate heat-map",
+   "default": "The 7 fixed bins of CH-04, mirrored in dark",
+   "status": "open"
+  },
+  {
+   "id": "D-06",
+   "title": "Undo and redo in customize mode",
+   "default": "Yes: 50 drafts of history, ends with the mode, Hide raises a toast with Undo",
+   "status": "open"
+  },
+  {
+   "id": "D-07",
+   "title": "Undo of an add",
+   "default": "Undo archives the created prompts (no hard delete); the toast says so",
+   "status": "open"
+  },
+  {
+   "id": "D-08",
+   "title": "Page-level AI readiness (GEO) in scope",
+   "default": "Stays closed; optional wave 7 only on the owner's word",
+   "status": "open"
+  },
+  {
+   "id": "D-09",
+   "title": "How personal layouts stay private inside a workspace (review log F10)",
+   "default": "Row-level security policy on the current user id plus the application check, both tested",
+   "status": "open"
+  },
+  {
+   "id": "D-10",
+   "title": "How the backend gets the layout catalog keys (packages/contracts does not exist)",
+   "default": "A checked-in JSON generated by the web (`pnpm gen:layout-catalog`), freshness test on both sides, like gen:api",
+   "status": "open"
+  },
+  {
+   "id": "D-11",
+   "title": "Who holds layouts:manage",
+   "default": "Owner and admin",
+   "status": "open"
+  },
+  {
+   "id": "D-12",
+   "title": "What shared layouts means",
+   "default": "The team default only; no sharing with one person",
+   "status": "open"
+  },
+  {
+   "id": "D-13",
+   "title": "Per-card Window option (weakens one denominator per page)",
+   "default": "No in the first release",
+   "status": "open"
+  },
+  {
+   "id": "D-14",
+   "title": "Snapping resize grip as a pointer alternative to the Width select",
+   "default": "Yes, snaps to allowed widths only",
+   "status": "open"
+  },
+  {
+   "id": "D-15",
+   "title": "Duplicate in the card More menu",
+   "default": "Yes, with the next free identity value",
+   "status": "open"
+  },
+  {
+   "id": "D-16",
+   "title": "New screen key inspector.topic (customizable topic drawer)",
+   "default": "Yes; the prompt inspector later",
+   "status": "open"
+  },
+  {
+   "id": "D-17",
+   "title": "New metric registry keys ai.prompts_in_scope and ai.valid_answers",
+   "default": "Yes, added to doc 16 2.1 first",
+   "status": "open"
+  },
+  {
+   "id": "D-18",
+   "title": "notes:write permission",
+   "default": "Editor and above",
+   "status": "open"
+  },
+  {
+   "id": "D-19",
+   "title": "AI Overview as a strip item and engine once slice 2 lands",
+   "default": "Yes, labelled \"AI Overviews\", counted not asked",
+   "status": "open"
+  },
+  {
+   "id": "D-20",
+   "title": "Copy the Overview wireframe into DS 24 as 9.2a",
+   "default": "Yes",
+   "status": "open"
+  },
+  {
+   "id": "D-21",
+   "title": "Branded definition for lint",
+   "default": "Own aliases only (as built); competitor aliases get their own warning rule",
+   "status": "open"
+  },
+  {
+   "id": "D-22",
+   "title": "Who sets the funnel stage",
+   "default": "The person, default unknown; no LLM",
+   "status": "open"
+  },
+  {
+   "id": "D-23",
+   "title": "Bulk archive by filter form",
+   "default": "Yes (small)",
+   "status": "open"
+  },
+  {
+   "id": "D-24",
+   "title": "Personas (context_preamble) before panels",
+   "default": "No; later, with a migration, when the owner asks",
+   "status": "open"
+  },
+  {
+   "id": "D-25",
+   "title": "Replicates and spike S-05 (provider spend)",
+   "default": "No until a budget is set",
+   "status": "open"
+  },
+  {
+   "id": "D-26",
+   "title": "Real provider spend: resume Eventus schedules and run the acceptance",
+   "default": "A monthly AI budget of USD 10 for Eventus: its 72 prompts on 3 engines cost about USD 2.25 a month on the schedule (USD 4.70 at the 150 prompt base plan) and about USD 0.26 per full Run now, so USD 10 covers the schedule, the two acceptance runs and Run now headroom",
+   "status": "open"
+  },
+  {
+   "id": "D-27",
+   "title": "LLM use (adjudication, category classification, candidate variants, onboarding suggestions)",
+   "default": "No until a provider and a budget are chosen; rules and templates first",
+   "status": "open"
+  },
+  {
+   "id": "D-28",
+   "title": "Topic routes of doc 20 5.11 (Topic Explorer)",
+   "default": "Drop; superseded by the Topics tab (ADR-DS-022)",
+   "status": "open"
+  },
+  {
+   "id": "D-29",
+   "title": "Reports: shareable link and PDF (M-12), scheduled reports (M-13)",
+   "default": "Later: build the Reports page with Exports and Saved views first; annotations (M-14) yes now",
+   "status": "open"
+  },
+  {
+   "id": "D-30",
+   "title": "Opportunity task status (OP-12, a new table)",
+   "default": "No for now",
+   "status": "open"
+  },
+  {
+   "id": "D-31",
+   "title": "Domain category seed list source",
+   "default": "Rules plus a small curated seed in the repository, no LLM",
+   "status": "open"
+  },
+  {
+   "id": "D-32",
+   "title": "Who maintains the publisher list",
+   "default": "Deferred with source intelligence; start with a curated seed",
+   "status": "open"
+  },
+  {
+   "id": "D-33",
+   "title": "When to add the rollup table",
+   "default": "When the summary p95 exceeds 800 ms at 150 prompts x 3 engines x 92 days, or before the first full-capacity month",
+   "status": "open"
+  },
+  {
+   "id": "D-34",
+   "title": "Hard delete of prompts added by mistake",
+   "default": "No; archive only",
+   "status": "open"
+  },
+  {
+   "id": "D-35",
+   "title": "\"Run now\" or \"Ask now\"",
+   "default": "Keep \"Run now\" on buttons",
+   "status": "open"
+  },
+  {
+   "id": "D-36",
+   "title": "Prompt type facet and badge before panels",
+   "default": "Yes, as soon as the prompts lane lands B16",
+   "status": "open"
+  },
+  {
+   "id": "D-37",
+   "title": "Topic subtitle: one line or a category line",
+   "default": "Keep the one-line form",
+   "status": "open"
+  },
+  {
+   "id": "D-38",
+   "title": "Trend: an 8 week line beside a 28 day table (second read)",
+   "default": "Yes, now that gzip is on develop",
+   "status": "open"
+  },
+  {
+   "id": "D-39",
+   "title": "Expanded topic set in the URL",
+   "default": "Already dropped by the owner; keep in memory",
+   "status": "open"
+  },
+  {
+   "id": "D-40",
+   "title": "Right-click row menu on every DataTable, Rankings included",
+   "default": "Yes",
+   "status": "open"
+  },
+  {
+   "id": "D-41",
+   "title": "Effective sources (C3): web or backend",
+   "default": "Backend (diversity read); the web may compute it in the interim",
+   "status": "open"
+  },
+  {
+   "id": "D-42",
+   "title": "Customize on phones",
+   "default": "Display only below 768 px",
+   "status": "open"
+  },
+  {
+   "id": "D-43",
+   "title": "Archived view with Status All",
+   "default": "Yes",
+   "status": "open"
+  },
+  {
+   "id": "D-44",
+   "title": "Competitor sentiment",
+   "default": "Off (cost)",
+   "status": "open"
+  },
+  {
+   "id": "D-45",
+   "title": "Who labels the AI gold set",
+   "default": "An Opus pass drafts labels for 200 answers; the owner's team reviews them",
+   "status": "open"
+  },
+  {
+   "id": "D-46",
+   "title": "Optimistic concurrency on prompt PATCH",
+   "default": "Yes (ETag and If-Match)",
+   "status": "open"
+  },
+  {
+   "id": "D-47",
+   "title": "Prompt Detail page in this programme",
+   "default": "Yes, wave 4",
+   "status": "open"
+  },
+  {
+   "id": "D-48",
+   "title": "Command palette in this programme",
+   "default": "Yes, wave 4",
+   "status": "open"
+  },
+  {
+   "id": "D-49",
+   "title": "Discovery panel engines",
+   "default": "ChatGPT and AI Mode only",
+   "status": "open"
+  },
+  {
+   "id": "D-50",
+   "title": "When rank data is reliable again (AI Overview, matrix, SEO per topic)",
+   "default": "Owner and the rank session decide; wave 6 waits",
+   "status": "open"
+  },
+  {
+   "id": "D-51",
+   "title": "First-party signals (Phase 12) in this programme",
+   "default": "Yes after the core waves, when a GA4 or Cloudflare connection exists for a test project",
+   "status": "open"
+  }
+ ],
+ "excluded": [
+  {
+   "row": "BE-COLLECT-13",
+   "reason": "DEFERRED BY OWNER: Run now uses the standard queue (OD-12)"
+  },
+  {
+   "row": "BE-METRICS-12",
+   "reason": "DEFERRED BY OWNER: Prompt Explorer routes replaced by the summary (S1 4.5)"
+  },
+  {
+   "row": "BE-METRICS-23",
+   "reason": "DEFERRED BY OWNER, ops session; note: gzip is on develop since de54a88d"
+  },
+  {
+   "row": "BE-OPS-12",
+   "reason": "DEFERRED BY OWNER, ops session; gzip is on develop since de54a88d"
+  },
+  {
+   "row": "BE-OPS-13",
+   "reason": "DEFERRED BY OWNER: VPS, release, backups, observability belong to the ops session"
+  },
+  {
+   "row": "BE-ALERTS-15",
+   "reason": "Ops session: platform alerts for operators (OD-8)"
+  },
+  {
+   "row": "BE-LAYOUTS-12",
+   "reason": "Decided out: one layout per person per workspace (layout spec decision 5)"
+  },
+  {
+   "row": "BE-BILLING-PLAN-LINKS-13",
+   "reason": "Out of AI scope: billing and plans are a product decision"
+  }
+ ],
+ "leases": []
+}
