@@ -80,12 +80,14 @@ const STOPS: ReadonlySet<string> = new Set<StopReason>([
 /** What an error of Run now means for the loop: a stop for the refusals every prompt would get, else this prompt's own. */
 export function classifyRunError(error: unknown): RunResult {
   if (!isApiProblem(error)) return { kind: 'refused', why: 'failed' };
-  if (STOPS.has(error.code)) {
-    const waits = error.code === 'provider_paused' || error.code === 'rate_limited';
+  // No permission is the status, whatever the problem calls it
+  const code = error.status === 403 ? 'forbidden' : error.code;
+  if (STOPS.has(code)) {
+    const waits = code === 'provider_paused' || code === 'rate_limited';
     return {
       kind: 'stop',
       stop: {
-        reason: error.code as StopReason,
+        reason: code as StopReason,
         limit: error.number('limit'),
         used: error.number('used'),
         requested: error.number('requested'),

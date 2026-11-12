@@ -120,6 +120,11 @@ describe('what a refused run means', () => {
       stop: { reason: 'rate_limited', retryMinutes: 2 },
     });
     expect(classifyRunError(problem(403, 'forbidden'))).toMatchObject({ kind: 'stop', stop: { reason: 'forbidden' } });
+    // Whatever the API calls a refusal for want of permission, it is the same for every prompt after it
+    expect(classifyRunError(problem(403, 'permission_denied'))).toMatchObject({
+      kind: 'stop',
+      stop: { reason: 'forbidden' },
+    });
   });
 
   it('goes on after a refusal that belongs to the prompt', () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { csvBlob, CSV_TYPE, safeText, toCsv } from './csv-write';
+import { toCsv as importToCsv } from './csv';
+import { csvBlob, csvLines, CSV_TYPE, safeText, toCsv } from './csv-write';
 
 const BOM = String.fromCodePoint(0xfeff);
 
@@ -22,6 +23,16 @@ describe('text written to a file', () => {
       ],
     });
     expect(csv).toBe(`${BOM}Keyword,Desktop\r\n"a, ""b""",3\r\n"line\nbreak",\r\n`);
+  });
+
+  it('has one writer of lines: the import-side toCsv gives the same lines, without the byte order mark', () => {
+    const lines = [
+      ['a, "b"', 'plain'],
+      ['line\nbreak', ''],
+    ];
+    expect(csvLines(lines)).toBe('"a, ""b""",plain\r\n"line\nbreak",\r\n');
+    expect(importToCsv(lines)).toBe(csvLines(lines));
+    expect(toCsv({ header: ['h'], rows: [['x']] })).toBe(`${BOM}${csvLines([['h'], ['x']])}`);
   });
 
   it('wraps the text in a CSV blob that starts with the three bytes of the byte order mark', async () => {

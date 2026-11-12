@@ -495,17 +495,19 @@ export function DataTable<TRow extends RowData>({
   };
   const countedSelection = selection?.selectedCount;
   const selectedLabel = selection?.selectedLabel;
-  const announcedSelection = useRef(countedSelection);
+  // What was last announced: the count and the label, so a label that changes under the same count is spoken too
+  const announceKey = countedSelection === undefined ? undefined : `${String(countedSelection)}|${selectedLabel ?? ''}`;
+  const announcedSelection = useRef(announceKey);
   useEffect(() => {
-    if (countedSelection === announcedSelection.current) return;
-    announcedSelection.current = countedSelection;
+    if (announceKey === announcedSelection.current) return;
+    announcedSelection.current = announceKey;
     if (countedSelection !== undefined) {
       announce(selectedLabel ?? t('selected', { count: formatInteger(countedSelection) }), {
         key: selectionKey,
         debounceMs: 250,
       });
     }
-  }, [countedSelection, selectedLabel, selectionKey, t]);
+  }, [announceKey, countedSelection, selectedLabel, selectionKey, t]);
   const effectiveSelected = (): Set<string> => new Set(allMatching ? [...selected, ...pickIds] : selected);
   const toggleRow = (id: string, range: boolean): void => {
     const next = effectiveSelected();
@@ -919,7 +921,7 @@ export function DataTable<TRow extends RowData>({
             if (selection.onClear === undefined) selection.onChange(new Set());
             else selection.onClear();
             // The count falling to 0 is this message's, not "0 selected"
-            announcedSelection.current = 0;
+            announcedSelection.current = '0|';
             announce(t('selectionCleared'), { key: selectionKey });
           }}
         />

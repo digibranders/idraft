@@ -417,20 +417,28 @@ describe('the prompt inspector: the address and the answers', () => {
 
 describe('the prompt inspector: the counts', () => {
   it('does not say there are no counts while the engines are still loading', async () => {
+    // The engines answer when the test says so, not after a time that a loaded machine can outrun: while they are
+    // pending the inspector must not claim there are no counts, and it must show them once they have arrived
+    let release: () => void = () => undefined;
+    const arrive = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     server.use(
       http.get(mswPath(`${P}/engines`), async () => {
-        await delay(1200);
+        await arrive;
         return undefined;
       }),
     );
     renderOn('viewer', opened);
-    const inspector = await panel();
-    await within(inspector).findByText('English');
-    expect(within(inspector).queryByText('No counts for this window')).toBeNull();
+    const inspector = await within(await panel()).findByText('English', undefined, { timeout: 10_000 });
+    expect(inspector).toBeInTheDocument();
+    expect(screen.queryByText('No counts for this window')).toBeNull();
+    release();
     expect(
-      await within(inspector).findByText('Mentioned 3 of 6, cited 4 of 6', undefined, { timeout: 4000 }),
+      await screen.findByText('Mentioned 3 of 6, cited 4 of 6', undefined, { timeout: 15_000 }),
     ).toBeInTheDocument();
-  });
+    expect(screen.queryByText('No counts for this window')).toBeNull();
+  }, 30_000);
 
   it('says an archived prompt is not in the counts', async () => {
     const stored = promptsOf(fynix.project_id).prompts.find((prompt) => prompt.prompt_id === first.prompt_id);

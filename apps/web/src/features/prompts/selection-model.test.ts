@@ -1,6 +1,32 @@
 import { describe, expect, it } from 'vitest';
 
-import { applyRowChange, promptIdsOf, rowSelection, topicsChosen, type RowPrompts } from './selection-model';
+import {
+  applyRowChange,
+  promptIdsOf,
+  rowSelection,
+  selectionKeyOf,
+  topicsChosen,
+  type RowPrompts,
+} from './selection-model';
+
+describe('what drops the selection', () => {
+  const base = { projectId: 'p1', tab: 'prompts', country: null, topicIds: [] as string[], includeBranded: false };
+
+  it('keeps the choice for the same rows, whatever order the topic filter names its topics in', () => {
+    expect(selectionKeyOf({ ...base, topicIds: ['a', 'b'] })).toBe(selectionKeyOf({ ...base, topicIds: ['b', 'a'] }));
+    expect(selectionKeyOf(base)).toBe(selectionKeyOf({ ...base }));
+  });
+
+  it.each([
+    ['the project', { projectId: 'p2' }],
+    ['the tab', { tab: 'topics' }],
+    ['the country', { country: 'DE' }],
+    ['the topic filter', { topicIds: ['a'] }],
+    ['the Branded filter', { includeBranded: true }],
+  ])('drops the choice when %s changes', (_name, change) => {
+    expect(selectionKeyOf({ ...base, ...change })).not.toBe(selectionKeyOf(base));
+  });
+});
 
 /** t:a holds p1 and p2, t:b holds p2 and p3 (p2 is under both), the prompt row of p1, and a topic without prompts. */
 const ROWS: RowPrompts = new Map([

@@ -58,6 +58,7 @@ import { PromptsStrip } from './prompts-strip';
 import { topicsSpanned, type StripPrompt } from './strip-model';
 import { usePromptActions } from './use-prompt-actions';
 import { TopicInspector } from './topic-inspector';
+import { selectionKeyOf } from './selection-model';
 import { TopicsTable, type TopicMenuTarget } from './topics-table';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { TableStatus } from '@/components/app/data-table/types';
@@ -345,7 +346,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // The prompts chosen, by id: kept through sorting, searching and opening topics, and dropped for good when the rows
   // asked for change (the project, the tab, the topic filter, the country, the Branded filter), as Rankings drops its
   // choice when its filters change. Prompts that left the rows (archived, or off a new page) are not chosen any more
-  const selectionKey = JSON.stringify([project.id, tab, country, values.topic ?? null, includeBranded]);
+  const selectionKey = selectionKeyOf({ projectId: project.id, tab, country, topicIds, includeBranded });
   const [selection, setSelection] = useState<{ key: string; ids: ReadonlySet<string> }>({
     key: selectionKey,
     ids: NO_PROMPTS,
@@ -367,7 +368,13 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     engines: enabled,
     shown,
     range,
-    onDone: () => setChosen(NO_PROMPTS),
+    // Only the prompts an action changed leave the choice: the rest of it stays, a row's own action included
+    onDone: (done) =>
+      setSelection((current) => {
+        if (current.key !== selectionKey) return current;
+        const changed = new Set(done);
+        return { key: current.key, ids: new Set([...current.ids].filter((id) => !changed.has(id))) };
+      }),
   });
   // In the order of the list, as the table shows them
   const bulkActions: readonly PromptAction[] = actions.bar(
@@ -505,6 +512,10 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     // The prompts without a topic are no topic to filter by or to add a prompt to
     const real = target.key !== NO_TOPIC;
     const held = target.promptIds.length > 0;
+    // A topic's prompts come from the summary, and an action reads them from the list: until the list is whole (or when
+    // it failed) some of them are not in it, so the actions that read them wait
+    const listReason =
+      list.loading || list.fetching || list.hasMore || list.error !== null ? t('bulk.listLoading') : null;
     return [
       {
         id: 'open',
@@ -531,6 +542,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               label: t('bulk.run'),
               icon: Play,
               group: 'object' as const,
+              disabledReason: actions.busyReason ?? listReason,
               run: () => actions.run(target.promptIds),
             },
           ]
@@ -553,6 +565,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               label: t('bulk.export'),
               icon: Download,
               group: 'copy' as const,
+              disabledReason: listReason,
               run: () => actions.exportPrompts(target.promptIds),
             },
           ]

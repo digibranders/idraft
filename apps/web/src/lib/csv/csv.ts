@@ -4,6 +4,8 @@
  * order mark at the start is dropped. Blank lines are skipped.
  */
 
+import { csvLines } from './csv-write';
+
 export function parseCsv(text: string): string[][] {
   const input = text.startsWith('﻿') ? text.slice(1) : text;
   const rows: string[][] = [];
@@ -38,8 +40,5 @@ export function parseCsv(text: string): string[][] {
   return rows;
 }
 
-const quote = (value: string): string => (/[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value);
-
-/** Rows as CSV text, each line ended by CRLF as RFC 4180 has it. */
-export const toCsv = (rows: readonly (readonly string[])[]): string =>
-  rows.map((row) => row.map(quote).join(',')).join('\r\n') + '\r\n';
+/** Rows as CSV text, each line ended by CRLF as RFC 4180 has it (the writer is `csv-write.ts`'s). */
+export const toCsv = (rows: readonly (readonly string[])[]): string => csvLines(rows);

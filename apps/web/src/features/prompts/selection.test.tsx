@@ -156,7 +156,14 @@ describe('selecting topics on the Topics tab', () => {
     const { user } = renderOn('viewer', '');
     const tree = await topics();
     await user.click(await within(tree).findByRole('checkbox', { name: /^Select all \d+ topics loaded$/ }));
-    // SEO, Content Marketing, Paid Search and the prompts without a topic
-    expect(within(bar()).getByText('4 topics selected, 23 prompts')).toBeInTheDocument();
+    // SEO, Content Marketing and Paid Search: the prompts without a topic are chosen too, but are no topic
+    expect(within(bar()).getByText('3 topics selected, 23 prompts')).toBeInTheDocument();
+  });
+
+  it('does not count the prompts without a topic as a topic, and counts them as prompts', async () => {
+    const { user } = renderOn('viewer', '');
+    const tree = await topics();
+    await user.click(await within(tree).findByRole('checkbox', { name: 'Select No topic' }));
+    expect(within(bar()).getByText('2 selected')).toBeInTheDocument();
   });
 });

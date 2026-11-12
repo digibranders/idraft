@@ -11,10 +11,13 @@ const LABELS: PromptExportLabels = {
   branded: 'Branded',
   yes: 'Yes',
   no: 'No',
-  mentionRate: 'Mention rate',
-  citationRate: 'Citation rate',
+  mentionRate: 'Mention rate (%)',
+  mentionAnswers: 'Mention answers',
+  citationRate: 'Citation rate (%)',
+  citationAnswers: 'Citation answers',
   mentioned: (engine) => `${engine} mentioned`,
   cited: (engine) => `${engine} cited`,
+  answers: (engine) => `${engine} valid answers`,
 };
 
 const ENGINES = [{ engine: { engine_code: 'chatgpt_web', label: 'ChatGPT' } }] as unknown as ProjectEngine[];
@@ -43,7 +46,7 @@ const chatgpt = (mentioned: MetricCell, cited: MetricCell): EngineSummary =>
   ({ engine_code: 'chatgpt_web', mentioned, cited }) as unknown as EngineSummary;
 
 describe('the CSV of prompts', () => {
-  it('has the columns of the Prompts table: the prompt, its topics, country, branded, the two rates and each engine counts', () => {
+  it('has the columns of the Prompts table, the rates and counts as numbers with the answers behind them in their own columns', () => {
     const table = buildPromptExport(
       [
         row(
@@ -66,14 +69,20 @@ describe('the CSV of prompts', () => {
       'Topic',
       'Country',
       'Branded',
-      'Mention rate',
-      'Citation rate',
+      'Mention rate (%)',
+      'Mention answers',
+      'Citation rate (%)',
+      'Citation answers',
       'ChatGPT mentioned',
       'ChatGPT cited',
+      'ChatGPT valid answers',
     ]);
-    expect(table.rows).toEqual([
-      ['Which agency is best?', 'SEO; Local', 'Germany', 'No', '50%', '25%', '4 of 8', '2 of 8'],
-    ]);
+    expect(table.rows).toEqual([['Which agency is best?', 'SEO; Local', 'Germany', 'No', 50, 8, 25, 8, 4, 2, 8]]);
+  });
+
+  it('rounds a rate to one decimal of a percent', () => {
+    const table = buildPromptExport([row('A?', {}, [chatgpt(cell(2, 6), cell(4, 6))])], ENGINES, LABELS);
+    expect(table.rows[0]?.slice(4, 8)).toEqual([33.3, 6, 66.7, 6]);
   });
 
   it('leaves the cells that have no figure empty, and says Yes for a branded prompt', () => {
@@ -81,11 +90,21 @@ describe('the CSV of prompts', () => {
       prompt: { prompt_id: 'b', current_version: { text: 'Is Fynix good?' }, is_branded: true },
     } as Partial<PromptRow>);
     const table = buildPromptExport([branded], ENGINES, LABELS);
-    expect(table.rows).toEqual([['Is Fynix good?', null, null, 'Yes', null, null, null, null]]);
+    expect(table.rows).toEqual([['Is Fynix good?', null, null, 'Yes', null, null, null, null, null, null, null]]);
   });
 
-  it('writes a prompt that a spreadsheet would read as a formula as text', () => {
-    expect(buildPromptExport([row('=HYPERLINK("x")')], ENGINES, LABELS).rows[0]?.[0]).toBe('\'=HYPERLINK("x")');
+  it('writes every text cell that a spreadsheet would read as a formula as text: the prompt, the topics and the country', () => {
+    const table = buildPromptExport(
+      [
+        row('=HYPERLINK("x")', {
+          topicList: [{ name: '=HYPERLINK("http://x","click")', path: 'x' }],
+          country: '+Atlantis',
+        }),
+      ],
+      ENGINES,
+      LABELS,
+    );
+    expect(table.rows[0]?.slice(0, 3)).toEqual(['\'=HYPERLINK("x")', '\'=HYPERLINK("http://x","click")', "'+Atlantis"]);
   });
 
   it('names the file for the window of the answers', () => {

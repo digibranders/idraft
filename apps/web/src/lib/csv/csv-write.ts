@@ -24,11 +24,12 @@ function field(cell: CsvCell): string {
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
+/** Rows as CSV text, each line ended by CRLF as RFC 4180 has it: the one writer of lines (`csv.ts` uses it too). */
+export const csvLines = (rows: readonly (readonly CsvCell[])[]): string =>
+  rows.map((row) => row.map(field).join(',')).join('\r\n') + '\r\n';
+
 /** The table as CSV with a byte order mark, so Excel reads it as UTF-8. */
-export function toCsv(table: CsvTable): string {
-  const lines = [table.header, ...table.rows].map((line) => line.map(field).join(','));
-  return `${BOM}${lines.join('\r\n')}\r\n`;
-}
+export const toCsv = (table: CsvTable): string => `${BOM}${csvLines([table.header, ...table.rows])}`;
 
 export const csvBlob = (table: CsvTable): Blob => new Blob([toCsv(table)], { type: CSV_TYPE });
 

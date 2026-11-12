@@ -201,7 +201,8 @@ function ownMentions(world: EntityWorld, projectId: string, text: string): OwnMe
   });
 }
 
-function promptView(stored: StoredPrompt): Prompt {
+/** A stored prompt as the API lists it (exported for tests that serve their own list). */
+export function promptView(stored: StoredPrompt): Prompt {
   return {
     prompt_id: stored.prompt_id,
     current_version: {

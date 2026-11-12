@@ -445,10 +445,13 @@ export function TopicsTable({
   const chosenTopics = useMemo(
     () =>
       topicsChosen(
-        branches.map(({ row, children }) => ({
-          ids: idsOf(row.members),
-          children: children.map((child) => ({ ids: idsOf(child.members) })),
-        })),
+        // The prompts without a topic share a row, but are no topic
+        branches
+          .filter(({ row }) => row.key !== NO_TOPIC)
+          .map(({ row, children }) => ({
+            ids: idsOf(row.members),
+            children: children.map((child) => ({ ids: idsOf(child.members) })),
+          })),
         chosen,
       ),
     [branches, chosen],

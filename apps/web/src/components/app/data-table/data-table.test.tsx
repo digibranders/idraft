@@ -1834,6 +1834,24 @@ describe('DataTable tree mode', () => {
     });
   });
 
+  describe('announcing the label of its own', () => {
+    it('announces a new label when only the label changes and the count stays', async () => {
+      const { rerender } = renderWithProviders(
+        <TreeHarness
+          selection={{ selectedIds: new Set(['g1']), selectedCount: 7, selectedLabel: '1 topic, 7 prompts' }}
+        />,
+      );
+      const region = document.getElementById('live-region-polite');
+      expect(region?.textContent).toBe('');
+      rerender(
+        <TreeHarness
+          selection={{ selectedIds: new Set(['g1']), selectedCount: 7, selectedLabel: '2 topics, 7 prompts' }}
+        />,
+      );
+      await waitFor(() => expect(region).toHaveTextContent('2 topics, 7 prompts'));
+    });
+  });
+
   it('passes the accessibility check', async () => {
     const { container } = renderWithProviders(<TreeHarness />);
     expect(await axe(container)).toHaveNoViolations();

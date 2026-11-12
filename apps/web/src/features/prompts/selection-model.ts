@@ -44,6 +44,20 @@ export function applyRowChange(
   return result;
 }
 
+/**
+ * What the chosen prompts were chosen from: the choice is dropped for good when this changes (the project, the tab,
+ * the topic filter, the country, the Branded filter), as Rankings drops its choice when its filters change. A sort,
+ * a search and opening topics change none of it.
+ */
+export const selectionKeyOf = (scope: {
+  projectId: string;
+  tab: string;
+  country: string | null;
+  topicIds: readonly string[];
+  includeBranded: boolean;
+}): string =>
+  JSON.stringify([scope.projectId, scope.tab, scope.country, [...scope.topicIds].sort(), scope.includeBranded]);
+
 /** The prompts behind the rows, each once, in the order of the rows. */
 export const promptIdsOf = (rowIds: readonly string[], rows: RowPrompts): string[] => [
   ...new Set(rowIds.flatMap((rowId) => rows.get(rowId) ?? [])),
