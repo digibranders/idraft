@@ -1,0 +1,188 @@
+# C3 and N5: AI coverage of a run and daily AI collection
+
+## Status
+
+Published by WP-03 on 2026-11-13 as two new routes that answer `501 not_implemented` after their access
+checks. Owner package: [WP-30 runs-costs-health](../work-packages/WP-30-runs-costs-health.md)
+(MASTER-PLAN 3.3: `api/operations/collection_routes.py`; rows BE-COLLECT-10 and OV-N5). The schemas are
+in `backend/src/idraft/api/schemas/ai_collection.py`.
+
+## Routes and parameters
+
+| Method | Path | Permission | Success |
+|---|---|---|---|
+| GET | `{P}/runs/{run_id}/ai-coverage` | `data:read` | `200 AiCoverageResponse` |
+| GET | `{P}/ai/collection/daily` | `data:read` | `200 CollectionDailyResponse` |
+
+### GET {P}/runs/{run_id}/ai-coverage
+
+Path: `run_id` (uuid). No query parameters. For a run of workload `ai_prompt`: per engine the tasks
+planned, the answers stored, the valid ones and the others by status, with the valid rate; and every
+planned task with no stored answer.
+
+`data`:
+
+| Field | Type | Bounds | Meaning |
+|---|---|---|---|
+| `by_engine[]` | `AiCoverageEngine` | at most 3 (one per engine) | One entry per engine of the run. |
+| `by_engine[].engine_code` | `EngineCode` (`chatgpt_web`, `gemini_web`, `google_ai_mode`) | | |
+| `by_engine[].planned` | integer | | Tasks the run planned on the engine. |
+| `by_engine[].observed` | integer | | Answers stored, of any status. |
+| `by_engine[].valid` | integer | | |
+| `by_engine[].invalid_by_status` | `{ partial, empty, refused, error }` integers | | The others by status. |
+| `by_engine[].valid_rate` | `MetricCell` | | `valid` of `planned`: `numerator` valid, `denominator` planned. |
+| `missing[]` | `AiCoverageMissing` | unbounded (the run's tasks) | Every planned task with no stored answer. |
+| `missing[].prompt_id` | uuid | | |
+| `missing[].engine_code` | `EngineCode` | | |
+| `missing[].location_id` | integer or null | | |
+| `missing[].replicate_index` | integer | | |
+| `missing[].task_status` | `pending`, `submit_unknown`, `submitted`, `ready`, `fetched`, `ingested`, `failed`, `dead`, `cancelled`, `skipped_cached` | | `ops.collection_tasks.status` (migration 0004). |
+
+### GET {P}/ai/collection/daily
+
+| Parameter | Type | Bounds | Meaning |
+|---|---|---|---|
+| `from` | date | | First project-local day, included. Default: the 28 days ending today. |
+| `to` | date | | Last project-local day, included. At most 92 days from `from` (`422 window_too_large`). |
+| `filter[engine_code_in]` | comma list of `EngineCode` | at most 3 values (published as `maxLength: 3`) | Left out: every engine. |
+
+Response:
+
+| Field | Type | Bounds | Meaning |
+|---|---|---|---|
+| `data[]` | `CollectionDay` | at most 276 (92 days times 3 engines) | A row per day and engine. |
+| `data[].date` | date | | A project day. (In Python the field is `date_`; the wire name is `date`.) |
+| `data[].engine_code` | `EngineCode` | | |
+| `data[].scheduled` | integer or null | | Answers the schedules active that day planned; null when unknown, never 0 for unknown. |
+| `data[].answers` | integer | | Answers stored that day. |
+| `data[].by_status` | `{ complete, partial, empty, refused, error }` integers | | The answers stored by status. |
+| `data[].valid` | integer | | |
+| `data[].budget_blocked` | integer | | Runs of the day a budget blocked. |
+| `data[].runs[]` | uuid | unbounded (the day's runs) | The runs whose answers the day holds. |
+| `meta.window` | `{ from, to, timezone }` | | The window answered. |
+| `meta.engine_codes` | `EngineCode[]` | at most 3 | The engines read. |
+
+## Error codes
+
+| Status | Code | When |
+|---|---|---|
+| 401 | `unauthenticated` | No session. |
+| 404 | `not_found` | Not a member of the workspace; a project outside the member's scope; once built, a run that is not in the project. |
+| 403 | `forbidden` | The role lacks `data:read`. |
+| 422 | `validation_failed` | A bad `run_id` (not a uuid), an engine outside `EngineCode` (`filter[engine_code_in]=perplexity_web`), a value that is not a date. |
+| 422 | `validation_failed` with field code `range_invalid` | A later body: `from` after `to`, at `from` (as the built AI reads). |
+| 422 | `not_an_ai_run` | A later body: the run's workload is not `ai_prompt` (ai-coverage). WP-30 adds the problem class when it raises it (plan decision D8). |
+| 422 | `window_too_large` | A later body: `to` more than 92 days after `from` (carries `limit_days`; the class exists). |
+| 501 | `not_implemented` | Both routes, until WP-30 builds them. |
+
+Order: 401, 404, 403, 422 (path and query values), then `501`. The stub does not check the window or
+that the run exists, so `window_too_large`, `range_invalid`, `not_an_ai_run` and the `404` for a run
+come only with the body.
+
+## Example
+
+The `501` body is in the [README](README.md). The responses show what WP-30 will return.
+
+```http
+GET {P}/runs/0000006a-7c1e-4a52-9b3d-00000000006a/ai-coverage
+```
+
+`200`:
+
+```json
+{
+  "data": {
+    "by_engine": [
+      {
+        "engine_code": "chatgpt_web",
+        "planned": 150,
+        "observed": 148,
+        "valid": 141,
+        "invalid_by_status": {"partial": 3, "empty": 2, "refused": 1, "error": 1},
+        "valid_rate": {"value": 0.94, "numerator": 141.0, "denominator": 150, "n_observations": 150, "pooled": null}
+      }
+    ],
+    "missing": [
+      {
+        "prompt_id": "0000001a-7c1e-4a52-9b3d-00000000001a",
+        "engine_code": "chatgpt_web",
+        "location_id": 2840,
+        "replicate_index": 0,
+        "task_status": "failed"
+      },
+      {
+        "prompt_id": "0000001b-7c1e-4a52-9b3d-00000000001b",
+        "engine_code": "chatgpt_web",
+        "location_id": null,
+        "replicate_index": 1,
+        "task_status": "dead"
+      }
+    ]
+  }
+}
+```
+
+```http
+GET {P}/ai/collection/daily?from=2026-11-12&to=2026-11-13&filter[engine_code_in]=chatgpt_web
+```
+
+`200`:
+
+```json
+{
+  "data": [
+    {
+      "date": "2026-11-12",
+      "engine_code": "chatgpt_web",
+      "scheduled": 150,
+      "answers": 148,
+      "by_status": {"complete": 141, "partial": 3, "empty": 2, "refused": 1, "error": 1},
+      "valid": 141,
+      "budget_blocked": 0,
+      "runs": ["0000006a-7c1e-4a52-9b3d-00000000006a"]
+    },
+    {
+      "date": "2026-11-13",
+      "engine_code": "chatgpt_web",
+      "scheduled": null,
+      "answers": 0,
+      "by_status": {"complete": 0, "partial": 0, "empty": 0, "refused": 0, "error": 0},
+      "valid": 0,
+      "budget_blocked": 1,
+      "runs": []
+    }
+  ],
+  "meta": {
+    "window": {"from": "2026-11-12", "to": "2026-11-13", "timezone": "Europe/Berlin"},
+    "engine_codes": ["chatgpt_web"]
+  }
+}
+```
+
+## Open choices
+
+Each row can be tightened by WP-30 through the change log.
+
+| Q | Question | Choice | Why |
+|---|---|---|---|
+| Q15 | `valid_rate` as `MetricValue` (doc 19 3.7.5) or `MetricCell` | `MetricCell`, numerator `valid`, denominator `planned` | Every AI read so far uses `MetricCell`; "valid of planned" is BE-COLLECT-10. |
+| Q16 | Unit of `budget_blocked` | Runs of that day blocked by a budget | The field sits beside `runs`; answers of a blocked run are never asked. |
+| D7 | Bounds | `by_engine`, `meta.engine_codes` at most 3; `data` at most 276; `missing` and `runs` left unbounded | Response lists sized by the run's tasks and the day's runs; a bound would cut real data. |
+
+## How the owner package fills it
+
+1. In `api/operations/collection_routes.py` drop `@not_built` and `raise not_built_yet()` from
+   `ai_coverage` and `collection_daily` (`idraft.api.stubs`); check the window and the run in the
+   service (`window_too_large`, `range_invalid`, `not_an_ai_run` as a new `ProblemError` in WP-30's own
+   module).
+2. Replace `tests/api/operations/test_contract_collection.py` with real tests.
+3. A foreign or nonexistent project, and a run outside the project, answer `404` through the service;
+   the stubs answered `501`.
+4. Remove the `Not built yet` sentence from both route descriptions, regenerate
+   `backend/openapi/v1.json`, then `pnpm gen:api`.
+
+## Change log
+
+Newest last; one line per change, in the form `date package: change`.
+
+2026-11-13 WP-03: contract published

@@ -1,0 +1,302 @@
+# Sources additions: series, cited with, role per engine, country, min support, changes
+
+## Status
+
+Published by WP-03 on 2026-11-13. Owner package: [WP-14 sources-lane](../work-packages/WP-14-sources-lane.md)
+(rows CF-07 to CF-10, OV-N6, OV-N7, BE-SOURCES-05, BE-SOURCES-06; the source models in
+`schemas/ai_sources.py` and the routes in `api/ai/source_routes.py`, extended additively by WP-03 under
+plan decision D4).
+
+| Item | Kind | Answers today |
+|---|---|---|
+| `GET {P}/ai/sources/changes` | new route (stub) | `501` after the access checks and query validation |
+| `sources/domains`: `include`, `min_support`, `filter[country_iso]` | optional additions to a built route | `501` when used |
+| `sources/pages`: `include=series`, `min_support`, `filter[country_iso]` | optional additions | `501` when used |
+| `citations`: `filter[country_iso]` | optional addition | `501` when used |
+| `fanout-queries`: `filter[country_iso]` | optional addition | `501` when used |
+| Response fields on domain rows, page rows and `meta` | new optional fields | absent from every response (not returned yet) |
+
+A request that leaves the additions out answers exactly as before (no `series` or `by_role_by_engine`
+in `meta`).
+
+## Routes and parameters
+
+All paths start with `{P}`. All need `data:read`.
+
+| Method | Path | Success |
+|---|---|---|
+| GET | `{P}/ai/sources/domains` | `200 SourceDomainPage` (built) |
+| GET | `{P}/ai/sources/pages` | `200 SourcePagePage` (built) |
+| GET | `{P}/ai/citations` | `200 CitationPage` (built) |
+| GET | `{P}/ai/fanout-queries` | `200 FanoutQueryPage` (built) |
+| GET | `{P}/ai/sources/changes` | `200 SourceChangePage` (new) |
+
+The shared scope of the built reads is unchanged: `from`, `to` (project-local days, default the 28 days
+ending today, at most 92), `filter[engine_code_in]` (at most 3 values), `filter[prompt_id]`,
+`filter[term]`, `include_branded` (default false), `filter[domain_role_in]` (`own`, `competitor`,
+`third_party`, at most 3 values; not on the fan-out route), and offset paging (`offset` 0 to 100,000,
+`limit` 1 to 200, default 50; citations uses a keyset `cursor`).
+
+### Added query parameters
+
+| Parameter | On | Type | Bounds | Meaning |
+|---|---|---|---|---|
+| `include` | `sources/domains` | comma list of `series`, `cited_with`, `by_role_by_engine` | at most 3 values | Blocks to add. `501` when used. |
+| `include` | `sources/pages` | comma list of `series` | at most 1 value | `501` when used. |
+| `min_support` | `sources/domains`, `sources/pages` | integer | 1 to 1,000 | The fewest citation units a row is listed for. `501` when used. |
+| `filter[country_iso]` | domains, pages, citations, fan-out, changes | string | `^[A-Z]{2}$` | The answers of the prompts of one market, ISO 3166-1 alpha-2. `501` when used. |
+| `kind` | `sources/changes` | `new` or `lost` | default `new` | `new`: domains with at least `min_support` citation units in the window and none in as many days before. `lost`: at least `min_support` units before and none in the window. |
+| `min_support` | `sources/changes` | integer | 1 to 1,000, default 2 | The citation units a domain needs on the side where it was cited. |
+
+`sources/changes` takes the shared scope and offset paging above, and no `compare`, `sort` or
+`filter[registrable_domain]`. The fan-out route keeps its own `min_support`, which counts answers.
+
+### New response fields (all optional, absent until built)
+
+| Model | Field | Type | Bounds | Meaning |
+|---|---|---|---|---|
+| `SourceDomainRow` | `series` | `SourceWeekUnits[]` | at most 14 | With `include=series`: a point per week of the window, oldest first. |
+| `SourceDomainRow` | `cited_with` | `CitedWith` `{ entity_id, observations }` | | With `include=cited_with`: the tracked entity most named in answers citing it, and the answers citing it that name it. |
+| `SourceDomainRow` | `category` | string | up to 64 | The domain's category. Not tied to an `include` value. |
+| `SourceDomainRow` | `category_source` | `seed_list`, `rule`, `llm`, `manual` or `tenant_override` | | Where the category came from. |
+| `SourcePageRow` | `series` | `SourceWeekUnits[]` | at most 14 | With `include=series`. |
+| `SourcesMeta` | `series` | `SourcesWeek[]` | at most 14 | With `include=series`: per week `week_start`, `answers`, `citation_units`, `distinct_domains`. |
+| `SourcesMeta` | `by_role_by_engine` | `EngineRoleUnits[]` | at most 3 | With `include=by_role_by_engine` on domains: per engine, `own`, `competitor` and `third_party` each as `{ citation_units, answers_citing }`. |
+
+`SourceWeekUnits`: `week_start` (the Monday the week starts on, in the project's zone), `citation_units`,
+`observations`.
+
+### GET {P}/ai/sources/changes: response
+
+| Field | Type | Meaning |
+|---|---|---|
+| `data[].registrable_domain` | string, up to 253 | One row per registrable domain and role. |
+| `data[].domain_role` | `own`, `competitor`, `third_party` | |
+| `data[].role_entity_id` | uuid or null | The tracked entity whose domain rule matched; null for a third party. |
+| `data[].current_units` | integer | Citation units in the window. |
+| `data[].previous_units` | integer | Citation units in the window compared with. |
+| `data[].first_seen_at` | datetime or null | Its first citation in the window. |
+| `data[].last_seen_at` | datetime or null | Its last citation in the window. |
+| `page` | `{ offset, limit, total }` | Offset page. |
+| `meta` | `{ window, compare_window, include_branded, engine_codes (at most 3), kind, min_support }` | The windows and settings answered. |
+
+## Error codes
+
+| Status | Code | When |
+|---|---|---|
+| 401 | `unauthenticated` | No session. |
+| 404 | `not_found` | Not a member of the workspace; a project outside the member's scope; once built, a deleted or unknown project (a built read with an unbuilt addition answers `501` first). |
+| 403 | `forbidden` | The role lacks `data:read`. |
+| 400 | `invalid_cursor` | `citations`: a cursor used with other filters than it was issued for (built). |
+| 422 | `validation_failed` | A value outside its bounds: `include=cited_with` on pages, `kind=gone`, `min_support=0`, `filter[country_iso]=us`; a parameter the route does not declare; `from` after `to` is field code `range_invalid` on the built reads. |
+| 422 | `window_too_large` | Over 92 days (built reads; `sources/changes` once built). |
+| 422 | `engine_has_no_fanout` | Fan-out only: an engine that does not show its queries is named in `filter[engine_code_in]` (built). |
+| 501 | `not_implemented` | `sources/changes`, or an addition that was used (`detail` names it: `include`, `min_support`, `filter[country_iso]`). |
+
+Order: 401, 404, 403, 422, then `501`. A built read with an addition used answers `501` before the
+service reads anything.
+
+## Example
+
+The `501` body is in the [README](README.md). The responses show what WP-14 will return.
+
+### Domains with the new blocks
+
+```http
+GET {P}/ai/sources/domains?from=2026-10-17&to=2026-11-13&include=series,cited_with,by_role_by_engine&min_support=2&filter[country_iso]=US
+```
+
+`200`:
+
+```json
+{
+  "data": [
+    {
+      "registrable_domain": "g2.com",
+      "domain_role": "third_party",
+      "role_entity_id": null,
+      "citation_units": 31,
+      "observations": 24,
+      "prompts": 9,
+      "engines": [
+        {"engine_code": "chatgpt_web", "citation_units": 20},
+        {"engine_code": "gemini_web", "citation_units": 11}
+      ],
+      "source_share": {
+        "value": 0.02574750830564784,
+        "numerator": 31.0,
+        "denominator": 1204,
+        "n_observations": 380,
+        "pooled": null
+      },
+      "first_seen_at": "2026-11-10T09:12:44Z",
+      "last_seen_at": "2026-11-10T09:12:44Z",
+      "series": [
+        {"week_start": "2026-10-12", "citation_units": 4, "observations": 3},
+        {"week_start": "2026-10-19", "citation_units": 7, "observations": 5}
+      ],
+      "cited_with": {"entity_id": "0000004b-7c1e-4a52-9b3d-00000000004b", "observations": 14},
+      "category": "review_site",
+      "category_source": "seed_list"
+    }
+  ],
+  "page": {"offset": 0, "limit": 50, "total": 1},
+  "meta": {
+    "window": {"from": "2026-10-17", "to": "2026-11-13", "timezone": "Europe/Berlin"},
+    "include_branded": false,
+    "engine_codes": ["chatgpt_web", "gemini_web"],
+    "answers": 380,
+    "answers_citing": 301,
+    "citation_units": 1204,
+    "by_role": [
+      {"domain_role": "own", "citation_units": 120, "observations": 96},
+      {"domain_role": "competitor", "citation_units": 210, "observations": 170},
+      {"domain_role": "third_party", "citation_units": 874, "observations": 260}
+    ],
+    "series": [{"week_start": "2026-10-12", "answers": 88, "citation_units": 270, "distinct_domains": 61}],
+    "by_role_by_engine": [
+      {
+        "engine_code": "chatgpt_web",
+        "own": {"citation_units": 70, "answers_citing": 60},
+        "competitor": {"citation_units": 120, "answers_citing": 100},
+        "third_party": {"citation_units": 500, "answers_citing": 170}
+      }
+    ]
+  }
+}
+```
+
+### Pages with a series
+
+```http
+GET {P}/ai/sources/pages?include=series&min_support=2&filter[country_iso]=US
+```
+
+`200`:
+
+```json
+{
+  "data": [
+    {
+      "url_id": 9021,
+      "url": "https://www.g2.com/categories/project-management",
+      "host": "www.g2.com",
+      "registrable_domain": "g2.com",
+      "title": "Best Project Management Software",
+      "domain_role": "third_party",
+      "role_entity_id": null,
+      "citation_units": 12,
+      "observations": 10,
+      "prompts": 5,
+      "engines": [{"engine_code": "chatgpt_web", "citation_units": 12}],
+      "source_share": {
+        "value": 0.009966777408637873,
+        "numerator": 12.0,
+        "denominator": 1204,
+        "n_observations": 380,
+        "pooled": null
+      },
+      "first_seen_at": "2026-11-10T09:12:44Z",
+      "last_seen_at": "2026-11-10T09:12:44Z",
+      "series": [
+        {"week_start": "2026-10-12", "citation_units": 4, "observations": 3},
+        {"week_start": "2026-10-19", "citation_units": 7, "observations": 5}
+      ]
+    }
+  ],
+  "page": {"offset": 0, "limit": 50, "total": 1},
+  "meta": {
+    "window": {"from": "2026-10-17", "to": "2026-11-13", "timezone": "Europe/Berlin"},
+    "include_branded": false,
+    "engine_codes": ["chatgpt_web", "gemini_web"],
+    "answers": 380,
+    "answers_citing": 301,
+    "citation_units": 1204,
+    "by_role": [
+      {"domain_role": "own", "citation_units": 120, "observations": 96},
+      {"domain_role": "competitor", "citation_units": 210, "observations": 170},
+      {"domain_role": "third_party", "citation_units": 874, "observations": 260}
+    ],
+    "series": [{"week_start": "2026-10-12", "answers": 88, "citation_units": 270, "distinct_domains": 61}]
+  }
+}
+```
+
+### Citations and fan-out with a country
+
+```http
+GET {P}/ai/citations?filter[country_iso]=US
+GET {P}/ai/fanout-queries?filter[country_iso]=US&min_support=2
+```
+
+Their responses (`CitationPage`, `FanoutQueryPage`) do not change; the answers counted are those of the
+prompts of that market.
+
+### Changes
+
+```http
+GET {P}/ai/sources/changes?kind=lost&min_support=3&filter[country_iso]=US
+```
+
+`200`:
+
+```json
+{
+  "data": [
+    {
+      "registrable_domain": "capterra.com",
+      "domain_role": "third_party",
+      "role_entity_id": null,
+      "current_units": 0,
+      "previous_units": 5,
+      "first_seen_at": null,
+      "last_seen_at": null
+    }
+  ],
+  "page": {"offset": 0, "limit": 50, "total": 1},
+  "meta": {
+    "window": {"from": "2026-10-17", "to": "2026-11-13", "timezone": "Europe/Berlin"},
+    "compare_window": {"from": "2026-09-19", "to": "2026-10-16", "timezone": "Europe/Berlin"},
+    "include_branded": false,
+    "engine_codes": ["chatgpt_web", "gemini_web"],
+    "kind": "lost",
+    "min_support": 3
+  }
+}
+```
+
+## Open choices
+
+Each row can be tightened by WP-14 through the change log.
+
+| Q | Question | Choice | Why |
+|---|---|---|---|
+| Q17 | What `min_support` counts on source rows | Citation units in the window | Doc 16 C5 counts units ("at least 2 units now"). The fan-out `min_support` keeps counting answers. |
+| Q18 | `sources/changes` row shape and paging | `registrable_domain` rows and offset pages, as the built source reads | Doc 19's `DomainRef` and cursor were replaced by the as built D2 reads. |
+| Q19 | `cited_with` and `by_role_by_engine` always or opt-in | Opt-in through `include` on `sources/domains` | Handoff rule 5: a new extra query is asked for. |
+| D7 | Bounds | `series` at most 14 weeks, engine lists at most 3, `category` up to 64, domain up to 253 | House rule: bounded lists and strings. |
+
+One point the brief leaves open: BE-SOURCES-05 reads "lost" as `min_support` then 0 for 2 full windows
+(C6), while the route description above compares the window with the one before it. The row and meta
+shapes hold for both; WP-14 states the rule it builds in the change log.
+
+## How the owner package fills it
+
+1. `source_changes` in `api/ai/source_routes.py`: drop `@not_built` and `raise not_built_yet()`
+   (`idraft.api.stubs`).
+2. The additions, one by one: remove the entry from the `refuse_unbuilt` call of `source_domains`,
+   `source_pages`, `citation_list` and `fanout_queries`, and pass the value to the service. Replace the
+   shared `CountryFilter` and `MinSupport` descriptions (they end with `Not built yet`).
+3. Replace `tests/api/ai/test_contract_sources.py` with real tests; the existing tests of
+   `tests/api/ai/test_sources.py`, `test_sources_compare.py` and `test_fanout_queries.py` stay.
+4. Aggregates are one grouped query with a statement count test; the new blocks stay absent unless
+   asked for (`include`).
+5. A foreign or nonexistent project answers `404` through the service; the stub and the refusals
+   answered `501`.
+6. Regenerate `backend/openapi/v1.json`, then `pnpm gen:api` in `apps/web`.
+
+## Change log
+
+Newest last; one line per change, in the form `date package: change`.
+
+2026-11-13 WP-03: contract published

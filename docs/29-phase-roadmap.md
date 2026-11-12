@@ -271,6 +271,13 @@ keys `layouts:manage` and `notes:write`; problem codes `precondition_failed`, `p
 line per package in the route access and cross-tenant tests. No route, table or OpenAPI change
 (plan `docs/superpowers/plans/2026-11-13-ai-wp-01-backend-scaffold.md`).
 
+**As built (AI visibility WP-03, 2026-11-13): contract pack.** The wave 1 and wave 2 API shapes
+are in `backend/openapi/v1.json` and the web client: 14 routes answer `501 not_implemented` after
+their access checks, and 11 built operations gained optional parameters, body members and
+response fields that answer `501` when used. No table, no behaviour change for an existing caller
+(contract notes in docs/ai-visibility/contracts/README.md; plan
+`docs/superpowers/plans/2026-11-13-ai-wp-03-contract-pack.md`).
+
 ### Phase 10: SEO and AI integration
 
 **10a (MVP):** keyword-prompt links with suggestions (cluster, semantic, fan-out), AI Overview vs organic rank (same-check), AIO citation rate by rank bucket, SEO/AI matrix (keyword level) with thresholds, page intelligence (SEO + AI citations), `core.xch_keyword_weekly`.

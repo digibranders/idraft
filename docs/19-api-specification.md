@@ -1382,6 +1382,25 @@ interface PromptExplorerDetail {
 | GET | `{P}/ai/claims/{claim_id}` | `data:read` | none | `One<{ claim, occurrences: Array<{ observation_id, observed_at, engine_code, evidence_span: [number, number], excerpt, supporting_citation: CitationRow \| null, confidence }> }>` | no | | 15 |
 | PATCH | `{P}/ai/claims/{claim_id}` | `entities:write` | `{ status: 'unreviewed' \| 'accurate' \| 'inaccurate' \| 'outdated' \| 'disputed' }` | `One<Claim>`; audit-logged | no | | 15 |
 
+**As built (AI visibility WP-03, 2026-11-13): contract pack.** 14 routes are published and answer
+`501 not_implemented` after their access checks (`backend/src/idraft/api/stubs.py`): `POST
+{P}/prompts/bulk-update` (`prompts:write`), `GET {P}/ai/limits`, `GET {P}/runs/{run_id}/ai-coverage`,
+`GET {P}/ai/collection/daily`, `GET {P}/ai/sources/changes`, `GET {P}/ai/annotations` (all `data:read`),
+`GET` and `POST {P}/notes` and `DELETE {P}/notes/{note_id}` (`data:read`, then `notes:write`), `GET
+{W}/layouts/{screen}` and `PUT` and `DELETE {W}/me/layouts/{screen}` (any member), `PUT` and `DELETE
+{W}/layouts/{screen}/default` (`layouts:manage`). 11 built operations gained optional additions that
+answer `501` when used and change nothing when left out: the prompt list (`filter[prompt_type_in]`,
+`filter[funnel_stage_in]`, `filter[importance_in]`, `filter[is_branded]`, `filter[is_active]=any`,
+`sort`); the create members `is_branded`, `source`, `creation_method` and `generated_from` (also on the
+items of `bulk-create`); `If-Match` on `PATCH {P}/prompts/{prompt_id}`; the lint body shape `items` and
+member `language_code`; the bulk archive body shape `filter`; the prompts summary (`compare`,
+`include=total`, `include=co_mentions`, `rows`, `filter[outcome]`, `filter[opportunity]`, `group_by`);
+`include` and `min_support` on `sources/domains` and `sources/pages`; and `filter[country_iso]` on
+`sources/domains`, `sources/pages`, `citations` and `fanout-queries`. New response fields are absent
+from every response until their owner builds them. Shapes, error codes and choices:
+docs/ai-visibility/contracts/README.md (one note per group) and plan
+`docs/superpowers/plans/2026-11-13-ai-wp-03-contract-pack.md`.
+
 ### 3.8 Cross-channel (links Phase 6; matrix and pages 10a; 10b; diagnostics 15)
 
 Keywords and prompts stay separate objects joined by `core.keyword_prompt_links` (doc 15 section 1). Only `active` links feed the matrix.
