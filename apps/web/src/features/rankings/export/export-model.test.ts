@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { RankCell, TrackedKeywordRow } from '@/lib/api/types';
 import type { PairedRow } from '../keyword-pairs';
-import { buildExport, rankCell, safeText, toCsv, type ExportLabels } from './export-model';
+import { buildExport, rankCell, type ExportLabels } from './export-model';
 
 const LABELS: ExportLabels = {
   keyword: 'Keyword',
@@ -152,24 +152,5 @@ describe('buildExport', () => {
     const waiting = paired(ranked(1), null);
     waiting.gsc = { state: 'pending' };
     expect(buildExport([waiting], 'desktop', LABELS).rows[0]?.slice(4, 6)).toEqual([null, null]);
-  });
-});
-
-describe('text written to a file', () => {
-  it('keeps a spreadsheet from reading a keyword as a formula', () => {
-    expect(safeText('=SUM(A1)')).toBe("'=SUM(A1)");
-    expect(safeText('+1 soc')).toBe("'+1 soc");
-    expect(safeText('soc service')).toBe('soc service');
-  });
-
-  it('quotes a field with a comma, a quote or a line break, and starts with a byte order mark', () => {
-    const csv = toCsv({
-      header: ['Keyword', 'Desktop'],
-      rows: [
-        ['a, "b"', 3],
-        ['line\nbreak', null],
-      ],
-    });
-    expect(csv).toBe('﻿Keyword,Desktop\r\n"a, ""b""",3\r\n"line\nbreak",\r\n');
   });
 });

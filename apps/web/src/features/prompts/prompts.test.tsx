@@ -479,6 +479,8 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
     const rowOf = (text: string): (string | null)[] =>
       within(within(table).getByText(text).closest('[role="row"]') as HTMLElement)
         .getAllByRole('gridcell')
+        // The first cell holds the row's checkbox
+        .slice(1)
         .map((cell) => cell.textContent);
     expect(rowOf(FIRST_TEXT)).toEqual(['SEO', 'Germany', '63% avg of 2', '33% avg of 2', '50% 3 of 6', '75% 6 of 8']);
     expect(rowOf('How do I run a technical SEO audit on a large site?')).toEqual([
@@ -1941,6 +1943,8 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
   const cellsOf = (table: HTMLElement, name: string): (string | null)[] =>
     within(rowOf(table, name))
       .getAllByRole('gridcell')
+      // The first cell holds the row's checkbox
+      .slice(1)
       .map((cell) => cell.textContent);
   // A parent's name is its row's label, which its muted count ("2 prompts") follows in the cell
   const order = (table: HTMLElement): string[] =>
@@ -1957,6 +1961,8 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     expect(
       within(table)
         .getAllByRole('columnheader')
+        // The first header holds the checkbox that selects every row
+        .slice(1)
         .map((header) => header.textContent?.replace(/\d$/, '')),
     ).toEqual(['Prompt', 'Topic', 'Country', 'Mention rate', 'Citation rate', 'ChatGPT mention', 'Gemini mention']);
     // The average is over the engines that have a rate, and says how many; the count behind each engine stays
@@ -1988,7 +1994,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     const third = rowOf(table, 'Question number 3?');
     expect(within(third).getAllByText('2 answers')[0]).toHaveClass('bg-insufficient');
     // An equal weight percent gets the count of each engine, not a pooled count that would read as another rate
-    const [, , mention] = within(rowOf(table, 'Question number 1?')).getAllByRole('gridcell');
+    const [, , , mention] = within(rowOf(table, 'Question number 1?')).getAllByRole('gridcell');
     expect(mention).toHaveAccessibleDescription(
       'ChatGPT 6 of 8 and Gemini 2 of 8 Equal weight average of ChatGPT and Gemini, each engine counting once',
     );
@@ -2061,6 +2067,8 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     expect(
       within(tree)
         .getAllByRole('columnheader')
+        // The first header holds the checkbox that selects every row
+        .slice(1)
         .map((header) => header.textContent),
     ).toEqual([
       'Topic',

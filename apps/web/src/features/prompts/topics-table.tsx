@@ -4,6 +4,7 @@ import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
+import { asRecordActions, type PromptAction } from './prompt-action';
 import { useEngineColumns } from './prompt-columns';
 import {
   DEFAULT_TOPIC_SORT,
@@ -18,6 +19,7 @@ import {
 } from './prompt-model';
 import { useRateColumns } from './rate-columns';
 import { sortByKeys } from './rate-model';
+import { applyRowChange, rowSelection, topicsChosen, type RowPrompts } from './selection-model';
 import { buildTopicTree, countTopicRows, sortTopicTree, type TopicBranch } from './topic-tree';
 import { col } from '@/components/app/data-table/columns';
 import { DataTable } from '@/components/app/data-table/data-table';
@@ -78,6 +80,8 @@ type TopicRow =
     };
 
 const rowId = (row: TopicRow): string => row.id;
+const idsOf = (members: readonly PromptSummaryRow[] | null): string[] => (members ?? []).map((m) => m.prompt_id);
+const nothing = (): void => undefined;
 const cellsOf = (row: TopicRow): readonly EngineSummary[] => (row.kind === 'more' ? [] : row.engines);
 
 /** A column that says nothing on the row that offers the rest of a topic's prompts. */
@@ -126,6 +130,11 @@ export interface TopicsTableProps {
   onPromptOrderChange: (promptIds: readonly string[]) => void;
   /** The switch between the views of the page, at the end of the toolbar before the density and columns, as on Rankings. */
   viewSwitch?: ReactNode;
+  /** The prompts chosen, by prompt id: a topic's box chooses the prompts it holds (`selection-model.ts`). */
+  chosen: ReadonlySet<string>;
+  onChosenChange: (ids: ReadonlySet<string>) => void;
+  /** The bulk bar's actions, on the chosen prompts. */
+  bulkActions: readonly PromptAction[];
 }
 
 /**
@@ -172,6 +181,9 @@ export function TopicsTable({
   onOpenTopic,
   onPromptOrderChange,
   viewSwitch,
+  chosen,
+  onChosenChange,
+  bulkActions,
 }: TopicsTableProps): ReactElement {
   const t = useTranslations('prompts');
   const locale = useLocale();
@@ -401,20 +413,47 @@ export function TopicsTable({
       : ((rows.find((row) => row.id === clicked && ofOpenPrompt(row)) ?? rows.find(ofOpenPrompt))?.id ?? null);
   // A drawer opens from a topic, and a prompt from the drawer may have no row of its own: the topic's row stands for it
   const activeRowId = promptRowId ?? (activeTopicKey === null ? null : `topic:${activeTopicKey}`);
+  // The prompts each row stands for, and the rows a choice of prompts selects (a topic whose prompts are not known,
+  // or that holds none, has no box)
+  const rowPrompts = useMemo(
+    (): RowPrompts =>
+      new Map(
+        rows.flatMap((row): [string, readonly string[]][] => {
+          if (row.kind === 'more') return [];
+          return [[row.id, row.kind === 'prompt' ? [row.promptId] : idsOf(row.members)]];
+        }),
+      ),
+    [rows],
+  );
+  const picked = useMemo(() => rowSelection(chosen, rowPrompts), [chosen, rowPrompts]);
+  // Every topic of the tree counts, the closed ones and those a search hides too: the choice is of prompts
+  const chosenTopics = useMemo(
+    () =>
+      topicsChosen(
+        branches.map(({ row, children }) => ({
+          ids: idsOf(row.members),
+          children: children.map((child) => ({ ids: idsOf(child.members) })),
+        })),
+        chosen,
+      ),
+    [branches, chosen],
+  );
+  const hasBox = (row: TopicHead): boolean => (row.members?.length ?? 0) > 0;
   const rowTree = (row: TopicRow): RowTree => {
     if (row.kind === 'prompt') return { level: 2, setSize: row.siblings, posInSet: row.position };
     if (row.kind === 'more') {
       return { level: 2, setSize: row.siblings, posInSet: row.position, selectable: false };
     }
     // A topic listed under its parent opens the drawer: only a level 1 row can open (see the shortcut above)
-    if (row.level === 2) return { level: 2, setSize: row.siblings, posInSet: row.position };
+    if (row.level === 2) return { level: 2, setSize: row.siblings, posInSet: row.position, selectable: hasBox(row) };
     // A row without `expanded` has nothing to show and is an ordinary row
-    if (row.members === null) return { level: 1, setSize: row.siblings, posInSet: row.position };
+    if (row.members === null) return { level: 1, setSize: row.siblings, posInSet: row.position, selectable: false };
     const expanded = open.has(row.key);
     const withTopics = row.childCount > 0;
     return {
       level: 1,
       expanded,
+      selectable: hasBox(row),
       setSize: row.siblings,
       posInSet: row.position,
       label: withTopics
@@ -479,6 +518,22 @@ export function TopicsTable({
         rowName={rowName}
         rowTree={rowTree}
         onToggleGroup={toggle}
+        selection={{
+          selectedIds: picked.selectedIds,
+          indeterminateIds: picked.indeterminateIds,
+          onChange: (next) => onChosenChange(applyRowChange(chosen, picked.selectedIds, next, rowPrompts)),
+          // Every prompt a topic holds is in the table's list: there is no "all matching" beyond the rows
+          matchingTotal: null,
+          allMatching: false,
+          onAllMatchingChange: nothing,
+          // A choice made through a topic that is now closed has no box to untick: Clear empties it
+          onClear: () => onChosenChange(new Set()),
+          selectedCount: chosen.size,
+          selectedLabel:
+            chosenTopics === 0 ? undefined : t('bulk.topicsSelected', { topics: chosenTopics, prompts: chosen.size }),
+          headerCoversGroups: true,
+        }}
+        bulkActions={asRecordActions<TopicRow>(bulkActions)}
         onRowOpen={(row, intent) => {
           // A topic row that opens no group (a topic under its parent, or one whose prompts cannot be told yet) and
           // the "Show all" row open the drawer

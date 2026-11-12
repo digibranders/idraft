@@ -1615,6 +1615,37 @@ describe('DataTable tree mode', () => {
     expect(toggle).not.toHaveBeenCalled();
   });
 
+  it('has the header checkbox cover the group rows as well when the screen asks for it', async () => {
+    const onChange = vi.fn<(ids: ReadonlySet<string>) => void>();
+    const { user, rerender } = renderWithProviders(<TreeHarness selection={{ onChange }} />);
+    expect(screen.getByRole('checkbox', { name: 'Select all 2 keywords loaded' })).toBeInTheDocument();
+    rerender(<TreeHarness selection={{ onChange, headerCoversGroups: true }} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select all 4 keywords loaded' }));
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(new Set(['g1', 'c1', 'c2', 'g2']));
+  });
+
+  it('has Clear call the screen own clear, and not change the selected ids, when it gives one', async () => {
+    const onChange = vi.fn<(ids: ReadonlySet<string>) => void>();
+    const onClear = vi.fn<() => void>();
+    const { user } = renderWithProviders(
+      <TreeHarness selection={{ selectedIds: new Set(['c1']), selectedCount: 3, onChange, onClear }} />,
+    );
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Clear selection' }));
+    expect(onClear).toHaveBeenCalledOnce();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('says in the bulk bar what the screen words the selection as, in place of the count of ids', () => {
+    renderWithProviders(
+      <TreeHarness
+        selection={{ selectedIds: new Set(['g1']), selectedCount: 7, selectedLabel: '2 topics selected, 7 prompts' }}
+      />,
+    );
+    expect(within(bulkBar()).getByText('2 topics selected, 7 prompts')).toBeInTheDocument();
+    expect(within(bulkBar()).queryByText('7 selected')).toBeNull();
+    expect(screen.getByRole('group', { name: 'Bulk actions, 2 topics selected, 7 prompts' })).toBeInTheDocument();
+  });
+
   it('draws a group checkbox as mixed when its id is in indeterminateIds and checked when it is selected', () => {
     renderWithProviders(
       <TreeHarness selection={{ selectedIds: new Set(['g2']), indeterminateIds: new Set(['g1']) }} />,

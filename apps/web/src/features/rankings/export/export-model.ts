@@ -1,9 +1,10 @@
 import type { RankCell, TrackedKeywordRow } from '@/lib/api/types';
+import { safeText, type CsvCell } from '@/lib/csv/csv-write';
 import { gscCount } from '../gsc-counts';
 import type { Device, PairedRow } from '../keyword-pairs';
 
 /** A cell of the exported table: text, a number, or nothing. */
-export type ExportCell = string | number | null;
+export type ExportCell = CsvCell;
 
 export interface ExportKpi {
   label: string;
@@ -74,11 +75,6 @@ function trackedIn(row: PairedRow, device: Device): TrackedKeywordRow[] {
   return found === null ? [] : [found];
 }
 
-/** A cell that a spreadsheet would read as a formula is written as text (CSV injection). */
-export function safeText(value: string): string {
-  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-}
-
 /** A figure the API sends as a number or as a decimal string, as a number. */
 function number(value: number | string | null | undefined): number | null {
   if (value === null || value === undefined) return null;
@@ -142,20 +138,4 @@ export function buildExport(rows: readonly PairedRow[], device: Device, labels: 
     ];
   });
   return { kpis, header, kinds, rows: body };
-}
-
-/** The byte order mark that tells Excel a CSV is UTF-8. */
-const BOM = String.fromCharCode(0xfeff);
-
-/** The text of one CSV field (RFC 4180): quoted when it holds a comma, a quote or a line break. */
-function field(cell: ExportCell): string {
-  if (cell === null) return '';
-  const text = String(cell);
-  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
-
-/** The table alone, as CSV with a byte order mark so Excel reads it as UTF-8. KPIs are left to the workbook: lines above the header would break the table for most tools. */
-export function toCsv(table: Pick<KeywordExport, 'header' | 'rows'>): string {
-  const lines = [table.header, ...table.rows].map((line) => line.map(field).join(','));
-  return `${BOM}${lines.join('\r\n')}\r\n`;
 }

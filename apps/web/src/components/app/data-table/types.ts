@@ -124,6 +124,21 @@ export interface Selection {
   indeterminateIds?: ReadonlySet<string> | undefined;
   /** What the bulk bar counts when it is not the number of ids (keywords chosen, not rows). */
   selectedCount?: number | undefined;
+  /**
+   * What the bulk bar and the live announcement say in place of "{count} selected", for a screen whose choice is of
+   * something other than rows ("2 topics selected, 7 prompts"). Given with `selectedCount`.
+   */
+  selectedLabel?: string | undefined;
+  /**
+   * Clear in the bulk bar, when emptying the table's selected ids would leave a choice behind: ids chosen through
+   * rows that are not drawn (a partly chosen topic that is closed). Without it Clear is `onChange(new Set())`.
+   */
+  onClear?: (() => void) | undefined;
+  /**
+   * In a tree, the header checkbox, a range and the "select all loaded" name cover the group rows too, not only the
+   * rows inside groups: for a tree whose group rows are chosen things (topics) and not only containers.
+   */
+  headerCoversGroups?: boolean | undefined;
   /** Selectable rows the table does not render (the keywords of closed groups): they are not "hidden by filters". */
   unrenderedCount?: number | undefined;
 }

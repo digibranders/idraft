@@ -2,13 +2,12 @@ import type { CellObject, SheetData } from 'write-excel-file/universal';
 
 import type { WorkbookColors } from './export-colors';
 import type { ExportCell, ExportColumnKind, KeywordExport } from './export-model';
-import { toCsv } from './export-model';
+import { csvBlob } from '@/lib/csv/csv-write';
 
 /** The file types of the Export menu. */
 export type ExportFormat = 'xlsx' | 'csv';
 
 export const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-export const CSV_TYPE = 'text/csv;charset=utf-8';
 
 /** A line of facts above the table: what was exported, and how. */
 export type ContextLine = readonly [label: string, value: string];
@@ -252,22 +251,10 @@ export async function buildWorkbook(
   ).toBlob();
 }
 
-export const buildCsv = (table: KeywordExport): Blob => new Blob([toCsv(table)], { type: CSV_TYPE });
+/** The table alone: the counts above it would break it for most tools, so they are left to the workbook. */
+export const buildCsv = (table: KeywordExport): Blob => csvBlob(table);
 
 /** The name of a file: what it holds and the day, in UTC. */
 export function fileName(format: ExportFormat, now: Date): string {
   return `keywords-${now.toISOString().slice(0, 10)}.${format}`;
-}
-
-/** Hands a file to the browser as a download. */
-export function download(blob: Blob, name: string): void {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = name;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  // The browser has been handed the file by the time the click returns; the address is released after
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }

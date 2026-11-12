@@ -17,6 +17,8 @@ import { fitCount } from '@/lib/tables/bulk-fit';
 
 export interface BulkActionBarProps<TRow> {
   selectedCount: number;
+  /** What the bar says in place of "{count} selected" ("2 topics selected, 7 prompts"). */
+  selectedLabel?: string | undefined;
   /** Rows the filters match, when more exist than are loaded. */
   matchingTotal: number | null;
   /** Every loaded row in view is selected: the condition for offering every matching row. */
@@ -53,6 +55,7 @@ const sameWidths = (a: readonly number[], b: readonly number[]): boolean =>
  */
 export function BulkActionBar<TRow>({
   selectedCount,
+  selectedLabel,
   matchingTotal,
   allLoadedSelected,
   allMatching,
@@ -68,7 +71,7 @@ export function BulkActionBar<TRow>({
   const selectedText =
     allMatching && matchingTotal !== null
       ? t('allMatchingSelected', { count: formatInteger(matchingTotal) })
-      : t('selected', { count: formatInteger(selectedCount) });
+      : (selectedLabel ?? t('selected', { count: formatInteger(selectedCount) }));
   const ordered = [...actions].sort((a, b) => ORDER[a.group] - ORDER[b.group]);
   const firstDestructive = ordered.findIndex((action) => action.group === 'destructive');
 

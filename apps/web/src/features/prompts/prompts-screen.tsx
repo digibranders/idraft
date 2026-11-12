@@ -9,6 +9,7 @@ import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { AddPromptsDialog } from './add-prompts-dialog';
 import { AnswerInspector } from './answer-inspector';
+import { asRecordActions, type PromptAction } from './prompt-action';
 import { usePromptColumns, type PromptRow } from './prompt-columns';
 import { PromptInspector, type PromptCounts } from './prompt-inspector';
 import {
@@ -124,6 +125,8 @@ const VIEW_STATE = {
 };
 
 const promptRowId = (row: PromptRow): string => row.prompt.prompt_id;
+const NO_PROMPTS: ReadonlySet<string> = new Set();
+const nothing = (): void => undefined;
 /** The id of the More actions item that copies the link. */
 const COPY_LINK = 'copy-link';
 
@@ -326,6 +329,27 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         };
       });
   }, [list.rows, includeBranded, topicIds, kept, country, summaryById, countsLoaded, countryName, topicPaths, locale]);
+
+  // The prompts chosen, by id: kept through sorting, searching and opening topics, and dropped for good when the rows
+  // asked for change (the project, the tab, the topic filter, the country, the Branded filter), as Rankings drops its
+  // choice when its filters change. Prompts that left the rows (archived, or off a new page) are not chosen any more
+  const selectionKey = JSON.stringify([project.id, tab, country, values.topic ?? null, includeBranded]);
+  const [selection, setSelection] = useState<{ key: string; ids: ReadonlySet<string> }>({
+    key: selectionKey,
+    ids: NO_PROMPTS,
+  });
+  if (selection.key !== selectionKey) setSelection({ key: selectionKey, ids: NO_PROMPTS });
+  const rowsById = useMemo(() => new Map(rows.map((row) => [row.prompt.prompt_id, row])), [rows]);
+  const chosen = useMemo(
+    (): ReadonlySet<string> =>
+      selection.key === selectionKey ? new Set([...selection.ids].filter((id) => rowsById.has(id))) : NO_PROMPTS,
+    [selection, selectionKey, rowsById],
+  );
+  const setChosen = useCallback(
+    (ids: ReadonlySet<string>): void => setSelection({ key: selectionKey, ids }),
+    [selectionKey],
+  );
+  const bulkActions: readonly PromptAction[] = [];
 
   // The strip reads the prompts in scope (a search is no filter, so it does not narrow it, ADR-DS-022 decision 6)
   const stripPrompts = useMemo(
@@ -719,6 +743,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               onOpenTopic={openTopicDrawer}
               onPromptOrderChange={setOrder}
               viewSwitch={viewSwitch}
+              chosen={chosen}
+              onChosenChange={setChosen}
+              bulkActions={bulkActions}
             />
           </div>
         ) : (
@@ -789,6 +816,15 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 activeRowId={selectedPrompt}
                 onRowOrderChange={setOrder}
                 compactToolbar
+                selection={{
+                  selectedIds: chosen,
+                  onChange: setChosen,
+                  // The list holds every prompt the filters match, so there is no "all matching" beyond the rows
+                  matchingTotal: null,
+                  allMatching: false,
+                  onAllMatchingChange: nothing,
+                }}
+                bulkActions={asRecordActions<PromptRow>(bulkActions)}
               />
             </div>
           </div>

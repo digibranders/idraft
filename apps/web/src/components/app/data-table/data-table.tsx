@@ -70,8 +70,8 @@ const hasCheckbox = (tree: RowTree | undefined): boolean => tree?.selectable !==
  * Whether a row counts in a range, a select-all and the "select all N loaded" name. In a tree these are the
  * rows inside a group; a group row's checkbox is its own, and the caller maps it to the rows it holds.
  */
-const isPickable = (tree: RowTree | undefined): boolean =>
-  tree === undefined || (tree.level === 2 && hasCheckbox(tree));
+const isPickable = (tree: RowTree | undefined, groupsToo: boolean): boolean =>
+  tree === undefined || ((groupsToo || tree.level === 2) && hasCheckbox(tree));
 
 /** The identity cell is the row header (20-accessibility.md section 6.2, rule 1). */
 const cellTag = (identity: boolean): 'th' | 'td' => (identity ? 'th' : 'td');
@@ -233,9 +233,11 @@ export function DataTable<TRow extends RowData>({
   const ids = useMemo(() => rows.map(getRowId), [rows, getRowId]);
   const indexOfId = useMemo(() => new Map(ids.map((id, index) => [id, index])), [ids]);
   // The rows a range, a select-all and the header checkbox cover: all of them, but in a tree the rows inside groups
+  const groupsToo = selection?.headerCoversGroups === true;
   const pickIds = useMemo(
-    () => (rowTree === undefined ? ids : rows.flatMap((row) => (isPickable(rowTree(row)) ? [getRowId(row)] : []))),
-    [ids, rows, rowTree, getRowId],
+    () =>
+      rowTree === undefined ? ids : rows.flatMap((row) => (isPickable(rowTree(row), groupsToo) ? [getRowId(row)] : [])),
+    [ids, rows, rowTree, getRowId, groupsToo],
   );
   const pickSet = useMemo(() => new Set(pickIds), [pickIds]);
   const showRows = status === 'ready' || status === 'refetching';
@@ -492,14 +494,18 @@ export function DataTable<TRow extends RowData>({
     }
   };
   const countedSelection = selection?.selectedCount;
+  const selectedLabel = selection?.selectedLabel;
   const announcedSelection = useRef(countedSelection);
   useEffect(() => {
     if (countedSelection === announcedSelection.current) return;
     announcedSelection.current = countedSelection;
     if (countedSelection !== undefined) {
-      announce(t('selected', { count: formatInteger(countedSelection) }), { key: selectionKey, debounceMs: 250 });
+      announce(selectedLabel ?? t('selected', { count: formatInteger(countedSelection) }), {
+        key: selectionKey,
+        debounceMs: 250,
+      });
     }
-  }, [countedSelection, selectionKey, t]);
+  }, [countedSelection, selectedLabel, selectionKey, t]);
   const effectiveSelected = (): Set<string> => new Set(allMatching ? [...selected, ...pickIds] : selected);
   const toggleRow = (id: string, range: boolean): void => {
     const next = effectiveSelected();
@@ -891,6 +897,7 @@ export function DataTable<TRow extends RowData>({
       {selecting && selection !== undefined ? (
         <BulkActionBar
           selectedCount={selectedCount}
+          selectedLabel={selectedLabel}
           matchingTotal={selection.matchingTotal}
           allLoadedSelected={allLoadedSelected}
           allMatching={allMatching}
@@ -909,7 +916,8 @@ export function DataTable<TRow extends RowData>({
           scope={scope}
           onClear={() => {
             selection.onAllMatchingChange(false);
-            selection.onChange(new Set());
+            if (selection.onClear === undefined) selection.onChange(new Set());
+            else selection.onClear();
             // The count falling to 0 is this message's, not "0 selected"
             announcedSelection.current = 0;
             announce(t('selectionCleared'), { key: selectionKey });
