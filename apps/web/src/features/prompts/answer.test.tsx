@@ -10,7 +10,7 @@ import { MOCK_ENTITY_IDS } from '@/mocks/entity-fixtures';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { answerOf, DAY_MS, ENGINE_CODES, FIXTURE_PROMPTS, observationIdOf, runInstants } from '@/mocks/prompt-fixtures';
-import { mswPath } from '@/mocks/respond';
+import { mswPath, problem } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
@@ -183,7 +183,7 @@ describe('the answer viewer: what it shows', () => {
     expect(within(sources).getByText('Own')).toBeInTheDocument();
     expect(within(sources).getByText('Third party')).toBeInTheDocument();
     expect(screen.getByText('Ads in the answer are left out of the mentions and the sources.')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Download the raw answer' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Download the raw answer' })).toBeNull();
     expect(await axe(container)).toHaveNoViolations();
   });
 
@@ -199,7 +199,7 @@ describe('the answer viewer: what it shows', () => {
       }),
     );
     const { container } = renderOn('analyst', opened('2000001'));
-    await screen.findByRole('link', { name: 'Download the raw answer' });
+    await screen.findByRole('button', { name: 'Download the raw answer' });
     expect(screen.getByRole('link', { name: 'Open the answer at the provider' })).toBeInTheDocument();
     expect((await screen.findAllByLabelText(/Uncertain match, excluded from rates/)).length).toBeGreaterThan(0);
     expect(await axe(container)).toHaveNoViolations();
@@ -521,23 +521,93 @@ describe('the answer viewer: what it shows', () => {
 });
 
 describe('the answer viewer: the raw answer', () => {
-  it('links to the raw answer for a member with raw:read, as a download in the same tab', async () => {
-    renderOn('analyst', opened(cited.id));
-    const link = await screen.findByRole('link', { name: 'Download the raw answer' });
-    const href = link.getAttribute('href') ?? '';
-    const path = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${projectId}/ai/observations/${cited.id}/raw`;
-    expect(href.startsWith(path)).toBe(true);
-    expect(new URL(href, 'https://app.example.com').searchParams.get('observed_at')).toMatch(/^2026-/);
-    expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
-    expect(link).toHaveAttribute('download');
-    expect(link).not.toHaveAttribute('target');
+  const RAW = mswPath(`${P}/ai/observations/{observation_id}/raw`);
+  /** The newest run the fixtures keep that is past the 90 days a raw answer is kept for. */
+  const expiredId = (): string => {
+    const at = runInstants(NOW.getTime()).find((instant) => NOW.getTime() - instant > 90 * DAY_MS);
+    if (at === undefined || first.index === null) throw new Error('No fixture answer is past its retention');
+    return observationIdOf(Math.floor(at / DAY_MS), first.index, 0);
+  };
+  const saved: Blob[] = [];
+  const names: string[] = [];
+  const revoked: string[] = [];
+
+  beforeEach(() => {
+    saved.length = 0;
+    names.length = 0;
+    revoked.length = 0;
+    URL.createObjectURL = (blob: Blob | MediaSource): string => {
+      saved.push(blob as Blob);
+      return 'blob:raw-answer';
+    };
+    URL.revokeObjectURL = (url: string): void => {
+      revoked.push(url);
+    };
+    // jsdom does not follow a download link: the link's name is what the browser would save the file as
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      names.push(this.download);
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  it('shows no link to the raw answer to a viewer, who may not read it', async () => {
+  it('downloads the raw answer as a file named for the answer, for a member with raw:read', async () => {
+    const { user } = renderOn('analyst', opened(cited.id));
+    await user.click(await screen.findByRole('button', { name: 'Download the raw answer' }));
+    await waitFor(() => expect(names).toEqual([`answer-${cited.id}.json`]));
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.size).toBeGreaterThan(0);
+    await waitFor(() => expect(revoked).toEqual(['blob:raw-answer']));
+  });
+
+  it('is disabled and busy while the raw answer is on its way', async () => {
+    let open: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      open = () => resolve();
+    });
+    server.use(
+      http.get(RAW, async () => {
+        await held;
+        return HttpResponse.json({ tasks: [] });
+      }),
+    );
+    const { user } = renderOn('analyst', opened(cited.id));
+    const button = await screen.findByRole('button', { name: 'Download the raw answer' });
+    await user.click(button);
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    open();
+    await waitFor(() => expect(names).toHaveLength(1));
+    expect(button).toBeEnabled();
+  });
+
+  it('says the raw answer is past its retention and is no longer kept, and downloads nothing', async () => {
+    const { user } = renderOn('analyst', opened(expiredId()));
+    await user.click(await screen.findByRole('button', { name: 'Download the raw answer' }));
+    expect(await screen.findByText('The raw answer is past its retention and is no longer kept.')).toBeInTheDocument();
+    expect(names).toEqual([]);
+  });
+
+  it('says the raw answer is not available now, and a second try downloads it once the provider answers', async () => {
+    server.use(http.get(RAW, ({ request }) => problem(request, 'raw_unavailable')));
+    const { user } = renderOn('analyst', opened(cited.id));
+    const button = await screen.findByRole('button', { name: 'Download the raw answer' });
+    await user.click(button);
+    // An error toast is also announced, so its words are in the document twice: the toast and the announcement
+    expect((await screen.findAllByText('The raw answer is not available now. Try again later.'))[0]).toBeVisible();
+    expect(names).toEqual([]);
+    expect(button).toBeEnabled();
+    server.resetHandlers();
+    await user.click(button);
+    await waitFor(() => expect(names).toEqual([`answer-${cited.id}.json`]));
+  });
+
+  it('shows no raw answer control to a viewer, who may not read it', async () => {
     renderOn('viewer', opened(cited.id));
     await viewer();
     await screen.findByLabelText(/^Fynix mention, own brand/);
-    expect(screen.queryByRole('link', { name: 'Download the raw answer' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Download the raw answer' })).toBeNull();
   });
 });
 

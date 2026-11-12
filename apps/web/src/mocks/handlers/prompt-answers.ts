@@ -60,6 +60,8 @@ const NAIVE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
 const ID_MAX = 2n ** 63n - 1n;
 /** An `observed_at` hint finds the month: the answer is looked for this far either side of it. */
 const HINT_SLACK_MS = DAY_MS;
+/** A provider's raw answer is kept 90 days; an answer past that is `410 raw_expired` (the API's retention). */
+const RAW_RETENTION_MS = 90 * DAY_MS;
 
 type Bound = { date: string } | { at: number } | null;
 
@@ -412,6 +414,7 @@ export const promptAnswerHandlers: HttpHandler[] = [
     if (errors.length > 0 || typeof id !== 'bigint' || hasCode(hint)) return invalid(request, errors);
     const found = findAnswer(caller.project.project_id, id, hint, Date.now());
     if (found === null) return problem(request, 'not_found');
+    if (Date.now() - Date.parse(found.observed_at) > RAW_RETENTION_MS) return problem(request, 'raw_expired');
     // The provider's task answer, cut to what the answer holds: the mocks keep no real payload
     const failed = found.status === 'error';
     return HttpResponse.json(

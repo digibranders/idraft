@@ -3532,7 +3532,10 @@
       "check": "Open the answer at the provider",
       "checkLabel": "At the provider",
       "raw": "Download the raw answer",
-      "rawLabel": "Raw answer"
+      "rawLabel": "Raw answer",
+      "rawExpired": "The raw answer is past its retention and is no longer kept.",
+      "rawUnavailable": "The raw answer is not available now. Try again later.",
+      "rawFailed": "The raw answer could not be downloaded. Try again in a moment."
     }
   }
 }

@@ -144,9 +144,7 @@ test.describe('AI prompt tracking', () => {
     ).toBeVisible();
 
     await openAnswerButton(namingTheBrand(inspector).first()).click();
-    const raw = page.getByRole('link', { name: 'Download the raw answer' });
-    await expect(raw).toBeVisible();
-    await expect(raw).toHaveAttribute('href', /\/raw/);
+    await expect(page.getByRole('button', { name: 'Download the raw answer' })).toBeVisible();
     await expectAccessible(page);
   });
 

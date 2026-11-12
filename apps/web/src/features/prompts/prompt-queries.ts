@@ -36,6 +36,7 @@ const PROMPT = `${PROMPTS}/{prompt_id}` as const;
 const LINT = `${PROMPTS}/lint` as const;
 const OBSERVATIONS = `${P}/ai/observations` as const;
 const OBSERVATION = `${OBSERVATIONS}/{observation_id}` as const;
+const RAW = `${OBSERVATION}/raw` as const;
 const SUMMARY = `${P}/ai/prompts-summary` as const;
 const ENTITIES = `${P}/entities` as const;
 
@@ -219,13 +220,22 @@ export const observationQuery = (
 };
 
 /**
- * Where the raw provider answer is read (`raw:read`); the browser opens it as it is. The id stays the text the
- * API sent, so it is exact whatever its size; `observedAt` is as for `observationQuery`.
+ * `GET {P}/ai/observations/{observation_id}/raw` (`raw:read`): the provider's answer as it came, as a file. An
+ * answer past its retention rejects with `410 raw_expired`, one that cannot be read now with `503
+ * raw_unavailable`. `observedAt` is as for `observationQuery`.
  */
-export const rawAnswerPath = (scope: PromptScope, observationId: string, observedAt?: string): string =>
-  `/api/v1/workspaces/${encodeURIComponent(scope.workspaceId)}/projects/${encodeURIComponent(scope.projectId)}/ai/observations/${encodeURIComponent(observationId)}/raw${
-    observedAt === undefined ? '' : `?observed_at=${encodeURIComponent(observedAt)}`
-  }`;
+export function fetchRawAnswer(scope: PromptScope, observationId: string, observedAt?: string): Promise<Blob> {
+  if (!isObservationId(observationId)) return Promise.reject(NOT_FOUND());
+  return unwrap(
+    api.GET(RAW, {
+      params: {
+        path: { ...pathOf(scope), observation_id: Number(observationId) },
+        query: observedAt === undefined ? {} : { observed_at: observedAt },
+      },
+      parseAs: 'blob',
+    }),
+  );
+}
 
 /** The project's entities with their colors, for the marks of an answer. */
 export const projectEntitiesQuery = (scope: PromptScope): ApiQueryOptions<typeof ENTITIES> =>

@@ -18,7 +18,7 @@ import {
   PUT_ENGINE,
   promptQuery,
   promptsKey,
-  rawAnswerPath,
+  fetchRawAnswer,
   refreshPrompts,
   RUN_NOW,
   summaryQuery,
@@ -420,26 +420,19 @@ describe('the answers of a prompt', () => {
   });
 });
 
-describe('the raw answer path', () => {
-  const base = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${fynix.project_id}/ai/observations`;
-
-  it('keeps the id as the text the API sent, whatever its size', () => {
-    expect(rawAnswerPath(scope, '9223372036854775807')).toBe(`${base}/9223372036854775807/raw`);
-  });
-
-  it('carries the hint of the month with its plus sign and colons encoded', async () => {
+describe('the raw answer', () => {
+  it('asks for the file with the hint of the month, and rejects an id that is no answer without asking', async () => {
     const hint = '2026-11-09T02:00:00+00:00';
-    const path = rawAnswerPath(scope, '20400001', hint);
-    expect(path).toBe(`${base}/20400001/raw?observed_at=2026-11-09T02%3A00%3A00%2B00%3A00`);
     let received: string | null = null;
     server.use(
       http.get(`${PROJECT}/ai/observations/:id/raw`, ({ request }) => {
         received = new URL(request.url).searchParams.get('observed_at');
-        return HttpResponse.json({});
+        return HttpResponse.json({ tasks: [] });
       }),
     );
-    await fetch(new URL(path, 'http://localhost'));
+    expect(await fetchRawAnswer(scope, '20400001', hint).then((file) => file.size)).toBeGreaterThan(0);
     expect(received).toBe(hint);
+    await expect(fetchRawAnswer(scope, 'abc')).rejects.toMatchObject({ status: 404, code: 'not_found' });
   });
 });
 
