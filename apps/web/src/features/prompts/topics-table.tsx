@@ -229,9 +229,11 @@ export function TopicsTable({
   const columns = useMemo((): DataTableColumn<TopicRow>[] => {
     const name = col.keyword<TopicRow>('topic', rowName, {
       header: t('topics.topic'),
-      // Room for a name and the count after it, which the identity column's default leaves too little of
-      width: 280,
-      minWidth: 240,
+      // Room for a name and the count after it, which the identity column's default leaves too little of: a topic such
+      // as "Compliance and regulation" with "3 topics" after it needs about 320 px, and 260 px is where it stays when
+      // the other columns want the room
+      width: 320,
+      minWidth: 260,
       sortable: false,
       trailing: (row) => (row.kind === 'prompt' && row.branded ? <Badge>{t('branded')}</Badge> : null),
     });
@@ -267,8 +269,9 @@ export function TopicsTable({
                 variant="link"
                 size="sm"
                 aria-label={t('topics.openTopic', { name: row.name })}
-                // The text color of a group's name on Rankings; the link color shows on hover
-                className="max-w-full min-w-0 shrink justify-start text-foreground"
+                // The text color of a group's name on Rankings; the link color shows on hover. It does not shrink for the
+                // count: the name is cut only when it is longer than the cell, and the count gives way first
+                className="max-w-full min-w-0 shrink-0 justify-start text-foreground"
                 onClick={(event) =>
                   openTopic(row.key, 'overview', event.metaKey || event.ctrlKey ? 'new-tab' : 'inspector')
                 }
@@ -277,7 +280,7 @@ export function TopicsTable({
               </Button>
               {/* Only a row that opens (its prompts are known) has the count of what it opens onto */}
               {row.members === null ? null : (
-                <span className="shrink-0 num font-normal text-foreground-tertiary">
+                <span className="min-w-0 truncate num font-normal text-foreground-tertiary">
                   {row.childCount > 0
                     ? t('topics.childTopics', { count: row.childCount })
                     : t('topics.promptCount', { count: row.promptCount })}

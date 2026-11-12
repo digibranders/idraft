@@ -1001,7 +1001,9 @@ describe('Topics & Prompts: the Topics tab', () => {
     const tree = await treegrid();
     await within(tree).findByText('Paid Search');
     const count = within(rowOf(tree, 'SEO')).getByText('2 topics');
-    expect(count).toHaveClass('text-foreground-tertiary', 'shrink-0');
+    // The count gives way before the name does: it ends in an ellipsis where the name keeps its room
+    expect(count).toHaveClass('text-foreground-tertiary', 'min-w-0', 'truncate');
+    expect(within(rowOf(tree, 'SEO')).getByRole('button', { name: 'Open the topic SEO' })).toHaveClass('shrink-0');
     expect(within(rowOf(tree, 'Content Marketing')).getByText('1 topic')).toBeInTheDocument();
     // A topic with none below it opens onto its prompts
     expect(within(rowOf(tree, 'Paid Search')).getByText('2 prompts')).toBeInTheDocument();
