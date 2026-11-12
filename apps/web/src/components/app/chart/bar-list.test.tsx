@@ -236,6 +236,65 @@ describe('BarList comparison', () => {
   });
 });
 
+describe('BarList track width', () => {
+  const trailingSlots = (item: HTMLElement): HTMLElement[] =>
+    Array.from(item.querySelectorAll<HTMLElement>('[data-slot="bar-list-trailing"]'));
+  const delta = {
+    input: { value: 0.011, unit: 'points', polarity: 'higher_is_better', isDetectable: true },
+    test: 'paired',
+    text: '+1.1 pts',
+  } as const;
+
+  it('gives every row the same fixed-width trailing slot when any row has trailing content', () => {
+    const rows = [
+      comparisonRow('a', 'Alpha', value(0.4, '40%', '40 of 100 answers'), { badge: <span>Own</span>, delta }),
+      comparisonRow('b', 'Beta', value(0.3, '30%')),
+      comparisonRow('c', 'Gamma', { kind: 'thin', answers: 3 }),
+      comparisonRow('d', 'Delta', { kind: 'none' }, { badge: <span>Competitor</span> }),
+    ];
+    const { container } = renderWithProviders(<BarList {...comparison(rows)} />);
+    const slots = screen.getAllByRole('listitem').flatMap(trailingSlots);
+    expect(slots).toHaveLength(4);
+    for (const slot of slots) {
+      expect(slot).toHaveClass('@2xl:w-56', '@2xl:shrink-0');
+      expect(slot.className).toBe(slots[0]?.className);
+    }
+    // An empty slot draws nothing in the narrow layout, where it would only add a gap
+    expect(slots[1]).toBeEmptyDOMElement();
+    expect(slots[1]).toHaveClass('empty:hidden');
+    // The track is the same element, with the same classes, on every row that has a bar
+    const tracks = bars(container).map((bar) => bar.parentElement);
+    expect(tracks).toHaveLength(2);
+    expect(tracks[0]?.className).toBe(tracks[1]?.className);
+    expect(tracks[0]?.parentElement?.className).toBe(tracks[1]?.parentElement?.className);
+  });
+
+  it('draws no trailing slot on any row when no row has trailing content', () => {
+    const rows = [
+      comparisonRow('a', 'Alpha', value(0.4, '40%')),
+      comparisonRow('b', 'Beta', { kind: 'thin', answers: 3 }),
+      comparisonRow('c', 'Gamma', { kind: 'none' }),
+    ];
+    const { container } = renderWithProviders(<BarList {...comparison(rows)} />);
+    expect(container.querySelector('[data-slot="bar-list-trailing"]')).toBeNull();
+  });
+
+  it('truncates a long context with a title and leaves the slot class unchanged', () => {
+    const long = 'A very long context text that reads 466 of 1,412 answers across every prompt in the window';
+    const rows = [
+      comparisonRow('a', 'Alpha', value(0.4, '40%', long), { badge: <span>Own</span> }),
+      comparisonRow('b', 'Beta', value(0.3, '30%', '3 answers')),
+    ];
+    renderWithProviders(<BarList {...comparison(rows)} />);
+    const [first, second] = screen.getAllByRole('listitem').flatMap(trailingSlots);
+    expect(first?.className).toBe(second?.className);
+    const context = screen.getByText(long, { selector: '[data-slot="bar-list-context"]' });
+    expect(context).toHaveClass('truncate', 'min-w-0', 'max-w-full');
+    expect(context).toHaveAttribute('title', long);
+    expect(first).toHaveClass('@2xl:w-56', 'flex-wrap');
+  });
+});
+
 describe('BarList distribution', () => {
   const rows: readonly DistributionRow[] = [
     {

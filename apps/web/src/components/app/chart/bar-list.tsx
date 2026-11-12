@@ -147,26 +147,38 @@ interface BarRowProps {
   item: BarItem;
   max: number;
   density: Density;
+  /** Some shown row has a context, badge or change: every row then renders the trailing slot, empty or not. */
+  trailing: boolean;
 }
+
+const hasTrailingContent = (row: BarListRowBase): boolean =>
+  (row.value.kind === 'value' && row.value.contextText !== null) || row.badge !== undefined || row.delta !== undefined;
 
 /**
  * One row. The visual part is hidden from assistive technology and the row is read once, from `accessibleText`.
- * Below 448 px the value shares the label's line and the bar runs under it; from there on the bar fills the track and
- * the value sits in a fixed 112 px column after it, so a full-width bar never meets its value or the context (the value
- * is drawn for both layouts, and the container query shows one). A row without a bar (thin, none) writes its words in
- * flow in place of the bar, on its own line when narrow, and truncates them instead of overflowing.
+ * Below 448 px the value shares the label's line and the bar runs under it, and the trailing items (context, badge,
+ * change) sit on their own line. From 448 px the bar fills the track and the value sits in a fixed 112 px column after
+ * it, so a full-width bar never meets its value (the value is drawn for both layouts, and the container query shows
+ * one). Between 448 and 672 px the trailing items wrap onto a line of their own under the row. From 672 px they sit
+ * inline in a fixed 224 px slot, so the track is as wide on every row of the list and one percent is one length: the
+ * list decides whether the slot exists (`trailing`), and then every row renders it, empty when it has nothing to say.
+ * The slot wraps to a second line instead of overlapping, and the context truncates with a `title`. A row without a
+ * bar (thin, none) writes its words in flow in place of the bar, on its own line when narrow, and truncates them
+ * instead of overflowing; it takes the same space as a bar, so it never changes the track of another row.
  */
-function BarRow({ item, max, density }: BarRowProps): ReactElement {
+function BarRow({ item, max, density, trailing }: BarRowProps): ReactElement {
   const { row, fill, strong } = item;
   const compact = density === 'compact';
   const hasBar = row.value.kind === 'value';
   const pct = barPercent(row.value, max);
   const contextText = row.value.kind === 'value' ? row.value.contextText : null;
-  const hasTrailing = contextText !== null || row.badge !== undefined || row.delta !== undefined;
   const content = (
     <>
       <span className="sr-only">{row.accessibleText}</span>
-      <div aria-hidden="true" className="flex flex-col gap-1 py-1 @md:flex-row @md:items-center @md:gap-3">
+      <div
+        aria-hidden="true"
+        className="flex flex-col gap-1 py-1 @md:flex-row @md:flex-wrap @md:items-center @md:gap-x-3 @md:gap-y-1 @2xl:flex-nowrap"
+      >
         <div className="flex min-w-0 items-center gap-2 @md:w-40 @md:shrink-0">
           {row.icon}
           <span
@@ -199,10 +211,17 @@ function BarRow({ item, max, density }: BarRowProps): ReactElement {
             <ValueText bar={row.value} />
           </div>
         )}
-        {hasTrailing ? (
-          <div className="flex items-center gap-2 @md:shrink-0">
+        {trailing ? (
+          <div
+            data-slot="bar-list-trailing"
+            className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 empty:hidden @md:w-full @2xl:w-56 @2xl:shrink-0 @2xl:empty:flex"
+          >
             {contextText === null ? null : (
-              <span data-slot="bar-list-context" className="type-meta text-foreground-tertiary">
+              <span
+                data-slot="bar-list-context"
+                title={contextText}
+                className="max-w-full min-w-0 truncate type-meta text-foreground-tertiary"
+              >
                 {contextText}
               </span>
             )}
@@ -245,11 +264,12 @@ export function BarList(props: BarListProps): ReactElement {
   const items = barItems(props);
   const max = scaleMax(props);
   const shown = items.slice(0, Math.max(0, Math.min(props.limit ?? MAX_ROWS, MAX_ROWS)));
+  const trailing = shown.some((item) => hasTrailingContent(item.row));
   return (
     <div className="@container flex flex-col gap-2">
       <ul aria-label={caption} className="flex flex-col">
         {shown.map((item) => (
-          <BarRow key={item.row.id} item={item} max={max} density={density} />
+          <BarRow key={item.row.id} item={item} max={max} density={density} trailing={trailing} />
         ))}
       </ul>
       {shown.length < items.length && showAllHref !== undefined ? (
