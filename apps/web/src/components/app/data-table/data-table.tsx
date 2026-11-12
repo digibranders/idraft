@@ -20,6 +20,7 @@ import {
 import { toneOf } from './action-tone';
 import { BulkActionBar } from './bulk-action-bar';
 import { ColumnChooser } from './column-chooser';
+import { planHeader } from './column-groups';
 import { TableFooter } from './table-footer';
 import { DataTableToolbar } from './toolbar';
 import type { ActionScope, CellTip, DataTableColumn, DataTableProps, RecordAction, RowActions, RowTree } from './types';
@@ -42,6 +43,8 @@ import { cn } from '@/lib/utils';
 /** Row heights per density, as `h-row` and `h-row-compact` draw them (04-spacing-density.md). */
 const ROW_HEIGHT: Readonly<Record<Density, number>> = { default: 40, compact: 32 };
 const HEADER_HEIGHT = 40;
+/** The group row above the column headers, `h-6` (25-component-inventory.md section 16.2). */
+const GROUP_ROW_HEIGHT = 24;
 /** The identity column a person drags (or nudges) to a width of their own, in pixels. */
 const IDENTITY_RESIZE = { min: 120, leaveRoom: 160, menuStep: 40 } as const;
 /** When the columns overflow, the identity column stays pinned only while it leaves this much room for them. */
@@ -163,6 +166,7 @@ export function DataTable<TRow extends RowData>({
   toolbarEnd,
   compactToolbar = false,
   identityCap = false,
+  columnGroups = false,
   bulkActions,
   rowActions,
   rowName,
@@ -210,6 +214,13 @@ export function DataTable<TRow extends RowData>({
       ? []
       : [{ kind: 'actions' as const }]),
   ];
+  // The header: one row, or two when columns shown share a group (a group over one column collapses into
+  // that column's own tall header, so one engine's table has no group row)
+  const plan = columnGroups
+    ? planHeader(grid.map((column) => (column.kind === 'data' ? column.column.group : undefined)))
+    : null;
+  const headerRows = plan?.rows ?? 1;
+  const headerHeight = HEADER_HEIGHT + (headerRows === 2 ? GROUP_ROW_HEIGHT : 0);
 
   // Rows: searched and sorted here in client mode, as given in server mode and in tree mode (the caller
   // sends group rows with their rows in display order, which a search or a sort here would break)
@@ -361,7 +372,7 @@ export function DataTable<TRow extends RowData>({
     count,
     rowHeight,
     scrollTop,
-    viewport: regionSize.height - HEADER_HEIGHT,
+    viewport: regionSize.height - headerHeight,
     // The focused row, and the row focus returns to when the inspector closes, which may be far from view
     keep: [
       ...(current.row >= 0 ? [current.row] : []),
@@ -383,7 +394,7 @@ export function DataTable<TRow extends RowData>({
         rowHeight,
         scrollTop: element.scrollTop,
         viewport: element.clientHeight,
-        header: HEADER_HEIGHT,
+        header: headerHeight,
       });
       if (target !== null) element.scrollTop = target;
     }
@@ -391,7 +402,7 @@ export function DataTable<TRow extends RowData>({
     element
       .querySelector<HTMLElement>(`[data-cell="${String(row)}:${String(column)}"]`)
       ?.focus({ preventScroll: true });
-  }, [focusRequest, rowHeight]);
+  }, [focusRequest, rowHeight, headerHeight]);
   const moveTo = (cell: GridCell): void => {
     setFocus(cellAt(cell.row, cell.column));
     setFocusRequest((request) => ({ cell, seq: (request?.seq ?? 0) + 1 }));
@@ -630,7 +641,7 @@ export function DataTable<TRow extends RowData>({
     const size = {
       rows: showRows ? rows.length : 0,
       columns: grid.length,
-      pageRows: Math.floor((regionSize.height - HEADER_HEIGHT) / rowHeight),
+      pageRows: Math.floor((regionSize.height - headerHeight) / rowHeight),
     };
     const column = grid[current.column];
     const row = current.row >= 0 ? rows[current.row] : undefined;
@@ -852,10 +863,18 @@ export function DataTable<TRow extends RowData>({
   // Row positions for assistive technology (20-accessibility.md section 6.4): in server mode the page's
   // rows sit at their place in the whole list, and an unknown total is -1
   const rowOffset = server?.offset ?? 0;
-  // A message in the body (error, empty, no match) is one row after the header
+  // A message in the body (error, empty, no match) is one row after the header rows
   const showsMessage = status === 'error' || status === 'empty' || status === 'filtered-empty' || rows.length === 0;
   const rowCount =
-    status === 'loading' ? -1 : showsMessage ? 2 : serverMode ? (total === null ? -1 : total + 1) : rows.length + 1;
+    status === 'loading'
+      ? -1
+      : showsMessage
+        ? headerRows + 1
+        : serverMode
+          ? total === null
+            ? -1
+            : total + headerRows
+          : rows.length + headerRows;
   const bodyItems: ({ kind: 'gap'; key: string; height: number } | { kind: 'row'; row: TRow; index: number })[] = [];
   ranges.forEach((range, position) => {
     const height = gaps[position] ?? 0;
@@ -881,12 +900,113 @@ export function DataTable<TRow extends RowData>({
   };
 
   const bodyMessage = (content: ReactNode): ReactElement => (
-    <tr role="row" aria-rowindex={2}>
+    <tr role="row" aria-rowindex={headerRows + 1}>
       <td role="gridcell" colSpan={grid.length} className="p-0">
         {content}
       </td>
     </tr>
   );
+
+  // A column's header cell: the only one in a single header row (`single`), or in two rows either spanning both
+  // (`tall`, drawn in row 1) or under its group cell (`covered`, drawn in row 2). The roving focus is on these
+  // cells, as ever (row -1); a group cell is static text
+  const leafHeader = (column: GridColumn<TRow>, index: number, placement: 'single' | 'tall' | 'covered'): ReactNode => {
+    const left = stickyLeft(column);
+    const sortKey = column.kind === 'data' ? sort.find((key) => key.id === column.column.id) : undefined;
+    const definition = column.kind === 'data' ? column.column.headerTooltip : undefined;
+    const header = (
+      <th
+        key={keyOf(column)}
+        role="columnheader"
+        scope="col"
+        rowSpan={placement === 'tall' ? 2 : undefined}
+        aria-describedby={definition === undefined ? undefined : describe(`h${String(index)}`, { content: definition })}
+        {...cellProps(-1, index)}
+        aria-sort={
+          column.kind === 'data' && primarySort?.id === column.column.id
+            ? primarySort.desc
+              ? 'descending'
+              : 'ascending'
+            : undefined
+        }
+        style={left === null ? undefined : { left }}
+        className={cn(
+          'sticky',
+          // Under a group cell the header sits below the group row
+          placement === 'covered' ? 'top-6' : 'top-0',
+          'z-(--z-table-header) border-b border-border bg-surface-subtle px-3 align-middle font-normal outline-none focus-visible:focus-ring-inset',
+          // With two rows the last cell differs per row, so the divider goes by the column's place
+          placement === 'single'
+            ? 'not-last:border-r not-last:border-r-border-subtle'
+            : index < grid.length - 1 && 'border-r border-r-border-subtle',
+          left !== null && 'z-(--z-sticky)',
+          // The refetch bar: 2 px under the header while a refetch runs (17 section 3.4)
+          status === 'refetching' && 'after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary',
+          column.kind === 'select' && 'px-0 text-center',
+          column.kind === 'actions' && 'px-2 text-right',
+          column.kind === 'data' && ALIGN[COLUMN_TYPES[column.column.type].align],
+        )}
+      >
+        {column.kind === 'select' ? (
+          <Checkbox
+            checked={headerChecked}
+            label={t('selectAll', { count: pickIds.length, ...nouns })}
+            labelDisplay="visually-hidden"
+            tabIndex={-1}
+            onCheckedChange={toggleAll}
+            className="justify-center"
+          />
+        ) : column.kind === 'data' ? (
+          <HeaderContent
+            column={column.column}
+            sortKey={sortKey ?? null}
+            sortIndex={sortKey === undefined || sort.length < 2 ? null : sort.indexOf(sortKey) + 1}
+            onSort={(additive) => sortBy(column.column, additive)}
+            menuOpen={menuOpen('column', column.column.id)}
+            onMenuOpenChange={onMenuChange('column', column.column.id)}
+            finalFocus={() => cellElement(-1, index) ?? true}
+            items={columnMenu(column.column, sortKey !== undefined)}
+            optionsLabel={t('columnOptions', { column: column.column.header })}
+          />
+        ) : (
+          <span className="sr-only">{t('actionsColumn')}</span>
+        )}
+        {column.kind === 'data' && column.column.identity === true ? (
+          // A pointer affordance only, hidden from assistive technology (a labelled control inside
+          // the header would become part of the column's name): the column options menu has
+          // Wider, Narrower and Reset width for the keyboard and screen readers (WCAG 2.5.7).
+          <div
+            role="presentation"
+            data-resize-handle=""
+            className="absolute inset-y-0 right-0 w-2 cursor-col-resize touch-none hover:bg-border active:bg-primary"
+            onPointerDown={(event: PointerEvent<HTMLDivElement>) => {
+              event.preventDefault();
+              event.currentTarget.setPointerCapture(event.pointerId);
+              resizing.current = { x: event.clientX, width: identityNow };
+            }}
+            onPointerMove={(event: PointerEvent<HTMLDivElement>) => {
+              if (resizing.current !== null) {
+                resizeIdentity(resizing.current.width + event.clientX - resizing.current.x);
+              }
+            }}
+            onPointerUp={() => {
+              resizing.current = null;
+            }}
+            onDoubleClick={() => setIdentityWidth(null)}
+          />
+        ) : null}
+      </th>
+    );
+    return definition === undefined ? (
+      header
+    ) : (
+      <Tooltip key={keyOf(column)} content={definition} side="bottom" purpose="label">
+        {header}
+      </Tooltip>
+    );
+  };
+  // What a column is in a two row header (`tall` when there is only one row)
+  const slotKind = (index: number): 'group' | 'tall' | 'covered' => plan?.slots[index]?.kind ?? 'tall';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-surface">
@@ -980,99 +1100,42 @@ export function DataTable<TRow extends RowData>({
             ))}
           </colgroup>
           <thead role="rowgroup">
-            <tr role="row" aria-rowindex={1} className="h-row-header">
-              {grid.map((column, index) => {
-                const left = stickyLeft(column);
-                const sortKey = column.kind === 'data' ? sort.find((key) => key.id === column.column.id) : undefined;
-                const definition = column.kind === 'data' ? column.column.headerTooltip : undefined;
-                const header = (
-                  <th
-                    key={keyOf(column)}
-                    role="columnheader"
-                    scope="col"
-                    aria-describedby={
-                      definition === undefined ? undefined : describe(`h${String(index)}`, { content: definition })
+            {headerRows === 2 ? (
+              <>
+                <tr role="row" aria-rowindex={1}>
+                  {grid.map((column, index) => {
+                    const slot = plan?.slots[index];
+                    if (slot?.kind === 'group') {
+                      return (
+                        <th
+                          key={`group-${String(index)}`}
+                          role="columnheader"
+                          scope="colgroup"
+                          colSpan={slot.span}
+                          className={cn(
+                            'sticky top-0 z-(--z-table-header) h-6 border-b border-border-subtle bg-surface-subtle px-3 text-left align-middle font-normal',
+                            index + slot.span < grid.length && 'border-r border-r-border-subtle',
+                          )}
+                        >
+                          <span className="block truncate type-table-header">{slot.group.label}</span>
+                        </th>
+                      );
                     }
-                    {...cellProps(-1, index)}
-                    aria-sort={
-                      column.kind === 'data' && primarySort?.id === column.column.id
-                        ? primarySort.desc
-                          ? 'descending'
-                          : 'ascending'
-                        : undefined
-                    }
-                    style={left === null ? undefined : { left }}
-                    className={cn(
-                      'sticky top-0 z-(--z-table-header) border-b border-border bg-surface-subtle px-3 align-middle font-normal outline-none focus-visible:focus-ring-inset',
-                      'not-last:border-r not-last:border-r-border-subtle',
-                      left !== null && 'z-(--z-sticky)',
-                      // The refetch bar: 2 px under the header while a refetch runs (17 section 3.4)
-                      status === 'refetching' &&
-                        'after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary',
-                      column.kind === 'select' && 'px-0 text-center',
-                      column.kind === 'actions' && 'px-2 text-right',
-                      column.kind === 'data' && ALIGN[COLUMN_TYPES[column.column.type].align],
-                    )}
-                  >
-                    {column.kind === 'select' ? (
-                      <Checkbox
-                        checked={headerChecked}
-                        label={t('selectAll', { count: pickIds.length, ...nouns })}
-                        labelDisplay="visually-hidden"
-                        tabIndex={-1}
-                        onCheckedChange={toggleAll}
-                        className="justify-center"
-                      />
-                    ) : column.kind === 'data' ? (
-                      <HeaderContent
-                        column={column.column}
-                        sortKey={sortKey ?? null}
-                        sortIndex={sortKey === undefined || sort.length < 2 ? null : sort.indexOf(sortKey) + 1}
-                        onSort={(additive) => sortBy(column.column, additive)}
-                        menuOpen={menuOpen('column', column.column.id)}
-                        onMenuOpenChange={onMenuChange('column', column.column.id)}
-                        finalFocus={() => cellElement(-1, index) ?? true}
-                        items={columnMenu(column.column, sortKey !== undefined)}
-                        optionsLabel={t('columnOptions', { column: column.column.header })}
-                      />
-                    ) : (
-                      <span className="sr-only">{t('actionsColumn')}</span>
-                    )}
-                    {column.kind === 'data' && column.column.identity === true ? (
-                      // A pointer affordance only, hidden from assistive technology (a labelled control inside
-                      // the header would become part of the column's name): the column options menu has
-                      // Wider, Narrower and Reset width for the keyboard and screen readers (WCAG 2.5.7).
-                      <div
-                        role="presentation"
-                        data-resize-handle=""
-                        className="absolute inset-y-0 right-0 w-2 cursor-col-resize touch-none hover:bg-border active:bg-primary"
-                        onPointerDown={(event: PointerEvent<HTMLDivElement>) => {
-                          event.preventDefault();
-                          event.currentTarget.setPointerCapture(event.pointerId);
-                          resizing.current = { x: event.clientX, width: identityNow };
-                        }}
-                        onPointerMove={(event: PointerEvent<HTMLDivElement>) => {
-                          if (resizing.current !== null) {
-                            resizeIdentity(resizing.current.width + event.clientX - resizing.current.x);
-                          }
-                        }}
-                        onPointerUp={() => {
-                          resizing.current = null;
-                        }}
-                        onDoubleClick={() => setIdentityWidth(null)}
-                      />
-                    ) : null}
-                  </th>
-                );
-                return definition === undefined ? (
-                  header
-                ) : (
-                  <Tooltip key={keyOf(column)} content={definition} side="bottom" purpose="label">
-                    {header}
-                  </Tooltip>
-                );
-              })}
-            </tr>
+                    // A column under a group cell has its header in row 2; the others span both rows
+                    return slot?.kind === 'covered' ? null : leafHeader(column, index, 'tall');
+                  })}
+                </tr>
+                <tr role="row" aria-rowindex={2} className="h-row-header">
+                  {grid.map((column, index) =>
+                    slotKind(index) === 'tall' ? null : leafHeader(column, index, 'covered'),
+                  )}
+                </tr>
+              </>
+            ) : (
+              <tr role="row" aria-rowindex={1} className="h-row-header">
+                {grid.map((column, index) => leafHeader(column, index, 'single'))}
+              </tr>
+            )}
           </thead>
           <tbody role="rowgroup">
             {status === 'loading'
@@ -1120,7 +1183,7 @@ export function DataTable<TRow extends RowData>({
                           <tr
                             key={id}
                             role="row"
-                            aria-rowindex={rowOffset + index + 2}
+                            aria-rowindex={rowOffset + index + headerRows + 1}
                             aria-level={tree?.level}
                             aria-setsize={tree?.setSize}
                             aria-posinset={tree?.posInSet}

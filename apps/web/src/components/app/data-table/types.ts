@@ -47,6 +47,12 @@ export interface ActionScope {
 /** A visible-at-width tier (19-responsive-behavior.md section 6.1): 1 always, 2 from 1280 px, 3 from 1440 px, 4 from 1680 px. */
 export type ColumnPriority = 1 | 2 | 3 | 4;
 
+/** A header cell over the adjacent shown columns that share it (24-page-templates.md 9.5). `label` is already translated. */
+export interface ColumnGroup {
+  id: string;
+  label: string;
+}
+
 /** A column as `col.*` builds it. Screens never set widths, alignment or formatting by hand. */
 export interface DataTableColumn<TRow> {
   id: string;
@@ -77,6 +83,8 @@ export interface DataTableColumn<TRow> {
   width?: number | undefined;
   /** The narrowest the column may be squeezed to, when its header needs more than its type's minimum. */
   minWidth?: number | undefined;
+  /** The group header over this column and the adjacent shown columns that share it; drawn only with `columnGroups`. */
+  group?: ColumnGroup | undefined;
   /** The identity column: the row header, always visible, pinned left. */
   identity?: boolean | undefined;
   /** Shown by default; the others wait in the column chooser. */
@@ -211,6 +219,8 @@ export interface DataTableProps<TRow> {
    * (`resolveWidths` with `capIdentity`): for a table that shows few columns, the By group view.
    */
   identityCap?: boolean;
+  /** Opt in: draw a group row over columns that share a `group`. Off: one header row, as before. */
+  columnGroups?: boolean;
   bulkActions?: readonly RecordAction<TRow>[] | undefined;
   /**
    * The actions of a row's menu: one list for every row, or a function of the row for actions that not

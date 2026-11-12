@@ -4,7 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 
 import { col } from './columns';
 import { DataTable } from './data-table';
-import type { DataTableColumn, RecordAction, RowActions, RowTree, Selection, ServerPaging, TableStatus } from './types';
+import type {
+  ColumnGroup,
+  DataTableColumn,
+  RecordAction,
+  RowActions,
+  RowTree,
+  Selection,
+  ServerPaging,
+  TableStatus,
+} from './types';
 import { CopyButton } from '@/components/app/cells/copy-button';
 import { InspectorOverlayContext } from '@/components/app/inspector/inspector-layout';
 import { CELL_CONTROL } from '@/lib/tables/grid-focus';
@@ -1854,6 +1863,218 @@ describe('DataTable tree mode', () => {
 
   it('passes the accessibility check', async () => {
     const { container } = renderWithProviders(<TreeHarness />);
+    expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('DataTable column groups', () => {
+  const ENGINE_A: ColumnGroup = { id: 'engine-a', label: 'Engine A' };
+  const ENGINE_B: ColumnGroup = { id: 'engine-b', label: 'Engine B' };
+  // No column has a tooltip here, so the header markup holds no generated ids that differ between two renders
+  const columnsOf = (grouped: boolean): DataTableColumn<Row>[] => [
+    col.keyword<Row>('keyword', (row) => row.keyword, { header: 'Keyword' }),
+    col.volume<Row>('volume', (row) => row.volume, { header: 'Volume', group: grouped ? ENGINE_A : undefined }),
+    col.count<Row>('difficulty', (row) => row.difficulty, { header: 'KD', group: grouped ? ENGINE_A : undefined }),
+    col.count<Row>('rank', (row) => row.difficulty + 1, { header: 'Rank', group: grouped ? ENGINE_B : undefined }),
+    col.count<Row>('score', (row) => row.difficulty + 2, { header: 'Score', group: grouped ? ENGINE_B : undefined }),
+  ];
+  const GROUPED = columnsOf(true);
+  const SELECTION_STATE = { matchingTotal: null, allMatching: false, onAllMatchingChange: vi.fn() };
+
+  function GroupHarness({
+    rows = rowsOf(3),
+    columns = GROUPED,
+    columnGroups = true,
+    server,
+    status = 'ready',
+  }: {
+    rows?: Row[];
+    columns?: readonly DataTableColumn<Row>[];
+    columnGroups?: boolean;
+    server?: ServerPaging;
+    status?: TableStatus;
+  }): ReactElement {
+    const [sort, setSort] = useState<readonly SortKey[]>(DEFAULT_SORT);
+    const [visible, setVisible] = useState<readonly string[] | null>(null);
+    const [search, setSearch] = useState('');
+    const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+    return (
+      <div className="flex h-200 flex-col">
+        <DataTable<Row>
+          caption="Keywords"
+          itemNoun={{ one: 'keyword', other: 'keywords' }}
+          columns={columns}
+          columnGroups={columnGroups}
+          getRowId={rowId}
+          rows={rows}
+          total={server === undefined ? rows.length : 4812}
+          server={server}
+          sort={sort}
+          onSortChange={setSort}
+          defaultSort={DEFAULT_SORT}
+          density="compact"
+          onDensityChange={vi.fn()}
+          columnState={{ visible, onChange: setVisible }}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search keywords"
+          searchText={keywordOf}
+          selection={{ ...SELECTION_STATE, selectedIds: selected, onChange: setSelected }}
+          rowActions={ACTIONS}
+          rowName={keywordOf}
+          onRowOpen={onOpen}
+          status={status}
+          errorState={<p>The keywords did not load.</p>}
+          emptyState={<p>No keywords yet.</p>}
+          filteredEmptyState={<p>No keywords match.</p>}
+        />
+      </div>
+    );
+  }
+
+  const headerRowElements = (): HTMLElement[] => [...grid().querySelectorAll<HTMLElement>('thead tr')];
+  const headerCell = (name: RegExp | string): HTMLElement => within(grid()).getByRole('columnheader', { name });
+  /** The header markup without the attributes that carry generated ids. */
+  const headMarkup = (): string =>
+    (grid().querySelector('thead')?.innerHTML ?? '').replace(/ (?:id|for|aria-\w+)="[^"]*"/g, '');
+  const cellOf = (row: number, column: number): HTMLElement => {
+    const cell = grid().querySelector<HTMLElement>(`[data-cell="${String(row)}:${String(column)}"]`);
+    if (cell === null) throw new Error(`No cell ${String(row)}:${String(column)}`);
+    return cell;
+  };
+
+  it('draws one header row when columns have groups but columnGroups is off', () => {
+    const { unmount } = renderWithProviders(<GroupHarness columns={GROUPED} columnGroups={false} />);
+    const withGroups = headMarkup();
+    expect(headerRowElements()).toHaveLength(1);
+    expect(headerRowElements()[0]).toHaveClass('h-row-header');
+    expect(screen.queryByRole('columnheader', { name: 'Engine A' })).toBeNull();
+    unmount();
+    renderWithProviders(<GroupHarness columns={columnsOf(false)} columnGroups={false} />);
+    expect(headMarkup()).toBe(withGroups);
+  });
+
+  it('draws a group cell with colSpan over its columns and one sortable header per column', async () => {
+    const { user } = renderWithProviders(<GroupHarness />);
+    const engineA = headerCell('Engine A');
+    expect(engineA).toHaveAttribute('colspan', '2');
+    expect(engineA).toHaveAttribute('scope', 'colgroup');
+    expect(engineA).toHaveClass('h-6');
+    expect(headerCell('Engine B')).toHaveAttribute('colspan', '2');
+    // A group cell is static text: no tab stop, no sort, no options menu
+    expect(engineA).not.toHaveAttribute('tabindex');
+    expect(engineA).not.toHaveAttribute('data-cell');
+    expect(within(engineA).queryByRole('button')).toBeNull();
+    // Columns under a group have their own header in the second row; the others span both rows
+    const [first, second] = headerRowElements();
+    expect(first).toContainElement(engineA);
+    expect(second).toContainElement(headerCell(/^Volume/));
+    expect(second).toContainElement(headerCell(/^KD/));
+    expect(second).toContainElement(headerCell(/^Score/));
+    expect(first).toContainElement(headerCell(/^Keyword/));
+    for (const name of [/^Keyword/, /^Actions/]) expect(headerCell(name)).toHaveAttribute('rowspan', '2');
+    expect(cellOf(-1, 0)).toHaveAttribute('rowspan', '2');
+    expect(headerCell(/^Volume/)).not.toHaveAttribute('rowspan');
+    // One sortable header per column
+    expect(headerCell(/^KD/)).not.toHaveAttribute('aria-sort');
+    await user.click(within(headerCell(/^KD/)).getByRole('button', { name: 'KD' }));
+    expect(headerCell(/^KD/)).toHaveAttribute('aria-sort');
+    expect(headerCell(/^Volume/)).not.toHaveAttribute('aria-sort');
+  });
+
+  it('numbers header rows 1 and 2, body rows from 3, and counts both in aria-rowcount (client and server mode)', () => {
+    const { unmount } = renderWithProviders(<GroupHarness rows={rowsOf(3)} />);
+    expect(grid()).toHaveAttribute('aria-rowcount', '5');
+    const rows = within(grid()).getAllByRole('row');
+    expect(rows.map((row) => row.getAttribute('aria-rowindex'))).toEqual(['1', '2', '3', '4', '5']);
+    unmount();
+    const server = renderWithProviders(<GroupHarness rows={rowsOf(3)} server={SERVER_PAGE} />);
+    expect(grid()).toHaveAttribute('aria-rowcount', '4814');
+    expect(within(grid()).getAllByRole('row')[2]).toHaveAttribute('aria-rowindex', '203');
+    server.unmount();
+    // A message in the body is the row after both header rows
+    renderWithProviders(<GroupHarness rows={[]} status="empty" />);
+    expect(grid()).toHaveAttribute('aria-rowcount', '3');
+    expect(within(grid()).getAllByRole('row')[2]).toHaveAttribute('aria-rowindex', '3');
+  });
+
+  it("collapses a group to the column's own tall header when the chooser hides all but one of its columns", async () => {
+    const { user } = renderWithProviders(<GroupHarness />);
+    await user.click(screen.getByRole('button', { name: 'KD column options' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Hide column' }));
+    expect(screen.queryByRole('columnheader', { name: 'Engine A' })).toBeNull();
+    expect(headerCell(/^Volume/)).toHaveAttribute('rowspan', '2');
+    expect(headerRowElements()[0]).toContainElement(headerCell(/^Volume/));
+    // The other group still spans, so two header rows remain
+    expect(headerCell('Engine B')).toHaveAttribute('colspan', '2');
+    expect(headerRowElements()).toHaveLength(2);
+    expect(grid()).toHaveAttribute('aria-rowcount', '5');
+  });
+
+  it('keeps one header row when every group has one shown column', () => {
+    const lone = [
+      col.keyword<Row>('keyword', (row) => row.keyword, { header: 'Keyword' }),
+      col.volume<Row>('volume', (row) => row.volume, { header: 'Volume', group: ENGINE_A }),
+      col.count<Row>('rank', (row) => row.difficulty + 1, { header: 'Rank', group: ENGINE_B }),
+    ];
+    renderWithProviders(<GroupHarness columns={lone} />);
+    expect(headerRowElements()).toHaveLength(1);
+    expect(headerRowElements()[0]).toHaveClass('h-row-header');
+    expect(screen.queryByRole('columnheader', { name: 'Engine A' })).toBeNull();
+    expect(grid().querySelector('[rowspan]')).toBeNull();
+    expect(grid()).toHaveAttribute('aria-rowcount', '4');
+    expect(within(grid()).getAllByRole('row')[1]).toHaveAttribute('aria-rowindex', '2');
+  });
+
+  it('keeps roving focus on the leaf header row: ArrowUp from the first body row lands on a column header and Enter sorts', async () => {
+    const { user } = renderWithProviders(<GroupHarness />);
+    expect(headerCell('Engine A')).toBeInTheDocument();
+    act(() => cellOf(0, 3).focus());
+    await user.keyboard('{ArrowUp}');
+    expect(document.activeElement).toBe(headerCell(/^KD/));
+    expect((document.activeElement as HTMLElement).dataset.cell).toBe('-1:3');
+    await user.keyboard('{Enter}');
+    expect(headerCell(/^KD/)).toHaveAttribute('aria-sort');
+    // The group cell is not in the tab order: the one tab stop is on a leaf header
+    expect(grid().querySelectorAll('[tabindex="0"]')).toHaveLength(1);
+  });
+
+  it("sets the leaf header's sticky offset below the group row and leaves rowWindow math in step (page keys move by the same rows)", async () => {
+    class TallObserver {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element): void {
+        this.callback(
+          [{ target, contentRect: { width: 1600, height: 520 } } as unknown as ResizeObserverEntry],
+          this as unknown as ResizeObserver,
+        );
+      }
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal('ResizeObserver', TallObserver);
+    const { user, unmount } = renderWithProviders(<GroupHarness rows={rowsOf(40)} />);
+    expect(headerCell('Engine A')).toHaveClass('top-0');
+    expect(headerCell(/^Volume/)).toHaveClass('top-6');
+    expect(headerCell(/^Keyword/)).toHaveClass('top-0');
+    // A 520 px view shows 15 rows under a 40 px header and 14 under the 64 px two row header; a page key moves one less
+    act(() => cellOf(0, 1).focus());
+    await user.keyboard('{PageDown}');
+    expect((document.activeElement as HTMLElement).dataset.cell).toBe('13:1');
+    unmount();
+    renderWithProviders(<GroupHarness rows={rowsOf(40)} columnGroups={false} />);
+    act(() => cellOf(0, 1).focus());
+    await user.keyboard('{PageDown}');
+    expect((document.activeElement as HTMLElement).dataset.cell).toBe('14:1');
+  });
+
+  it('puts no aria-colindex on any cell', () => {
+    renderWithProviders(<GroupHarness />);
+    expect(grid().querySelector('[aria-colindex]')).toBeNull();
+    expect(grid()).not.toHaveAttribute('aria-colcount');
+  });
+
+  it('passes the accessibility check with groups', async () => {
+    const { container } = renderWithProviders(<GroupHarness />);
     expect(await axe(container)).toHaveNoViolations();
   });
 });
