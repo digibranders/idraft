@@ -513,24 +513,7 @@ class ScheduleService:
     ) -> ScheduleRecord:
         """Not planned until resumed. Pausing a paused schedule changes nothing."""
         async with self._transaction(access) as db:
-            current = await self._found(db, access, project_id, schedule_id)
-            if not current.is_active:
-                return current
-            paused = await repository.update_schedule(
-                db, access.workspace_id, schedule_id, {"is_active": False}
-            )
-            await audit.record(
-                db,
-                workspace_id=access.workspace_id,
-                actor_id=access.user_id,
-                action="schedule.paused",
-                target_type="schedule",
-                target_id=schedule_id,
-                info=info,
-                before={"is_active": True},
-                after={"is_active": False, "reason": body.reason},
-            )
-        return paused
+            return await pause_schedule(db, access, project_id, schedule_id, body, info)
 
     async def resume(
         self, access: WorkspaceAccess, project_id: UUID, schedule_id: UUID, info: RequestInfo
@@ -595,3 +578,33 @@ def _days(
     else:
         month_day = None
     return weekday, month_day, errors
+
+
+async def pause_schedule(
+    db: AsyncSession,
+    access: WorkspaceAccess,
+    project_id: UUID,
+    schedule_id: UUID,
+    body: SchedulePause,
+    info: RequestInfo,
+) -> ScheduleRecord:
+    """`ScheduleService.pause` in the caller's transaction (the dev seed pauses the AI schedules
+    in the transaction that made them). Pausing a paused schedule changes nothing."""
+    current = await ScheduleService._found(db, access, project_id, schedule_id)
+    if not current.is_active:
+        return current
+    paused = await repository.update_schedule(
+        db, access.workspace_id, schedule_id, {"is_active": False}
+    )
+    await audit.record(
+        db,
+        workspace_id=access.workspace_id,
+        actor_id=access.user_id,
+        action="schedule.paused",
+        target_type="schedule",
+        target_id=schedule_id,
+        info=info,
+        before={"is_active": True},
+        after={"is_active": False, "reason": body.reason},
+    )
+    return paused

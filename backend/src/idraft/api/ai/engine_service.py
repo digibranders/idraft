@@ -80,6 +80,59 @@ async def _views(
     return views
 
 
+async def put_engine(
+    db: AsyncSession,
+    access: WorkspaceAccess,
+    project_id: UUID,
+    engine_code: EngineCode,
+    body: EngineUpdate,
+    info: RequestInfo,
+) -> EngineView:
+    """`EngineService.put` in the caller's transaction, so the caller can do more in it before
+    anything commits (the dev seed pauses the schedules this makes: idraft.devseed.engines)."""
+    engine = ENGINES[engine_code]
+    location_ids = sorted(set(body.location_ids))
+    await live_project(db, access, project_id, lock=True)
+    runnable = await repository.runnable_locations(db, engine, location_ids)
+    if set(location_ids) - runnable:
+        raise invalid_field(
+            "location_ids",
+            code="location_not_supported",
+            message=f"{engine.label} runs in active countries only.",
+        )
+    before = await repository.get_project_engine(db, access.workspace_id, project_id, engine_code)
+    await repository.save_project_engine(
+        db,
+        workspace_id=access.workspace_id,
+        project_id=project_id,
+        engine_code=engine_code,
+        location_ids=location_ids,
+        is_enabled=body.is_enabled,
+    )
+    # Only when the engine goes from off to on: saving the countries of an engine that is
+    # already on must not bring back schedules a person deleted.
+    if body.is_enabled and (before is None or not before.is_enabled):
+        await ensure_ai_schedule(
+            db,
+            workspace_id=access.workspace_id,
+            project_id=project_id,
+            now=datetime.now(UTC),
+        )
+    (view,) = await _views(db, access.workspace_id, project_id, [engine_code])
+    await audit.record(
+        db,
+        workspace_id=access.workspace_id,
+        actor_id=access.user_id,
+        action="project_engine.updated",
+        target_type="project",
+        target_id=project_id,
+        info=info,
+        before=_snapshot(before),
+        after=_snapshot(view.configured),
+    )
+    return view
+
+
 class EngineService:
     def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
@@ -101,50 +154,8 @@ class EngineService:
         body: EngineUpdate,
         info: RequestInfo,
     ) -> EngineView:
-        engine = ENGINES[engine_code]
-        location_ids = sorted(set(body.location_ids))
         async with self._transaction(access) as db:
-            await live_project(db, access, project_id, lock=True)
-            runnable = await repository.runnable_locations(db, engine, location_ids)
-            if set(location_ids) - runnable:
-                raise invalid_field(
-                    "location_ids",
-                    code="location_not_supported",
-                    message=f"{engine.label} runs in active countries only.",
-                )
-            before = await repository.get_project_engine(
-                db, access.workspace_id, project_id, engine_code
-            )
-            await repository.save_project_engine(
-                db,
-                workspace_id=access.workspace_id,
-                project_id=project_id,
-                engine_code=engine_code,
-                location_ids=location_ids,
-                is_enabled=body.is_enabled,
-            )
-            # Only when the engine goes from off to on: saving the countries of an engine that
-            # is already on must not bring back schedules a person deleted.
-            if body.is_enabled and (before is None or not before.is_enabled):
-                await ensure_ai_schedule(
-                    db,
-                    workspace_id=access.workspace_id,
-                    project_id=project_id,
-                    now=datetime.now(UTC),
-                )
-            (view,) = await _views(db, access.workspace_id, project_id, [engine_code])
-            await audit.record(
-                db,
-                workspace_id=access.workspace_id,
-                actor_id=access.user_id,
-                action="project_engine.updated",
-                target_type="project",
-                target_id=project_id,
-                info=info,
-                before=_snapshot(before),
-                after=_snapshot(view.configured),
-            )
-        return view
+            return await put_engine(db, access, project_id, engine_code, body, info)
 
     async def delete(
         self, access: WorkspaceAccess, project_id: UUID, engine_code: EngineCode, info: RequestInfo
