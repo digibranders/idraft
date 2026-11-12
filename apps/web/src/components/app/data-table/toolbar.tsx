@@ -11,6 +11,7 @@ import { Menu } from '@/components/ui/menu';
 import { Spinner } from '@/components/ui/spinner';
 import { useShortcut } from '@/lib/a11y/use-shortcut';
 import { DENSITIES, type Density } from '@/lib/tables/table-state';
+import { cn } from '@/lib/utils';
 
 /** The longest search the box takes: the API's text filters take 200 characters (`QueryText`). */
 const SEARCH_MAX_LENGTH = 200;
@@ -33,6 +34,11 @@ export interface DataTableToolbarProps {
   start?: ReactNode;
   /** The view switch, at the end of the bar before density and columns. */
   end?: ReactNode;
+  /**
+   * A toolbar that must stay on one row beside a view switch: the search flexes on a phone, the count is left to the
+   * footer below 640 px, and the sort summary is read, not shown, below 1440 px.
+   */
+  compact?: boolean | undefined;
 }
 
 /**
@@ -52,6 +58,7 @@ export function DataTableToolbar({
   columns,
   start,
   end,
+  compact = false,
 }: DataTableToolbarProps): ReactElement {
   const t = useTranslations('dataTable');
   const input = useRef<HTMLInputElement>(null);
@@ -67,8 +74,15 @@ export function DataTableToolbar({
     // 48 px on one line; on a narrow table the bar wraps rather than scrolling the page sideways
     <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle px-3 py-2">
       {start}
-      {/* On a phone the search takes what the start slot leaves of the row, and the controls go to the next one */}
-      <InputGroup leadingIcon={Search} size="sm" className="max-w-full min-w-0 flex-1 basis-32 sm:w-64 sm:flex-none">
+      <InputGroup
+        leadingIcon={Search}
+        size="sm"
+        className={cn(
+          'max-w-full min-w-0',
+          // Compact: on a phone the search takes what the start slot leaves of the row, and the controls go to the next
+          compact ? 'flex-1 basis-32 sm:w-64 sm:flex-none' : 'w-64',
+        )}
+      >
         <Input
           ref={input}
           size="sm"
@@ -84,12 +98,14 @@ export function DataTableToolbar({
         />
       </InputGroup>
       {/* The table announces a new count itself, so it is heard while the bulk bar is up as well */}
-      {/* The footer has the count too, so a phone's row keeps its room for the search */}
+      {/* Compact: the footer has the count too, so a phone's row keeps its room for the search */}
       {countText === null ? null : (
-        <p className="hidden shrink-0 num type-meta whitespace-nowrap sm:block">{countText}</p>
+        <p className={cn('shrink-0 num type-meta whitespace-nowrap', compact && 'hidden sm:block')}>{countText}</p>
       )}
-      {/* Shown from 1536 px, so the toolbar stays on one row below it, and always readable, since aria-sort names only the first key */}
-      {sortSummary === null ? null : <p className="sr-only type-meta 2xl:not-sr-only">{sortSummary}</p>}
+      {/* Shown from 1280 px (compact: from 1440 px, so the bar stays on one row), and always readable, since aria-sort names only the first key */}
+      {sortSummary === null ? null : (
+        <p className={cn('sr-only type-meta', compact ? '2xl:not-sr-only' : 'xl:not-sr-only')}>{sortSummary}</p>
+      )}
       {updating ? (
         <p className="flex items-center gap-1.5 type-meta">
           <Spinner size="sm" />

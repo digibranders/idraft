@@ -148,15 +148,16 @@ export function usePromptColumns(engines: readonly ProjectEngine[], metric: Rate
           },
         ),
         cellTip: (row) =>
-          // A topic at the top of the tree sits nowhere else: its name is all there is to say
-          row.topicList.some((topic) => topic.path !== topic.name)
-            ? {
+          // Always there, since the badge ends in an ellipsis when the name is long and the cell is what the keyboard
+          // reaches: the path where the topic sits deeper in the tree, else its name
+          row.topicList.length === 0
+            ? undefined
+            : {
                 content: formatList(
                   row.topicList.map((topic) => topic.path),
                   locale,
                 ),
-              }
-            : undefined,
+              },
       },
       col.text<PromptRow>(SORT_ID.country, (row) => row.country, {
         header: t('columns.country'),

@@ -191,6 +191,8 @@ export interface DataTableProps<TRow> {
   toolbarEnd?: ReactNode;
   /** A slot at the start of the toolbar, before the search: the switch between the views of a page. */
   toolbarStart?: ReactNode;
+  /** Opt in to the compact toolbar (`DataTableToolbar` `compact`): one row beside a view switch, down to a phone. */
+  compactToolbar?: boolean;
   /**
    * Hold the identity column at its type maximum while the other columns can still widen toward theirs
    * (`resolveWidths` with `capIdentity`): for a table that shows few columns, the By group view.

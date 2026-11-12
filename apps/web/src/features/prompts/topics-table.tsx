@@ -290,9 +290,12 @@ export function TopicsTable({
     const found = buildTopicTree(summary.topics, tree, (termId) => !filtering || topicRowKept(termId, kept)).flatMap(
       ({ row, children }): TopicBranch<TopicHead>[] => {
         const parent = headOf(row, 1);
-        if (!matches(parent)) return [];
-        // A parent that the search finds by its own name keeps all of its topics; otherwise those the search finds
         const below = children.map((child) => headOf(child, 2));
+        // A topic below is found by its own name even when the parent's name is not: the parent stays to hold it
+        if (!matches(parent) && !below.some(nameMatches)) return [];
+        // A parent that the search finds by its own name keeps all of its topics; otherwise those the search finds.
+        // A parent found only by the text of its prompts may keep none: it then opens onto its prompts, as a topic
+        // without topics below does, and its chevron says so
         return [{ row: parent, children: nameMatches(parent) ? below : below.filter(matches) }];
       },
     );
@@ -434,6 +437,7 @@ export function TopicsTable({
         onSortChange={(next) => onSortTextChange(sameSort(next, DEFAULT_TOPIC_SORT) ? null : formatSort(next))}
         defaultSort={DEFAULT_TOPIC_SORT}
         toolbarStart={toolbarStart}
+        compactToolbar
         toolbarEnd={
           groupKeys.length === 0 ? undefined : (
             <Button variant="ghost" size="sm" icon={allOpen ? ChevronsDownUp : ChevronsUpDown} onClick={toggleAll}>

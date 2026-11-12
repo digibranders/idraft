@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -9,6 +9,9 @@ import { cn } from '@/lib/utils';
 
 /** A cell is at least this wide before a page strip wraps to two rows (23 section 2.3). */
 const MIN_CELL = 140;
+/** Ends of the ids that tie an inline chip's value to its label, after the strip's own id and the item's. */
+const TERM_SUFFIX = '-term';
+const VALUE_SUFFIX = '-value';
 
 export interface MetricStripItem {
   id: string;
@@ -75,6 +78,7 @@ function columnsFor(count: number, width: number | null, size: 'md' | 'sm' | 'in
  * Between channel groups the divider is the stronger border.
  */
 export function MetricStrip({ size, label, groups, status, nowrap = false }: MetricStripProps): ReactElement {
+  const ids = useId();
   const panel = useRef<HTMLDListElement>(null);
   const [width, setWidth] = useState<number | null>(null);
   useEffect(() => {
@@ -97,17 +101,23 @@ export function MetricStrip({ size, label, groups, status, nowrap = false }: Met
         <dl className={cn('flex items-baseline gap-x-5 gap-y-1', nowrap ? 'flex-nowrap' : 'flex-wrap')}>
           {items.map(({ item }) => {
             const tipped = item.tip !== undefined && status !== 'loading';
+            const termId = ids + item.id + TERM_SUFFIX;
+            const valueId = ids + item.id + VALUE_SUFFIX;
             return (
               <div
                 key={item.id}
                 title={tipped ? undefined : (item.context ?? undefined)}
                 className={cn('flex min-w-0 items-baseline gap-1.5', nowrap && 'shrink-0')}
               >
-                <dt className="type-meta text-foreground-tertiary">{item.label}</dt>
+                <dt id={termId} className="type-meta text-foreground-tertiary">
+                  {item.label}
+                </dt>
                 <Tooltip content={item.tip ?? ''} disabled={!tipped}>
                   <dd
-                    // A chip with counts in its tooltip is a tab stop that opens it (20 section 6.2 rule 6)
-                    {...(tipped ? { tabIndex: 0 } : {})}
+                    id={valueId}
+                    // A chip with counts in its tooltip is a tab stop that opens it (20 section 6.2 rule 6), named by
+                    // its label and its value
+                    {...(tipped ? { tabIndex: 0, 'aria-labelledby': `${termId} ${valueId}` } : {})}
                     className={cn(
                       'flex items-baseline gap-1.5',
                       tipped && '-mx-1 rounded-sm px-1 outline-none focus-visible:focus-ring-inset',

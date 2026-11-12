@@ -649,7 +649,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         </div>
         <div className="ml-auto flex h-control shrink-0 items-center gap-3">
           {updatedText === null ? null : (
-            // The row has room for it from 1280 px; a narrower one has it in the More actions menu
+            // Shown while the header's container is at least 64rem wide (about a 1280 px window with the sidebar open); a narrower one has it in the More actions menu
             <Tooltip content={windowCaption} purpose="label" side="bottom">
               <span className="hidden type-meta whitespace-nowrap @5xl:inline">{updatedText}</span>
             </Tooltip>
@@ -785,6 +785,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 activeRowId={selectedPrompt}
                 onRowOrderChange={setOrder}
                 toolbarStart={viewSwitch}
+                compactToolbar
               />
             </div>
           </div>

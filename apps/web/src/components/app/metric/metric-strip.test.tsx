@@ -142,6 +142,8 @@ describe('MetricStrip', () => {
     expect(plain).not.toHaveAttribute('tabindex');
     expect(tipped).toHaveAttribute('tabindex', '0');
     expect(tipped).toHaveAccessibleDescription('Mentioned: 4 of 8 answers');
+    // The tab stop is named by its label and its value, so it is not read as a bare "50%"
+    expect(tipped).toHaveAccessibleName('ChatGPT 50%');
     // The tooltip carries the counts, so the context is not read a second time
     expect(tipped).not.toHaveTextContent('Cited 25%');
     expect(plain).toHaveTextContent('3across 1 topic');

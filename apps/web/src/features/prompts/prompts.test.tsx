@@ -102,10 +102,10 @@ describe('Topics & Prompts', () => {
     expect(cell).toHaveAccessibleDescription('SEO / Technical SEO');
     // The table puts the tooltip on the cell, which is what takes the keyboard focus, and opens it from there
     expect(cell).toHaveAttribute('data-cell');
-    // A topic at the top of the tree sits nowhere else: its name is all there is to say
+    // A topic at the top of the tree sits nowhere else: its name is all there is to say, and the badge may cut it
     const top = within(table).getAllByText('SEO')[0] as HTMLElement;
     expect(top).toHaveAttribute('data-slot', 'badge');
-    expect(top.closest('[role="gridcell"]')).not.toHaveAttribute('aria-describedby');
+    expect(top.closest('[role="gridcell"]')).toHaveAccessibleDescription('SEO');
   });
 
   it('says no engine is on, and where to turn one on, for a project without one', async () => {
@@ -1149,6 +1149,72 @@ describe('Topics & Prompts: the Topics tab', () => {
     renderWithProviders(promptsAs('editor'));
     expect(await screen.findByRole('heading', { name: NO_PROMPTS_TITLE })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: NO_MATCH_TITLE })).toBeNull();
+  });
+
+  describe('searching a parent and its child topic', () => {
+    const PARENT = idOf(3, 1);
+    const CHILD = idOf(3, 2);
+    const serveParentAndChild = (): void => {
+      serveVocabulary([treeNode(PARENT, 'Alpha', null, [treeNode(CHILD, 'Zebra', PARENT, [])])]);
+      const cells = [topicCells('chatgpt_web', [])];
+      server.use(
+        http.get(LIST_PATH, () =>
+          HttpResponse.json(
+            pageOf(
+              [
+                {
+                  ...promptOf(1),
+                  terms: [{ term_id: CHILD, name: 'Zebra', path: 'alpha/zebra', vocabulary_kind: 'topic' }],
+                },
+              ],
+              null,
+            ),
+          ),
+        ),
+        http.get(SUMMARY_PATH, () =>
+          HttpResponse.json({
+            data: {
+              ...EMPTY_SUMMARY.data,
+              prompts: [
+                {
+                  prompt_id: idOf(1, 1),
+                  text: 'Question number 1?',
+                  is_branded: false,
+                  topic_term_ids: [CHILD],
+                  last_observed_at: null,
+                  last_valid_at: null,
+                  engines: [promptCells('chatgpt_web', NO_COUNTS)],
+                },
+              ],
+              topics: [
+                { term_id: PARENT, name: 'Alpha', prompt_count: 1, engines: cells },
+                { term_id: CHILD, name: 'Zebra', prompt_count: 1, engines: cells },
+              ],
+            },
+          }),
+        ),
+      );
+    };
+
+    it('finds the parent of a child topic whose own name is searched, and opens onto that child alone', async () => {
+      serveParentAndChild();
+      const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: '?q=zebra' });
+      const tree = await treegrid();
+      expect(await names()).toEqual(['Alpha']);
+      await user.click(within(tree).getByRole('button', { name: 'Expand Alpha, 1 topic' }));
+      expect(await names()).toEqual(['Alpha', 'Zebra', 'Show the prompt of Alpha']);
+    });
+
+    it('keeps every topic below a parent whose own name is searched, and finds a parent by the text of a prompt', async () => {
+      serveParentAndChild();
+      const first = renderWithProviders(promptsAs('viewer'), { searchParams: '?q=alpha' });
+      await vi.waitFor(async () => expect(await names()).toEqual(['Alpha']));
+      expect(within(await treegrid()).getByRole('button', { name: 'Expand Alpha, 1 topic' })).toBeInTheDocument();
+      first.unmount();
+      serveParentAndChild();
+      renderWithProviders(promptsAs('viewer'), { searchParams: '?q=question' });
+      await vi.waitFor(async () => expect(await names()).toEqual(['Alpha']));
+    });
   });
 
   it('finds a topic by the text of one of its prompts', async () => {
@@ -2275,7 +2341,7 @@ describe('Topics & Prompts: the compact header and the country in the top bar', 
     expect(select).toHaveAccessibleDescription('Answers from Oct 16 to Nov 12, 2026');
   });
 
-  it('ends a long topic badge in an ellipsis inside its cell, with the whole name as its title', async () => {
+  it('ends a long topic badge in an ellipsis inside its cell, with the whole name in the cell tooltip and no native title', async () => {
     const long = 'A topic with a very long name that does not fit its column';
     server.use(
       http.get(LIST_PATH, () =>
@@ -2295,7 +2361,10 @@ describe('Topics & Prompts: the compact header and the country in the top bar', 
     renderOnPrompts(promptsAs('viewer'));
     const badge = await within(await grid()).findByText(long);
     expect(badge).toHaveClass('truncate', 'min-w-0');
-    expect(badge).toHaveAttribute('title', long);
+    expect(badge).toHaveAttribute('data-truncate');
+    expect(badge).not.toHaveAttribute('title');
+    // The cell is the keyboard's stop, and its tooltip holds the whole name
+    expect(badge.closest('[role="gridcell"]')).toHaveAccessibleDescription(long);
   });
 
   it('passes the accessibility checks with the header, the switch and the top bar', async () => {

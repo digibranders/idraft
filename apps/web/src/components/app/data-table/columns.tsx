@@ -372,7 +372,7 @@ export const col = {
         // A long label ends in an ellipsis inside the cell (the badge is a block for that, 22 px high with the text
         // centered), and the detail ("+2") keeps its place
         const label = (
-          <Badge className="block min-w-0 shrink truncate pt-0.5" title={badge.label}>
+          <Badge className="block min-w-0 shrink truncate pt-0.5" data-truncate="">
             {badge.label}
           </Badge>
         );
