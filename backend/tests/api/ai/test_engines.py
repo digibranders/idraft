@@ -152,6 +152,33 @@ async def test_turning_an_engine_off_keeps_its_settings_and_the_schedules(
     assert (len(kept), len(none)) == (2, 0)
 
 
+async def test_turning_an_engine_on_again_remakes_deleted_schedules_but_saving_it_does_not(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "engines", "gemini_web")
+    live = "SELECT id FROM ops.schedules WHERE project_id = $1 AND deleted_at IS NULL"
+
+    await api.put(url, json={"location_ids": [LOCATION]}, headers=editor.headers)
+    await execute(
+        migrated, "UPDATE ops.schedules SET deleted_at = now() WHERE project_id = $1", project
+    )
+    # Saving the countries of an engine that is already on brings nothing back.
+    await api.put(url, json={"location_ids": [LOCATION, OTHER_LOCATION]}, headers=editor.headers)
+    after_save = await fetch(migrated, live, project)
+    await api.put(
+        url, json={"location_ids": [LOCATION], "is_enabled": False}, headers=editor.headers
+    )
+    after_off = await fetch(migrated, live, project)
+    on_again = await api.put(url, json={"location_ids": [LOCATION]}, headers=editor.headers)
+    after_on = await fetch(migrated, live, project)
+
+    assert on_again.status_code == 200, on_again.text
+    assert (len(after_save), len(after_off), len(after_on)) == (0, 0, 2)
+
+
 @pytest.mark.parametrize("location_ids", [[CITY], [LOCATION, 999_999_999]])
 async def test_an_engine_runs_in_active_countries_only(
     api: httpx.AsyncClient,

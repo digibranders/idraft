@@ -50,15 +50,17 @@ async def ensure_ai_schedule(
     db: AsyncSession, *, workspace_id: UUID, project_id: UUID, now: datetime
 ) -> None:
     """The project's AI answer schedules, made when an engine is turned on, so answers start by
-    themselves. A project with any `ai_prompt` schedule, one a person paused, changed or deleted
-    included, is left as it is. The caller holds the project row, so two of these never run at
-    once for one project."""
+    themselves. A project with any live `ai_prompt` schedule, one a person paused or changed
+    included, is left as it is. A project whose schedules were all deleted gets two new ones (the
+    deleted rows stay, runs name them). The caller holds the project row, so two of these never run
+    at once for one project."""
     found = await db.execute(
         select(schedules.c.id)
         .where(
             schedules.c.workspace_id == workspace_id,
             schedules.c.project_id == project_id,
             schedules.c.workload == TaskWorkload.AI_PROMPT.value,
+            schedules.c.deleted_at.is_(None),
         )
         .limit(1)
     )

@@ -80,12 +80,51 @@ async def test_a_project_with_an_answer_schedule_gets_no_more(
     )
     async with workspace_transaction(sessions, workspace.id) as db:
         await ensure_ai_schedule(db, workspace_id=workspace.id, project_id=project, now=NOW)
-    # A person deleted both: they are not made again.
+    rows = await fetch(migrated, "SELECT id FROM ops.schedules WHERE project_id = $1", project)
+    assert len(rows) == 2
+
+
+async def test_one_live_answer_schedule_is_enough_to_leave_the_rest_alone(
+    sessions: Sessions, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await make_project(migrated, workspace.id)
+    async with workspace_transaction(sessions, workspace.id) as db:
+        await ensure_ai_schedule(db, workspace_id=workspace.id, project_id=project, now=NOW)
+    # A person deleted one of the two: the other still runs, so nothing is made.
     await execute(
-        migrated, "UPDATE ops.schedules SET deleted_at = now() WHERE project_id = $1", project
+        migrated,
+        "UPDATE ops.schedules SET deleted_at = now() WHERE project_id = $1 AND weekday = 1",
+        project,
     )
+
     async with workspace_transaction(sessions, workspace.id) as db:
         await ensure_ai_schedule(db, workspace_id=workspace.id, project_id=project, now=NOW)
 
     rows = await fetch(migrated, "SELECT id FROM ops.schedules WHERE project_id = $1", project)
     assert len(rows) == 2
+
+
+async def test_a_project_whose_answer_schedules_were_all_deleted_gets_two_new_ones(
+    sessions: Sessions, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await make_project(migrated, workspace.id)
+    async with workspace_transaction(sessions, workspace.id) as db:
+        await ensure_ai_schedule(db, workspace_id=workspace.id, project_id=project, now=NOW)
+    await execute(
+        migrated, "UPDATE ops.schedules SET deleted_at = now() WHERE project_id = $1", project
+    )
+
+    async with workspace_transaction(sessions, workspace.id) as db:
+        await ensure_ai_schedule(db, workspace_id=workspace.id, project_id=project, now=NOW)
+
+    # The deleted rows stay (runs name them); two live ones are added.
+    live = await fetch(
+        migrated,
+        "SELECT weekday FROM ops.schedules WHERE project_id = $1 AND deleted_at IS NULL "
+        "ORDER BY weekday",
+        project,
+    )
+    every = await fetch(migrated, "SELECT id FROM ops.schedules WHERE project_id = $1", project)
+    assert ([row["weekday"] for row in live], len(every)) == ([1, 4], 4)

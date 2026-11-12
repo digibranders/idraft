@@ -123,7 +123,9 @@ class EngineService:
                 location_ids=location_ids,
                 is_enabled=body.is_enabled,
             )
-            if body.is_enabled:
+            # Only when the engine goes from off to on: saving the countries of an engine that
+            # is already on must not bring back schedules a person deleted.
+            if body.is_enabled and (before is None or not before.is_enabled):
                 await ensure_ai_schedule(
                     db,
                     workspace_id=access.workspace_id,
