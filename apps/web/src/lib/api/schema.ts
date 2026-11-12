@@ -1041,7 +1041,7 @@ export interface paths {
         };
         /**
          * Mentioned, Cited, outcomes and Share of voice per prompt, engine and topic
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most 20); across all the entities an answer names, its shares add up to 1.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came. `include=series` adds a point for each week the window touches (weeks start on Monday in the project's timezone), with Mentioned, Cited and Share of voice over the week's answers. The first and last points may be partial weeks (cut at the window bounds; the first `week_start` can precede `window.from`). On a prompt row the weeks' numerators, denominators and n_observations add up to the window cell. On a topic row the weekly Mentioned and Cited are prompt weighted per week, so their numerators and denominators (sums of per-week prompt rates and prompt counts) do not add up to the window cell, while `pooled`, Share of voice and n_observations do. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most 20); across all the entities an answer names, its shares add up to 1. Blocks not asked for are left out.
          */
         get: operations["prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get"];
         put?: never;
@@ -3211,6 +3211,11 @@ export interface components {
             entities?: components["schemas"]["EntityCells"][] | null;
             mentioned: components["schemas"]["MetricCell"];
             outcomes: components["schemas"]["OutcomeCells"];
+            /**
+             * Series
+             * @description With `include=series`: a point for each week the window touches, oldest first, at most 14; a week without answers has counts of 0. The first and last points may be partial weeks (cut at the window bounds). On a prompt row the weeks add up to the window cell; on a topic row only `pooled`, share of voice and `n_observations` do, as `mentioned` and `cited` are prompt weighted per week. Left out otherwise.
+             */
+            series?: components["schemas"]["WeekCells"][] | null;
             share_of_voice: components["schemas"]["MetricCell"];
         };
         /** EngineUnits */
@@ -8227,6 +8232,26 @@ export interface components {
             /** Name */
             name?: string;
         };
+        /**
+         * WeekCells
+         * @description One week of a series: the week's answers inside the window, weighted as the window's. The
+         *     first and last weeks may be partial (cut at the window bounds), so the first `week_start` can
+         *     precede `window.from`. On a prompt row the weeks add up to the window cell. On a topic row
+         *     the weekly `mentioned` and `cited` are prompt weighted per week, so their numerators and
+         *     denominators do not add up to the window cell, while `pooled`, share of voice and
+         *     `n_observations` do.
+         */
+        WeekCells: {
+            cited: components["schemas"]["MetricCell"];
+            mentioned: components["schemas"]["MetricCell"];
+            share_of_voice: components["schemas"]["MetricCell"];
+            /**
+             * Week Start
+             * Format: date
+             * @description The Monday the week starts on, in the project's zone.
+             */
+            week_start: string;
+        };
         /** Workspace */
         Workspace: {
             /**
@@ -10541,8 +10566,8 @@ export interface operations {
                 "filter[country_iso]"?: string | null;
                 /** @description The prompts given the term or one under it. */
                 "filter[term]"?: string | null;
-                /** @description Blocks to add: `entities`. */
-                include?: "entities"[] | null;
+                /** @description Blocks to add: `series`, `entities`. */
+                include?: ("series" | "entities")[] | null;
             };
             header?: never;
             path: {
@@ -13641,6 +13666,7 @@ export const pathsApiV1WorkspacesWorkspace_idKeywordsKeyword_idMetricsHistoryGet
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCitationsGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["complete", "partial", "empty", "refused", "error"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["include"]> = ["series", "entities"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDomainsGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains"]["get"]["parameters"]["query"]["sort"]> = ["-citation_units", "-observations", "-prompts"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDomainsGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDomainsGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
