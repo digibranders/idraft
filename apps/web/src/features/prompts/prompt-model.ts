@@ -5,6 +5,7 @@ import type {
   Prompt,
   PromptsSummary,
   PromptSummaryRow,
+  TopicSummaryRow,
 } from '@/lib/api/types';
 import { formatIsoDate, formatSampleCount } from '@/lib/format';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
@@ -127,6 +128,59 @@ export function topicMembers(
   const below = descendants.get(termId);
   if (below === undefined) return null;
   return prompts.filter((prompt) => prompt.topic_term_ids.some((id) => below.has(id)));
+}
+
+/** The topic key of the prompts without a topic, in the address (`topic:__none`) and in the table's row ids. */
+export const NO_TOPIC = '__none';
+
+/** The most prompts an opened topic lists in the table, before "Show all" (ADR-DS-022 decision 2). */
+export const TOPIC_ROW_PROMPTS = 8;
+
+/** The prompts the topic drawer's Overview lists. */
+export const TOPIC_TOP_PROMPTS = 5;
+
+/** The mention rate of the prompts on the engine; one without a rate comes after every one that has. */
+const mentionedOn = (prompt: PromptSummaryRow, engineCode: string | undefined): number =>
+  prompt.engines.find((engine) => engine.engine_code === engineCode)?.mentioned.value ?? -1;
+
+/** The prompts, most mentioned on the engine first (a stable sort: equals keep their order). */
+export const mostMentionedFirst = (
+  prompts: readonly PromptSummaryRow[],
+  engineCode: string | undefined,
+): PromptSummaryRow[] => [...prompts].sort((a, b) => mentionedOn(b, engineCode) - mentionedOn(a, engineCode));
+
+/**
+ * The prompts of a topic as its row lists them and its drawer does, most mentioned on `engineCode` first;
+ * `null` while they cannot be told (no summary, or a topic the tree does not hold yet).
+ */
+export function topicPrompts(
+  summary: PromptsSummary | undefined,
+  key: string,
+  descendants: TopicDescendants,
+  engineCode: string | undefined,
+): PromptSummaryRow[] | null {
+  if (summary === undefined) return null;
+  const members = topicMembers(key === NO_TOPIC ? null : key, summary.prompts, descendants);
+  return members === null ? null : mostMentionedFirst(members, engineCode);
+}
+
+/** The summary's row of a topic by its key: the term id, or `NO_TOPIC` for the prompts without one. */
+export const topicSummaryRow = (summary: PromptsSummary | undefined, key: string): TopicSummaryRow | undefined =>
+  summary?.topics.find((topic) => (topic.term_id ?? NO_TOPIC) === key);
+
+/** The tabs of the topic drawer built in slice 1: Competitors and Related wait for slices 2 and 3. */
+export const TOPIC_TABS = ['overview', 'prompts'] as const;
+export type TopicTab = (typeof TOPIC_TABS)[number];
+export const parseTopicTab = (value: string): TopicTab => (value === 'prompts' ? 'prompts' : 'overview');
+
+/**
+ * The equal-weight average of the engines' rates, and how many engines took part (ADR-DS-022 decision 3): an
+ * engine with no valid answer has no rate and is left out, not counted as 0. `null` when no engine has one.
+ */
+export function acrossEngines(cells: readonly MetricCell[]): { value: number; engines: number } | null {
+  const values = cells.flatMap((cell) => (cell.value === null ? [] : [cell.value]));
+  if (values.length === 0) return null;
+  return { value: values.reduce((sum, value) => sum + value, 0) / values.length, engines: values.length };
 }
 
 export interface TopicChoice {

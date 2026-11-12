@@ -114,7 +114,7 @@ Header actions never exceed five: the command button, More and Close in row 1, P
 | Inspector type | Default width |
 |---|---|
 | Keyword, page, competitor, domain, source, run, candidate | 400 px (`--size-inspector`) |
-| Prompt, citation, answer evidence | 440 px (`--size-inspector-wide`, section 10) |
+| Prompt, topic, citation, answer evidence | 440 px (`--size-inspector-wide`, section 10) |
 | Minimum, maximum (all types) | 360 px (`--size-inspector-min`), 640 px (`--size-inspector-max`) |
 
 Resizing:

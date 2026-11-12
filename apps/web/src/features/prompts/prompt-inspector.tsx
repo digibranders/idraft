@@ -75,6 +75,11 @@ export interface PromptInspectorProps {
   positionText: string | null;
   navigation: InspectorNavigation | null;
   onStep: ((direction: 'next' | 'previous') => void) | undefined;
+  /**
+   * The topic the prompt was opened from (ADR-DS-022 decision 8): its name is a badge that reopens the topic's
+   * drawer. Left out for a prompt that was not opened from a topic.
+   */
+  topic?: { name: string; onOpen: () => void } | null | undefined;
   onClose: () => void;
   /**
    * Opens the answer in the answer viewer; without it the dates of the answers are plain text. `observedAt` is
@@ -101,6 +106,7 @@ export function PromptInspector({
   positionText,
   navigation,
   onStep,
+  topic,
   onClose,
   onOpenAnswer,
 }: PromptInspectorProps): ReactElement {
@@ -316,10 +322,21 @@ export function PromptInspector({
         positionText,
         navigation,
         badges:
-          prompt === null ? null : (
+          prompt === null && topic == null ? null : (
             <span className="inline-flex items-center gap-1.5">
-              {prompt.is_branded ? <Badge>{words('branded')}</Badge> : null}
-              {prompt.is_active ? null : <Badge tone="warning">{t('archivedBadge')}</Badge>}
+              {topic == null ? null : (
+                // There is no interactive badge: the badge is the button's label
+                <Button
+                  variant="link"
+                  size="sm"
+                  aria-label={words('topics.openTopic', { name: topic.name })}
+                  onClick={topic.onOpen}
+                >
+                  <Badge>{topic.name}</Badge>
+                </Button>
+              )}
+              {prompt?.is_branded === true ? <Badge>{words('branded')}</Badge> : null}
+              {prompt === null || prompt.is_active ? null : <Badge tone="warning">{t('archivedBadge')}</Badge>}
             </span>
           ),
         frequentAction:

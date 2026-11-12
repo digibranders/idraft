@@ -910,13 +910,13 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(within(tree).getByRole('button', { name: 'Expand SEO, 12 prompts' })).toBeInTheDocument();
     expect(within(tree).getByRole('button', { name: 'Expand Content Marketing, 7 prompts' })).toBeInTheDocument();
     expect(within(tree).getByRole('button', { name: 'Expand Local SEO, 3 prompts' })).toBeInTheDocument();
-    // A topic opens in place and lists its prompts, those of the topics below it among them
+    // A topic opens in place and lists eight of its prompts, those of the topics below it among them, and offers the rest
     await user.click(within(tree).getByRole('button', { name: 'Expand SEO, 12 prompts' }));
     expect(
       await within(tree).findByText('Which SEO agency is best for a SaaS startup in Germany?'),
     ).toBeInTheDocument();
-    expect(within(tree).getByText('How do I run a technical SEO audit on a large site?')).toBeInTheDocument();
-    expect(within(tree).getByText('Which tools track local rankings by city?')).toBeInTheDocument();
+    expect(within(tree).getByRole('button', { name: 'Show all 12 prompts of SEO' })).toBeInTheDocument();
+    expect(tree.querySelectorAll('[role="row"][aria-level="2"]')).toHaveLength(9);
     expect(within(tree).queryByText('Is Fynix a good SEO agency for software companies?')).toBeNull();
     expect(within(tree).queryByText('How do I plan a content calendar for a year?')).toBeNull();
     expect(within(tree).getByRole('button', { name: 'Collapse SEO, 12 prompts' })).toBeInTheDocument();

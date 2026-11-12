@@ -16,18 +16,24 @@ import {
   DEFAULT_WINDOW,
   hasAnswers,
   matchesTopics,
+  NO_TOPIC,
   parseTab,
+  parseTopicTab,
   parseWindow,
   PROMPTS_TABS,
   topicChoices,
   topicDescendants,
+  topicPrompts,
   topicsBelow,
+  topicSummaryRow,
   topicTermsOf,
   WINDOW_DAYS,
   windowRange,
   type PromptsTab,
+  type TopicTab,
 } from './prompt-model';
 import { enginesQuery, observationQuery, summaryQuery, usePromptList, type PromptScope } from './prompt-queries';
+import { TopicInspector } from './topic-inspector';
 import { TopicsTable } from './topics-table';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { TableStatus } from '@/components/app/data-table/types';
@@ -36,7 +42,7 @@ import { ReadOnlyFilterChips } from '@/components/app/filters/read-only-chips';
 import type { FilterField } from '@/components/app/filters/types';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
-import { useInspector } from '@/components/app/inspector/use-inspector';
+import { DEFAULT_INSPECTOR_TAB, useInspector } from '@/components/app/inspector/use-inspector';
 import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
 import { TopBarPortal } from '@/components/app/shell/top-bar-slot';
 import { Banner } from '@/components/app/status/banner';
@@ -304,11 +310,31 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     (openAnswer === null
       ? null
       : (answerRead.data?.data.subject.prompt_id ?? (answerRow?.id === openAnswer ? answerRow.promptId : null)));
+  // The topic drawer, and the topic a prompt was opened from the drawer of: its prompts are the list J and K step
+  // through and its badge leads back to the tab it left (ADR-DS-022 decision 8). A link has none, like any list it lacks
+  const openTopic = inspector.target?.type === 'topic' ? inspector.target.id : null;
+  const topicTab = parseTopicTab(inspector.tab);
+  const [promptFrom, setPromptFrom] = useState<{ key: string; tab: TopicTab } | null>(null);
+  const fromTopic = openPrompt === null ? null : (promptFrom?.key ?? null);
+  const firstShown = shown[0]?.engine.engine_code;
+  const topicOrder = useMemo(
+    () =>
+      fromTopic === null
+        ? null
+        : (topicPrompts(summary.data?.data, fromTopic, descendants, firstShown)?.map((prompt) => prompt.prompt_id) ??
+          null),
+    [fromTopic, summary.data, descendants, firstShown],
+  );
+  const topicName = (key: string): string | null =>
+    key === NO_TOPIC
+      ? t('columns.noTopic')
+      : (topicSummaryRow(summary.data?.data, key)?.name ?? topicTree.find((term) => term.termId === key)?.name ?? null);
   const [order, setOrder] = useState<readonly string[]>([]);
-  const at = inspector.position(order);
+  const stepOrder = topicOrder ?? order;
+  const at = inspector.position(stepOrder);
   const step = (direction: 'next' | 'previous'): void => {
     if (at === null || (direction === 'next' ? at.index === at.count - 1 : at.index === 0)) return;
-    inspector.step(direction, order);
+    inspector.step(direction, stepOrder);
   };
   const openPromptRow = (promptId: string, intent: 'inspector' | 'new-tab' = 'inspector'): void => {
     const target = { type: 'prompt' as const, id: promptId };
@@ -319,8 +345,18 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       window.open(url, '_blank', 'noopener');
       return;
     }
-    if (promptId !== openPrompt) inspector.open(target);
+    if (promptId === openPrompt) return;
+    // A row of a table is not a topic's list: the prompts of the open topics (or all of them) are what J and K step through
+    setPromptFrom(null);
+    inspector.open(target);
   };
+  const openPromptFromTopic = (promptId: string): void => {
+    if (openTopic === null) return;
+    setPromptFrom({ key: openTopic, tab: topicTab });
+    // A prompt has no tabs: the topic's tab is not carried over
+    inspector.open({ type: 'prompt', id: promptId }, { tab: DEFAULT_INSPECTOR_TAB });
+  };
+  const openTopicDrawer = (key: string, tab: TopicTab): void => inspector.open({ type: 'topic', id: key }, { tab });
 
   // The summary is pending only before its first answer: a new window keeps the last counts meanwhile
   // A topic or country that matches nothing so far may still match a page that is on its way
@@ -507,7 +543,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               density={density}
               onDensityChange={(next: Density) => void setView({ density: next === DEFAULT_DENSITY ? null : next })}
               activePromptId={selectedPrompt}
+              activeTopicKey={openTopic ?? fromTopic}
               onOpenPrompt={openPromptRow}
+              onOpenTopic={openTopicDrawer}
               onPromptOrderChange={setOrder}
             />
           </TabsPanel>
@@ -610,6 +648,14 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               }
         }
         onStep={at === null ? undefined : step}
+        topic={
+          promptFrom === null || fromTopic === null || topicName(fromTopic) === null
+            ? null
+            : {
+                name: topicName(fromTopic) ?? '',
+                onOpen: () => inspector.open({ type: 'topic', id: promptFrom.key }, { tab: promptFrom.tab }),
+              }
+        }
         onClose={() => inspector.close()}
         onOpenAnswer={(observationId, observedAt) => {
           setAnswerRow({ id: observationId, observedAt, promptId: openPrompt });
@@ -632,8 +678,27 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       />
     );
 
+  const topicInspector =
+    openTopic === null ? null : (
+      <TopicInspector
+        // Another project's topic is another inspector
+        key={project.id}
+        topicKey={openTopic}
+        summary={summary.data?.data}
+        counts={counts}
+        engines={shown}
+        descendants={descendants}
+        treeName={topicTree.find((term) => term.termId === openTopic)?.name ?? null}
+        treePending={vocabularies.pending}
+        tab={topicTab}
+        onTabChange={inspector.setTab}
+        onOpenPrompt={openPromptFromTopic}
+        onClose={() => inspector.close()}
+      />
+    );
+
   return (
-    <InspectorLayout inspector={promptInspector ?? answerInspector}>
+    <InspectorLayout inspector={promptInspector ?? answerInspector ?? topicInspector}>
       <TopBarPortal>
         <div className="w-44">
           <Select<string>

@@ -10,6 +10,8 @@ export const INSPECTOR_TYPES = [
   // A keyword group; "Not grouped" is the id `__none`
   'group',
   'prompt',
+  // A topic of Topics & Prompts; the prompts without a topic are the id `__none`
+  'topic',
   'citation',
   'answer',
   'page',
@@ -42,7 +44,7 @@ const SNAP = 8;
 /** An id is an opaque token of the API: no spaces, and not longer than this. */
 const MAX_ID_LENGTH = 200;
 
-const WIDE_TYPES: ReadonlySet<InspectorType> = new Set(['prompt', 'citation', 'answer']);
+const WIDE_TYPES: ReadonlySet<InspectorType> = new Set(['prompt', 'topic', 'citation', 'answer']);
 const TYPES: ReadonlySet<string> = new Set(INSPECTOR_TYPES);
 
 const isInspectorType = (value: string): value is InspectorType => TYPES.has(value);

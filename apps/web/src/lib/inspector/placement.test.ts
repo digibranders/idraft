@@ -37,6 +37,12 @@ describe('widths', () => {
   it('gives prompts, citations and answers the wide default', () => {
     expect(defaultInspectorWidth('keyword')).toBe(400);
     expect(defaultInspectorWidth('citation')).toBe(440);
+    // The topic drawer is as wide as the prompt drawer it leads to (ADR-DS-022 decision 7)
+    expect(defaultInspectorWidth('topic')).toBe(440);
+  });
+
+  it('opens a topic from the address', () => {
+    expect(parseInspectTarget('topic:__none')).toEqual({ type: 'topic', id: '__none' });
   });
 
   it('snaps to 8 px and keeps between the minimum and the maximum', () => {

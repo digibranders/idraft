@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  acrossEngines,
   asksIn,
   countriesForEngines,
   countText,
@@ -8,8 +9,11 @@ import {
   collectTopicTerms,
   hasAnswers,
   matchesTopics,
+  mostMentionedFirst,
+  NO_TOPIC,
   outcomeKey,
   parseTab,
+  parseTopicTab,
   parseWindow,
   PROMPT_TEXT_MAX,
   promptKeyOf,
@@ -17,8 +21,10 @@ import {
   topicChoices,
   topicDescendants,
   topicMembers,
+  topicPrompts,
   topicRowKept,
   topicsBelow,
+  topicSummaryRow,
   topicTermsOf,
   WINDOW_DAYS,
   windowRange,
@@ -478,5 +484,81 @@ describe('engines', () => {
     expect(outcomeKey('empty', null)).toBe('notCounted');
     expect(outcomeKey('complete', facts(null, false))).toBe('notCounted');
     expect(outcomeKey('complete', facts('neither', false))).toBe('notCounted');
+  });
+});
+
+describe('the topic drawer', () => {
+  const rated = (value: number | null): MetricCell => cell({ value, n_observations: value === null ? 0 : 4 });
+  const engineRow = (code: string, mentioned: number | null): PromptSummaryRow['engines'][number] => ({
+    engine_code: code,
+    mentioned: rated(mentioned),
+    cited: rated(null),
+    outcomes: {
+      mentioned_and_cited: rated(null),
+      mentioned_only: rated(null),
+      cited_only: rated(null),
+      neither: rated(null),
+    },
+    share_of_voice: rated(null),
+  });
+  const prompt = (prompt_id: string, topics: string[], mentioned: number | null): PromptSummaryRow => ({
+    prompt_id,
+    text: prompt_id,
+    is_branded: false,
+    topic_term_ids: topics,
+    engines: [engineRow('chatgpt_web', mentioned), engineRow('gemini_web', 0.9)],
+  });
+  const tree = topicDescendants(
+    [
+      { termId: 'seo', name: 'SEO', parentId: null, path: 'seo' },
+      { termId: 'crawl', name: 'Crawl', parentId: 'seo', path: 'seo/crawl' },
+    ],
+    [],
+  );
+  const ids = (rows: readonly PromptSummaryRow[] | null): string[] | null =>
+    rows === null ? null : rows.map((item) => item.prompt_id);
+
+  it('puts the most mentioned prompt of the engine first, and a prompt with no rate last, keeping the order of equals', () => {
+    const rows = [prompt('none', [], null), prompt('low', [], 0.25), prompt('high', [], 0.75), prompt('tie', [], 0.25)];
+    expect(ids(mostMentionedFirst(rows, 'chatgpt_web'))).toEqual(['high', 'low', 'tie', 'none']);
+    // No engine leaves every prompt without a rate, and so in the order given
+    expect(ids(mostMentionedFirst(rows, undefined))).toEqual(['none', 'low', 'high', 'tie']);
+  });
+
+  it('lists the prompts of a topic and of the topics below it, most mentioned first, and none for a topic the tree does not hold', () => {
+    const summary = {
+      prompts: [prompt('a', ['crawl'], 0.1), prompt('b', ['seo'], 0.6), prompt('c', [], 0.9)],
+    } as unknown as PromptsSummary;
+    expect(ids(topicPrompts(summary, 'seo', tree, 'chatgpt_web'))).toEqual(['b', 'a']);
+    expect(ids(topicPrompts(summary, NO_TOPIC, tree, 'chatgpt_web'))).toEqual(['c']);
+    expect(topicPrompts(summary, 'elsewhere', tree, 'chatgpt_web')).toBeNull();
+    expect(topicPrompts(undefined, 'seo', tree, 'chatgpt_web')).toBeNull();
+  });
+
+  it('finds the summary row of a topic by its term id, and the row of no topic by its key', () => {
+    const summary = {
+      topics: [
+        { term_id: 'seo', name: 'SEO', prompt_count: 2, engines: [] },
+        { term_id: null, name: null, prompt_count: 1, engines: [] },
+      ],
+    } as unknown as PromptsSummary;
+    expect(topicSummaryRow(summary, 'seo')?.name).toBe('SEO');
+    expect(topicSummaryRow(summary, NO_TOPIC)?.term_id).toBeNull();
+    expect(topicSummaryRow(summary, 'paid')).toBeUndefined();
+    expect(topicSummaryRow(undefined, 'seo')).toBeUndefined();
+  });
+
+  it('opens on Overview unless the link names the Prompts tab', () => {
+    expect(parseTopicTab('prompts')).toBe('prompts');
+    expect(parseTopicTab('overview')).toBe('overview');
+    expect(parseTopicTab('answers')).toBe('overview');
+  });
+
+  it('averages the rates of the engines that have one, and counts those engines', () => {
+    expect(acrossEngines([rated(0.25), rated(0.5), rated(0.75)])).toEqual({ value: 0.5, engines: 3 });
+    // An engine with no valid answer takes no part: it is not a rate of 0
+    expect(acrossEngines([rated(0.5), rated(null), rated(0)])).toEqual({ value: 0.25, engines: 2 });
+    expect(acrossEngines([rated(null)])).toBeNull();
+    expect(acrossEngines([])).toBeNull();
   });
 });

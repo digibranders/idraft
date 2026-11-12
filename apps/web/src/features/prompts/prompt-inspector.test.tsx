@@ -213,11 +213,9 @@ describe('the prompt inspector: opening and stepping', () => {
     await user.click(await within(tree).findByText('What is the best way to manage paid search on a small budget?'));
     const inspector = await panel('What is the best way to manage paid search on a small budget?');
     expect(await within(inspector).findByText('Paid Search')).toBeInTheDocument();
-    // The topic's own row opens no inspector
-    await user.click(within(tree).getByText('Content Marketing'));
-    expect(
-      screen.getByRole('complementary', { name: 'What is the best way to manage paid search on a small budget?' }),
-    ).toBeInTheDocument();
+    // A topic's name opens the topic's drawer, in the place of the prompt's
+    await user.click(within(tree).getByRole('button', { name: 'Open the topic Content Marketing' }));
+    expect(await panel('Content Marketing')).toBeInTheDocument();
   });
 
   it('steps to the previous and the next prompt in the order of the Prompts table', async () => {

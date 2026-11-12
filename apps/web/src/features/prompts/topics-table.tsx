@@ -1,19 +1,29 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
-import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import { useEngineColumns } from './prompt-columns';
-import { topicMembers, topicRowKept, type TopicDescendants } from './prompt-model';
+import {
+  mostMentionedFirst,
+  NO_TOPIC,
+  topicMembers,
+  topicRowKept,
+  TOPIC_ROW_PROMPTS,
+  type TopicDescendants,
+  type TopicTab,
+} from './prompt-model';
 import { col } from '@/components/app/data-table/columns';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { DataTableColumn, RowTree, TableStatus } from '@/components/app/data-table/types';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import type { EngineSummary, ProjectEngine, PromptsSummary } from '@/lib/api/types';
 import { EMPTY_VALUE } from '@/lib/format';
+import { CELL_CONTROL } from '@/lib/tables/grid-focus';
 import type { Density, SortKey } from '@/lib/tables/table-state';
 
-/** A topic, or one of its prompts while the topic is open. */
+/** A topic, one of its prompts while the topic is open, or the row that offers the rest of them. */
 type TopicRow =
   | {
       kind: 'topic';
@@ -37,16 +47,29 @@ type TopicRow =
       engines: readonly EngineSummary[];
       position: number;
       siblings: number;
+    }
+  | {
+      kind: 'more';
+      id: string;
+      key: string;
+      /** The topic's name. */
+      name: string;
+      /** The prompts the topic holds, all of them: the row's button says it opens them. */
+      total: number;
+      position: number;
+      siblings: number;
     };
 
-const NO_TOPIC = '__none';
 const NO_SORT: readonly SortKey[] = [];
 const rowId = (row: TopicRow): string => row.id;
-const rowName = (row: TopicRow): string => row.name;
-const cellsOf = (row: TopicRow): readonly EngineSummary[] => row.engines;
-/** The mention rate on the engine; a prompt without one comes last. */
-const mentionedOn = (engines: readonly EngineSummary[], code: string | undefined): number =>
-  engines.find((engine) => engine.engine_code === code)?.mentioned.value ?? -1;
+const cellsOf = (row: TopicRow): readonly EngineSummary[] => (row.kind === 'more' ? [] : row.engines);
+
+/** A column that says nothing on the row that offers the rest of a topic's prompts. */
+const blankOnMore = (column: DataTableColumn<TopicRow>): DataTableColumn<TopicRow> => ({
+  ...column,
+  cellTip: (row) => (row.kind === 'more' ? undefined : column.cellTip?.(row)),
+  cell: (row) => (row.kind === 'more' ? null : column.cell(row)),
+});
 
 export interface TopicsTableProps {
   /** The prompts summary of the window; `undefined` while it loads. */
@@ -70,7 +93,11 @@ export interface TopicsTableProps {
   onDensityChange: (density: Density) => void;
   /** The prompt open in the inspector; its row is marked. */
   activePromptId: string | null;
+  /** The topic whose drawer is open, or the one the open prompt was opened from; its row is marked when no prompt row is. */
+  activeTopicKey: string | null;
   onOpenPrompt: (promptId: string, intent: 'inspector' | 'new-tab') => void;
+  /** Opens the topic's drawer: on Overview from its name, on Prompts from "Show all". */
+  onOpenTopic: (key: string, tab: TopicTab) => void;
   /** The prompts the open topics list, in the order of the rows, each once: what the inspector steps through. */
   onPromptOrderChange: (promptIds: readonly string[]) => void;
 }
@@ -80,9 +107,9 @@ export interface TopicsTableProps {
  * first (as the API sends them when two are equal), and per engine its Mentioned and Cited counts. The API
  * rolls a topic up as the prompts given it or a topic below it and weights each prompt once, so a topic's
  * count is the answers behind its prompts and its rate is the mean of theirs. A topic opens in place and lists
- * those prompts, most mentioned first on the first engine shown. Prompts without a topic share a row, "No
- * topic". The search finds a topic by its name or by one of its prompts. A topic filter keeps the topic and the
- * topics below it, as on the Prompts tab.
+ * its prompts, most mentioned first on the first engine shown, eight at most and then "Show all" (decision 2).
+ * Its name opens the topic drawer. Prompts without a topic share a row, "No topic". The search finds a topic by
+ * its name or by one of its prompts. A topic filter keeps the topic and the topics below it, as on the Prompts tab.
  */
 export function TopicsTable({
   summary,
@@ -99,7 +126,9 @@ export function TopicsTable({
   density,
   onDensityChange,
   activePromptId,
+  activeTopicKey,
   onOpenPrompt,
+  onOpenTopic,
   onPromptOrderChange,
 }: TopicsTableProps): ReactElement {
   const t = useTranslations('prompts');
@@ -110,23 +139,56 @@ export function TopicsTable({
   const [visible, setVisible] = useState<readonly string[] | null>(null);
   // The rates are prompt weighted while the counts shown are answers: the header says so
   const engineColumns = useEngineColumns(engines, cellsOf, { sortable: false, note: t('topics.weighted') });
-  const columns = useMemo(
-    (): DataTableColumn<TopicRow>[] => [
-      col.keyword<TopicRow>('topic', rowName, {
-        header: t('topics.topic'),
-        sortable: false,
-        trailing: (row) => (row.kind === 'prompt' && row.branded ? <Badge>{t('branded')}</Badge> : null),
-      }),
-      col.count<TopicRow>('prompts', (row) => (row.kind === 'topic' ? row.promptCount : null), {
-        header: t('topics.prompts'),
-        sortable: false,
-        minWidth: 100,
-        unknown: () => ({ label: EMPTY_VALUE }),
-      }),
-      ...engineColumns,
-    ],
-    [t, engineColumns],
+  // The latest handler, so the columns (which the table keys its work by) do not change with every render
+  const latestOpenTopic = useRef(onOpenTopic);
+  useEffect(() => {
+    latestOpenTopic.current = onOpenTopic;
+  }, [onOpenTopic]);
+  const openTopic = useCallback((key: string, tab: TopicTab) => latestOpenTopic.current(key, tab), []);
+  const rowName = useCallback(
+    (row: TopicRow): string =>
+      row.kind === 'more' ? t('topics.showAllFor', { count: row.total, name: row.name }) : row.name,
+    [t],
   );
+  const columns = useMemo((): DataTableColumn<TopicRow>[] => {
+    const name = col.keyword<TopicRow>('topic', rowName, {
+      header: t('topics.topic'),
+      sortable: false,
+      trailing: (row) => (row.kind === 'prompt' && row.branded ? <Badge>{t('branded')}</Badge> : null),
+    });
+    return [
+      {
+        ...name,
+        // The name of a topic and the row of "Show all" are buttons: F2 reaches them from the cell
+        hasControls: true,
+        cell: (row) => {
+          if (row.kind === 'prompt') return name.cell(row);
+          const showAll = row.kind === 'more';
+          return (
+            <Button
+              {...CELL_CONTROL}
+              variant="link"
+              size="sm"
+              aria-label={showAll ? rowName(row) : t('topics.openTopic', { name: row.name })}
+              className="max-w-full min-w-0 justify-start"
+              onClick={() => openTopic(row.key, showAll ? 'prompts' : 'overview')}
+            >
+              <span className="truncate">{showAll ? t('topics.showAll', { count: row.total }) : row.name}</span>
+            </Button>
+          );
+        },
+      },
+      blankOnMore(
+        col.count<TopicRow>('prompts', (row) => (row.kind === 'topic' ? row.promptCount : null), {
+          header: t('topics.prompts'),
+          sortable: false,
+          minWidth: 100,
+          unknown: () => ({ label: EMPTY_VALUE }),
+        }),
+      ),
+      ...engineColumns.map(blankOnMore),
+    ];
+  }, [t, rowName, openTopic, engineColumns]);
   const firstEngine = engines[0]?.engine.engine_code;
   const rows = useMemo((): TopicRow[] => {
     if (summary === undefined) return [];
@@ -159,13 +221,13 @@ export function TopicsTable({
         openable: members !== null,
       };
       if (members === null || !open.has(key)) return [head];
-      // shortcut: every prompt of an open topic, not the eight of ADR-DS-022 decision 2 with "Show all"; add the cap with the topic drawer
-      const ordered = [...members].sort(
-        (a, b) => mentionedOn(b.engines, firstEngine) - mentionedOn(a.engines, firstEngine),
-      );
+      const ordered = mostMentionedFirst(members, firstEngine);
+      const listed = ordered.slice(0, TOPIC_ROW_PROMPTS);
+      const more = ordered.length > listed.length;
+      const siblings = listed.length + (more ? 1 : 0);
       return [
         head,
-        ...ordered.map((member, at): TopicRow => ({
+        ...listed.map((member, at): TopicRow => ({
           kind: 'prompt',
           id: `${key}:${member.prompt_id}`,
           promptId: member.prompt_id,
@@ -173,8 +235,21 @@ export function TopicsTable({
           branded: member.is_branded,
           engines: member.engines,
           position: at + 1,
-          siblings: ordered.length,
+          siblings,
         })),
+        ...(more
+          ? [
+              {
+                kind: 'more' as const,
+                id: `${key}:more`,
+                key,
+                name,
+                total: ordered.length,
+                position: siblings,
+                siblings,
+              },
+            ]
+          : []),
       ];
     });
   }, [summary, descendants, kept, filtering, search, locale, open, t, firstEngine]);
@@ -188,12 +263,17 @@ export function TopicsTable({
   // A prompt of two open topics is two rows: the one clicked is the open one while it still shows the open prompt
   // (stepping or a link name it without a row, and the first row of the prompt stands for it)
   const ofOpenPrompt = (row: TopicRow): boolean => row.kind === 'prompt' && row.promptId === activePromptId;
-  const activeRowId =
+  const promptRowId =
     activePromptId === null
       ? null
       : ((rows.find((row) => row.id === clicked && ofOpenPrompt(row)) ?? rows.find(ofOpenPrompt))?.id ?? null);
+  // A drawer opens from a topic, and a prompt from the drawer may have no row of its own: the topic's row stands for it
+  const activeRowId = promptRowId ?? (activeTopicKey === null ? null : `topic:${activeTopicKey}`);
   const rowTree = (row: TopicRow): RowTree => {
     if (row.kind === 'prompt') return { level: 2, setSize: row.siblings, posInSet: row.position };
+    if (row.kind === 'more') {
+      return { level: 2, setSize: row.siblings, posInSet: row.position, selectable: false };
+    }
     // A row without `expanded` has no prompts to show and is an ordinary row
     if (!row.openable) return { level: 1, setSize: topicCount, posInSet: row.position };
     const expanded = open.has(row.key);
@@ -238,7 +318,11 @@ export function TopicsTable({
       rowTree={rowTree}
       onToggleGroup={toggle}
       onRowOpen={(row, intent) => {
-        if (row.kind !== 'prompt') return;
+        // A topic row that opens no group (its prompts cannot be told yet) and the "Show all" row open the drawer
+        if (row.kind !== 'prompt') {
+          openTopic(row.key, row.kind === 'more' ? 'prompts' : 'overview');
+          return;
+        }
         setClicked(row.id);
         onOpenPrompt(row.promptId, intent);
       }}
