@@ -1567,6 +1567,10 @@
         "divPos2": "Rise of 5 to 15 pts",
         "divPos3": "Rise of 15 pts or more"
       }
+    },
+    "multiples": {
+      "latest": "{category}: {text}",
+      "keepOne": "{name} stays shown: at least one chart must be visible"
     }
   },
   "inspector": {
