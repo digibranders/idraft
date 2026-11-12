@@ -396,8 +396,8 @@ export function StackedShareTable({
  * of one known total, so a bar fills only as far as its known outcomes do. The legend table below is the
  * alternative and always drawn; the frame's Table view is the same table.
  *
- * Open item for the As built note: the segment tooltip of DS 15 5.2 is not built here. The segments are for the
- * eye only; the image name and the legend table carry every share and count.
+ * The DS 15 5.2 segment tooltip is not drawn here: the legend table under the bars carries every name, share and
+ * count. The segments are for the eye only.
  */
 export function StackedShareBar(props: StackedShareBarProps): ReactElement {
   const { caption, segments, rows, patterns, density = 'default' } = props;

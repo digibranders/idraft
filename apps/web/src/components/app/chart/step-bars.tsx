@@ -105,9 +105,12 @@ interface StepRowProps {
 
 /**
  * One step, built like a BarList row: the visual part is hidden from assistive technology and the step is read once,
- * from `accessibleText`. Below 448 px the count shares the label's line and the bar runs under it; from there on the
- * bar fills the track and the count sits in a fixed 112 px column after it. A step without a count writes its reason
- * in flow in place of the bar and truncates it instead of overflowing.
+ * from `accessibleText`. Below 448 px the count shares the label's line and the bar runs under it, and the share sits
+ * on its own line. From 448 px the bar fills the track and the count sits in a fixed 112 px column after it, with the
+ * share wrapped onto a full-width line under the row, so it never narrows the track. From 672 px the share sits inline
+ * in a fixed 192 px slot (the track is then at least 176 px), and every row renders the slot, empty on the first step,
+ * so every track is as wide and one count is one length. A step without a count writes its reason in flow in place of
+ * the bar and truncates it instead of overflowing.
  */
 function StepRow({ step, max, density }: StepRowProps): ReactElement {
   const t = useTranslations('chart');
@@ -116,7 +119,10 @@ function StepRow({ step, max, density }: StepRowProps): ReactElement {
   const content = (
     <>
       <span className="sr-only">{step.accessibleText}</span>
-      <div aria-hidden="true" className="flex flex-col gap-1 py-1 @md:flex-row @md:items-center @md:gap-3">
+      <div
+        aria-hidden="true"
+        className="flex flex-col gap-1 py-1 @md:flex-row @md:flex-wrap @md:items-center @md:gap-x-3 @md:gap-y-1 @2xl:flex-nowrap"
+      >
         <div className="flex min-w-0 items-center gap-2 @md:w-40 @md:shrink-0">
           <span
             data-slot="step-label"
@@ -157,7 +163,7 @@ function StepRow({ step, max, density }: StepRowProps): ReactElement {
         <div
           data-slot="step-share-slot"
           title={step.share?.kind === 'share' ? step.share.text : undefined}
-          className="min-w-0 truncate empty:hidden @md:w-48 @md:shrink-0 @md:empty:block"
+          className="min-w-0 truncate empty:hidden @md:w-full @2xl:w-48 @2xl:shrink-0 @2xl:empty:block"
         >
           <ShareText share={step.share} />
         </div>

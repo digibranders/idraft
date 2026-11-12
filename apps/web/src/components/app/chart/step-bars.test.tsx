@@ -320,12 +320,40 @@ describe('StepBars counts and shares', () => {
     );
     const slots = Array.from(container.querySelectorAll('[data-slot="step-share-slot"]'));
     expect(slots).toHaveLength(6);
-    for (const slot of slots) expect(slot).toHaveClass('@md:w-48', '@md:shrink-0');
+    // From 448 px it is its own full-width line, from 672 px a fixed 192 px slot after the track
+    for (const slot of slots) {
+      expect(slot).toHaveClass('@md:w-full', '@2xl:w-48', '@2xl:shrink-0');
+      expect(slot).not.toHaveClass('@md:w-48');
+      expect(slot).not.toHaveClass('@md:shrink-0');
+    }
     expect(slots[0]).toBeEmptyDOMElement();
     expect(slots[1]).toHaveTextContent('34% of answers');
     const tracks = Array.from(container.querySelectorAll('[data-slot="step-track"]'));
     expect(tracks).toHaveLength(6);
     for (const track of tracks) expect(track.className).toBe(tracks[0]?.className);
+  });
+
+  it('wraps the share under the row between 448 and 672 px, so the slot never narrows the track, and does not wrap from 672 px', () => {
+    const { container } = renderWithProviders(<StepBars {...props()} />);
+    const rows = Array.from(container.querySelectorAll('[data-slot="step-share-slot"]')).map(
+      (slot) => slot.parentElement,
+    );
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(row).toHaveClass('@md:flex-wrap', '@2xl:flex-nowrap');
+    }
+    for (const row of rows) expect(row?.className).toBe(rows[0]?.className);
+  });
+
+  it('keeps the empty first-step slot and the same track classes on every row of every group', () => {
+    const { container } = renderWithProviders(
+      <StepBars {...props([funnel('chatgpt', 'ChatGPT'), funnel('gemini', 'Gemini')])} />,
+    );
+    const slots = Array.from(container.querySelectorAll('[data-slot="step-share-slot"]'));
+    const tracks = Array.from(container.querySelectorAll('[data-slot="step-track"]'));
+    expect([slots[0], slots[3]].map((slot) => slot?.childElementCount)).toEqual([0, 0]);
+    expect(new Set(slots.map((slot) => slot.className)).size).toBe(1);
+    expect(new Set(tracks.map((track) => track.className)).size).toBe(1);
   });
 
   it('cuts a long share short in its slot and shows it whole in a title', () => {
