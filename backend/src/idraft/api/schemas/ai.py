@@ -614,7 +614,15 @@ class MetricCell(BaseModel):
     )
 
 
-SummaryInclude = Literal["series", "entities"]
+# `total` and `co_mentions`: contract C2, not built yet (`501`).
+SummaryInclude = Literal["series", "entities", "total", "co_mentions"]
+SummaryCompare = Literal["none", "previous_period"]
+SummaryRows = Literal["topics", "none"]
+SummaryGroupBy = Literal["country"]
+OPPORTUNITY_PATTERN = (
+    r"^(named_not_cited|cited_not_named|nobody_named"
+    r"|lost_to:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+)
 
 
 class OutcomeCells(BaseModel):
@@ -622,6 +630,20 @@ class OutcomeCells(BaseModel):
     mentioned_only: MetricCell
     cited_only: MetricCell
     neither: MetricCell
+
+
+class EngineCells(BaseModel):
+    """The cells of one engine over the comparison window, weighted as the current ones."""
+
+    mentioned: MetricCell
+    cited: MetricCell
+    outcomes: OutcomeCells
+    share_of_voice: MetricCell
+
+
+class EntityPreviousCells(BaseModel):
+    mentioned: MetricCell
+    share_of_voice: MetricCell
 
 
 class EntityCells(BaseModel):
@@ -638,6 +660,12 @@ class EntityCells(BaseModel):
         description="The entity's share of each answer that names a tracked entity: 1 / the "
         "tracked entities the answer names."
     )
+    previous: EntityPreviousCells | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `compare=previous_period`: the cells over `compare_window`, null when "
+        "the entity had no answer there; never set inside a week. " + _NOT_RETURNED,
+    )
 
 
 class WeekCells(BaseModel):
@@ -652,6 +680,12 @@ class WeekCells(BaseModel):
     mentioned: MetricCell
     cited: MetricCell
     share_of_voice: MetricCell
+    entities: list[EntityCells] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=series,entities`: the week's cells per tracked entity, "
+        "weighted as the week's own (at most 20). " + _NOT_RETURNED,
+    )
 
 
 class EngineSummary(BaseModel):
@@ -660,6 +694,13 @@ class EngineSummary(BaseModel):
     cited: MetricCell
     outcomes: OutcomeCells
     share_of_voice: MetricCell
+    previous: EngineCells | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `compare=previous_period`: the same cells over `compare_window`, null "
+        "when the engine had no answer of the row's prompts there (no data is not a rate of 0). "
+        + _NOT_RETURNED,
+    )
     series: list[WeekCells] | None = Field(
         default=None,
         exclude_if=_absent,
@@ -704,6 +745,32 @@ class TopicSummaryRow(BaseModel):
     engines: list[EngineSummary]
 
 
+class SummaryTotal(BaseModel):
+    """Every prompt in scope as one row, aggregated as a topic row is (OV-N1)."""
+
+    prompt_count: int
+    last_observed_at: datetime | None = Field(description=_LAST_OBSERVED)
+    last_valid_at: datetime | None = Field(description=_LAST_VALID)
+    engines: list[EngineSummary]
+
+
+class CoMentionPair(BaseModel):
+    a: UUID = Field(description="A tracked entity.")
+    b: UUID = Field(description="Another tracked entity.")
+    answers: int = Field(description="Valid answers in scope that name both.")
+
+
+class EngineCoMentions(BaseModel):
+    engine_code: str
+    answers: int = Field(description="Valid answers in scope on the engine: the denominator.")
+    pairs: list[CoMentionPair]
+
+
+class CountrySummary(BaseModel):
+    country_iso: str
+    engines: list[EngineSummary]
+
+
 class SummaryEntity(BaseModel):
     entity_id: UUID
     name: str
@@ -731,6 +798,18 @@ class SummaryMetricContext(BaseModel):
 
 class PromptsSummary(BaseModel):
     window: MetricWindow
+    compare_window: MetricWindow | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `compare=previous_period`: as many days just before `window`. "
+        + _NOT_RETURNED,
+    )
+    previous_answers: int | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `compare`: the valid answers in scope in that window; 0 means it has "
+        "no data. " + _NOT_RETURNED,
+    )
     include_branded: bool = Field(
         description="Branded prompts are counted: `include_branded` or `branded_only` was set."
     )
@@ -747,6 +826,21 @@ class PromptsSummary(BaseModel):
     )
     prompts: list[PromptSummaryRow]
     topics: list[TopicSummaryRow]
+    total: SummaryTotal | None = Field(
+        default=None, exclude_if=_absent, description="With `include=total`. " + _NOT_RETURNED
+    )
+    co_mentions: list[EngineCoMentions] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=co_mentions`: per engine, how often two tracked entities are "
+        "named in one valid answer. " + _NOT_RETURNED,
+    )
+    by_country: list[CountrySummary] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `group_by=country`: the engine cells per prompt country. "
+        + _NOT_RETURNED,
+    )
 
 
 class PromptsSummaryResponse(BaseModel):

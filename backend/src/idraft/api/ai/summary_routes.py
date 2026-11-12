@@ -12,7 +12,16 @@ from idraft.api.ai.summary import SummaryQuery, SummaryService
 from idraft.api.pagination import Commas
 from idraft.api.permissions import Permission
 from idraft.api.resources import Resources, get_resources
-from idraft.api.schemas.ai import PromptsSummaryResponse, SummaryInclude
+from idraft.api.schemas.ai import (
+    OPPORTUNITY_PATTERN,
+    Outcome,
+    PromptsSummaryResponse,
+    SummaryCompare,
+    SummaryGroupBy,
+    SummaryInclude,
+    SummaryRows,
+)
+from idraft.api.stubs import refuse_unbuilt
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 
@@ -54,7 +63,9 @@ Summaries = Annotated[SummaryService, Depends(get_summary_service)]
     "`pooled`, Share of voice and n_observations do. `include=entities` adds, per engine, a "
     "Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most "
     "20); across all the entities an answer names, its shares add up to 1. Blocks not asked for "
-    "are left out.",
+    "are left out. `compare`, `include=total`, `include=co_mentions`, `rows`, "
+    "`filter[outcome]`, `filter[opportunity]` and `group_by` are published and not built yet "
+    "(`501`).",
 )
 async def prompts_summary(
     project_id: UUID,
@@ -84,9 +95,52 @@ async def prompts_summary(
     include: Annotated[
         list[SummaryInclude] | None,
         Commas,
-        Query(description="Blocks to add: `series`, `entities`."),
+        Query(
+            description="Blocks to add: `series`, `entities`; `total` and `co_mentions` are not "
+            "built yet (`501`)."
+        ),
+    ] = None,
+    compare: Annotated[
+        SummaryCompare,
+        Query(description="`previous_period` adds `previous` cells. Not built yet: `501`."),
+    ] = "none",
+    rows: Annotated[
+        SummaryRows | None,
+        Query(
+            description="`topics` leaves the prompt rows out, `none` both row lists (with "
+            "`include=total`). Left out: every row. Not built yet: `501`."
+        ),
+    ] = None,
+    outcome: Annotated[
+        Outcome | None,
+        Query(alias="filter[outcome]", description="Prompt rows by outcome. Not built yet: `501`."),
+    ] = None,
+    opportunity: Annotated[
+        str | None,
+        Query(
+            alias="filter[opportunity]",
+            pattern=OPPORTUNITY_PATTERN,
+            description="`named_not_cited`, `cited_not_named`, `nobody_named` or "
+            "`lost_to:<entity_id>`. Not built yet: `501`.",
+        ),
+    ] = None,
+    group_by: Annotated[
+        SummaryGroupBy | None,
+        Query(description="`country` adds `by_country`. Not built yet: `501`."),
     ] = None,
 ) -> PromptsSummaryResponse:
+    asked = frozenset(include or ())
+    refuse_unbuilt(
+        {
+            "compare": compare != "none",
+            "include=total": "total" in asked,
+            "include=co_mentions": "co_mentions" in asked,
+            "rows": rows is not None,
+            "filter[outcome]": outcome is not None,
+            "filter[opportunity]": opportunity is not None,
+            "group_by": group_by is not None,
+        }
+    )
     return PromptsSummaryResponse(
         data=await summaries.summary(
             access,
@@ -99,7 +153,7 @@ async def prompts_summary(
                 branded_only=branded_only,
                 country_iso=country_iso,
                 term_id=term_id,
-                include=frozenset(include or ()),
+                include=asked,
             ),
         )
     )
