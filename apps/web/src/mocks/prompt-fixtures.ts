@@ -1,8 +1,26 @@
-import { MOCK_ENTITY_IDS, MOCK_TERM_IDS } from './entity-fixtures';
+import { EVENTUS_WORLD, type DefinitionWorld } from './ai-prompt-world';
+import { isAiSeeded } from './ai-seed';
+import {
+  buildAnswer,
+  CITATION_KINDS,
+  invalidAnswer,
+  PROVIDER_CHECK,
+  webAddress,
+  type Answer,
+  type Party,
+  type Planned,
+  type Site,
+  type SourceSpec,
+} from './answer-builder';
+import { GULF_LOCATIONS, MOCK_ENTITY_IDS, MOCK_LOCATIONS, MOCK_TERM_IDS } from './entity-fixtures';
 import { usdOfMicros } from './factories/operations';
 import { MOCK_CREATED_AT, MOCK_PROJECTS, mockUser } from './fixtures';
 import { mockId } from './mock-ids';
-import type { CitationOut, EngineCode, MentionOut, ObservationDetail, ProjectEngine, Prompt } from '@/lib/api/types';
+import { AI_ANSWER_MICROS } from './operations-fixtures';
+import { profileAnswer } from './profile-answers';
+import type { EngineCode, ProjectEngine, Prompt } from '@/lib/api/types';
+
+export { webAddress, type Answer };
 
 /**
  * The AI prompt tracking fixtures (spec 2026-11-11, plans A and B): the three engines, Fynix's engines and its
@@ -48,14 +66,12 @@ export const ENGINE_FACTS: Readonly<Record<EngineCode, ProjectEngine['engine']>>
 export const PROMPT_QUOTA = 150;
 /** The longest prompt any engine takes (plan A `PROMPT_TEXT_MAX`). */
 export const PROMPT_TEXT_MAX = 2000;
-/** One answer on the standard queue: $0.0012, in micro dollars. */
-const TASK_PRICE_MICROS = 1200;
 const RUNS_PER_WEEK = 2;
 const MICROS_PER_CENT = 10_000;
 
 /** Plan A's `monthly_cost`: prompts x runs a week x 52 / 12 x the price, to the cent, as the API writes money. */
 export const monthlyCostUsd = (prompts: number): string =>
-  usdOfMicros(Math.round((prompts * RUNS_PER_WEEK * TASK_PRICE_MICROS * 52) / 12 / MICROS_PER_CENT) * MICROS_PER_CENT);
+  usdOfMicros(Math.round((prompts * RUNS_PER_WEEK * AI_ANSWER_MICROS * 52) / 12 / MICROS_PER_CENT) * MICROS_PER_CENT);
 
 export interface StoredPrompt {
   prompt_id: string;
@@ -127,6 +143,7 @@ const FYNIX_PROMPTS: readonly (readonly [string, string | null, string, string])
 
 const [fynix] = MOCK_PROJECTS;
 if (fynix === undefined) throw new Error('The Fynix project fixture is missing');
+const FYNIX_PROJECT_ID = fynix.project_id;
 const owner = mockUser('owner');
 
 export const FIXTURE_PROMPTS: ReadonlyMap<string, readonly StoredPrompt[]> = new Map([
@@ -165,6 +182,67 @@ export const FIXTURE_ENGINES: ReadonlyMap<string, readonly StoredEngine[]> = new
   ],
 ]);
 
+/**
+ * The projects whose answers are made from a definition file (`fixtures/ai-prompts/`) instead of Fynix's formulas:
+ * their prompts and engines, and the answers each prompt got. They exist only while the data switch is on
+ * (./ai-seed.ts), because 72 more active prompts move the workspace's use of its 150 prompt quota, which tests count.
+ */
+const PROFILE_WORLDS: ReadonlyMap<string, DefinitionWorld> = new Map([[EVENTUS_WORLD.projectId, EVENTUS_WORLD]]);
+/** Fynix has prompt numbers 1 to 24; the next project's start after them, and stay below `FIRST_MINTED`. */
+const PROFILE_FIRST_PROMPT = 25;
+
+function countryLocation(iso: string): number {
+  const found = [...MOCK_LOCATIONS, ...GULF_LOCATIONS].find(
+    (location) => location.location_type === 'Country' && location.country_iso === iso,
+  );
+  if (found === undefined) throw new Error(`No country location for ${iso}`);
+  return found.location_id;
+}
+
+const PROFILE_PROMPTS: ReadonlyMap<string, readonly StoredPrompt[]> = new Map(
+  [...PROFILE_WORLDS].map(([projectId, world]) => [
+    projectId,
+    world.definition.prompts.map((prompt, index): StoredPrompt => ({
+      prompt_id: promptId(PROFILE_FIRST_PROMPT + index),
+      version_id: versionId(PROFILE_FIRST_PROMPT + index),
+      project_id: projectId,
+      index,
+      text: prompt.text,
+      language_code: world.definition.project.language_code,
+      country_iso: prompt.country,
+      term_ids: prompt.topics.map((slug) => world.termIdOf(slug)).sort(),
+      intent: prompt.intent,
+      funnel_stage: prompt.funnel_stage,
+      prompt_type: prompt.prompt_type,
+      importance: prompt.importance,
+      is_branded: prompt.branded,
+      is_active: true,
+      created_at: MOCK_CREATED_AT,
+      updated_at: MOCK_CREATED_AT,
+      created_by: { user_id: owner.user_id, name: owner.name, email: owner.email },
+    })),
+  ]),
+);
+
+const PROFILE_ENGINES: ReadonlyMap<string, readonly StoredEngine[]> = new Map(
+  [...PROFILE_WORLDS].map(([projectId, world]) => [
+    projectId,
+    world.definition.engines.map((engine): StoredEngine => ({
+      engine_code: engine.engine_code,
+      is_enabled: true,
+      location_ids: engine.countries.map(countryLocation).sort((a, b) => a - b),
+    })),
+  ]),
+);
+
+/** The prompts a project starts with: Fynix's, or a definition file's while the data switch is on. */
+export const fixturePrompts = (projectId: string): readonly StoredPrompt[] =>
+  FIXTURE_PROMPTS.get(projectId) ?? (isAiSeeded() ? PROFILE_PROMPTS.get(projectId) : undefined) ?? [];
+
+/** The engines a project starts with, on the same terms. */
+export const fixtureEngines = (projectId: string): readonly StoredEngine[] =>
+  FIXTURE_ENGINES.get(projectId) ?? (isAiSeeded() ? PROFILE_ENGINES.get(projectId) : undefined) ?? [];
+
 export const DAY_MS = 86_400_000;
 /** Answers reach back as far as one request may ask for: 92 days. */
 const HISTORY_DAYS = 92;
@@ -197,17 +275,6 @@ export function parseObservationId(id: string): { day: number; index: number; en
     : null;
 }
 
-/** `value` when it is an http or https address: a provider's string is not trusted as a link (the API's `_web_address`). */
-export function webAddress(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  try {
-    const { protocol } = new URL(value);
-    return protocol === 'http:' || protocol === 'https:' ? value : null;
-  } catch {
-    return null;
-  }
-}
-
 /** Text built from code points, so this file stays ASCII (the Hindi of the answers, and two emoji). */
 const cp = (...points: number[]): string => String.fromCodePoint(...points);
 const HINDI_INTRO = cp(
@@ -225,50 +292,18 @@ const PIN = cp(0x1f4cc);
 const INTRO = 'Here is how the options compare for this question.';
 const OUTRO = 'Compare their case studies before you decide.';
 
-type Facts = NonNullable<ObservationDetail['facts']>;
-
-export interface Answer {
-  status: ObservationDetail['status'];
-  answer_text: string | null;
-  error_code: string | null;
-  model_reported: string | null;
-  /** The provider's page to check the answer by, as the API gives it: http or https only. */
-  check_url: string | null;
-  mentions: MentionOut[];
-  citations: CitationOut[];
-  facts: Facts;
-}
-
 const MODELS: Readonly<Record<EngineCode, string | null>> = {
   chatgpt_web: 'gpt-6',
   gemini_web: '3.5 Flash-Lite',
   google_ai_mode: null,
 };
-const PROVIDER_CHECK: Readonly<Record<EngineCode, string>> = {
-  chatgpt_web: 'https://chatgpt.com/',
-  gemini_web: 'https://gemini.google.com/app',
-  google_ai_mode: 'https://www.google.com/search?udm=50',
-};
-/**
- * The kinds the backend stores (migration 0018 allows more, but the parser gives these): ChatGPT and Gemini give a
- * source list or inline links, Google AI Mode reference cards. An advertisement is never stored as a source
- * (providers/dataforseo/ai_parse.py drops them).
- */
-const CITATION_KINDS: Readonly<Record<EngineCode, string>> = {
-  chatgpt_web: 'source_list',
-  gemini_web: 'source_list',
-  google_ai_mode: 'reference_card',
-};
 
-interface Party {
-  entity_id: string;
-  name: string;
-  role: 'own' | 'competitor' | 'watch';
+interface FynixParty extends Party {
   /** What an answer says about it: the name is the first words. */
   sentence: string;
 }
 
-const party = (entityId: string, name: string, role: Party['role'], rest: string): Party => ({
+const party = (entityId: string, name: string, role: Party['role'], rest: string): FynixParty => ({
   entity_id: entityId,
   name,
   role,
@@ -287,14 +322,6 @@ const SEO_WEEKLY = party(MOCK_ENTITY_IDS.seoWeekly, 'SEO Weekly', 'watch', 'cove
 /** Fynix's product: named, it counts as Fynix and has a mention of its own that is not numbered. */
 const PRODUCT_NAME = 'Fynix Audit';
 
-interface Site {
-  url: string;
-  host: string;
-  title: string;
-  source_name: string;
-  role: CitationOut['domain_role'];
-  entity_id: string | null;
-}
 const OWN_SITE: Site = {
   url: 'https://fynix.digital/seo-audit',
   host: 'fynix.digital',
@@ -336,31 +363,15 @@ const REDIRECT_SITE: Site = {
   entity_id: null,
 };
 
-/** Everything an answer says is about the facts of its fact row, which are what the summary counts. */
-const NOT_VALID: Facts = {
-  derivation_id: 1,
-  is_valid: false,
-  // Null for an answer that is not valid: it is in no bucket (the API's `ObservationFacts.outcome`)
-  outcome: null,
-  own_mentioned: false,
-  own_domain_cited: false,
-  own_mention_order: null,
-  own_prominence: null,
-  own_citation_count: 0,
-  total_citation_count: 0,
-  tracked_entities_mentioned: 0,
-  competitor_mentions: [],
-  competitor_cited: [],
-  had_structured_list: false,
-};
-
-interface Planned {
-  who: Party;
-  /** Named through its product, which counts as the brand. */
-  viaProduct: boolean;
-  /** The matcher was unsure: kept as evidence, counted nowhere. */
-  uncertain: boolean;
-}
+/** The party named in a sentence that starts with its name, or through its product. */
+const plan = (who: FynixParty, viaProduct: boolean, uncertain: boolean): Planned => ({
+  who,
+  written: viaProduct ? PRODUCT_NAME : who.name,
+  sentence: viaProduct ? `${PRODUCT_NAME} covers the technical checks.` : who.sentence,
+  at: 0,
+  viaProduct,
+  uncertain,
+});
 
 const cache = new Map<string, Answer>();
 
@@ -368,15 +379,45 @@ const cache = new Map<string, Answer>();
  * The answer of fixture prompt `index` on `engine` on day `day` (days since 1970, UTC). One in 29 failed, one
  * was refused, one was empty and one was cut off (partial, still valid). The own brand is named in about two
  * answers of three, and each span is in UTF-16 code units of `answer_text`, as the API's detail gives them.
- * Pure, and the same every time: the answers do not change from one request to the next.
+ * Pure, and the same every time: the answers do not change from one request to the next. `projectId` is the
+ * project the prompt is in: Fynix, unless it is one of the projects made from a definition file, whose answers
+ * follow each prompt's visibility profile (./profile-answers.ts).
  */
-export function answerOf(index: number, languageCode: string, engine: EngineCode, day: number): Answer {
-  const key = `${String(index)} ${languageCode} ${engine} ${String(day)}`;
+export function answerOf(
+  index: number,
+  languageCode: string,
+  engine: EngineCode,
+  day: number,
+  projectId: string = FYNIX_PROJECT_ID,
+): Answer {
+  const key = `${projectId} ${String(index)} ${languageCode} ${engine} ${String(day)}`;
   const found = cache.get(key);
   if (found !== undefined) return found;
-  const made = makeAnswer(index, languageCode, engine, day);
+  const world = PROFILE_WORLDS.get(projectId);
+  const made =
+    world === undefined
+      ? makeAnswer(index, languageCode, engine, day)
+      : profileAnswer(world, index, { code: engine, place: ENGINE_CODES.indexOf(engine) }, day);
   cache.set(key, made);
   return made;
+}
+
+/**
+ * The answer Run now delivers: `answerOf` for the first day from `day` on whose answer holds facts (one in
+ * 29 days fails, is refused or comes back empty, and the days cycle through every case in 29). Deterministic.
+ */
+export function validAnswerOf(
+  index: number,
+  languageCode: string,
+  engine: EngineCode,
+  day: number,
+  projectId: string = FYNIX_PROJECT_ID,
+): Answer {
+  for (let shift = 0; shift < 29; shift += 1) {
+    const answer = answerOf(index, languageCode, engine, day + shift, projectId);
+    if (answer.facts.is_valid) return answer;
+  }
+  throw new Error('No day of 29 gives a valid answer');
 }
 
 function makeAnswer(index: number, languageCode: string, engine: EngineCode, day: number): Answer {
@@ -386,53 +427,20 @@ function makeAnswer(index: number, languageCode: string, engine: EngineCode, day
     model_reported: MODELS[engine],
     check_url: webAddress(turn === 5 ? 'javascript:void(0)' : PROVIDER_CHECK[engine]),
   };
-  if (turn === 0) {
-    return {
-      ...base,
-      status: 'error',
-      answer_text: null,
-      // The provider's task status code as text, which is what the backend stores (`missing` when it sent none)
-      error_code: '50000',
-      model_reported: null,
-      check_url: null,
-      mentions: [],
-      citations: [],
-      facts: NOT_VALID,
-    };
-  }
-  if (turn === 1) {
-    return {
-      ...base,
-      status: 'refused',
-      answer_text: 'I cannot help with that request.',
-      error_code: null,
-      mentions: [],
-      citations: [],
-      facts: NOT_VALID,
-    };
-  }
-  if (turn === 2) {
-    return {
-      ...base,
-      status: 'empty',
-      answer_text: null,
-      error_code: null,
-      mentions: [],
-      citations: [],
-      facts: NOT_VALID,
-    };
-  }
+  if (turn === 0) return invalidAnswer('error', base);
+  if (turn === 1) return invalidAnswer('refused', base);
+  if (turn === 2) return invalidAnswer('empty', base);
 
   const hindi = languageCode === 'hi';
   const ownIn = (index + day + e) % 3 !== 0;
   const viaProduct = ownIn && (index + day * 2 + e) % 9 === 4;
   const flip = (index + day) % 4 === 3;
   const planned: Planned[] = [
-    ...(ownIn ? [{ who: OWN, viaProduct, uncertain: false }] : []),
-    ...((index + day) % 2 === 0 ? [{ who: BRIGHTWAVE, viaProduct: false, uncertain: false }] : []),
-    ...((index + e) % 4 === 1 ? [{ who: RANKFORGE, viaProduct: false, uncertain: false }] : []),
-    ...((index + day) % 5 === 0 ? [{ who: NORTHLIGHT, viaProduct: false, uncertain: true }] : []),
-    ...((index + e + day) % 6 === 0 ? [{ who: SEO_WEEKLY, viaProduct: false, uncertain: false }] : []),
+    ...(ownIn ? [plan(OWN, viaProduct, false)] : []),
+    ...((index + day) % 2 === 0 ? [plan(BRIGHTWAVE, false, false)] : []),
+    ...((index + e) % 4 === 1 ? [plan(RANKFORGE, false, false)] : []),
+    ...((index + day) % 5 === 0 ? [plan(NORTHLIGHT, false, true)] : []),
+    ...((index + e + day) % 6 === 0 ? [plan(SEO_WEEKLY, false, false)] : []),
   ];
   if (flip) planned.reverse();
 
@@ -444,7 +452,7 @@ function makeAnswer(index: number, languageCode: string, engine: EngineCode, day
   const brightwaveCited = planned.some((item) => item.who === BRIGHTWAVE) && day % 2 === 0;
   const inline = engine !== 'google_ai_mode' && index % 3 === 1;
   const kind = CITATION_KINDS[engine];
-  const sources: { site: Site; raw: string; kind: string; tag: string | null; flags: string[] }[] = [
+  const sources: SourceSpec[] = [
     ...(ownCited ? [{ site: OWN_SITE, raw: `${OWN_SITE.url}${utm}`, kind, tag: chatgptTag, flags: [] }] : []),
     ...(brightwaveCited
       ? [{ site: BRIGHTWAVE_SITE, raw: `${BRIGHTWAVE_SITE.url}${utm}`, kind, tag: chatgptTag, flags: [] }]
@@ -478,127 +486,22 @@ function makeAnswer(index: number, languageCode: string, engine: EngineCode, day
       : []),
   ];
 
-  // The text: an emoji before the names moves every span on by two UTF-16 units, so a viewer must not count characters
-  let text = hindi ? HINDI_INTRO : INTRO;
-  if (index % 5 === 0) text = `${MAGNIFIER} ${text}`;
-  const bullet = index % 4 === 0 ? `${PIN} ` : '';
-  const spans = new Map<Planned, [number, number][]>();
-  for (const item of planned) {
-    text += ` ${bullet}`;
-    const start = text.length;
-    const name = item.viaProduct ? PRODUCT_NAME : item.who.name;
-    text += item.viaProduct ? `${PRODUCT_NAME} covers the technical checks.` : item.who.sentence;
-    spans.set(item, [[start, start + name.length]]);
-  }
+  // An emoji before the names moves every span on by two UTF-16 units, so a viewer must not count characters
+  const intro = hindi ? HINDI_INTRO : INTRO;
   const plainOwn = planned.find((item) => item.who === OWN && !item.viaProduct);
-  if (plainOwn !== undefined && (index + day) % 7 === 0) {
-    text += ' ';
-    const start = text.length;
-    text += `${OWN.name} is listed first.`;
-    spans.get(plainOwn)?.push([start, start + OWN.name.length]);
-  }
-  const quoted = sources.find((source) => source.kind === 'inline');
-  if (quoted !== undefined) text += ` See ${quoted.raw} for the method.`;
-  text += turn === 3 ? ' The comparison goes on to cover pricing and...' : ` ${hindi ? HINDI_OUTRO : OUTRO}`;
-
-  let order = 0;
-  const mentions: MentionOut[] = planned.flatMap((item) => {
-    const own = item.who.role === 'own';
-    const numbered = !item.uncertain && item.who.role !== 'watch';
-    if (numbered) order += 1;
-    const evidence = spans.get(item) ?? [];
-    const first = evidence[0]?.[0] ?? 0;
-    const row: MentionOut = {
-      entity_id: item.who.entity_id,
-      name: item.who.name,
-      role: item.who.role,
-      mention_count: evidence.length,
-      first_char_offset: first,
-      mention_order: numbered ? order : null,
-      match_method: item.viaProduct ? 'via_product' : item.who.role === 'watch' ? 'alias_exact' : 'alias_word',
-      mention_status: item.uncertain ? 'uncertain' : 'accepted',
-      confidence: item.uncertain ? 0.45 : 0.95,
-      evidence_spans: evidence,
-    };
-    // The product's own row is kept with no number: it is not a member of the set
-    const product: MentionOut = {
-      ...row,
-      entity_id: MOCK_ENTITY_IDS.fynixAudit,
-      name: PRODUCT_NAME,
-      role: 'own',
-      mention_order: null,
-      match_method: 'alias_word',
-    };
-    return own && item.viaProduct ? [row, product] : [row];
+  return buildAnswer({
+    base,
+    lead: index % 5 === 0 ? `${MAGNIFIER} ${intro}` : intro,
+    bullet: index % 4 === 0 ? `${PIN} ` : '',
+    planned,
+    repeat:
+      plainOwn !== undefined && (index + day) % 7 === 0
+        ? { planned: plainOwn, sentence: `${OWN.name} is listed first.`, at: 0 }
+        : null,
+    sources,
+    inline: (address) => ` See ${address} for the method.`,
+    closing: turn === 3 ? ' The comparison goes on to cover pricing and...' : ` ${hindi ? HINDI_OUTRO : OUTRO}`,
+    partial: turn === 3,
+    product: { entity_id: MOCK_ENTITY_IDS.fynixAudit, name: PRODUCT_NAME },
   });
-  // The API lists the numbered mentions first, by number, and the others after them
-  mentions.sort(
-    (a, b) =>
-      (a.mention_order ?? Infinity) - (b.mention_order ?? Infinity) || a.first_char_offset - b.first_char_offset,
-  );
-
-  const citations: CitationOut[] = sources.map((source, place) => ({
-    citation_index: place + 1,
-    url: source.site.url,
-    raw_url: source.raw,
-    host: source.site.host,
-    title: source.site.title,
-    source_name: source.site.source_name,
-    citation_kind: source.kind,
-    domain_role: source.site.role,
-    role_entity_id: source.site.entity_id,
-    occurrences: 1,
-    first_char_offset: source.kind === 'inline' ? text.indexOf(source.raw) : null,
-    answer_block_index: null,
-    referral_tag: source.tag,
-    flags: source.flags,
-  }));
-
-  const counted = mentions.filter((mention) => mention.mention_order !== null);
-  const own = counted.filter((mention) => mention.role === 'own');
-  const competitors = counted.filter((mention) => mention.role === 'competitor');
-  const ownCitations = citations.filter((citation) => citation.domain_role === 'own');
-  const firstOwn = own[0];
-  const length = [...text].length;
-  const facts: Facts = {
-    derivation_id: 1,
-    is_valid: true,
-    outcome:
-      own.length > 0
-        ? ownCitations.length > 0
-          ? 'mentioned_and_cited'
-          : 'mentioned_only'
-        : ownCitations.length > 0
-          ? 'cited_only'
-          : 'neither',
-    own_mentioned: own.length > 0,
-    own_domain_cited: ownCitations.length > 0,
-    own_mention_order: firstOwn?.mention_order ?? null,
-    // 1 minus the first offset over the length, both in code points as the backend counts them
-    own_prominence:
-      firstOwn === undefined
-        ? null
-        : Math.round((1 - [...text.slice(0, firstOwn.first_char_offset)].length / length) * 10_000) / 10_000,
-    own_citation_count: ownCitations.length,
-    total_citation_count: citations.length,
-    tracked_entities_mentioned: counted.length,
-    competitor_mentions: competitors.map((mention) => mention.entity_id),
-    competitor_cited: [
-      ...new Set(
-        citations.flatMap((citation) =>
-          citation.domain_role === 'competitor' && citation.role_entity_id !== null ? [citation.role_entity_id] : [],
-        ),
-      ),
-    ],
-    had_structured_list: false,
-  };
-  return {
-    ...base,
-    status: turn === 3 ? 'partial' : 'complete',
-    answer_text: text,
-    error_code: null,
-    mentions,
-    citations,
-    facts,
-  };
 }

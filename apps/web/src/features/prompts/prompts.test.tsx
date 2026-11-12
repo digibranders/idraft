@@ -78,7 +78,7 @@ function renderOnPrompts(
 }
 
 describe('Topics & Prompts', () => {
-  it('lists the active prompts with their topic and country, and the window in the top bar', async () => {
+  it('lists the active prompts with their topic and country, under a heading that is read and not drawn', async () => {
     const { container } = renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts' });
     const table = await grid();
     expect(
@@ -86,9 +86,26 @@ describe('Topics & Prompts', () => {
     ).toBeInTheDocument();
     expect(within(table).getAllByText('Technical SEO').length).toBeGreaterThan(0);
     expect(within(table).getAllByText('Germany').length).toBeGreaterThan(0);
-    expect(screen.getByRole('heading', { level: 1, name: 'Topics & Prompts' })).toBeInTheDocument();
-    expect(screen.getByText('Answers from Oct 16 to Nov 12, 2026')).toBeInTheDocument();
+    const heading = screen.getByRole('heading', { level: 1, name: 'Topics & Prompts' });
+    expect(heading).toHaveClass('sr-only');
+    // The dates of the window are not a caption: they are in the tooltip of the window and of the Updated text
+    expect(screen.queryByText(/^Answers from /)).toBeNull();
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('shows the topic of a prompt as a badge, with where it sits in the tree in a tooltip the keyboard reaches', async () => {
+    renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts' });
+    const table = await grid();
+    const badge = (await within(table).findAllByText('Technical SEO'))[0] as HTMLElement;
+    expect(badge).toHaveAttribute('data-slot', 'badge');
+    const cell = badge.closest<HTMLElement>('[role="gridcell"]') as HTMLElement;
+    expect(cell).toHaveAccessibleDescription('SEO / Technical SEO');
+    // The table puts the tooltip on the cell, which is what takes the keyboard focus, and opens it from there
+    expect(cell).toHaveAttribute('data-cell');
+    // A topic at the top of the tree sits nowhere else: its name is all there is to say, and the badge may cut it
+    const top = within(table).getAllByText('SEO')[0] as HTMLElement;
+    expect(top).toHaveAttribute('data-slot', 'badge');
+    expect(top.closest('[role="gridcell"]')).toHaveAccessibleDescription('SEO');
   });
 
   it('says no engine is on, and where to turn one on, for a project without one', async () => {
@@ -325,8 +342,10 @@ describe('Topics & Prompts: what the list and the counts do while they load or f
         return HttpResponse.json(EMPTY_SUMMARY);
       }),
     );
-    renderOnPrompts(promptsAs('viewer'), { searchParams: '?window=7' });
-    expect(await screen.findByText('Answers from Nov 6 to Nov 12, 2026')).toBeInTheDocument();
+    renderOnPrompts(withTopBar(promptsAs('viewer')), { searchParams: '?window=7' });
+    expect(await screen.findByRole('combobox', { name: 'Window' })).toHaveAccessibleDescription(
+      'Answers from Nov 6 to Nov 12, 2026',
+    );
     await grid();
     expect(asked.map((url) => [url.searchParams.get('from'), url.searchParams.get('to')])).toContainEqual([
       '2026-11-06',
@@ -349,7 +368,11 @@ describe('Topics & Prompts: what the list and the counts do while they load or f
     await within(table).findByText('Which SEO agency is best for a SaaS startup in Germany?');
     await user.click(await screen.findByRole('combobox', { name: 'Window' }));
     await user.click(await screen.findByRole('option', { name: 'Last 7 days' }));
-    expect(await screen.findByText('Answers from Nov 6 to Nov 12, 2026')).toBeInTheDocument();
+    await vi.waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Window' })).toHaveAccessibleDescription(
+        'Answers from Nov 6 to Nov 12, 2026',
+      ),
+    );
     await settle();
     expect(calls).toBe(2);
     expect(
@@ -436,13 +459,13 @@ const BRANDED_TEXT = 'Is Fynix a good SEO agency for software companies?';
 const FIRST_TEXT = 'Which SEO agency is best for a SaaS startup in Germany?';
 
 describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', () => {
-  it('shows Mentioned and Cited per enabled engine as counts of valid answers, and only for enabled engines', async () => {
+  it('shows the Mention of each enabled engine as a percent with its count of valid answers, and only for enabled engines', async () => {
     renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts' });
     const table = await grid();
-    expect(await within(table).findByRole('columnheader', { name: /^ChatGPT mentioned/ })).toBeInTheDocument();
-    expect(within(table).getByRole('columnheader', { name: /^ChatGPT cited/ })).toBeInTheDocument();
-    expect(within(table).getByRole('columnheader', { name: /^Gemini mentioned/ })).toBeInTheDocument();
-    expect(within(table).getByRole('columnheader', { name: /^Gemini cited/ })).toBeInTheDocument();
+    expect(await within(table).findByRole('columnheader', { name: /^ChatGPT mention/ })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: /^Gemini mention/ })).toBeInTheDocument();
+    // The counts of Mentioned and Cited are columns of the chooser, off until chosen
+    expect(within(table).queryByRole('columnheader', { name: /^ChatGPT cited/ })).toBeNull();
     expect(within(table).queryByRole('columnheader', { name: /^Google AI Mode/ })).toBeNull();
     // Eight runs in the 28 days (Monday and Thursday, 16 October to 12 November); an answer that failed, was
     // refused or was empty leaves the denominator, so a count reads "n of 5" to "n of 8"
@@ -457,14 +480,14 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
       within(within(table).getByText(text).closest('[role="row"]') as HTMLElement)
         .getAllByRole('gridcell')
         .map((cell) => cell.textContent);
-    expect(rowOf(FIRST_TEXT)).toEqual(['SEO', 'Germany', '3 of 6', '4 of 6', '6 of 8', '0 of 8']);
+    expect(rowOf(FIRST_TEXT)).toEqual(['SEO', 'Germany', '63% avg of 2', '33% avg of 2', '50% 3 of 6', '75% 6 of 8']);
     expect(rowOf('How do I run a technical SEO audit on a large site?')).toEqual([
       'Technical SEO',
       'Germany',
-      '5 of 6',
-      '0 of 6',
-      '6 of 8',
-      '4 of 8',
+      '79% avg of 2',
+      '25% avg of 2',
+      '83% 5 of 6',
+      '75% 6 of 8',
     ]);
   });
 
@@ -495,9 +518,9 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
     expect(await within(table).findByText('How do I run a technical SEO audit on a large site?')).toBeInTheDocument();
     expect(within(table).queryByText('Which tools track local rankings by city?')).toBeNull();
     expect(within(table).queryByText(FIRST_TEXT)).toBeNull();
-    await user.click(within(table).getByRole('button', { name: 'ChatGPT mentioned' }));
+    await user.click(within(table).getByRole('button', { name: 'ChatGPT mention' }));
     // A rate sorts high to low on the first click
-    expect(within(table).getByRole('columnheader', { name: /^ChatGPT mentioned/ })).toHaveAttribute(
+    expect(within(table).getByRole('columnheader', { name: /^ChatGPT mention/ })).toHaveAttribute(
       'aria-sort',
       'descending',
     );
@@ -626,11 +649,11 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
   it('tells which filters of a link were left out when the project has nothing for them', async () => {
     const writes: string[] = [];
     renderOnPrompts(promptsAs('viewer'), {
-      searchParams: `?topic=${idOf(3, 9)}&country=ZZ&branded=nope`,
+      searchParams: `?topic=${idOf(3, 9)}&branded=nope`,
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
-    // The Branded filter's one option is known at once; the countries are judged when the list is in and the
-    // topics when the vocabularies are read too, so each is told when it is judged (a toast gives way to the next)
+    // The Branded filter's one option is known at once; the topics are judged when the vocabularies are read too,
+    // so each is told when it is judged (a toast gives way to the next). The country is no filter: it is the top bar's
     expect(await screen.findByText(/^Branded prompts:/)).toBeInTheDocument();
     await vi.waitFor(() => expect(writes.at(-1)).toBe('?tab=prompts'));
     expect(writes.join(' ')).toMatch(/topic=/);
@@ -657,8 +680,8 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
     failing = false;
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     const table = await grid();
-    expect(await within(table).findByRole('columnheader', { name: /^Gemini mentioned/ })).toBeInTheDocument();
-    expect(within(table).queryByRole('columnheader', { name: /^ChatGPT mentioned/ })).toBeNull();
+    expect(await within(table).findByRole('columnheader', { name: /^Gemini mention/ })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: /^ChatGPT mention/ })).toBeNull();
     expect(writes).toEqual([]);
     expect(screen.queryByText('A filter from the link was left out')).toBeNull();
   });
@@ -681,8 +704,8 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
   it('shows only the engines the Engine filter names', async () => {
     renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts&engine=gemini_web' });
     const table = await grid();
-    expect(await within(table).findByRole('columnheader', { name: /^Gemini mentioned/ })).toBeInTheDocument();
-    expect(within(table).queryByRole('columnheader', { name: /^ChatGPT mentioned/ })).toBeNull();
+    expect(await within(table).findByRole('columnheader', { name: /^Gemini mention/ })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: /^ChatGPT mention/ })).toBeNull();
   });
 
   it('says no prompt matches the filters together, and Clear filters brings the list back', async () => {
@@ -714,7 +737,7 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
   it('tells a person a filter from the link was left out when this project has nothing for it', async () => {
     renderOnPrompts(promptsAs('viewer'), { searchParams: '?engine=google_ai_mode' });
     expect(await screen.findByText('A filter from the link was left out')).toBeInTheDocument();
-    expect(await within(await grid()).findByRole('columnheader', { name: /^ChatGPT mentioned/ })).toBeInTheDocument();
+    expect(await within(await grid()).findByRole('columnheader', { name: /^ChatGPT mention/ })).toBeInTheDocument();
   });
 
   describe('with counts the test sets', () => {
@@ -788,7 +811,7 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
 
     it('reads a rate by its value, not its text, with no answers last either way', async () => {
       serve();
-      const up = renderOnPrompts(promptsAs('viewer'), { searchParams: '?sort=chatgpt_web_mentioned' });
+      const up = renderOnPrompts(promptsAs('viewer'), { searchParams: '?sort=chatgpt_web_rate' });
       expect(await order()).toEqual([
         'Question number 3?',
         'Question number 1?',
@@ -798,7 +821,7 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
         'Question number 5?',
       ]);
       up.unmount();
-      renderOnPrompts(promptsAs('viewer'), { searchParams: '?sort=-chatgpt_web_mentioned' });
+      renderOnPrompts(promptsAs('viewer'), { searchParams: '?sort=-chatgpt_web_rate' });
       expect(await order()).toEqual([
         'Question number 2?',
         'Question number 6?',
@@ -810,12 +833,12 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
     });
 
     it('sorts rates a text order would get wrong: 5, 10, 25, 50 and 100 percent', async () => {
-      // 1 of 20, 1 of 10, 1 of 4, 1 of 2, 3 of 3
-      serve([counted(20, 1), counted(10, 1), counted(4, 1), counted(2, 1), counted(3, 3)]);
-      const up = renderOnPrompts(promptsAs('viewer'), { searchParams: '?sort=chatgpt_web_mentioned' });
+      // 2 of 40, 2 of 20, 2 of 8, 4 of 8, 4 of 4: each has the four answers a rate needs
+      serve([counted(40, 2), counted(20, 2), counted(8, 2), counted(8, 4), counted(4, 4)]);
+      const up = renderOnPrompts(promptsAs('viewer'), { searchParams: '?sort=chatgpt_web_rate' });
       expect(await order()).toEqual([1, 2, 3, 4, 5].map((n) => `Question number ${String(n)}?`));
       up.unmount();
-      renderOnPrompts(promptsAs('viewer'), { searchParams: '?sort=-chatgpt_web_mentioned' });
+      renderOnPrompts(promptsAs('viewer'), { searchParams: '?sort=-chatgpt_web_rate' });
       expect(await order()).toEqual([5, 4, 3, 2, 1].map((n) => `Question number ${String(n)}?`));
     });
 
@@ -823,20 +846,23 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
       serve();
       const writes: string[] = [];
       const { user } = renderOnPrompts(promptsAs('viewer'), {
-        searchParams: '?sort=-chatgpt_web_mentioned&engine=gemini_web',
+        searchParams: '?sort=-chatgpt_web_rate&engine=gemini_web',
         onUrlUpdate: ({ queryString }) => writes.push(queryString),
       });
       const table = await grid();
       await within(table).findByText('Question number 1?');
-      expect(within(table).queryByRole('columnheader', { name: /^ChatGPT mentioned/ })).toBeNull();
-      expect(within(table).getByRole('columnheader', { name: /^Prompt/ })).toHaveAttribute('aria-sort', 'ascending');
-      expect(writes).toEqual([]);
-      await user.click(screen.getByRole('button', { name: 'Clear filters' }));
-      expect(await within(table).findByRole('columnheader', { name: /^ChatGPT mentioned/ })).toHaveAttribute(
+      expect(within(table).queryByRole('columnheader', { name: /^ChatGPT mention/ })).toBeNull();
+      expect(within(table).getByRole('columnheader', { name: /^Mention rate/ })).toHaveAttribute(
         'aria-sort',
         'descending',
       );
-      expect(writes.at(-1)).toContain('sort=-chatgpt_web_mentioned');
+      expect(writes).toEqual([]);
+      await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+      expect(await within(table).findByRole('columnheader', { name: /^ChatGPT mention/ })).toHaveAttribute(
+        'aria-sort',
+        'descending',
+      );
+      expect(writes.at(-1)).toContain('sort=-chatgpt_web_rate');
     });
 
     it('shows the count, and says why a cell has none: no answer, or none valid', async () => {
@@ -886,41 +912,152 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
 
 describe('Topics & Prompts: the Topics tab', () => {
   const treegrid = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Topics' });
-  /** The topic and prompt names in the tree, in order. */
+  /** The topic and prompt names in the tree, in order (a parent row is named by its label, which its count of topics follows). */
   const names = async (): Promise<string[]> =>
-    (await within(await treegrid()).findAllByRole('rowheader')).map((cell) => cell.textContent ?? '');
+    (await within(await treegrid()).findAllByRole('rowheader')).map(
+      (cell) => cell.getAttribute('aria-label') ?? cell.textContent ?? '',
+    );
   const rowOf = (tree: HTMLElement, name: string): HTMLElement =>
     within(tree).getByText(name).closest('[role="row"]') as HTMLElement;
+  const levelOf = (tree: HTMLElement, level: 1 | 2): string[] =>
+    [...tree.querySelectorAll(`[role="row"][aria-level="${String(level)}"] [role="rowheader"]`)].map(
+      (cell) => cell.getAttribute('aria-label') ?? cell.textContent ?? '',
+    );
+  const ROLLUP_NOTE = 'A parent row counts every prompt under it, so rows do not add up to the parent.';
+  /** What the footer puts between its counts. */
+  const MIDDLE_DOT = String.fromCodePoint(0xb7);
 
-  it('opens on Topics: one row per topic, the largest first, each counting the prompts of the topics below it', async () => {
+  it('opens on Topics: one row per top level topic, the highest Mention rate first, a parent opening onto the topics below it', async () => {
     const { container, user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
-    // SEO holds its own 5 prompts and the 4 of Technical SEO and 3 of Local SEO; the branded one is out
-    expect(await names()).toEqual([
-      'SEO',
-      'Content Marketing',
-      'Technical SEO',
-      'Blog Strategy',
-      'Local SEO',
-      // Topics of one size stay in the API's order, which puts the prompts without a topic last
-      'Paid Search',
-      'No topic',
-    ]);
+    // The mock's answers are made from the prompt, the engine and the day, so the rates and this order are the same
+    // every run. A topic below another is not a row of the top level: SEO holds its own 5 prompts and the 4 of
+    // Technical SEO and 3 of Local SEO (the branded one is out), and its row counts all 12
+    expect(await names()).toEqual(['No topic', 'Content Marketing', 'SEO', 'Paid Search']);
+    expect(within(tree).queryByText('Technical SEO')).toBeNull();
     expect(within(tree).getByRole('columnheader', { name: /^ChatGPT mentioned/ })).toBeInTheDocument();
-    expect(within(tree).getByRole('button', { name: 'Expand SEO, 12 prompts' })).toBeInTheDocument();
-    expect(within(tree).getByRole('button', { name: 'Expand Content Marketing, 7 prompts' })).toBeInTheDocument();
-    expect(within(tree).getByRole('button', { name: 'Expand Local SEO, 3 prompts' })).toBeInTheDocument();
-    // A topic opens in place and lists its prompts, those of the topics below it among them
-    await user.click(within(tree).getByRole('button', { name: 'Expand SEO, 12 prompts' }));
-    expect(
-      await within(tree).findByText('Which SEO agency is best for a SaaS startup in Germany?'),
-    ).toBeInTheDocument();
-    expect(within(tree).getByText('How do I run a technical SEO audit on a large site?')).toBeInTheDocument();
-    expect(within(tree).getByText('Which tools track local rankings by city?')).toBeInTheDocument();
-    expect(within(tree).queryByText('Is Fynix a good SEO agency for software companies?')).toBeNull();
-    expect(within(tree).queryByText('How do I plan a content calendar for a year?')).toBeNull();
-    expect(within(tree).getByRole('button', { name: 'Collapse SEO, 12 prompts' })).toBeInTheDocument();
+    expect(within(tree).getByRole('button', { name: 'Expand SEO, 2 topics' })).toBeInTheDocument();
+    expect(within(tree).getByRole('button', { name: 'Expand Content Marketing, 1 topic' })).toBeInTheDocument();
+    // A topic without topics below it opens onto its prompts
+    expect(within(tree).getByRole('button', { name: 'Expand Paid Search, 2 prompts' })).toBeInTheDocument();
+    expect(within(rowOf(tree, 'SEO')).getByText('12')).toBeInTheDocument();
+    // A parent opens in place onto the topics under it, one level in, and offers its own prompts
+    await user.click(within(tree).getByRole('button', { name: 'Expand SEO, 2 topics' }));
+    expect(await names()).toEqual([
+      'No topic',
+      'Content Marketing',
+      'SEO',
+      'Technical SEO',
+      'Local SEO',
+      'Show all 12 prompts of SEO',
+      'Paid Search',
+    ]);
+    expect(levelOf(tree, 1)).toEqual(['No topic', 'Content Marketing', 'SEO', 'Paid Search']);
+    expect(levelOf(tree, 2)).toEqual(['Technical SEO', 'Local SEO', 'Show all 12 prompts of SEO']);
+    expect(within(tree).queryByText('Which SEO agency is best for a SaaS startup in Germany?')).toBeNull();
+    // A child is a row of its own, with its own numbers and no disclosure button, and opens the topic's drawer
+    expect(within(rowOf(tree, 'Technical SEO')).getByText('4')).toBeInTheDocument();
+    expect(rowOf(tree, 'Technical SEO')).not.toHaveAttribute('aria-expanded');
+    expect(within(tree).getByRole('button', { name: 'Open the topic Technical SEO' })).toBeInTheDocument();
+    expect(within(tree).getByRole('button', { name: 'Collapse SEO, 2 topics' })).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('opens a topic without topics below it onto eight of its prompts, and offers the rest', async () => {
+    const { user } = renderWithProviders(promptsAs('viewer'));
+    const tree = await treegrid();
+    await user.click(await within(tree).findByRole('button', { name: 'Expand Paid Search, 2 prompts' }));
+    expect(
+      await within(tree).findByText('What is the best way to manage paid search on a small budget?'),
+    ).toBeInTheDocument();
+    expect(levelOf(tree, 2)).toHaveLength(2);
+    expect(within(tree).queryByRole('button', { name: /^Show all/ })).toBeNull();
+  });
+
+  it('says in a note under the table that a parent row does not add up from the rows below it, while a parent is shown', async () => {
+    const first = renderWithProviders(promptsAs('viewer'));
+    await treegrid();
+    expect(await screen.findByText(ROLLUP_NOTE)).toBeInTheDocument();
+    first.unmount();
+    renderWithProviders(promptsAs('viewer'), { searchParams: `?topic=${MOCK_TERM_IDS.paidSearch}` });
+    await vi.waitFor(async () => expect(await names()).toEqual(['Paid Search']));
+    expect(screen.queryByText(ROLLUP_NOTE)).toBeNull();
+  });
+
+  it('says how many topics a parent holds in its chevron, not beside its name where it would cover the next column', async () => {
+    renderWithProviders(promptsAs('viewer'));
+    const tree = await treegrid();
+    await within(tree).findByText('Paid Search');
+    expect(within(tree).getByRole('button', { name: 'Expand SEO, 2 topics' })).toBeInTheDocument();
+    expect(within(tree).getByRole('button', { name: 'Expand Content Marketing, 1 topic' })).toBeInTheDocument();
+    expect(within(rowOf(tree, 'SEO')).queryByText('2 topics')).toBeNull();
+    expect(within(rowOf(tree, 'Paid Search')).queryByText(/topic/)).toBeNull();
+  });
+
+  it('counts the topics and the prompts in the footer, each once: the topics shown with those under them, the prompts in scope', async () => {
+    const first = renderWithProviders(promptsAs('viewer'));
+    await treegrid();
+    // Four top level topics and three below them; 23 prompts, the branded one out, each counted once
+    expect(await screen.findByText(`7 topics ${MIDDLE_DOT} 23 prompts`)).toBeInTheDocument();
+    first.unmount();
+    renderWithProviders(promptsAs('viewer'), { searchParams: `?topic=${MOCK_TERM_IDS.seo}` });
+    expect(await screen.findByText(`3 topics ${MIDDLE_DOT} 12 prompts`)).toBeInTheDocument();
+  });
+
+  it('opens every parent from Expand all and closes them from Collapse all, by the keyboard too', async () => {
+    const { user } = renderWithProviders(promptsAs('viewer'));
+    const tree = await treegrid();
+    const expandAll = await screen.findByRole('button', { name: 'Expand all' });
+    await user.click(expandAll);
+    await vi.waitFor(() => expect(levelOf(tree, 2)).toContain('Technical SEO'));
+    expect(levelOf(tree, 2)).toEqual(
+      expect.arrayContaining([
+        'Technical SEO',
+        'Local SEO',
+        'Blog Strategy',
+        'Show all 12 prompts of SEO',
+        'Show all 7 prompts of Content Marketing',
+      ]),
+    );
+    for (const row of tree.querySelectorAll('[data-group-row]')) expect(row).toHaveAttribute('aria-expanded', 'true');
+    const collapseAll = screen.getByRole('button', { name: 'Collapse all' });
+    collapseAll.focus();
+    await user.keyboard('{Enter}');
+    await vi.waitFor(() => expect(levelOf(tree, 2)).toEqual([]));
+    for (const row of tree.querySelectorAll('[data-group-row]')) expect(row).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'Expand all' })).toHaveFocus();
+    // One parent opened by hand makes the button offer to open the rest
+    await user.click(within(tree).getByRole('button', { name: 'Expand SEO, 2 topics' }));
+    expect(screen.getByRole('button', { name: 'Expand all' })).toBeInTheDocument();
+  });
+
+  it('opens a parent from the keyboard and keeps the focus on its button', async () => {
+    const { user } = renderWithProviders(promptsAs('viewer'));
+    const tree = await treegrid();
+    const open = await within(tree).findByRole('button', { name: 'Expand SEO, 2 topics' });
+    open.focus();
+    await user.keyboard('{Enter}');
+    expect(await within(tree).findByRole('button', { name: 'Collapse SEO, 2 topics' })).toHaveFocus();
+    expect(rowOf(tree, 'SEO')).toHaveAttribute('aria-expanded', 'true');
+    expect(levelOf(tree, 2)).toEqual(['Technical SEO', 'Local SEO', 'Show all 12 prompts of SEO']);
+  });
+
+  it('sorts the top level among itself and the topics under a parent among themselves', async () => {
+    const { user } = renderWithProviders(promptsAs('viewer'));
+    const tree = await treegrid();
+    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 2 topics' }));
+    await user.click(within(tree).getByRole('button', { name: 'Prompts' }));
+    await user.click(within(tree).getByRole('button', { name: 'Prompts' }));
+    // Fewest prompts first, a tie by name: the topics of SEO stay under it, Local SEO (3) before Technical SEO (4)
+    expect(await names()).toEqual([
+      'No topic',
+      'Paid Search',
+      'Content Marketing',
+      'SEO',
+      'Local SEO',
+      'Technical SEO',
+      'Show all 12 prompts of SEO',
+    ]);
   });
 
   it('opens and closes a topic from the keyboard and keeps the focus on its button', async () => {
@@ -938,16 +1075,26 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(within(tree).queryByText('What is the best way to manage paid search on a small budget?')).toBeNull();
   });
 
-  it('lists the branded prompts under their topic once the Branded filter includes them', async () => {
+  it('counts the branded prompts in the topics once the Branded filter includes them', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: '?branded=include' });
     const tree = await treegrid();
-    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 13 prompts' }));
-    expect(await within(tree).findByText('Is Fynix a good SEO agency for software companies?')).toBeInTheDocument();
+    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 2 topics' }));
+    expect(await within(tree).findByRole('button', { name: 'Show all 13 prompts of SEO' })).toBeInTheDocument();
   });
 
   it('keeps the chosen topic and the topics below it, as the Prompts tab does', async () => {
-    renderWithProviders(promptsAs('viewer'), { searchParams: `?topic=${MOCK_TERM_IDS.seo}` });
-    await vi.waitFor(async () => expect(await names()).toEqual(['SEO', 'Technical SEO', 'Local SEO']));
+    const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: `?topic=${MOCK_TERM_IDS.seo}` });
+    await vi.waitFor(async () => expect(await names()).toEqual(['SEO']));
+    await user.click(await screen.findByRole('button', { name: 'Expand all' }));
+    await vi.waitFor(async () =>
+      expect(await names()).toEqual(['SEO', 'Technical SEO', 'Local SEO', 'Show all 12 prompts of SEO']),
+    );
+  });
+
+  it('shows a child alone at the top level when the filter names it and not its parent', async () => {
+    renderWithProviders(promptsAs('viewer'), { searchParams: `?topic=${MOCK_TERM_IDS.localSeo}` });
+    await vi.waitFor(async () => expect(await names()).toEqual(['Local SEO']));
+    expect(screen.queryByText(ROLLUP_NOTE)).toBeNull();
   });
 
   it('keeps only a leaf topic when that is the one chosen, and any of several', async () => {
@@ -964,7 +1111,7 @@ describe('Topics & Prompts: the Topics tab', () => {
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
     await vi.waitFor(async () => expect(await names()).toEqual(['Technical SEO']));
-    await user.click(screen.getByRole('tab', { name: 'Prompts' }));
+    await user.click(screen.getByRole('radio', { name: 'Prompts' }));
     const table = await grid();
     expect(await within(table).findByText('How do I run a technical SEO audit on a large site?')).toBeInTheDocument();
     expect(within(table).queryByText('Which tools track local rankings by city?')).toBeNull();
@@ -972,7 +1119,7 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(onPrompts.get('tab')).toBe('prompts');
     expect(onPrompts.get('topic')).toBe(MOCK_TERM_IDS.technicalSeo);
     expect(onPrompts.get('window')).toBe('7');
-    await user.click(screen.getByRole('tab', { name: 'Topics' }));
+    await user.click(screen.getByRole('radio', { name: 'Topics' }));
     expect(await names()).toEqual(['Technical SEO']);
     const back = new URLSearchParams(writes.at(-1));
     expect(back.has('tab')).toBe(false);
@@ -980,14 +1127,14 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(back.get('window')).toBe('7');
   });
 
-  it('keeps a country chosen on the Prompts tab for when the person returns to it', async () => {
+  it('keeps a country of the address on both tabs, and narrows the topics to it too', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: '?tab=prompts&country=IN' });
     const table = await grid();
     await vi.waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(2));
-    await user.click(screen.getByRole('tab', { name: 'Topics' }));
-    // A topic's counts are the API's, for all of its prompts: the country does not narrow the topics
-    expect(await names()).toContain('Content Marketing');
-    await user.click(screen.getByRole('tab', { name: 'Prompts' }));
+    await user.click(screen.getByRole('radio', { name: 'Topics' }));
+    // The Hindi prompt is the only one in India, and it is given SEO: no other topic has a prompt left
+    await vi.waitFor(async () => expect(await names()).toEqual(['SEO']));
+    await user.click(screen.getByRole('radio', { name: 'Prompts' }));
     await vi.waitFor(async () => expect(within(await grid()).getAllByRole('row')).toHaveLength(2));
   });
 
@@ -1002,6 +1149,72 @@ describe('Topics & Prompts: the Topics tab', () => {
     renderWithProviders(promptsAs('editor'));
     expect(await screen.findByRole('heading', { name: NO_PROMPTS_TITLE })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: NO_MATCH_TITLE })).toBeNull();
+  });
+
+  describe('searching a parent and its child topic', () => {
+    const PARENT = idOf(3, 1);
+    const CHILD = idOf(3, 2);
+    const serveParentAndChild = (): void => {
+      serveVocabulary([treeNode(PARENT, 'Alpha', null, [treeNode(CHILD, 'Zebra', PARENT, [])])]);
+      const cells = [topicCells('chatgpt_web', [])];
+      server.use(
+        http.get(LIST_PATH, () =>
+          HttpResponse.json(
+            pageOf(
+              [
+                {
+                  ...promptOf(1),
+                  terms: [{ term_id: CHILD, name: 'Zebra', path: 'alpha/zebra', vocabulary_kind: 'topic' }],
+                },
+              ],
+              null,
+            ),
+          ),
+        ),
+        http.get(SUMMARY_PATH, () =>
+          HttpResponse.json({
+            data: {
+              ...EMPTY_SUMMARY.data,
+              prompts: [
+                {
+                  prompt_id: idOf(1, 1),
+                  text: 'Question number 1?',
+                  is_branded: false,
+                  topic_term_ids: [CHILD],
+                  last_observed_at: null,
+                  last_valid_at: null,
+                  engines: [promptCells('chatgpt_web', NO_COUNTS)],
+                },
+              ],
+              topics: [
+                { term_id: PARENT, name: 'Alpha', prompt_count: 1, engines: cells },
+                { term_id: CHILD, name: 'Zebra', prompt_count: 1, engines: cells },
+              ],
+            },
+          }),
+        ),
+      );
+    };
+
+    it('finds the parent of a child topic whose own name is searched, and opens onto that child alone', async () => {
+      serveParentAndChild();
+      const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: '?q=zebra' });
+      const tree = await treegrid();
+      expect(await names()).toEqual(['Alpha']);
+      await user.click(within(tree).getByRole('button', { name: 'Expand Alpha, 1 topic' }));
+      expect(await names()).toEqual(['Alpha', 'Zebra', 'Show the prompt of Alpha']);
+    });
+
+    it('keeps every topic below a parent whose own name is searched, and finds a parent by the text of a prompt', async () => {
+      serveParentAndChild();
+      const first = renderWithProviders(promptsAs('viewer'), { searchParams: '?q=alpha' });
+      await vi.waitFor(async () => expect(await names()).toEqual(['Alpha']));
+      expect(within(await treegrid()).getByRole('button', { name: 'Expand Alpha, 1 topic' })).toBeInTheDocument();
+      first.unmount();
+      serveParentAndChild();
+      renderWithProviders(promptsAs('viewer'), { searchParams: '?q=question' });
+      await vi.waitFor(async () => expect(await names()).toEqual(['Alpha']));
+    });
   });
 
   it('finds a topic by the text of one of its prompts', async () => {
@@ -1019,7 +1232,7 @@ describe('Topics & Prompts: the Topics tab', () => {
     );
     const { user } = renderWithProviders(promptsAs('viewer'));
     expect(await screen.findByText('The topics could not be loaded.')).toBeInTheDocument();
-    await user.click(screen.getByRole('tab', { name: 'Prompts' }));
+    await user.click(screen.getByRole('radio', { name: 'Prompts' }));
     expect(
       await within(await grid()).findByText('Which SEO agency is best for a SaaS startup in Germany?'),
     ).toBeInTheDocument();
@@ -1044,7 +1257,11 @@ describe('Topics & Prompts: the Topics tab', () => {
     await within(await treegrid()).findByText('No topic');
     await user.click(await screen.findByRole('combobox', { name: 'Window' }));
     await user.click(await screen.findByRole('option', { name: 'Last 7 days' }));
-    expect(await screen.findByText('Answers from Nov 6 to Nov 12, 2026')).toBeInTheDocument();
+    await vi.waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Window' })).toHaveAccessibleDescription(
+        'Answers from Nov 6 to Nov 12, 2026',
+      ),
+    );
     await settle();
     expect(calls).toBe(2);
     expect(within(await treegrid()).getByText('No topic')).toBeInTheDocument();
@@ -1074,7 +1291,7 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(header).toHaveAccessibleDescription(/Each prompt counts once, whatever the number of its answers\.$/);
     first.unmount();
     renderOnPrompts(promptsAs('viewer'));
-    const column = await within(await grid()).findByRole('columnheader', { name: /^ChatGPT mentioned/ });
+    const column = await within(await grid()).findByRole('columnheader', { name: /^ChatGPT mention/ });
     expect(column).not.toHaveAccessibleDescription(/Each prompt counts once/);
   });
 
@@ -1084,20 +1301,37 @@ describe('Topics & Prompts: the Topics tab', () => {
     });
     const heading = await screen.findByRole('heading', { name: NO_MATCH_TITLE });
     await user.click(within(heading.parentElement as HTMLElement).getByRole('button', { name: 'Clear filters' }));
-    await vi.waitFor(async () => expect(await names()).toContain('Technical SEO'));
+    // The search stays, and finds the topics whose name or prompts say SEO
+    await vi.waitFor(async () => expect(await names()).toEqual(['No topic', 'SEO']));
     expect(screen.queryByRole('heading', { name: NO_MATCH_TITLE })).toBeNull();
   });
 
-  it('moves between the two tabs with the arrow keys', async () => {
+  it('moves between the two views with the arrow keys, and keeps the focus on the switch when the table is another', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'));
     await treegrid();
-    screen.getByRole('tab', { name: 'Topics' }).focus();
+    screen.getByRole('radio', { name: 'Topics' }).focus();
     await user.keyboard('{ArrowRight}');
     expect(await grid()).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Prompts' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('radio', { name: 'Prompts' })).toBeChecked();
+    // The switch lives in the toolbar of each table, so it is drawn again: the focus follows it
+    await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'Prompts' })).toHaveFocus());
     await user.keyboard('{ArrowLeft}');
     expect(await treegrid()).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Topics' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('radio', { name: 'Topics' })).toBeChecked();
+    await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'Topics' })).toHaveFocus());
+  });
+
+  it('is a radio group named for the two views, in the toolbar before the search, and the table keeps its own name', async () => {
+    renderWithProviders(promptsAs('viewer'));
+    const tree = await treegrid();
+    const group = screen.getByRole('radiogroup', { name: 'Topics and prompts' });
+    expect(within(group).getAllByRole('radio')).toHaveLength(2);
+    expect(within(group).getByRole('radio', { name: 'Prompts' })).not.toBeChecked();
+    expect(within(group).getByRole('radio', { name: 'Topics' })).toBeChecked();
+    const search = screen.getByRole('searchbox');
+    expect(group.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(tree).toHaveAccessibleName('Topics');
+    expect(screen.queryByRole('tablist')).toBeNull();
   });
 
   it('makes a history entry of a change of tab, so Back returns to the other one, and none of a search', async () => {
@@ -1106,11 +1340,11 @@ describe('Topics & Prompts: the Topics tab', () => {
       onUrlUpdate: ({ queryString, options }) => writes.push({ query: queryString, history: options.history }),
     });
     await treegrid();
-    await user.click(screen.getByRole('tab', { name: 'Prompts' }));
+    await user.click(screen.getByRole('radio', { name: 'Prompts' }));
     expect(writes.at(-1)).toEqual({ query: '?tab=prompts', history: 'push' });
     await user.type(await screen.findByRole('searchbox'), 'seo');
     expect(writes.at(-1)?.history).toBe('replace');
-    await user.click(screen.getByRole('tab', { name: 'Topics' }));
+    await user.click(screen.getByRole('radio', { name: 'Topics' }));
     expect(writes.at(-1)).toEqual({ query: '?q=seo', history: 'push' });
   });
 
@@ -1242,27 +1476,98 @@ describe('Topics & Prompts: the Topics tab', () => {
         ],
       );
 
-    it('opens a topic that only a topic below it is given, and lists a prompt of two topics under each', async () => {
+    it('opens a topic that only a topic below it is given onto that topic, and offers the prompts it rolls up', async () => {
       serveBoth();
       serveTree();
       const { user } = renderWithProviders(promptsAs('viewer'));
       const tree = await treegrid();
-      // No prompt is given SEO itself, but the tree tells what is below it
-      const seo = await within(tree).findByRole('button', { name: 'Expand SEO, 2 prompts' });
-      await user.click(seo);
-      expect(await within(tree).findAllByText(/^Question number \d\?$/)).toHaveLength(2);
-      await user.click(within(tree).getByRole('button', { name: 'Collapse SEO, 2 prompts' }));
-      await user.click(within(tree).getByRole('button', { name: 'Expand Technical SEO, 2 prompts' }));
+      // No prompt is given SEO itself, but the tree tells what is below it: Technical SEO is a row under it, not at the top
+      expect(await names()).toEqual(['Paid search', 'SEO']);
+      await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 1 topic' }));
+      expect(await names()).toEqual(['Paid search', 'SEO', 'Technical SEO', 'Show all 2 prompts of SEO']);
+      expect(within(tree).queryAllByText(/^Question number \d\?$/)).toHaveLength(0);
+      expect(within(tree).getByRole('button', { name: 'Show all 2 prompts of SEO' })).toBeInTheDocument();
+    });
+
+    it('lists a prompt of two topics under each, and marks the row that was clicked, not the first row of the prompt', async () => {
+      serveBoth();
+      const { user } = renderWithProviders(promptsAs('viewer'));
+      const tree = await treegrid();
+      await user.click(await within(tree).findByRole('button', { name: 'Expand Technical SEO, 2 prompts' }));
       await user.click(within(tree).getByRole('button', { name: 'Expand Paid search, 1 prompt' }));
-      expect(await within(tree).findAllByText('Question number 2?')).toHaveLength(2);
+      const text = 'Question number 2?';
+      const rows = await within(tree).findAllByText(text);
+      expect(rows).toHaveLength(2);
       expect(within(tree).getAllByText('Question number 1?')).toHaveLength(1);
+      const rowOfText = (node: HTMLElement): HTMLElement => node.closest<HTMLElement>('[role="row"]') ?? node;
+      await user.click(rows[1] ?? tree);
+      // The prompt is not one the mock holds, so the inspector says so; the table marks the row that was clicked
+      await vi.waitFor(() => {
+        const [above, below] = within(tree).getAllByText(text).map(rowOfText);
+        expect(above).not.toHaveAttribute('aria-current');
+        expect(below).toHaveAttribute('aria-current', 'true');
+      });
+    });
+
+    it('lists eight prompts of a topic with none below it, offers the rest, and steps through all of them', async () => {
+      const members = Array.from({ length: 10 }, (_, index) => index + 1);
+      serve(
+        members.map((index) => carrying(index, PAID)),
+        members.map((index) => promptRow(index, [ids.paid], counted(4, index % 5))),
+        [
+          topicRow(
+            ids.paid,
+            'Paid search',
+            members.map((index) => counted(4, index % 5)),
+          ),
+        ],
+      );
+      const { user } = renderWithProviders(promptsAs('viewer'));
+      const tree = await treegrid();
+      await user.click(await within(tree).findByRole('button', { name: 'Expand Paid search, 10 prompts' }));
+      await vi.waitFor(() => expect(levelOf(tree, 2)).toHaveLength(9));
+      expect(within(tree).getByRole('button', { name: 'Show all 10 prompts of Paid search' })).toBeInTheDocument();
+      await user.click(within(tree).getAllByText(/^Question number \d+\?$/)[0] ?? tree);
+      const inspector = await screen.findByRole('complementary');
+      expect(within(inspector).getByText(/^\d+ of 10$/)).toBeInTheDocument();
+    });
+
+    it('gives a topic below the second level no row, and counts its prompts in the two topics above it', async () => {
+      const deep = { top: idOf(3, 21), middle: idOf(3, 22), low: idOf(3, 23) };
+      serveVocabulary([
+        treeNode(deep.top, 'Compliance', null, [
+          treeNode(deep.middle, 'RBI', deep.top, [treeNode(deep.low, 'Cyber', deep.middle, [])]),
+        ]),
+      ]);
+      serve(
+        [carrying(1, termOf(deep.low, 'Cyber', 'compliance/rbi/cyber'))],
+        [promptRow(1, [deep.low], counted(4, 2))],
+        [
+          topicRow(deep.top, 'Compliance', [counted(4, 2)]),
+          topicRow(deep.middle, 'RBI', [counted(4, 2)]),
+          topicRow(deep.low, 'Cyber', [counted(4, 2)]),
+        ],
+      );
+      const { user } = renderWithProviders(promptsAs('viewer'));
+      const tree = await treegrid();
+      await user.click(await within(tree).findByRole('button', { name: 'Expand Compliance, 1 topic' }));
+      expect(await names()).toEqual(['Compliance', 'RBI', 'Show the prompt of Compliance']);
+      expect(within(tree).queryByText('Cyber')).toBeNull();
+      expect(within(rowOf(tree, 'Compliance')).getByText('1')).toBeInTheDocument();
+      expect(within(rowOf(tree, 'RBI')).getByText('1')).toBeInTheDocument();
+      // Compliance and RBI: two rows, though three topics hold the prompt
+      expect(screen.getByText(`2 topics ${MIDDLE_DOT} 1 prompt`)).toBeInTheDocument();
     });
 
     it('keeps a topic no prompt is given and the topics below it under a filter on it', async () => {
       serveBoth();
       serveTree();
-      renderWithProviders(promptsAs('viewer'), { searchParams: `?topic=${ids.above}` });
-      await vi.waitFor(async () => expect(await names()).toEqual(['SEO', 'Technical SEO']));
+      const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: `?topic=${ids.above}` });
+      await vi.waitFor(async () => expect(await names()).toEqual(['SEO']));
+      await user.click(await screen.findByRole('button', { name: 'Expand all' }));
+      await vi.waitFor(async () =>
+        expect(await names()).toEqual(['SEO', 'Technical SEO', 'Show all 2 prompts of SEO']),
+      );
     });
 
     it('offers a topic no prompt is given in the filter, and filters the Prompts tab by it', async () => {
@@ -1322,5 +1627,750 @@ describe('Topics & Prompts: the Topics tab', () => {
       second.open();
       await vi.waitFor(async () => expect(await names()).toEqual(['Technical SEO']));
     });
+  });
+});
+
+describe('Topics & Prompts: the metric strip', () => {
+  const STRIP = 'Summary of the prompts in view';
+  const stripOf = (): Promise<HTMLElement> => screen.findByRole('group', { name: STRIP });
+  const counted = (
+    valid: number,
+    mentioned: number,
+    cited: number,
+    naming: number,
+    share: number,
+    observations = valid,
+  ): Counts => ({
+    ...NO_COUNTS,
+    n_valid: valid,
+    n_observations: observations,
+    mentioned,
+    cited,
+    sov_answers: naming,
+    sov_share: share,
+  });
+  /**
+   * Prompts 1 and 2 are in Germany, prompt 3 in the US. ChatGPT: 1 of 4, 3 of 4 and 4 of 4 answers mention the
+   * brand; Gemini has two answers on prompt 1 and none on the others.
+   */
+  const CHATGPT = [counted(4, 1, 2, 3, 1.5), counted(4, 3, 0, 1, 0.5), counted(4, 4, 4, 4, 4)];
+  const GEMINI = [counted(2, 1, 0, 0, 0), NO_COUNTS, NO_COUNTS];
+  /** Prompts 1 and 2 are given SEO and prompt 3 Paid search: two topics, of which one is left under the German filter. */
+  const SEO_TERM = { term_id: idOf(3, 1), name: 'SEO', path: 'seo', vocabulary_kind: 'topic' };
+  const PAID_TERM = { term_id: idOf(3, 3), name: 'Paid search', path: 'paid-search', vocabulary_kind: 'topic' };
+  const TERMS_OF = [[SEO_TERM], [SEO_TERM], [PAID_TERM]];
+  const serveStrip = (): void => {
+    serveVocabulary([
+      treeNode(SEO_TERM.term_id, 'SEO', null, []),
+      treeNode(PAID_TERM.term_id, 'Paid search', null, []),
+    ]);
+    server.use(
+      http.get(LIST_PATH, () =>
+        HttpResponse.json(
+          pageOf(
+            CHATGPT.map((_, index) => ({
+              ...promptOf(index + 1),
+              country_iso: index === 2 ? 'US' : 'DE',
+              terms: TERMS_OF[index] ?? [],
+            })),
+            null,
+          ),
+        ),
+      ),
+      http.get(SUMMARY_PATH, () =>
+        HttpResponse.json({
+          data: {
+            ...EMPTY_SUMMARY.data,
+            engine_codes: ['chatgpt_web', 'gemini_web'],
+            prompts: CHATGPT.map((counts, index) => ({
+              prompt_id: idOf(1, index + 1),
+              text: `Question number ${String(index + 1)}?`,
+              is_branded: false,
+              topic_term_ids: (TERMS_OF[index] ?? []).map((term) => term.term_id),
+              engines: [promptCells('chatgpt_web', counts), promptCells('gemini_web', GEMINI[index] ?? NO_COUNTS)],
+            })),
+            topics: [
+              {
+                term_id: SEO_TERM.term_id,
+                name: 'SEO',
+                prompt_count: 2,
+                engines: [topicCells('chatgpt_web', CHATGPT.slice(0, 2)), topicCells('gemini_web', GEMINI.slice(0, 2))],
+              },
+              {
+                term_id: PAID_TERM.term_id,
+                name: 'Paid search',
+                prompt_count: 1,
+                engines: [topicCells('chatgpt_web', CHATGPT.slice(2)), topicCells('gemini_web', GEMINI.slice(2))],
+              },
+            ],
+          },
+        }),
+      ),
+    );
+  };
+  /** The strip once its chips have values: a chip is a definition with the label before it. */
+  const cards = async (): Promise<HTMLElement[]> => {
+    const strip = await stripOf();
+    await vi.waitFor(() => expect(strip).not.toHaveAttribute('aria-busy'));
+    return within(strip).getAllByRole('definition');
+  };
+
+  it('shows the prompts in view and a chip per engine with its mention rate, in the one row of the toolbar', async () => {
+    serveStrip();
+    const { container } = renderWithProviders(promptsAs('viewer'));
+    const [prompts, chatgpt, gemini] = await cards();
+    expect(
+      within(await stripOf())
+        .getAllByRole('term')
+        .map((term) => term.textContent),
+    ).toEqual(['Prompts', 'ChatGPT', 'Gemini']);
+    // The mean of 25%, 75% and 100%: the rest is in the tooltip, not on the chip
+    expect(prompts).toHaveTextContent(/^3$/);
+    expect(chatgpt).toHaveTextContent(/^67%$/);
+    expect(gemini).toHaveTextContent(/^2 answers$/);
+    expect(prompts).toHaveAccessibleDescription('Across 2 topics');
+    expect(chatgpt).toHaveAccessibleDescription(
+      'Mentioned: 8 of 12 answers. Cited: 6 of 12 answers. Over 3 prompts, each counted once. Share of voice: 8 answers that name a brand.',
+    );
+    // The chips are in the page header's toolbar, with the Filter button, not a panel of their own
+    expect(screen.getByRole('group', { name: STRIP }).closest('[data-slot="page-header"]')).not.toBeNull();
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('puts the counts in reach of the keyboard: the chip is a tab stop that opens its tooltip', async () => {
+    serveStrip();
+    const { user } = renderWithProviders(promptsAs('viewer'));
+    const chatgpt = (await cards())[1] as HTMLElement;
+    expect(chatgpt).toHaveAttribute('tabindex', '0');
+    for (let stops = 0; stops < 30 && document.activeElement !== chatgpt; stops += 1) await user.tab();
+    expect(chatgpt).toHaveFocus();
+    expect(
+      await screen.findByText(/^Mentioned: 8 of 12 answers\./, { selector: '[data-slot="tooltip"] span' }),
+    ).toBeInTheDocument();
+  });
+
+  it('follows the filters: the prompts and the rates of the prompts left', async () => {
+    serveStrip();
+    renderOnPrompts(promptsAs('viewer'), { searchParams: `?topic=${idOf(3, 1)}` });
+    const [prompts, chatgpt] = await cards();
+    expect(prompts).toHaveTextContent(/^2$/);
+    expect(prompts).toHaveAccessibleDescription('Across 1 topic');
+    expect(chatgpt).toHaveTextContent(/^50%$/);
+  });
+
+  it('follows the country of the address too, on either tab, and asks the summary for it', async () => {
+    serveStrip();
+    const asked: (string | null)[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (url.pathname.endsWith('/ai/prompts-summary')) asked.push(url.searchParams.get('filter[country_iso]'));
+    });
+    renderWithProviders(promptsAs('viewer'), { searchParams: '?country=DE' });
+    const [prompts, chatgpt] = await cards();
+    expect(prompts).toHaveTextContent(/^2$/);
+    expect(chatgpt).toHaveTextContent(/^50%$/);
+    expect(asked).toContain('DE');
+    expect(asked).not.toContain(null);
+    server.events.removeAllListeners();
+  });
+
+  it('does not say how many topics the prompts span until the topic tree is read', async () => {
+    serveStrip();
+    const held = gate();
+    server.use(
+      http.get(TERMS_PATH, async () => {
+        await held.opened;
+        return HttpResponse.json({ data: [] });
+      }),
+    );
+    renderWithProviders(promptsAs('viewer'));
+    const prompts = (await cards())[0] as HTMLElement;
+    expect(prompts).toHaveTextContent(/^3$/);
+    expect(prompts).not.toHaveAttribute('tabindex');
+    held.open();
+    await vi.waitFor(() => expect(prompts).toHaveAccessibleDescription('Across 2 topics'));
+  });
+
+  it('shows the answers there are, hatched, in place of a rate under four valid answers', async () => {
+    serveStrip();
+    renderWithProviders(promptsAs('viewer'));
+    const gemini = (await cards())[2] as HTMLElement;
+    expect(gemini).toHaveTextContent(/^2 answers$/);
+    expect(within(gemini).getByText('2 answers')).toHaveClass('bg-insufficient');
+    expect(gemini).not.toHaveTextContent('%');
+    expect(gemini).toHaveAccessibleDescription(
+      'Mentioned: 1 of 2 answers, too few for a rate. Cited: 0 of 2 answers, too few for a rate. Over 1 prompt, each counted once. Share of voice: no brand named.',
+    );
+  });
+
+  it('keeps the labels and shows no values while the summary loads', async () => {
+    const held = gate();
+    server.use(
+      http.get(SUMMARY_PATH, async () => {
+        await held.opened;
+        return HttpResponse.json(EMPTY_SUMMARY);
+      }),
+    );
+    renderWithProviders(promptsAs('viewer'));
+    const strip = await stripOf();
+    expect(strip).toHaveAttribute('aria-busy', 'true');
+    expect(within(strip).getByText('ChatGPT')).toBeInTheDocument();
+    expect(within(strip).queryByText('n/a')).toBeNull();
+    held.open();
+  });
+
+  it('shows only the Prompts chip when the counts did not load, and leaves the failure to the banner', async () => {
+    server.use(http.get(SUMMARY_PATH, () => HttpResponse.json({ code: 'boom' }, { status: 500 })));
+    renderOnPrompts(promptsAs('viewer'));
+    const strip = await stripOf();
+    await vi.waitFor(() => expect(within(strip).getAllByRole('term')).toHaveLength(1));
+    expect(within(strip).getByRole('term')).toHaveTextContent('Prompts');
+    expect(within(strip).getByRole('definition')).toHaveTextContent(/^\d+$/);
+    expect(
+      await screen.findAllByText('The answer counts could not be loaded. The prompts are listed without them.'),
+    ).toHaveLength(1);
+  });
+
+  it('is not there when the page shows no prompts or no engine', async () => {
+    server.use(
+      http.get(LIST_PATH, () => HttpResponse.json({ data: [], page: { has_more: false, next_cursor: null } })),
+    );
+    const first = renderWithProviders(promptsAs('viewer'));
+    expect(await screen.findByRole('heading', { name: NO_PROMPTS_TITLE })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: STRIP })).toBeNull();
+    first.unmount();
+    renderWithProviders(promptsAs('editor', asProject(cleanstart, 'US')));
+    expect(await screen.findByRole('heading', { name: 'No AI engine is on' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: STRIP })).toBeNull();
+  });
+});
+
+describe('Topics & Prompts: rate columns, Top engine, sorting and the metric switcher', () => {
+  const counted = (
+    valid: number,
+    mentioned: number,
+    { cited = 0, naming = 0, share = 0 }: Partial<Record<string, number>> = {},
+  ): Counts => ({
+    ...NO_COUNTS,
+    n_valid: valid,
+    n_observations: valid,
+    mentioned,
+    cited,
+    sov_answers: naming,
+    sov_share: share,
+  });
+  /**
+   * Prompt 1: ChatGPT 6 of 8 (75%), Gemini 2 of 8 (25%). Prompt 2: ChatGPT 3 of 8 (38%), Gemini 3 of 4 (75%).
+   * Prompt 3: ChatGPT 1 of 2 answers, which is too few for a rate, and no answer on Gemini.
+   */
+  const CHATGPT = [
+    counted(8, 6, { cited: 4, naming: 6, share: 3 }),
+    counted(8, 3, { cited: 0, naming: 3, share: 1 }),
+    counted(2, 1),
+  ];
+  const GEMINI = [counted(8, 2, { cited: 7 }), counted(4, 3, { cited: 2 }), NO_COUNTS];
+  const SEO_TERM = { term_id: idOf(3, 1), name: 'SEO', path: 'seo', vocabulary_kind: 'topic' };
+  const PAID_TERM = { term_id: idOf(3, 3), name: 'Paid search', path: 'paid-search', vocabulary_kind: 'topic' };
+  const TERMS_OF = [[SEO_TERM], [SEO_TERM], [PAID_TERM]];
+  const serveRates = (): void => {
+    serveVocabulary([
+      treeNode(SEO_TERM.term_id, 'SEO', null, []),
+      treeNode(PAID_TERM.term_id, 'Paid search', null, []),
+    ]);
+    server.use(
+      http.get(LIST_PATH, () =>
+        HttpResponse.json(
+          pageOf(
+            CHATGPT.map((_, index) => ({ ...promptOf(index + 1), terms: TERMS_OF[index] ?? [] })),
+            null,
+          ),
+        ),
+      ),
+      http.get(SUMMARY_PATH, () =>
+        HttpResponse.json({
+          data: {
+            ...EMPTY_SUMMARY.data,
+            engine_codes: ['chatgpt_web', 'gemini_web'],
+            prompts: CHATGPT.map((counts, index) => ({
+              prompt_id: idOf(1, index + 1),
+              text: `Question number ${String(index + 1)}?`,
+              is_branded: false,
+              topic_term_ids: (TERMS_OF[index] ?? []).map((term) => term.term_id),
+              engines: [promptCells('chatgpt_web', counts), promptCells('gemini_web', GEMINI[index] ?? NO_COUNTS)],
+            })),
+            topics: [
+              {
+                term_id: SEO_TERM.term_id,
+                name: 'SEO',
+                prompt_count: 2,
+                engines: [topicCells('chatgpt_web', CHATGPT.slice(0, 2)), topicCells('gemini_web', GEMINI.slice(0, 2))],
+              },
+              {
+                term_id: PAID_TERM.term_id,
+                name: 'Paid search',
+                prompt_count: 1,
+                engines: [topicCells('chatgpt_web', CHATGPT.slice(2)), topicCells('gemini_web', GEMINI.slice(2))],
+              },
+            ],
+          },
+        }),
+      ),
+    );
+  };
+  const rowOf = (table: HTMLElement, name: string): HTMLElement =>
+    within(table).getByText(name).closest('[role="row"]') as HTMLElement;
+  /** The text of the cells of a row, after its name. */
+  const cellsOf = (table: HTMLElement, name: string): (string | null)[] =>
+    within(rowOf(table, name))
+      .getAllByRole('gridcell')
+      .map((cell) => cell.textContent);
+  const order = (table: HTMLElement): string[] =>
+    within(table)
+      .getAllByRole('rowheader')
+      .map((cell) => cell.textContent ?? '');
+
+  it('shows the Mention rate and Citation rate of the engines in scope, an insufficient one as its answers, highest Mention rate first', async () => {
+    serveRates();
+    renderOnPrompts(promptsAs('viewer'));
+    const table = await grid();
+    await within(table).findByText('Question number 1?');
+    // The default sort has two keys, Mention rate then the prompt, and a header says which key it is by its number
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent?.replace(/\d$/, '')),
+    ).toEqual(['Prompt', 'Topic', 'Country', 'Mention rate', 'Citation rate', 'ChatGPT mention', 'Gemini mention']);
+    // The average is over the engines that have a rate, and says how many; the count behind each engine stays
+    expect(cellsOf(table, 'Question number 1?')).toEqual([
+      'SEO',
+      'Germany',
+      '50% avg of 2',
+      '69% avg of 2',
+      '75% 6 of 8',
+      '25% 2 of 8',
+    ]);
+    expect(cellsOf(table, 'Question number 2?')).toEqual([
+      'SEO',
+      'Germany',
+      '56% avg of 2',
+      '25% avg of 2',
+      '38% 3 of 8',
+      '75% 3 of 4',
+    ]);
+    // Two answers are too few for a rate: the answers there are, hatched, in place of a percent
+    expect(cellsOf(table, 'Question number 3?')).toEqual([
+      'Paid search',
+      'Germany',
+      '2 answers',
+      '2 answers',
+      '2 answers',
+      'No answers',
+    ]);
+    const third = rowOf(table, 'Question number 3?');
+    expect(within(third).getAllByText('2 answers')[0]).toHaveClass('bg-insufficient');
+    // An equal weight percent gets the count of each engine, not a pooled count that would read as another rate
+    const [, , mention] = within(rowOf(table, 'Question number 1?')).getAllByRole('gridcell');
+    expect(mention).toHaveAccessibleDescription(
+      'ChatGPT 6 of 8 and Gemini 2 of 8 Equal weight average of ChatGPT and Gemini, each engine counting once',
+    );
+    expect(order(table)).toEqual(['Question number 2?', 'Question number 1?', 'Question number 3?']);
+    expect(within(table).getByRole('columnheader', { name: /^Mention rate/ })).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    );
+  });
+
+  it('sorts by a header on click, with the rows without a rate last either way, and keeps the sort in the address', async () => {
+    serveRates();
+    const writes: string[] = [];
+    const { user } = renderOnPrompts(promptsAs('viewer'), {
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    const table = await grid();
+    await within(table).findByText('Question number 1?');
+    await user.click(within(table).getByRole('button', { name: /^Mention rate\d?$/ }));
+    expect(order(table)).toEqual(['Question number 1?', 'Question number 2?', 'Question number 3?']);
+    expect(new URLSearchParams(writes.at(-1)).get('sort')).toBe('mention');
+    await user.click(within(table).getByRole('button', { name: 'ChatGPT mention' }));
+    expect(order(table)).toEqual(['Question number 1?', 'Question number 2?', 'Question number 3?']);
+    expect(new URLSearchParams(writes.at(-1)).get('sort')).toBe('-chatgpt_web_rate');
+    await user.click(within(table).getByRole('button', { name: 'Gemini mention' }));
+    expect(order(table)).toEqual(['Question number 2?', 'Question number 1?', 'Question number 3?']);
+  });
+
+  it('shows Mention, Citation or Share of voice in the engine columns, and keeps the counts in the column chooser', async () => {
+    serveRates();
+    const writes: string[] = [];
+    const { user } = renderOnPrompts(promptsAs('viewer'), {
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    const table = await grid();
+    await within(table).findByText('Question number 1?');
+    const metric = screen.getByRole('combobox', { name: 'Metric of the engine columns' });
+    await user.click(metric);
+    await user.click(await screen.findByRole('option', { name: 'Citation' }));
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent)
+        .slice(-2),
+    ).toEqual(['ChatGPT citation', 'Gemini citation']);
+    expect(cellsOf(table, 'Question number 1?').slice(-2)).toEqual(['50% 4 of 8', '88% 7 of 8']);
+    expect(new URLSearchParams(writes.at(-1)).get('metric')).toBe('citation');
+    await user.click(screen.getByRole('combobox', { name: 'Metric of the engine columns' }));
+    await user.click(await screen.findByRole('option', { name: 'Share of voice' }));
+    // Share of voice is a share of the answers that name a brand, not a count of answers that do
+    expect(cellsOf(table, 'Question number 1?').slice(-2)).toEqual(['50% 6 answers', 'n/a']);
+    expect(new URLSearchParams(writes.at(-1)).get('metric')).toBe('sov');
+    // Three answers that name a brand are too few for a share, and the tip says so in those words
+    expect(within(rowOf(table, 'Question number 2?')).getAllByRole('gridcell').at(-2)).toHaveAccessibleDescription(
+      'Too few answers that name a brand for a share: 3 of the 4 it needs.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    expect(await screen.findByRole('checkbox', { name: 'ChatGPT mentioned' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Gemini cited' })).not.toBeChecked();
+  });
+
+  it('adds Mention rate, Citation rate and Top engine to the Topics tab, which opens on the highest Mention rate', async () => {
+    serveRates();
+    const writes: string[] = [];
+    const { user } = renderWithProviders(promptsAs('viewer'), {
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+    await within(tree).findByText('SEO');
+    expect(
+      within(tree)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual([
+      'Topic',
+      'Prompts',
+      'Mention rate',
+      'Citation rate',
+      'Top engine',
+      'ChatGPT mentioned',
+      'ChatGPT cited',
+      'Gemini mentioned',
+      'Gemini cited',
+    ]);
+    // Each prompt counts once in a topic's rate; the counts are the answers behind it
+    expect(cellsOf(tree, 'SEO')).toEqual([
+      '2',
+      '53% avg of 2',
+      '47% avg of 2',
+      'ChatGPT',
+      '9 of 16',
+      '4 of 16',
+      '5 of 12',
+      '9 of 12',
+    ]);
+    expect(cellsOf(tree, 'Paid search')).toEqual([
+      '1',
+      '2 answers',
+      '2 answers',
+      'n/a',
+      '1 of 2',
+      '0 of 2',
+      'No answers',
+      'No answers',
+    ]);
+    // A pointer to the engine, with the rate of each engine in its tooltip
+    expect(within(rowOf(tree, 'SEO')).getByText('ChatGPT').closest('[role="gridcell"]')).toHaveAccessibleDescription(
+      /ChatGPT 56% and Gemini 50%/,
+    );
+    expect(order(tree)).toEqual(['SEO', 'Paid search']);
+    await user.click(within(tree).getByRole('button', { name: 'Prompts' }));
+    await user.click(within(tree).getByRole('button', { name: 'Prompts' }));
+    expect(order(tree)).toEqual(['Paid search', 'SEO']);
+    expect(new URLSearchParams(writes.at(-1)).get('sort')).toBe('prompts');
+  });
+
+  describe('on three topics of other rates and top engines', () => {
+    /** Alpha: ChatGPT 75%, Gemini 50%. Beta: ChatGPT 25%, Gemini 75%. Gamma: too few answers on either engine. */
+    const serveTopics = (): void => {
+      serveRates();
+      const topicOf = (index: number, name: string, chatgpt: Counts, gemini: Counts): object => ({
+        term_id: idOf(3, index),
+        name,
+        prompt_count: 1,
+        engines: [topicCells('chatgpt_web', [chatgpt]), topicCells('gemini_web', [gemini])],
+      });
+      serveVocabulary(['Alpha', 'Beta', 'Gamma'].map((name, index) => treeNode(idOf(3, index + 1), name, null, [])));
+      server.use(
+        http.get(SUMMARY_PATH, () =>
+          HttpResponse.json({
+            data: {
+              ...EMPTY_SUMMARY.data,
+              engine_codes: ['chatgpt_web', 'gemini_web'],
+              prompts: [],
+              topics: [
+                topicOf(1, 'Alpha', counted(8, 6), counted(8, 4)),
+                topicOf(2, 'Beta', counted(8, 2), counted(8, 6)),
+                topicOf(3, 'Gamma', counted(2, 1), counted(2, 2)),
+              ],
+            },
+          }),
+        ),
+      );
+    };
+    const topicNames = (tree: HTMLElement): string[] => order(tree);
+
+    it('sorts by Top engine A to Z and back, a topic without one last either way', async () => {
+      serveTopics();
+      const { user } = renderWithProviders(promptsAs('viewer'));
+      const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+      await within(tree).findByText('Alpha');
+      await user.click(within(tree).getByRole('button', { name: 'Top engine' }));
+      expect(topicNames(tree)).toEqual(['Alpha', 'Beta', 'Gamma']);
+      await user.click(within(tree).getByRole('button', { name: 'Top engine' }));
+      expect(topicNames(tree)).toEqual(['Beta', 'Alpha', 'Gamma']);
+    });
+
+    it('puts a topic whose rates are too few last on Mention rate in both directions', async () => {
+      serveTopics();
+      const { user } = renderWithProviders(promptsAs('viewer'));
+      const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+      await within(tree).findByText('Alpha');
+      expect(cellsOf(tree, 'Gamma').slice(1, 4)).toEqual(['2 answers', '2 answers', 'n/a']);
+      expect(topicNames(tree)).toEqual(['Alpha', 'Beta', 'Gamma']);
+      await user.click(within(tree).getByRole('button', { name: 'Mention rate' }));
+      expect(topicNames(tree)).toEqual(['Beta', 'Alpha', 'Gamma']);
+    });
+
+    it('ignores a sort id of the Prompts tab, such as the topic column, and opens on the Mention rate order', async () => {
+      serveTopics();
+      renderWithProviders(promptsAs('viewer'), { searchParams: '?sort=-topic' });
+      const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+      await within(tree).findByText('Alpha');
+      expect(within(tree).getByRole('columnheader', { name: /^Mention rate/ })).toHaveAttribute(
+        'aria-sort',
+        'descending',
+      );
+      expect(topicNames(tree)).toEqual(['Alpha', 'Beta', 'Gamma']);
+    });
+  });
+});
+
+describe('Topics & Prompts: the compact header and the country in the top bar', () => {
+  const treegrid = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Topics' });
+  const topicNames = async (): Promise<string[]> =>
+    (await within(await treegrid()).findAllByRole('rowheader')).map(
+      (cell) => cell.getAttribute('aria-label') ?? cell.textContent ?? '',
+    );
+  const countryControl = (name = 'Country: All countries'): Promise<HTMLElement> =>
+    screen.findByRole('combobox', { name });
+  /** One prompt with an answer read at `observed`, on the ChatGPT engine. */
+  const serveObserved = (observed: string | null): void =>
+    server.use(
+      http.get(SUMMARY_PATH, () =>
+        HttpResponse.json({
+          data: {
+            ...EMPTY_SUMMARY.data,
+            prompts: [
+              {
+                prompt_id: idOf(1, 1),
+                text: 'Question number 1?',
+                is_branded: false,
+                topic_term_ids: [],
+                last_observed_at: observed,
+                last_valid_at: observed,
+                engines: [promptCells('chatgpt_web', NO_COUNTS)],
+              },
+            ],
+          },
+        }),
+      ),
+    );
+
+  it('puts the country in the top bar beside the window, with all countries and the countries of the prompts', async () => {
+    const { user } = renderWithProviders(withTopBar(promptsAs('viewer')));
+    await treegrid();
+    expect(await countryControl()).toBeInTheDocument();
+    expect(screen.getAllByRole('combobox', { name: /^Country:/ })).toHaveLength(1);
+    expect(screen.getByRole('combobox', { name: 'Window' })).toBeInTheDocument();
+    await user.click(await countryControl());
+    expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
+      'All countries',
+      'Germany',
+      'India',
+    ]);
+  });
+
+  it('narrows the strip, the topics and the prompts to the country chosen there, and asks the summary for it', async () => {
+    const asked: (string | null)[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (url.pathname.endsWith('/ai/prompts-summary')) asked.push(url.searchParams.get('filter[country_iso]'));
+    });
+    const writes: string[] = [];
+    const { user } = renderWithProviders(withTopBar(promptsAs('viewer')), {
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    expect(await topicNames()).toEqual(['No topic', 'Content Marketing', 'SEO', 'Paid Search']);
+    const strip = await screen.findByRole('group', { name: 'Summary of the prompts in view' });
+    await vi.waitFor(() => expect(strip).not.toHaveAttribute('aria-busy'));
+    expect(within(strip).getAllByRole('definition')[0]).not.toHaveTextContent(/^1$/);
+    await user.click(await countryControl());
+    await user.click(await screen.findByRole('option', { name: 'India' }));
+    // The Hindi prompt is the only one in India, and it is given SEO
+    await vi.waitFor(async () => expect(await topicNames()).toEqual(['SEO']));
+    await vi.waitFor(() => expect(within(strip).getAllByRole('definition')[0]).toHaveTextContent(/^1$/));
+    expect(new URLSearchParams(writes.at(-1)).get('country')).toBe('IN');
+    expect(asked).toContain('IN');
+    expect(await countryControl('Country: India')).toBeInTheDocument();
+    // The Prompts tab keeps to the same country
+    await user.click(screen.getByRole('radio', { name: 'Prompts' }));
+    await vi.waitFor(async () => expect(within(await grid()).getAllByRole('row')).toHaveLength(2));
+    // All countries clears the key from the address
+    await user.click(await countryControl('Country: India'));
+    await user.click(await screen.findByRole('option', { name: 'All countries' }));
+    await vi.waitFor(() => expect(new URLSearchParams(writes.at(-1)).has('country')).toBe(false));
+    server.events.removeAllListeners();
+  });
+
+  it('keeps the country of a link that the prompts do not have, so the person can leave it for all countries', async () => {
+    renderWithProviders(withTopBar(promptsAs('viewer')), { searchParams: '?country=ZZ' });
+    expect(await countryControl('Country: ZZ')).toBeInTheDocument();
+  });
+
+  it('names a country that matches nothing in the empty state, and Clear filters leaves it for all countries', async () => {
+    const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: '?country=ZZ' });
+    const heading = await screen.findByRole('heading', { name: NO_MATCH_TITLE });
+    const empty = heading.parentElement as HTMLElement;
+    expect(within(empty).getByText('Country: ZZ')).toBeInTheDocument();
+    await user.click(within(empty).getByRole('button', { name: 'Clear filters' }));
+    expect(await topicNames()).toContain('SEO');
+    expect(screen.queryByRole('heading', { name: NO_MATCH_TITLE })).toBeNull();
+  });
+
+  it('is a label, not a choice, when every prompt is in one country and all of them are shown', async () => {
+    server.use(
+      http.get(LIST_PATH, () => HttpResponse.json(pageOf([promptOf(1), promptOf(2)], null))),
+      http.get(SUMMARY_PATH, () => HttpResponse.json(EMPTY_SUMMARY)),
+    );
+    renderWithProviders(withTopBar(promptsAs('viewer')));
+    await screen.findByRole('radiogroup', { name: 'Topics and prompts' });
+    expect(screen.queryByRole('combobox', { name: /^Country:/ })).toBeNull();
+    expect(screen.getByText('Country: All countries')).toBeInTheDocument();
+  });
+
+  it('has no Country chip: the filter bar offers the topic, the engine and the branded prompts', async () => {
+    const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: '?country=IN' });
+    await treegrid();
+    expect(within(screen.getByRole('group', { name: 'Filters' })).queryByText(/^Country/)).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Add a filter' }));
+    const fields = await screen.findAllByRole('button', { name: /^(Topic|Country|Engine|Branded prompts)$/ });
+    expect(fields.map((field) => field.textContent)).toEqual(['Topic', 'Engine', 'Branded prompts']);
+  });
+
+  it('has no row of chips under the toolbar until a filter is set, and the Filter button is in the toolbar', async () => {
+    const first = renderWithProviders(promptsAs('viewer'));
+    await treegrid();
+    const bar = screen.getByRole('group', { name: 'Filters' });
+    expect(
+      within(bar)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Filter']);
+    first.unmount();
+    renderWithProviders(promptsAs('viewer'), { searchParams: '?engine=gemini_web' });
+    await treegrid();
+    expect(
+      within(screen.getByRole('group', { name: 'Filters' })).getByRole('button', {
+        name: /^Engine: .*\. Edit filter$/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('says when the answers were last read, from the newest of the summary, with the window in its tooltip', async () => {
+    serveObserved('2026-11-12T10:00:00Z');
+    const { user } = renderWithProviders(promptsAs('viewer'));
+    const updated = await screen.findByText('Updated 2h ago');
+    expect(updated).toBeVisible();
+    await user.hover(updated);
+    expect(
+      await screen.findByText('Answers from Oct 16 to Nov 12, 2026', { selector: '[data-slot="tooltip"] span' }),
+    ).toBeInTheDocument();
+  });
+
+  it('leaves the Updated text out when no answer has been read', async () => {
+    serveObserved(null);
+    renderWithProviders(promptsAs('viewer'));
+    await treegrid();
+    expect(screen.queryByText(/^Updated /)).toBeNull();
+  });
+
+  it('has a More actions menu with Copy link, which copies the address and says so', async () => {
+    serveObserved('2026-11-12T10:00:00Z');
+    const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: '?tab=prompts&country=DE' });
+    await grid();
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    await user.click(await screen.findByRole('button', { name: 'More actions' }));
+    // The menu keeps the facts the toolbar leaves out on a narrow window
+    const menu = await screen.findByRole('menu');
+    expect(within(menu).getByText('Updated 2h ago')).toBeInTheDocument();
+    expect(within(menu).getByText('Answers from Oct 16 to Nov 12, 2026')).toBeInTheDocument();
+    await user.click(within(menu).getByRole('menuitem', { name: 'Copy link' }));
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledExactlyOnceWith(window.location.href));
+    expect(await screen.findByText('Link copied')).toBeInTheDocument();
+    Reflect.deleteProperty(navigator, 'clipboard');
+  });
+
+  it('gives an editor Add prompts as the primary action after the menu, whose label a narrow window hides but keeps', async () => {
+    renderWithProviders(promptsAs('editor'));
+    await treegrid();
+    const add = await screen.findByRole('button', { name: 'Add prompts' });
+    expect(add).toHaveTextContent('Add prompts');
+    expect(within(add).getByText('Add prompts')).toHaveClass('sr-only', 'sm:not-sr-only');
+    const more = screen.getByRole('button', { name: 'More actions' });
+    expect(more.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('shows the window of the top bar as 28d below 640 px, with its dates in the description', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    renderWithProviders(withTopBar(promptsAs('viewer')));
+    const select = await screen.findByRole('combobox', { name: 'Window' });
+    expect(select).toHaveTextContent('28d');
+    expect(select).toHaveAccessibleDescription('Answers from Oct 16 to Nov 12, 2026');
+  });
+
+  it('ends a long topic badge in an ellipsis inside its cell, with the whole name in the cell tooltip and no native title', async () => {
+    const long = 'A topic with a very long name that does not fit its column';
+    server.use(
+      http.get(LIST_PATH, () =>
+        HttpResponse.json(
+          pageOf(
+            [
+              {
+                ...promptOf(1),
+                terms: [{ term_id: idOf(3, 1), name: long, path: 'long', vocabulary_kind: 'topic' }],
+              },
+            ],
+            null,
+          ),
+        ),
+      ),
+    );
+    renderOnPrompts(promptsAs('viewer'));
+    const badge = await within(await grid()).findByText(long);
+    expect(badge).toHaveClass('truncate', 'min-w-0');
+    expect(badge).toHaveAttribute('data-truncate');
+    expect(badge).not.toHaveAttribute('title');
+    // The cell is the keyboard's stop, and its tooltip holds the whole name
+    expect(badge.closest('[role="gridcell"]')).toHaveAccessibleDescription(long);
+  });
+
+  it('passes the accessibility checks with the header, the switch and the top bar', async () => {
+    serveObserved('2026-11-12T10:00:00Z');
+    const { container } = renderWithProviders(withTopBar(promptsAs('editor')));
+    await treegrid();
+    expect(await axe(container)).toHaveNoViolations();
   });
 });

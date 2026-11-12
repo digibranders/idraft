@@ -10,20 +10,36 @@ import {
   DAY_MS,
   ENGINE_CODES,
   ENGINE_FACTS,
-  FIXTURE_ENGINES,
-  FIXTURE_PROMPTS,
+  fixtureEngines,
+  fixturePrompts,
   observationIdOf,
   parseObservationId,
   RUN_OFFSET_MS,
   runInstants,
+  validAnswerOf,
+  type Answer,
   type StoredEngine,
   type StoredPrompt,
 } from '../prompt-fixtures';
-import { countsOf, NO_COUNTS, promptCells, topicCells, type Counts } from '../prompt-summary';
+import {
+  cellEntityIds,
+  countsOf,
+  entityCountsOf,
+  NO_COUNTS,
+  NOT_NAMED,
+  promptCells,
+  promptEntityCells,
+  topicCells,
+  topicEntityCells,
+  type Counts,
+  type EntityCounts,
+} from '../prompt-summary';
 import { promptsOf } from '../prompts-state';
 import { invalid, mock, problem } from '../respond';
 import { shiftIsoDate, validateDateWindow } from '../serp-views';
 import type {
+  EngineSummary,
+  EntityCells,
   ObservationDetail,
   ObservationSummary,
   PromptsSummary,
@@ -50,6 +66,8 @@ const MAX_ENGINE_FILTER = 10;
 const ANSWER_STATUSES = ['complete', 'partial', 'empty', 'refused', 'error'] as const;
 const OUTCOMES = ['mentioned_and_cited', 'mentioned_only', 'cited_only', 'neither'] as const;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** A market of the summary's `filter[country_iso]`: two capital letters. */
+const COUNTRY = /^[A-Z]{2}$/;
 /** An instant with its zone: `Z` or an offset (Pydantic's `AwareDatetime`). */
 const AWARE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i;
 /** A date and time with no zone: a datetime, but not an instant. */
@@ -58,11 +76,29 @@ const NAIVE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
 const ID_MAX = 2n ** 63n - 1n;
 /** An `observed_at` hint finds the month: the answer is looked for this far either side of it. */
 const HINT_SLACK_MS = DAY_MS;
+/** A provider's raw answer is kept 90 days; an answer past that is `410 raw_expired` (the API's retention). */
+const RAW_RETENTION_MS = 90 * DAY_MS;
 
 type Bound = { date: string } | { at: number } | null;
 
 const hasCode = (value: unknown): value is ValidationItem =>
   typeof value === 'object' && value !== null && 'code' in value;
+
+/**
+ * The summary's `include`: a comma list or repeated parameters. `entities` is the only block built; `series` is a
+ * later task of the plan, so it is refused with any other value, one error for each (Pydantic's `literal_error`
+ * at the value's place in the list).
+ */
+function includeOf(url: URL): { entities: boolean } | ValidationItem[] {
+  const values = url.searchParams
+    .getAll('include')
+    .flatMap((value) => value.split(','))
+    .filter((value) => value !== '');
+  const errors = values.flatMap((value, place) =>
+    value === 'entities' ? [] : [queryError(`include.${String(place)}`, 'literal_error', "Input should be 'entities'")],
+  );
+  return errors.length > 0 ? errors : { entities: values.length > 0 };
+}
 
 /** The start of a project day as an instant. */
 const dayStart = (date: string, timeZone: string): number => {
@@ -102,20 +138,25 @@ function scopeOf(url: URL): string {
   return scope.toString();
 }
 
-/** The answer of a fixture prompt on an engine at a run. */
-function detailOf(prompt: StoredPrompt, index: number, engine: StoredEngine, at: number): ObservationDetail {
-  const day = Math.floor(at / DAY_MS);
+/** An answer of a prompt on an engine, observed at `at`, with the answer the mock makes of it. */
+function detailFrom(
+  prompt: StoredPrompt,
+  engine: StoredEngine,
+  at: number,
+  observationId: string,
+  runId: string | null,
+  answer: Answer,
+): ObservationDetail {
   const code = engine.engine_code;
-  const answer = answerOf(index, prompt.language_code, code, day);
   return {
-    observation_id: observationIdOf(day, index, ENGINE_CODES.indexOf(code)),
+    observation_id: observationId,
     observed_at: isoOf(at),
     observed_date: isoOf(at).slice(0, 10),
     engine_code: code,
     observation_class: ENGINE_FACTS[code].observation_class,
     subject: { type: 'prompt', prompt_id: prompt.prompt_id, prompt_version_id: prompt.version_id, version_no: 1 },
     query_text: prompt.text,
-    run_id: null,
+    run_id: runId,
     replicate_index: 1,
     location_id: engine.location_ids.find((id) => countryOf(id) === prompt.country_iso) ?? null,
     language_code: prompt.language_code,
@@ -136,24 +177,50 @@ function detailOf(prompt: StoredPrompt, index: number, engine: StoredEngine, at:
   };
 }
 
+/** The answer of a fixture prompt on an engine at a run. */
+function detailOf(prompt: StoredPrompt, index: number, engine: StoredEngine, at: number): ObservationDetail {
+  const day = Math.floor(at / DAY_MS);
+  const id = observationIdOf(day, index, ENGINE_CODES.indexOf(engine.engine_code));
+  const answer = answerOf(index, prompt.language_code, engine.engine_code, day, prompt.project_id);
+  return detailFrom(prompt, engine, at, id, null, answer);
+}
+
 /**
- * Every answer a project's fixture prompts got, newest first. The history is the fixtures': a prompt added here,
- * and an engine turned on here, have none, and an engine turned off keeps what it answered.
+ * The observation Run now delivers: a valid answer of the prompt on the engine, observed at `at` for the run
+ * `runId`. `index` is the prompt's place among the fixtures, or 0 for a prompt added here (it has none).
+ */
+export function deliveredOf(
+  prompt: StoredPrompt,
+  index: number,
+  engine: StoredEngine,
+  at: number,
+  observationId: string,
+  runId: string,
+): ObservationDetail {
+  const day = Math.floor(at / DAY_MS);
+  const answer = validAnswerOf(index, prompt.language_code, engine.engine_code, day, prompt.project_id);
+  return detailFrom(prompt, engine, at, observationId, runId, answer);
+}
+
+/**
+ * Every answer a project's fixture prompts got and every one Run now delivered, newest first. The fixtures'
+ * history has no prompt added here nor an engine turned on here, and an engine turned off keeps what it answered.
  */
 function answersOf(projectId: string, now: number): ObservationDetail[] {
-  const prompts = FIXTURE_PROMPTS.get(projectId) ?? [];
-  const engines = FIXTURE_ENGINES.get(projectId) ?? [];
-  return runInstants(now)
-    .flatMap((at) =>
+  const prompts = fixturePrompts(projectId);
+  const engines = fixtureEngines(projectId);
+  return [
+    ...runInstants(now).flatMap((at) =>
       prompts.flatMap((prompt) =>
         prompt.index === null ? [] : engines.map((engine) => detailOf(prompt, prompt.index ?? 0, engine, at)),
       ),
-    )
-    .sort(
-      (a, b) =>
-        Date.parse(b.observed_at) - Date.parse(a.observed_at) ||
-        Number(BigInt(b.observation_id) - BigInt(a.observation_id)),
-    );
+    ),
+    ...promptsOf(projectId).observations,
+  ].sort(
+    (a, b) =>
+      Date.parse(b.observed_at) - Date.parse(a.observed_at) ||
+      Number(BigInt(b.observation_id) - BigInt(a.observation_id)),
+  );
 }
 
 /** The list's row of an answer: the detail without its text, its link, its sources and its mentions. */
@@ -208,17 +275,30 @@ function hintOf(url: URL): number | null | ValidationItem {
 
 /** The answer an id names, when it is a fixture prompt's on an engine it was asked on at a run, within the hint. */
 function findAnswer(projectId: string, id: bigint, hint: number | null, now: number): ObservationDetail | null {
+  const delivered = promptsOf(projectId).observations.find((row) => row.observation_id === id.toString());
+  if (delivered !== undefined) {
+    return hint !== null && Math.abs(Date.parse(delivered.observed_at) - hint) > HINT_SLACK_MS ? null : delivered;
+  }
   const parsed = parseObservationId(id.toString());
   if (parsed === null) return null;
-  const prompt = (FIXTURE_PROMPTS.get(projectId) ?? []).find((candidate) => candidate.index === parsed.index);
-  const engine = (FIXTURE_ENGINES.get(projectId) ?? []).find(
-    (candidate) => candidate.engine_code === ENGINE_CODES[parsed.engine],
-  );
+  const prompt = fixturePrompts(projectId).find((candidate) => candidate.index === parsed.index);
+  const engine = fixtureEngines(projectId).find((candidate) => candidate.engine_code === ENGINE_CODES[parsed.engine]);
   const at = parsed.day * DAY_MS + RUN_OFFSET_MS;
   if (prompt === undefined || engine === undefined || !runInstants(now).includes(at)) return null;
   if (hint !== null && Math.abs(at - hint) > HINT_SLACK_MS) return null;
   return detailOf(prompt, parsed.index, engine, at);
 }
+
+/** An answer that counts in the summary: its fact row and when it was observed. */
+interface Counted {
+  facts: NonNullable<ObservationDetail['facts']>;
+  mentions: ObservationDetail['mentions'];
+  at: string;
+}
+
+/** The later of two instants, either of which may be missing. */
+const later = (current: string | null, at: string): string =>
+  current === null || Date.parse(at) > Date.parse(current) ? at : current;
 
 /** The strings of a plain term path as Python compares them (by code point): the order the API sorts topics in. */
 const byText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
@@ -377,6 +457,7 @@ export const promptAnswerHandlers: HttpHandler[] = [
     if (errors.length > 0 || typeof id !== 'bigint' || hasCode(hint)) return invalid(request, errors);
     const found = findAnswer(caller.project.project_id, id, hint, Date.now());
     if (found === null) return problem(request, 'not_found');
+    if (Date.now() - Date.parse(found.observed_at) > RAW_RETENTION_MS) return problem(request, 'raw_expired');
     // The provider's task answer, cut to what the answer holds: the mocks keep no real payload
     const failed = found.status === 'error';
     return HttpResponse.json(
@@ -419,7 +500,16 @@ export const promptAnswerHandlers: HttpHandler[] = [
   mock('get', `${P}/ai/prompts-summary`, ({ request, cookies, params }) => {
     const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
       permission: 'data:read',
-      query: ['from', 'to', 'filter[engine_code_in]', 'include_branded'],
+      query: [
+        'from',
+        'to',
+        'filter[engine_code_in]',
+        'include_branded',
+        'branded_only',
+        'filter[country_iso]',
+        'filter[term]',
+        'include',
+      ],
     });
     if (caller instanceof Response) return caller;
     const { url } = caller;
@@ -440,38 +530,91 @@ export const promptAnswerHandlers: HttpHandler[] = [
     }
     const asked = listOf(url, 'filter[engine_code_in]', null, MAX_ENGINE_FILTER);
     const branded = booleanQuery(url, 'include_branded', false);
-    if (hasCode(asked) || typeof branded !== 'boolean') {
-      return invalid(request, [asked, branded].filter(hasCode));
+    const brandedOnly = booleanQuery(url, 'branded_only', false);
+    const country = url.searchParams.get('filter[country_iso]');
+    const termFilter = url.searchParams.get('filter[term]');
+    const scopeErrors = [
+      ...(country === null || COUNTRY.test(country)
+        ? []
+        : [queryError('filter[country_iso]', 'string_pattern_mismatch', "String should match pattern '^[A-Z]{2}$'")]),
+      ...(termFilter === null
+        ? []
+        : uuidError(termFilter, 'filter[term]').map((item) => queryError(item.path, item.code, item.message))),
+    ];
+    const include = includeOf(url);
+    if (
+      hasCode(asked) ||
+      typeof branded !== 'boolean' ||
+      typeof brandedOnly !== 'boolean' ||
+      scopeErrors.length > 0 ||
+      Array.isArray(include)
+    ) {
+      return invalid(request, [
+        ...[asked, branded, brandedOnly, ...scopeErrors].filter(hasCode),
+        ...(Array.isArray(include) ? include : []),
+      ]);
     }
     const { firstDate, lastDate } = window.range;
-    // Branded prompts are left out unless asked for; the oldest prompt first
+    // The term and every term below it, in the workspace's vocabularies: none for a term it does not have
+    const { terms, vocabularies } = caller.world;
+    const subtree = new Set<string>();
+    if (termFilter !== null && terms.some((term) => term.term_id === termFilter)) {
+      subtree.add(termFilter);
+      for (let grown = true; grown;) {
+        const before = subtree.size;
+        for (const term of terms) if (term.parent_id != null && subtree.has(term.parent_id)) subtree.add(term.term_id);
+        grown = subtree.size > before;
+      }
+    }
+    // Branded prompts are left out unless asked for, or kept alone with `branded_only`; of one country; given the
+    // term or a term below it; the oldest prompt first
     const prompts = promptsOf(projectId)
-      .prompts.filter((prompt) => prompt.is_active && (branded || !prompt.is_branded))
+      .prompts.filter(
+        (prompt) =>
+          prompt.is_active &&
+          (brandedOnly ? prompt.is_branded : branded || !prompt.is_branded) &&
+          (country === null || prompt.country_iso === country) &&
+          (termFilter === null || prompt.term_ids.some((id) => subtree.has(id))),
+      )
       .sort((a, b) => byText(a.created_at, b.created_at) || byText(a.prompt_id, b.prompt_id));
     const included = new Set(prompts.map((prompt) => prompt.prompt_id));
     // The answers of the window's project days that count: the fixtures' have a fact row each
-    const byPrompt = new Map<string, Map<string, NonNullable<ObservationDetail['facts']>[]>>();
+    const byPrompt = new Map<string, Map<string, Counted[]>>();
     for (const answer of answersOf(projectId, now)) {
       const day = formatIsoDate(answer.observed_at, zone);
       const prompt = answer.subject.prompt_id;
       if (day < firstDate || day > lastDate || !included.has(prompt) || answer.facts === null) continue;
       if (asked.length > 0 && !asked.includes(answer.engine_code)) continue;
-      const engines = byPrompt.get(prompt) ?? new Map<string, NonNullable<ObservationDetail['facts']>[]>();
-      engines.set(answer.engine_code, [...(engines.get(answer.engine_code) ?? []), answer.facts]);
+      const engines = byPrompt.get(prompt) ?? new Map<string, Counted[]>();
+      engines.set(answer.engine_code, [
+        ...(engines.get(answer.engine_code) ?? []),
+        { facts: answer.facts, mentions: answer.mentions, at: answer.observed_at },
+      ]);
       byPrompt.set(prompt, engines);
     }
     const counts = (promptId: string, code: string): Counts => {
-      const facts = byPrompt.get(promptId)?.get(code);
-      return facts === undefined ? NO_COUNTS : countsOf(facts);
+      const counted = byPrompt.get(promptId)?.get(code);
+      return counted === undefined ? NO_COUNTS : countsOf(counted.map((answer) => answer.facts));
     };
     // The engines that are on or have answers in the window, by code
     const seen = new Set([...byPrompt.values()].flatMap((engines) => [...engines.keys()]));
     const shown = [...new Set([...enabledEngines(projectId).map((engine) => engine.engine_code), ...seen])]
       .filter((code) => asked.length === 0 || asked.includes(code))
       .sort(byText);
+    /** When the newest counted answer of these prompts came, and the newest valid one; null when there is none. */
+    const lastOf = (ids: Iterable<string>): { last_observed_at: string | null; last_valid_at: string | null } => {
+      let observed: string | null = null;
+      let valid: string | null = null;
+      for (const id of ids) {
+        for (const answer of shown.flatMap((code) => byPrompt.get(id)?.get(code) ?? [])) {
+          observed = later(observed, answer.at);
+          if (answer.facts.is_valid) valid = later(valid, answer.at);
+        }
+      }
+      return { last_observed_at: observed, last_valid_at: valid };
+    };
 
     // A prompt's topics: the terms of a topic vocabulary it was given, which the workspace still has
-    const { terms, vocabularies } = caller.world;
     const topicKinds = new Set(
       vocabularies.filter((vocabulary) => vocabulary.kind === 'topic').map((vocabulary) => vocabulary.vocabulary_id),
     );
@@ -492,33 +635,66 @@ export const promptAnswerHandlers: HttpHandler[] = [
         }
       }
     }
+    // With `include=entities`, a cell for each tracked entity on every engine of a prompt row and of a topic row
+    const cellIds = include.entities ? cellEntityIds(entitiesOf(caller)) : null;
+    const named = (promptId: string, code: string, entityId: string): EntityCounts => {
+      const counted = byPrompt.get(promptId)?.get(code);
+      return counted === undefined ? NOT_NAMED : entityCountsOf(entityId, counted);
+    };
+    const withEntities = (cells: EngineSummary, entities: EntityCells[] | null): EngineSummary =>
+      entities === null ? cells : { ...cells, entities };
     const topicRow = (termId: string | null, members: ReadonlySet<string>): TopicSummaryRow => ({
       term_id: termId,
       name: termId === null ? null : (topicTerms.get(termId)?.name ?? null),
       prompt_count: members.size,
-      engines: shown.map((code) =>
-        topicCells(
-          code,
-          [...members].flatMap((id) => (byPrompt.get(id)?.has(code) === true ? [counts(id, code)] : [])),
-        ),
-      ),
+      ...lastOf(members),
+      engines: shown.map((code) => {
+        const answered = [...members].filter((id) => byPrompt.get(id)?.has(code) === true);
+        return withEntities(
+          topicCells(
+            code,
+            answered.map((id) => counts(id, code)),
+          ),
+          cellIds === null
+            ? null
+            : cellIds.map((entityId) =>
+                topicEntityCells(
+                  entityId,
+                  answered.map((id) => ({ counts: counts(id, code), named: named(id, code, entityId) })),
+                ),
+              ),
+        );
+      }),
     });
     const rows: PromptSummaryRow[] = prompts.map((prompt) => ({
       prompt_id: prompt.prompt_id,
       text: prompt.text,
       is_branded: prompt.is_branded,
       topic_term_ids: topicsOf(prompt.term_ids),
-      engines: shown.map((code) => promptCells(code, counts(prompt.prompt_id, code))),
+      ...lastOf([prompt.prompt_id]),
+      engines: shown.map((code) =>
+        withEntities(
+          promptCells(code, counts(prompt.prompt_id, code)),
+          cellIds === null
+            ? null
+            : cellIds.map((entityId) =>
+                promptEntityCells(entityId, counts(prompt.prompt_id, code), named(prompt.prompt_id, code, entityId)),
+              ),
+        ),
+      ),
     }));
     const untopiced = new Set(rows.filter((row) => row.topic_term_ids.length === 0).map((row) => row.prompt_id));
+    // Under a term filter the topic rows are the term's and those below it, and no row holds the untopiced prompts
     const topics = [...held]
+      .filter(([termId]) => termFilter === null || subtree.has(termId))
       .sort(([a], [b]) => byText(topicTerms.get(a)?.name ?? '', topicTerms.get(b)?.name ?? '') || byText(a, b))
       .map(([termId, members]) => topicRow(termId, members));
-    if (untopiced.size > 0) topics.push(topicRow(null, untopiced));
+    if (untopiced.size > 0 && termFilter === null) topics.push(topicRow(null, untopiced));
     const counted = [...byPrompt.values()].some((engines) => engines.size > 0);
     const summary: PromptsSummary = {
       window: { from: firstDate, to: lastDate, timezone: zone },
-      include_branded: branded,
+      include_branded: branded || brandedOnly,
+      branded_only: brandedOnly,
       engine_codes: shown,
       metric_context: metricContext(),
       entities: entitiesOf(caller),

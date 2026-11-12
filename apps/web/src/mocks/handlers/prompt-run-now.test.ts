@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { MOCK_PROJECTS, MOCK_WORKSPACE } from '../fixtures';
 import { FIXTURE_PROMPTS } from '../prompt-fixtures';
 import { AI_ANSWER_QUOTA, PENDING_MS, promptsOf, setProviderPaused } from '../prompts-state';
-import { dataOf, fieldCodes, mockBrowser, type Answer } from '@/test/mock-api';
+import { dataOf, fieldCodes, mockBrowser, type Answer, type MockBrowser } from '@/test/mock-api';
 
 const W = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}`;
 const [fynix, cleanstart] = MOCK_PROJECTS;
@@ -51,6 +51,33 @@ const FIELD_ERRORS = z.object({
   errors: z.array(z.object({ location: z.string(), path: z.string(), message: z.string() })),
 });
 const errorsOf = (answer: Answer): z.infer<typeof FIELD_ERRORS>['errors'] => FIELD_ERRORS.parse(answer.body).errors;
+const OBSERVATION = z.object({
+  observation_id: z.string(),
+  observed_at: z.string(),
+  engine_code: z.string(),
+  run_id: z.string().nullable(),
+  facts: z.object({ is_valid: z.boolean() }).nullable(),
+});
+const OBSERVATION_DETAIL = z.object({
+  observation_id: z.string(),
+  run_id: z.string().nullable(),
+  status: z.string(),
+  answer_text: z.string().nullable(),
+});
+const SUMMARY = z.object({
+  prompts: z.array(
+    z.object({
+      prompt_id: z.string(),
+      engines: z.array(z.object({ engine_code: z.string(), mentioned: z.object({ n_observations: z.number() }) })),
+    }),
+  ),
+});
+/** The answers the prompts summary counts for one prompt on one engine, in its default window. */
+async function countedFor(who: MockBrowser, promptId: string, code: string): Promise<number> {
+  const summary = dataOf(await who.call('GET', `${FYNIX}/ai/prompts-summary`), SUMMARY);
+  const row = summary.prompts.find((candidate) => candidate.prompt_id === promptId);
+  return row?.engines.find((engine) => engine.engine_code === code)?.mentioned.n_observations ?? 0;
+}
 
 beforeEach(() => {
   clock = START;
@@ -107,6 +134,45 @@ describe('run now', () => {
     });
     expect(run.operation.links.self).toBe(`${FYNIX}/runs/${run.run_id}`);
     expect(run.operation.links.cancel).toBe(`${FYNIX}/runs/${run.run_id}/cancel`);
+  });
+
+  it('delivers one valid answer per engine, which the observations, the summary and the runs then show', async () => {
+    const analyst = mockBrowser('analyst');
+    const forPrompt = `${FYNIX}/ai/observations?limit=200&filter[prompt_id]=${promptAt(2)}`;
+    const before = dataOf(await analyst.call('GET', forPrompt), z.array(OBSERVATION)).length;
+    const countBefore = await countedFor(analyst, promptAt(2), 'chatgpt_web');
+    const run = dataOf(await runNow(analyst, promptAt(2), ['gemini_web', 'chatgpt_web']), RUN);
+    // The answers come within minutes: a list read a moment later has them (a window ends before its own instant)
+    clock = START + 120_000;
+
+    const rows = dataOf(await analyst.call('GET', forPrompt), z.array(OBSERVATION));
+    expect(rows).toHaveLength(before + 2);
+    const fresh = rows.filter((row) => row.run_id === run.run_id);
+    expect(fresh.map((row) => row.engine_code).sort()).toEqual(['chatgpt_web', 'gemini_web']);
+    expect(fresh.every((row) => row.observed_at === new Date(START).toISOString())).toBe(true);
+    expect(fresh.every((row) => row.facts?.is_valid === true)).toBe(true);
+    expect(await countedFor(analyst, promptAt(2), 'chatgpt_web')).toBe(countBefore + 1);
+
+    const first = fresh[0];
+    if (first === undefined) throw new Error('The run delivered no observation');
+    const detail = dataOf(
+      await analyst.call('GET', `${FYNIX}/ai/observations/${first.observation_id}`),
+      OBSERVATION_DETAIL,
+    );
+    expect(detail).toMatchObject({ observation_id: first.observation_id, run_id: run.run_id, status: 'complete' });
+    expect(detail.answer_text).toEqual(expect.any(String));
+
+    // The run is listed with its runs, as a manual AI prompt run of the project
+    const listed = dataOf(await analyst.call('GET', `${FYNIX}/runs`), z.array(RUN));
+    expect(listed.find((candidate) => candidate.run_id === run.run_id)).toMatchObject({
+      project_id: fynix.project_id,
+      schedule_id: null,
+      workload: 'ai_prompt',
+      trigger: 'manual',
+      tasks_total: 2,
+      created_by: { actor_type: 'user' },
+    });
+    expect((await analyst.call('GET', `${FYNIX}/runs/${run.run_id}`)).status).toBe(200);
   });
 
   it('refuses a prompt that is asked already on an engine, naming the engines, until the answer has had time to come', async () => {

@@ -36,6 +36,7 @@ const PROMPT = `${PROMPTS}/{prompt_id}` as const;
 const LINT = `${PROMPTS}/lint` as const;
 const OBSERVATIONS = `${P}/ai/observations` as const;
 const OBSERVATION = `${OBSERVATIONS}/{observation_id}` as const;
+const RAW = `${OBSERVATION}/raw` as const;
 const SUMMARY = `${P}/ai/prompts-summary` as const;
 const ENTITIES = `${P}/entities` as const;
 
@@ -160,14 +161,38 @@ export const promptQuery = (scope: PromptScope, promptId: string): ApiQueryOptio
   return apiQuery(PROMPT, { params: { path: { ...pathOf(scope), prompt_id: promptId } } });
 };
 
+/** What narrows a summary to part of the prompts. A scope that is not given is not sent and not in the key. */
+export interface SummaryScope {
+  /** The prompts of one market, two capital letters. */
+  country?: string;
+  /** The prompts given this term or a term below it, and the topic rows of that term and those below it. */
+  term?: string;
+  /** The branded prompts alone; the API lets it win over `includeBranded`. */
+  brandedOnly?: boolean;
+  /** Blocks to add; `entities` gives each engine a Mentioned and a Share of voice cell per tracked entity. */
+  include?: readonly 'entities'[];
+}
+
 /** `GET {P}/ai/prompts-summary`: Mentioned, Cited and the rest per prompt, topic and engine over the window. */
 export const summaryQuery = (
   scope: PromptScope,
   range: DateRange,
   includeBranded: boolean,
+  { country, term, brandedOnly, include }: SummaryScope = {},
 ): ApiQueryOptions<typeof SUMMARY> =>
   apiQuery(SUMMARY, {
-    params: { path: pathOf(scope), query: { from: range.from, to: range.to, include_branded: includeBranded } },
+    params: {
+      path: pathOf(scope),
+      query: {
+        from: range.from,
+        to: range.to,
+        include_branded: includeBranded,
+        ...(country === undefined ? {} : { 'filter[country_iso]': country }),
+        ...(term === undefined ? {} : { 'filter[term]': term }),
+        ...(brandedOnly === true ? { branded_only: true } : {}),
+        ...(include === undefined || include.length === 0 ? {} : { include: [...include] }),
+      },
+    },
   });
 
 /** `GET {P}/ai/observations` for one prompt over the window, newest first. */
@@ -219,13 +244,22 @@ export const observationQuery = (
 };
 
 /**
- * Where the raw provider answer is read (`raw:read`); the browser opens it as it is. The id stays the text the
- * API sent, so it is exact whatever its size; `observedAt` is as for `observationQuery`.
+ * `GET {P}/ai/observations/{observation_id}/raw` (`raw:read`): the provider's answer as it came, as a file. An
+ * answer past its retention rejects with `410 raw_expired`, one that cannot be read now with `503
+ * raw_unavailable`. `observedAt` is as for `observationQuery`.
  */
-export const rawAnswerPath = (scope: PromptScope, observationId: string, observedAt?: string): string =>
-  `/api/v1/workspaces/${encodeURIComponent(scope.workspaceId)}/projects/${encodeURIComponent(scope.projectId)}/ai/observations/${encodeURIComponent(observationId)}/raw${
-    observedAt === undefined ? '' : `?observed_at=${encodeURIComponent(observedAt)}`
-  }`;
+export function fetchRawAnswer(scope: PromptScope, observationId: string, observedAt?: string): Promise<Blob> {
+  if (!isObservationId(observationId)) return Promise.reject(NOT_FOUND());
+  return unwrap(
+    api.GET(RAW, {
+      params: {
+        path: { ...pathOf(scope), observation_id: Number(observationId) },
+        query: observedAt === undefined ? {} : { observed_at: observedAt },
+      },
+      parseAs: 'blob',
+    }),
+  );
+}
 
 /** The project's entities with their colors, for the marks of an answer. */
 export const projectEntitiesQuery = (scope: PromptScope): ApiQueryOptions<typeof ENTITIES> =>

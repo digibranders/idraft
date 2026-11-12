@@ -1,13 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip } from '@/components/ui/tooltip';
 import { Truncate } from '@/components/ui/truncate';
 import { cn } from '@/lib/utils';
 
 /** A cell is at least this wide before a page strip wraps to two rows (23 section 2.3). */
 const MIN_CELL = 140;
+/** Ends of the ids that tie an inline chip's value to its label, after the strip's own id and the item's. */
+const TERM_SUFFIX = '-term';
+const VALUE_SUFFIX = '-value';
 
 export interface MetricStripItem {
   id: string;
@@ -30,6 +34,14 @@ export interface MetricStripItem {
   context?: string | null | undefined;
   /** A `BudgetMeter` or similar bar under the value, in the context position (23 section 11.1). */
   meter?: ReactNode;
+  /**
+   * The counts behind the value, in a tooltip and as the cell's description (23 section 2.1: "the full context is
+   * in the value tooltip"). The cell becomes a tab stop that opens the tooltip on focus (20 section 6.2 rule 6),
+   * and its context line wraps instead of truncating, so a touch screen, which has no tooltip, still reads it
+   * whole. `size="inline"` makes the chip's value the tab stop and leaves its context out, since the tooltip
+   * is read in its place.
+   */
+  tip?: string | undefined;
 }
 
 export interface MetricStripGroup {
@@ -49,6 +61,8 @@ export interface MetricStripProps {
   groups: readonly MetricStripGroup[];
   /** Loading keeps the labels and draws the values as bars; refetching keeps the values as they are. */
   status: 'loading' | 'ready' | 'refetching';
+  /** `inline` only: the chips stay on one line, for a toolbar that scrolls them sideways instead of wrapping. */
+  nowrap?: boolean | undefined;
 }
 
 /** Columns of the strip: one row when every cell gets 140 px, else two rows (23 section 2.3). */
@@ -63,7 +77,8 @@ function columnsFor(count: number, width: number | null, size: 'md' | 'sm' | 'in
  * panel, never a row of cards. Each item reads label, value, delta and context, as a `dt` and a `dd`.
  * Between channel groups the divider is the stronger border.
  */
-export function MetricStrip({ size, label, groups, status }: MetricStripProps): ReactElement {
+export function MetricStrip({ size, label, groups, status, nowrap = false }: MetricStripProps): ReactElement {
+  const ids = useId();
   const panel = useRef<HTMLDListElement>(null);
   const [width, setWidth] = useState<number | null>(null);
   useEffect(() => {
@@ -83,36 +98,60 @@ export function MetricStrip({ size, label, groups, status }: MetricStripProps): 
   if (size === 'inline') {
     return (
       <div role="group" aria-label={label} aria-busy={status === 'ready' ? undefined : true}>
-        <dl className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-          {items.map(({ item }) => (
-            <div key={item.id} title={item.context ?? undefined} className="flex min-w-0 items-baseline gap-1.5">
-              <dt className="type-meta text-foreground-tertiary">{item.label}</dt>
-              <dd className="flex items-baseline gap-1.5">
-                {status === 'loading' ? (
-                  <span className="flex w-6 items-center">
-                    <Skeleton shape="text-14" widthPct={100} />
-                  </span>
-                ) : (
-                  <span
+        <dl className={cn('flex items-baseline gap-x-5 gap-y-1', nowrap ? 'flex-nowrap' : 'flex-wrap')}>
+          {items.map(({ item }) => {
+            const tipped = item.tip !== undefined && status !== 'loading';
+            const termId = ids + item.id + TERM_SUFFIX;
+            const valueId = ids + item.id + VALUE_SUFFIX;
+            return (
+              <div
+                key={item.id}
+                title={tipped ? undefined : (item.context ?? undefined)}
+                className={cn('flex min-w-0 items-baseline gap-1.5', nowrap && 'shrink-0')}
+              >
+                <dt id={termId} className="type-meta text-foreground-tertiary">
+                  {item.label}
+                </dt>
+                <Tooltip content={item.tip ?? ''} disabled={!tipped}>
+                  <dd
+                    id={valueId}
+                    // A chip with counts in its tooltip is a tab stop that opens it (20 section 6.2 rule 6), named by
+                    // its label and its value
+                    {...(tipped ? { tabIndex: 0, 'aria-labelledby': `${termId} ${valueId}` } : {})}
                     className={cn(
-                      'num type-body-strong',
-                      item.unknown === null || item.unknown === undefined
-                        ? 'text-foreground'
-                        : 'text-foreground-tertiary',
+                      'flex items-baseline gap-1.5',
+                      tipped && '-mx-1 rounded-sm px-1 outline-none focus-visible:focus-ring-inset',
                     )}
                   >
-                    {item.value}
-                  </span>
-                )}
-                {item.delta === undefined || item.delta === null ? null : (
-                  <span className="num type-body-strong">{item.delta}</span>
-                )}
-                {item.context === undefined || item.context === null ? null : (
-                  <span className="sr-only">{item.context}</span>
-                )}
-              </dd>
-            </div>
-          ))}
+                    {status === 'loading' ? (
+                      <span className="flex w-6 items-center">
+                        <Skeleton shape="text-14" widthPct={100} />
+                      </span>
+                    ) : (
+                      <span
+                        className={cn(
+                          'num type-body-strong',
+                          item.unknown === null || item.unknown === undefined
+                            ? 'text-foreground'
+                            : 'text-foreground-tertiary',
+                          item.unknown?.kind === 'insufficient' && 'bg-insufficient',
+                        )}
+                      >
+                        {item.value}
+                      </span>
+                    )}
+                    {item.delta === undefined || item.delta === null ? null : (
+                      <span className="num type-body-strong">{item.delta}</span>
+                    )}
+                    {/* The tooltip carries the counts, so the context is read once */}
+                    {item.context === undefined || item.context === null || tipped ? null : (
+                      <span className="sr-only">{item.context}</span>
+                    )}
+                  </dd>
+                </Tooltip>
+              </div>
+            );
+          })}
         </dl>
       </div>
     );
@@ -131,6 +170,7 @@ export function MetricStrip({ size, label, groups, status }: MetricStripProps): 
         {items.map(({ item, groupStart }, index) => {
           const firstInRow = index % columns === 0;
           const unknown = item.unknown ?? null;
+          const tipped = item.tip !== undefined && status !== 'loading';
           return (
             <div
               key={item.id}
@@ -145,46 +185,58 @@ export function MetricStrip({ size, label, groups, status }: MetricStripProps): 
                 <Truncate text={item.label} className="text-foreground-tertiary" />
                 {item.labelAddon}
               </dt>
-              <dd className="flex min-w-0 flex-col">
-                {status === 'loading' ? (
-                  <span className={cn('flex items-center', md ? 'h-8 w-16' : 'h-6 w-14')}>
-                    <Skeleton shape="text-14" widthPct={100} />
-                  </span>
-                ) : (
-                  <span className="flex min-w-0 items-baseline gap-2">
-                    {unknown === null && item.text === true ? (
-                      <span
-                        className={cn('flex min-w-0 items-center type-body-strong text-foreground', md ? 'h-8' : 'h-6')}
-                      >
-                        {item.value}
-                      </span>
-                    ) : unknown === null ? (
-                      <span className={cn('shrink-0 num text-foreground', md ? 'type-metric' : 'type-metric-sm')}>
-                        {item.value}
-                      </span>
-                    ) : (
-                      <span
-                        className={cn(
-                          'flex shrink-0 items-center type-body text-foreground-tertiary',
-                          md ? 'h-8' : 'h-6',
-                          unknown.kind === 'insufficient' && 'bg-insufficient',
-                        )}
-                      >
-                        {item.value}
-                      </span>
-                    )}
-                    {item.delta === undefined || item.delta === null ? null : (
-                      <span className="shrink-0 num type-body-strong">{item.delta}</span>
-                    )}
-                  </span>
-                )}
-                {item.context === undefined || item.context === null ? null : (
-                  <Truncate text={item.context} className="type-meta text-foreground-tertiary" />
-                )}
-                {item.meter === undefined || item.meter === null || status === 'loading' ? null : (
-                  <span className="mt-1.5 flex">{item.meter}</span>
-                )}
-              </dd>
+              <Tooltip content={item.tip ?? ''} disabled={!tipped}>
+                <dd
+                  // A cell with counts in its tooltip is a tab stop that opens it (20 section 6.2 rule 6: a
+                  // tooltip on an element nothing focuses reaches no keyboard user); the lint rule cannot see why
+                  {...(tipped ? { tabIndex: 0 } : {})}
+                  className={cn('flex min-w-0 flex-col', tipped && 'outline-none focus-visible:focus-ring-inset')}
+                >
+                  {status === 'loading' ? (
+                    <span className={cn('flex items-center', md ? 'h-8 w-16' : 'h-6 w-14')}>
+                      <Skeleton shape="text-14" widthPct={100} />
+                    </span>
+                  ) : (
+                    <span className="flex min-w-0 items-baseline gap-2">
+                      {unknown === null && item.text === true ? (
+                        <span
+                          className={cn(
+                            'flex min-w-0 items-center type-body-strong text-foreground',
+                            md ? 'h-8' : 'h-6',
+                          )}
+                        >
+                          {item.value}
+                        </span>
+                      ) : unknown === null ? (
+                        <span className={cn('shrink-0 num text-foreground', md ? 'type-metric' : 'type-metric-sm')}>
+                          {item.value}
+                        </span>
+                      ) : (
+                        <span
+                          className={cn(
+                            'flex shrink-0 items-center type-body text-foreground-tertiary',
+                            md ? 'h-8' : 'h-6',
+                            unknown.kind === 'insufficient' && 'bg-insufficient',
+                          )}
+                        >
+                          {item.value}
+                        </span>
+                      )}
+                      {item.delta === undefined || item.delta === null ? null : (
+                        <span className="shrink-0 num type-body-strong">{item.delta}</span>
+                      )}
+                    </span>
+                  )}
+                  {item.context === undefined || item.context === null ? null : item.tip === undefined ? (
+                    <Truncate text={item.context} className="type-meta text-foreground-tertiary" />
+                  ) : (
+                    <span className="type-meta text-foreground-tertiary">{item.context}</span>
+                  )}
+                  {item.meter === undefined || item.meter === null || status === 'loading' ? null : (
+                    <span className="mt-1.5 flex">{item.meter}</span>
+                  )}
+                </dd>
+              </Tooltip>
             </div>
           );
         })}

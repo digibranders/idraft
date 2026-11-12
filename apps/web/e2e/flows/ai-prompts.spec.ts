@@ -67,7 +67,8 @@ test.describe('AI prompt tracking', () => {
     await page.getByRole('region', { name: 'Engines' }).getByRole('link', { name: 'Schedules' }).click();
     await expect(page.getByRole('heading', { level: 2, name: 'Schedules' })).toBeVisible();
     await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Topics & Prompts' }).click();
-    await expect(page.getByRole('heading', { level: 1, name: 'Topics & Prompts' })).toBeVisible();
+    // The title is read and not drawn (the breadcrumb shows it), so it is in the page without being seen
+    await expect(page.getByRole('heading', { level: 1, name: 'Topics & Prompts' })).toBeAttached();
     await expect(page.getByRole('heading', { name: 'No prompts yet' })).toBeVisible();
     await page.getByRole('button', { name: 'Add prompts' }).click();
     const dialog = page.getByRole('dialog', { name: 'Add prompts' });
@@ -83,7 +84,8 @@ test.describe('AI prompt tracking', () => {
     await expect(toastsOf(page).getByText('2 prompts added')).toBeVisible();
     await expect(dialog).toBeHidden();
 
-    await page.getByRole('tab', { name: 'Prompts' }).click();
+    // Topics and Prompts are a segmented control in the table toolbar: a radio group, not a tab list
+    await page.getByRole('radio', { name: 'Prompts' }).click();
     const table = page.getByRole('grid', { name: 'Prompts' });
     await expect(table.getByText('How often should an office be cleaned?')).toBeVisible();
     await expect(table.getByText('Which cleaning service is best in Boston?')).toBeVisible();
@@ -144,9 +146,7 @@ test.describe('AI prompt tracking', () => {
     ).toBeVisible();
 
     await openAnswerButton(namingTheBrand(inspector).first()).click();
-    const raw = page.getByRole('link', { name: 'Download the raw answer' });
-    await expect(raw).toBeVisible();
-    await expect(raw).toHaveAttribute('href', /\/raw/);
+    await expect(page.getByRole('button', { name: 'Download the raw answer' })).toBeVisible();
     await expectAccessible(page);
   });
 

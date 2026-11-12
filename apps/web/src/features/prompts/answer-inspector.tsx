@@ -3,14 +3,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ClipboardList, Link2, MessageSquareText, Users } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { ReactElement, ReactNode } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 
 import { answerSegments } from './answer-segments';
 import { outcomeKey } from './prompt-model';
 import {
+  fetchRawAnswer,
   observationQuery,
   projectEntitiesQuery,
-  rawAnswerPath,
   type ObservationAnswer,
   type PromptScope,
 } from './prompt-queries';
@@ -25,15 +25,19 @@ import { InlineError } from '@/components/app/status/inline-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TextLink } from '@/components/ui/text-link';
+import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import type { CitationOut, ProjectEngine } from '@/lib/api/types';
 import { useErrorId } from '@/lib/api/use-error-id';
+import { downloadUrl } from '@/lib/dom/download';
 import { EMPTY_VALUE, formatDetailDateTime, formatTableDateTime } from '@/lib/format';
 import { useCan } from '@/lib/permissions';
 
 const colorOf = (value: number | null | undefined): EntityColorIndex | null =>
   value === 1 || value === 2 || value === 3 || value === 4 || value === 5 || value === 6 ? value : null;
 
+/** How long the address of a downloaded raw answer lives, in milliseconds. */
+const RAW_URL_RELEASE_MS = 1000;
 const SOURCE_ROLE_KEYS = { own: 'own', competitor: 'competitor', third_party: 'thirdParty' } as const;
 
 /** Only an http or https address becomes a link; anything else (`javascript:`, say) stays text. */
@@ -91,6 +95,26 @@ export function AnswerInspector({
     engines.find((engine) => engine.engine.engine_code === code)?.engine.label ?? code;
   // An id that is no answer's (a hand-typed address) is an answer that is not there
   const notFound = isApiProblem(detail.error, 'not_found') || isApiProblem(detail.error, 'validation_failed');
+  const [rawPending, setRawPending] = useState(false);
+
+  // The raw answer is fetched through the API client, so a refusal reads as a problem: past its retention (410) or
+  // not readable now (503) each says so; any other failure gets the generic line
+  const rawAnswer = async (at: string): Promise<void> => {
+    setRawPending(true);
+    try {
+      const file = await fetchRawAnswer(scope, observationId, at);
+      const url = URL.createObjectURL(file);
+      downloadUrl(url, `answer-${observationId}.json`);
+      // A browser may read the address a moment after the click returns, so it is released after a while
+      window.setTimeout(() => URL.revokeObjectURL(url), RAW_URL_RELEASE_MS);
+    } catch (error) {
+      if (isApiProblem(error, 'raw_expired')) toast({ type: 'info', title: t('rawExpired') });
+      else if (isApiProblem(error, 'raw_unavailable')) toast({ type: 'error', title: t('rawUnavailable') });
+      else toast({ type: 'error', title: t('rawFailed') });
+    } finally {
+      setRawPending(false);
+    }
+  };
 
   const answerText = (shown: ObservationAnswer): ReactNode => {
     if (shown.answer_text === null || shown.answer_text === '') {
@@ -173,14 +197,15 @@ export function AnswerInspector({
             id: 'raw',
             label: t('rawLabel'),
             value: (
-              // The route answers with an attachment: the same tab keeps the page, and nothing is opened in it
-              <TextLink
-                href={rawAnswerPath(scope, observationId, shown.observed_at)}
-                rel="noopener noreferrer"
-                download
+              <Button
+                variant="link"
+                size="sm"
+                // Loading, not disabled: the button keeps its focus, and a second click is ignored
+                loading={rawPending}
+                onClick={() => void rawAnswer(shown.observed_at)}
               >
                 {t('raw')}
-              </TextLink>
+              </Button>
             ),
           },
         ]

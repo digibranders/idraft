@@ -18,7 +18,7 @@ from sqlalchemy import event
 
 from idraft.api.resources import Resources
 from idraft.collectors.ai_prompt_ingest import ingest
-from tests.api.auth.support import Workspace, execute, fetchrow, make_workspace
+from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import ensure_locations, project_url
 from tests.api.keywords.test_tracked_keyword_ranks import Ledger, worker_db
@@ -56,6 +56,10 @@ CHATGPT = "chatgpt_web"
 GEMINI = "gemini_web"
 ENGINES = ("chatgpt_web", "gemini_web", "google_ai_mode")
 OUTCOMES = ("mentioned_and_cited", "mentioned_only", "cited_only", "neither")
+# Every option of the summary at once; each later task of plan D1 adds its own.
+EVERY_OPTION = {"include": "entities"}
+# One grouped query more for each option.
+OPTION_QUERIES = 1
 
 
 @dataclass(frozen=True)
@@ -69,14 +73,15 @@ class Summary:
     rival: uuid.UUID
 
 
-async def _topic(pg: PostgresServer, project: Project, name: str) -> uuid.UUID:
+async def _topic(pg: PostgresServer, project: Project, name: str, kind: str = "topic") -> uuid.UUID:
     vocabulary = await fetchrow(
         pg,
         "INSERT INTO core.taxonomy_vocabularies (workspace_id, project_id, kind, name) "
-        "VALUES ($1, $2, 'topic', $3) RETURNING id",
+        "VALUES ($1, $2, $3, $4) RETURNING id",
         project.workspace_id,
         project.id,
-        f"Topics {uuid.uuid4().hex[:6]}",
+        kind,
+        f"Terms {uuid.uuid4().hex[:6]}",
     )
     term = await fetchrow(
         pg,
@@ -624,18 +629,21 @@ async def _term(
     return term_id
 
 
-async def test_a_parent_topic_holds_the_prompts_of_its_children(
-    api: httpx.AsyncClient,
-    resources: Resources,
-    migrated: PostgresServer,
-    worker_db: Ledger,
-    import_store: MemoryStore,
-) -> None:
-    """Security holds SOC and Compliance. Prompt A is in both children, B in Security itself
-    and C in SOC: each is one prompt of Security, however it was assigned (docs/16 section 4)."""
+@dataclass(frozen=True)
+class Tree:
+    world: Summary
+    security: uuid.UUID
+    soc: uuid.UUID
+    compliance: uuid.UUID
+
+
+async def _tree(
+    resources: Resources, migrated: PostgresServer, worker_db: Ledger, store: MemoryStore
+) -> Tree:
+    """Security holds SOC and Compliance. Prompt A is in both children, B in Security itself and
+    C in SOC. A and C name the own brand, B names nobody; one answer each, a day ago."""
     world = await _world(resources, migrated)
-    prompts = await _prompts(migrated, world, ["a", "b", "c"])
-    world = replace(world, prompts=prompts)
+    world = replace(world, prompts=await _prompts(migrated, world, ["a", "b", "c"]))
     vocabulary = await fetchrow(
         migrated,
         "INSERT INTO core.taxonomy_vocabularies (workspace_id, project_id, kind, name) "
@@ -654,15 +662,28 @@ async def test_a_parent_topic_holds_the_prompts_of_its_children(
         world,
         migrated,
         worker_db,
-        import_store,
+        store,
         [
             Answer("a", OWN_ONLY, (), 1),
             Answer("b", NEITHER, (), 1),
             Answer("c", OWN_ONLY, (), 1),
         ],
     )
+    return Tree(world, security, soc, compliance)
 
-    response = await _summary(world, api)
+
+async def test_a_parent_topic_holds_the_prompts_of_its_children(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+) -> None:
+    """Each prompt is one prompt of Security however it was assigned (docs/16 section 4): see
+    `_tree`."""
+    tree = await _tree(resources, migrated, worker_db, import_store)
+
+    response = await _summary(tree.world, api)
 
     data = response.json()["data"]
     rows = {topic["name"]: topic for topic in data["topics"]}
@@ -672,15 +693,15 @@ async def test_a_parent_topic_holds_the_prompts_of_its_children(
         "SOC": 2,
         "Security": 3,
     }
-    assert rows["Security"]["term_id"] == str(security)
+    assert rows["Security"]["term_id"] == str(tree.security)
     assert _cell(rows["Compliance"]["engines"][0]["mentioned"]) == (1, 1, 1)
     assert _cell(rows["SOC"]["engines"][0]["mentioned"]) == (2, 2, 2)
     # A once, not twice: (1 + 0 + 1) / 3, not (1 + 1 + 0 + 1) / 4.
     assert _cell(rows["Security"]["engines"][0]["mentioned"]) == (2, 3, 3)
     assert _pooled(rows["Security"]["engines"][0]["mentioned"]) == (2, 3)
     # A prompt row lists the terms it was given, not the ones above them.
-    prompt_a = _by(data["prompts"], "prompt_id")[str(prompts["a"].id)]
-    assert prompt_a["topic_term_ids"] == sorted([str(soc), str(compliance)])
+    prompt_a = _by(data["prompts"], "prompt_id")[str(tree.world.prompts["a"].id)]
+    assert prompt_a["topic_term_ids"] == sorted([str(tree.soc), str(tree.compliance)])
 
 
 async def test_two_own_brands_in_an_answer_both_count_for_the_own_share(
@@ -809,7 +830,7 @@ async def _full_project(resources: Resources, migrated: PostgresServer) -> Summa
     owner = await member(resources, migrated, workspace, "owner")
     await ensure_locations(migrated)
     project = Project(workspace.id, await make_project(migrated, workspace.id))
-    await _entity(migrated, project, OWN_NAME, OWN_HOST, "own", primary=True)
+    own = await _entity(migrated, project, OWN_NAME, OWN_HOST, "own", primary=True)
     for engine_code in ENGINES:
         await enable_engine(migrated, project, engine_code)
     topic = await _topic(migrated, project, "Managed SOC")
@@ -867,7 +888,51 @@ async def _full_project(resources: Resources, migrated: PostgresServer) -> Summa
         project.id,
         derivation["id"],
     )
-    return Summary(workspace, project, owner, {}, {}, uuid.uuid4(), uuid.uuid4())
+    return Summary(workspace, project, owner, {}, {}, own, uuid.uuid4())
+
+
+async def _mention_every_answer(migrated: PostgresServer, world: Summary) -> None:
+    """The own brand's mention row on every answer of a full project, as ingest writes one."""
+    await execute(
+        migrated,
+        "INSERT INTO ai.entity_mentions (observation_id, observed_at, entity_id, derivation_id, "
+        "workspace_id, project_id, engine_code, role, mention_count, first_char_offset, "
+        "mention_order, prominence, match_method, confidence, evidence_spans) "
+        "SELECT f.observation_id, f.observed_at, $2::uuid, f.derivation_id, f.workspace_id, "
+        "f.project_id, f.engine_code, 'own', 1, 0, 1, 1, 'alias_word', 1, "
+        "ARRAY['[0,8)'::int4range] FROM ai.observation_facts f WHERE f.project_id = $1",
+        world.project.id,
+        world.own,
+    )
+
+
+def _entity_cell(engine: dict[str, Any], entity: uuid.UUID) -> dict[str, Any]:
+    cell: dict[str, Any] = next(c for c in engine["entities"] if c["entity_id"] == str(entity))
+    return cell
+
+
+async def test_every_option_at_full_capacity_is_one_query_each(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The base plan's 3,600 facts, each naming the own brand, with every option: each adds one
+    grouped query, not one per prompt. A first read warms the session cache so both counted
+    reads start alike."""
+    world = await _full_project(resources, migrated)
+    await _mention_every_answer(migrated, world)
+    await _summary(world, api)
+    with _statements(resources) as plain:
+        await _summary(world, api)
+    with _statements(resources) as seen:
+        response = await _summary(world, api, **EVERY_OPTION)
+
+    assert response.status_code == 200, response.text
+    assert len(seen) - len(plain) <= OPTION_QUERIES, seen
+    data = response.json()["data"]
+    for engine in data["topics"][0]["engines"]:
+        own = _entity_cell(engine, world.own)
+        assert _cell(own["mentioned"]) == (150, 150, 1200)
+        assert _pooled(own["mentioned"]) == (1200, 1200)
+        assert _cell(own["share_of_voice"]) == (1200, 1200, 1200)
 
 
 async def test_a_full_project_is_a_handful_of_statements(
@@ -918,3 +983,582 @@ async def test_half_of_the_answers_superseded_are_all_left_out(
         assert _cell(engine["mentioned"]) == (150, 150, 600)
         assert _cell(engine["share_of_voice"]) == (600, 600, 600)
     assert len(seen) <= 20, seen
+
+
+def _when(value: str) -> datetime:
+    return datetime.fromisoformat(value)
+
+
+async def _answer_times(migrated: PostgresServer, prompt: Prompt) -> list[datetime]:
+    """When each answer to the prompt was given, newest first."""
+    rows = await fetch(
+        migrated,
+        "SELECT observed_at FROM ai.observations WHERE prompt_id = $1 ORDER BY observed_at DESC",
+        prompt.id,
+    )
+    return [row["observed_at"] for row in rows]
+
+
+async def test_rows_say_when_the_last_answer_and_the_last_valid_answer_came(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+) -> None:
+    """Prompt A: an answer today that is superseded, a refusal a day ago and a valid answer three
+    days ago. Prompt B: a refusal two days ago. Prompt C: nothing. Topic T holds A and B; C has
+    no topic."""
+    world = await _world(resources, migrated)
+    prompts = await _prompts(migrated, world, ["a", "b", "c"])
+    world = replace(world, prompts=prompts)
+    topic = await _topic(migrated, world.project, "Managed SOC")
+    for name in ("a", "b"):
+        await _assign(migrated, world, name, topic)
+    await _ingested(
+        world,
+        migrated,
+        worker_db,
+        import_store,
+        [
+            Answer("a", OWN_ONLY, (), 0),
+            Answer("a", REFUSAL, (), 1),
+            Answer("a", OWN_ONLY, (), 3),
+            Answer("b", REFUSAL, (), 2),
+        ],
+    )
+    newest, refused, valid = await _answer_times(migrated, prompts["a"])
+    await execute(
+        migrated,
+        "UPDATE ai.observations SET superseded_by = id WHERE prompt_id = $1 AND observed_at = $2",
+        prompts["a"].id,
+        newest,
+    )
+    (b_refused,) = await _answer_times(migrated, prompts["b"])
+
+    response = await _summary(world, api)
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    rows = _by(data["prompts"], "prompt_id")
+    a, b, c = (rows[str(prompts[name].id)] for name in ("a", "b", "c"))
+    # The superseded answer is not counted, so it is not the last one either.
+    assert (_when(a["last_observed_at"]), _when(a["last_valid_at"])) == (refused, valid)
+    assert (_when(b["last_observed_at"]), b["last_valid_at"]) == (b_refused, None)
+    assert (c["last_observed_at"], c["last_valid_at"]) == (None, None)
+    topic_row, untopiced = data["topics"]
+    assert (_when(topic_row["last_observed_at"]), _when(topic_row["last_valid_at"])) == (
+        refused,
+        valid,
+    )
+    assert (untopiced["last_observed_at"], untopiced["last_valid_at"]) == (None, None)
+
+
+async def test_the_last_answer_is_of_the_engines_shown(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    """`providers` was last answered on ChatGPT a day ago (answer 1) and on Gemini two days ago."""
+    providers = summary.prompts["providers"]
+    latest: dict[str, datetime] = {}
+    for engine in (CHATGPT, GEMINI):
+        record = await fetchrow(
+            migrated,
+            "SELECT max(observed_at) AS at FROM ai.observations "
+            "WHERE prompt_id = $1 AND engine_code = $2::text",
+            providers.id,
+            engine,
+        )
+        latest[engine] = record["at"]
+
+    every = await _summary(summary, api)
+    gemini = await _summary(summary, api, **{"filter[engine_code_in]": GEMINI})
+
+    row = _by(every.json()["data"]["prompts"], "prompt_id")[str(providers.id)]
+    assert (_when(row["last_observed_at"]), _when(row["last_valid_at"])) == (
+        latest[CHATGPT],
+        latest[CHATGPT],
+    )
+    row = _by(gemini.json()["data"]["prompts"], "prompt_id")[str(providers.id)]
+    assert (_when(row["last_observed_at"]), _when(row["last_valid_at"])) == (
+        latest[GEMINI],
+        latest[GEMINI],
+    )
+
+
+async def test_a_country_filter_keeps_the_prompts_of_that_country(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    await execute(
+        migrated,
+        "UPDATE ai.prompts SET country_iso = 'IN' WHERE id = $1",
+        summary.prompts["pricing"].id,
+    )
+
+    india = (await _summary(summary, api, **{"filter[country_iso]": "IN"})).json()["data"]
+    states = (await _summary(summary, api, **{"filter[country_iso]": "US"})).json()["data"]
+    lower = await _summary(summary, api, **{"filter[country_iso]": "in"})
+
+    assert [row["prompt_id"] for row in india["prompts"]] == [str(summary.prompts["pricing"].id)]
+    assert [(t["name"], t["prompt_count"]) for t in india["topics"]] == [("Managed SOC", 1)]
+    # Managed SOC is `pricing` alone here: 0 of its one valid answer.
+    assert _cell(india["topics"][0]["engines"][0]["mentioned"]) == (0, 1, 1)
+    assert {row["prompt_id"] for row in states["prompts"]} == {
+        str(summary.prompts[name].id) for name in ("providers", "misc")
+    }
+    assert [(t["name"], t["prompt_count"]) for t in states["topics"]] == [
+        ("Compliance", 1),
+        ("Managed SOC", 1),
+        (None, 1),
+    ]
+    # Managed SOC is `providers` alone here: 2 of 5.
+    soc = _by(states["topics"], "name")["Managed SOC"]
+    assert _cell(soc["engines"][0]["mentioned"]) == (pytest.approx(0.4), 1, 6)
+    assert problem(lower) == (422, "validation_failed")
+
+
+async def test_a_term_filter_keeps_the_term_and_the_terms_below_it(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+) -> None:
+    tree = await _tree(resources, migrated, worker_db, import_store)
+    ids = {name: str(prompt.id) for name, prompt in tree.world.prompts.items()}
+
+    async def scoped(term: uuid.UUID) -> dict[str, Any]:
+        response = await _summary(tree.world, api, **{"filter[term]": str(term)})
+        assert response.status_code == 200, response.text
+        data: dict[str, Any] = response.json()["data"]
+        return data
+
+    security = await scoped(tree.security)
+    soc = await scoped(tree.soc)
+    compliance = await scoped(tree.compliance)
+    unknown = await scoped(uuid.uuid4())
+
+    assert {row["prompt_id"] for row in security["prompts"]} == set(ids.values())
+    assert [t["name"] for t in security["topics"]] == ["Compliance", "SOC", "Security"]
+    # A is in Compliance too, but under SOC the rows are SOC and the terms below it.
+    assert {row["prompt_id"] for row in soc["prompts"]} == {ids["a"], ids["c"]}
+    assert [(t["name"], t["prompt_count"]) for t in soc["topics"]] == [("SOC", 2)]
+    assert _cell(soc["topics"][0]["engines"][0]["mentioned"]) == (2, 2, 2)
+    assert [row["prompt_id"] for row in compliance["prompts"]] == [ids["a"]]
+    assert [(t["name"], t["prompt_count"]) for t in compliance["topics"]] == [("Compliance", 1)]
+    assert (unknown["prompts"], unknown["topics"]) == ([], [])
+
+
+async def test_a_term_id_of_another_workspace_gives_an_empty_page(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    """Not a tenancy guard on its own: a prompt cannot be tagged with another workspace's term
+    (a foreign key), so this is the unknown-term case with a real term id. It answers 200."""
+    other_workspace = await make_workspace(migrated)
+    other = Project(other_workspace.id, await make_project(migrated, other_workspace.id))
+    term = await _topic(migrated, other, "Managed SOC")
+
+    response = await _summary(summary, api, **{"filter[term]": str(term)})
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert (data["prompts"], data["topics"]) == ([], [])
+
+
+async def test_branded_only_keeps_the_branded_prompts(
+    api: httpx.AsyncClient, summary: Summary
+) -> None:
+    alone = (await _summary(summary, api, branded_only="true")).json()["data"]
+    both = (await _summary(summary, api, branded_only="true", include_branded="true")).json()[
+        "data"
+    ]
+    soc = (
+        await _summary(
+            summary, api, branded_only="true", **{"filter[term]": str(summary.topics["soc"])}
+        )
+    ).json()["data"]
+    default = (await _summary(summary, api)).json()["data"]
+
+    assert [row["prompt_id"] for row in alone["prompts"]] == [str(summary.prompts["brand"].id)]
+    assert [(t["term_id"], t["prompt_count"]) for t in alone["topics"]] == [(None, 1)]
+    assert _cell(alone["topics"][0]["engines"][0]["mentioned"]) == (1, 1, 1)
+    assert (alone["branded_only"], alone["include_branded"]) == (True, True)
+    assert both == alone
+    # The branded prompt has no topic, so nothing is under Managed SOC.
+    assert (soc["prompts"], soc["topics"]) == ([], [])
+    assert (default["branded_only"], default["include_branded"]) == (False, False)
+
+
+async def _tag(
+    migrated: PostgresServer, workspace_id: uuid.UUID, prompt_id: uuid.UUID, term: uuid.UUID
+) -> None:
+    await execute(
+        migrated,
+        "INSERT INTO ai.prompt_terms (prompt_id, term_id, workspace_id) VALUES ($1, $2, $3)",
+        prompt_id,
+        term,
+        workspace_id,
+    )
+
+
+async def test_a_term_of_another_project_holds_only_this_projects_prompts(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    """Terms are the workspace's, and a prompt may be tagged with a term of another project's
+    vocabulary (the database only ties a tag to the workspace). The term filter holds the
+    project's own prompts given the term, and never the other project's."""
+    other = Project(summary.workspace.id, await make_project(migrated, summary.workspace.id))
+    term = await _topic(migrated, other, "Elsewhere")
+    stranger = await add_prompt(migrated, other, "A question of the other project?")
+    misc = summary.prompts["misc"]
+    for prompt_id in (stranger.id, misc.id):
+        await _tag(migrated, summary.workspace.id, prompt_id, term)
+
+    response = await _summary(summary, api, **{"filter[term]": str(term)})
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert [row["prompt_id"] for row in data["prompts"]] == [str(misc.id)]
+    assert [(t["term_id"], t["prompt_count"]) for t in data["topics"]] == [(str(term), 1)]
+
+
+async def test_a_term_and_a_country_filter_apply_together(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    await execute(
+        migrated,
+        "UPDATE ai.prompts SET country_iso = 'IN' WHERE id = $1",
+        summary.prompts["pricing"].id,
+    )
+    soc, compliance = str(summary.topics["soc"]), str(summary.topics["compliance"])
+
+    async def prompts(term: str, country: str) -> set[str]:
+        response = await _summary(
+            summary, api, **{"filter[term]": term, "filter[country_iso]": country}
+        )
+        assert response.status_code == 200, response.text
+        return {row["prompt_id"] for row in response.json()["data"]["prompts"]}
+
+    pricing, providers = str(summary.prompts["pricing"].id), str(summary.prompts["providers"].id)
+    # Managed SOC holds `providers` (US) and `pricing` (IN); each country keeps one of them.
+    assert await prompts(soc, "IN") == {pricing}
+    assert await prompts(soc, "US") == {providers}
+    # Compliance holds `providers` alone, which is not Indian.
+    assert await prompts(compliance, "IN") == set()
+    assert await prompts(compliance, "US") == {providers}
+
+
+async def test_branded_only_and_a_country_filter_apply_together(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    await execute(
+        migrated,
+        "UPDATE ai.prompts SET country_iso = 'IN', is_branded = true WHERE id = $1",
+        summary.prompts["pricing"].id,
+    )
+
+    async def branded(country: str) -> list[str]:
+        response = await _summary(
+            summary, api, branded_only="true", **{"filter[country_iso]": country}
+        )
+        assert response.status_code == 200, response.text
+        return [row["prompt_id"] for row in response.json()["data"]["prompts"]]
+
+    # Branded now: `brand` (US) and `pricing` (IN).
+    assert await branded("IN") == [str(summary.prompts["pricing"].id)]
+    assert await branded("US") == [str(summary.prompts["brand"].id)]
+
+
+async def test_an_archived_and_a_deleted_prompt_stay_out_under_a_filter(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    """Both are given Managed SOC, are of the US and one is branded: no filter lets them in."""
+    soc = summary.topics["soc"]
+    gone = await add_prompt(migrated, summary.project, "A deleted SOC question?", branded=True)
+    await _tag(migrated, summary.workspace.id, gone.id, soc)
+    await execute(migrated, "UPDATE ai.prompts SET deleted_at = now() WHERE id = $1", gone.id)
+    archived = await add_prompt(
+        migrated, summary.project, "An archived branded question?", branded=True, active=False
+    )
+    await _tag(migrated, summary.workspace.id, archived.id, soc)
+    hidden = {str(gone.id), str(archived.id), str(summary.prompts["archived"].id)}
+
+    for params in (
+        {"filter[term]": str(soc), "filter[country_iso]": "US"},
+        {"filter[term]": str(soc), "include_branded": "true"},
+        {"branded_only": "true", "filter[country_iso]": "US"},
+    ):
+        response = await _summary(summary, api, **params)
+
+        assert response.status_code == 200, response.text
+        shown = {row["prompt_id"] for row in response.json()["data"]["prompts"]}
+        assert shown, params
+        assert not shown & hidden, params
+    soc_prompts = await _summary(summary, api, **{"filter[term]": str(soc)})
+    assert {row["prompt_id"] for row in soc_prompts.json()["data"]["prompts"]} == {
+        str(summary.prompts[name].id) for name in ("providers", "pricing")
+    }
+
+
+async def test_a_term_of_a_non_topic_vocabulary_filters_but_makes_no_topic_row(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    """The filter takes any term of the workspace, but topic rows are of `topic` vocabularies
+    only. A term of another kind (here a cluster) lists the prompts given it and no topic row at
+    all: not one of the term, and not the row of no topic, which a term filter never shows."""
+    cluster = await _topic(migrated, summary.project, "Cluster one", kind="cluster")
+    misc = summary.prompts["misc"]
+    await _tag(migrated, summary.workspace.id, misc.id, cluster)
+
+    response = await _summary(summary, api, **{"filter[term]": str(cluster)})
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert [row["prompt_id"] for row in data["prompts"]] == [str(misc.id)]
+    assert data["prompts"][0]["topic_term_ids"] == []
+    assert data["topics"] == []
+
+
+async def test_entity_cells_split_each_answer_among_the_entities_it_names(
+    api: httpx.AsyncClient, summary: Summary
+) -> None:
+    response = await _summary(summary, api, include="entities")
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    rows = _by(data["prompts"], "prompt_id")
+    chatgpt, gemini = rows[str(summary.prompts["providers"].id)]["engines"]
+    # The own brand first, then the competitors.
+    assert [c["entity_id"] for c in chatgpt["entities"]] == [str(summary.own), str(summary.rival)]
+    own, rival = (_entity_cell(chatgpt, entity) for entity in (summary.own, summary.rival))
+    # Of five valid answers, 1 and 2 name the own brand and 1 and 4 the rival; answer 1 names
+    # both, so each has half of it.
+    assert _cell(own["mentioned"]) == (2, 5, 6)
+    assert _cell(own["share_of_voice"]) == (1.5, 3, 6)
+    assert _cell(rival["mentioned"]) == (2, 5, 6)
+    assert _cell(rival["share_of_voice"]) == (1.5, 3, 6)
+    # One own brand: its cells are the engine's own.
+    assert own["mentioned"] == chatgpt["mentioned"]
+    assert own["share_of_voice"] == chatgpt["share_of_voice"]
+    assert _cell(_entity_cell(gemini, summary.rival)["share_of_voice"]) == (0.5, 1, 1)
+    # `pricing` cites the rival's page but names nobody.
+    pricing = rows[str(summary.prompts["pricing"].id)]["engines"][0]
+    assert _cell(_entity_cell(pricing, summary.rival)["mentioned"]) == (0, 1, 1)
+    # Each answer that names a tracked entity is shared out among them: the shares add up to
+    # the answers.
+    for row in data["prompts"]:
+        for engine in row["engines"]:
+            assert sum(c["share_of_voice"]["numerator"] for c in engine["entities"]) == (
+                pytest.approx(engine["share_of_voice"]["denominator"])
+            )
+    soc = _by(data["topics"], "name")["Managed SOC"]["engines"][0]
+    rival_soc = _entity_cell(soc, summary.rival)
+    # Prompt weighted as Mentioned is: `providers` 2 of 5, `pricing` 0 of 1.
+    assert _cell(rival_soc["mentioned"]) == (pytest.approx(0.4), 2, 7)
+    assert _pooled(rival_soc["mentioned"]) == (2, 6)
+    assert _cell(rival_soc["share_of_voice"]) == (1.5, 3, 7)
+    plain = (await _summary(summary, api)).json()["data"]
+    assert "entities" not in plain["prompts"][0]["engines"][0]
+
+
+async def test_a_mention_outside_the_share_of_voice_set_is_not_counted(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+) -> None:
+    """An uncertain mention of the rival, stored without an order as ingest stores one (doc 13,
+    as built), counts for no entity cell: the answer stays the own brand's alone."""
+    world = await _world(resources, migrated)
+    prompts = await _prompts(migrated, world, ["x"])
+    world = replace(world, prompts=prompts)
+    await _ingested(world, migrated, worker_db, import_store, [Answer("x", OWN_ONLY, (), 1)])
+    fact = await fetchrow(
+        migrated,
+        "SELECT observation_id, observed_at, derivation_id, engine_code "
+        "FROM ai.observation_facts WHERE prompt_id = $1",
+        prompts["x"].id,
+    )
+    await execute(
+        migrated,
+        "INSERT INTO ai.entity_mentions (observation_id, observed_at, entity_id, derivation_id, "
+        "workspace_id, project_id, engine_code, role, mention_count, first_char_offset, "
+        "mention_order, prominence, match_method, mention_status, confidence, evidence_spans) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7::text, 'competitor', 1, 40, NULL, 0.5, "
+        "'alias_word', 'uncertain', 0.4, ARRAY['[40,47)'::int4range])",
+        fact["observation_id"],
+        fact["observed_at"],
+        world.rival,
+        fact["derivation_id"],
+        world.workspace.id,
+        world.project.id,
+        fact["engine_code"],
+    )
+
+    response = await _summary(world, api, include="entities")
+
+    assert response.status_code == 200, response.text
+    engine = response.json()["data"]["prompts"][0]["engines"][0]
+    assert _cell(_entity_cell(engine, world.rival)["mentioned"]) == (0, 1, 1)
+    assert _cell(_entity_cell(engine, world.own)["share_of_voice"]) == (1, 1, 1)
+
+
+async def test_entity_cells_stop_at_twenty_entities(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The own brand, CyberNX and twenty more competitors: 22 tracked; cells for the own brand
+    and the first 19 competitors by name."""
+    world = await _world(resources, migrated)
+    extra = [
+        await _entity(
+            migrated, world.project, f"Rival {n:02d}", f"rival{n:02d}.example", "competitor"
+        )
+        for n in range(1, 21)
+    ]
+    world = replace(world, prompts=await _prompts(migrated, world, ["x"]))
+
+    response = await _summary(world, api, include="entities")
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert len(data["entities"]) == 22
+    cells = data["prompts"][0]["engines"][0]["entities"]
+    assert [c["entity_id"] for c in cells] == [
+        str(entity) for entity in (world.own, world.rival, *extra[:18])
+    ]
+    assert _cell(cells[0]["mentioned"]) == (0, 0, 0)
+
+
+async def test_an_invalid_answer_counts_for_no_entity_cell(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+) -> None:
+    """A refusal that names both brands still has mention rows with an order and counts them in
+    its fact row; the cells read valid answers only, as the engine's do."""
+    world = await _world(resources, migrated)
+    world = replace(world, prompts=await _prompts(migrated, world, ["x"]))
+    refusal = f"{REFUSAL} {OWN_NAME} and {RIVAL_NAME} may know."
+    await _ingested(
+        world,
+        migrated,
+        worker_db,
+        import_store,
+        [Answer("x", OWN_ONLY, (), 1), Answer("x", refusal, (), 2)],
+    )
+    held = await fetchrow(
+        migrated,
+        "SELECT count(*) AS n FROM ai.observation_facts f JOIN ai.entity_mentions m "
+        "ON m.observation_id = f.observation_id AND m.observed_at = f.observed_at "
+        "AND m.derivation_id = f.derivation_id "
+        "WHERE f.project_id = $1 AND NOT f.is_valid AND f.tracked_entities_mentioned = 2 "
+        "AND m.mention_order IS NOT NULL",
+        world.project.id,
+    )
+    assert held["n"] == 2
+
+    response = await _summary(world, api, include="entities")
+
+    assert response.status_code == 200, response.text
+    engine = response.json()["data"]["prompts"][0]["engines"][0]
+    assert _cell(engine["mentioned"]) == (1, 1, 2)
+    own, rival = (_entity_cell(engine, entity) for entity in (world.own, world.rival))
+    assert _cell(own["mentioned"]) == (1, 1, 2)
+    assert _cell(own["share_of_voice"]) == (1, 1, 2)
+    assert _cell(rival["mentioned"]) == (0, 1, 2)
+    assert _cell(rival["share_of_voice"]) == (0, 1, 2)
+
+
+async def test_several_own_brands_share_the_engines_own_share_of_voice(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+) -> None:
+    """Two own brands and a rival, four answers: A names both own brands, B the first, C the
+    second and the rival, D the rival. Each answer is shared out among the brands it names."""
+    world = await _world(resources, migrated)
+    second_name = "Northwind Labs"
+    second = await _entity(migrated, world.project, second_name, "northwind-labs.example", "own")
+    prompts = await _prompts(migrated, world, ["a", "b", "c", "d"])
+    world = replace(world, prompts=prompts)
+    await _ingested(
+        world,
+        migrated,
+        worker_db,
+        import_store,
+        [
+            Answer("a", f"{OWN_NAME} and {second_name} both run managed SOC services.", (), 1),
+            Answer("b", OWN_ONLY, (), 1),
+            Answer("c", f"{second_name} and {RIVAL_NAME} both run managed SOC services.", (), 1),
+            Answer("d", RIVAL_ONLY, (), 1),
+        ],
+    )
+
+    response = await _summary(world, api, include="entities")
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert {(e["entity_id"], e["role"]) for e in data["entities"]} == {
+        (str(world.own), "own"),
+        (str(second), "own"),
+        (str(world.rival), "competitor"),
+    }
+    rows = _by(data["prompts"], "prompt_id")
+    expected: dict[str, dict[uuid.UUID, float]] = {
+        "a": {world.own: 0.5, second: 0.5, world.rival: 0},
+        "b": {world.own: 1, second: 0, world.rival: 0},
+        "c": {world.own: 0, second: 0.5, world.rival: 0.5},
+        "d": {world.own: 0, second: 0, world.rival: 1},
+    }
+    for name, shares in expected.items():
+        engine = rows[str(prompts[name].id)]["engines"][0]
+        for entity, share in shares.items():
+            cell = _entity_cell(engine, entity)
+            assert _cell(cell["share_of_voice"]) == (share, 1, 1)
+            assert cell["mentioned"]["numerator"] == (1 if share else 0)
+    # The row without a topic holds all four answers: each brand's cells, and the own brands'
+    # shares add up to the engine's own.
+    engine = data["topics"][-1]["engines"][0]
+    assert _cell(engine["share_of_voice"]) == (2.5, 4, 4)
+    own, other, rival = (_entity_cell(engine, e) for e in (world.own, second, world.rival))
+    assert _cell(own["share_of_voice"]) == (1.5, 4, 4)
+    assert _cell(other["share_of_voice"]) == (1, 4, 4)
+    assert _cell(rival["share_of_voice"]) == (1.5, 4, 4)
+    assert (
+        own["share_of_voice"]["numerator"] + other["share_of_voice"]["numerator"]
+        == (engine["share_of_voice"]["numerator"])
+    )
+
+
+async def test_the_engine_filter_narrows_the_entity_cells(
+    api: httpx.AsyncClient, summary: Summary
+) -> None:
+    response = await _summary(
+        summary, api, include="entities", **{"filter[engine_code_in]": GEMINI}
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    providers = _by(data["prompts"], "prompt_id")[str(summary.prompts["providers"].id)]
+    assert [engine["engine_code"] for engine in providers["engines"]] == [GEMINI]
+    engine = providers["engines"][0]
+    # The one Gemini answer names both brands: half of it each.
+    for entity in (summary.own, summary.rival):
+        cell = _entity_cell(engine, entity)
+        assert _cell(cell["mentioned"]) == (1, 1, 1)
+        assert _cell(cell["share_of_voice"]) == (0.5, 1, 1)
+
+
+@pytest.mark.parametrize("include", ["series", "entities,series", "bogus"])
+async def test_an_include_that_is_not_built_is_refused(
+    api: httpx.AsyncClient, summary: Summary, include: str
+) -> None:
+    """`series` is a later task of plan D1: until it is built, it is a validation error like any
+    unknown value."""
+    response = await _summary(summary, api, include=include)
+
+    assert problem(response) == (422, "validation_failed")

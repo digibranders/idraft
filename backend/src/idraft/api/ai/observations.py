@@ -17,7 +17,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.ai import observation_repository as repository
 from idraft.api.ai.observation_repository import ObservationFilter
-from idraft.api.pagination import CursorParams, decode_cursor, encode_cursor, invalid_cursor
+from idraft.api.pagination import (
+    CursorParams,
+    cursor_instant,
+    decode_cursor,
+    encode_cursor,
+    invalid_cursor,
+)
 from idraft.api.problems import NotFoundError, WindowTooLargeError
 from idraft.api.ranks.repository import project_zone
 from idraft.api.ranks.service import read_stored_answer, request_bounds
@@ -187,10 +193,9 @@ class ObservationService:
         after: tuple[datetime, int] | None = None
         if page.cursor is not None:
             key = decode_cursor(page.cursor, scope=scope)
-            try:
-                after = (datetime.fromisoformat(str(key[0])), int(key[1]))
-            except (ValueError, IndexError):
-                raise invalid_cursor() from None
+            if len(key) != 2 or not isinstance(key[1], int) or key[1] < 0:
+                raise invalid_cursor()
+            after = (cursor_instant(key[0]), key[1])
         async with self._transaction(access) as db:
             rows = await repository.list_observations(
                 db,

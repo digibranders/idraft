@@ -1,24 +1,39 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  acrossEngines,
   asksIn,
   countriesForEngines,
+  countryChoices,
   countText,
+  DEFAULT_PROMPT_SORT,
+  DEFAULT_TOPIC_SORT,
+  engineSortId,
   fitsEngine,
   collectTopicTerms,
   hasAnswers,
+  lastObservedAt,
   matchesTopics,
+  mostMentionedFirst,
+  NO_TOPIC,
   outcomeKey,
+  parseCountry,
+  parseMetric,
   parseTab,
+  parseTopicTab,
   parseWindow,
   PROMPT_TEXT_MAX,
   promptKeyOf,
   readPromptLines,
+  SORT_ID,
   topicChoices,
   topicDescendants,
   topicMembers,
+  topicPrompts,
   topicRowKept,
   topicsBelow,
+  topicOriginOf,
+  topicSummaryRow,
   topicTermsOf,
   WINDOW_DAYS,
   windowRange,
@@ -232,6 +247,8 @@ describe('the topic rows of the summary', () => {
     text: prompt_id,
     is_branded: false,
     topic_term_ids,
+    last_observed_at: null,
+    last_valid_at: null,
     engines: [],
   });
   const ids = (rows: readonly PromptSummaryRow[] | null): string[] | null =>
@@ -330,13 +347,22 @@ describe('whether a window has answers', () => {
     return {
       window: { from: '2026-10-16', to: '2026-11-12', timezone: 'UTC' },
       include_branded: false,
+      branded_only: false,
       engine_codes: ['chatgpt_web'],
       entities: [],
       entity_config_versions: [],
       metric_context: {} as PromptsSummary['metric_context'],
       topics: [],
       prompts: [
-        { prompt_id: 'p1', text: 'Which agency?', is_branded: false, topic_term_ids: [], engines: [engineRow] },
+        {
+          prompt_id: 'p1',
+          text: 'Which agency?',
+          is_branded: false,
+          topic_term_ids: [],
+          last_observed_at: null,
+          last_valid_at: null,
+          engines: [engineRow],
+        },
       ],
     };
   };
@@ -345,6 +371,40 @@ describe('whether a window has answers', () => {
     expect(hasAnswers(summary(0))).toBe(false);
     expect(hasAnswers(summary(1))).toBe(true);
     expect(hasAnswers({ ...summary(1), prompts: [] })).toBe(false);
+  });
+});
+
+describe('the country of the top bar', () => {
+  it('reads one market of two capital letters, and every country for anything else', () => {
+    expect(parseCountry('DE')).toBe('DE');
+    for (const other of [null, '', 'de', 'DEU', 'D', 'DE,IN', 'D1', ' DE']) expect(parseCountry(other)).toBeNull();
+  });
+
+  it('lists the countries the prompts carry once, in order, and keeps the chosen one even when no prompt has it', () => {
+    const prompts = [{ country_iso: 'US' }, { country_iso: 'DE' }, { country_iso: null }, { country_iso: 'US' }];
+    expect(countryChoices(prompts as Prompt[], null)).toEqual(['DE', 'US']);
+    expect(countryChoices(prompts as Prompt[], 'IN')).toEqual(['DE', 'IN', 'US']);
+    expect(countryChoices([], null)).toEqual([]);
+  });
+});
+
+describe('when the answers were last read', () => {
+  const summary = (...times: (string | null)[]): PromptsSummary =>
+    ({
+      prompts: times.map((last_observed_at) => ({ last_observed_at })),
+    }) as unknown as PromptsSummary;
+
+  it('is the newest answer over the prompts, and null when none has an answer or there is no summary', () => {
+    expect(lastObservedAt(summary('2026-11-10T02:00:00Z', '2026-11-12T02:03:00Z', null, '2026-11-11T02:00:00Z'))).toBe(
+      '2026-11-12T02:03:00Z',
+    );
+    expect(lastObservedAt(summary(null, null))).toBeNull();
+    expect(lastObservedAt(summary())).toBeNull();
+    expect(lastObservedAt(undefined)).toBeNull();
+  });
+
+  it('compares instants, not text, so another offset does not mislead it', () => {
+    expect(lastObservedAt(summary('2026-11-12T01:30:00+02:00', '2026-11-12T00:30:00Z'))).toBe('2026-11-12T00:30:00Z');
   });
 });
 
@@ -478,5 +538,134 @@ describe('engines', () => {
     expect(outcomeKey('empty', null)).toBe('notCounted');
     expect(outcomeKey('complete', facts(null, false))).toBe('notCounted');
     expect(outcomeKey('complete', facts('neither', false))).toBe('notCounted');
+  });
+});
+
+describe('the topic drawer', () => {
+  const rated = (value: number | null, answers = value === null ? 0 : 4): MetricCell =>
+    cell({ value, denominator: answers, n_observations: answers });
+  const engineRow = (code: string, mentioned: number | null): PromptSummaryRow['engines'][number] => ({
+    engine_code: code,
+    mentioned: rated(mentioned),
+    cited: rated(null),
+    outcomes: {
+      mentioned_and_cited: rated(null),
+      mentioned_only: rated(null),
+      cited_only: rated(null),
+      neither: rated(null),
+    },
+    share_of_voice: rated(null),
+  });
+  const prompt = (prompt_id: string, topics: string[], mentioned: number | null): PromptSummaryRow => ({
+    prompt_id,
+    text: prompt_id,
+    is_branded: false,
+    topic_term_ids: topics,
+    last_observed_at: null,
+    last_valid_at: null,
+    engines: [engineRow('chatgpt_web', mentioned), engineRow('gemini_web', 0.9)],
+  });
+  const tree = topicDescendants(
+    [
+      { termId: 'seo', name: 'SEO', parentId: null, path: 'seo' },
+      { termId: 'crawl', name: 'Crawl', parentId: 'seo', path: 'seo/crawl' },
+    ],
+    [],
+  );
+  const ids = (rows: readonly PromptSummaryRow[] | null): string[] | null =>
+    rows === null ? null : rows.map((item) => item.prompt_id);
+
+  it('puts the most mentioned prompt of the engine first, and a prompt with no rate last, keeping the order of equals', () => {
+    const rows = [prompt('none', [], null), prompt('low', [], 0.25), prompt('high', [], 0.75), prompt('tie', [], 0.25)];
+    expect(ids(mostMentionedFirst(rows, 'chatgpt_web'))).toEqual(['high', 'low', 'tie', 'none']);
+    // No engine leaves every prompt without a rate, and so in the order given
+    expect(ids(mostMentionedFirst(rows, undefined))).toEqual(['none', 'low', 'high', 'tie']);
+  });
+
+  it('lists the prompts of a topic and of the topics below it, most mentioned first, and none for a topic the tree does not hold', () => {
+    const summary = {
+      prompts: [prompt('a', ['crawl'], 0.1), prompt('b', ['seo'], 0.6), prompt('c', [], 0.9)],
+    } as unknown as PromptsSummary;
+    expect(ids(topicPrompts(summary, 'seo', tree, 'chatgpt_web'))).toEqual(['b', 'a']);
+    expect(ids(topicPrompts(summary, NO_TOPIC, tree, 'chatgpt_web'))).toEqual(['c']);
+    expect(topicPrompts(summary, 'elsewhere', tree, 'chatgpt_web')).toBeNull();
+    expect(topicPrompts(undefined, 'seo', tree, 'chatgpt_web')).toBeNull();
+  });
+
+  it('finds the summary row of a topic by its term id, and the row of no topic by its key', () => {
+    const summary = {
+      topics: [
+        { term_id: 'seo', name: 'SEO', prompt_count: 2, engines: [] },
+        { term_id: null, name: null, prompt_count: 1, engines: [] },
+      ],
+    } as unknown as PromptsSummary;
+    expect(topicSummaryRow(summary, 'seo')?.name).toBe('SEO');
+    expect(topicSummaryRow(summary, NO_TOPIC)?.term_id).toBeNull();
+    expect(topicSummaryRow(summary, 'paid')).toBeUndefined();
+    expect(topicSummaryRow(undefined, 'seo')).toBeUndefined();
+  });
+
+  it('opens on Overview unless the link names the Prompts tab', () => {
+    expect(parseTopicTab('prompts')).toBe('prompts');
+    expect(parseTopicTab('overview')).toBe('overview');
+    expect(parseTopicTab('answers')).toBe('overview');
+  });
+
+  it('averages the rates of the engines that have one, and counts those engines', () => {
+    expect(acrossEngines([rated(0.25), rated(0.5), rated(0.75)])).toEqual({ value: 0.5, engines: 3 });
+    // An engine with no valid answer takes no part: it is not a rate of 0
+    expect(acrossEngines([rated(0.5), rated(null), rated(0)])).toEqual({ value: 0.25, engines: 2 });
+    expect(acrossEngines([rated(null)])).toBeNull();
+    expect(acrossEngines([])).toBeNull();
+  });
+
+  it('leaves out an engine with too few valid answers for a rate, as the table does', () => {
+    // 2 answers is a pill in the engine's own column, so it takes no part in "avg of N"
+    expect(acrossEngines([rated(0.25), rated(1, 2)])).toEqual({ value: 0.25, engines: 1 });
+    expect(acrossEngines([rated(1, 2), rated(0, 3)])).toBeNull();
+  });
+});
+
+describe('the topic a prompt was opened from', () => {
+  const origin = { key: 'seo', tab: 'prompts' as const, promptId: 'a', projectId: 'fynix' };
+  const open = { promptId: 'a', projectId: 'fynix', order: ['a', 'b', 'c'] as readonly string[] | null };
+
+  it('stands while the open prompt is the one it was opened for, or one the topic holds', () => {
+    expect(topicOriginOf(origin, open)).toBe(origin);
+    // J and K step to the topic's other prompts
+    expect(topicOriginOf(origin, { ...open, promptId: 'c' })).toBe(origin);
+    // The topic's prompts are not known yet (the summary is on its way): the prompt it was opened for stands
+    expect(topicOriginOf(origin, { ...open, order: null })).toBe(origin);
+  });
+
+  it('is nothing for a prompt the topic does not hold, another project, no open prompt or no origin', () => {
+    // A link, Forward or another way in that opens a prompt outside the topic
+    expect(topicOriginOf(origin, { ...open, promptId: 'z' })).toBeNull();
+    expect(topicOriginOf(origin, { ...open, promptId: 'z', order: null })).toBeNull();
+    expect(topicOriginOf(origin, { ...open, projectId: 'other' })).toBeNull();
+    expect(topicOriginOf(origin, { ...open, promptId: null })).toBeNull();
+    expect(topicOriginOf(null, open)).toBeNull();
+  });
+});
+
+describe('the metric of the engine columns and the sort ids', () => {
+  it('reads the metric of the address, Mention when it names none that exists', () => {
+    expect(parseMetric(null)).toBe('mention');
+    expect(parseMetric('citation')).toBe('citation');
+    expect(parseMetric('sov')).toBe('sov');
+    expect(parseMetric('mentioned')).toBe('mention');
+  });
+
+  it('names the engine columns by engine code and what they show', () => {
+    expect(engineSortId('chatgpt_web', 'rate')).toBe('chatgpt_web_rate');
+    expect(engineSortId('gemini_web', 'cited')).toBe('gemini_web_cited');
+  });
+
+  it('sorts both tables by Mention rate high to low first, a tie by name', () => {
+    expect(DEFAULT_TOPIC_SORT).toEqual([{ id: SORT_ID.mention, desc: true }]);
+    expect(DEFAULT_PROMPT_SORT).toEqual([
+      { id: SORT_ID.mention, desc: true },
+      { id: SORT_ID.prompt, desc: false },
+    ]);
   });
 });

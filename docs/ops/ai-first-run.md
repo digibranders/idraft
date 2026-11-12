@@ -13,6 +13,8 @@ This is the acceptance run of spec section 6 for slice 1. It puts the prompts of
 | Answer | One reply from one engine to one prompt. Each answer costs 0.0012 USD. |
 | Engine | ChatGPT (`chatgpt_web`), Gemini (`gemini_web`) or Google AI Mode (`google_ai_mode`). They are all OFF until you turn them on. |
 | Run now | Asks one prompt on the engines you name, right now. It makes one "run". |
+| Bulk run | `POST {P}/ai/runs`: asks up to 150 prompts at once, on the engines you name or on every engine that is on. It makes ONE run, which counts as one of the 20 manual runs a day, however many prompts it holds. |
+| Bulk archive | `POST {P}/prompts/bulk-archive`: archives or brings back up to 1,000 prompts in one request. |
 | Schedule | A rule that asks every active prompt on every engine that is on. The base plan has two per project: Monday and Thursday at 01:00 project time. |
 | Window | One occasion a schedule fires. Each active prompt is asked once per engine in a window. |
 | Budget | A monthly limit in USD. A run that would pass it is blocked and sends nothing. |
@@ -34,6 +36,7 @@ Requests are written as `METHOD {P}/path`. Ask your engineer or assistant to sen
 | Optional, other countries: a check of the 4 countries, 4 prompts on 3 engines | 12 | 0.0144 USD, once |
 | Optional, other countries: one window with all 150 prompts | 450 | 0.54 USD |
 | Optional, other countries: a month with all 150 prompts | about 3,900 | about 4.68 USD |
+| Optional, a bulk run of all 150 prompts on 3 engines, once | 450 | about 0.54 USD (standard queue price) |
 
 The monthly budget of 10 USD (step A) leaves room for all of it and stops anything that goes wrong.
 
@@ -104,7 +107,7 @@ A paused schedule stays in place. Switching engines on again later does not make
 
    Check all three engines, one by one. The answer for each engine can differ.
 6. Ask your engineer to write the result for each engine into `docs/07-dataforseo-ai-integration.md`, section 5.5.
-7. **Archive both probe prompts now:** `DELETE {P}/prompts/{prompt_id}`. This is not optional. An active probe prompt would be asked again by every schedule, and it takes two of the 150 places the workspace may have active.
+7. **Archive both probe prompts now:** `DELETE {P}/prompts/{prompt_id}` for each, or both at once with `POST {P}/prompts/bulk-archive` and `{"ids": ["<probe 1 id>", "<probe 2 id>"], "archive": true}` (it answers `{"data": {"matched": 2, "updated": 2}}`). This is not optional. An active probe prompt would be asked again by every schedule, and it takes two of the 150 places the workspace may have active.
 
 ## Step 1: five real prompts (no cost)
 
@@ -113,8 +116,8 @@ A paused schedule stays in place. Switching engines on again later does not make
 
 ## Step 2: ask the five by hand, and check the answers (costs 0.018 USD)
 
-1. **Cost: 5 prompts x 3 engines = 15 answers = 0.018 USD.** Wait for your yes. Then, for each of the 5 prompts, send `POST {P}/prompts/{prompt_id}/run-now` with `{"engine_codes": ["chatgpt_web", "gemini_web", "google_ai_mode"]}`. Each answers `202`. A project may start at most 20 manual runs in a day, probes included, so do not repeat it needlessly.
-2. Within a minute each run is `running`. Open it: `GET {P}/runs/{run_id}` (the Runs page) shows the estimated cost of 0.0036 USD and the number of tasks. `GET /api/v1/workspaces/{workspace_id}/budgets/status` shows `committed_estimate_usd`, which is what the runs under way are still expected to spend: each run's estimate less what its tasks have cost so far. It starts near 0.0036 USD per run and falls toward 0 as the provider accepts the tasks and their cost is booked. The money actually spent moves to `spent_usd`. `state` stays `ok`.
+1. **Cost: 5 prompts x 3 engines = 15 answers = 0.018 USD.** Wait for your yes. Then, for each of the 5 prompts, send `POST {P}/prompts/{prompt_id}/run-now` with `{"engine_codes": ["chatgpt_web", "gemini_web", "google_ai_mode"]}`. Each answers `202`. A project may start at most 20 manual runs in a day, probes included, so do not repeat it needlessly. The same five can go as one bulk run instead (see "Asking many prompts at once" below): one request, one of the 20 manual runs, the same 15 answers and 0.018 USD. Then the run in the next point is that one run.
+2. Within a minute each run is `running`. Open it: `GET {P}/runs/{run_id}` (the Runs page) shows the estimated cost (0.0036 USD for a Run now run, about 0.018 USD for one bulk run of the five prompts on three engines) and the number of tasks. `GET /api/v1/workspaces/{workspace_id}/budgets/status` shows `committed_estimate_usd`, which is what the runs under way are still expected to spend: each run's estimate less what its tasks have cost so far. It starts near the run's estimate (0.0036 USD per Run now run) and falls toward 0 as the provider accepts the tasks and their cost is booked. The money actually spent moves to `spent_usd`. `state` stays `ok`.
 3. Within a few minutes every task is `ingested`. List the answers: `GET {P}/ai/observations?filter[prompt_id]={prompt_id}`.
 4. Open each answer: `GET {P}/ai/observations/{observation_id}` (the answer viewer). It shows the text, the cited sources and the names it found.
 5. Ask the same prompt by hand in chatgpt.com, in gemini.google.com and in Google AI Mode, signed out, from India, in English. Keep a table, one row per prompt and engine:
@@ -172,6 +175,31 @@ This step uses only the 134 prompts of the CSV with country `IN` (rows 1 to 123 
 5. Before it sends anything, the planner checks the run's estimate against the budget. A run over the budget is `budget_blocked` and spends nothing.
 6. After the first window (it lasts 8 hours), ask your engineer to run the SQL of step 2 again with `interval '2 days'`. Expected: about 134 answers per engine, cost about 0.16 USD per engine. `GET {P}/ai/prompts-summary` shows each prompt's counts per engine ("1 of 1" after the first window, up to about 8 of 8 after four weeks, over valid answers only).
 
+## Asking many prompts at once (optional bulk run)
+
+`POST {P}/ai/runs` asks up to 150 prompts as ONE manual run. Run now asks one prompt. Use a bulk run when you want a set of prompts answered now. A bulk run is not held back by the schedules and does not replace a scheduled window: a window that opens afterwards asks the same prompts again, and pays for them again. A bulk run of all 150 prompts just before a Monday or Thursday window costs about 0.54 USD twice, and 20 of them in a day would ask 9,000 answers. The only limits are the month's answer quota and the budget, so keep the budget set.
+
+1. Send `{"prompt_ids": ["<id>", "..."], "engine_codes": ["chatgpt_web", "gemini_web", "google_ai_mode"]}`. `engine_codes` is optional: without it, every engine that is on is asked. A repeated id is counted once.
+2. **Cost: prompts x engines = answers, 0.0012 USD each at the standard queue price. 150 prompts x 3 engines = 450 answers = about 0.54 USD.** Wait for your yes. The answer to the request says `meta.prompts`, `meta.answers` and `meta.estimated_cost_usd` for what is really asked.
+3. It is one run: one of the 20 manual runs a day, shared with Run now and every other manual run of the project, whatever the number of prompts. Each answer counts against the workspace's AI answers of the month. The quota, the budget and the emergency brake behave as for Run now: a run that would pass the month's answers is `422 quota_exceeded`, and a run that would pass the budget is `budget_blocked` when the worker plans it (within a minute), with nothing sent. The answers arrive in minutes, through the standard queue.
+4. **Prompts with an answer already on its way are left out.** A prompt with an answer queued or under way on any engine is not asked on any engine of this run (`meta.skipped` says `check_pending` for the engines where it is pending and `prompt_pending` for its others). So are the prompts the planner would skip: `prompt_too_long` (AI Mode takes up to 700 characters) and `location_not_enabled`. The rest runs. Read `meta.skipped` after every request.
+5. What the errors mean:
+
+   | Answer | Meaning |
+   |---|---|
+   | `422 validation_failed` with `prompt_unknown` at `prompt_ids` | At least one id is not an active prompt of this project (archived, deleted or of another project). Nothing is asked: fix the list. |
+   | `422 validation_failed` with `engine_not_enabled` at `engine_codes` | A named engine is not on (or no engine is on). |
+   | `409 check_pending` | Every prompt left has an answer on its way. `prompt_ids` and `skipped` say which. Wait and try later. |
+   | `422 nothing_to_run` | Every prompt is skipped on every engine for a reason other than pending. `skipped` says why. |
+   | `422 validation_failed` with `price_unavailable` | The price book has no price for these engines today. Tell your engineer. |
+   | `429 manual_run_limit` | The project has had its 20 manual runs today (UTC). |
+   | `422 quota_exceeded` | The month's AI answers would pass the workspace's limit. `limit`, `used` and `requested` say by how much. |
+   | `503 provider_paused` | The provider is not being asked for a few minutes. Try again later. |
+
+6. Do not send it twice: a second request while the first run is waiting is `409 check_pending`, but it is still a request you did not need.
+
+To bring prompts back or archive many at once, see "How to switch everything off", point 3.
+
 ## Adding the other countries (optional, after the first window looked right)
 
 Rows 124 to 139 of the CSV are 4 prompts each for Saudi Arabia (`SA`), the UAE (`AE`), Singapore (`SG`) and the United States (`US`). They add location work and a paid check, so they are not part of the first run. Do this only when you want them.
@@ -187,16 +215,16 @@ Rows 124 to 139 of the CSV are 4 prompts each for Saudi Arabia (`SA`), the UAE (
    It must return one row per country. A country with no row cannot be used yet.
 2. Send `PUT {P}/engines/{engine_code}` again for each of the three engines with `location_ids` holding `2356` (India) and the four ids from the query, and `"is_enabled": true`. A `422 location_not_supported` means the provider does not serve that country: stop and tell your engineer. The engines must have all four countries before a prompt of that country can be added.
 3. Add one prompt of each country first: rows 124, 128, 132 and 136 (their own countries). A prompt is asked once per engine, in its own country. **The schedules are already running, so these 4 prompts are also asked at the next Monday or Thursday window even if you never send Run now: 4 prompts x 3 engines = 12 answers = 0.0144 USD.** Wait for your yes before you add them, and do it right after a window has finished, so you can run the check by hand before the next one.
-4. The AI providers' location lists are not synced yet, so a country they do not serve fails only when asked. **Cost of the check: 1 prompt of each of the four countries x 3 engines = 12 answers = 0.0144 USD.** Wait for your yes, then send Run now for those 4 prompts as in step 2. If a country fails (`error` answers), archive its prompt, or take the country out of the engines' `location_ids`. Do not leave a failing country in the schedule.
+4. The AI providers' location lists are not synced yet, so a country they do not serve fails only when asked. **Cost of the check: 1 prompt of each of the four countries x 3 engines = 12 answers = 0.0144 USD.** Wait for your yes, then send Run now for those 4 prompts as in step 2 (or one bulk run naming the 4 ids). If a country fails (`error` answers), archive its prompt, or take the country out of the engines' `location_ids`. Do not leave a failing country in the schedule.
 5. When all four answered, add the other 12 rows (125 to 127, 129 to 131, 133 to 135 and 137 to 139). **From the next window the schedules ask all 150 prompts: 450 answers = 0.54 USD a window, 1.08 USD a week, about 4.68 USD a month.** The schedules are already running, so the new prompts are spent on at the next Monday or Thursday window, and `GET {P}/engines` now estimates about 1.56 USD a month for each engine. Wait for your yes before you add them.
 
 ## How to switch everything off
 
 Do these in this order. Each one is enough to stop new spending on its own, and together they are safe.
 
-1. **Turn the engines off.** `PUT {P}/engines/{engine_code}` with the engine's current `location_ids` (`[2356]` unless you added the other countries) and `"is_enabled": false` for each of the three. A schedule then plans nothing, and Run now answers `422 engine_not_enabled`.
+1. **Turn the engines off.** `PUT {P}/engines/{engine_code}` with the engine's current `location_ids` (`[2356]` unless you added the other countries) and `"is_enabled": false` for each of the three. A schedule then plans nothing, and Run now and a bulk run answer `422 engine_not_enabled`.
 2. **Pause the schedules.** `POST {P}/schedules/{schedule_id}/pause` for both.
-3. **Archive prompts you do not want asked.** `DELETE {P}/prompts/{prompt_id}`. The answers stay. `PATCH {P}/prompts/{prompt_id}` with `{"is_active": true}` brings one back.
+3. **Archive prompts you do not want asked.** `DELETE {P}/prompts/{prompt_id}`. The answers stay. `PATCH {P}/prompts/{prompt_id}` with `{"is_active": true}` brings one back. For many at once, `POST {P}/prompts/bulk-archive` with `{"ids": [...], "archive": true}` (up to 1,000 ids) archives them, and `"archive": false` brings them back. It answers `{"data": {"matched": n, "updated": m}}`: `matched` is the prompts of this project among the ids (an id that is not one, or is deleted, is not matched and is no error), `updated` those that changed. Bringing back counts against the 150 active prompts, all or none: past the quota (`422 quota_exceeded`) nothing changes.
 4. **Cancel a run under way.** `POST {P}/runs/{run_id}/cancel` (the Runs page). Tasks already sent to the provider are paid for. The rest are not sent.
 5. **The emergency brake.** Ask your engineer to set the budget to 0: `UPDATE ops.budgets SET limit_usd = 0 WHERE workload = 'ai_prompt' AND project_id = '<project_id>';` with the `project_id` copied in step A. A limit of 0 blocks every run.
 
@@ -213,6 +241,7 @@ The schedules stay in place when you switch the engines off, and they plan nothi
 - Do not paste tokens, passwords or anything from `/etc/idraft` into this guide, a chat or a ticket.
 - Do not add more than 150 active prompts: the quota refuses them, and a higher quota is a billing decision.
 - Do not run the probe again and again: it is a paid test.
+- Do not send a bulk run of all prompts again and again: 150 prompts on 3 engines is about 0.54 USD each time, and it is one of the 20 manual runs of the day.
 
 ## Final checklist
 

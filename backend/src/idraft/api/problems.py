@@ -244,6 +244,12 @@ class WindowTooLargeError(ProblemError):
     status, code, title = 422, "window_too_large", "The window is too large"
 
 
+class EngineHasNoFanoutError(ProblemError):
+    """Carries `engine_codes`: engines that do not show the queries they issue."""
+
+    status, code, title = 422, "engine_has_no_fanout", "The engine does not show its fan-out"
+
+
 class RawExpiredError(ProblemError):
     """The provider's answer was kept for its retention period, and that has passed."""
 
@@ -283,6 +289,13 @@ class CheckPendingError(ProblemError):
     answered. A second one would be a second paid request for the same reading."""
 
     status, code, title = 409, "check_pending", "A check is already under way"
+
+
+class NothingToRunError(ProblemError):
+    """Carries `skipped`: every prompt and engine of a bulk run would be skipped, none of them
+    because an answer is on its way."""
+
+    status, code, title = 422, "nothing_to_run", "Nothing left to ask"
 
 
 class TooManySubjectsError(ProblemError):

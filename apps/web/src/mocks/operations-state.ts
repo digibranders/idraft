@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+import { aiScheduleRuns, EVENTUS_AI_SCHEDULES } from './ai-runs';
+import { EVENTUS_WORLD } from './ai-prompt-world';
+import { isAiSeeded } from './ai-seed';
 import { jsonCookie, readJsonCookie } from './cookie-json';
 import { minutesOf, timeOf } from './entities-codec';
 import { MOCK_CREATED_AT } from './fixtures';
@@ -16,7 +19,8 @@ import { OPERATIONS_COOKIE } from './session';
  */
 export { OPERATIONS_COOKIE };
 
-export const SCHEDULE_WORKLOADS = ['keyword_metrics', 'seo_rank'] as const;
+/** Appended, never reordered: the cookie keeps each workload as its place in this list. */
+export const SCHEDULE_WORKLOADS = ['keyword_metrics', 'seo_rank', 'ai_prompt'] as const;
 export const CADENCES = ['daily', 'weekly', 'monthly'] as const;
 export const SCHEDULE_PRIORITIES = ['standard', 'high', 'low'] as const;
 export const PROVIDER_MODES = ['standard_queue', 'priority_queue', 'live'] as const;
@@ -111,11 +115,17 @@ export interface OperationWorld {
 }
 
 export function operationWorld(changes: OperationChanges): OperationWorld {
+  // The AI schedules and runs of a project with a definition file, while its data is on (./ai-seed.ts)
+  const seeded = isAiSeeded();
+  const base = [...MOCK_SCHEDULES, ...(seeded ? EVENTUS_AI_SCHEDULES : [])];
   const edited = new Map((changes.schedules ?? []).map((row) => [row.schedule_id, row]));
-  const fixtures = MOCK_SCHEDULES.map((row) => edited.get(row.schedule_id) ?? row);
-  const fixtureIds = new Set(MOCK_SCHEDULES.map((row) => row.schedule_id));
+  const fixtures = base.map((row) => edited.get(row.schedule_id) ?? row);
+  const fixtureIds = new Set(base.map((row) => row.schedule_id));
   const created = (changes.schedules ?? []).filter((row) => !fixtureIds.has(row.schedule_id));
-  return { schedules: [...fixtures, ...created], runs: [...MOCK_RUNS, ...(changes.runs ?? [])] };
+  return {
+    schedules: [...fixtures, ...created],
+    runs: [...MOCK_RUNS, ...(seeded ? aiScheduleRuns(EVENTUS_WORLD, Date.now()) : []), ...(changes.runs ?? [])],
+  };
 }
 
 export const withSchedule = (changes: OperationChanges, row: StoredSchedule): OperationChanges => ({

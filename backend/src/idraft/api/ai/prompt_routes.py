@@ -40,9 +40,10 @@ from idraft.api.schemas.ai import (
     PromptSkipped,
     RunNow,
 )
+from idraft.api.schemas.ai_bulk import PromptBulkArchive
 from idraft.api.schemas.common import LanguageCode, QueryText
 from idraft.api.schemas.entities import EntityRef
-from idraft.api.schemas.keywords import Intent
+from idraft.api.schemas.keywords import BulkArchiveResponse, BulkArchiveResult, Intent
 from idraft.api.schemas.operations import RunResponse
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
@@ -241,6 +242,23 @@ async def lint_prompts(
         data=[_lint_view(item) for item in outcome.prompts],
         quota=PromptQuota(limit=outcome.limit, used=outcome.used),
     )
+
+
+@router.post(
+    "/bulk-archive",
+    summary="Archive or bring back many prompts",
+    description="Up to 1,000 `ids` of the project's prompts; an id it does not have is not "
+    "matched. `archive: true` archives them as `DELETE` does one, `false` brings them back as "
+    "`PATCH is_active: true` does; answers, versions and terms stay. Bringing back counts "
+    "against the workspace's active prompt limit, all or none (`422 quota_exceeded` with "
+    "`limit`, `used` and `requested`). `matched` is the prompts found, `updated` those whose "
+    "state changed. One audit entry for the request and one per prompt changed.",
+)
+async def bulk_archive_prompts(
+    project_id: UUID, body: PromptBulkArchive, access: WritePrompts, prompts: Prompts, info: Info
+) -> BulkArchiveResponse:
+    matched, updated = await prompts.bulk_archive(access, project_id, body, info)
+    return BulkArchiveResponse(data=BulkArchiveResult(matched=matched, updated=updated))
 
 
 @router.get("/{prompt_id}", summary="A prompt")

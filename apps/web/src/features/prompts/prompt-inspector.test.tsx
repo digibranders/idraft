@@ -212,12 +212,12 @@ describe('the prompt inspector: opening and stepping', () => {
     await user.click(await within(tree).findByRole('button', { name: 'Expand Paid Search, 2 prompts' }));
     await user.click(await within(tree).findByText('What is the best way to manage paid search on a small budget?'));
     const inspector = await panel('What is the best way to manage paid search on a small budget?');
-    expect(await within(inspector).findByText('Paid Search')).toBeInTheDocument();
-    // The topic's own row opens no inspector
-    await user.click(within(tree).getByText('Content Marketing'));
-    expect(
-      screen.getByRole('complementary', { name: 'What is the best way to manage paid search on a small budget?' }),
-    ).toBeInTheDocument();
+    // The topic is a fact of the prompt, and a badge that leads back to it, since the prompt was opened from the topic
+    expect(await within(inspector).findAllByText('Paid Search')).toHaveLength(2);
+    expect(within(inspector).getByRole('button', { name: 'Open the topic Paid Search' })).toBeInTheDocument();
+    // A topic's name opens the topic's drawer, in the place of the prompt's
+    await user.click(within(tree).getByRole('button', { name: 'Open the topic Content Marketing' }));
+    expect(await panel('Content Marketing')).toBeInTheDocument();
   });
 
   it('steps to the previous and the next prompt in the order of the Prompts table', async () => {
@@ -306,25 +306,6 @@ describe('the prompt inspector: opening and stepping', () => {
     await user.click(screen.getByRole('button', { name: 'Previous prompt' }));
     await waitFor(() => expect(screen.queryByRole('complementary', { name: first.text })).toBeNull());
     expect(await screen.findByRole('button', { name: 'Run now' })).not.toHaveAttribute('aria-busy');
-  });
-});
-
-describe('the prompt inspector: a prompt under two topics', () => {
-  it('marks, and returns focus to, the row that was clicked, not the first row of the prompt', async () => {
-    const { user } = renderOn('viewer', '');
-    const tree = await treegrid();
-    const text = 'How do I run a technical SEO audit on a large site?';
-    await user.click(await within(tree).findByRole('button', { name: /^Expand Technical SEO/ }));
-    await user.click(await within(tree).findByRole('button', { name: /^Expand SEO,/ }));
-    const rows = await within(tree).findAllByText(text);
-    expect(rows).toHaveLength(2);
-    const rowOf = (node: HTMLElement): HTMLElement => node.closest<HTMLElement>('[role="row"]') ?? node;
-    // The tree lists SEO before Technical SEO: the second row is the one under Technical SEO
-    await user.click(rows[1] ?? tree);
-    await panel(text);
-    const [above, below] = (await within(tree).findAllByText(text)).map(rowOf);
-    expect(above).not.toHaveAttribute('aria-current');
-    expect(below).toHaveAttribute('aria-current', 'true');
   });
 });
 

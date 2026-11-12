@@ -2,7 +2,7 @@ import { TZDate } from '@date-fns/tz';
 import { getISOWeek, getISOWeekYear } from 'date-fns';
 
 import { MOCK_USERS } from '../fixtures';
-import { LABS_ITEM_MICROS, LABS_TASK_MICROS } from '../operations-fixtures';
+import { AI_ANSWER_MICROS, LABS_ITEM_MICROS, LABS_TASK_MICROS } from '../operations-fixtures';
 import type { OperationWorld, StoredRun, StoredSchedule } from '../operations-state';
 import type { components } from '@/lib/api/schema';
 
@@ -154,6 +154,10 @@ export const usdOfMicros = (micros: number): string =>
 /** What `tasks` Labs readings in `calls` calls cost (doc 27 section 1). */
 export const labsMicros = (calls: number, tasks: number): number => calls * LABS_TASK_MICROS + tasks * LABS_ITEM_MICROS;
 
+/** What a run's `tasks` cost: its Labs calls for a keyword run, one standard-queue price per answer for an AI run. */
+export const runMicros = (run: StoredRun, calls: number, tasks: number): number =>
+  run.workload === 'ai_prompt' ? tasks * AI_ANSWER_MICROS : labsMicros(calls, tasks);
+
 export interface RunState {
   status: RunStatus;
   startedAt: string | null;
@@ -198,7 +202,7 @@ export function runState(run: StoredRun, now: number): RunState {
       done,
       failed: 0,
       calls,
-      costMicros: labsMicros(calls, done),
+      costMicros: runMicros(run, calls, done),
     };
   }
   if (now < started) return { status: 'planned', ...NOTHING_YET };
@@ -216,7 +220,7 @@ export function runState(run: StoredRun, now: number): RunState {
     done: succeeded,
     failed: run.tasks_failed,
     calls,
-    costMicros: labsMicros(calls, succeeded),
+    costMicros: runMicros(run, calls, succeeded),
   };
 }
 
@@ -278,7 +282,7 @@ export function runView(workspaceId: string, schedules: readonly StoredSchedule[
     tasks_total: run.tasks_total,
     tasks_succeeded: state.done,
     tasks_failed: state.failed,
-    estimated_cost_usd: usdOfMicros(labsMicros(run.calls, run.tasks_total)),
+    estimated_cost_usd: usdOfMicros(runMicros(run, run.calls, run.tasks_total)),
     actual_cost_usd: state.costMicros === null ? null : usdOfMicros(state.costMicros),
     blocked_by_budget_id: state.status === 'budget_blocked' ? run.blocked_by_budget_id : null,
     created_by: actorOf(run.created_by),

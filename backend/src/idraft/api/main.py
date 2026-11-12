@@ -8,6 +8,7 @@ from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontext
 import httpx
 from fastapi import FastAPI
 from redis.asyncio import Redis
+from starlette.middleware.gzip import GZipMiddleware
 
 from idraft import __version__
 from idraft.api.access_log import AccessLogMiddleware
@@ -17,6 +18,8 @@ from idraft.api.ai.observation_routes import router as ai_observations_router
 from idraft.api.ai.observations import ObservationService
 from idraft.api.ai.prompt_routes import router as prompt_routes_router
 from idraft.api.ai.prompt_service import PromptService
+from idraft.api.ai.source_routes import router as ai_sources_router
+from idraft.api.ai.sources import SourceService
 from idraft.api.ai.summary import SummaryService
 from idraft.api.ai.summary_routes import router as ai_summary_router
 from idraft.api.auth.passwords import BreachedPasswords
@@ -90,6 +93,11 @@ HTTP_TIMEOUT_SECONDS = 10.0
 IMPORT_STORE_CONNECTIONS = 4
 SESSION_CACHE_KEY_LABEL = b"idraft session cache v1"
 TOTP_SECRET_KEY_LABEL = b"idraft totp secrets v1"
+# docs/ops/api-compression.md: 1 KiB is where gzip starts to pay; level 5 keeps most of the
+# saving of level 9 at a fraction of the CPU. Starlette compresses bodies of 128 KiB and more
+# in worker threads.
+GZIP_MINIMUM_BYTES = 1024
+GZIP_LEVEL = 5
 HEALTH_PATHS = frozenset({"/api/healthz", "/api/readyz", "/api/internal/health"})
 
 
@@ -226,6 +234,7 @@ def create_app(
                 prompts=PromptService(sessions=sessions),
                 ai_observations=ObservationService(sessions=sessions, raw_store=sources),
                 ai_summary=SummaryService(sessions=sessions),
+                ai_sources=SourceService(sessions=sessions),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -246,11 +255,13 @@ def create_app(
         lifespan=lifespan,
     )
     # Added last runs first: the request id is bound before the access log line is written, and
-    # a request refused for its origin still gets both.
+    # a request refused for its origin still gets both. Compression is added after those, so it
+    # is the outermost layer and sees the final response.
     app.add_middleware(BodyLimitMiddleware, app_origin=settings.app_origin, larger=UPLOADS)
     app.add_middleware(OriginCheckMiddleware, app_origin=settings.app_origin)
     app.add_middleware(AccessLogMiddleware, quiet_paths=HEALTH_PATHS)
     app.add_middleware(RequestIdMiddleware)
+    app.add_middleware(GZipMiddleware, minimum_size=GZIP_MINIMUM_BYTES, compresslevel=GZIP_LEVEL)
     register_problem_handlers(app, app_origin=settings.app_origin)
     app.include_router(health_router)
     app.include_router(auth_router)
@@ -266,6 +277,7 @@ def create_app(
     app.include_router(rank_events_router)
     app.include_router(ai_observations_router)
     app.include_router(ai_summary_router)
+    app.include_router(ai_sources_router)
     app.include_router(keyword_groups_router)
     app.include_router(term_assignments_router)
     app.include_router(run_routes_router)

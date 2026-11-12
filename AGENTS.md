@@ -60,8 +60,9 @@ cd apps/web && pnpm lint && pnpm typecheck && pnpm test && pnpm format:check && 
 
 Infra: `shellcheck -x` on the scripts you changed and `actionlint`.
 
-When the API changes, regenerate `backend/openapi/v1.json` and the web client (`pnpm gen:api` in
-`apps/web`) in the same change.
+When the API changes, backend commits update `backend/openapi/v1.json`; the web session regenerates the
+client (`pnpm gen:api` in `apps/web`) in its own commit right after, and the CI-free checks must stay green
+on both sides.
 
 ## Working beside other sessions
 
@@ -75,3 +76,6 @@ Several agent sessions often work on this repository at once, sharing the main c
   from inside it.
 - Do not restart Colima or stop the dev stack (`idraft-dev-*` containers) while another session may be
   using them.
+- Infrastructure and operations work (server config, compression, deploy scripts, backups, monitoring)
+  belongs to the ops session, not to the backend or web sessions; they raise it with the owner or the ops
+  session.

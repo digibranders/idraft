@@ -18,7 +18,7 @@ import {
   PUT_ENGINE,
   promptQuery,
   promptsKey,
-  rawAnswerPath,
+  fetchRawAnswer,
   refreshPrompts,
   RUN_NOW,
   summaryQuery,
@@ -32,6 +32,7 @@ import { projectKey } from '@/lib/api/keys';
 import { ApiProblem } from '@/lib/api/problem';
 import { makeQueryClient } from '@/lib/api/query-client';
 import type { EngineCode } from '@/lib/api/types';
+import { MOCK_TERM_IDS } from '@/mocks/entity-fixtures';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { FIXTURE_PROMPTS } from '@/mocks/prompt-fixtures';
 import { AI_ANSWER_QUOTA, promptsOf, setProviderPaused } from '@/mocks/prompts-state';
@@ -97,6 +98,27 @@ describe('the keys of the AI prompt queries', () => {
     expect(observationQuery(scope, '1234567').queryKey).not.toEqual(
       observationQuery(scope, '1234567', '2026-11-09T02:00:00Z').queryKey,
     );
+  });
+
+  it('keep the key of a summary without a scope as it was, and tell each scope apart', () => {
+    const plain = summaryQuery(scope, RANGE, false).queryKey;
+    expect(plain.at(-1)).toEqual({ from: RANGE.from, to: RANGE.to, include_branded: false });
+    expect(summaryQuery(scope, RANGE, false, {}).queryKey).toEqual(plain);
+    expect(summaryQuery(scope, RANGE, false, { brandedOnly: false }).queryKey).toEqual(plain);
+    const scoped = [{ country: 'DE' }, { country: 'IN' }, { term: 'seo' }, { brandedOnly: true }].map(
+      (filters) => summaryQuery(scope, RANGE, false, filters).queryKey,
+    );
+    expect(new Set([plain, ...scoped].map((key) => JSON.stringify(key))).size).toBe(5);
+  });
+
+  it('send include=entities when a summary asks for the entity cells, and keep the key of one that does not', () => {
+    const plain = summaryQuery(scope, RANGE, false).queryKey;
+    const asked = summaryQuery(scope, RANGE, false, { include: ['entities'] }).queryKey;
+    expect(asked.slice(0, 5)).toEqual(aiKey(scope));
+    expect(asked.at(-1)).toEqual({ from: RANGE.from, to: RANGE.to, include_branded: false, include: ['entities'] });
+    expect(asked).not.toEqual(plain);
+    // Nothing asked for is nothing sent, so the key of an existing caller is the same
+    expect(summaryQuery(scope, RANGE, false, { include: [] }).queryKey).toEqual(plain);
   });
 
   it('keep the entities of the project out of the prefixes a prompt change refreshes', () => {
@@ -330,6 +352,39 @@ describe('the summary', () => {
     expect(withBranded.data.prompts.length).toBeGreaterThan(without.data.prompts.length);
   });
 
+  it('sends the country, the term and the branded prompts alone, and reads the rows they leave', async () => {
+    const range = lastMonth();
+    const india = await client.fetchQuery(summaryQuery(scope, range, false, { country: 'IN' }));
+    expect(india.data.prompts).toHaveLength(1);
+    const technical = await client.fetchQuery(summaryQuery(scope, range, false, { term: MOCK_TERM_IDS.technicalSeo }));
+    expect(technical.data.topics.map((topic) => topic.term_id)).toEqual([MOCK_TERM_IDS.technicalSeo]);
+    const brandedOnly = await client.fetchQuery(summaryQuery(scope, range, false, { brandedOnly: true }));
+    expect(brandedOnly.data).toMatchObject({ include_branded: true, branded_only: true });
+    expect(brandedOnly.data.prompts.map((row) => row.is_branded)).toEqual([true]);
+  });
+
+  it('reads a cell per tracked entity on every engine when include=entities is asked, and none otherwise', async () => {
+    const range = lastMonth();
+    const plain = await client.fetchQuery(summaryQuery(scope, range, false));
+    const asked = await client.fetchQuery(summaryQuery(scope, range, false, { include: ['entities'] }));
+    const engines = (rows: typeof asked.data.prompts): (typeof asked.data.prompts)[number]['engines'] =>
+      rows.flatMap((row) => row.engines);
+    expect(engines(plain.data.prompts).every((engine) => engine.entities === undefined)).toBe(true);
+    expect(asked.data.entities.length).toBeGreaterThan(1);
+    for (const engine of [...engines(asked.data.prompts), ...asked.data.topics.flatMap((row) => row.engines)]) {
+      expect(engine.entities).toHaveLength(asked.data.entities.length);
+    }
+  });
+
+  it('gives each prompt and topic the times of its newest answer and its newest valid answer', async () => {
+    const summary = await client.fetchQuery(summaryQuery(scope, lastMonth(), false));
+    expect(summary.data.branded_only).toBe(false);
+    for (const row of [...summary.data.prompts, ...summary.data.topics]) {
+      expect(typeof row.last_observed_at).toBe('string');
+      expect(typeof row.last_valid_at).toBe('string');
+    }
+  });
+
   it('weighs a topic by its prompts and keeps the counts of one prompt', async () => {
     const summary = await client.fetchQuery(summaryQuery(scope, lastMonth(), false));
     const topicCell = summary.data.topics
@@ -420,26 +475,19 @@ describe('the answers of a prompt', () => {
   });
 });
 
-describe('the raw answer path', () => {
-  const base = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${fynix.project_id}/ai/observations`;
-
-  it('keeps the id as the text the API sent, whatever its size', () => {
-    expect(rawAnswerPath(scope, '9223372036854775807')).toBe(`${base}/9223372036854775807/raw`);
-  });
-
-  it('carries the hint of the month with its plus sign and colons encoded', async () => {
+describe('the raw answer', () => {
+  it('asks for the file with the hint of the month, and rejects an id that is no answer without asking', async () => {
     const hint = '2026-11-09T02:00:00+00:00';
-    const path = rawAnswerPath(scope, '20400001', hint);
-    expect(path).toBe(`${base}/20400001/raw?observed_at=2026-11-09T02%3A00%3A00%2B00%3A00`);
     let received: string | null = null;
     server.use(
       http.get(`${PROJECT}/ai/observations/:id/raw`, ({ request }) => {
         received = new URL(request.url).searchParams.get('observed_at');
-        return HttpResponse.json({});
+        return HttpResponse.json({ tasks: [] });
       }),
     );
-    await fetch(new URL(path, 'http://localhost'));
+    expect(await fetchRawAnswer(scope, '20400001', hint).then((file) => file.size)).toBeGreaterThan(0);
     expect(received).toBe(hint);
+    await expect(fetchRawAnswer(scope, 'abc')).rejects.toMatchObject({ status: 404, code: 'not_found' });
   });
 });
 

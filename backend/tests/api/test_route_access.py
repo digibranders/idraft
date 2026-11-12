@@ -164,6 +164,7 @@ EXPECTED: dict[tuple[str, str], str] = {
         "POST",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}/run-now",
     ): "runs:trigger",
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/runs"): "runs:trigger",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"): "data:read",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}"): "data:read",
     # Who may cancel is decided by the service: schedules:write, or runs:trigger for a manual
@@ -326,6 +327,16 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"): (
         "data:read"
     ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations"): ("data:read"),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/fanout-queries"): (
+        "data:read"
+    ),
     (
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/seo/rank-events",
@@ -385,6 +396,10 @@ EXPECTED: dict[tuple[str, str], str] = {
     (
         "POST",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-create",
+    ): "prompts:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-archive",
     ): "prompts:write",
     (
         "POST",

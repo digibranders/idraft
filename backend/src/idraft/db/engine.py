@@ -64,10 +64,19 @@ def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSessi
 
 @asynccontextmanager
 async def workspace_transaction(
-    sessions: async_sessionmaker[AsyncSession], workspace_id: UUID, *, user_id: UUID | None = None
+    sessions: async_sessionmaker[AsyncSession],
+    workspace_id: UUID,
+    *,
+    user_id: UUID | None = None,
+    isolation_level: str | None = None,
 ) -> AsyncIterator[AsyncSession]:
-    """One transaction scoped to one workspace. Commits on success, rolls back on error."""
+    """One transaction scoped to one workspace. Commits on success, rolls back on error. With
+    `isolation_level` (say `REPEATABLE READ`, for several reads that must agree) the transaction
+    runs at that level; the connection goes back to the default when it is released."""
     async with sessions() as session, session.begin():
+        if isolation_level is not None:
+            # Before the first statement: the level cannot change once the transaction has run one.
+            await session.connection(execution_options={"isolation_level": isolation_level})
         await session.execute(
             _SET_SCOPE,
             {"workspace_id": str(workspace_id), "user_id": "" if user_id is None else str(user_id)},

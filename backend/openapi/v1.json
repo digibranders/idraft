@@ -1318,6 +1318,135 @@
         "title": "CitationOut",
         "type": "object"
       },
+      "CitationPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CitationRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "CitationPage",
+        "type": "object"
+      },
+      "CitationRow": {
+        "properties": {
+          "citation_index": {
+            "description": "Its place in the answer's source list, from 1.",
+            "title": "Citation Index",
+            "type": "integer"
+          },
+          "citation_kind": {
+            "title": "Citation Kind",
+            "type": "string"
+          },
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "observation_id": {
+            "description": "A 64-bit id, as a string.",
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "occurrences": {
+            "title": "Occurrences",
+            "type": "integer"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "raw_url": {
+            "description": "As the provider gave it: evidence, not a link (untrusted: never follow or render it as one); cut to 1000 characters with a trailing `...`.",
+            "title": "Raw Url",
+            "type": "string"
+          },
+          "registrable_domain": {
+            "title": "Registrable Domain",
+            "type": "string"
+          },
+          "role_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Entity Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The title the answer gave this citation; null if none. Provider text (untrusted: show it as text, never as markup); cut to 300 characters with a trailing `...`.",
+            "title": "Title"
+          },
+          "url": {
+            "description": "The canonical URL: the link to follow.",
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "observation_id",
+          "observed_at",
+          "prompt_id",
+          "engine_code",
+          "citation_index",
+          "url_id",
+          "url",
+          "raw_url",
+          "host",
+          "registrable_domain",
+          "title",
+          "citation_kind",
+          "domain_role",
+          "role_entity_id",
+          "occurrences"
+        ],
+        "title": "CitationRow",
+        "type": "object"
+      },
       "CompetitorOverride": {
         "properties": {
           "entity": {
@@ -2090,6 +2219,21 @@
             "title": "Engine Code",
             "type": "string"
           },
+          "entities": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EntityCells"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=entities`: a cell for each tracked entity of `entities`, the own ones first, then competitors by name, at most 20. Left out otherwise.",
+            "title": "Entities"
+          },
           "mentioned": {
             "$ref": "#/components/schemas/MetricCell"
           },
@@ -2108,6 +2252,23 @@
           "share_of_voice"
         ],
         "title": "EngineSummary",
+        "type": "object"
+      },
+      "EngineUnits": {
+        "properties": {
+          "citation_units": {
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          }
+        },
+        "required": [
+          "engine_code",
+          "citation_units"
+        ],
+        "title": "EngineUnits",
         "type": "object"
       },
       "EngineUpdate": {
@@ -2230,6 +2391,31 @@
           "updated_at"
         ],
         "title": "Entity",
+        "type": "object"
+      },
+      "EntityCells": {
+        "description": "One tracked entity's cells, weighted as the engine's: in a topic row Mentioned is prompt\nweighted, Share of voice one answer one weight. The shares of all the entities an answer\nnames add up to 1; the cells shown may hold fewer (at most 20, and an entity no longer\ntracked has none).",
+        "properties": {
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "mentioned": {
+            "$ref": "#/components/schemas/MetricCell",
+            "description": "Valid answers whose share of voice set names the entity."
+          },
+          "share_of_voice": {
+            "$ref": "#/components/schemas/MetricCell",
+            "description": "The entity's share of each answer that names a tracked entity: 1 / the tracked entities the answer names."
+          }
+        },
+        "required": [
+          "entity_id",
+          "mentioned",
+          "share_of_voice"
+        ],
+        "title": "EntityCells",
         "type": "object"
       },
       "EntityCreate": {
@@ -2733,6 +2919,194 @@
           }
         },
         "title": "EntityUpdate",
+        "type": "object"
+      },
+      "FanoutCitedDomain": {
+        "properties": {
+          "citation_units": {
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "registrable_domain": {
+            "title": "Registrable Domain",
+            "type": "string"
+          },
+          "role_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Entity Id"
+          }
+        },
+        "required": [
+          "registrable_domain",
+          "domain_role",
+          "role_entity_id",
+          "citation_units"
+        ],
+        "title": "FanoutCitedDomain",
+        "type": "object"
+      },
+      "FanoutMeta": {
+        "properties": {
+          "answers": {
+            "description": "Valid answers in scope on these engines: the denominator of `observations`.",
+            "title": "Answers",
+            "type": "integer"
+          },
+          "answers_truncated": {
+            "description": "Of those, the answers whose stored list is shorter than the queries they issued (the 16 KB bound on the stored extras keeps the first ones): their other queries are in no row.",
+            "title": "Answers Truncated",
+            "type": "integer"
+          },
+          "answers_with_fanout": {
+            "description": "Of those, the answers that issued a query (docs/16 F1).",
+            "title": "Answers With Fanout",
+            "type": "integer"
+          },
+          "engine_codes": {
+            "items": {
+              "$ref": "#/components/schemas/EngineCode"
+            },
+            "title": "Engine Codes",
+            "type": "array"
+          },
+          "engines_without_fanout": {
+            "description": "Engines that do not show the queries they issue: not exposed, never zero.",
+            "items": {
+              "$ref": "#/components/schemas/EngineCode"
+            },
+            "title": "Engines Without Fanout",
+            "type": "array"
+          },
+          "include_branded": {
+            "title": "Include Branded",
+            "type": "boolean"
+          },
+          "min_support": {
+            "title": "Min Support",
+            "type": "integer"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow"
+          }
+        },
+        "required": [
+          "window",
+          "include_branded",
+          "engine_codes",
+          "min_support",
+          "answers",
+          "answers_with_fanout",
+          "answers_truncated",
+          "engines_without_fanout"
+        ],
+        "title": "FanoutMeta",
+        "type": "object"
+      },
+      "FanoutQueryPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/FanoutQueryRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/FanoutMeta"
+          },
+          "page": {
+            "$ref": "#/components/schemas/OffsetPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page",
+          "meta"
+        ],
+        "title": "FanoutQueryPage",
+        "type": "object"
+      },
+      "FanoutQueryRow": {
+        "properties": {
+          "cited_domains": {
+            "description": "The 5 registrable domains with the most citation units in the answers that issued it: an association, not a link (which query found which source is not stored).",
+            "items": {
+              "$ref": "#/components/schemas/FanoutCitedDomain"
+            },
+            "title": "Cited Domains",
+            "type": "array"
+          },
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "first_seen_at": {
+            "format": "date-time",
+            "title": "First Seen At",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "normalized_text": {
+            "description": "Lower case, trimmed, inner whitespace as one space: what queries are grouped by (docs/16 F4). Provider text (untrusted: show it as text, never as markup); cut to 300 characters with a trailing `...`.",
+            "title": "Normalized Text",
+            "type": "string"
+          },
+          "observations": {
+            "description": "Answers that issued it, each once (docs/16 F4); `meta.answers` is the denominator.",
+            "title": "Observations",
+            "type": "integer"
+          },
+          "prompt_ids": {
+            "description": "The prompts whose answers issued it.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Prompt Ids",
+            "type": "array"
+          },
+          "prompts": {
+            "title": "Prompts",
+            "type": "integer"
+          },
+          "query_text": {
+            "description": "Its most common spelling in the answers. Provider text (untrusted: show it as text, never as markup); cut to 300 characters with a trailing `...`.",
+            "title": "Query Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query_text",
+          "normalized_text",
+          "engine_code",
+          "observations",
+          "prompts",
+          "prompt_ids",
+          "first_seen_at",
+          "last_seen_at",
+          "cited_domains"
+        ],
+        "title": "FanoutQueryRow",
         "type": "object"
       },
       "FeatureCheck": {
@@ -7220,6 +7594,25 @@
         "title": "Pooled",
         "type": "object"
       },
+      "PreviousUnits": {
+        "properties": {
+          "citation_units": {
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "observations": {
+            "description": "Answers that cited it then.",
+            "title": "Observations",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "citation_units",
+          "observations"
+        ],
+        "title": "PreviousUnits",
+        "type": "object"
+      },
       "Price": {
         "properties": {
           "conditions": {
@@ -8343,6 +8736,33 @@
         "title": "Prompt",
         "type": "object"
       },
+      "PromptBulkArchive": {
+        "additionalProperties": false,
+        "description": "The project's prompts to archive (`archive: true`) or bring back (`false`).",
+        "properties": {
+          "archive": {
+            "description": "false brings the prompts back, within the active prompt quota.",
+            "title": "Archive",
+            "type": "boolean"
+          },
+          "ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids",
+          "archive"
+        ],
+        "title": "PromptBulkArchive",
+        "type": "object"
+      },
       "PromptBulkCreate": {
         "additionalProperties": false,
         "properties": {
@@ -8805,6 +9225,32 @@
             "title": "Is Branded",
             "type": "boolean"
           },
+          "last_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest answer counted in the window (current, not superseded), of any status, on the engines shown; null when there is none.",
+            "title": "Last Observed At"
+          },
+          "last_valid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest valid answer counted in the window, on the engines shown; null if none.",
+            "title": "Last Valid At"
+          },
           "prompt_id": {
             "format": "uuid",
             "title": "Prompt Id",
@@ -8828,6 +9274,8 @@
           "text",
           "is_branded",
           "topic_term_ids",
+          "last_observed_at",
+          "last_valid_at",
           "engines"
         ],
         "title": "PromptSummaryRow",
@@ -8912,6 +9360,11 @@
       },
       "PromptsSummary": {
         "properties": {
+          "branded_only": {
+            "description": "Only branded prompts are counted.",
+            "title": "Branded Only",
+            "type": "boolean"
+          },
           "engine_codes": {
             "items": {
               "type": "string"
@@ -8936,6 +9389,7 @@
             "type": "array"
           },
           "include_branded": {
+            "description": "Branded prompts are counted: `include_branded` or `branded_only` was set.",
             "title": "Include Branded",
             "type": "boolean"
           },
@@ -8963,6 +9417,7 @@
         "required": [
           "window",
           "include_branded",
+          "branded_only",
           "engine_codes",
           "metric_context",
           "entities",
@@ -9656,6 +10111,35 @@
         "title": "Role",
         "type": "string"
       },
+      "RoleUnits": {
+        "properties": {
+          "citation_units": {
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "observations": {
+            "description": "Answers that cite a source of this role.",
+            "title": "Observations",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "domain_role",
+          "citation_units",
+          "observations"
+        ],
+        "title": "RoleUnits",
+        "type": "object"
+      },
       "RowActionInput": {
         "additionalProperties": false,
         "properties": {
@@ -9880,6 +10364,103 @@
           "operation"
         ],
         "title": "Run",
+        "type": "object"
+      },
+      "RunBulk": {
+        "additionalProperties": false,
+        "description": "The prompts to ask now, each once on each engine, through the standard queue. Without\n`engine_codes`, every engine the project has turned on.",
+        "properties": {
+          "engine_codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EngineCode"
+                },
+                "maxItems": 3,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Codes"
+          },
+          "prompt_ids": {
+            "description": "Up to 150, the base plan's prompts; a repeat is dropped.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 150,
+            "minItems": 1,
+            "title": "Prompt Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "prompt_ids"
+        ],
+        "title": "RunBulk",
+        "type": "object"
+      },
+      "RunBulkMeta": {
+        "properties": {
+          "answers": {
+            "description": "Tasks the run makes, one answer each: what counts against the month's AI answers.",
+            "title": "Answers",
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "description": "The price book's estimate on the standard queue; the worker checks the budget against it when it plans the run.",
+            "examples": [
+              "0.012000"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Estimated Cost Usd",
+            "type": "string"
+          },
+          "manual_runs_today": {
+            "$ref": "#/components/schemas/ManualRuns"
+          },
+          "prompts": {
+            "description": "Prompts the run asks.",
+            "title": "Prompts",
+            "type": "integer"
+          },
+          "skipped": {
+            "description": "Every prompt and engine left out, with why.",
+            "items": {
+              "$ref": "#/components/schemas/RunSkip"
+            },
+            "title": "Skipped",
+            "type": "array"
+          }
+        },
+        "required": [
+          "prompts",
+          "answers",
+          "estimated_cost_usd",
+          "skipped",
+          "manual_runs_today"
+        ],
+        "title": "RunBulkMeta",
+        "type": "object"
+      },
+      "RunBulkResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Run"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/RunBulkMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "RunBulkResponse",
         "type": "object"
       },
       "RunCancel": {
@@ -10224,6 +10805,35 @@
           }
         },
         "title": "RunResults",
+        "type": "object"
+      },
+      "RunSkip": {
+        "properties": {
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "prompt_too_long",
+              "location_not_enabled",
+              "check_pending",
+              "prompt_pending"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "engine_code",
+          "reason"
+        ],
+        "title": "RunSkip",
         "type": "object"
       },
       "Schedule": {
@@ -11930,6 +12540,342 @@
         "title": "SitePropertyList",
         "type": "object"
       },
+      "SourceDomainPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SourceDomainRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/SourcesMeta"
+          },
+          "page": {
+            "$ref": "#/components/schemas/OffsetPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page",
+          "meta"
+        ],
+        "title": "SourceDomainPage",
+        "type": "object"
+      },
+      "SourceDomainRow": {
+        "properties": {
+          "citation_units": {
+            "description": "Citation units: distinct canonical URLs per answer (docs/16 C2); a URL an answer cites twice is one, and `occurrences` never counts.",
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "engines": {
+            "description": "Its citation units per engine of `meta.engine_codes`, in that order.",
+            "items": {
+              "$ref": "#/components/schemas/EngineUnits"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "first_seen_at": {
+            "description": "Its first citation in the window.",
+            "format": "date-time",
+            "title": "First Seen At",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "description": "Its last citation in the window.",
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "observations": {
+            "description": "Answers that cite it.",
+            "title": "Observations",
+            "type": "integer"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreviousUnits"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `compare=previous_period`: its citation units and citing answers over as many days just before the window, 0 when it was not cited there (docs/16 C5). Left out otherwise."
+          },
+          "prompts": {
+            "description": "Prompts whose answers cite it.",
+            "title": "Prompts",
+            "type": "integer"
+          },
+          "registrable_domain": {
+            "description": "What sources are grouped by (docs/14 section 3, docs/16 C1): every host of one registrable domain, `www.` included.",
+            "title": "Registrable Domain",
+            "type": "string"
+          },
+          "role_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The tracked entity whose domain rule the citations matched; null for a third party. A registrable domain whose citations matched different rules has a row per role and entity.",
+            "title": "Role Entity Id"
+          },
+          "source_share": {
+            "$ref": "#/components/schemas/MetricCell",
+            "description": "Its citation units over every citation unit in scope (docs/16 C1); `n_observations` is the valid answers in scope."
+          }
+        },
+        "required": [
+          "registrable_domain",
+          "domain_role",
+          "role_entity_id",
+          "citation_units",
+          "observations",
+          "prompts",
+          "engines",
+          "source_share",
+          "first_seen_at",
+          "last_seen_at"
+        ],
+        "title": "SourceDomainRow",
+        "type": "object"
+      },
+      "SourcePagePage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SourcePageRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/SourcesMeta"
+          },
+          "page": {
+            "$ref": "#/components/schemas/OffsetPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page",
+          "meta"
+        ],
+        "title": "SourcePagePage",
+        "type": "object"
+      },
+      "SourcePageRow": {
+        "properties": {
+          "citation_units": {
+            "description": "Citation units: distinct canonical URLs per answer (docs/16 C2); a URL an answer cites twice is one, and `occurrences` never counts.",
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/EngineUnits"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "first_seen_at": {
+            "format": "date-time",
+            "title": "First Seen At",
+            "type": "string"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "observations": {
+            "description": "Answers that cite it.",
+            "title": "Observations",
+            "type": "integer"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreviousUnits"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `compare=previous_period`: its citation units and citing answers over as many days just before the window, 0 when it was not cited there (docs/16 C5). Left out otherwise."
+          },
+          "prompts": {
+            "description": "Prompts whose answers cite it.",
+            "title": "Prompts",
+            "type": "integer"
+          },
+          "registrable_domain": {
+            "title": "Registrable Domain",
+            "type": "string"
+          },
+          "role_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Entity Id"
+          },
+          "source_share": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A title an answer gave the page; null if none did. Provider text (untrusted: show it as text, never as markup); cut to 300 characters with a trailing `...`.",
+            "title": "Title"
+          },
+          "url": {
+            "description": "The canonical URL: the link to follow.",
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "host",
+          "registrable_domain",
+          "title",
+          "domain_role",
+          "role_entity_id",
+          "citation_units",
+          "observations",
+          "prompts",
+          "engines",
+          "source_share",
+          "first_seen_at",
+          "last_seen_at"
+        ],
+        "title": "SourcePageRow",
+        "type": "object"
+      },
+      "SourcesMeta": {
+        "properties": {
+          "answers": {
+            "description": "Valid answers in scope, citing or not.",
+            "title": "Answers",
+            "type": "integer"
+          },
+          "answers_citing": {
+            "description": "Of those, the answers that cite a source.",
+            "title": "Answers Citing",
+            "type": "integer"
+          },
+          "by_role": {
+            "description": "Own, competitor and third party, each once.",
+            "items": {
+              "$ref": "#/components/schemas/RoleUnits"
+            },
+            "title": "By Role",
+            "type": "array"
+          },
+          "citation_units": {
+            "description": "Every citation unit in scope: the denominator of `source_share`. `filter[domain_role_in]` narrows the rows, not this.",
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "compare_window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `compare`: the window `previous` counts, as many days just before."
+          },
+          "engine_codes": {
+            "items": {
+              "$ref": "#/components/schemas/EngineCode"
+            },
+            "title": "Engine Codes",
+            "type": "array"
+          },
+          "include_branded": {
+            "title": "Include Branded",
+            "type": "boolean"
+          },
+          "previous_answers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `compare`: the valid answers in scope in that window. 0 means it has no data, so a `previous` of 0 there says nothing about the source.",
+            "title": "Previous Answers"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow"
+          }
+        },
+        "required": [
+          "window",
+          "include_branded",
+          "engine_codes",
+          "answers",
+          "answers_citing",
+          "citation_units",
+          "by_role"
+        ],
+        "title": "SourcesMeta",
+        "type": "object"
+      },
       "Sparkline": {
         "properties": {
           "depth_mode": {
@@ -12541,6 +13487,32 @@
             "title": "Engines",
             "type": "array"
           },
+          "last_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest answer counted in the window (current, not superseded), of any status, on the engines shown; null when there is none.",
+            "title": "Last Observed At"
+          },
+          "last_valid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest valid answer counted in the window, on the engines shown; null if none.",
+            "title": "Last Valid At"
+          },
           "name": {
             "anyOf": [
               {
@@ -12573,6 +13545,8 @@
           "term_id",
           "name",
           "prompt_count",
+          "last_observed_at",
+          "last_valid_at",
           "engines"
         ],
         "title": "TopicSummaryRow",
@@ -18771,6 +19745,450 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per citation of a counted answer, in the answer's order (a URL listed twice is two rows and one unit). `filter[registrable_domain]` and `filter[url_id]` give the citations behind a domain or page row. Keyset pages `(observed_at DESC, observation_id DESC, citation_index)`; a cursor is bound to its filters (`400 invalid_cursor` otherwise).",
+        "operationId": "citation_list_api_v1_workspaces__workspace_id__projects__project_id__ai_citations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The sources of one registrable domain, as a domain row names it.",
+            "in": "query",
+            "name": "filter[registrable_domain]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 253,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The sources of one registrable domain, as a domain row names it.",
+              "title": "Filter[Registrable Domain]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[url_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 9223372036854775807,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Url Id]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[domain_role_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "own",
+                      "competitor",
+                      "third_party"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Domain Role In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "One prompt's answers, whether it is active, archived or branded.",
+            "in": "query",
+            "name": "filter[prompt_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One prompt's answers, whether it is active, archived or branded.",
+              "title": "Filter[Prompt Id]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitationPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The citations behind the source counts, newest answer first",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/fanout-queries": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). Read from the lists ingest stored with each answer (engines that show them: ChatGPT; `filter[engine_code_in]` naming another is `422 engine_has_no_fanout`, and `meta.engines_without_fanout` lists them so they read as not exposed, never zero). One row per normalized text (lower case, trimmed, inner whitespace as one space) and engine, the most issued first: the most common spelling, the answers and prompts that issued it, when it was first and last seen, and the 5 registrable domains with the most citation units in those answers (an association: which query found which source is not stored). A query issued by fewer than `min_support` answers (default 2) is left out. `meta.answers` is the denominator; `meta.answers_truncated` counts the answers whose stored list is shorter than the queries they issued (the 16 KB bound keeps the first ones). Offset pages.",
+        "operationId": "fanout_queries_api_v1_workspaces__workspace_id__projects__project_id__ai_fanout_queries_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The fewest answers a query is listed for.",
+            "in": "query",
+            "name": "min_support",
+            "required": false,
+            "schema": {
+              "default": 2,
+              "description": "The fewest answers a query is listed for.",
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Min Support",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "One prompt's answers, whether it is active, archived or branded.",
+            "in": "query",
+            "name": "filter[prompt_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One prompt's answers, whether it is active, archived or branded.",
+              "title": "Filter[Prompt Id]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FanoutQueryPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The queries ChatGPT issued while answering, by how many answers issued them",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations": {
       "get": {
         "description": "Newest first. `from` and `to` take timestamps or project-local dates (`to` included); without them the last 28 days. A request covers at most 92 days (`422 window_too_large`). `facts` is the current derivation's, null before extraction. A cursor is bound to its filters (`400 invalid_cursor` otherwise).",
@@ -19170,7 +20588,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary": {
       "get": {
-        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null.",
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most 20); across all the entities an answer names, its shares add up to 1.",
         "operationId": "prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get",
         "parameters": [
           {
@@ -19256,6 +20674,78 @@
               "title": "Include Branded",
               "type": "boolean"
             }
+          },
+          {
+            "description": "Only the branded prompts; wins over `include_branded`.",
+            "in": "query",
+            "name": "branded_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only the branded prompts; wins over `include_branded`.",
+              "title": "Branded Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "description": "Blocks to add: `entities`.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "const": "entities",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Blocks to add: `entities`.",
+              "title": "Include"
+            }
           }
         ],
         "responses": {
@@ -19281,6 +20771,559 @@
           }
         },
         "summary": "Mentioned, Cited, outcomes and Share of voice per prompt, engine and topic",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/runs": {
+      "post": {
+        "description": "Up to 150 prompts the project asks (`422 validation_failed` with `prompt_unknown` at `prompt_ids` for an archived, deleted or unknown one), each once on each of `engine_codes` (default: every engine the project has turned on; one it has not is `engine_not_enabled`), through the standard queue, the path a schedule uses. It is one of the project's 20 manual runs a day (`429 manual_run_limit`) and each task one of the month's AI answers (`422 quota_exceeded`). What the planner would skip (`prompt_too_long`, `location_not_enabled`) and every engine of a prompt with an answer already on its way (`check_pending` there, `prompt_pending` on its other engines) is left out and listed in `meta.skipped`; the rest runs. Nothing left is `409 check_pending` (with `prompt_ids`) when something was pending, else `422 nothing_to_run`; both carry `skipped`. `422 price_unavailable` without a price; `503 provider_paused` while the provider is refusing every request. A budget used up blocks the run when the worker plans it (`budget_blocked`).",
+        "operationId": "ai_bulk_run_api_v1_workspaces__workspace_id__projects__project_id__ai_runs_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunBulk"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunBulkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Ask many prompts now, as one manual run through the provider's standard queue",
+        "tags": [
+          "operations",
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per registrable domain and role (and the entity whose domain rule matched): citation units, answers, prompts, units per engine and `source_share` (its units over every unit in scope; `filter[domain_role_in]` narrows the rows, not the denominator). `meta` states the answers, the units and the units of each role. Offset pages; `sort` is `-citation_units` (default), `-observations` or `-prompts`. `compare=previous_period` (default `none`) adds `previous` to each row, its units and citing answers over as many days just before the window (0 when not cited there: docs/16 C5), with `meta.compare_window` and `meta.previous_answers`.",
+        "operationId": "source_domains_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_domains_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "-citation_units",
+              "enum": [
+                "-citation_units",
+                "-observations",
+                "-prompts"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "default": "none",
+              "enum": [
+                "none",
+                "previous_period"
+              ],
+              "title": "Compare",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[domain_role_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "own",
+                      "competitor",
+                      "third_party"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Domain Role In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "One prompt's answers, whether it is active, archived or branded.",
+            "in": "query",
+            "name": "filter[prompt_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One prompt's answers, whether it is active, archived or branded.",
+              "title": "Filter[Prompt Id]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceDomainPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Cited sources by registrable domain, with their share of every citation",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per canonical page and role: as the domain rows, plus the URL, host, registrable domain and a title an answer gave it. `filter[registrable_domain]` keeps one domain's pages, whose units add up to its row's. Offset pages; the same sorts as the domains. `compare=previous_period` (default `none`) adds `previous` to each row, its units and citing answers over as many days just before the window (0 when not cited there: docs/16 C5), with `meta.compare_window` and `meta.previous_answers`.",
+        "operationId": "source_pages_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_pages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The sources of one registrable domain, as a domain row names it.",
+            "in": "query",
+            "name": "filter[registrable_domain]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 253,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The sources of one registrable domain, as a domain row names it.",
+              "title": "Filter[Registrable Domain]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "-citation_units",
+              "enum": [
+                "-citation_units",
+                "-observations",
+                "-prompts"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "default": "none",
+              "enum": [
+                "none",
+                "previous_period"
+              ],
+              "title": "Compare",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[domain_role_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "own",
+                      "competitor",
+                      "third_party"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Domain Role In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "One prompt's answers, whether it is active, archived or branded.",
+            "in": "query",
+            "name": "filter[prompt_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One prompt's answers, whether it is active, archived or branded.",
+              "title": "Filter[Prompt Id]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcePagePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Cited pages, with their share of every citation",
         "tags": [
           "ai"
         ]
@@ -21571,6 +23614,70 @@
           }
         },
         "summary": "Add a prompt",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-archive": {
+      "post": {
+        "description": "Up to 1,000 `ids` of the project's prompts; an id it does not have is not matched. `archive: true` archives them as `DELETE` does one, `false` brings them back as `PATCH is_active: true` does; answers, versions and terms stay. Bringing back counts against the workspace's active prompt limit, all or none (`422 quota_exceeded` with `limit`, `used` and `requested`). `matched` is the prompts found, `updated` those whose state changed. One audit entry for the request and one per prompt changed.",
+        "operationId": "bulk_archive_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_archive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptBulkArchive"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkArchiveResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Archive or bring back many prompts",
         "tags": [
           "ai"
         ]

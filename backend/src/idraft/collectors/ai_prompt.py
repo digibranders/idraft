@@ -40,7 +40,7 @@ from idraft.db.tables import (
     locations,
     projects,
 )
-from idraft.domain.ai_engines import Queue
+from idraft.domain.ai_engines import BASE_PLAN, Queue
 from idraft.domain.tasks import scheduled_for
 from idraft.domain.workloads import TaskWorkload
 from idraft.extraction.ai_facts import EXTRACTOR_VERSION
@@ -52,9 +52,9 @@ from idraft.providers.dataforseo.provider import CODE as DATAFORSEO
 WORKLOAD: Final = TaskWorkload.AI_PROMPT
 SUBJECT_TYPE: Final = "prompt_version"
 ADAPTER: Final = "dataforseo_ai_answers@1"
-# What one manual run takes. Run now names one prompt; a run naming more than this is refused,
-# not priced and sent.
-MANUAL_PROMPTS_MAX: Final = 100
+# What one manual run takes: every active prompt of the base plan (a bulk run names up to this
+# many; Run now names one). A run naming more is refused, not priced and sent.
+MANUAL_PROMPTS_MAX: Final = BASE_PLAN.max_prompts
 # How many skipped subjects a run's snapshot lists; `skipped_total` always counts them all.
 SKIPPED_KEPT: Final = 200
 # A task the provider has not answered, or that no one has read yet. For the ingest and Run now.

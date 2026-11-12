@@ -44,6 +44,19 @@ const PROMPT = z.object({
   updated_at: z.string(),
   terms: z.array(z.object({ term_id: z.string(), name: z.string(), path: z.string() })),
 });
+const AI_SCHEDULE = z.object({
+  schedule_id: z.string(),
+  name: z.string(),
+  workload: z.string(),
+  cadence: z.string(),
+  weekday: z.number().nullable(),
+  window_start_local: z.string(),
+  window_hours: z.number(),
+  timezone: z.string(),
+  provider_mode: z.string(),
+  selector: z.object({ all: z.boolean().nullable() }),
+  is_active: z.boolean(),
+});
 const PAGE = z.object({ limit: z.number(), next_cursor: z.string().nullable(), has_more: z.boolean() });
 const BULK = z.object({
   created: z.array(z.string()),
@@ -131,6 +144,50 @@ describe('engines', () => {
       'location_ids.1:less_than_equal',
       'location_ids.2:int_type',
     ]);
+  });
+
+  it('makes the two AI answer schedules when an engine is turned on, and none while a live one is there', async () => {
+    const editor = mockBrowser('editor');
+    const aiSchedules = async (): Promise<z.infer<typeof AI_SCHEDULE>[]> =>
+      dataOf(await editor.call('GET', `${CLEANSTART}/schedules?filter[workload]=ai_prompt`), z.array(AI_SCHEDULE));
+    expect(await aiSchedules()).toEqual([]);
+
+    expect((await editor.call('PUT', `${CLEANSTART}/engines/chatgpt_web`, { location_ids: [2840] })).status).toBe(200);
+    const made = await aiSchedules();
+    expect(made.map((row) => [row.name, row.weekday])).toEqual([
+      ['AI answers, Monday', 1],
+      ['AI answers, Thursday', 4],
+    ]);
+    expect(made[0]).toMatchObject({
+      workload: 'ai_prompt',
+      cadence: 'weekly',
+      window_start_local: '01:00:00',
+      window_hours: 8,
+      timezone: cleanstart.timezone,
+      provider_mode: 'standard_queue',
+      selector: { all: true },
+      is_active: true,
+    });
+
+    // Another engine on, or the countries of one that is on saved again, makes no more
+    await editor.call('PUT', `${CLEANSTART}/engines/gemini_web`, { location_ids: [2840] });
+    await editor.call('PUT', `${CLEANSTART}/engines/chatgpt_web`, { location_ids: [2276] });
+    expect(await aiSchedules()).toHaveLength(2);
+  });
+
+  it('makes two new AI schedules on an off to on change once both of the project were deleted', async () => {
+    const editor = mockBrowser('editor');
+    await editor.call('PUT', `${CLEANSTART}/engines/chatgpt_web`, { location_ids: [2840] });
+    const aiSchedules = async (): Promise<z.infer<typeof AI_SCHEDULE>[]> =>
+      dataOf(await editor.call('GET', `${CLEANSTART}/schedules?filter[workload]=ai_prompt`), z.array(AI_SCHEDULE));
+    for (const row of await aiSchedules()) {
+      expect((await editor.call('DELETE', `${CLEANSTART}/schedules/${row.schedule_id}`)).status).toBe(204);
+    }
+    expect(await aiSchedules()).toEqual([]);
+
+    await editor.call('PUT', `${CLEANSTART}/engines/chatgpt_web`, { location_ids: [2276], is_enabled: false });
+    await editor.call('PUT', `${CLEANSTART}/engines/chatgpt_web`, { location_ids: [2276], is_enabled: true });
+    expect(await aiSchedules()).toHaveLength(2);
   });
 
   it('removes an engine setting, and says not found for one that is not set', async () => {

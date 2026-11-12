@@ -5,10 +5,13 @@ import type {
   Prompt,
   PromptsSummary,
   PromptSummaryRow,
+  TopicSummaryRow,
 } from '@/lib/api/types';
 import { formatIsoDate, formatSampleCount } from '@/lib/format';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 import type { Country } from '@/lib/locations/countries';
+import { rateState } from '@/lib/stats';
+import type { SortKey } from '@/lib/tables/table-state';
 
 /**
  * Plain data and functions of Topics & Prompts (spec 2026-11-11 section 4.6): the window, the tabs, a pasted
@@ -37,6 +40,57 @@ export function windowRange(days: WindowDays, now: Date, timeZone: string): Date
   const from = new Date(Date.UTC(year, month - 1, day - (days - 1)));
   return { from: from.toISOString().slice(0, 10), to };
 }
+
+/**
+ * The metric the engine columns of the Prompts tab show (`?metric=`, Mention when the address names none):
+ * the share of valid answers that name the brand, that cite its domain, or its share of voice. The key of the
+ * cell each one reads is `CELL_OF_METRIC`.
+ */
+export const RATE_METRICS = ['mention', 'citation', 'sov'] as const;
+export type RateMetric = (typeof RATE_METRICS)[number];
+export const parseMetric = (value: string | null): RateMetric =>
+  RATE_METRICS.find((metric) => metric === value) ?? 'mention';
+export const CELL_OF_METRIC = {
+  mention: 'mentioned',
+  citation: 'cited',
+  sov: 'share_of_voice',
+} as const satisfies Record<RateMetric, string>;
+
+/**
+ * The ids `?sort=` names (`-id` for descending, two keys at most). A value a column does not have, or a rate
+ * that is insufficient, sorts after every row that has one, whichever way the sort runs.
+ * - Prompts tab: `prompt`, `topic` and `country` (A to Z first); `mention` and `citation`, the average of the
+ *   engines shown; `<engine_code>_rate`, the engine's value of the chosen metric; `<engine_code>_mentioned` and
+ *   `<engine_code>_cited`, its rate of Mentioned and Cited (the count columns of the chooser). All but the text
+ *   columns sort high to low first.
+ * - Topics tab: `prompts` (how many prompts the topic holds), `mention`, `citation`, `top_engine` (by the
+ *   engine's name, A to Z first), and `<engine_code>_mentioned` and `<engine_code>_cited`. The sort orders the
+ *   topics; the prompts under an open topic keep their order, most mentioned first.
+ * A tie goes to the name on the Topics tab, and on the Prompts tab under the default sort (the prompt is its second
+ * key); under a sort the person chose, rows that tie keep the table's order (DataTable breaks a tie by row id).
+ * An id the open tab has no sort for is ignored, so one `sort` serves both tabs.
+ */
+export const SORT_ID = {
+  prompt: 'prompt',
+  topic: 'topic',
+  country: 'country',
+  prompts: 'prompts',
+  mention: 'mention',
+  citation: 'citation',
+  topEngine: 'top_engine',
+} as const;
+
+/** The id of an engine's column: the metric chosen (`rate`), or its count columns of Mentioned and Cited. */
+export const engineSortId = (engineCode: string, shown: 'rate' | 'mentioned' | 'cited'): string =>
+  `${engineCode}_${shown}`;
+
+/** Both tables open on the highest Mention rate, the rows without one last (parity spec G23, G40). */
+export const DEFAULT_TOPIC_SORT: readonly SortKey[] = [{ id: SORT_ID.mention, desc: true }];
+/** The Prompts tab breaks a tie by the text of the prompt, A to Z. */
+export const DEFAULT_PROMPT_SORT: readonly SortKey[] = [
+  { id: SORT_ID.mention, desc: true },
+  { id: SORT_ID.prompt, desc: false },
+];
 
 /** The tabs of slice 1 (ADR-DS-022): Panels and Versions wait for slice 4. */
 export const PROMPTS_TABS = ['topics', 'prompts'] as const;
@@ -118,15 +172,98 @@ export const topicRowKept = (termId: string | null, kept: ReadonlySet<string>): 
  * below it, each once, though no prompt carries the topic itself; `null` termId is the prompts without a
  * topic. `null` when the tree does not hold the topic (it is not read yet), so its prompts cannot be told.
  */
-export function topicMembers(
+export function topicMembers<T extends Pick<PromptSummaryRow, 'topic_term_ids'>>(
   termId: string | null,
-  prompts: readonly PromptSummaryRow[],
+  prompts: readonly T[],
   descendants: TopicDescendants,
-): PromptSummaryRow[] | null {
+): T[] | null {
   if (termId === null) return prompts.filter((prompt) => prompt.topic_term_ids.length === 0);
   const below = descendants.get(termId);
   if (below === undefined) return null;
   return prompts.filter((prompt) => prompt.topic_term_ids.some((id) => below.has(id)));
+}
+
+/** The topic key of the prompts without a topic, in the address (`topic:__none`) and in the table's row ids. */
+export const NO_TOPIC = '__none';
+
+/** The most prompts an opened topic lists in the table, before "Show all" (ADR-DS-022 decision 2). */
+export const TOPIC_ROW_PROMPTS = 8;
+
+/** The prompts the topic drawer's Overview lists. */
+export const TOPIC_TOP_PROMPTS = 5;
+
+/** The mention rate of the prompts on the engine; one without a rate comes after every one that has. */
+const mentionedOn = (prompt: PromptSummaryRow, engineCode: string | undefined): number =>
+  prompt.engines.find((engine) => engine.engine_code === engineCode)?.mentioned.value ?? -1;
+
+/** The prompts, most mentioned on the engine first (a stable sort: equals keep their order). */
+export const mostMentionedFirst = (
+  prompts: readonly PromptSummaryRow[],
+  engineCode: string | undefined,
+): PromptSummaryRow[] => [...prompts].sort((a, b) => mentionedOn(b, engineCode) - mentionedOn(a, engineCode));
+
+/**
+ * The prompts of a topic as its row lists them and its drawer does, most mentioned on `engineCode` first;
+ * `null` while they cannot be told (no summary, or a topic the tree does not hold yet).
+ */
+export function topicPrompts(
+  summary: PromptsSummary | undefined,
+  key: string,
+  descendants: TopicDescendants,
+  engineCode: string | undefined,
+): PromptSummaryRow[] | null {
+  if (summary === undefined) return null;
+  const members = topicMembers(key === NO_TOPIC ? null : key, summary.prompts, descendants);
+  return members === null ? null : mostMentionedFirst(members, engineCode);
+}
+
+/** The summary's row of a topic by its key: the term id, or `NO_TOPIC` for the prompts without one. */
+export const topicSummaryRow = (summary: PromptsSummary | undefined, key: string): TopicSummaryRow | undefined =>
+  summary?.topics.find((topic) => (topic.term_id ?? NO_TOPIC) === key);
+
+/** The tabs of the topic drawer built in slice 1: Competitors and Related wait for slices 2 and 3. */
+export const TOPIC_TABS = ['overview', 'prompts'] as const;
+export type TopicTab = (typeof TOPIC_TABS)[number];
+export const parseTopicTab = (value: string): TopicTab => (value === 'prompts' ? 'prompts' : 'overview');
+
+/** The topic a prompt was opened from (ADR-DS-022 decision 8), and what it was opened for. */
+export interface TopicOrigin {
+  key: string;
+  /** The topic drawer's tab the person left, which the badge returns to. */
+  tab: TopicTab;
+  promptId: string;
+  projectId: string;
+}
+
+/**
+ * The origin while it still stands for the open prompt: the prompt is the one it was opened for or one the topic
+ * holds (`order`, the topic's prompts, `null` while they are not known), in the same project. A prompt that arrives
+ * another way (Forward, a link, an answer's Back to another one) has no topic.
+ */
+export function topicOriginOf(
+  origin: TopicOrigin | null,
+  open: { promptId: string | null; projectId: string; order: readonly string[] | null },
+): TopicOrigin | null {
+  if (origin === null || open.promptId === null || origin.projectId !== open.projectId) return null;
+  return origin.promptId === open.promptId || open.order?.includes(open.promptId) === true ? origin : null;
+}
+
+/** The answers behind a cell: a topic's cell is prompt weighted and counts them in `pooled`, a prompt's in its denominator. */
+export const validAnswers = (cell: MetricCell): number => cell.pooled?.trials ?? cell.denominator;
+
+/** Whether the engine shows a rate of its own: a value over at least `MIN_OBSERVATIONS` valid answers. */
+export const hasRate = (cell: MetricCell): boolean => cell.value !== null && rateState(validAnswers(cell)) === 'ok';
+
+/**
+ * The equal-weight average of the engines' rates, and how many engines took part (ADR-DS-022 decision 3): only
+ * an engine that shows a rate of its own takes part (`hasRate`), so "avg of N" is the number of percents in the
+ * engines' columns. An engine with no valid answer, or too few of them, is left out, not counted as 0. `null` when
+ * no engine has a rate.
+ */
+export function acrossEngines(cells: readonly MetricCell[]): { value: number; engines: number } | null {
+  const values = cells.flatMap((cell) => (hasRate(cell) && cell.value !== null ? [cell.value] : []));
+  if (values.length === 0) return null;
+  return { value: values.reduce((sum, value) => sum + value, 0) / values.length, engines: values.length };
 }
 
 export interface TopicChoice {
@@ -155,6 +292,32 @@ export function topicChoices(tree: readonly NamedTerm[], carried: ReadonlyMap<st
       .filter((term) => !byId.has(term.term_id))
       .map((term) => ({ termId: term.term_id, name: term.name, path: term.path })),
   ];
+}
+
+/**
+ * The market of the top bar (`?country=`): two capital letters, the one the summary's `filter[country_iso]` takes.
+ * Anything else (a link's list of several, a lower case code) reads as every country.
+ */
+export const parseCountry = (value: string | null): string | null =>
+  value !== null && /^[A-Z]{2}$/.test(value) ? value : null;
+
+/** The countries the prompts carry, once each in order, with `selected` kept even when no prompt has it. */
+export function countryChoices(prompts: readonly Pick<Prompt, 'country_iso'>[], selected: string | null): string[] {
+  const isos = new Set(prompts.flatMap((prompt) => (prompt.country_iso === null ? [] : [prompt.country_iso])));
+  if (selected !== null) isos.add(selected);
+  return [...isos].sort();
+}
+
+/** When the newest answer of the summary was read (the newest of its prompts'), or `null` when there is none. */
+export function lastObservedAt(summary: PromptsSummary | undefined): string | null {
+  let newest: { text: string; time: number } | null = null;
+  for (const row of summary?.prompts ?? []) {
+    const time = row.last_observed_at === null ? Number.NaN : Date.parse(row.last_observed_at);
+    if (row.last_observed_at !== null && !Number.isNaN(time) && (newest === null || time > newest.time)) {
+      newest = { text: row.last_observed_at, time };
+    }
+  }
+  return newest?.text ?? null;
 }
 
 /** Whether any prompt has an answer on an engine in the window, valid or not: until one has, the page says when the first arrive. */

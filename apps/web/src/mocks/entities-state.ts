@@ -1,3 +1,5 @@
+import { EVENTUS_WORLD } from './ai-prompt-world';
+import { isAiSeeded } from './ai-seed';
 import { jsonCookie, readJsonCookie } from './cookie-json';
 import { COMPACT_CHANGES, decodeChanges, encodeChanges } from './entities-codec';
 import {
@@ -192,13 +194,15 @@ export interface EntityWorld {
 
 /** The base: the fixtures, and the own entity of every project created here with one. */
 function baseOf(workspace: WorkspaceChanges): EntityWorld {
+  // The brand, competitors and topics of a definition file (./ai-prompt-world.ts) while its data is on (./ai-seed.ts)
+  const seeded = isAiSeeded() ? EVENTUS_WORLD : null;
   const world: EntityWorld = {
-    entities: [...MOCK_ENTITIES],
-    aliases: [...MOCK_ALIASES],
-    domains: [...MOCK_ENTITY_DOMAINS],
-    roles: [...MOCK_ROLES],
-    vocabularies: [...MOCK_VOCABULARIES],
-    terms: [...MOCK_TERMS],
+    entities: [...MOCK_ENTITIES, ...(seeded?.entities ?? [])],
+    aliases: [...MOCK_ALIASES, ...(seeded?.aliases ?? [])],
+    domains: [...MOCK_ENTITY_DOMAINS, ...(seeded?.domains ?? [])],
+    roles: [...MOCK_ROLES, ...(seeded?.roles ?? [])],
+    vocabularies: [...MOCK_VOCABULARIES, ...(seeded === null ? [] : [seeded.vocabulary])],
+    terms: [...MOCK_TERMS, ...(seeded?.terms ?? [])],
   };
   for (const project of workspace.created ?? []) {
     const own = project.own_entity;

@@ -469,11 +469,36 @@ class MetricCell(BaseModel):
     )
 
 
+# Plan D1 adds `series` here with the weekly series.
+SummaryInclude = Literal["entities"]
+
+
+def _absent(value: object) -> bool:
+    """A block nobody asked for is left out of the answer, not sent as null."""
+    return value is None
+
+
 class OutcomeCells(BaseModel):
     mentioned_and_cited: MetricCell
     mentioned_only: MetricCell
     cited_only: MetricCell
     neither: MetricCell
+
+
+class EntityCells(BaseModel):
+    """One tracked entity's cells, weighted as the engine's: in a topic row Mentioned is prompt
+    weighted, Share of voice one answer one weight. The shares of all the entities an answer
+    names add up to 1; the cells shown may hold fewer (at most 20, and an entity no longer
+    tracked has none)."""
+
+    entity_id: UUID
+    mentioned: MetricCell = Field(
+        description="Valid answers whose share of voice set names the entity."
+    )
+    share_of_voice: MetricCell = Field(
+        description="The entity's share of each answer that names a tracked entity: 1 / the "
+        "tracked entities the answer names."
+    )
 
 
 class EngineSummary(BaseModel):
@@ -482,6 +507,19 @@ class EngineSummary(BaseModel):
     cited: MetricCell
     outcomes: OutcomeCells
     share_of_voice: MetricCell
+    entities: list[EntityCells] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=entities`: a cell for each tracked entity of `entities`, "
+        "the own ones first, then competitors by name, at most 20. Left out otherwise.",
+    )
+
+
+_LAST_OBSERVED = (
+    "The newest answer counted in the window (current, not superseded), of any status, on the "
+    "engines shown; null when there is none."
+)
+_LAST_VALID = "The newest valid answer counted in the window, on the engines shown; null if none."
 
 
 class PromptSummaryRow(BaseModel):
@@ -489,6 +527,8 @@ class PromptSummaryRow(BaseModel):
     text: str
     is_branded: bool
     topic_term_ids: list[UUID]
+    last_observed_at: datetime | None = Field(description=_LAST_OBSERVED)
+    last_valid_at: datetime | None = Field(description=_LAST_VALID)
     engines: list[EngineSummary]
 
 
@@ -497,6 +537,8 @@ class TopicSummaryRow(BaseModel):
     term_id: UUID | None
     name: str | None
     prompt_count: int
+    last_observed_at: datetime | None = Field(description=_LAST_OBSERVED)
+    last_valid_at: datetime | None = Field(description=_LAST_VALID)
     engines: list[EngineSummary]
 
 
@@ -527,7 +569,10 @@ class SummaryMetricContext(BaseModel):
 
 class PromptsSummary(BaseModel):
     window: MetricWindow
-    include_branded: bool
+    include_branded: bool = Field(
+        description="Branded prompts are counted: `include_branded` or `branded_only` was set."
+    )
+    branded_only: bool = Field(description="Only branded prompts are counted.")
     engine_codes: list[str]
     metric_context: SummaryMetricContext
     entities: list[SummaryEntity] = Field(

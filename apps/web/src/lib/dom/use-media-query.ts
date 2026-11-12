@@ -22,6 +22,8 @@ export function useMediaQuery(query: string): boolean {
 
 /** The breakpoints of globals.css, as media queries. */
 export const MEDIA = {
+  /** 640 px: a phone in landscape and up. */
+  sm: '(width >= 40rem)',
   /** 1024 px: the sidebar is on the page (rail or expanded), not a drawer. */
   lg: '(width >= 64rem)',
   /** 1024 to 1279 px: the rail, which expands over the content. */

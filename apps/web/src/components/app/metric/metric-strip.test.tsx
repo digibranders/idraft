@@ -79,6 +79,119 @@ describe('MetricStrip', () => {
     expect(screen.queryByTestId('meter')).toBeNull();
   });
 
+  it('describes an item with the tooltip text that carries its counts, and draws none while loading', () => {
+    const tipped: MetricStripGroup[] = [
+      { id: 'ai', items: [{ id: 'mention', label: 'Mention rate', value: '50%', tip: 'Mentioned: 4 of 8 answers' }] },
+    ];
+    const { unmount } = renderWithProviders(<MetricStrip size="md" label="Summary" groups={tipped} status="ready" />);
+    expect(screen.getByRole('definition')).toHaveAccessibleDescription('Mentioned: 4 of 8 answers');
+    unmount();
+    renderWithProviders(<MetricStrip size="md" label="Summary" groups={tipped} status="loading" />);
+    expect(screen.getByRole('definition')).not.toHaveAccessibleDescription();
+  });
+
+  it('gives an item with a tooltip a tab stop that opens it, wraps its context, and leaves other items alone', async () => {
+    const mixed: MetricStripGroup[] = [
+      {
+        id: 'ai',
+        items: [
+          { id: 'plain', label: 'Prompts', value: '3', context: 'across 1 topic' },
+          {
+            id: 'mention',
+            label: 'Mention rate',
+            value: '50%',
+            context: 'Cited 25% and Share of voice 50%',
+            tip: 'Mentioned: 4 of 8 answers',
+          },
+        ],
+      },
+    ];
+    const { container, user } = renderWithProviders(
+      <MetricStrip size="md" label="Summary" groups={mixed} status="ready" />,
+    );
+    const [plain, tipped] = screen.getAllByRole('definition');
+    expect(plain).not.toHaveAttribute('tabindex');
+    expect(tipped).toHaveAttribute('tabindex', '0');
+    await user.tab();
+    expect(tipped).toHaveFocus();
+    expect(
+      await screen.findByText('Mentioned: 4 of 8 answers', { selector: '[data-slot="tooltip"] span' }),
+    ).toBeInTheDocument();
+    expect(await axe(container)).toHaveNoViolations();
+    // A tipped item shows its whole context line (it wraps), where the plain one truncates
+    const context = (cell: HTMLElement | undefined, text: string): HTMLElement =>
+      within(cell as HTMLElement).getByText(text);
+    expect(context(tipped, 'Cited 25% and Share of voice 50%')).not.toHaveAttribute('data-truncate');
+    expect(context(plain, 'across 1 topic')).toHaveAttribute('data-truncate');
+  });
+
+  it('gives an inline chip with a tooltip a tab stop that opens it and describes it, and leaves the others alone', async () => {
+    const mixed: MetricStripGroup[] = [
+      {
+        id: 'ai',
+        items: [
+          { id: 'plain', label: 'Prompts', value: '3', context: 'across 1 topic' },
+          { id: 'mention', label: 'ChatGPT', value: '50%', context: 'Cited 25%', tip: 'Mentioned: 4 of 8 answers' },
+        ],
+      },
+    ];
+    const { container, user } = renderWithProviders(
+      <MetricStrip size="inline" label="Summary" groups={mixed} status="ready" />,
+    );
+    const [plain, tipped] = screen.getAllByRole('definition');
+    expect(plain).not.toHaveAttribute('tabindex');
+    expect(tipped).toHaveAttribute('tabindex', '0');
+    expect(tipped).toHaveAccessibleDescription('Mentioned: 4 of 8 answers');
+    // The tab stop is named by its label and its value, so it is not read as a bare "50%"
+    expect(tipped).toHaveAccessibleName('ChatGPT 50%');
+    // The tooltip carries the counts, so the context is not read a second time
+    expect(tipped).not.toHaveTextContent('Cited 25%');
+    expect(plain).toHaveTextContent('3across 1 topic');
+    await user.tab();
+    expect(tipped).toHaveFocus();
+    expect(
+      await screen.findByText('Mentioned: 4 of 8 answers', { selector: '[data-slot="tooltip"] span' }),
+    ).toBeInTheDocument();
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('draws no tab stop on an inline chip while it loads, and hatches an insufficient value', () => {
+    const tipped: MetricStripGroup[] = [
+      {
+        id: 'ai',
+        items: [
+          {
+            id: 'mention',
+            label: 'Gemini',
+            value: '2 answers',
+            unknown: { kind: 'insufficient' },
+            tip: 'Mentioned: 1 of 2 answers',
+          },
+        ],
+      },
+    ];
+    const { unmount } = renderWithProviders(
+      <MetricStrip size="inline" label="Summary" groups={tipped} status="ready" />,
+    );
+    expect(screen.getByText('2 answers')).toHaveClass('bg-insufficient');
+    unmount();
+    renderWithProviders(<MetricStrip size="inline" label="Summary" groups={tipped} status="loading" />);
+    expect(screen.getByRole('definition')).not.toHaveAttribute('tabindex');
+  });
+
+  it('wraps inline chips onto more rows, unless the toolbar asks for one line', () => {
+    const chips: MetricStripGroup[] = [{ id: 'ai', items: [{ id: 'a', label: 'Prompts', value: '3' }] }];
+    const { unmount } = renderWithProviders(
+      <MetricStrip size="inline" label="Summary" groups={chips} status="ready" />,
+    );
+    expect(screen.getByRole('group', { name: 'Summary' }).querySelector('dl')).toHaveClass('flex-wrap');
+    unmount();
+    renderWithProviders(<MetricStrip size="inline" nowrap label="Summary" groups={chips} status="ready" />);
+    const row = screen.getByRole('group', { name: 'Summary' }).querySelector('dl');
+    expect(row).toHaveClass('flex-nowrap');
+    expect(row).not.toHaveClass('flex-wrap');
+  });
+
   it('keeps one row while every cell gets 140 px', () => {
     renderWithProviders(<MetricStrip size="md" label="Summary" groups={GROUPS} status="ready" />);
     expect(columnsOf('Summary')).toBe('repeat(4, minmax(0, 1fr))');

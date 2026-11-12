@@ -1,27 +1,20 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
 import { type ProjectCaller } from './access';
-import { MANUAL_RUN_LIMIT, manualRunsToday, operationsProjectCaller } from './operations-rules';
+import { deliveredOf } from './prompt-answers';
+import { MANUAL_RUN_LIMIT, manualRunsToday, operationsProjectCaller, savedOperations } from './operations-rules';
 import { countryOf, isoOf, workspaceProjects } from './prompts';
 import { bodyError, extraMembers, isOneOf, isRecord, notAnObject, uuidError } from './rules';
-import { mockId } from '../mock-ids';
+import { operationIdMinter, runTime, withRun, type StoredRun } from '../operations-state';
 import {
   ENGINE_CODES,
   ENGINE_FACTS,
-  FIXTURE_ENGINES,
-  FIXTURE_PROMPTS,
+  fixtureEngines,
+  fixturePrompts,
   runInstants,
-  DAY_MS,
   type StoredPrompt,
 } from '../prompt-fixtures';
-import {
-  AI_ANSWER_QUOTA,
-  isProviderPaused,
-  mintPromptNumber,
-  PENDING_MS,
-  promptsOf,
-  runNowRunsToday,
-} from '../prompts-state';
+import { AI_ANSWER_QUOTA, isProviderPaused, mintPromptNumber, PENDING_MS, promptsOf } from '../prompts-state';
 import { invalid, mock, problem } from '../respond';
 import type { EngineCode, Run, ValidationItem } from '@/lib/api/types';
 import { textLength } from '@/lib/text/length';
@@ -33,8 +26,14 @@ import { textLength } from '@/lib/text/length';
  * every engine can be asked (one field error for each that cannot), no answer is on its way, the project has
  * manual runs left today, and the month's answers of the workspace still fit.
  * The day's 20 manual runs are shared with every other manual run of the project (./runs.ts counts Run now's too).
- * shortcut: the run itself lives here, in memory, not in the project's runs (./runs.ts keeps those in a cookie), so
- * `GET .../runs` does not list it and its own link answers `404`; its answers never arrive in the fixtures.
+ * The run goes into the browser's runs (`GET .../runs` lists it, and its own link answers). Its answers arrive at once,
+ * one valid answer per engine, in the project's observations (./prompt-answers.ts), which live in memory with the
+ * prompts: a page reload keeps the run but not its answers.
+ * shortcut: the answers are kept in memory, not in a cookie like the runs; move them there if a reload should keep them.
+ * shortcut: the answers exist from the first instant, whatever the run's own state says, and cancelling the run leaves
+ * them; the run's `config_snapshot` is the keyword runs' (`provider_mode` live, a keyword count) and not the backend's
+ * `{prompt_ids, engine_codes}` on the standard queue, since the stored run keeps no prompt or engine ids. Keep them on
+ * the run if a screen reads them.
  */
 
 const PROMPT = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}';
@@ -78,15 +77,11 @@ const locationsFor = (engine: { location_ids: readonly number[] }, prompt: Store
 /** The answers the fixtures' schedules asked of the workspace's projects in the month of `now`. */
 function scheduledAnswers(projectIds: readonly string[], now: number): number {
   const runs = runInstants(now).filter((at) => month(at) === month(now)).length;
-  return projectIds.reduce(
-    (sum, id) => sum + runs * (FIXTURE_PROMPTS.get(id)?.length ?? 0) * (FIXTURE_ENGINES.get(id)?.length ?? 0),
-    0,
-  );
+  return projectIds.reduce((sum, id) => sum + runs * fixturePrompts(id).length * fixtureEngines(id).length, 0);
 }
 
-/** What a manual run is when the API makes it: planned, asked of nobody yet, to be planned within a minute. */
-function runOf(caller: ProjectCaller, now: number): Run {
-  const runId = mockId('run', 900_000 + mintPromptNumber());
+/** The run an answer of Run now is, as the API answers it: planned, asked of nobody yet, to be planned within a minute. */
+function runOf(caller: ProjectCaller, now: number, runId: string): Run {
   const self = `/api/v1/workspaces/${caller.access.workspace.workspace_id}/projects/${caller.project.project_id}/runs/${runId}`;
   const user = caller.session.user;
   return {
@@ -119,6 +114,33 @@ function runOf(caller: ProjectCaller, now: number): Run {
     },
   };
 }
+
+/** What the run is in the browser's runs once the planner has it: an AI run of the project, its answers at once. */
+function aiRunOf(caller: ProjectCaller, runId: string, answers: number, now: number): StoredRun {
+  return {
+    run_id: runId,
+    project_id: caller.project.project_id,
+    schedule_id: null,
+    workload: 'ai_prompt',
+    trigger: 'manual',
+    created_at: runTime(now),
+    created_by: caller.session.user.user_id,
+    tasks_total: answers,
+    tasks_failed: 0,
+    // No Labs calls: an AI answer is priced by the answer
+    calls: 0,
+    keyword_count: null,
+    stale_days: null,
+    ending: 'completed',
+    status_reason: null,
+    blocked_by_budget_id: null,
+    cancelled_at: null,
+    cancel_reason: null,
+  };
+}
+
+/** The observation ids Run now gives its answers: far above the fixtures' (`observationIdOf`), one per answer. */
+const DELIVERED_ID_BASE = 1_000_000_000_000;
 
 export const promptRunHandlers: HttpHandler[] = [
   mock('post', `${PROMPT}/run-now`, async ({ request, cookies, params }) => {
@@ -178,10 +200,8 @@ export const promptRunHandlers: HttpHandler[] = [
         engine_codes: pending,
       });
     }
-    const today = Math.floor(now / DAY_MS);
-    // Every manual run of the project counts (keyword refreshes and checks too), not only Run now's
-    const runsToday = manualRunsToday(caller.operations, projectId, now) + runNowRunsToday(projectId, now);
-    if (runsToday >= MANUAL_RUN_LIMIT) {
+    // Every manual run of the project counts (keyword refreshes, checks and Run now's own), not only Run now's
+    if (manualRunsToday(caller.operations, projectId, now) >= MANUAL_RUN_LIMIT) {
       // The API carries only `limit`: no `used`, and no Retry-After
       return problem(request, 'manual_run_limit', {
         detail: `The project has had its ${String(MANUAL_RUN_LIMIT)} manual runs today (UTC).`,
@@ -206,9 +226,21 @@ export const promptRunHandlers: HttpHandler[] = [
         quota: 'max_ai_observations_per_month',
       });
     }
-    state.manualRuns.set(today, runNowRunsToday(projectId, now) + 1);
+    // The run is saved first: a full cookie refuses the request before anything else moves
+    const minter = operationIdMinter(caller.operationChanges);
+    const runId = minter.next('run');
+    const changes = minter.commit(withRun(caller.operationChanges, aiRunOf(caller, runId, engines.length, now)));
+    const cookie = savedOperations(request, changes);
+    if (typeof cookie !== 'string') return cookie;
     state.answersAsked.set(month(now), (state.answersAsked.get(month(now)) ?? 0) + requested);
     for (const code of engines) state.asked.set(`${prompt.prompt_id} ${code}`, now);
-    return HttpResponse.json({ data: runOf(caller, now) }, { status: 202 });
+    // One answer per engine, delivered now. A prompt added here has no fixture place, so it answers as the first one does.
+    for (const code of engines) {
+      const engine = state.engines.find((candidate) => candidate.engine_code === code);
+      if (engine === undefined) continue;
+      const id = String(DELIVERED_ID_BASE + mintPromptNumber());
+      state.observations.push(deliveredOf(prompt, prompt.index ?? 0, engine, now, id, runId));
+    }
+    return HttpResponse.json({ data: runOf(caller, now, runId) }, { status: 202, headers: { 'set-cookie': cookie } });
   }),
 ];

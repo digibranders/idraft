@@ -52,6 +52,7 @@ from idraft.api.schemas.ai import (
     PromptLintRequest,
     PromptPatch,
 )
+from idraft.api.schemas.ai_bulk import PromptBulkArchive
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
 from idraft.domain.ai_engines import ENGINES, PROMPT_TEXT_MAX, EngineCode
@@ -550,3 +551,59 @@ class PromptService:
                 before={"is_active": True},
                 after={"is_active": False},
             )
+
+    async def bulk_archive(
+        self, access: WorkspaceAccess, project_id: UUID, body: PromptBulkArchive, info: RequestInfo
+    ) -> tuple[int, int]:
+        """Archives or brings back the given prompts as `archive` and `PATCH is_active` do one:
+        answers, versions and terms stay, and a prompt brought back is not checked against the
+        engines' countries again. Ids the project does not have are not matched. Bringing back
+        counts against the active prompt quota, all or none. How many matched and how many
+        changed."""
+        async with self._transaction(access) as db:
+            await live_project(db, access, project_id)
+            if not body.archive:
+                # Same order as create and PATCH: the workspace lock, then the prompt rows.
+                await prompts.lock_prompt_writes(db, access.workspace_id)
+            found = await prompts.lock_prompts(
+                db, access.workspace_id, project_id, sorted(set(body.ids))
+            )
+            changing = [prompt_id for prompt_id, active in found.items() if active == body.archive]
+            if changing and not body.archive:
+                limit, used = await prompts.quota_usage(db, access.workspace_id)
+                if used + len(changing) > limit:
+                    raise quota_error(limit, used, len(changing))
+            await prompts.set_active(
+                db, access.workspace_id, changing, not body.archive, datetime.now(UTC)
+            )
+            await audit.record(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="prompt.bulk_changed",
+                target_type="project",
+                target_id=project_id,
+                info=info,
+                after={
+                    "is_active": not body.archive,
+                    "matched": len(found),
+                    "changed": len(changing),
+                },
+            )
+            await audit.record_each(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="prompt.archived" if body.archive else "prompt.updated",
+                target_type="prompt",
+                info=info,
+                entries=[
+                    audit.Entry(
+                        target_id=prompt_id,
+                        before={"is_active": body.archive},
+                        after={"is_active": not body.archive, "bulk": True},
+                    )
+                    for prompt_id in changing
+                ],
+            )
+        return len(found), len(changing)

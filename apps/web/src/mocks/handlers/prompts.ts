@@ -1,6 +1,7 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
 import { projectCaller, type ProjectCaller } from './access';
+import { operationsProjectCaller, savedOperations, type OperationsProjectCaller } from './operations-rules';
 import {
   bodyError,
   booleanError,
@@ -14,10 +15,21 @@ import {
   pageRequest,
   uuidError,
 } from './rules';
+import { EVENTUS_WORLD } from '../ai-prompt-world';
+import { isAiSeeded } from '../ai-seed';
 import { matchAliases, TooManyMatchesError, type MatcherEntity } from '../alias-matcher';
-import { MOCK_LOCATIONS, MOCK_TERMS, MOCK_VOCABULARIES } from '../entity-fixtures';
-import { isActiveRole, type EntityWorld, type StoredEntity, type StoredRole } from '../entities-state';
+import { mockLocations, MOCK_TERMS, MOCK_VOCABULARIES } from '../entity-fixtures';
+import {
+  isActiveRole,
+  type EntityWorld,
+  type StoredEntity,
+  type StoredRole,
+  type StoredTerm,
+  type StoredVocabulary,
+} from '../entities-state';
 import { entityRefView, termPath } from '../factories/entity';
+import { nextOccurrence } from '../factories/operations';
+import { stateTime } from '../entities-codec';
 import {
   ENGINE_CODES,
   ENGINE_FACTS,
@@ -30,6 +42,7 @@ import {
   type StoredPrompt,
 } from '../prompt-fixtures';
 import { activePromptCount, mintPromptNumber, promptsOf } from '../prompts-state';
+import { operationIdMinter, withSchedule, type OperationChanges, type StoredSchedule } from '../operations-state';
 import { invalid, mock, noContent, problem } from '../respond';
 import { projectList } from '../workspace-state';
 import type { EngineCode, ProjectEngine, Prompt, PromptLint, ValidationItem } from '@/lib/api/types';
@@ -110,7 +123,7 @@ export const isoOf = (instant: number): string => new Date(instant).toISOString(
 
 /** The country of an active country location, or `null` for any other location. */
 export const countryOf = (locationId: number): string | null =>
-  MOCK_LOCATIONS.find((location) => location.location_id === locationId && location.location_type === 'Country')
+  mockLocations().find((location) => location.location_id === locationId && location.location_type === 'Country')
     ?.country_iso ?? null;
 
 const countriesOf = (engine: StoredEngine): Set<string> =>
@@ -135,16 +148,21 @@ function hashOf(text: string): string {
   return out;
 }
 
-const VOCABULARY_KINDS = new Map(MOCK_VOCABULARIES.map((vocabulary) => [vocabulary.vocabulary_id, vocabulary.kind]));
+/** The terms and vocabularies the prompts can use: the older fixtures', and a definition file's while its data is on. */
+const termsOfWorld = (): readonly StoredTerm[] => (isAiSeeded() ? [...MOCK_TERMS, ...EVENTUS_WORLD.terms] : MOCK_TERMS);
+const vocabulariesOfWorld = (): readonly StoredVocabulary[] =>
+  isAiSeeded() ? [...MOCK_VOCABULARIES, EVENTUS_WORLD.vocabulary] : MOCK_VOCABULARIES;
 
 function termOf(termId: string): Prompt['terms'][number] | null {
-  const term = MOCK_TERMS.find((candidate) => candidate.term_id === termId);
+  const terms = termsOfWorld();
+  const term = terms.find((candidate) => candidate.term_id === termId);
   if (term === undefined) return null;
+  const kind = vocabulariesOfWorld().find((vocabulary) => vocabulary.vocabulary_id === term.vocabulary_id)?.kind;
   return {
     term_id: term.term_id,
-    vocabulary_kind: VOCABULARY_KINDS.get(term.vocabulary_id) ?? 'custom',
+    vocabulary_kind: kind ?? 'custom',
     name: term.name,
-    path: termPath({ terms: MOCK_TERMS }, term),
+    path: termPath({ terms }, term),
   };
 }
 
@@ -371,6 +389,49 @@ const quotaProblem = (request: Request, used: number, requested: number): Return
 export const workspaceProjects = (caller: ProjectCaller): string[] =>
   projectList(caller.changes, caller.access.workspace.workspace_id).map((project) => project.project_id);
 
+/** The two AI answer schedules (backend `idraft.ai.schedule`): weekly on Monday and Thursday, 01:00 for eight hours. */
+const AI_SCHEDULE_RUNS = [
+  { weekday: 1, name: 'AI answers, Monday' },
+  { weekday: 4, name: 'AI answers, Thursday' },
+] as const;
+
+/**
+ * The changes with the project's AI schedules made, for an engine just turned on. None is made while the project
+ * has a live one, a paused or changed one included; a deleted one stays in the runs and does not count.
+ */
+function withAiSchedules(caller: OperationsProjectCaller, now: number): OperationChanges {
+  const live = caller.operations.schedules.some(
+    (row) => row.project_id === caller.project.project_id && row.workload === 'ai_prompt' && row.deleted_at === null,
+  );
+  if (live) return caller.operationChanges;
+  const minter = operationIdMinter(caller.operationChanges);
+  let changes = caller.operationChanges;
+  for (const run of AI_SCHEDULE_RUNS) {
+    const row: StoredSchedule = {
+      schedule_id: minter.next('schedule'),
+      project_id: caller.project.project_id,
+      name: run.name,
+      workload: 'ai_prompt',
+      cadence: 'weekly',
+      weekday: run.weekday,
+      month_day: null,
+      window_start_local: '01:00:00',
+      window_hours: 8,
+      timezone: caller.project.timezone,
+      priority: 'standard',
+      provider_mode: 'standard_queue',
+      selector: { all: true },
+      is_active: true,
+      created_at: stateTime(now),
+      deleted_at: null,
+      next_run_at: null,
+      last_window_at: null,
+    };
+    changes = withSchedule(changes, { ...row, next_run_at: new Date(nextOccurrence(row, now)).toISOString() });
+  }
+  return minter.commit(changes);
+}
+
 export const promptHandlers: HttpHandler[] = [
   mock('get', ENGINES, ({ request, cookies, params }) => {
     const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, { permission: 'data:read' });
@@ -379,7 +440,7 @@ export const promptHandlers: HttpHandler[] = [
   }),
 
   mock('put', `${ENGINES}/{engine_code}`, async ({ request, cookies, params }) => {
-    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+    const caller = operationsProjectCaller(request, cookies, params.workspace_id, params.project_id, {
       permission: 'projects:write',
     });
     if (caller instanceof Response) return caller;
@@ -415,15 +476,24 @@ export const promptHandlers: HttpHandler[] = [
       ]);
     }
     const state = promptsOf(caller.project.project_id);
+    const before = state.engines.find((engine) => engine.engine_code === code);
     const next: StoredEngine = {
       engine_code: code,
       is_enabled: body.is_enabled !== false,
       location_ids: locationIds,
     };
+    // Only an engine going from off to on makes the schedules; saving the countries of one that is on makes none
+    const turnedOn = next.is_enabled && (before === undefined || !before.is_enabled);
+    const changes = turnedOn ? withAiSchedules(caller, Date.now()) : caller.operationChanges;
+    const saved = changes === caller.operationChanges ? null : savedOperations(request, changes);
+    if (saved !== null && typeof saved !== 'string') return saved;
     state.engines = [...state.engines.filter((engine) => engine.engine_code !== code), next].sort(
       (a, b) => ENGINE_CODES.indexOf(a.engine_code) - ENGINE_CODES.indexOf(b.engine_code),
     );
-    return HttpResponse.json({ data: engineView(caller.project.project_id, code) });
+    return HttpResponse.json(
+      { data: engineView(caller.project.project_id, code) },
+      saved === null ? undefined : { headers: { 'set-cookie': saved } },
+    );
   }),
 
   mock('delete', `${ENGINES}/{engine_code}`, ({ request, cookies, params }) => {

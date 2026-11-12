@@ -126,9 +126,9 @@ Same shape; no `force_web_search`; optional `location_coordinate` (`lat,lng,radi
 
 | Engine | Default | Replicates (priority subset / rest) | Cadence |
 |---|---|---|---|
-| `chatgpt_web` | on | 3 / 1 | weekly |
-| `gemini_web` | on | 3 / 1 | weekly |
-| `google_ai_mode` | on | 1 / 1 | weekly |
+| `chatgpt_web` | on | 3 / 1 | twice a week (Monday and Thursday) |
+| `gemini_web` | on | 3 / 1 | twice a week (Monday and Thursday) |
+| `google_ai_mode` | on | 1 / 1 | twice a week (Monday and Thursday) |
 | `google_ai_overview` | on, keyword-level only (collected with rank tracking at no extra task cost; prompts are not sent through SERPs by default) | 1 | with rank checks |
 
 The choice between `chatgpt_web` and `chatgpt_web_forced_search` as the default ChatGPT series is made after S-04 measures, on 200 prompts (doc 01 section 12), the citation presence rate and fan-out presence rate for both variants. Decision rule: if the natural variant returns citations on at least 60% of commercial-intent prompts, the natural variant is the default because it better represents what users see; otherwise the forced variant is the default and the UI labels the series "ChatGPT (web search forced)".
