@@ -25,6 +25,8 @@ export const PERMISSIONS = [
   'audit:read',
   'alerts:write',
   'views:write',
+  'layouts:manage',
+  'notes:write',
   'imports:write',
   'api_keys:manage',
   'ops:read',

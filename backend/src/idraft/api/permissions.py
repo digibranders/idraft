@@ -1,6 +1,9 @@
 """Workspace roles and permission keys (docs/24-security.md section 3.2, the canonical matrix).
 
-The enum is emitted in OpenAPI, so the web client gets the same keys. Roles are fixed in V1.
+OpenAPI types a membership's permissions as plain strings, so apps/web keeps the same keys in
+src/lib/permissions/permissions.ts, and src/mocks/factories/permissions.test.ts reads `_HOLDERS`
+below line by line: one `Permission.X: holders,` line per key, with nothing after the comma.
+Roles are fixed in V1.
 """
 
 from __future__ import annotations
@@ -41,6 +44,8 @@ class Permission(StrEnum):
     AUDIT_READ = "audit:read"
     ALERTS_WRITE = "alerts:write"
     VIEWS_WRITE = "views:write"
+    LAYOUTS_MANAGE = "layouts:manage"
+    NOTES_WRITE = "notes:write"
     IMPORTS_WRITE = "imports:write"
     API_KEYS_MANAGE = "api_keys:manage"
     OPS_READ = "ops:read"
@@ -79,6 +84,9 @@ _HOLDERS: Mapping[Permission, tuple[Role, ...]] = {
     Permission.AUDIT_READ: _MANAGERS,
     Permission.ALERTS_WRITE: _WRITERS,
     Permission.VIEWS_WRITE: _ANALYSTS,
+    # Owner decisions D-11 and D-18 (docs/ai-visibility/MASTER-PLAN.md section 2).
+    Permission.LAYOUTS_MANAGE: _MANAGERS,
+    Permission.NOTES_WRITE: _WRITERS,
     Permission.IMPORTS_WRITE: _WRITERS,
     Permission.API_KEYS_MANAGE: _MANAGERS,
     Permission.OPS_READ: _WRITERS,
