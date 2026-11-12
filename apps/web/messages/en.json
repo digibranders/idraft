@@ -23,6 +23,15 @@
       "answers": "{count, plural, one {# answer} other {# answers}}",
       "tip": "Too few valid answers for a rate: {count, number} of the {min, number} it needs."
     },
+    "delta": {
+      "detectable": "detectable",
+      "withinVariation": "within normal variation",
+      "interim": "interim test",
+      "detectableTip": "Detectable change: the 95% interval of the change excludes 0{hasMethod, select, true { ({method})} other {}}",
+      "withinTip": "Within normal variation{hasInterval, select, true {: {interval}} other {}}",
+      "interimTip": "Interim test: unpaired, may understate uncertainty",
+      "boundary": "Version boundary: {text}"
+    },
     "fileDropzone": {
       "dropzone": "Drop a CSV file here, or choose one",
       "dropzoneActive": "Drop to upload",
