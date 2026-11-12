@@ -17,6 +17,8 @@ import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
 
+// jsdom has no canvas: the History tab's chart is a frame with a table beside it here
+vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/digibranders/fynix/ai/prompts',
@@ -369,7 +371,11 @@ describe('the answer viewer: what it shows', () => {
   });
 
   it('keeps the prompt of the answer marked in the table while the answer is open, and after going back', async () => {
-    const { user } = renderOn('viewer', `?tab=prompts&inspect=${encodeURIComponent(`prompt:${first.prompt_id}`)}`);
+    // The answers are listed on the History tab, which the answer viewer gives back to
+    const { user } = renderOn(
+      'viewer',
+      `?tab=prompts&inspect=${encodeURIComponent(`prompt:${first.prompt_id}`)}&itab=history`,
+    );
     const table = await screen.findByRole('grid', { name: 'Prompts' });
     const rowOf = (): HTMLElement => within(table).getByText(first.text).closest<HTMLElement>('[role="row"]') ?? table;
     await waitFor(() => expect(rowOf()).toHaveAttribute('aria-current', 'true'));
@@ -489,7 +495,7 @@ describe('the answer viewer: what it shows', () => {
     const urls: string[] = [];
     const { user } = renderOn(
       'viewer',
-      `?tab=prompts&inspect=${encodeURIComponent(`prompt:${first.prompt_id}`)}`,
+      `?tab=prompts&inspect=${encodeURIComponent(`prompt:${first.prompt_id}`)}&itab=history`,
       urls,
     );
     const inspector = await screen.findByRole('complementary', { name: first.text });
@@ -509,7 +515,10 @@ describe('the answer viewer: what it shows', () => {
       const url = new URL(request.url);
       if (/\/ai\/observations\/\d+$/.test(url.pathname)) asked.push(url);
     });
-    const { user } = renderOn('viewer', `?tab=prompts&inspect=${encodeURIComponent(`prompt:${first.prompt_id}`)}`);
+    const { user } = renderOn(
+      'viewer',
+      `?tab=prompts&inspect=${encodeURIComponent(`prompt:${first.prompt_id}`)}&itab=history`,
+    );
     const inspector = await screen.findByRole('complementary', { name: first.text });
     const [date] = await within(inspector).findAllByRole('button', { name: /^Open the ChatGPT answer of / });
     await user.click(date as HTMLElement);

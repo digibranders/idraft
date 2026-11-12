@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { historyEvents, rateCeiling, weeklyHistory } from './history-model';
+import { engineRole, historyEvents, rateCeiling, weeklyHistory } from './history-model';
 import type { EngineSummary, MetricCell, ObservationSummary, WeekCells } from '@/lib/api/types';
 import { MIN_OBSERVATIONS, wilsonInterval } from '@/lib/stats';
 
@@ -84,6 +84,18 @@ describe('the weekly history of a prompt', () => {
   it('leaves a week with counts that cannot be real without a band', () => {
     const point = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 9, 5)])])?.engines[0]?.points[0];
     expect(point?.band).toBeNull();
+  });
+});
+
+describe('the colour of an engine in a chart', () => {
+  it('follows the fixed order of the engines, never the order of the data', () => {
+    expect(engineRole('chatgpt_web')).toEqual({ kind: 'brand' });
+    expect(engineRole('gemini_web')).toEqual({ kind: 'palette', index: 2 });
+    expect(engineRole('google_ai_mode')).toEqual({ kind: 'palette', index: 3 });
+  });
+
+  it('gives an engine that is not in the order the colour of everything else', () => {
+    expect(engineRole('perplexity_api')).toEqual({ kind: 'other' });
   });
 });
 

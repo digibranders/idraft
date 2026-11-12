@@ -34,6 +34,7 @@ import {
   NO_TOPIC,
   parseCountry,
   parseMetric,
+  parsePromptTab,
   parseTab,
   parseTopicTab,
   parseWindow,
@@ -82,6 +83,7 @@ import { Select } from '@/components/ui/select';
 import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { Tooltip } from '@/components/ui/tooltip';
+import type { SummaryEntity } from '@/lib/api/types';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { copyText } from '@/lib/dom/clipboard';
 import { useUtcDay } from '@/lib/dom/use-utc-day';
@@ -139,6 +141,7 @@ const VIEW_STATE = {
 
 /** The weekly series, asked of the summary for the Trend column. Module level, so the query's key stays the same. */
 const SERIES: readonly ['series'] = ['series'];
+const NO_ENTITIES: readonly SummaryEntity[] = [];
 
 const promptRowId = (row: PromptRow): string => row.prompt.prompt_id;
 const NO_PROMPTS: ReadonlySet<string> = new Set();
@@ -965,6 +968,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         ? 'loading'
         : 'ready',
     brandedIncluded: includeBranded,
+    entities: summary.data?.data.entities ?? NO_ENTITIES,
     row: openPrompt === null ? undefined : summaryById.get(openPrompt),
     errorId: summaryErrorId,
     retry: () => void summary.refetch(),
@@ -1007,6 +1011,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 onOpen: () => inspector.open({ type: 'topic', id: origin.key }, { tab: origin.tab }),
               }
         }
+        tab={parsePromptTab(inspector.tab)}
+        // Latest is the inspector's first tab, which the address leaves out
+        onTabChange={(next) => inspector.setTab(next === 'latest' ? DEFAULT_INSPECTOR_TAB : next)}
         onClose={() => inspector.close()}
         onOpenAnswer={(observationId, observedAt) => {
           setAnswerRow({ id: observationId, observedAt, promptId: openPrompt });

@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useState, type ReactElement, type ReactNode } from 'react';
 
 import { answerSegments } from './answer-segments';
+import { MarkedAnswer } from './marked-answer';
 import { failedReasonKey, outcomeKey } from './prompt-model';
 import {
   fetchRawAnswer,
@@ -14,7 +15,6 @@ import {
   type ObservationAnswer,
   type PromptScope,
 } from './prompt-queries';
-import { EvidenceHighlight, type EntityColorIndex } from '@/components/app/evidence/evidence-highlight';
 import { Inspector } from '@/components/app/inspector/inspector';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { InspectorBody } from '@/components/app/inspector/inspector-tabs';
@@ -32,9 +32,6 @@ import { useErrorId } from '@/lib/api/use-error-id';
 import { downloadUrl } from '@/lib/dom/download';
 import { EMPTY_VALUE, formatDetailDateTime, formatTableDateTime } from '@/lib/format';
 import { useCan } from '@/lib/permissions';
-
-const colorOf = (value: number | null | undefined): EntityColorIndex | null =>
-  value === 1 || value === 2 || value === 3 || value === 4 || value === 5 || value === 6 ? value : null;
 
 /** How long the address of a downloaded raw answer lives, in milliseconds. */
 const RAW_URL_RELEASE_MS = 1000;
@@ -131,29 +128,13 @@ export function AnswerInspector({
       <div className="flex flex-col gap-3">
         {shown.status === 'refused' ? <Banner tone="info" placement="region" message={t('refused')} /> : null}
         {shown.status === 'partial' ? <Banner tone="warning" placement="region" message={t('partial')} /> : null}
-        <p lang={shown.language_code ?? undefined} className="type-prose wrap-anywhere whitespace-pre-wrap">
-          {answerSegments(shown.answer_text, shown.mentions).map((segment) =>
-            // The own brand is always the accent; the others wait for their colors, so none is drawn in the
-            // style of "no color" and then recolored
-            segment.kind === 'text' || (entities.isPending && segment.mention.role !== 'own') ? (
-              <span key={segment.start}>{segment.text}</span>
-            ) : (
-              <EvidenceHighlight
-                key={segment.start}
-                entity={{
-                  name: segment.mention.name,
-                  own: segment.mention.role === 'own',
-                  colorIndex: colorOf(colors.get(segment.mention.entity_id)),
-                }}
-                matchLabel={t(`matchLabels.${segment.mention.role}`)}
-                confidence={segment.mention.confidence}
-                certainty={segment.mention.mention_status === 'accepted' ? 'certain' : 'uncertain'}
-              >
-                {segment.text}
-              </EvidenceHighlight>
-            ),
-          )}
-        </p>
+        <MarkedAnswer
+          segments={answerSegments(shown.answer_text, shown.mentions)}
+          colors={colors}
+          colorsPending={entities.isPending}
+          lang={shown.language_code ?? undefined}
+          className="type-prose wrap-anywhere whitespace-pre-wrap"
+        />
         <p className="type-meta">{t('adsNote')}</p>
       </div>
     );

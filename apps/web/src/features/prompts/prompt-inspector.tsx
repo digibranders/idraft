@@ -1,11 +1,17 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ClipboardList, ListChecks, MessageSquareText, Play } from 'lucide-react';
+import { ClipboardList, Play } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, type ReactElement } from 'react';
 
-import { asksIn, countText, fitsEngine, outcomeKey, topicTermsOf, type DateRange } from './prompt-model';
+import { InspectorCompetitors } from './inspector-competitors';
+import { InspectorHistory } from './inspector-history';
+import { InspectorLatest } from './inspector-latest';
+import type { PromptAnswers, PromptCounts } from './inspector-reads';
+import { InspectorStats } from './inspector-stats';
+import { InspectorStrip } from './inspector-strip';
+import { asksIn, fitsEngine, PROMPT_TABS, topicTermsOf, type DateRange, type PromptTab } from './prompt-model';
 import {
   ARCHIVE_PROMPT,
   isPromptId,
@@ -19,20 +25,20 @@ import {
 import { Inspector } from '@/components/app/inspector/inspector';
 import type { InspectorNavigation } from '@/components/app/inspector/inspector-header';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
-import { InspectorBody } from '@/components/app/inspector/inspector-tabs';
+import { InspectorBody, InspectorPanel, InspectorTabs } from '@/components/app/inspector/inspector-tabs';
 import { KeyValues, type KeyValue } from '@/components/app/inspector/key-values';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
-import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { MenuItemDef } from '@/components/ui/menu';
 import { toast } from '@/components/ui/toast';
+import { Tooltip } from '@/components/ui/tooltip';
 import { projectKey } from '@/lib/api/keys';
 import { isApiProblem, retryMinutes, type ApiProblem } from '@/lib/api/problem';
-import { useErrorId, type ErrorIdWords } from '@/lib/api/use-error-id';
-import type { EngineSummary, ObservationSummary, ProjectEngine, Prompt, PromptSummaryRow } from '@/lib/api/types';
-import { EMPTY_VALUE, formatDetailDateTime, formatInteger, formatList, formatTableDateTime } from '@/lib/format';
+import { useErrorId } from '@/lib/api/use-error-id';
+import type { ProjectEngine, Prompt } from '@/lib/api/types';
+import { EMPTY_VALUE, formatDetailDateTime, formatInteger, formatList } from '@/lib/format';
 import { languageName } from '@/lib/format/language';
 import { useCountries } from '@/lib/locations/countries';
 import { useCan } from '@/lib/permissions';
@@ -47,17 +53,15 @@ const REFUSAL_KEYS = {
 type Refusal = keyof typeof REFUSAL_KEYS;
 const isRefusal = (code: string): code is Refusal => code in REFUSAL_KEYS;
 
-/** What the screen has of the prompt's counts: the summary of the window the page is on. */
-export interface PromptCounts {
-  status: 'loading' | 'failed' | 'ready';
-  /** The prompt's row; `undefined` for a prompt the summary leaves out (a branded one, or one with no answer). */
-  row: PromptSummaryRow | undefined;
-  /** Whether the summary includes the branded prompts (the Branded filter). */
-  brandedIncluded: boolean;
-  errorId: ErrorIdWords | null;
-  retry: () => void;
-  retrying: boolean;
-}
+export type { PromptCounts } from './inspector-reads';
+
+/** The key of the label of each tab. */
+const TAB_LABEL = {
+  latest: 'tabLatest',
+  history: 'tabHistory',
+  competitors: 'tabCompetitors',
+  stats: 'tabStats',
+} as const satisfies Record<PromptTab, string>;
 
 export interface PromptInspectorProps {
   scope: PromptScope;
@@ -80,6 +84,9 @@ export interface PromptInspectorProps {
    * drawer. Left out for a prompt that was not opened from a topic.
    */
   topic?: { name: string; onOpen: () => void } | null | undefined;
+  /** The tab shown (`?itab=`), and the choice of another. */
+  tab: PromptTab;
+  onTabChange: (tab: PromptTab) => void;
   onClose: () => void;
   /**
    * Opens the answer in the answer viewer; without it the dates of the answers are plain text. `observedAt` is
@@ -89,11 +96,13 @@ export interface PromptInspectorProps {
 }
 
 /**
- * The inspector of one prompt (spec 2026-11-11 section 4.6; 440 px, as every prompt inspector): its facts,
- * Mentioned and Cited per enabled engine over the window, and its answers (date, engine, status, outcome).
- * Run now (`runs:trigger`) asks it on every enabled engine that takes its length, through the standard queue;
- * Archive (`prompts:write`) stops asking it, keeps its answers and offers Undo. An archived prompt, which the
- * API still serves, shows its facts and answers and offers neither.
+ * The inspector of one prompt (spec 2026-11-11 section 4.6; 440 px, as every prompt inspector). Above its tabs
+ * the strip says the Mention rate of each enabled engine and the Citation rate; the tabs are Latest (the newest
+ * valid answer of each engine, and the prompt's facts), History (the weekly rate with its interval, the latest
+ * answers, events), Competitors and Stats (parity spec G90 to G100). Run now (`runs:trigger`) asks the prompt on
+ * every enabled engine that takes its length, through the standard queue; Archive (`prompts:write`) stops asking
+ * it, keeps its answers and offers Undo. An archived prompt, which the API still serves, shows its tabs and offers
+ * neither.
  */
 export function PromptInspector({
   scope,
@@ -107,6 +116,8 @@ export function PromptInspector({
   navigation,
   onStep,
   topic,
+  tab,
+  onTabChange,
   onClose,
   onOpenAnswer,
 }: PromptInspectorProps): ReactElement {
@@ -248,39 +259,17 @@ export function PromptInspector({
     void refreshPrompts(queryClient, scope);
   };
 
-  const cellText = (cell: EngineSummary['mentioned']): string => countText(cell) ?? EMPTY_VALUE;
-  const engineValue = (cells: EngineSummary | undefined): string =>
-    cells === undefined || (cells.mentioned.n_observations === 0 && cells.cited.n_observations === 0)
-      ? t('engineNoAnswers')
-      : t('engineCounts', { mentioned: cellText(cells.mentioned), cited: cellText(cells.cited) });
   const countryName = (iso: string | null): string =>
     iso === null ? EMPTY_VALUE : (countries.find((country) => country.country_iso === iso)?.name ?? iso);
-  const outcomeLabel = (row: ObservationSummary): string => t(`outcomes.${outcomeKey(row.status, row.facts)}`);
-  const answerColumns: PlainColumn<ObservationSummary>[] = [
-    {
-      id: 'date',
-      header: t('columns.date'),
-      cell: (row) => {
-        const date = formatTableDateTime(row.observed_at, timeZone);
-        return onOpenAnswer === undefined ? (
-          <span className="num">{date}</span>
-        ) : (
-          <Button
-            variant="link"
-            aria-label={t('openAnswer', { engine: labelOf(row.engine_code), date })}
-            onClick={() => onOpenAnswer(row.observation_id, row.observed_at)}
-          >
-            <span className="num">{date}</span>
-          </Button>
-        );
-      },
-    },
-    { id: 'engine', header: t('columns.engine'), cell: (row) => labelOf(row.engine_code) },
-    { id: 'status', header: t('columns.status'), cell: (row) => t(`statuses.${row.status}`) },
-    { id: 'outcome', header: t('columns.outcome'), wrap: true, cell: outcomeLabel },
-  ];
-  const answerRows = answers.data?.data ?? [];
-  const answersFailed = answers.isError && answers.data === undefined;
+  // One read of the prompt's answers serves three tabs: Latest picks from it, History lists it, Competitors counts it
+  const promptAnswers: PromptAnswers = {
+    status: answers.isError && answers.data === undefined ? 'error' : answers.isPending ? 'loading' : 'ready',
+    rows: answers.data?.data ?? [],
+    hasMore: answers.data?.page.has_more === true,
+    errorId: answersErrorId,
+    retry: () => void answers.refetch(),
+    retrying: answers.isFetching,
+  };
   // Why the summary has no row: an archived prompt is not asked, a branded one is left out unless included
   const countsReason =
     prompt?.is_active === false
@@ -288,6 +277,7 @@ export function PromptInspector({
       : prompt?.is_branded === true && !counts.brandedIncluded
         ? t('noCountsBranded')
         : t('noCountsReason');
+  const firstTopic = prompt === null ? undefined : topicTermsOf(prompt)[0];
   const archiveAction: MenuItemDef = { id: 'archive', label: t('archive'), onSelect: () => void doArchive() };
   const factsOf = (candidate: Prompt): KeyValue[] => {
     const topics = topicTermsOf(candidate).map((term) => term.name);
@@ -298,7 +288,6 @@ export function PromptInspector({
         value: topics.length === 0 ? words('columns.noTopic') : formatList(topics, locale),
       },
       { id: 'language', label: t('language'), value: languageName(candidate.language_code, locale) },
-      { id: 'country', label: t('country'), value: countryName(candidate.country_iso) },
       {
         id: 'importance',
         label: t('importance'),
@@ -323,8 +312,18 @@ export function PromptInspector({
         navigation,
         badges:
           prompt === null && topic == null ? null : (
-            <span className="inline-flex items-center gap-1.5">
-              {topic == null ? null : (
+            <span className="inline-flex flex-wrap items-center gap-1.5">
+              {topic == null ? (
+                firstTopic === undefined ? null : firstTopic.path === firstTopic.name ? (
+                  <Badge>{firstTopic.name}</Badge>
+                ) : (
+                  // Where the topic sits in its tree is the tooltip; the badge takes the keyboard so it reaches it. It
+                  // is no button: a prompt that was not opened from a topic has no way back to one (decision 8)
+                  <Tooltip content={firstTopic.path}>
+                    <Badge tabIndex={0}>{firstTopic.name}</Badge>
+                  </Tooltip>
+                )
+              ) : (
                 // There is no interactive badge: the badge is the button's label
                 <Button
                   variant="link"
@@ -337,6 +336,7 @@ export function PromptInspector({
               )}
               {prompt?.is_branded === true ? <Badge>{words('branded')}</Badge> : null}
               {prompt === null || prompt.is_active ? null : <Badge tone="warning">{t('archivedBadge')}</Badge>}
+              {prompt?.country_iso == null ? null : <Badge variant="outline">{countryName(prompt.country_iso)}</Badge>}
             </span>
           ),
         frequentAction:
@@ -348,9 +348,9 @@ export function PromptInspector({
         moreActions: canWrite && prompt?.is_active === true ? [archiveAction] : [],
       }}
     >
-      <InspectorBody>
-        {detail.isError && prompt === null ? (
-          notFound ? (
+      {detail.isError && prompt === null ? (
+        <InspectorBody>
+          {notFound ? (
             <EmptyState
               variant="inline"
               title={t('loadFailed')}
@@ -366,9 +366,12 @@ export function PromptInspector({
               retrying={detail.isFetching}
               retryLabel={common('retry')}
             />
-          )
-        ) : (
-          <>
+          )}
+        </InspectorBody>
+      ) : (
+        <>
+          {/* The strip stays above the tabs, whichever is shown */}
+          <div className="flex shrink-0 flex-col gap-3 border-t border-border px-4 pt-3 pb-2">
             {canTrigger &&
             prompt?.is_active === true &&
             locationsKnown &&
@@ -376,86 +379,53 @@ export function PromptInspector({
             runnable.length === 0 ? (
               <p className="type-meta">{t('runNoEngine')}</p>
             ) : null}
-            <InspectorSection title={t('facts')} icon={ClipboardList} status={prompt === null ? 'loading' : 'ready'}>
-              {prompt === null ? null : <KeyValues items={factsOf(prompt)} />}
-            </InspectorSection>
-            <InspectorSection
-              title={t('byEngine')}
-              icon={ListChecks}
-              status={
-                counts.status === 'loading'
-                  ? 'loading'
-                  : counts.status === 'failed'
-                    ? 'error'
-                    : counts.row === undefined
-                      ? 'empty'
-                      : 'ready'
-              }
-              error={
-                <InlineError
-                  title={t('countsFailed')}
-                  reason={t('loadFailedReason')}
-                  errorId={counts.errorId}
-                  onRetry={counts.retry}
-                  retrying={counts.retrying}
-                  retryLabel={common('retry')}
-                />
-              }
-              empty={<EmptyState variant="inline" title={t('noCounts')} reason={countsReason} headingLevel={3} />}
-            >
-              {counts.row === undefined ? null : (
-                <KeyValues
-                  items={engines.map((engine) => ({
-                    id: engine.engine.engine_code,
-                    label: engine.engine.label,
-                    value: engineValue(
-                      counts.row?.engines.find((cell) => cell.engine_code === engine.engine.engine_code),
-                    ),
-                  }))}
-                />
-              )}
-            </InspectorSection>
-            <InspectorSection
-              title={t('answers')}
-              icon={MessageSquareText}
-              status={
-                answersFailed ? 'error' : answers.isPending ? 'loading' : answerRows.length === 0 ? 'empty' : 'ready'
-              }
-              error={
-                <InlineError
-                  title={t('answersFailed')}
-                  reason={t('loadFailedReason')}
-                  errorId={answersErrorId}
-                  onRetry={() => void answers.refetch()}
-                  retrying={answers.isFetching}
-                  retryLabel={common('retry')}
-                />
-              }
-              empty={
-                <EmptyState
-                  variant="inline"
-                  title={t('answersEmpty')}
-                  reason={t('answersEmptyReason')}
-                  headingLevel={3}
-                />
-              }
-            >
-              {answers.data?.page.has_more === true ? (
-                <p className="mb-2 type-meta">{t('answersTruncated', { count: answerRows.length })}</p>
-              ) : null}
-              <PlainTable<ObservationSummary>
-                caption={t('answersCaption')}
-                columns={answerColumns}
-                rows={answerRows}
-                rowKey={(row) => row.observation_id}
-                status="ready"
-                errorState={null}
-                emptyText={t('answersEmpty')}
+            <InspectorStrip engines={engines} counts={counts} noCountsReason={countsReason} />
+          </div>
+          <InspectorTabs<PromptTab>
+            label={t('tabsLabel')}
+            value={tab}
+            onValueChange={onTabChange}
+            items={PROMPT_TABS.map((value) => ({ value, label: t(TAB_LABEL[value]) }))}
+          >
+            <InspectorPanel<PromptTab> value="latest">
+              <InspectorLatest
+                scope={scope}
+                timeZone={timeZone}
+                engines={engines}
+                answers={promptAnswers}
+                onOpenAnswer={onOpenAnswer}
+              >
+                <InspectorSection
+                  title={t('facts')}
+                  icon={ClipboardList}
+                  status={prompt === null ? 'loading' : 'ready'}
+                >
+                  {prompt === null ? null : <KeyValues items={factsOf(prompt)} />}
+                </InspectorSection>
+              </InspectorLatest>
+            </InspectorPanel>
+            <InspectorPanel<PromptTab> value="history">
+              <InspectorHistory
+                counts={counts}
+                engines={engines}
+                range={range}
+                timeZone={timeZone}
+                createdAt={prompt?.created_at ?? null}
+                answers={promptAnswers}
+                labelOf={labelOf}
+                noCountsReason={countsReason}
+                onOpenAnswer={onOpenAnswer}
               />
-            </InspectorSection>
-          </>
-        )}
-      </InspectorBody>
+            </InspectorPanel>
+            <InspectorPanel<PromptTab> value="competitors">
+              <InspectorCompetitors scope={scope} counts={counts} engines={engines} answers={promptAnswers} />
+            </InspectorPanel>
+            <InspectorPanel<PromptTab> value="stats">
+              <InspectorStats engines={engines} counts={counts} noCountsReason={countsReason} />
+            </InspectorPanel>
+          </InspectorTabs>
+        </>
+      )}
     </Inspector>
   );
 }

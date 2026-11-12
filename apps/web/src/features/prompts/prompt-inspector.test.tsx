@@ -19,6 +19,8 @@ import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders, type ProvidedRender, type ProvidedRenderOptions } from '@/test/render';
 
+// jsdom has no canvas: the History tab's chart is a frame with a table beside it here
+vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/digibranders/fynix/ai/prompts',
@@ -75,6 +77,8 @@ function promptsAs(role: Role): ReactElement {
 
 const inspectOf = (id: string): string => `inspect=${encodeURIComponent(`prompt:${id}`)}`;
 const opened = `?tab=prompts&${inspectOf(first.prompt_id)}`;
+/** The same prompt on one of its other tabs: the address names it as `itab`. */
+const openedOn = (tab: string): string => `${opened}&itab=${tab}`;
 const panel = (name: string = first.text): Promise<HTMLElement> => screen.findByRole('complementary', { name });
 const grid = (): Promise<HTMLElement> => screen.findByRole('grid', { name: 'Prompts' });
 const treegrid = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Topics' });
@@ -100,22 +104,38 @@ const said = async (text: string): Promise<void> => {
 };
 
 describe('the prompt inspector: what it shows', () => {
-  it('shows the facts of the prompt, its counts per engine and its answers in the window', async () => {
+  it('shows the facts of the prompt below its latest answers, and its rates in the strip above the tabs', async () => {
     const { container } = renderOn('viewer', opened);
     const inspector = await panel();
-    expect(await within(inspector).findByText('SEO')).toBeInTheDocument();
+    // The topic is a badge of the header, with the path as its tooltip, and a fact
+    expect(await within(inspector).findAllByText('SEO')).toHaveLength(2);
     expect(within(inspector).getByText('English')).toBeInTheDocument();
-    expect(within(inspector).getByText('Germany')).toBeInTheDocument();
+    // The country is a badge of the header, not a fact
+    expect(within(inspector).getAllByText('Germany')).toHaveLength(1);
     // The mock's answers are made from the prompt, the engine and the day: the same counts as the Prompts table
-    expect(await within(inspector).findByText('Mentioned 3 of 6, cited 4 of 6')).toBeInTheDocument();
-    expect(within(inspector).getByText('Mentioned 6 of 8, cited 0 of 8')).toBeInTheDocument();
+    const strip = await within(inspector).findByRole('group', { name: 'Mention and citation rates of this prompt' });
+    expect(await within(strip).findByText('3 of 6 answers')).toBeInTheDocument();
+    expect(within(strip).getByText('ChatGPT mention')).toBeInTheDocument();
+    expect(within(strip).getByText('50%')).toBeInTheDocument();
+    expect(within(strip).getByText('6 of 8 answers')).toBeInTheDocument();
+    expect(within(strip).getByText('Gemini mention')).toBeInTheDocument();
+    expect(within(strip).getByText('75%')).toBeInTheDocument();
+    // The citation rate is the average of the engines that show one: 4 of 6 and 0 of 8
+    expect(within(strip).getByText('Citation rate')).toBeInTheDocument();
+    expect(within(strip).getByText('33%')).toBeInTheDocument();
+    expect(within(strip).getByText('avg of 2')).toBeInTheDocument();
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('lists the latest ten answers of the prompt on the History tab', async () => {
+    const { container } = renderOn('viewer', openedOn('history'));
+    const inspector = await panel();
     const answers = await within(inspector).findByRole('table', { name: 'Answers to this prompt' });
-    // Eight runs in the 28 days (Monday and Thursday, 16 October to 12 November) on two engines, and a header row
-    await waitFor(() => expect(within(answers).getAllByRole('row')).toHaveLength(17));
+    // Eight runs in the 28 days (Monday and Thursday, 16 October to 12 November) on two engines: ten are listed
+    expect(within(answers).getAllByRole('row')).toHaveLength(11);
+    expect(within(inspector).getByText('The latest 10 answers of this window.')).toBeInTheDocument();
     expect(within(answers).getAllByText('Complete').length).toBeGreaterThan(0);
-    expect(within(answers).getAllByText(/^Mentioned|^Cited|^Neither|^Not counted/).length).toBe(16);
-    expect(within(answers).getAllByText('ChatGPT')).toHaveLength(8);
-    expect(within(answers).getAllByText('Gemini')).toHaveLength(8);
+    expect(within(answers).getAllByText(/^Mentioned|^Cited|^Neither|^Not counted/).length).toBe(10);
     expect(await axe(container)).toHaveNoViolations();
   });
 
@@ -125,7 +145,7 @@ describe('the prompt inspector: what it shows', () => {
       const url = new URL(request.url);
       if (url.pathname.endsWith('/ai/observations')) asked.push(url);
     });
-    renderOn('viewer', `${opened}&window=7`);
+    renderOn('viewer', `${openedOn('history')}&window=7`);
     const inspector = await panel();
     await within(inspector).findByRole('table', { name: 'Answers to this prompt' });
     expect(asked).toHaveLength(1);
@@ -141,9 +161,21 @@ describe('the prompt inspector: what it shows', () => {
         HttpResponse.json({ data: [], page: { has_more: false, next_cursor: null, limit: 200 } }),
       ),
     );
-    renderOn('viewer', opened);
+    renderOn('viewer', openedOn('history'));
     const inspector = await panel();
     expect(await within(inspector).findByText('No answers in this window')).toBeInTheDocument();
+  });
+
+  it('says on the Latest tab that an engine has no valid answer yet when the window has none', async () => {
+    server.use(
+      http.get(mswPath(`${P}/ai/observations`), () =>
+        HttpResponse.json({ data: [], page: { has_more: false, next_cursor: null, limit: 200 } }),
+      ),
+    );
+    renderOn('viewer', opened);
+    const inspector = await panel();
+    expect(await within(inspector).findByText('No valid answer yet on ChatGPT')).toBeInTheDocument();
+    expect(within(inspector).getByText('No valid answer yet on Gemini')).toBeInTheDocument();
   });
 
   it('says the answers could not be loaded and reads them again on Try again', async () => {
@@ -153,7 +185,7 @@ describe('the prompt inspector: what it shows', () => {
         failing ? HttpResponse.json({ code: 'boom' }, { status: 500 }) : undefined,
       ),
     );
-    const { user } = renderOn('viewer', opened);
+    const { user } = renderOn('viewer', openedOn('history'));
     const inspector = await panel();
     expect(await within(inspector).findByText('The answers could not be loaded.')).toBeInTheDocument();
     failing = false;
@@ -181,7 +213,10 @@ describe('the prompt inspector: what it shows', () => {
     const inspector = await panel();
     expect(await within(inspector).findByText('The counts could not be loaded.')).toBeInTheDocument();
     expect(within(inspector).getByText('English')).toBeInTheDocument();
-    expect(await within(inspector).findByRole('table', { name: 'Answers to this prompt' })).toBeInTheDocument();
+    // The latest answers do not depend on the counts
+    expect(
+      await within(inspector).findByRole('button', { name: 'Open the full answer from ChatGPT' }),
+    ).toBeInTheDocument();
   });
 
   it('says the prompt does not exist for a link to one the project has not got', async () => {
@@ -342,14 +377,14 @@ describe('the prompt inspector: the address and the answers', () => {
   it('opens an answer from its date, naming its engine and date, and puts it in the address', async () => {
     const urls: string[] = [];
     const { user } = renderWithProviders(promptsAs('viewer'), {
-      searchParams: opened,
+      searchParams: openedOn('history'),
       onUrlUpdate: ({ queryString }) => {
         urls.push(queryString);
       },
     });
     const answers = await within(await panel()).findByRole('table', { name: 'Answers to this prompt' });
     const buttons = await within(answers).findAllByRole('button', { name: /^Open the (ChatGPT|Gemini) answer of / });
-    expect(buttons).toHaveLength(16);
+    expect(buttons).toHaveLength(10);
     const [newest] = buttons;
     expect(newest?.getAttribute('aria-label')).toMatch(/^Open the (ChatGPT|Gemini) answer of \S+/);
     await user.click(newest as HTMLElement);
@@ -392,28 +427,26 @@ describe('the prompt inspector: the address and the answers', () => {
       answer({ observation_id: '2000001', facts: null }),
       answer({ observation_id: '2000002', status: 'refused', facts: null }),
     ]);
-    renderOn('viewer', opened);
+    renderOn('viewer', openedOn('history'));
     const answers = await within(await panel()).findByRole('table', { name: 'Answers to this prompt' });
     expect(within(answers).getAllByText('Being read')).toHaveLength(1);
     expect(within(answers).getAllByText('Not counted')).toHaveLength(1);
   });
 
-  it('says only the latest answers are listed when the API has more', async () => {
+  it('says the counts of the Competitors tab are over the latest answers when the API has more', async () => {
     // A full page, as the API sends it when it has more
     serveAnswers(
       Array.from({ length: 200 }, (_, index) => answer({ observation_id: String(2_000_000 + index) })),
       true,
     );
-    renderOn('viewer', opened);
-    expect(
-      await within(await panel()).findByText('Only the latest 200 answers of this window are listed.'),
-    ).toBeInTheDocument();
+    renderOn('viewer', openedOn('competitors'));
+    expect(await within(await panel()).findByText('Based on the latest 200 answers')).toBeInTheDocument();
   });
 
   it('does not say so when the list is whole', async () => {
-    renderOn('viewer', opened);
-    await within(await panel()).findByRole('table', { name: 'Answers to this prompt' });
-    expect(screen.queryByText(/Only the latest/)).toBeNull();
+    renderOn('viewer', openedOn('competitors'));
+    await within(await panel()).findByRole('table', { name: 'Brands named in the answers to this prompt' });
+    expect(screen.queryByText(/Based on the latest/)).toBeNull();
   });
 });
 
@@ -436,9 +469,7 @@ describe('the prompt inspector: the counts', () => {
     expect(inspector).toBeInTheDocument();
     expect(screen.queryByText('No counts for this window')).toBeNull();
     release();
-    expect(
-      await screen.findByText('Mentioned 3 of 6, cited 4 of 6', undefined, { timeout: 15_000 }),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('3 of 6 answers', undefined, { timeout: 15_000 })).toBeInTheDocument();
     expect(screen.queryByText('No counts for this window')).toBeNull();
   }, 30_000);
 
@@ -723,14 +754,15 @@ describe('the prompt inspector: Run now', () => {
     const gemini = promptsOf(fynix.project_id).engines.find((engine) => engine.engine_code === 'gemini_web');
     if (gemini === undefined) throw new Error('The Gemini fixture is missing');
     gemini.is_enabled = false;
-    const { user } = renderOn('analyst', opened);
+    const { user } = renderOn('analyst', openedOn('history'));
     const inspector = await panel();
     const answers = await within(inspector).findByRole('table', { name: 'Answers to this prompt' });
-    await waitFor(() => expect(within(answers).getAllByText('Gemini')).toHaveLength(8));
+    expect(within(answers).getAllByText('Gemini').length).toBeGreaterThan(0);
     expect(within(answers).queryByText('gemini_web')).toBeNull();
-    // The counts say nothing of the engine that is off
-    expect(await within(inspector).findByText('Mentioned 3 of 6, cited 4 of 6')).toBeInTheDocument();
-    expect(within(inspector).queryByText('Mentioned 6 of 8, cited 0 of 8')).toBeNull();
+    // The strip says nothing of the engine that is off
+    expect(await within(inspector).findByText('3 of 6 answers')).toBeInTheDocument();
+    expect(within(inspector).queryByText('6 of 8 answers')).toBeNull();
+    expect(within(inspector).queryByText('Gemini mention')).toBeNull();
     await user.click(within(inspector).getByRole('button', { name: 'Run now' }));
     await screen.findByText('Run queued');
     await waitFor(() => expect(bodies).toEqual([{ engine_codes: ['chatgpt_web'] }]));
@@ -771,7 +803,7 @@ describe('the prompt inspector: Archive', () => {
   it('shows the toast with Undo without waiting for the lists to be read again', async () => {
     const { user } = renderOn('editor', opened);
     const inspector = await panel();
-    await within(inspector).findByRole('table', { name: 'Answers to this prompt' });
+    await within(inspector).findByRole('button', { name: 'Open the full answer from ChatGPT' });
     server.use(
       http.get(mswPath(`${P}/prompts`), async () => {
         await delay(4000);
@@ -814,7 +846,7 @@ describe('the prompt inspector: Archive', () => {
     const stored = promptsOf(fynix.project_id).prompts.find((prompt) => prompt.prompt_id === first.prompt_id);
     if (stored === undefined) throw new Error('The stored prompt is missing');
     stored.is_active = false;
-    const { user } = renderOn('editor', opened);
+    const { user } = renderOn('editor', openedOn('history'));
     const inspector = await panel();
     expect(await within(inspector).findByText('Archived')).toBeInTheDocument();
     expect(within(inspector).queryByRole('button', { name: 'Run now' })).toBeNull();

@@ -25,6 +25,12 @@ const namingTheBrand = (inspector: Locator): Locator =>
 
 const openAnswerButton = (row: Locator): Locator => row.getByRole('button', { name: /^Open the .* answer of / });
 
+/** The answers of the prompt are listed on the History tab. */
+async function openHistory(inspector: Locator): Promise<void> {
+  await inspector.getByRole('tab', { name: 'History' }).click();
+  await expect(inspector.getByRole('table', { name: 'Answers to this prompt' })).toBeVisible();
+}
+
 /** The toasts are also spoken by a live region, so the words are looked for in the toasts themselves. */
 const toastsOf = (page: Page): Locator => page.getByRole('region', { name: 'Notifications' });
 
@@ -113,13 +119,26 @@ test.describe('AI prompt tracking', () => {
     await bulkBar.getByRole('button', { name: 'Clear selection' }).click();
     await expect(bulkBar).toBeHidden();
     const inspector = await openFirstPrompt(page);
-    await expect(inspector.getByRole('table', { name: 'Answers to this prompt' })).toBeVisible();
-    // The facts and the counts are in (the country is named once the countries have loaded, which Run now waits
-    // for too), so a missing Run now is the viewer's and not an inspector still loading
+    // The country is named once the countries have loaded, which Run now waits for too, and the strip holds the
+    // rates: so a missing Run now is the viewer's and not an inspector still loading
     await expect(inspector.getByText('Germany', { exact: true })).toBeVisible();
-    await expect(inspector.getByText(/^Mentioned \d+ of \d+, cited \d+ of \d+$/).first()).toBeVisible();
+    await expect(
+      inspector
+        .getByRole('group', { name: 'Mention and citation rates of this prompt' })
+        .getByText(/^\d+ of \d+ answers$/)
+        .first(),
+    ).toBeVisible();
     await expect(inspector.getByRole('button', { name: 'Run now' })).toHaveCount(0);
     await expectNoArchive(page, inspector);
+
+    // One thing on each tab: the newest answers, the history, the brands named, the statistics
+    await expect(inspector.getByRole('button', { name: /^Open the full answer from / }).first()).toBeVisible();
+    await openHistory(inspector);
+    await inspector.getByRole('tab', { name: 'Competitors' }).click();
+    await expect(inspector.getByRole('table', { name: 'Brands named in the answers to this prompt' })).toBeVisible();
+    await inspector.getByRole('tab', { name: 'Stats' }).click();
+    await expect(inspector.getByText(/^Wilson interval over valid answers in this window\./)).toBeVisible();
+    await openHistory(inspector);
 
     await openAnswerButton(namingTheBrand(inspector).first()).click();
     await expect(page.getByLabel(/^Fynix mention, own brand/).first()).toBeVisible();
@@ -153,6 +172,7 @@ test.describe('AI prompt tracking', () => {
       toasts.getByText('An answer is already on its way on ChatGPT and Gemini. Try again once it has arrived.'),
     ).toBeVisible();
 
+    await openHistory(inspector);
     await openAnswerButton(namingTheBrand(inspector).first()).click();
     await expect(page.getByRole('button', { name: 'Download the raw answer' })).toBeVisible();
     await expectAccessible(page);
@@ -201,7 +221,15 @@ for (const theme of ['light', 'dark'] as const) {
 
         await page.goto(`${FYNIX_PROMPTS}?tab=prompts&inspect=${encodeURIComponent(`prompt:${FIRST_PROMPT_ID}`)}`);
         const inspector = inspectorOf(page, FIRST_PROMPT);
-        await expect(inspector.getByRole('table', { name: 'Answers to this prompt' })).toBeVisible();
+        await expect(inspector.getByRole('tablist', { name: 'Prompt sections' })).toBeVisible();
+        await expectAccessible(page);
+        await noSidewaysScroll();
+        // Every tab keeps the inspector inside the window, and the answers are on History
+        for (const tab of ['Competitors', 'Stats']) {
+          await inspector.getByRole('tab', { name: tab }).click();
+          await noSidewaysScroll();
+        }
+        await openHistory(inspector);
         await expectAccessible(page);
         await noSidewaysScroll();
 
