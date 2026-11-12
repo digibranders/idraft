@@ -16,7 +16,7 @@ Slices follow the [slice 1 spec](../specs/2026-11-11-ai-prompt-tracking-slice-1-
 
 ### Stage 0: decisions (done 2026-11-12)
 
-The owner decided the open questions of the handoff section 5 and the parity spec section 4 on 2026-11-12, through the question dialog. Nothing here is open any more.
+The owner decided the open questions of the handoff section 5 and the parity spec section 4 on 2026-11-12, through the question dialog. Two items stay open for a separate session with no decision yet (D-5 and W15, the last two rows of the table); keep the current default meanwhile.
 
 | Decision | Decided | Effect |
 |---|---|---|
@@ -25,17 +25,17 @@ The owner decided the open questions of the handoff section 5 and the parity spe
 | Source of `prompt_type` | A server rule at create plus a person override in the Add dialog and `PATCH`, no LLM; `filter[prompt_type_in]` on `GET {P}/prompts` | B16 and the Type filter (D-8) are unblocked |
 | Slice owning B5 and B6 | Slice 2 pre-work, built now | Competitor and Citations views (W7, W8) proceed in stage 2 |
 | Weekly series path | `include=series` on the summary (D1 Task 4); generic metrics routes later for the Overview page | D1 proceeds as written |
-| gzip for the API | On now, as its own small backend task (B0, step 0 of the start order) before the series and entities blocks ship | Response size of `include` |
+| gzip for the API | Ops task: API compression is an ops task (ops session), outside the backend plans. The web asks for `include=series` and `include=entities` only with a `filter[term]` or a small page until it is in place | Response size of `include`; B0 is no longer in the backend start order |
 | Web client regeneration | Keep the split: backend commits update `backend/openapi/v1.json`; the web session runs `pnpm gen:api` in its own commit right after. AGENTS.md amended | No shared edits of `schema.ts` |
-| Nested topics (D-3) | An indented tree on the Topics tab: a parent row rolls up its children, children indent under it, a note says rows do not add up to the parent | W2 gains the tree sub-task |
-| Bulk Run now capped at 20 a day in the browser until B7 (D-5) | Ship capped (unchanged) | W5 |
-| Page level AI readiness in scope (W15) | Not yet (unchanged; not part of this round of decisions) | stage 5 new items |
+| Nested topics (D-3) | An indented tree on the Topics tab, two levels at most (topics deeper than level 2 roll up into their level 2 row and get no row of their own): a parent row rolls up its children, children indent under it, a note says rows do not add up to the parent | W2 gains the tree sub-task |
+| Bulk Run now capped at 20 a day in the browser until B7 (D-5) | To be discussed in a separate session, no decision yet; keep the current default meanwhile (the cap of 20 a day stays) | W5 |
+| Page level AI readiness in scope (W15) | To be discussed in a separate session, no decision yet; keep the current default meanwhile (out of scope) | stage 5 new items |
 
 ### Stage 1: web only on slice 1 data, in parallel with the first backend items
 
 Web session: W1 metric strip and pill, W2 rate columns and sorting, W3 previous period deltas, W4 prompt inspector tabs, W5 menus, bulk actions, export, views. Each is its own commit and needs no backend change. Order is value first; W1 and W2 share files, so they go in sequence; W3 and W4 can run in parallel in separate worktrees; W5 last.
 
-Backend session in parallel: **B0** (gzip, its own small task), **B2** (D1 Task 2), then D2 starting with **B6** (and B7 and B19 as stage 2 begins). The web starts W6 and W7 against mocks of these contracts as soon as the contracts are written, so the stage boundary is soft.
+Backend session in parallel: **B2** (D1 Task 2), then D2 starting with **B6** (and B7 and B19 as stage 2 begins). The web starts W6 and W7 against mocks of these contracts as soon as the contracts are written, so the stage boundary is soft.
 
 Exit: the Topics & Prompts page on slice 1 data matches the preview for every row the parity checklist (section 8) marks "slice 1".
 
@@ -48,7 +48,7 @@ Exit: the Topics & Prompts page on slice 1 data matches the preview for every ro
 | W8 competitor views | B5 (D1 Task 5) | B5 third |
 | W10 bulk run | B7 | B7 after B19 |
 
-Backend order once the owner says go: **B0** (gzip, before any `include` block ships), then **B2, B6, B5, B19, B7**, then B4 and B3, then the B9b split. W9 (fan-out) and W11 (trend) depend on items that appear later in that list and are scheduled in stage 3.
+Backend order once the owner says go: **B2, B6, B5, B19, B7**, then B4 and B3, then the B9b split. W9 (fan-out) and W11 (trend) depend on items that appear later in that list and are scheduled in stage 3.
 
 ### Stage 3: slice 2
 
@@ -102,13 +102,14 @@ Panels and Versions (B10 to B12, W14), text edits, keyword links, the candidates
 | Stage 4 | replace the interim test with the server verdict, bands | B15 |
 | Stage 5 | W12, W14, W15 when approved | B8, B10 to B12, B17, B18 |
 | Always | Run `pnpm gen:api` in its own commit right after the backend commit that changes the API, and keep `apps/web/src/lib/api/schema.ts` in step with it; update the parity checklist | Update `backend/openapi/v1.json` with each API change (the web client is the web session's commit); write the As built notes in docs 19 and 29 |
+| Ops session: API compression (gzip), VPS and release tasks, other infrastructure work as the owner assigns | Asks for `include` only with `filter[term]` or a small page until gzip is in place | Not in the backend plans |
 | Owner | has answered the stage 0 decisions; says "go" to the backend and "ship it" to release | |
 
 ## 4. First week plan
 
 | Day | Web | Backend |
 |---|---|---|
-| 1 | Rebase on `origin/develop`, `pnpm gen:api` (B1 fields). Start W1: rate model and tests first | Owner says go. Start B0 (gzip), then D1 Task 2 (B2) |
+| 1 | Rebase on `origin/develop`, `pnpm gen:api` (B1 fields). Start W1: rate model and tests first | Owner says go. Start D1 Task 2 (B2) |
 | 2 | W1 strip and pill, percent beside counts | B2 tests and OpenAPI; start the D2 plan (B6 first) |
 | 3 | W2 rate columns and sorting | Finish B2; D2 plan reviewed; B6 task 1 (`ai/citations`) |
 | 4 | W3 Delta component and previous read | B6 `sources/domains` and `sources/pages` |
@@ -121,11 +122,11 @@ No release is planned this week; `main` moves only when the owner says to ship.
 
 | Risk | Effect | Mitigation |
 |---|---|---|
-| **Cadence copy drift** (resolved by decision 1, 2026-11-12: twice a week, Monday and Thursday). Docs 07 and 21 and the mocks set by commit `c1abdd4` still say weekly | A "weekly" promise on a page or in a mock disagrees with collection | The page says "twice a week"; set the mocks back to twice a week when W14 starts; docs 07 and 21 are to be aligned with doc 11 section 8 |
+| **Cadence copy drift** (resolved by decision 1, 2026-11-12: twice a week, Monday and Thursday). The mocks set by commit `c1abdd4` still say weekly (docs 07 and 21 were aligned on 2026-11-12) | A "weekly" promise on a page or in a mock disagrees with collection | The page says "twice a week"; set the mocks back to twice a week when W14 starts; keep docs 07 and 21 in step with doc 11 section 8 |
 | **Topic vocabulary shared with keywords.** The "In search" card and the topic SEO columns assume keyword topics and prompt topics are one vocabulary; not verified | A topic could count the wrong keywords | Verify before W16; the check is a grep and one query on `core.taxonomy_terms` |
 | **16 KB `provider_extras` bound.** `_bounded` halves the longest list and sets `truncated`; a long fan-out list can be cut | A fan-out view could show a partial list as complete | B19 reports `answers_truncated`; W9 shows the note; do not compute F4 shares without the denominator note |
 | **Provider payload quotes.** Whether the raw payload carries a quote per citation is unchecked (CI-11) | U-24 "Quoted passage" cannot be promised | Treat as NEW; check one raw payload before W7 scopes a quote section |
-| **Response size.** `include=series,entities` is about 1.5 MB at full capacity and the API has no gzip middleware yet (D1 open point 3) | Slow drawers until B0 lands | B0 (gzip) is step 0 of the start order, before the series and entities blocks ship (decision 6); still ask for `include` only with `filter[term]` or a small page |
+| **Response size.** `include=series,entities` is about 1.5 MB at full capacity and the API has no gzip middleware yet (D1 open point 3) | Slow drawers until the API is compressed | API compression is an ops task (ops session), outside the backend plans; the web asks for `include=series` and `include=entities` only with a `filter[term]` or a small page until it is in place |
 | **Interim detectability test** disagrees with the prompt weighted value (D-2) | A coloured delta that the number does not support | Label it interim; paired test in stage 4 |
 | **Copying the preview's invented numbers** (jitter trend lines, flip rates, authors) | False data on screen | Parity spec section 6 item 6; empty states instead |
 | **Two sessions on `schema.ts` and `schemas/ai.py`** | Rebase conflicts | Decision 7: backend commits update `openapi/v1.json`; the web session regenerates the client in its own commit right after |
@@ -138,7 +139,7 @@ Counts with denominators, evidence viewer, engines and countries checked togethe
 
 ## 7. Open items needing owner input
 
-Only whether W15 (page level AI readiness) is in scope; it stays out until the owner decides. The stage 0 decisions, nested topics (D-3) and the client regeneration rule (handoff section 5, decision 7) are decided.
+Two items stay open for a separate session, with no decision yet: whether W15 (page level AI readiness) is in scope, and the bulk Run cap of 20 a day (D-5). Keep the current default meanwhile. The stage 0 decisions, nested topics (D-3) and the client regeneration rule (handoff section 5, decision 7) are decided.
 
 ## 8. How we measure that the page is at parity
 
@@ -147,7 +148,7 @@ Parity means every row below is ticked or has a named reason. "S1" rows need no 
 **Slice 1 data (W1 to W5)**
 - [ ] Metric strip: Prompts card plus one card per enabled engine, hidden in the empty state, skeletons while loading (G12)
 - [ ] Percent beside every count; insufficient pill under 4 answers (G13)
-- [ ] Topics: Mention rate (avg of N) and Citation rate columns, Top engine, sorting with default Mention desc, Expand all, subtitle, indented topic tree with the rollup note (G32), footer counts (G20 to G25, G33)
+- [ ] Topics: Mention rate (avg of N) and Citation rate columns, Top engine, sorting with default Mention desc, Expand all, subtitle, indented topic tree of two levels with the rollup note (G32), footer counts (G20 to G25, G33)
 - [ ] Prompts: Mention rate and Citation rate columns, metric switcher with Share of voice, default sort Mention desc, topic path badge (G40, G41, G45)
 - [ ] Compare with previous period, deltas on strip, rows and drawers, Detectable changes only chip (G05, G06, G111, G115)
 - [ ] Prompt inspector tabs Latest, History, Competitors counts, Stats with intervals; Citations tab prepared (G90 to G96, G98, G100, G48)

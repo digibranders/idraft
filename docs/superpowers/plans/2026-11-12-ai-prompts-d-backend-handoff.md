@@ -10,7 +10,6 @@ Sources: [parity spec](../specs/2026-11-12-topics-prompts-preview-parity.md) (ga
 
 | Item | Purpose | Status | Plan |
 |---|---|---|---|
-| B0 gzip for the API | response size of `include=series,entities` (about 1.5 MB at full capacity) | not built; **step 0 of the start order** (decision 6) | own small backend task |
 | B1 `last_observed_at`, `last_valid_at` on summary rows | header meta, Updated column, stale badge | **BUILT** on `origin/develop` (`6d681a5`); the web needs `pnpm gen:api` | D1 Task 1 |
 | B2 scope params `filter[country_iso]`, `filter[term]`, `branded_only` | country and Branded Only on Topics and the strip | not built | **D1 Task 2** |
 | B3 weekly series (`include=series`) | sparklines and topic trend | not built | **D1 Task 4** |
@@ -21,7 +20,7 @@ Sources: [parity spec](../specs/2026-11-12-topics-prompts-preview-parity.md) (ga
 | B19 fan-out exposure | fan-out view | not built | D2 (below) |
 | B8, B9 split, B10 to B18 | see sections 3 and 4 | not built | later plans |
 
-D1 opt-in parameters the web can mock now: `include=series,entities` and `compare=previous_period` (blocks are absent unless asked), `filter[country_iso]` (`^[A-Z]{2}$`), `filter[term]` (term or below), `branded_only`. Weeks start Monday in the project timezone. The owner decided on 2026-11-12 every question that was open here (section 5). D1's "Decisions" and "Open points" sections stay the contract; this handoff does not restate them.
+D1 opt-in parameters the web can mock now: `include=series,entities` and `compare=previous_period` (blocks are absent unless asked), `filter[country_iso]` (`^[A-Z]{2}$`), `filter[term]` (term or below), `branded_only`. Weeks start Monday in the project timezone. The owner decided on 2026-11-12 the questions that were open here (section 5), except items 8 and 9, which are still open. D1's "Decisions" and "Open points" sections stay the contract; this handoff does not restate them.
 
 ## 2. Rules every backend plan follows
 
@@ -119,21 +118,22 @@ Once the owner says go. D1 tasks keep their own numbering; this is the order of 
 
 | Step | Item | Plan | Why here | Unblocks |
 |---|---|---|---|---|
-| 0 | **B0** gzip for the API | own small task (decision 6) | Must land before the series and entities blocks ship, because `include=series,entities` is about 1.5 MB at full capacity. `GZipMiddleware` in `B/api/main.py` with a minimum size; check first that the nginx in `infra/vps/nginx` does not already compress; a test asserts `Content-Encoding: gzip` on a large response and none on a small one; no OpenAPI change | W11 and W8 response size |
 | 1 | **B2** scope params (and the `gen:api` for the built B1) | D1 Task 2 | Small. Every later aggregate reuses its `filter[term]` and scope helpers. Unblocks the header meta, stale badge, country and Branded Only on Topics | W6 |
 | 2 | **B6** citations aggregate (slice 2 pre-work, decision 4) | D2 | Highest value, no new table, no migration; the Citations tab is the single biggest hole in the inspector (G97) and the page the SEO team asked for first | W7, W13 partly |
 | 3 | **B5** per entity cells | D1 Task 5 | Largest item and the one that unblocks the competitor views the SEO team wants most (share of voice against named competitors, top competitor, drawer Competitors tab). Slice 2 pre-work, built now (decision 4). Doing it right after B6 lets W7 and W8 run in parallel on the web side | W8, W11 entity lines |
 | 4 | **B19** fan-out exposure | D2 | The data is already stored; it is the cheapest route that shows an advantage over the studied tool's best page (N2). Check the 16 KB bound as part of it | W9 |
 | 5 | **B7** bulk run and bulk archive | D2 | Small and self contained; lifts the browser side 20 a day cap. Placed after B5 and B19 because the web already ships a capped version in W5 | W10 |
-| 6 | **B4** previous period, then **B3** weekly series (`include=series` on the summary, decision 5; after B0) | D1 Tasks 3 and 4 | The web works today with two reads (W3) and a client side window (W11 can start from a second read), so these are optimisations and shape fixes, not blockers | W3 switch to one read, W11 |
+| 6 | **B4** previous period, then **B3** weekly series (`include=series` on the summary, decision 5) | D1 Tasks 3 and 4 | The web works today with two reads (W3) and a client side window (W11 can start from a second read), so these are optimisations and shape fixes, not blockers | W3 switch to one read, W11 |
 | 7 | **B9b** SEO visibility per topic | later plan | Counts and Top 10 are web only; only the volume weighted visibility needs the route | W16 |
 | Later | B8, B10 to B18 | one plan each | Slice 4 and slice 2 and 3 work; none blocks a slice 1 web task | W12, W14 |
 
-Order check: B0 before any task that ships `include=series` or `include=entities` (B5 and B3) so those responses are compressed from the first release; B2 before B5 because both change `summary_repository.py` and B5 reuses B2's `summary_prompts`; B6 before B5 because B6 touches different modules (no summary conflicts) and ships sooner; each step is one commit series with its own `backend/openapi/v1.json` update (the web session regenerates the client in its own commit, decision 7).
+API compression is an ops task (ops session), outside the backend plans; the web asks for `include=series` and `include=entities` only with a `filter[term]` or a small page until it is in place.
+
+Order check: B2 before B5 because both change `summary_repository.py` and B5 reuses B2's `summary_prompts`; B6 before B5 because B6 touches different modules (no summary conflicts) and ships sooner; each step is one commit series with its own `backend/openapi/v1.json` update (the web session regenerates the client in its own commit, decision 7).
 
 ## 5. Owner decisions (decided 2026-11-12)
 
-The owner decided all seven on 2026-11-12 through the question dialog. Nothing in this list is open.
+The owner decided 1 to 7 on 2026-11-12 through the question dialog. Nothing in 1 to 7 is open. Items 8 and 9 are not decided: they go to a separate session, and the current default stays meanwhile.
 
 | # | Decision | What was decided | What it unblocks |
 |---|---|---|---|
@@ -142,8 +142,10 @@ The owner decided all seven on 2026-11-12 through the question dialog. Nothing i
 | 3 | Where `prompt_type` comes from | A server rule at create plus a person override in the Add dialog and `PATCH`, no LLM. Rule: " vs " or "versus" gives `comparison`, "how to" gives `how_to`, a leading interrogative gives `question`. `GET {P}/prompts` gains `filter[prompt_type_in]` | B16 starts; the web Type filter and badge (D-8) follow it |
 | 4 | Slice owners | B5 (per entity cells, D1 Task 5) and B6 (citations aggregate) are slice 2 pre-work, built now | D1 Task 5 stays in D1; the competitor and Citations views (W7, W8) proceed |
 | 5 | Weekly series path | `include=series` on the summary (D1 Task 4). The generic metrics routes (`{P}/ai/metrics/{metric}/series`, `.../breakdown`) come later, when the Overview page (W13) needs them. Doc 19 carries the note | D1 Task 4 proceeds as written; W11 builds to it |
-| 6 | gzip for the API | Turn it on now, as its own small backend task (B0, step 0 of the start order) before the series and entities blocks ship | `include=series,entities` at full capacity (about 1.5 MB) is compressed from its first release |
+| 6 | gzip for the API (moved to ops) | API compression (gzip) and every other operations or infrastructure task belong to a separate ops session, not the backend session. No gzip item in the backend plans | Nothing in the backend plans; the web asks for `include=series` and `include=entities` only with a `filter[term]` or a small page until compression is in place |
 | 7 | Web client regeneration | Keep the split. Backend commits update `backend/openapi/v1.json` only; the web session runs `pnpm gen:api` in its own commit right after. AGENTS.md is amended to say so | No shared edits of `schema.ts`; rule 3 of section 2 |
+| 8 | Bulk Run cap (D-5) | To be discussed in a separate session, no decision yet; keep the current default meanwhile (20 manual runs a day, `429 manual_run_limit`) | B7 and the browser cap in W5 and W10 stay as they are |
+| 9 | Page level AI readiness (W15) | To be discussed in a separate session, no decision yet; keep the current default meanwhile (not in scope) | W15 stays unstarted |
 
 One further decision belongs to the web side and is recorded in the parity spec section 4 (D-3): the Topics tab shows an indented tree.
 

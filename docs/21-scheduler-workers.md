@@ -17,7 +17,7 @@ Related: [03-system-architecture.md](03-system-architecture.md) sections 5 to 7,
 | Workload | Subject | Default cadence | Default window (project local time) | Provider mode |
 |---|---|---|---|---|
 | `seo_rank` | tracked keyword | daily (depth per profile), deep check on `deep_check_weekday` | 02:00, 6 hours | standard queue |
-| `ai_prompt` | prompt version x engine x location x replicate | weekly on the project's AI weekday | 01:00, 8 hours | standard queue |
+| `ai_prompt` | prompt version x engine x location x replicate | twice a week, Monday and Thursday | 01:00, 8 hours | standard queue |
 | `ai_mode_keyword` | tracked keyword (opt-in groups) | weekly | 01:00, 8 hours | standard queue |
 | `keyword_metrics` | keyword x location x language | monthly on the 20th, plus on creation | 03:00, 2 hours | live (Labs) |
 | `discovery` | seed set (`subject_type = 'seed_set'`) | monthly, or manual | 04:00, 4 hours | live |
@@ -314,7 +314,7 @@ After a full Redis loss, steps 1 to 7 restore all in-flight work within a few re
 | Condition | Flag | Surface |
 |---|---|---|
 | Tracked keyword with no successful check for 36 hours (daily profile) or 9 days (weekly) | `tracked_keyword_state.is_stale = true` | Rank tracker shows stale badge; ops alert if > 5% of project keywords stale |
-| Prompt-engine pair with no valid observation in 9 days (weekly cadence) | stale in prompt state view | Prompt Explorer badge; ops alert if > 5% |
+| Prompt-engine pair with no valid observation in 5 days (twice a week: the longest gap between runs is 4 days) | stale in prompt state view | Prompt Explorer badge; ops alert if > 5% |
 | Schedule whose `next_run_at` is more than 1 hour in the past | `failed_schedule` | ops alert (planner stuck) |
 | Run in `running` beyond `window_end + 6h` | `overdue_run` | ops alert |
 
@@ -359,7 +359,7 @@ All jobs below run on the `process` queue, scheduled by Taskiq's scheduler insid
 | Load | Tasks/day | Provider calls/min (avg over window) | Ingest writes |
 |---|---|---|---|
 | 5,000 keywords daily, standard profile | 5,000 SERP tasks | 50 submits + 5,000 fetches over 6 h: about 14/min | 5,000 snapshots, about 30,000 rank rows, 20,000 feature rows per day |
-| 1,000 prompts weekly, V1 default design (about 3.4 tasks per prompt, doc 27 section 4.1) | about 3,400 tasks/week, concentrated in one 8 h window | about 7/min on the weekly run day | about 3,400 observations, about 27,000 citations per week |
+| 1,000 prompts twice a week, V1 default design (about 3.4 tasks per prompt, doc 27 section 4.1) | about 3,400 tasks per run day, 6,800 a week, each concentrated in one 8 h window | about 7/min on each run day | about 6,800 observations, about 54,000 citations per week |
 | Total peak | | under 100/min, 5% of the DataForSEO account limit | under 50 rows/s sustained |
 
 These rates are low for PostgreSQL on the target host (8 GB `idraft.slice`, about 2 guaranteed vCPU under contention, 4 shared vCPU when the neighbour is idle); the binding constraint is disk growth against the 90 GB idraft budget on the 193 GB shared disk, analyzed in [28-data-growth-scaling.md](28-data-growth-scaling.md).

@@ -76,3 +76,6 @@ Several agent sessions often work on this repository at once, sharing the main c
   from inside it.
 - Do not restart Colima or stop the dev stack (`idraft-dev-*` containers) while another session may be
   using them.
+- Infrastructure and operations work (server config, compression, deploy scripts, backups, monitoring)
+  belongs to the ops session, not to the backend or web sessions; they raise it with the owner or the ops
+  session.
