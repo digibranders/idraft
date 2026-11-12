@@ -490,7 +490,10 @@ export function DataTable<TRow extends RowData>({
 
   // Selection. With every matching row selected, each loaded row counts as selected too, so unticking one
   // starts from all of them.
-  const allMatching = selection?.allMatching === true;
+  // A search in memory narrows the list, and "every matching row" is then not what is in view: the choice is
+  // set aside, not dropped, so it comes back when the search clears
+  const narrowed = !asGiven && needle !== '' && searchText !== undefined;
+  const allMatching = selection?.allMatching === true && !narrowed;
   const selected = selection?.selectedIds ?? EMPTY_IDS;
   const [anchor, setAnchor] = useState<string | null>(null);
   const loadedSelected = useMemo(() => pickIds.filter((id) => selected.has(id)).length, [pickIds, selected]);
@@ -504,7 +507,8 @@ export function DataTable<TRow extends RowData>({
   const allLoadedSelected = allMatching || (pickIds.length > 0 && loadedSelected === pickIds.length);
   const setSelected = (next: ReadonlySet<string>): void => {
     if (selection === undefined) return;
-    if (allMatching) selection.onAllMatchingChange(false);
+    // Any change of the ids ends "every matching row", also while a search hides that choice
+    if (selection.allMatching) selection.onAllMatchingChange(false);
     selection.onChange(next);
     // With a count of its own the caller knows what was chosen (keywords, not rows) only after the change
     if (selection.selectedCount === undefined) {
@@ -878,7 +882,7 @@ export function DataTable<TRow extends RowData>({
   })();
 
   // The caller's count rules: keywords chosen in closed groups have no rendered id in the selection
-  const selecting = selection !== undefined && (selectedCount > 0 || selection.allMatching);
+  const selecting = selection !== undefined && (selectedCount > 0 || allMatching);
   // The bulk bar goes when the selection empties (Clear, or an action that cleared it). Focus inside it
   // would fall to the page body, so it returns to the grid at the last focused cell (20 section 4.3)
   const wasSelecting = useRef(selecting);
@@ -1132,8 +1136,7 @@ export function DataTable<TRow extends RowData>({
         <BulkActionBar
           selectedCount={selectedCount}
           selectedLabel={selectedLabel}
-          // A search in memory narrows the loaded rows, and "every matching row" would then not be what is in view
-          matchingTotal={asGiven || needle === '' || searchText === undefined ? selection.matchingTotal : null}
+          matchingTotal={narrowed ? null : selection.matchingTotal}
           allLoadedSelected={allLoadedSelected}
           allMatching={allMatching}
           onSelectAllMatching={() => {

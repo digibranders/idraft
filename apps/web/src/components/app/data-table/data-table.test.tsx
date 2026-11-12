@@ -2675,6 +2675,25 @@ describe('DataTable server paging and Select all N matching', () => {
     expect(offerOf()).toBeNull();
   });
 
+  it('leaves all matching out of an action while a search set from outside narrows the list, and takes it back when the search clears', async () => {
+    const { user, rerender } = renderWithProviders(<Harness rows={rowsOf(5)} matchingTotal={4812} search="" />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select all 5 keywords loaded' }));
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Select all 4,812 matching' }));
+    expect(within(bulkBar()).getByText('All 4,812 matching selected')).toBeInTheDocument();
+    rerender(<Harness rows={rowsOf(5)} matchingTotal={4812} search="003" />);
+    expect(within(bulkBar()).getByText('5 selected')).toBeInTheDocument();
+    expect(within(bulkBar()).queryByText(/matching selected/)).toBeNull();
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Archive' }));
+    expect(archive).toHaveBeenLastCalledWith(expect.any(Array), {
+      ids: new Set(['k0', 'k1', 'k2', 'k3', 'k4']),
+      allMatching: false,
+    });
+    rerender(<Harness rows={rowsOf(5)} matchingTotal={4812} search="" />);
+    expect(within(bulkBar()).getByText('All 4,812 matching selected')).toBeInTheDocument();
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Archive' }));
+    expect(archive).toHaveBeenLastCalledWith(expect.any(Array), expect.objectContaining({ allMatching: true }));
+  });
+
   it('does offer it again when the search is cleared', async () => {
     const { user, rerender } = renderWithProviders(<Harness rows={rowsOf(5)} matchingTotal={4812} search="003" />);
     await user.click(screen.getByRole('checkbox', { name: 'Select all 1 keyword loaded' }));
