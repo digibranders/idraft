@@ -16,6 +16,7 @@ export const PREVIEW_SECTION_SLUGS = [
   'inspector',
   'data-display',
   'charts',
+  'chart-parts',
   'overlays',
   'feedback',
   'metric-parts',

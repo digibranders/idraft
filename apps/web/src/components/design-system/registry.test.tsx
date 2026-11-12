@@ -26,6 +26,7 @@ describe('the preview registry', () => {
       'inspector',
       'data-display',
       'charts',
+      'chart-parts',
       'overlays',
       'feedback',
       'metric-parts',

@@ -1524,6 +1524,24 @@
     },
     "sparkline": {
       "tipPoint": "{date}: {value}"
+    },
+    "barList": {
+      "showAll": "Show all {count, number}"
+    },
+    "shareBar": {
+      "image": "{label}: {segments}, {denominator}"
+    },
+    "stepBars": {
+      "step": "Step",
+      "count": "Count",
+      "share": "Of the step before"
+    },
+    "intervalBar": {
+      "thin": "Too few answers to compare",
+      "change": "Change",
+      "interval": "95% interval",
+      "previous": "Previous",
+      "current": "Current"
     }
   },
   "inspector": {
