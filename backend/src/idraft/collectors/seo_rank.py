@@ -498,8 +498,8 @@ class SeoRankWorkload:
         rows = await _keywords(
             db, {(parsed[0], task.workspace_id) for task, parsed in wanted.values()}
         )
-        codes = await _location_codes(db, {task.location_id for task, _ in wanted.values()})
-        queues = await _queues(db, {task.run_id for task, _ in wanted.values()})
+        codes = await location_codes(db, {task.location_id for task, _ in wanted.values()})
+        queues = await run_queues(db, {task.run_id for task, _ in wanted.values()})
         requests: dict[TaskRef, CanonicalRequest] = {}
         for ref, (task, (tracked_id, depth)) in wanted.items():
             row = rows.get((tracked_id, task.workspace_id))
@@ -574,7 +574,7 @@ async def _keywords(
     }
 
 
-async def _location_codes(db: AsyncSession, location_ids: Collection[int | None]) -> dict[int, int]:
+async def location_codes(db: AsyncSession, location_ids: Collection[int | None]) -> dict[int, int]:
     """DataForSEO's code for each location, where the provider map gives one. Locations are
     synced from DataForSEO's list, so a location's id is its code otherwise."""
     ids = [location_id for location_id in location_ids if location_id is not None]
@@ -591,7 +591,7 @@ async def _location_codes(db: AsyncSession, location_ids: Collection[int | None]
     }
 
 
-async def _queues(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, str]:
+async def run_queues(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, str]:
     """The queue each run was planned for."""
     if not run_ids:
         return {}

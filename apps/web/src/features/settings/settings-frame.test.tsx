@@ -54,6 +54,7 @@ describe('SettingsFrame', () => {
       '/digibranders/fynix/settings/entities',
       '/digibranders/fynix/settings/domains',
       '/digibranders/fynix/settings/taxonomy',
+      '/digibranders/fynix/settings/engines',
       '/digibranders/fynix/settings/schedules',
       '/digibranders/fynix/settings/workspace',
       '/digibranders/fynix/settings/members',

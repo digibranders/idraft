@@ -24,6 +24,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api import audit
+from idraft.api.ai import run_repository as ai_runs
 from idraft.api.keywords import check_status
 from idraft.api.keywords import repository as keywords
 from idraft.api.operations import runs_repository as runs
@@ -32,6 +33,7 @@ from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
 from idraft.api.permissions import Permission
 from idraft.api.problems import (
     CheckPendingError,
+    FieldError,
     ForbiddenError,
     InvalidStateTransitionError,
     ManualRunLimitError,
@@ -39,11 +41,16 @@ from idraft.api.problems import (
     ProviderPausedError,
     QuotaExceededError,
     invalid_field,
+    invalid_fields,
 )
 from idraft.api.request_info import RequestInfo
+from idraft.api.schemas.ai import RunNow
 from idraft.api.schemas.keywords import MetricsRefresh
 from idraft.api.schemas.ranks import CheckNow
 from idraft.api.workspaces.access import WorkspaceAccess
+from idraft.collectors import ai_prompt
+from idraft.collectors.ai_prompt import Subject
+from idraft.collectors.registry import ScheduleWindow
 from idraft.db.engine import workspace_transaction
 from idraft.providers.dataforseo.provider import CODE as DATAFORSEO
 from idraft.providers.pauses import RedisPauses
@@ -54,6 +61,7 @@ MANUAL_RUNS_PER_DAY: Final = 20
 MANUAL_WINDOW: Final = timedelta(hours=1)
 KEYWORD_METRICS: Final = "keyword_metrics"
 SEO_RANK: Final = "seo_rank"
+AI_PROMPT: Final = "ai_prompt"
 # What a refused check now tells the caller to wait; a pause lasts at most fifteen minutes.
 PAUSED_RETRY_SECONDS: Final = 300
 CANCELLED_BY_USER: Final = "cancelled_by_user"
@@ -74,10 +82,15 @@ class RunDetail:
     tasks_by_status: dict[str, int]
 
 
+async def _now(db: AsyncSession) -> datetime:
+    """The database clock."""
+    now: datetime = (await db.execute(select(func.now()))).scalar_one()
+    return now
+
+
 async def _today(db: AsyncSession) -> datetime:
     """The start of the day (UTC) by the database clock."""
-    now: datetime = (await db.execute(select(func.now()))).scalar_one()
-    return now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    return (await _now(db)).astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 async def _month_start(db: AsyncSession) -> datetime:
@@ -89,6 +102,56 @@ async def _live_project(db: AsyncSession, access: WorkspaceAccess, project_id: U
     """A deleted project has no runs to show or cancel."""
     if await keywords.project_defaults(db, access.workspace_id, project_id) is None:
         raise NotFoundError
+
+
+_NOT_ASKED_WHY: Final = {
+    "engine_not_enabled": "The engine is not turned on for the project.",
+    "prompt_too_long": "The prompt is longer than this engine takes.",
+    "location_not_enabled": "The engine has no location in the prompt's country.",
+}
+
+
+async def _ai_subjects(
+    db: AsyncSession, access: WorkspaceAccess, project_id: UUID, prompt_id: UUID, engines: list[str]
+) -> list[Subject]:
+    """The tasks the planner will make for this run, by the planner's own rules. An engine that
+    would get none (not on, switched off, no location in the prompt's country, a prompt over its
+    limit) or an endpoint without a price is refused now, not planned into a run with nothing in
+    it."""
+    now = await _now(db)
+    window = ScheduleWindow(
+        schedule_id=None,
+        workspace_id=access.workspace_id,
+        project_id=project_id,
+        workload=ai_prompt.WORKLOAD,
+        provider_mode="live",
+        selector={"prompt_ids": [str(prompt_id)], "engine_codes": engines},
+        window_start=now,
+        window_end=now + MANUAL_WINDOW,
+        window_hours=1,
+    )
+    subjects, skipped = await ai_prompt.select_subjects(db, window)
+    asked = {subject.engine_code for subject in subjects}
+    why = {item.engine_code: item.reason for item in skipped}
+    refused = [
+        FieldError(
+            "engine_codes",
+            why.get(code, "engine_not_enabled"),
+            f"{code}: {_NOT_ASKED_WHY[why.get(code, 'engine_not_enabled')]}",
+        )
+        for code in engines
+        if code not in asked
+    ]
+    if refused:
+        raise invalid_fields(refused)
+    cost = await ai_prompt.estimate(db, subjects, queue="standard", on=now.astimezone(UTC).date())
+    if cost is None:
+        raise invalid_field(
+            "engine_codes",
+            code="price_unavailable",
+            message="The price book has no price for these engines today.",
+        )
+    return subjects
 
 
 def _scope(project_id: UUID, given: RunFilter) -> dict[str, object]:
@@ -296,6 +359,93 @@ class RunService:
                     "workload": SEO_RANK,
                     "keyword_count": len(wanted),
                     "depth": body.depth,
+                    "queue": "standard",
+                },
+            )
+            created = await runs.get_run(db, access.workspace_id, project_id, run_id)
+        if created is None:  # pragma: no cover - inserted by this transaction
+            raise NotFoundError
+        return created
+
+    async def ai_run_now(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        prompt_id: UUID,
+        body: RunNow,
+        info: RequestInfo,
+    ) -> RunRecord:
+        """A manual AI run of one prompt on the given engines, asked through the provider's
+        standard queue, the path a schedule uses. `409 check_pending` when an answer of the
+        prompt is already queued or under way on one of them, `422 quota_exceeded` when the
+        month's AI answers would pass the workspace's limit, `503 provider_paused` while the
+        provider is refusing every request."""
+        if await self._provider_paused():
+            raise ProviderPausedError(
+                "The data provider is not being asked just now. Try again in a few minutes.",
+                headers={"Retry-After": str(PAUSED_RETRY_SECONDS)},
+            )
+        engines = sorted({str(code) for code in body.engine_codes})
+        async with self._transaction(access) as db:
+            await _live_project(db, access, project_id)
+            prompt = await ai_runs.runnable_prompt(db, access.workspace_id, project_id, prompt_id)
+            if prompt is None:
+                raise NotFoundError
+            subjects = await _ai_subjects(db, access, project_id, prompt_id, engines)
+            await runs.lock_manual_runs(db, project_id)
+            # Under the lock, so two requests cannot both pass: an answer on its way is not
+            # paid for twice.
+            pending = await ai_runs.pending_engines(
+                db, access.workspace_id, project_id, prompt, engines
+            )
+            if pending:
+                raise CheckPendingError(
+                    "This prompt already has an answer queued or under way on these engines. "
+                    "Wait for it to end.",
+                    engine_codes=pending,
+                )
+            used = await runs.manual_runs_since(
+                db, access.workspace_id, project_id, await _today(db)
+            )
+            if used >= MANUAL_RUNS_PER_DAY:
+                raise ManualRunLimitError(
+                    f"The project has had its {MANUAL_RUNS_PER_DAY} manual runs today (UTC).",
+                    limit=MANUAL_RUNS_PER_DAY,
+                )
+            limit = await ai_runs.lock_ai_observation_limit(db, access.workspace_id)
+            asked = await ai_runs.ai_tasks_since(db, access.workspace_id, await _month_start(db))
+            if asked + len(subjects) > limit:
+                raise QuotaExceededError(
+                    f"The workspace has asked for {asked} of its {limit} AI answers this month "
+                    f"(UTC); {len(subjects)} more do not fit.",
+                    limit=limit,
+                    used=asked,
+                    requested=len(subjects),
+                    quota="max_ai_observations_per_month",
+                )
+            run_id = await runs.insert_manual_run(
+                db,
+                workspace_id=access.workspace_id,
+                project_id=project_id,
+                workload=AI_PROMPT,
+                user_id=access.user_id,
+                request_id=info.request_id,
+                selector={"prompt_ids": [str(prompt_id)], "engine_codes": engines},
+                window=MANUAL_WINDOW,
+            )
+            await audit.record(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="collection_run.requested",
+                target_type="collection_run",
+                target_id=run_id,
+                info=info,
+                after={
+                    "project_id": str(project_id),
+                    "workload": AI_PROMPT,
+                    "prompt_id": str(prompt_id),
+                    "engine_codes": engines,
                     "queue": "standard",
                 },
             )

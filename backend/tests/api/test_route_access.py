@@ -160,6 +160,10 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/seo/check-now"): (
         "runs:trigger"
     ),
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}/run-now",
+    ): "runs:trigger",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"): "data:read",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}"): "data:read",
     # Who may cancel is decided by the service: schedules:write, or runs:trigger for a manual
@@ -307,6 +311,21 @@ EXPECTED: dict[tuple[str, str], str] = {
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/serp-snapshots/"
         "{serp_snapshot_id}/raw",
     ): "raw:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"): (
+        "data:read"
+    ),
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/"
+        "{observation_id}/raw",
+    ): "raw:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"): (
+        "data:read"
+    ),
     (
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/seo/rank-events",
@@ -352,6 +371,37 @@ EXPECTED: dict[tuple[str, str], str] = {
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/"
         "{tracked_keyword_id}/competitors",
     ): "keywords:write",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines"): "data:read",
+    (
+        "PUT",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines/{engine_code}",
+    ): "projects:write",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines/{engine_code}",
+    ): "projects:write",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"): "data:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"): "prompts:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-create",
+    ): "prompts:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/lint",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}",
+    ): "data:read",
+    (
+        "PATCH",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}",
+    ): "prompts:write",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}",
+    ): "prompts:write",
 }
 
 
@@ -410,12 +460,19 @@ PATH_PARAMETERS = {
     # Inside one project, after `{project_id}`: the service finds the snapshot within that
     # project, so a snapshot of another project is a 404.
     "serp_snapshot_id",
+    # Inside one project, after `{project_id}`: the service finds the observation within that
+    # project, so an observation of another project is a 404.
+    "observation_id",
     # A connection is a credential of the workspace, shared by its projects.
     "connection_id",
     # Inside one project, after `{project_id}`: the service finds it within that project.
     "integration_id",
     # The product of an integration (`gsc`), not an id.
     "kind",
+    # An AI engine (`chatgpt_web`), a word and not an id, after `{project_id}`.
+    "engine_code",
+    # Inside one project, after `{project_id}`: the service reads the prompt within it.
+    "prompt_id",
 }
 # `{name}` or `{name:converter}`.
 PATH_PARAMETER = re.compile(r"\{(\w+)(?::\w+)?\}")

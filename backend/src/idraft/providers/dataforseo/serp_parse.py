@@ -296,7 +296,7 @@ def _empty() -> NormalizedSerp:
     )
 
 
-def _scrub(value: Any) -> Any:
+def scrub_text(value: Any) -> Any:
     """The document with the text the database cannot keep cleaned out: NUL is dropped and a lone
     surrogate becomes `?`, as a replacing UTF-8 encoder writes it."""
     if isinstance(value, str):
@@ -304,9 +304,9 @@ def _scrub(value: Any) -> Any:
             return value
         return value.replace("\x00", "").encode("utf-8", "replace").decode("utf-8")
     if isinstance(value, list):
-        return [_scrub(element) for element in value]
+        return [scrub_text(element) for element in value]
     if isinstance(value, Mapping):
-        return {_scrub(name): _scrub(element) for name, element in value.items()}
+        return {scrub_text(name): scrub_text(element) for name, element in value.items()}
     return value
 
 
@@ -318,7 +318,7 @@ def _document(body: bytes | Mapping[str, Any]) -> Mapping[str, Any]:
             raise SerpSchemaMismatchError("$", "JSON") from None
     if not isinstance(body, Mapping):
         raise SerpSchemaMismatchError("$", "an object")
-    cleaned: Mapping[str, Any] = _scrub(body)
+    cleaned: Mapping[str, Any] = scrub_text(body)
     return cleaned
 
 

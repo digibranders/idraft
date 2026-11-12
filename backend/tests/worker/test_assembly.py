@@ -264,11 +264,15 @@ async def test_rank_checks_are_registered_only_where_their_answers_can_be_kept(
         )
         registry = production_registry(with_storage)
         assert registry.workloads == frozenset(
-            {TaskWorkload.KEYWORD_METRICS, TaskWorkload.SEO_RANK}
+            {TaskWorkload.KEYWORD_METRICS, TaskWorkload.SEO_RANK, TaskWorkload.AI_PROMPT}
         )
         ticks = ticks_of(with_storage, registry)
 
     assert (ticks["rank_ingest"].interval, ticks["rank_ingest"].lock_ttl) == (
+        ticks["keyword_metrics_ingest"].interval,
+        ticks["keyword_metrics_ingest"].lock_ttl,
+    )
+    assert (ticks["ai_prompt_ingest"].interval, ticks["ai_prompt_ingest"].lock_ttl) == (
         ticks["keyword_metrics_ingest"].interval,
         ticks["keyword_metrics_ingest"].lock_ttl,
     )

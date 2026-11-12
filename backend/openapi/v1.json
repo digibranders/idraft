@@ -1189,6 +1189,135 @@
         "title": "CheckNow",
         "type": "object"
       },
+      "CitationOut": {
+        "properties": {
+          "answer_block_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Block Index"
+          },
+          "citation_index": {
+            "title": "Citation Index",
+            "type": "integer"
+          },
+          "citation_kind": {
+            "title": "Citation Kind",
+            "type": "string"
+          },
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "first_char_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Char Offset"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "occurrences": {
+            "title": "Occurrences",
+            "type": "integer"
+          },
+          "raw_url": {
+            "title": "Raw Url",
+            "type": "string"
+          },
+          "referral_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referral Tag"
+          },
+          "role_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Entity Id"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "citation_index",
+          "url",
+          "raw_url",
+          "host",
+          "title",
+          "source_name",
+          "citation_kind",
+          "domain_role",
+          "role_entity_id",
+          "occurrences",
+          "first_char_offset",
+          "answer_block_index",
+          "referral_tag",
+          "flags"
+        ],
+        "title": "CitationOut",
+        "type": "object"
+      },
       "CompetitorOverride": {
         "properties": {
           "entity": {
@@ -1900,6 +2029,113 @@
           "email"
         ],
         "title": "EmailRequest",
+        "type": "object"
+      },
+      "Engine": {
+        "properties": {
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "exposes_citations": {
+            "title": "Exposes Citations",
+            "type": "boolean"
+          },
+          "exposes_fanout": {
+            "title": "Exposes Fanout",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "max_prompt_chars": {
+            "title": "Max Prompt Chars",
+            "type": "integer"
+          },
+          "observation_class": {
+            "$ref": "#/components/schemas/ObservationClass"
+          },
+          "vendor": {
+            "title": "Vendor",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine_code",
+          "label",
+          "observation_class",
+          "vendor",
+          "exposes_citations",
+          "exposes_fanout",
+          "max_prompt_chars"
+        ],
+        "title": "Engine",
+        "type": "object"
+      },
+      "EngineCode": {
+        "enum": [
+          "chatgpt_web",
+          "gemini_web",
+          "google_ai_mode"
+        ],
+        "title": "EngineCode",
+        "type": "string"
+      },
+      "EngineSummary": {
+        "properties": {
+          "cited": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "engine_code": {
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "mentioned": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "outcomes": {
+            "$ref": "#/components/schemas/OutcomeCells"
+          },
+          "share_of_voice": {
+            "$ref": "#/components/schemas/MetricCell"
+          }
+        },
+        "required": [
+          "engine_code",
+          "mentioned",
+          "cited",
+          "outcomes",
+          "share_of_voice"
+        ],
+        "title": "EngineSummary",
+        "type": "object"
+      },
+      "EngineUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "is_enabled": {
+            "default": true,
+            "description": "On starts weekly spend; off keeps the settings.",
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "location_ids": {
+            "description": "Active countries the engine runs the prompts in.",
+            "items": {
+              "maximum": 2147483647.0,
+              "minimum": 1.0,
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Location Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "location_ids"
+        ],
+        "title": "EngineUpdate",
         "type": "object"
       },
       "Entity": {
@@ -5063,6 +5299,80 @@
         "title": "KeywordPage",
         "type": "object"
       },
+      "LintSpan": {
+        "properties": {
+          "end": {
+            "title": "End",
+            "type": "integer"
+          },
+          "start": {
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "LintSpan",
+        "type": "object"
+      },
+      "LintWarning": {
+        "properties": {
+          "engine_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineCode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For `engine_limit`: the engine."
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "rule": {
+            "enum": [
+              "contains_brand_alias",
+              "engine_limit"
+            ],
+            "title": "Rule",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "warning",
+              "error"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "span": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LintSpan"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "UTF-16 code units, as a JavaScript string indexes the text."
+          }
+        },
+        "required": [
+          "rule",
+          "severity",
+          "message",
+          "engine_code",
+          "span"
+        ],
+        "title": "LintWarning",
+        "type": "object"
+      },
       "Location": {
         "properties": {
           "country_iso": {
@@ -5180,6 +5490,24 @@
           "limit"
         ],
         "title": "ManualRuns",
+        "type": "object"
+      },
+      "MatchedAlias": {
+        "properties": {
+          "alias": {
+            "description": "The text that matched.",
+            "title": "Alias",
+            "type": "string"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityRef"
+          }
+        },
+        "required": [
+          "entity",
+          "alias"
+        ],
+        "title": "MatchedAlias",
         "type": "object"
       },
       "Me": {
@@ -5559,6 +5887,184 @@
         "title": "MembersRemovedResponse",
         "type": "object"
       },
+      "MentionOut": {
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "evidence_spans": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Evidence Spans",
+            "type": "array"
+          },
+          "first_char_offset": {
+            "title": "First Char Offset",
+            "type": "integer"
+          },
+          "match_method": {
+            "title": "Match Method",
+            "type": "string"
+          },
+          "mention_count": {
+            "title": "Mention Count",
+            "type": "integer"
+          },
+          "mention_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mention Order"
+          },
+          "mention_status": {
+            "enum": [
+              "accepted",
+              "uncertain"
+            ],
+            "title": "Mention Status",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "own",
+              "competitor",
+              "watch",
+              "untracked"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "name",
+          "role",
+          "mention_count",
+          "first_char_offset",
+          "mention_order",
+          "match_method",
+          "mention_status",
+          "confidence",
+          "evidence_spans"
+        ],
+        "title": "MentionOut",
+        "type": "object"
+      },
+      "MetricCell": {
+        "description": "One count of answers over another, with every answer of the cell: \"5 of 8\". The\ncompact form of `MetricValue` (docs/19 section 2.6); the window is the response's, and\n`metric_context` says how each kind of cell is aggregated.\n\nIn a row of one prompt `numerator` and `denominator` are counts of answers. In a topic row,\na prompt weighted cell has the sum of its prompts' rates as `numerator` and the number of\nprompts with a valid answer as `denominator` (`pooled` holds the counts of answers); Share\nof voice stays counts of answers.",
+        "properties": {
+          "denominator": {
+            "title": "Denominator",
+            "type": "integer"
+          },
+          "n_observations": {
+            "description": "Every answer of the cell, valid or not.",
+            "title": "N Observations",
+            "type": "integer"
+          },
+          "numerator": {
+            "title": "Numerator",
+            "type": "number"
+          },
+          "pooled": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Pooled"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set on a prompt weighted cell: the answers behind it."
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "numerator / denominator; null when it is 0.",
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "numerator",
+          "denominator",
+          "n_observations"
+        ],
+        "title": "MetricCell",
+        "type": "object"
+      },
+      "MetricContext": {
+        "description": "What is true of every cell of one metric in the response (docs/19 section 2.6 rule 10).",
+        "properties": {
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "metric": {
+            "description": "The registry key of docs/16 section 2.1.",
+            "title": "Metric",
+            "type": "string"
+          },
+          "prompt_rows": {
+            "description": "How the cells of a prompt row are weighted.",
+            "enum": [
+              "observation_weighted",
+              "prompt_weighted"
+            ],
+            "title": "Prompt Rows",
+            "type": "string"
+          },
+          "topic_rows": {
+            "description": "How the cells of a topic row are weighted.",
+            "enum": [
+              "observation_weighted",
+              "prompt_weighted"
+            ],
+            "title": "Topic Rows",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric",
+          "prompt_rows",
+          "topic_rows",
+          "method"
+        ],
+        "title": "MetricContext",
+        "type": "object"
+      },
       "MetricValue": {
         "description": "A metric with what it was computed from. Fields of doc 19 section 2.6 that no route\nbuilt so far fills (`ci`, `aggregation`, `engines`, ...) are left out until one does.",
         "properties": {
@@ -5888,6 +6394,535 @@
         "title": "OAuthStart",
         "type": "object"
       },
+      "ObservationClass": {
+        "description": "`ai.engines.observation_class` and `ai.observations.observation_class` (doc 04 8.1).",
+        "enum": [
+          "consumer_ui",
+          "official_api",
+          "serp_ai"
+        ],
+        "title": "ObservationClass",
+        "type": "string"
+      },
+      "ObservationDetail": {
+        "properties": {
+          "answer_char_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Char Count"
+          },
+          "answer_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Text"
+          },
+          "check_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check Url"
+          },
+          "citation_count": {
+            "title": "Citation Count",
+            "type": "integer"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/CitationOut"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          },
+          "engine_code": {
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "facts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservationFacts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fanout_count": {
+            "title": "Fanout Count",
+            "type": "integer"
+          },
+          "language_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Code"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "mentions": {
+            "items": {
+              "$ref": "#/components/schemas/MentionOut"
+            },
+            "title": "Mentions",
+            "type": "array"
+          },
+          "model_reported": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Reported"
+          },
+          "observation_class": {
+            "title": "Observation Class",
+            "type": "string"
+          },
+          "observation_id": {
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "observed_date": {
+            "format": "date",
+            "title": "Observed Date",
+            "type": "string"
+          },
+          "offsets_unit": {
+            "const": "utf16",
+            "title": "Offsets Unit",
+            "type": "string"
+          },
+          "query_text": {
+            "title": "Query Text",
+            "type": "string"
+          },
+          "replicate_index": {
+            "title": "Replicate Index",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "served_from_cache": {
+            "title": "Served From Cache",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "complete",
+              "partial",
+              "empty",
+              "refused",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/PromptSubject"
+          }
+        },
+        "required": [
+          "observation_id",
+          "observed_at",
+          "observed_date",
+          "engine_code",
+          "observation_class",
+          "subject",
+          "query_text",
+          "run_id",
+          "replicate_index",
+          "location_id",
+          "language_code",
+          "device",
+          "status",
+          "model_reported",
+          "answer_char_count",
+          "citation_count",
+          "fanout_count",
+          "served_from_cache",
+          "facts",
+          "answer_text",
+          "error_code",
+          "check_url",
+          "offsets_unit",
+          "citations",
+          "mentions"
+        ],
+        "title": "ObservationDetail",
+        "type": "object"
+      },
+      "ObservationFacts": {
+        "description": "The fact row of the current derivation.",
+        "properties": {
+          "competitor_cited": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Competitor Cited",
+            "type": "array"
+          },
+          "competitor_mentions": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Competitor Mentions",
+            "type": "array"
+          },
+          "derivation_id": {
+            "title": "Derivation Id",
+            "type": "integer"
+          },
+          "had_structured_list": {
+            "title": "Had Structured List",
+            "type": "boolean"
+          },
+          "is_valid": {
+            "title": "Is Valid",
+            "type": "boolean"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "mentioned_and_cited",
+                  "mentioned_only",
+                  "cited_only",
+                  "neither"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "own_citation_count": {
+            "title": "Own Citation Count",
+            "type": "integer"
+          },
+          "own_domain_cited": {
+            "title": "Own Domain Cited",
+            "type": "boolean"
+          },
+          "own_mention_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Own Mention Order"
+          },
+          "own_mentioned": {
+            "title": "Own Mentioned",
+            "type": "boolean"
+          },
+          "own_prominence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Own Prominence"
+          },
+          "total_citation_count": {
+            "title": "Total Citation Count",
+            "type": "integer"
+          },
+          "tracked_entities_mentioned": {
+            "title": "Tracked Entities Mentioned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "derivation_id",
+          "is_valid",
+          "outcome",
+          "own_mentioned",
+          "own_domain_cited",
+          "own_mention_order",
+          "own_prominence",
+          "own_citation_count",
+          "total_citation_count",
+          "tracked_entities_mentioned",
+          "competitor_mentions",
+          "competitor_cited",
+          "had_structured_list"
+        ],
+        "title": "ObservationFacts",
+        "type": "object"
+      },
+      "ObservationPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ObservationSummary"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "ObservationPage",
+        "type": "object"
+      },
+      "ObservationResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ObservationDetail"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ObservationResponse",
+        "type": "object"
+      },
+      "ObservationSummary": {
+        "properties": {
+          "answer_char_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Char Count"
+          },
+          "citation_count": {
+            "title": "Citation Count",
+            "type": "integer"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          },
+          "engine_code": {
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "facts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservationFacts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fanout_count": {
+            "title": "Fanout Count",
+            "type": "integer"
+          },
+          "language_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Code"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "model_reported": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Reported"
+          },
+          "observation_class": {
+            "title": "Observation Class",
+            "type": "string"
+          },
+          "observation_id": {
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "observed_date": {
+            "format": "date",
+            "title": "Observed Date",
+            "type": "string"
+          },
+          "query_text": {
+            "title": "Query Text",
+            "type": "string"
+          },
+          "replicate_index": {
+            "title": "Replicate Index",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "served_from_cache": {
+            "title": "Served From Cache",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "complete",
+              "partial",
+              "empty",
+              "refused",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/PromptSubject"
+          }
+        },
+        "required": [
+          "observation_id",
+          "observed_at",
+          "observed_date",
+          "engine_code",
+          "observation_class",
+          "subject",
+          "query_text",
+          "run_id",
+          "replicate_index",
+          "location_id",
+          "language_code",
+          "device",
+          "status",
+          "model_reported",
+          "answer_char_count",
+          "citation_count",
+          "fanout_count",
+          "served_from_cache",
+          "facts"
+        ],
+        "title": "ObservationSummary",
+        "type": "object"
+      },
       "OffsetPageInfo": {
         "properties": {
           "limit": {
@@ -6041,6 +7076,30 @@
         "title": "OperationLinks",
         "type": "object"
       },
+      "OutcomeCells": {
+        "properties": {
+          "cited_only": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "mentioned_and_cited": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "mentioned_only": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "neither": {
+            "$ref": "#/components/schemas/MetricCell"
+          }
+        },
+        "required": [
+          "mentioned_and_cited",
+          "mentioned_only",
+          "cited_only",
+          "neither"
+        ],
+        "title": "OutcomeCells",
+        "type": "object"
+      },
       "OverlapWarning": {
         "description": "Another property of the same site is already linked to a project. The two are never\nadded together, so the person must pick one.",
         "properties": {
@@ -6140,6 +7199,25 @@
           "new_password"
         ],
         "title": "PasswordResetConfirmRequest",
+        "type": "object"
+      },
+      "Pooled": {
+        "description": "The raw counts behind a prompt weighted rate: \"2 of 5 answers\".",
+        "properties": {
+          "successes": {
+            "title": "Successes",
+            "type": "integer"
+          },
+          "trials": {
+            "title": "Trials",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "successes",
+          "trials"
+        ],
+        "title": "Pooled",
         "type": "object"
       },
       "Price": {
@@ -6664,6 +7742,98 @@
         "title": "ProjectDomainList",
         "type": "object"
       },
+      "ProjectEngine": {
+        "properties": {
+          "active_prompts": {
+            "description": "Active prompts that fit the engine's length limit: what one run asks it.",
+            "title": "Active Prompts",
+            "type": "integer"
+          },
+          "engine": {
+            "$ref": "#/components/schemas/Engine"
+          },
+          "estimated_monthly_cost_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Active prompts x runs a week x 52 / 12 x the task price, as if the engine were on. Null when the price book has no price.",
+            "title": "Estimated Monthly Cost Usd"
+          },
+          "is_configured": {
+            "description": "The project has settings for the engine.",
+            "title": "Is Configured",
+            "type": "boolean"
+          },
+          "is_enabled": {
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "location_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Location Ids",
+            "type": "array"
+          },
+          "provider_code": {
+            "title": "Provider Code",
+            "type": "string"
+          },
+          "replicates": {
+            "title": "Replicates",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "engine",
+          "is_configured",
+          "is_enabled",
+          "location_ids",
+          "replicates",
+          "provider_code",
+          "active_prompts",
+          "estimated_monthly_cost_usd"
+        ],
+        "title": "ProjectEngine",
+        "type": "object"
+      },
+      "ProjectEngineList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectEngine"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ProjectEngineList",
+        "type": "object"
+      },
+      "ProjectEngineResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProjectEngine"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ProjectEngineResponse",
+        "type": "object"
+      },
       "ProjectEntity": {
         "properties": {
           "added_at": {
@@ -7033,6 +8203,786 @@
           }
         },
         "title": "ProjectUpdate",
+        "type": "object"
+      },
+      "Prompt": {
+        "properties": {
+          "country_iso": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Iso"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "creation_method": {
+            "enum": [
+              "human",
+              "template",
+              "llm_generated",
+              "imported"
+            ],
+            "title": "Creation Method",
+            "type": "string"
+          },
+          "current_version": {
+            "$ref": "#/components/schemas/PromptVersion"
+          },
+          "funnel_stage": {
+            "enum": [
+              "tofu",
+              "mofu",
+              "bofu",
+              "retention",
+              "unknown"
+            ],
+            "title": "Funnel Stage",
+            "type": "string"
+          },
+          "importance": {
+            "title": "Importance",
+            "type": "integer"
+          },
+          "intent": {
+            "enum": [
+              "informational",
+              "navigational",
+              "commercial",
+              "transactional",
+              "local",
+              "unknown"
+            ],
+            "title": "Intent",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_branded": {
+            "description": "Names an own brand: computed from the project's own aliases when the prompt is saved; a change may set it.",
+            "title": "Is Branded",
+            "type": "boolean"
+          },
+          "language_code": {
+            "title": "Language Code",
+            "type": "string"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "prompt_type": {
+            "enum": [
+              "question",
+              "comparison",
+              "recommendation",
+              "how_to",
+              "definition",
+              "local",
+              "transactional",
+              "other"
+            ],
+            "title": "Prompt Type",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/PromptTerm"
+            },
+            "title": "Terms",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "current_version",
+          "language_code",
+          "country_iso",
+          "intent",
+          "funnel_stage",
+          "prompt_type",
+          "importance",
+          "is_branded",
+          "source",
+          "creation_method",
+          "is_active",
+          "terms",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Prompt",
+        "type": "object"
+      },
+      "PromptBulkCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PromptCreate"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "on_duplicate": {
+            "default": "skip",
+            "description": "A prompt the project has already: `skip` lists it in `skipped`, `error` in `rejected` with `duplicate`.",
+            "enum": [
+              "skip",
+              "error"
+            ],
+            "title": "On Duplicate",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PromptBulkCreate",
+        "type": "object"
+      },
+      "PromptBulkResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PromptBulkResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PromptBulkResponse",
+        "type": "object"
+      },
+      "PromptBulkResult": {
+        "properties": {
+          "created": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Created",
+            "type": "array"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/PromptRejected"
+            },
+            "title": "Rejected",
+            "type": "array"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/PromptSkipped"
+            },
+            "title": "Skipped",
+            "type": "array"
+          }
+        },
+        "required": [
+          "created",
+          "skipped",
+          "rejected"
+        ],
+        "title": "PromptBulkResult",
+        "type": "object"
+      },
+      "PromptCreate": {
+        "additionalProperties": false,
+        "description": "One prompt. Its text is fixed once saved: to change it, archive the prompt and add a new\none.",
+        "properties": {
+          "country_iso": {
+            "description": "The market the prompt stands for. Every enabled engine needs a location in it (`location_not_supported` otherwise).",
+            "pattern": "^[A-Z]{2}$",
+            "title": "Country Iso",
+            "type": "string"
+          },
+          "funnel_stage": {
+            "default": "unknown",
+            "enum": [
+              "tofu",
+              "mofu",
+              "bofu",
+              "retention",
+              "unknown"
+            ],
+            "title": "Funnel Stage",
+            "type": "string"
+          },
+          "importance": {
+            "default": 3,
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Importance",
+            "type": "integer"
+          },
+          "intent": {
+            "default": "unknown",
+            "enum": [
+              "informational",
+              "navigational",
+              "commercial",
+              "transactional",
+              "local",
+              "unknown"
+            ],
+            "title": "Intent",
+            "type": "string"
+          },
+          "language_code": {
+            "pattern": "^[a-z]{2}$",
+            "title": "Language Code",
+            "type": "string"
+          },
+          "prompt_type": {
+            "default": "question",
+            "enum": [
+              "question",
+              "comparison",
+              "recommendation",
+              "how_to",
+              "definition",
+              "local",
+              "transactional",
+              "other"
+            ],
+            "title": "Prompt Type",
+            "type": "string"
+          },
+          "term_ids": {
+            "description": "Topics and other terms the project may use.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Term Ids",
+            "type": "array"
+          },
+          "text": {
+            "description": "Trimmed and composed (NFC); one line.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "language_code",
+          "country_iso"
+        ],
+        "title": "PromptCreate",
+        "type": "object"
+      },
+      "PromptLint": {
+        "properties": {
+          "is_branded": {
+            "title": "Is Branded",
+            "type": "boolean"
+          },
+          "matched_aliases": {
+            "description": "Own brand names found, each once.",
+            "items": {
+              "$ref": "#/components/schemas/MatchedAlias"
+            },
+            "title": "Matched Aliases",
+            "type": "array"
+          },
+          "text": {
+            "description": "As it would be saved.",
+            "title": "Text",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/LintWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "text",
+          "is_branded",
+          "matched_aliases",
+          "warnings"
+        ],
+        "title": "PromptLint",
+        "type": "object"
+      },
+      "PromptLintRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "engine_codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EngineCode"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The engines whose length limits apply. Left out: every one.",
+            "title": "Engine Codes"
+          },
+          "texts": {
+            "items": {
+              "maxLength": 8000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Texts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "texts"
+        ],
+        "title": "PromptLintRequest",
+        "type": "object"
+      },
+      "PromptLintResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PromptLint"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "quota": {
+            "$ref": "#/components/schemas/PromptQuota"
+          }
+        },
+        "required": [
+          "data",
+          "quota"
+        ],
+        "title": "PromptLintResponse",
+        "type": "object"
+      },
+      "PromptPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Prompt"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "PromptPage",
+        "type": "object"
+      },
+      "PromptPatch": {
+        "additionalProperties": false,
+        "description": "At least one member. The text, language and country are fixed (`immutable_field`).",
+        "properties": {
+          "funnel_stage": {
+            "enum": [
+              "tofu",
+              "mofu",
+              "bofu",
+              "retention",
+              "unknown"
+            ],
+            "title": "Funnel Stage",
+            "type": "string"
+          },
+          "importance": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Importance",
+            "type": "integer"
+          },
+          "intent": {
+            "enum": [
+              "informational",
+              "navigational",
+              "commercial",
+              "transactional",
+              "local",
+              "unknown"
+            ],
+            "title": "Intent",
+            "type": "string"
+          },
+          "is_active": {
+            "description": "`true` brings an archived prompt back; it counts against the quota.",
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_branded": {
+            "title": "Is Branded",
+            "type": "boolean"
+          },
+          "prompt_type": {
+            "enum": [
+              "question",
+              "comparison",
+              "recommendation",
+              "how_to",
+              "definition",
+              "local",
+              "transactional",
+              "other"
+            ],
+            "title": "Prompt Type",
+            "type": "string"
+          },
+          "term_ids": {
+            "description": "Replaces the prompt's terms.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Term Ids",
+            "type": "array"
+          }
+        },
+        "title": "PromptPatch",
+        "type": "object"
+      },
+      "PromptQuota": {
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "used": {
+            "description": "Active prompts in the whole workspace.",
+            "title": "Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "used"
+        ],
+        "title": "PromptQuota",
+        "type": "object"
+      },
+      "PromptRejected": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "code",
+          "message"
+        ],
+        "title": "PromptRejected",
+        "type": "object"
+      },
+      "PromptResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Prompt"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PromptResponse",
+        "type": "object"
+      },
+      "PromptSkipped": {
+        "properties": {
+          "existing_id": {
+            "format": "uuid",
+            "title": "Existing Id",
+            "type": "string"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "index",
+          "existing_id"
+        ],
+        "title": "PromptSkipped",
+        "type": "object"
+      },
+      "PromptSubject": {
+        "properties": {
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "prompt_version_id": {
+            "format": "uuid",
+            "title": "Prompt Version Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "prompt",
+            "title": "Type",
+            "type": "string"
+          },
+          "version_no": {
+            "title": "Version No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "type",
+          "prompt_id",
+          "prompt_version_id",
+          "version_no"
+        ],
+        "title": "PromptSubject",
+        "type": "object"
+      },
+      "PromptSummaryRow": {
+        "properties": {
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/EngineSummary"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "is_branded": {
+            "title": "Is Branded",
+            "type": "boolean"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "topic_term_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Topic Term Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "text",
+          "is_branded",
+          "topic_term_ids",
+          "engines"
+        ],
+        "title": "PromptSummaryRow",
+        "type": "object"
+      },
+      "PromptTerm": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "term_id": {
+            "format": "uuid",
+            "title": "Term Id",
+            "type": "string"
+          },
+          "vocabulary_kind": {
+            "title": "Vocabulary Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "term_id",
+          "vocabulary_kind",
+          "name",
+          "path"
+        ],
+        "title": "PromptTerm",
+        "type": "object"
+      },
+      "PromptVersion": {
+        "properties": {
+          "change_kind": {
+            "enum": [
+              "initial",
+              "wording",
+              "typo",
+              "context"
+            ],
+            "title": "Change Kind",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "prompt_version_id": {
+            "format": "uuid",
+            "title": "Prompt Version Id",
+            "type": "string"
+          },
+          "text": {
+            "description": "Exactly what the engines receive.",
+            "title": "Text",
+            "type": "string"
+          },
+          "text_hash": {
+            "description": "sha256 of the text, hex.",
+            "title": "Text Hash",
+            "type": "string"
+          },
+          "version_no": {
+            "title": "Version No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "prompt_version_id",
+          "version_no",
+          "text",
+          "text_hash",
+          "change_kind",
+          "created_at"
+        ],
+        "title": "PromptVersion",
+        "type": "object"
+      },
+      "PromptsSummary": {
+        "properties": {
+          "engine_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Engine Codes",
+            "type": "array"
+          },
+          "entities": {
+            "description": "The tracked entity set Share of voice is computed over now: the own brand and the competitors (watched entities are not in it).",
+            "items": {
+              "$ref": "#/components/schemas/SummaryEntity"
+            },
+            "title": "Entities",
+            "type": "array"
+          },
+          "entity_config_versions": {
+            "description": "The entity configuration versions of the answers counted. More than one means the entity set changed inside the window and older answers keep their set.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Entity Config Versions",
+            "type": "array"
+          },
+          "include_branded": {
+            "title": "Include Branded",
+            "type": "boolean"
+          },
+          "metric_context": {
+            "$ref": "#/components/schemas/SummaryMetricContext"
+          },
+          "prompts": {
+            "items": {
+              "$ref": "#/components/schemas/PromptSummaryRow"
+            },
+            "title": "Prompts",
+            "type": "array"
+          },
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/TopicSummaryRow"
+            },
+            "title": "Topics",
+            "type": "array"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow"
+          }
+        },
+        "required": [
+          "window",
+          "include_branded",
+          "engine_codes",
+          "metric_context",
+          "entities",
+          "entity_config_versions",
+          "prompts",
+          "topics"
+        ],
+        "title": "PromptsSummary",
+        "type": "object"
+      },
+      "PromptsSummaryResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PromptsSummary"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PromptsSummaryResponse",
         "type": "object"
       },
       "RankCell": {
@@ -8179,6 +10129,26 @@
           "data"
         ],
         "title": "RunDetailResponse",
+        "type": "object"
+      },
+      "RunNow": {
+        "additionalProperties": false,
+        "description": "The engines to ask the prompt on now, each once, through the standard queue.",
+        "properties": {
+          "engine_codes": {
+            "items": {
+              "$ref": "#/components/schemas/EngineCode"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Engine Codes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "engine_codes"
+        ],
+        "title": "RunNow",
         "type": "object"
       },
       "RunPage": {
@@ -10023,6 +11993,58 @@
         "title": "SparklinePoint",
         "type": "object"
       },
+      "SummaryEntity": {
+        "properties": {
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "own",
+              "competitor"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "name",
+          "role"
+        ],
+        "title": "SummaryEntity",
+        "type": "object"
+      },
+      "SummaryMetricContext": {
+        "properties": {
+          "cited": {
+            "$ref": "#/components/schemas/MetricContext"
+          },
+          "mentioned": {
+            "$ref": "#/components/schemas/MetricContext"
+          },
+          "outcomes": {
+            "$ref": "#/components/schemas/MetricContext"
+          },
+          "share_of_voice": {
+            "$ref": "#/components/schemas/MetricContext"
+          }
+        },
+        "required": [
+          "mentioned",
+          "cited",
+          "outcomes",
+          "share_of_voice"
+        ],
+        "title": "SummaryMetricContext",
+        "type": "object"
+      },
       "Term": {
         "properties": {
           "created_at": {
@@ -10508,6 +12530,52 @@
           }
         },
         "title": "TermUpdate",
+        "type": "object"
+      },
+      "TopicSummaryRow": {
+        "properties": {
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/EngineSummary"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "prompt_count": {
+            "title": "Prompt Count",
+            "type": "integer"
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id"
+          }
+        },
+        "required": [
+          "term_id",
+          "name",
+          "prompt_count",
+          "engines"
+        ],
+        "title": "TopicSummaryRow",
         "type": "object"
       },
       "TotpConfirmRequest": {
@@ -16703,6 +18771,521 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations": {
+      "get": {
+        "description": "Newest first. `from` and `to` take timestamps or project-local dates (`to` included); without them the last 28 days. A request covers at most 92 days (`422 window_too_large`). `facts` is the current derivation's, null before extraction. A cursor is bound to its filters (`400 invalid_cursor` otherwise).",
+        "operationId": "list_observations_api_v1_workspaces__workspace_id__projects__project_id__ai_observations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 10,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[prompt_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Prompt Id]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[status_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "complete",
+                      "partial",
+                      "empty",
+                      "refused",
+                      "error"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 5,
+              "title": "Filter[Status In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[is_valid]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Is Valid]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[outcome_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "mentioned_and_cited",
+                      "mentioned_only",
+                      "cited_only",
+                      "neither"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 4,
+              "title": "Filter[Outcome In]"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservationPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The project's AI answers",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}": {
+      "get": {
+        "description": "The answer text, the cited sources with their role (own, competitor, third party) and the tracked entities it names, with evidence spans. Offsets are UTF-16 code units into `answer_text`, as a JavaScript string indexes it.",
+        "operationId": "get_observation_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "observation_id",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Observation Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A hint to find the month.",
+            "in": "query",
+            "name": "observed_at",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A hint to find the month.",
+              "title": "Observed At"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One AI answer with its citations and mentions",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}/raw": {
+      "get": {
+        "description": "`raw:read`. `410 raw_expired` once the answer is past its retention; `503 raw_unavailable` when it could not be read now.",
+        "operationId": "observation_raw_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__raw_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "observation_id",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Observation Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A hint to find the month.",
+            "in": "query",
+            "name": "observed_at",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A hint to find the month.",
+              "title": "Observed At"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The provider's answer for an AI observation, as received",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null.",
+        "operationId": "prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 10,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Mentioned, Cited, outcomes and Share of voice per prompt, engine and topic",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alias-test": {
       "post": {
         "description": "Nothing is stored. Offsets are UTF-16 code units, as JavaScript indexes the text. `413 payload_too_large` over 100 KB; `422 too_many_matches` over 250,000 matches.",
@@ -16838,6 +19421,184 @@
         "summary": "The domains of the project's entities, with their roles",
         "tags": [
           "entities"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines": {
+      "get": {
+        "description": "Every engine offered, configured or not. `estimated_monthly_cost_usd` is what the engine costs a month with the project's active prompts on the base plan (runs a week, one answer, standard queue), as if it were on.",
+        "operationId": "list_engines_api_v1_workspaces__workspace_id__projects__project_id__engines_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEngineList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The AI engines and how the project runs them",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines/{engine_code}": {
+      "delete": {
+        "operationId": "delete_engine_api_v1_workspaces__workspace_id__projects__project_id__engines__engine_code__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "engine_code",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/EngineCode"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Remove the engine's settings; its answers stay",
+        "tags": [
+          "ai"
+        ]
+      },
+      "put": {
+        "description": "The first engine turned on makes the project's AI answer schedules (twice a week). `location_ids` must be active countries (`422 validation_failed` with `location_not_supported`). The provider is DataForSEO and the engine gives one answer per prompt and run.",
+        "operationId": "put_engine_api_v1_workspaces__workspace_id__projects__project_id__engines__engine_code__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "engine_code",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/EngineCode"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEngineResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Turn an engine on or off for the project",
+        "tags": [
+          "ai"
         ]
       }
     },
@@ -18559,6 +21320,651 @@
         "summary": "Refresh keyword metrics now (a manual run)",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts": {
+      "get": {
+        "description": "Newest first. `filter[is_active]` is true when left out; archived prompts are listed with false. `filter[term]` takes the term or one under it, `filter[q]` matches the text as a substring without case, and `filter[intent_in]` takes a comma list. A cursor is bound to its filters (`400 invalid_cursor` otherwise).",
+        "operationId": "list_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[q]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Q]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[intent_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "informational",
+                      "navigational",
+                      "commercial",
+                      "transactional",
+                      "local",
+                      "unknown"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Intent In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[language_code]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Language Code]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[is_active]",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Filter[Is Active]",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The project's prompts",
+        "tags": [
+          "ai"
+        ]
+      },
+      "post": {
+        "description": "`409 duplicate` (with `existing_id`) when the project has the same text in the same language and country, archived prompts included; `422 quota_exceeded` (with `limit`, `used` and `requested`) past the workspace's active prompt limit. Field codes: `prompt_too_long` (over 2,000 characters, the most any engine takes), `location_not_supported` (`country_iso` has no location of an enabled engine), `term_unknown` and `single_valued_vocabulary`. `is_branded` is computed from the project's own aliases.",
+        "operationId": "create_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Add a prompt",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-create": {
+      "post": {
+        "description": "Up to 1,000 items. An item that cannot be saved is rejected with its code (`location_not_supported`, `term_unknown`, `single_valued_vocabulary`, `duplicate_in_request` for the same prompt twice in the list, and `duplicate` with `on_duplicate: error`); with `skip`, a prompt the project has is listed in `skipped`. The rest are written together: `422 quota_exceeded` past the workspace's active prompt limit, and nothing is written. No Idempotency-Key: sending the list again skips what it added.",
+        "operationId": "bulk_create_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_create_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptBulkCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptBulkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Add a list of prompts",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/lint": {
+      "post": {
+        "description": "Nothing is stored. For each text, as it would be saved: whether it names an own brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine it is too long for (`engine_limit`: a warning when the engine skips it, an error when it is too long to save). `quota` is the workspace's active prompt limit and use.",
+        "operationId": "lint_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_lint_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptLintRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptLintResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Check prompts before saving them",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}": {
+      "delete": {
+        "description": "The prompt is no longer asked. It keeps its row, versions and answers, and `PATCH is_active: true` brings it back.",
+        "operationId": "archive_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Prompt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Archive a prompt; its answers stay",
+        "tags": [
+          "ai"
+        ]
+      },
+      "get": {
+        "operationId": "get_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Prompt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "A prompt",
+        "tags": [
+          "ai"
+        ]
+      },
+      "patch": {
+        "description": "The text, language and country cannot change (`422 validation_failed` with `immutable_field`): archive the prompt and add a new one. `term_ids` replaces the terms. `is_active: true` brings an archived prompt back and counts against the quota.",
+        "operationId": "update_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Prompt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change a prompt's metadata",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}/run-now": {
+      "post": {
+        "description": "The prompt, which the project collects (`404` otherwise), on each of `engine_codes` once, through the provider's standard queue, the path a schedule uses. The run is `planned` and the worker plans it within a minute; answers arrive within minutes. An engine the project has not turned on is `422 validation_failed` with `engine_not_enabled`, a prompt longer than an engine takes `prompt_too_long`. An answer already queued or under way is `409 check_pending` with its `engine_codes`. A budget used up blocks the run (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC); `422 quota_exceeded` when the month's AI answers would pass the workspace's `max_ai_observations_per_month`; `503 provider_paused` while the provider is refusing every request.",
+        "operationId": "run_now_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__run_now_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Prompt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunNow"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Ask a prompt now (a manual run through the provider's standard queue)",
+        "tags": [
+          "ai"
         ]
       }
     },

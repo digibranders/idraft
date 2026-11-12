@@ -57,6 +57,15 @@ TENANT_TABLES: dict[str, str] = {
     "fp.integrations": "workspace_id",
     "fp.gsc_queries": "workspace_id",
     "fp.gsc_search_analytics": "workspace_id",
+    "ai.project_engines": "workspace_id",
+    "ai.prompts": "workspace_id",
+    "ai.prompt_versions": "workspace_id",
+    "ai.prompt_terms": "workspace_id",
+    "ai.derivations": "workspace_id",
+    "ai.observations": "workspace_id",
+    "ai.citations": "workspace_id",
+    "ai.entity_mentions": "workspace_id",
+    "ai.observation_facts": "workspace_id",
 }
 
 
@@ -168,6 +177,7 @@ async def seed_tenant(pg: PostgresServer, label: str) -> Tenant:
         schedule_id, run_id = await seed_operations(db, workspace_id, project_id)
         await seed_keywords(db, workspace_id, project_id, owner_id, entity_id, term_id)
         await seed_search_console(db, workspace_id, project_id, owner_id)
+        await seed_ai(db, workspace_id, project_id, owner_id, entity_id, term_id)
     return Tenant(workspace_id, owner_id, project_id, token_hash, schedule_id, run_id)
 
 
@@ -530,3 +540,158 @@ async def seed_operations(
         str(project_id),
     )
     return schedule_id, run_id
+
+
+async def insert_prompt(
+    db: asyncpg.Connection[Any],
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    text: str,
+    *,
+    language_code: str = "en",
+    country_iso: str = "US",
+    is_active: bool = True,
+    created_by: uuid.UUID | None = None,
+) -> tuple[uuid.UUID, uuid.UUID]:
+    """A prompt with its first version, as the API writes one: the version's key is checked
+    at commit, so both rows go in one transaction (a savepoint inside an open one). `text`
+    must already be trimmed and composed: its hash is taken as given. Returns the prompt's id
+    and its version's."""
+    ids = await db.fetchrow("SELECT uuidv7() AS prompt_id, uuidv7() AS version_id")
+    assert ids is not None
+    async with db.transaction():
+        await db.execute(
+            "INSERT INTO ai.prompts (id, workspace_id, project_id, current_version_id, "
+            "language_code, country_iso, is_active, created_by) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+            ids["prompt_id"],
+            workspace_id,
+            project_id,
+            ids["version_id"],
+            language_code,
+            country_iso,
+            is_active,
+            created_by,
+        )
+        await db.execute(
+            "INSERT INTO ai.prompt_versions (id, workspace_id, prompt_id, version_no, text, "
+            "text_hash, created_by, change_kind) "
+            "VALUES ($1, $2, $3, 1, $4::text, sha256(convert_to($4::text, 'UTF8')), $5, "
+            "'initial')",
+            ids["version_id"],
+            workspace_id,
+            ids["prompt_id"],
+            text,
+            created_by,
+        )
+    prompt_id: uuid.UUID = ids["prompt_id"]
+    version_id: uuid.UUID = ids["version_id"]
+    return prompt_id, version_id
+
+
+async def seed_ai(
+    db: asyncpg.Connection[Any],
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    entity_id: uuid.UUID,
+    term_id: uuid.UUID,
+) -> None:
+    """One row in every AI table: ChatGPT on in the seeded country, a prompt with its first
+    version and a term, and one answer with a citation, a mention of the own brand and its
+    facts under a derivation."""
+    await db.execute(
+        "INSERT INTO ai.project_engines (project_id, engine_code, workspace_id, location_ids, "
+        "provider_code) VALUES ($1, 'chatgpt_web', $2, ARRAY[$3::integer], 'dataforseo')",
+        project_id,
+        workspace_id,
+        SEED_LOCATION,
+    )
+    prompt_id, version_id = await insert_prompt(
+        db, workspace_id, project_id, "Which CRM suits a startup?", created_by=owner_id
+    )
+    await db.execute(
+        "INSERT INTO ai.prompt_terms (prompt_id, term_id, workspace_id) VALUES ($1, $2, $3)",
+        prompt_id,
+        term_id,
+        workspace_id,
+    )
+    derivation_id: int = await db.fetchval(
+        "INSERT INTO ai.derivations (workspace_id, project_id, extractor_version, "
+        "entity_config_version, recommendation_version, sentiment_version) "
+        "VALUES ($1, $2, 1, 1, 1, 1) RETURNING id",
+        workspace_id,
+        project_id,
+    )
+    raw_payload_id: int = await db.fetchval(
+        "INSERT INTO ops.raw_payloads (storage, object_key, sha256, bytes_raw, bytes_stored, "
+        "compression, content_type, provider_code, provider_endpoint, fetched_at, "
+        "retention_class) VALUES ('r2', $1, $2, 10, 10, 'zstd', 'application/json', "
+        "'dataforseo', 'ai_optimization/chat_gpt/llm_scraper/task_get/advanced', now(), "
+        "'ai_raw') RETURNING id",
+        f"ai_raw/{uuid.uuid4().hex}",
+        uuid.uuid4().bytes + uuid.uuid4().bytes,
+    )
+    observed_at = await db.fetchval("SELECT now()")
+    observation_id: int = await db.fetchval(
+        "INSERT INTO ai.observations (observed_at, observed_date, workspace_id, project_id, "
+        "engine_code, observation_class, prompt_id, prompt_version_id, query_text, location_id, "
+        "language_code, provider_code, provider_endpoint, status, answer_text, "
+        "answer_char_count, has_citations, citation_count, raw_payload_id, adapter_version, "
+        "normalizer_version, canonicalizer_version) VALUES ($1, current_date, $2, $3, "
+        "'chatgpt_web', 'consumer_ui', $4, $5, 'Which CRM suits a startup?', $6, 'en', "
+        "'dataforseo', 'ai_optimization/chat_gpt/llm_scraper', 'complete', 'Acme suits one.', "
+        "15, true, 1, $7, 1, 1, 1) RETURNING id",
+        observed_at,
+        workspace_id,
+        project_id,
+        prompt_id,
+        version_id,
+        SEED_LOCATION,
+        raw_payload_id,
+    )
+    url = await db.fetchrow("SELECT id, domain_id FROM core.urls ORDER BY id LIMIT 1")
+    assert url is not None
+    await db.execute(
+        "INSERT INTO ai.citations (observation_id, observed_at, citation_index, workspace_id, "
+        "project_id, engine_code, url_id, domain_id, raw_url, citation_kind, domain_role, "
+        "role_entity_id) VALUES ($1, $2, 1, $3, $4, 'chatgpt_web', $5, $6, "
+        "'https://example.com/crm', 'source_list', 'own', $7)",
+        observation_id,
+        observed_at,
+        workspace_id,
+        project_id,
+        url["id"],
+        url["domain_id"],
+        entity_id,
+    )
+    await db.execute(
+        "INSERT INTO ai.entity_mentions (observation_id, observed_at, entity_id, derivation_id, "
+        "workspace_id, project_id, engine_code, role, mention_count, first_char_offset, "
+        "mention_order, prominence, match_method, confidence, evidence_spans) "
+        "VALUES ($1, $2, $3, $4, $5, $6, 'chatgpt_web', 'own', 1, 0, 1, 1, 'alias_word', 1, "
+        "ARRAY['[0,4)'::int4range])",
+        observation_id,
+        observed_at,
+        entity_id,
+        derivation_id,
+        workspace_id,
+        project_id,
+    )
+    await db.execute(
+        "INSERT INTO ai.observation_facts (observation_id, observed_at, derivation_id, "
+        "workspace_id, project_id, observed_date, engine_code, observation_class, prompt_id, "
+        "prompt_version_id, replicate_index, location_id, is_valid, own_mentioned, "
+        "own_domain_cited, own_citation_count, total_citation_count, "
+        "tracked_entities_mentioned, had_structured_list) VALUES ($1, $2, $3, $4, $5, "
+        "current_date, 'chatgpt_web', 'consumer_ui', $6, $7, 1, $8, true, true, true, 1, 1, 1, "
+        "false)",
+        observation_id,
+        observed_at,
+        derivation_id,
+        workspace_id,
+        project_id,
+        prompt_id,
+        version_id,
+        SEED_LOCATION,
+    )

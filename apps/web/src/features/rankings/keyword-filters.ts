@@ -16,11 +16,12 @@ import {
 import type { ProjectScope } from './rankings-queries';
 import { useKeywordGroups, useVocabularies } from './taxonomy-queries';
 import type { FilterField, FilterOption } from '@/components/app/filters/types';
-import { api, unwrap } from '@/lib/api/client';
-import type { ApiResponse } from '@/lib/api/query';
 import { LANGUAGE_CODES, languageName } from '@/lib/format/language';
 import { FEATURE_TYPES, OWNABLE_FEATURE_TYPES, FEATURE_MESSAGE_KEYS } from '@/lib/keywords/serp-features';
 import { useDepthLabel } from '@/lib/keywords/use-depth-label';
+
+// The country list moved to lib, where the AI prompt screens read it too; Rankings keeps its names
+export { readCountries, type Country } from '@/lib/locations/countries';
 
 /**
  * The filters of Rankings as chips (backend plan D15, 13-filters-search.md section 4), each under its URL
@@ -28,32 +29,6 @@ import { useDepthLabel } from '@/lib/keywords/use-depth-label';
  * location, language, intent, funnel stage, priority at most, source, depth profile, volume at least, KD at
  * most and stale. Groups, terms and locations come from the API; the rest are the API's own values.
  */
-
-/** The countries a keyword is tracked in; regions and cities wait for a location search in the editor. */
-const COUNTRIES = { 'filter[location_type]': 'Country', 'filter[supports]': 'serp', limit: 200 } as const;
-/** About 250 countries exist; the reading stops here whatever the API says. */
-const MAX_COUNTRY_PAGES = 5;
-
-export type Country = ApiResponse<'get', '/api/v1/locations'>['data'][number];
-type Location = Country;
-
-/** Every country the API lists, page after page: a link's location must be among them to be kept. */
-export async function readCountries(signal: AbortSignal): Promise<Location[]> {
-  const found: Location[] = [];
-  let cursor: string | null = null;
-  for (let page = 0; page < MAX_COUNTRY_PAGES; page += 1) {
-    const answer: ApiResponse<'get', '/api/v1/locations'> = await unwrap(
-      api.GET('/api/v1/locations', {
-        params: { query: { ...COUNTRIES, ...(cursor === null ? {} : { cursor }) } },
-        signal,
-      }),
-    );
-    found.push(...answer.data);
-    cursor = answer.page.has_more ? answer.page.next_cursor : null;
-    if (cursor === null) break;
-  }
-  return found;
-}
 
 export function useKeywordFilterFields(scope: ProjectScope, depth?: number | undefined): readonly FilterField[] {
   const t = useTranslations('rankings.filters');

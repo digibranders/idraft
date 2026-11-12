@@ -13,7 +13,7 @@ from uuid import UUID
 from sqlalchemy import Row, Select, exists, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from idraft.db.tables import collection_runs, schedules, tracked_keywords
+from idraft.db.tables import collection_runs, projects, schedules, tracked_keywords
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +127,28 @@ async def get_schedule(
         statement = statement.with_for_update(of=schedules)
     row = (await db.execute(statement)).one_or_none()
     return None if row is None else _record(row)
+
+
+async def lock_project(db: AsyncSession, workspace_id: UUID, project_id: UUID) -> None:
+    """Holds the project row until the transaction ends, so the schedules of one project are
+    counted and added one request at a time."""
+    await db.execute(
+        select(projects.c.id)
+        .where(projects.c.workspace_id == workspace_id, projects.c.id == project_id)
+        .with_for_update(of=projects)
+    )
+
+
+async def live_count(db: AsyncSession, workspace_id: UUID, project_id: UUID, workload: str) -> int:
+    """How many live schedules of the workload the project has, paused ones included."""
+    count: int = (
+        await db.execute(
+            select(func.count()).select_from(
+                _live(workspace_id, project_id).where(schedules.c.workload == workload).subquery()
+            )
+        )
+    ).scalar_one()
+    return count
 
 
 async def insert_schedule(

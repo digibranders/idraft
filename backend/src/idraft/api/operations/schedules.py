@@ -37,6 +37,7 @@ from idraft.api.schemas.operations import ScheduleInput, SchedulePause, Schedule
 from idraft.api.timezones import check_timezone
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
+from idraft.domain.ai_engines import BASE_PLAN
 from idraft.domain.schedules import (
     Cadence,
     ScheduleRule,
@@ -56,6 +57,10 @@ class WorkloadRules:
     # A selector that names nothing selects nothing; `keyword_metrics` reads it as "the stale
     # ones" instead.
     needs_selector: bool
+    # The cadences a schedule may have; None takes every one.
+    cadences: frozenset[str] | None = None
+    # How many live schedules a project may have; None takes any number.
+    max_per_project: int | None = None
 
 
 # The workloads the worker plans in this step and the next (plan decision D10).
@@ -74,6 +79,17 @@ WORKLOADS: Final[Mapping[str, WorkloadRules]] = {
         provider_modes=frozenset({"standard_queue", "priority_queue"}),
         default_mode="standard_queue",
         needs_selector=True,
+    ),
+    # AI answers (spec 2026-11-11 section 4.3): every active prompt of the project, kept to the
+    # base plan (plan decision A3): the standard queue, weekly, and as many schedules as the plan
+    # has runs a week. `idraft.ai.schedule` makes those schedules when an engine is turned on.
+    "ai_prompt": WorkloadRules(
+        selectors=frozenset({"all"}),
+        provider_modes=frozenset({BASE_PLAN.provider_mode}),
+        default_mode=BASE_PLAN.provider_mode,
+        needs_selector=True,
+        cadences=frozenset({Cadence.WEEKLY.value}),
+        max_per_project=BASE_PLAN.runs_per_week,
     ),
 }
 
@@ -158,7 +174,16 @@ def _shape_errors(workload: str, cadence: str, provider_mode: str) -> list[Field
                 "A schedule runs daily, weekly or monthly.",
             )
         ]
-    modes = WORKLOADS[workload].provider_modes
+    rules = WORKLOADS[workload]
+    if rules.cadences is not None and cadence not in rules.cadences:
+        return [
+            FieldError(
+                "cadence",
+                "cadence_not_supported",
+                f"A {workload} schedule runs {' or '.join(sorted(rules.cadences))}.",
+            )
+        ]
+    modes = rules.provider_modes
     if provider_mode not in modes:
         return [
             FieldError(
@@ -259,6 +284,24 @@ class ScheduleService:
                 "selector.terms", code="term_unknown", message="A term the project cannot use."
             )
 
+    @staticmethod
+    async def _room(
+        db: AsyncSession, access: WorkspaceAccess, project_id: UUID, workload: str
+    ) -> None:
+        """Refuses a schedule beyond what the workload allows a project. The count is read under
+        the project row, so two creations at once cannot both take the last place. Only a
+        creation adds one: a schedule keeps its workload, and a deleted one is not brought back."""
+        limit = WORKLOADS[workload].max_per_project
+        if limit is None:
+            return
+        await repository.lock_project(db, access.workspace_id, project_id)
+        if await repository.live_count(db, access.workspace_id, project_id, workload) >= limit:
+            raise invalid_field(
+                "workload",
+                code="too_many_schedules",
+                message=f"A project has at most {limit} {workload} schedules: change one.",
+            )
+
     async def page(
         self,
         access: WorkspaceAccess,
@@ -311,6 +354,7 @@ class ScheduleService:
             await self._project(db, access, project_id)
             await check_timezone(db, body.timezone)
             await self._references(db, access, project_id, body.selector)
+            await self._room(db, access, project_id, body.workload)
             rule = _rule(
                 cadence=body.cadence,
                 timezone=body.timezone,

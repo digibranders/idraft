@@ -136,5 +136,23 @@ export type AnalyticsProperty = Schemas['AnalyticsProperty'];
 export type Integration = Schemas['Integration'];
 export type OverlapWarning = Schemas['OverlapWarning'];
 
+// AI prompt tracking, slice 1, plan A of 2026-11-11: engines and prompts
+export type EngineCode = Schemas['EngineCode'];
+export type ProjectEngine = Schemas['ProjectEngine'];
+export type Prompt = Schemas['Prompt'];
+export type PromptLint = Schemas['PromptLint'];
+export type PromptBulkResult = Schemas['PromptBulkResult'];
+
+// AI prompt tracking, slice 1, plan B of 2026-11-11: answers and the prompts summary
+export type ObservationSummary = Schemas['ObservationSummary'];
+export type ObservationDetail = Schemas['ObservationDetail'];
+export type CitationOut = Schemas['CitationOut'];
+export type MentionOut = Schemas['MentionOut'];
+export type MetricCell = Schemas['MetricCell'];
+export type EngineSummary = Schemas['EngineSummary'];
+export type PromptSummaryRow = Schemas['PromptSummaryRow'];
+export type TopicSummaryRow = Schemas['TopicSummaryRow'];
+export type PromptsSummary = Schemas['PromptsSummary'];
+
 /** Runtime lists from the OpenAPI enums: a form checks a slug against them before it asks the API. */
 export { reservedProjectSlugValues, reservedWorkspaceSlugValues, roleValues } from './schema';

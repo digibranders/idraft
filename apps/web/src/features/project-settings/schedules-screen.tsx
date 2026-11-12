@@ -207,7 +207,9 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
       id: 'collects',
       header: t('columns.collects'),
       wrap: true,
-      cell: (schedule) => words.collects(schedule.selector, names),
+      // An AI answer schedule asks every active prompt (selector `{"all": true}`), not keywords
+      cell: (schedule) =>
+        schedule.workload === 'ai_prompt' ? t('selector.allPrompts') : words.collects(schedule.selector, names),
     },
     {
       id: 'when',

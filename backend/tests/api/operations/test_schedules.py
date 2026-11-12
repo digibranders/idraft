@@ -149,6 +149,119 @@ async def test_a_rank_schedule_takes_the_task_queues_and_not_the_live_call(
     assert priority.json()["data"]["provider_mode"] == "priority_queue"
 
 
+async def test_an_ai_answer_schedule_takes_every_prompt_on_a_task_queue(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    body = _body(workload="ai_prompt", cadence="weekly", weekday=1, selector={"all": True})
+    del body["provider_mode"]
+
+    created = await _create(api, workspace, project, owner, body)
+    live = await _create(api, workspace, project, owner, {**body, "provider_mode": "live"})
+    by_term = await _create(
+        api, workspace, project, owner, {**body, "selector": {"terms": [str(uuid.uuid4())]}}
+    )
+
+    assert created.status_code == 201, created.text
+    assert created.json()["data"]["provider_mode"] == "standard_queue"
+    assert errors(live) == [("provider_mode", "provider_mode_not_supported")]
+    assert errors(by_term) == [("selector.terms", "selector_not_supported")]
+
+
+def _ai_body(**changes: Any) -> dict[str, Any]:
+    body = _body(workload="ai_prompt", cadence="weekly", weekday=1, selector={"all": True})
+    del body["provider_mode"]
+    return {**body, **changes}
+
+
+async def test_an_ai_answer_schedule_is_kept_to_the_base_plan(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """Twice a week on the standard queue is what the base plan pays for."""
+    workspace, project, owner = await _owner(resources, migrated)
+
+    priority = await _create(
+        api, workspace, project, owner, _ai_body(provider_mode="priority_queue")
+    )
+    daily = await _create(api, workspace, project, owner, _ai_body(cadence="daily", weekday=None))
+    monthly = await _create(
+        api, workspace, project, owner, _ai_body(cadence="monthly", weekday=None, month_day=3)
+    )
+
+    assert errors(priority) == [("provider_mode", "provider_mode_not_supported")]
+    assert errors(daily) == [("cadence", "cadence_not_supported")]
+    assert errors(monthly) == [("cadence", "cadence_not_supported")]
+
+
+async def test_an_ai_answer_schedule_cannot_be_changed_past_the_base_plan(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    created = await _create(api, workspace, project, owner, _ai_body())
+    assert created.status_code == 201, created.text
+    schedule_id = created.json()["data"]["schedule_id"]
+
+    priority = await _patch(
+        api, workspace, project, owner, schedule_id, {"provider_mode": "priority_queue"}
+    )
+    daily = await _patch(api, workspace, project, owner, schedule_id, {"cadence": "daily"})
+    moved = await _patch(
+        api, workspace, project, owner, schedule_id, {"weekday": 4, "window_start_local": "02:30"}
+    )
+
+    assert errors(priority) == [("provider_mode", "provider_mode_not_supported")]
+    assert errors(daily) == [("cadence", "cadence_not_supported")]
+    assert moved.status_code == 200, moved.text
+    assert (moved.json()["data"]["weekday"], moved.json()["data"]["window_start_local"]) == (
+        4,
+        "02:30:00",
+    )
+
+
+async def test_a_project_has_at_most_two_ai_answer_schedules(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    other = await keyword_project(migrated, workspace)
+    first = await _create(api, workspace, project, owner, _ai_body(weekday=1))
+    second = await _create(api, workspace, project, owner, _ai_body(weekday=4))
+    third = await _create(api, workspace, project, owner, _ai_body(weekday=6))
+    elsewhere = await _create(api, workspace, other, owner, _ai_body())
+    # A paused schedule still counts: resuming it would run it again.
+    await api.post(
+        project_url(workspace, project, "schedules", first.json()["data"]["schedule_id"])
+        + "/pause",
+        headers=owner.headers,
+    )
+    paused = await _create(api, workspace, project, owner, _ai_body(weekday=6))
+    # Other workloads have no such limit.
+    ranks = [
+        await _created(
+            api,
+            workspace,
+            project,
+            owner,
+            workload="seo_rank",
+            provider_mode="standard_queue",
+            selector={"all": True},
+        )
+        for _ in range(3)
+    ]
+    # A deleted one gives its place back.
+    await api.delete(
+        project_url(workspace, project, "schedules", second.json()["data"]["schedule_id"]),
+        headers=owner.headers,
+    )
+    replaced = await _create(api, workspace, project, owner, _ai_body(weekday=6))
+
+    assert (first.status_code, second.status_code) == (201, 201)
+    assert errors(third) == [("workload", "too_many_schedules")]
+    assert errors(paused) == [("workload", "too_many_schedules")]
+    assert elsewhere.status_code == 201, elsewhere.text
+    assert len(ranks) == 3
+    assert replaced.status_code == 201, replaced.text
+
+
 async def test_weekly_and_monthly_schedules_run_on_their_day(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -167,7 +280,7 @@ async def test_weekly_and_monthly_schedules_run_on_their_day(
     ("changes", "path", "code"),
     [
         ({"cadence": "cron", "cron_expr": "0 3 * * *"}, "cadence", "cadence_not_supported"),
-        ({"workload": "ai_prompt"}, "workload", "workload_not_available"),
+        ({"workload": "ai_mode_keyword"}, "workload", "workload_not_available"),
         ({"timezone": "Mars/Olympus_Mons"}, "timezone", "timezone_unknown"),
         ({"provider_mode": "standard_queue"}, "provider_mode", "provider_mode_not_supported"),
         ({"selector": {"priority_lte": 2}}, "selector.priority_lte", "selector_not_supported"),

@@ -6,6 +6,7 @@ import { checkPriceUsd } from './add-plan';
 import { readCountries, type Country } from '../keyword-filters';
 import type { ProjectScope } from '../rankings-queries';
 import { apiAllPagesQuery, apiQuery } from '@/lib/api/query';
+import { COUNTRIES_KEY } from '@/lib/locations/countries';
 
 /** What the Add keywords dialog reads once it opens: the plan use and the price of a check. */
 
@@ -30,7 +31,7 @@ export interface CountryList {
  */
 export function useCountryList(): CountryList {
   const query = useQuery({
-    queryKey: ['locations', 'countries', 'all'],
+    queryKey: COUNTRIES_KEY,
     queryFn: ({ signal }) => readCountries(signal),
     staleTime: Number.POSITIVE_INFINITY,
   });

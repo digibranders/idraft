@@ -8,6 +8,7 @@ route that is neither workspace-scoped nor listed in cross_tenant_exceptions.py.
 
 from __future__ import annotations
 
+import json
 import re
 import uuid
 from dataclasses import dataclass
@@ -40,8 +41,10 @@ from tests.api.auth.support import (
 from tests.api.keywords.support import LOCATION, ensure_locations
 from tests.api.test_route_access import PATH_PARAMETER
 from tests.api.workspaces.support import make_project
+from tests.collectors.ai_support import add_prompt, seed_extraction, seed_observation
+from tests.collectors.support import Project
 from tests.conftest import PostgresServer
-from tests.db.support import seed_rank
+from tests.db.support import insert_prompt, seed_rank
 from tests.providers.google.fake_google import FakeGoogle
 from tests.security.cross_tenant_exceptions import NOT_PATH_SCOPED
 
@@ -130,6 +133,9 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("POST", _W + "/projects/{project_id}/seo/check-now"): {
         "tracked_keyword_ids": ["{tracked_keyword_id}"],
     },
+    ("POST", _W + "/projects/{project_id}/prompts/{prompt_id}/run-now"): {
+        "engine_codes": ["chatgpt_web"],
+    },
     ("POST", _W + "/projects/{project_id}/tracked-keywords/bulk-update"): {
         "ids": ["{tracked_keyword_id}"],
         "set": {"priority": 1},
@@ -180,10 +186,21 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("POST", _W + "/projects/{project_id}/keyword-imports/{import_id}/confirm"): {
         "duplicate_action": "merge_terms",
     },
+    ("PUT", _W + "/projects/{project_id}/engines/{engine_code}"): {"location_ids": [LOCATION]},
+    ("POST", _W + "/projects/{project_id}/prompts"): {
+        "text": "Planted prompt?",
+        "language_code": "en",
+        "country_iso": "US",
+    },
+    ("POST", _W + "/projects/{project_id}/prompts/bulk-create"): {
+        "items": [{"text": "Planted prompt?", "language_code": "en", "country_iso": "US"}],
+    },
+    ("POST", _W + "/projects/{project_id}/prompts/lint"): {"texts": ["Is Acme good?"]},
+    ("PATCH", _W + "/projects/{project_id}/prompts/{prompt_id}"): {"importance": 1},
 }
 # A path parameter that is a word, not an id of the tenant: it must not count as one of its
 # secrets, since every response would then seem to hold it.
-WORDS = {"kind": "gsc"}
+WORDS = {"kind": "gsc", "engine_code": "chatgpt_web"}
 # Routes that a member limited to some projects is refused even inside their own project: they
 # change the workspace's credentials, which belong to no one project (docs/24 section 3.2).
 EVERY_PROJECT_ONLY = {
@@ -237,10 +254,14 @@ class Tenant:
     import_id: uuid.UUID
     # A SERP snapshot of the tracked keyword, with its raw answer registered.
     serp_snapshot_id: int
+    # An AI answer of a prompt of the project, with its raw answer registered.
+    observation_id: int
     # A Google account connected to the workspace, and a property of it once linked to the
     # project and switched off (so that linking it again succeeds).
     connection_id: uuid.UUID
     integration_id: uuid.UUID
+    # A prompt of the project with the term, so changing or archiving it succeeds.
+    prompt_id: uuid.UUID
 
     def ids(self) -> dict[str, str]:
         return {
@@ -262,8 +283,10 @@ class Tenant:
             "budget_id": str(self.budget_id),
             "import_id": str(self.import_id),
             "serp_snapshot_id": str(self.serp_snapshot_id),
+            "observation_id": str(self.observation_id),
             "connection_id": str(self.connection_id),
             "integration_id": str(self.integration_id),
+            "prompt_id": str(self.prompt_id),
         }
 
     def secrets(self) -> list[str]:
@@ -420,6 +443,34 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         term["id"],
         workspace.id,
     )
+    # The same engine in both, on in the tracked keyword's country, so removing it succeeds.
+    await execute(
+        pg,
+        "INSERT INTO ai.project_engines (project_id, engine_code, workspace_id, location_ids, "
+        "provider_code) VALUES ($1, 'chatgpt_web', $2, ARRAY[$3::integer], 'dataforseo')",
+        project_id,
+        workspace.id,
+        LOCATION,
+    )
+    # The same prompt in both, under the term.
+    prompt_db = await asyncpg.connect(pg.url())
+    try:
+        prompt_id, _ = await insert_prompt(
+            prompt_db,
+            workspace.id,
+            project_id,
+            "Which CRM software suits a startup?",
+            created_by=owner.id,
+        )
+    finally:
+        await prompt_db.close()
+    await execute(
+        pg,
+        "INSERT INTO ai.prompt_terms (prompt_id, term_id, workspace_id) VALUES ($1, $2, $3)",
+        prompt_id,
+        term["id"],
+        workspace.id,
+    )
     # The same schedule in both, and a run of it under way.
     schedule = await fetchrow(
         pg,
@@ -496,6 +547,23 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
             digest(answer),
             snapshot_id,
         )
+    # An AI answer, its raw answer really in the store, so reading it would succeed.
+    seeded = await add_prompt(
+        pg, Project(workspace.id, project_id), f"Seeded AI prompt of tenant {label}?"
+    )
+    ai_answer = f'{{"tasks": [], "planted": "{label}-ai-{uuid.uuid4().hex}"}}'.encode()
+    ai_key = f"raw/v1/ai_raw/dataforseo/planted/{label}-{uuid.uuid4().hex}.json.zst"
+    if resources.import_store is not None:
+        await resources.import_store.put(ai_key, compress(ai_answer))
+    observation_id = await seed_observation(
+        pg,
+        Project(workspace.id, project_id),
+        seeded,
+        object_key=ai_key,
+        sha256=digest(ai_answer),
+    )
+    # Its extraction: a citation, a mention of the entity and the facts, read through the routes.
+    await seed_extraction(pg, Project(workspace.id, project_id), observation_id, entity["id"])
     # A real connection of the same Google account in both: its refresh token is sealed as the
     # application seals one, and the fake Google accepts it.
     account = fake.account(f"{label}@client.example", [("sc-domain:acme.example", "siteOwner")])
@@ -561,8 +629,10 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         budget_id=budget["id"],
         import_id=keyword_import["id"],
         serp_snapshot_id=snapshot_id,
+        observation_id=observation_id,
         connection_id=connection["id"],
         integration_id=integration["id"],
+        prompt_id=prompt_id,
     )
 
 
@@ -578,9 +648,11 @@ async def tenants(
 
 def _nowhere(ids: dict[str, str]) -> dict[str, str]:
     """Ids that name nothing, of the kind each path parameter takes: a UUID, or for a SERP
-    snapshot a number no sequence has reached."""
+    snapshot or an AI observation a number no sequence has reached."""
     return {
-        name: "9223372036854775000" if name == "serp_snapshot_id" else str(uuid.uuid4())
+        name: "9223372036854775000"
+        if name in ("serp_snapshot_id", "observation_id")
+        else str(uuid.uuid4())
         for name in ids
     }
 
@@ -664,6 +736,25 @@ def _shows(body: object, text: str, secret: str) -> bool:
     return False
 
 
+def _leaks(body: object, secret: str) -> bool:
+    """Whether a list response shows `secret`. The counts of its `page` (`total`, `limit`,
+    `offset`) are left out: they are small integers, and another tenant's small numeric id
+    equals one by chance (a price book of 12 rows against an id of 12)."""
+    scanned = body
+    if isinstance(body, dict) and isinstance(body.get("page"), dict):
+        page = {key: value for key, value in body["page"].items() if not isinstance(value, int)}
+        scanned = {**body, "page": page}
+    return _shows(scanned, json.dumps(scanned, ensure_ascii=False), secret)
+
+
+def test_a_page_count_is_not_an_id_of_another_tenant() -> None:
+    body = {"data": [{"id": "a"}], "page": {"offset": 0, "limit": 50, "total": 12}}
+    assert _shows(body, str(body), "12")
+    assert not _leaks(body, "12")
+    assert _leaks({**body, "data": [{"keyword_id": 12}]}, "12")
+    assert _leaks({"page": {"next_cursor": "tenant-b-cursor"}}, "tenant-b-cursor")
+
+
 def test_a_numeric_id_counts_as_shown_only_as_a_whole_value() -> None:
     hidden_inside = {
         "id": "5f0c2322-7a1b-4c22-9232-0d1e2f3a4b5c",
@@ -723,6 +814,15 @@ _TENANT_ROWS = {
     "ops.secrets": "workspace_id",
     "fp.connections": "workspace_id",
     "fp.integrations": "workspace_id",
+    "ai.project_engines": "workspace_id",
+    "ai.prompts": "workspace_id",
+    "ai.prompt_versions": "workspace_id",
+    "ai.prompt_terms": "workspace_id",
+    "ai.derivations": "workspace_id",
+    "ai.observations": "workspace_id",
+    "ai.citations": "workspace_id",
+    "ai.entity_mentions": "workspace_id",
+    "ai.observation_facts": "workspace_id",
 }
 
 
@@ -858,9 +958,7 @@ async def test_a_list_holds_nothing_of_another_workspace(
     assert response.status_code == 200, response.text
     body = response.json()
     for secret in b.secrets():
-        assert not _shows(body, response.text, secret), (
-            f"{path} shows {secret} of another workspace"
-        )
+        assert not _leaks(body, secret), f"{path} shows {secret} of another workspace"
     # The list is not empty for a trivial reason: it shows A's own data.
     if path not in PLATFORM_LISTS | COUNT_ROUTES:
         assert any(own in response.text for own in [*a.ids().values(), str(a.owner.id)])

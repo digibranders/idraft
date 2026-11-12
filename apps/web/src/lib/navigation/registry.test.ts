@@ -35,9 +35,10 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Keywords, Integrations, Runs, Costs and Settings, for now', () => {
+  it('lists only what is live: Keywords, Topics & Prompts, Integrations, Runs, Costs and Settings, for now', () => {
     expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual([
       'keywords',
+      'prompts',
       'integrations',
       'runs',
       'costs',
@@ -57,8 +58,8 @@ describe('the navigation registry', () => {
   it('shows Runs to a reader and Costs to those who may read costs, hiding the one the role cannot open', () => {
     const shownTo = (role: (typeof roleValues)[number]): string[] =>
       keysOf(visibleNavigation(NAVIGATION, permissionsFor(role)));
-    expect(shownTo('viewer')).toEqual(['keywords', 'integrations', 'runs', 'settings']);
-    expect(shownTo('analyst')).toEqual(['keywords', 'integrations', 'runs', 'costs', 'settings']);
+    expect(shownTo('viewer')).toEqual(['keywords', 'prompts', 'integrations', 'runs', 'settings']);
+    expect(shownTo('analyst')).toEqual(['keywords', 'prompts', 'integrations', 'runs', 'costs', 'settings']);
     expect(shownTo('billing')).toEqual(['costs', 'settings']);
   });
 

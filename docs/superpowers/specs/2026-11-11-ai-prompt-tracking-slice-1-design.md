@@ -6,7 +6,7 @@ Specs this slice takes a subset of: [04](../../04-data-model.md) section 8, [07]
 
 ## 1. Goal
 
-The owner adds prompts to a project. idraft asks ChatGPT, Gemini and Google AI Mode each prompt once a week, keeps every answer, and shows per prompt and per topic whether the own brand was mentioned, whether the own domain was cited, and how the share of voice splits between the own brand and its competitors. An answer can be opened and read with the brand names and the cited sources marked.
+The owner adds prompts to a project. idraft asks ChatGPT, Gemini and Google AI Mode each prompt twice a week, keeps every answer, and shows per prompt and per topic whether the own brand was mentioned, whether the own domain was cited, and how the share of voice splits between the own brand and its competitors. An answer can be opened and read with the brand names and the cited sources marked.
 
 Why this first: every number the later slices add (replicates, intervals, recommendation, sentiment, panels) sits on stored answers and their mentions. Collecting answers early starts the history that cannot be made later.
 
@@ -18,7 +18,7 @@ In slice 1:
 
 - Prompts: create one, create many by pasting a list, archive. Text is fixed once saved (see section 4.2). Fields: text, language, country, topic (existing taxonomy), importance.
 - Engines per project: `chatgpt_web`, `gemini_web`, `google_ai_mode`. Each is off until the owner turns it on in project settings, where the monthly cost estimate is shown first.
-- Collection: weekly per active prompt and enabled engine, one answer each (no replicates). A "Run now" button per prompt, through the same queue and budget check as every other collection.
+- Collection: twice a week (Monday and Thursday) per active prompt and enabled engine, one answer each (no replicates). A "Run now" button per prompt, through the same queue and budget check as every other collection.
 - Storage: every answer in `ai.observations`, the raw provider payload in R2, citations in `ai.citations`.
 - Extraction, light: own and competitor mentions by the existing alias matcher, citation domain roles by the existing domain resolver. No recommendation, sentiment, list rank or untracked entity discovery.
 - Metrics per prompt, engine and topic over a window (28 days by default): Mentioned, Cited, the four outcomes, Share of voice. Each as a count of valid answers ("4 of 6") with the ratio.
@@ -53,7 +53,7 @@ Tables exactly as in doc 04 section 8, so no later migration reshapes them:
 
 Columns for later slices (`is_recommended`, `sentiment`, `structured_rank`, `own_prominence` and the like) stay null. Every table carries `workspace_id` and the row-level security policy of the existing tables; the cross-tenant test suite gets the new tables and routes.
 
-Metrics are computed by query over `ai.observation_facts` in slice 1, with no rollup tables. Slice 3 adds `ai.daily_prompt_engine_metrics` when volume needs it (1,000 prompts a week is about 13,000 answers a month, which a query handles).
+Metrics are computed by query over `ai.observation_facts` in slice 1, with no rollup tables. Slice 3 adds `ai.daily_prompt_engine_metrics` when volume needs it (the base plan at full capacity is 150 prompts on 3 engines twice a week, about 3,900 answers a month, which a query handles).
 
 ### 4.2 Prompt text and versions
 
@@ -66,7 +66,7 @@ A new workload `ai_prompt` implements the existing `Workload` protocol (`collect
 - Provider adapters in `providers/dataforseo/ai.py`: ChatGPT scraper, Gemini scraper, AI Mode (`task_post` and `task_get`, up to 100 tasks per post), prices in the price book.
 - Normalizers (version 1, doc 07 section 5): answer text and markdown, cited sources, status (`complete`, `partial`, `empty`, `refused`, `error`), ads excluded from mentions and citations, refusal and empty detection. Raw payload to R2 as `ai_raw`.
 - Planner: one task per active prompt, enabled engine and location, spread through the window like rank checks. The estimate is checked against the `ai_prompt` budget before dispatch; a blocked run shows its estimate and the budget that blocked it.
-- Weekly schedule: created per project when the first engine is enabled, using the existing schedules table.
+- Twice-a-week schedule: created per project when the first engine is enabled, using the existing schedules table.
 - Run now: `POST /prompts/{prompt_id}/run-now`, a manual run on the standard queue with progress through the existing run state, the same way rank "Check now" works since the accuracy audit. The doc 19 text says live endpoints; the standard queue is chosen because it costs a third as much ($0.0012 against $0.004) and a live call can hold a request for 120 seconds.
 
 ### 4.4 Extraction, light
@@ -77,7 +77,7 @@ After an observation is stored, in the same worker step:
 2. Match the project's entity aliases on the answer text (`extraction/aliases.py`, stages 4 and 5) with their disambiguation.
 3. Write `ai.citations`, `ai.entity_mentions` (role, count, first offset, mention order, evidence spans, status) and one `ai.observation_facts` row under the project's current `ai.derivations` row.
 
-An alias or domain change bumps the project's entity configuration version. Re-deriving old answers under the new version is the doc 13 section 6 job and is slice 2; until then the metrics read the derivation current when each answer was stored, and the screen says which entity set a number used.
+An alias or domain change bumps the project's entity configuration version. Re-deriving old answers under the new version is the doc 13 section 6 job and is slice 2; until then the metrics read the derivation current when each answer was stored. Showing which entity set a number used goes with re-derivation in slice 2.
 
 ### 4.5 API
 
@@ -105,15 +105,28 @@ Built from the design preview (`apps/web/design-preview/prompts*.js`, ADR-DS-022
 - Add prompts dialog: one prompt, or a pasted list with one prompt per line and a shared topic, language and country; shows the lint result and how many will be added against the quota before it saves.
 - Prompt inspector: the prompt facts, the per engine counts, the list of answers (date, engine, status, outcome).
 - Answer viewer: the answer text with own and competitor mentions marked and the cited sources listed with their role; a link to the raw payload for people with `raw:read`.
-- Engines in project settings: three toggles, the cost estimate per engine, a clear note that turning one on starts weekly spend.
+- Engines in project settings: three toggles, the cost estimate per engine, a clear note that turning one on starts scheduled spend.
 
-The page shows "No data yet" until the first answers arrive, and states the weekly cadence, so an empty table is not read as a failure.
+The page shows "No data yet" until the first answers arrive, and states the twice-a-week cadence, so an empty table is not read as a failure.
+
+### 4.7 Base plan (set by the owner on 2026-11-11)
+
+Billing and plans do not exist yet, but AI tracking is built to the base plan from the start and tested at its full capacity:
+
+| Setting | Base plan |
+|---|---|
+| Active prompts | 150 |
+| Prompt runs | Twice a week |
+| Speed | Standard queue |
+| Answers per engine | 1 |
+
+It lives in one pure constant, `BASE_PLAN`, used by the schedule defaults, the engine cost estimate and the default of the existing `core.workspace_quotas.max_active_prompts` (150, from 1,000 today). When plans arrive, they change the quota row and the schedule, not this code. At full capacity with three engines: 450 answers a run, 900 a week, about 3,900 a month, about $4.68 a month on the standard queue.
 
 ## 5. Errors and limits
 
 - A provider task that fails is retried by the existing ledger rules; an answer that cannot be read is stored with `status = 'error'` and a code, counted in coverage and left out of every rate.
 - A prompt over an engine's length limit (700 characters for AI Mode, 2,000 for the scrapers) is skipped for that engine with the reason recorded, and the form warns before saving.
-- The quota check uses `max_active_prompts` (1,000 by default). The monthly spend is limited by the `ai_prompt` budget.
+- The quota check uses `max_active_prompts`, which becomes 150 by default (the base plan, section 4.7). The monthly spend is limited by the `ai_prompt` budget.
 - A country with no supported provider location for the engine is rejected when the prompt is saved, not at collection time.
 
 ## 6. Testing
@@ -123,7 +136,7 @@ The page shows "No data yet" until the first answers arrive, and states the week
 - Extraction tests on stored fixture answers: mentions with offsets, competitor mentions, citation roles, ad exclusion.
 - Route tests with the cross-tenant suite, permission tests, quota and duplicate tests, bulk-create with rejects.
 - Web: unit tests for the model and columns, MSW mock handlers for every new route, e2e for add prompts, enable engine, read an answer.
-- One real run with 5 prompts on the Eventus Security project once the owner agrees to ship, compared against the same prompts typed by hand into the three products.
+- One real run on the Eventus Security project once the owner agrees to ship: first 5 prompts compared by hand against the same prompts typed into the three products, then all 150 at full capacity.
 
 ## 7. Order of work
 
@@ -153,5 +166,5 @@ Decided:
 Open, to settle with the owner:
 
 1. **AI Overview per prompt.** The mock shows it as a fourth engine. It is not an answer idraft asks for; ADR-DS-022 decision 11 reads it from the rank checks of the prompt's primary linked keyword. That needs prompt to keyword links, which are not in slice 1, and the rank data it reads is the data DataForSEO has issues with. Proposed: leave the column out of slice 1 and add it in slice 2 with the links. This differs from the earlier chat summary, which said AI Overview comes free in slice 1.
-2. **Which project first.** Proposed: Eventus Security, with 5 to 10 prompts typed by the owner, for the first real run.
-3. **Spend before the first run.** Proposed: 5 prompts on 3 engines weekly is about $0.02 a week; the spike is about $0.05 once.
+2. **Which project first.** Proposed: Eventus Security, with up to 150 prompts supplied by the owner.
+3. **Spend.** One full run of 150 prompts on 3 engines is about $0.54; twice a week is about $1.08 a week and about $4.68 a month. The first 5-prompt check costs about $0.02.

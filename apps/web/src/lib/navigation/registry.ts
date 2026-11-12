@@ -133,7 +133,7 @@ export const NAVIGATION: readonly NavDestination[] = [
     section: 1,
     group: 'ai',
     permission: 'data:read',
-    status: 'planned',
+    status: 'live',
   },
   {
     key: 'citations',

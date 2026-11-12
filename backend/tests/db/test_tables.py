@@ -78,6 +78,16 @@ DECLARED = {
     "seo.tracked_keyword_state",
     "seo.serp_current_results",
     "seo.rank_events",
+    "ai.engines",
+    "ai.project_engines",
+    "ai.prompts",
+    "ai.prompt_versions",
+    "ai.prompt_terms",
+    "ai.observations",
+    "ai.citations",
+    "ai.derivations",
+    "ai.entity_mentions",
+    "ai.observation_facts",
 }
 # A monthly partition's name ends in `_pYYYYMM`.
 _PARTITION = re.compile(r"_p\d{6}$")

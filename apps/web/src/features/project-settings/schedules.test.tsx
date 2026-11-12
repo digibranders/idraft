@@ -903,6 +903,73 @@ describe('Schedules: changing one', () => {
     expect(await screen.findByRole('menuitem', { name: 'Pause' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Edit' })).toBeNull();
   });
+
+  /** The two schedules the API makes when the first engine is turned on (plan A, `ensure_ai_schedule`). */
+  const aiSchedules = (isActive: boolean): Schedule[] => [
+    {
+      ...SCHEDULE,
+      name: 'AI answers, Monday',
+      workload: 'ai_prompt',
+      weekday: 1,
+      window_start_local: '01:00:00',
+      window_hours: 8,
+      timezone: fynix.timezone,
+      priority: 'standard',
+      provider_mode: 'standard_queue',
+      selector: { all: true },
+      is_active: isActive,
+    },
+    {
+      ...SCHEDULE,
+      schedule_id: MOCK_SCHEDULE_IDS.weeklyContent,
+      name: 'AI answers, Thursday',
+      workload: 'ai_prompt',
+      weekday: 4,
+      window_start_local: '01:00:00',
+      window_hours: 8,
+      timezone: fynix.timezone,
+      priority: 'standard',
+      provider_mode: 'standard_queue',
+      selector: { all: true },
+      is_active: isActive,
+    },
+  ];
+
+  it('lists the AI answer schedules with what they collect, to pause and delete but not to edit', async () => {
+    server.use(listing(...aiSchedules(true)));
+    const { user } = renderWithProviders(screenAs('editor'));
+    const monday = await rowOf('AI answers, Monday');
+    expect(within(monday).getByText('AI prompts')).toBeInTheDocument();
+    expect(within(monday).getByText('All active prompts')).toBeInTheDocument();
+    expect(within(monday).getByText('Every Monday at 01:00, 8 hour window')).toBeInTheDocument();
+    expect(
+      within(await rowOf('AI answers, Thursday')).getByText('Every Thursday at 01:00, 8 hour window'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('All keywords')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Actions for AI answers, Monday' }));
+    expect(await screen.findByRole('menuitem', { name: 'Pause' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).toBeNull();
+  });
+
+  it('shows a paused AI answer schedule as paused, to resume', async () => {
+    server.use(listing(...aiSchedules(false)));
+    const { user } = renderWithProviders(screenAs('editor'));
+    const monday = await rowOf('AI answers, Monday');
+    expect(within(monday).getByText('Paused')).toBeInTheDocument();
+    expect(within(monday).queryByText('Oct 7, 21:30')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Actions for AI answers, Monday' }));
+    expect(await screen.findByRole('menuitem', { name: 'Resume' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Pause' })).toBeNull();
+  });
+
+  it('lists the AI answer schedules read-only for a viewer, with no actions', async () => {
+    server.use(listing(...aiSchedules(true)));
+    renderWithProviders(screenAs('viewer'));
+    const thursday = await rowOf('AI answers, Thursday');
+    expect(within(thursday).getByText('All active prompts')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Actions for/ })).toBeNull();
+  });
 });
 
 describe('Schedules: pausing, resuming and deleting', () => {

@@ -75,6 +75,11 @@ AuditAction = Literal[
     "connection.revoked",
     "integration.created",
     "integration.disabled",
+    "project_engine.updated",
+    "project_engine.deleted",
+    "prompt.created",
+    "prompt.updated",
+    "prompt.archived",
 ]
 
 

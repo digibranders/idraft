@@ -14,6 +14,7 @@ import { buttonVariants } from '@/components/ui/button-variants';
 import { Combobox } from '@/components/ui/combobox';
 import { Icon } from '@/components/ui/icon';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { COUNTRIES_KEY } from '@/lib/locations/countries';
 import { cn } from '@/lib/utils';
 
 /**
@@ -87,7 +88,7 @@ export function useKeywordScope(
 
 export function useCountries(): readonly Country[] {
   const countries = useQuery({
-    queryKey: ['locations', 'countries', 'all'],
+    queryKey: COUNTRIES_KEY,
     queryFn: ({ signal }) => readCountries(signal),
     staleTime: Number.POSITIVE_INFINITY,
   });

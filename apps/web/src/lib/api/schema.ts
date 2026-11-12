@@ -932,6 +932,86 @@ export interface paths {
         patch: operations["update_project_api_v1_workspaces__workspace_id__projects__project_id__patch"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The project's AI answers
+         * @description Newest first. `from` and `to` take timestamps or project-local dates (`to` included); without them the last 28 days. A request covers at most 92 days (`422 window_too_large`). `facts` is the current derivation's, null before extraction. A cursor is bound to its filters (`400 invalid_cursor` otherwise).
+         */
+        get: operations["list_observations_api_v1_workspaces__workspace_id__projects__project_id__ai_observations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One AI answer with its citations and mentions
+         * @description The answer text, the cited sources with their role (own, competitor, third party) and the tracked entities it names, with evidence spans. Offsets are UTF-16 code units into `answer_text`, as a JavaScript string indexes it.
+         */
+        get: operations["get_observation_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}/raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The provider's answer for an AI observation, as received
+         * @description `raw:read`. `410 raw_expired` once the answer is past its retention; `503 raw_unavailable` when it could not be read now.
+         */
+        get: operations["observation_raw_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mentioned, Cited, outcomes and Share of voice per prompt, engine and topic
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null.
+         */
+        get: operations["prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alias-test": {
         parameters: {
             query?: never;
@@ -964,6 +1044,47 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The AI engines and how the project runs them
+         * @description Every engine offered, configured or not. `estimated_monthly_cost_usd` is what the engine costs a month with the project's active prompts on the base plan (runs a week, one answer, standard queue), as if it were on.
+         */
+        get: operations["list_engines_api_v1_workspaces__workspace_id__projects__project_id__engines_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines/{engine_code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Turn an engine on or off for the project
+         * @description The first engine turned on makes the project's AI answer schedules (twice a week). `location_ids` must be active countries (`422 validation_failed` with `location_not_supported`). The provider is DataForSEO and the engine gives one answer per prompt and run.
+         */
+        put: operations["put_engine_api_v1_workspaces__workspace_id__projects__project_id__engines__engine_code__put"];
+        post?: never;
+        /** Remove the engine's settings; its answers stay */
+        delete: operations["delete_engine_api_v1_workspaces__workspace_id__projects__project_id__engines__engine_code__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1307,6 +1428,115 @@ export interface paths {
          * @description The given keywords (which the project tracks; `422 validation_failed` with `keyword_unknown` otherwise), else the project's tracked keywords whose metrics are older than `stale_days` (default 25). The run is `planned` and the worker plans it within a minute; a budget used up blocks it (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC), with `limit`; runs the system starts for new keywords do not count.
          */
         post: operations["refresh_keyword_metrics_api_v1_workspaces__workspace_id__projects__project_id__keyword_metrics_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The project's prompts
+         * @description Newest first. `filter[is_active]` is true when left out; archived prompts are listed with false. `filter[term]` takes the term or one under it, `filter[q]` matches the text as a substring without case, and `filter[intent_in]` takes a comma list. A cursor is bound to its filters (`400 invalid_cursor` otherwise).
+         */
+        get: operations["list_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_get"];
+        put?: never;
+        /**
+         * Add a prompt
+         * @description `409 duplicate` (with `existing_id`) when the project has the same text in the same language and country, archived prompts included; `422 quota_exceeded` (with `limit`, `used` and `requested`) past the workspace's active prompt limit. Field codes: `prompt_too_long` (over 2,000 characters, the most any engine takes), `location_not_supported` (`country_iso` has no location of an enabled engine), `term_unknown` and `single_valued_vocabulary`. `is_branded` is computed from the project's own aliases.
+         */
+        post: operations["create_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a list of prompts
+         * @description Up to 1,000 items. An item that cannot be saved is rejected with its code (`location_not_supported`, `term_unknown`, `single_valued_vocabulary`, `duplicate_in_request` for the same prompt twice in the list, and `duplicate` with `on_duplicate: error`); with `skip`, a prompt the project has is listed in `skipped`. The rest are written together: `422 quota_exceeded` past the workspace's active prompt limit, and nothing is written. No Idempotency-Key: sending the list again skips what it added.
+         */
+        post: operations["bulk_create_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_create_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/lint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check prompts before saving them
+         * @description Nothing is stored. For each text, as it would be saved: whether it names an own brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine it is too long for (`engine_limit`: a warning when the engine skips it, an error when it is too long to save). `quota` is the workspace's active prompt limit and use.
+         */
+        post: operations["lint_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_lint_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A prompt */
+        get: operations["get_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Archive a prompt; its answers stay
+         * @description The prompt is no longer asked. It keeps its row, versions and answers, and `PATCH is_active: true` brings it back.
+         */
+        delete: operations["archive_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a prompt's metadata
+         * @description The text, language and country cannot change (`422 validation_failed` with `immutable_field`): archive the prompt and add a new one. `term_ids` replaces the terms. `is_active: true` brings an archived prompt back and counts against the quota.
+         */
+        patch: operations["update_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}/run-now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask a prompt now (a manual run through the provider's standard queue)
+         * @description The prompt, which the project collects (`404` otherwise), on each of `engine_codes` once, through the provider's standard queue, the path a schedule uses. The run is `planned` and the worker plans it within a minute; answers arrive within minutes. An engine the project has not turned on is `422 validation_failed` with `engine_not_enabled`, a prompt longer than an engine takes `prompt_too_long`. An answer already queued or under way is `409 check_pending` with its `engine_codes`. A budget used up blocks the run (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC); `422 quota_exceeded` when the month's AI answers would pass the workspace's `max_ai_observations_per_month`; `503 provider_paused` while the provider is refusing every request.
+         */
+        post: operations["run_now_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__run_now_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2466,6 +2696,40 @@ export interface components {
             /** Tracked Keyword Ids */
             tracked_keyword_ids: string[];
         };
+        /** CitationOut */
+        CitationOut: {
+            /** Answer Block Index */
+            answer_block_index: number | null;
+            /** Citation Index */
+            citation_index: number;
+            /** Citation Kind */
+            citation_kind: string;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /** First Char Offset */
+            first_char_offset: number | null;
+            /** Flags */
+            flags: string[];
+            /** Host */
+            host: string;
+            /** Occurrences */
+            occurrences: number;
+            /** Raw Url */
+            raw_url: string;
+            /** Referral Tag */
+            referral_tag: string | null;
+            /** Role Entity Id */
+            role_entity_id: string | null;
+            /** Source Name */
+            source_name: string | null;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string;
+        };
         /** CompetitorOverride */
         CompetitorOverride: {
             entity: components["schemas"]["EntityRef"];
@@ -2732,6 +2996,49 @@ export interface components {
         EmailRequest: {
             /** Email */
             email: string;
+        };
+        /** Engine */
+        Engine: {
+            engine_code: components["schemas"]["EngineCode"];
+            /** Exposes Citations */
+            exposes_citations: boolean;
+            /** Exposes Fanout */
+            exposes_fanout: boolean;
+            /** Label */
+            label: string;
+            /** Max Prompt Chars */
+            max_prompt_chars: number;
+            observation_class: components["schemas"]["ObservationClass"];
+            /** Vendor */
+            vendor: string;
+        };
+        /**
+         * EngineCode
+         * @enum {string}
+         */
+        EngineCode: "chatgpt_web" | "gemini_web" | "google_ai_mode";
+        /** EngineSummary */
+        EngineSummary: {
+            cited: components["schemas"]["MetricCell"];
+            /** Engine Code */
+            engine_code: string;
+            mentioned: components["schemas"]["MetricCell"];
+            outcomes: components["schemas"]["OutcomeCells"];
+            share_of_voice: components["schemas"]["MetricCell"];
+        };
+        /** EngineUpdate */
+        EngineUpdate: {
+            /**
+             * Is Enabled
+             * @description On starts weekly spend; off keeps the settings.
+             * @default true
+             */
+            is_enabled: boolean;
+            /**
+             * Location Ids
+             * @description Active countries the engine runs the prompts in.
+             */
+            location_ids: number[];
         };
         /** Entity */
         Entity: {
@@ -3848,6 +4155,32 @@ export interface components {
             data: components["schemas"]["Keyword"][];
             page: components["schemas"]["CursorPageInfo"];
         };
+        /** LintSpan */
+        LintSpan: {
+            /** End */
+            end: number;
+            /** Start */
+            start: number;
+        };
+        /** LintWarning */
+        LintWarning: {
+            /** @description For `engine_limit`: the engine. */
+            engine_code: components["schemas"]["EngineCode"] | null;
+            /** Message */
+            message: string;
+            /**
+             * Rule
+             * @enum {string}
+             */
+            rule: "contains_brand_alias" | "engine_limit";
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "info" | "warning" | "error";
+            /** @description UTF-16 code units, as a JavaScript string indexes the text. */
+            span: components["schemas"]["LintSpan"] | null;
+        };
         /** Location */
         Location: {
             /** Country Iso */
@@ -3901,6 +4234,15 @@ export interface components {
              * @description Manual runs people started in the project today (UTC).
              */
             used: number;
+        };
+        /** MatchedAlias */
+        MatchedAlias: {
+            /**
+             * Alias
+             * @description The text that matched.
+             */
+            alias: string;
+            entity: components["schemas"]["EntityRef"];
         };
         /** Me */
         Me: {
@@ -4048,6 +4390,95 @@ export interface components {
         MembersRemovedResponse: {
             data: components["schemas"]["MembersRemoved"];
         };
+        /** MentionOut */
+        MentionOut: {
+            /** Confidence */
+            confidence: number;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Evidence Spans */
+            evidence_spans: [
+                number,
+                number
+            ][];
+            /** First Char Offset */
+            first_char_offset: number;
+            /** Match Method */
+            match_method: string;
+            /** Mention Count */
+            mention_count: number;
+            /** Mention Order */
+            mention_order: number | null;
+            /**
+             * Mention Status
+             * @enum {string}
+             */
+            mention_status: "accepted" | "uncertain";
+            /** Name */
+            name: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "own" | "competitor" | "watch" | "untracked";
+        };
+        /**
+         * MetricCell
+         * @description One count of answers over another, with every answer of the cell: "5 of 8". The
+         *     compact form of `MetricValue` (docs/19 section 2.6); the window is the response's, and
+         *     `metric_context` says how each kind of cell is aggregated.
+         *
+         *     In a row of one prompt `numerator` and `denominator` are counts of answers. In a topic row,
+         *     a prompt weighted cell has the sum of its prompts' rates as `numerator` and the number of
+         *     prompts with a valid answer as `denominator` (`pooled` holds the counts of answers); Share
+         *     of voice stays counts of answers.
+         */
+        MetricCell: {
+            /** Denominator */
+            denominator: number;
+            /**
+             * N Observations
+             * @description Every answer of the cell, valid or not.
+             */
+            n_observations: number;
+            /** Numerator */
+            numerator: number;
+            /** @description Set on a prompt weighted cell: the answers behind it. */
+            pooled?: components["schemas"]["Pooled"] | null;
+            /**
+             * Value
+             * @description numerator / denominator; null when it is 0.
+             */
+            value: number | null;
+        };
+        /**
+         * MetricContext
+         * @description What is true of every cell of one metric in the response (docs/19 section 2.6 rule 10).
+         */
+        MetricContext: {
+            /** Method */
+            method: string;
+            /**
+             * Metric
+             * @description The registry key of docs/16 section 2.1.
+             */
+            metric: string;
+            /**
+             * Prompt Rows
+             * @description How the cells of a prompt row are weighted.
+             * @enum {string}
+             */
+            prompt_rows: "observation_weighted" | "prompt_weighted";
+            /**
+             * Topic Rows
+             * @description How the cells of a topic row are weighted.
+             * @enum {string}
+             */
+            topic_rows: "observation_weighted" | "prompt_weighted";
+        };
         /**
          * MetricValue
          * @description A metric with what it was computed from. Fields of doc 19 section 2.6 that no route
@@ -4156,6 +4587,165 @@ export interface components {
              */
             state_expires_at: string;
         };
+        /**
+         * ObservationClass
+         * @description `ai.engines.observation_class` and `ai.observations.observation_class` (doc 04 8.1).
+         * @enum {string}
+         */
+        ObservationClass: "consumer_ui" | "official_api" | "serp_ai";
+        /** ObservationDetail */
+        ObservationDetail: {
+            /** Answer Char Count */
+            answer_char_count: number | null;
+            /** Answer Text */
+            answer_text: string | null;
+            /** Check Url */
+            check_url: string | null;
+            /** Citation Count */
+            citation_count: number;
+            /** Citations */
+            citations: components["schemas"]["CitationOut"][];
+            /** Device */
+            device: string | null;
+            /** Engine Code */
+            engine_code: string;
+            /** Error Code */
+            error_code: string | null;
+            facts: components["schemas"]["ObservationFacts"] | null;
+            /** Fanout Count */
+            fanout_count: number;
+            /** Language Code */
+            language_code: string | null;
+            /** Location Id */
+            location_id: number | null;
+            /** Mentions */
+            mentions: components["schemas"]["MentionOut"][];
+            /** Model Reported */
+            model_reported: string | null;
+            /** Observation Class */
+            observation_class: string;
+            /** Observation Id */
+            observation_id: string;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /**
+             * Observed Date
+             * Format: date
+             */
+            observed_date: string;
+            /**
+             * Offsets Unit
+             * @constant
+             */
+            offsets_unit: "utf16";
+            /** Query Text */
+            query_text: string;
+            /** Replicate Index */
+            replicate_index: number;
+            /** Run Id */
+            run_id: string | null;
+            /** Served From Cache */
+            served_from_cache: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "complete" | "partial" | "empty" | "refused" | "error";
+            subject: components["schemas"]["PromptSubject"];
+        };
+        /**
+         * ObservationFacts
+         * @description The fact row of the current derivation.
+         */
+        ObservationFacts: {
+            /** Competitor Cited */
+            competitor_cited: string[];
+            /** Competitor Mentions */
+            competitor_mentions: string[];
+            /** Derivation Id */
+            derivation_id: number;
+            /** Had Structured List */
+            had_structured_list: boolean;
+            /** Is Valid */
+            is_valid: boolean;
+            /** Outcome */
+            outcome: ("mentioned_and_cited" | "mentioned_only" | "cited_only" | "neither") | null;
+            /** Own Citation Count */
+            own_citation_count: number;
+            /** Own Domain Cited */
+            own_domain_cited: boolean;
+            /** Own Mention Order */
+            own_mention_order: number | null;
+            /** Own Mentioned */
+            own_mentioned: boolean;
+            /** Own Prominence */
+            own_prominence: number | null;
+            /** Total Citation Count */
+            total_citation_count: number;
+            /** Tracked Entities Mentioned */
+            tracked_entities_mentioned: number;
+        };
+        /** ObservationPage */
+        ObservationPage: {
+            /** Data */
+            data: components["schemas"]["ObservationSummary"][];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** ObservationResponse */
+        ObservationResponse: {
+            data: components["schemas"]["ObservationDetail"];
+        };
+        /** ObservationSummary */
+        ObservationSummary: {
+            /** Answer Char Count */
+            answer_char_count: number | null;
+            /** Citation Count */
+            citation_count: number;
+            /** Device */
+            device: string | null;
+            /** Engine Code */
+            engine_code: string;
+            facts: components["schemas"]["ObservationFacts"] | null;
+            /** Fanout Count */
+            fanout_count: number;
+            /** Language Code */
+            language_code: string | null;
+            /** Location Id */
+            location_id: number | null;
+            /** Model Reported */
+            model_reported: string | null;
+            /** Observation Class */
+            observation_class: string;
+            /** Observation Id */
+            observation_id: string;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /**
+             * Observed Date
+             * Format: date
+             */
+            observed_date: string;
+            /** Query Text */
+            query_text: string;
+            /** Replicate Index */
+            replicate_index: number;
+            /** Run Id */
+            run_id: string | null;
+            /** Served From Cache */
+            served_from_cache: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "complete" | "partial" | "empty" | "refused" | "error";
+            subject: components["schemas"]["PromptSubject"];
+        };
         /** OffsetPageInfo */
         OffsetPageInfo: {
             /** Limit */
@@ -4201,6 +4791,13 @@ export interface components {
             /** Self */
             self: string;
         };
+        /** OutcomeCells */
+        OutcomeCells: {
+            cited_only: components["schemas"]["MetricCell"];
+            mentioned_and_cited: components["schemas"]["MetricCell"];
+            mentioned_only: components["schemas"]["MetricCell"];
+            neither: components["schemas"]["MetricCell"];
+        };
         /**
          * OverlapWarning
          * @description Another property of the same site is already linked to a project. The two are never
@@ -4243,6 +4840,16 @@ export interface components {
             new_password: string;
             /** Token */
             token: string;
+        };
+        /**
+         * Pooled
+         * @description The raw counts behind a prompt weighted rate: "2 of 5 answers".
+         */
+        Pooled: {
+            /** Successes */
+            successes: number;
+            /** Trials */
+            trials: number;
         };
         /** Price */
         Price: {
@@ -4442,6 +5049,42 @@ export interface components {
             /** Data */
             data: components["schemas"]["ProjectDomain"][];
         };
+        /** ProjectEngine */
+        ProjectEngine: {
+            /**
+             * Active Prompts
+             * @description Active prompts that fit the engine's length limit: what one run asks it.
+             */
+            active_prompts: number;
+            engine: components["schemas"]["Engine"];
+            /**
+             * Estimated Monthly Cost Usd
+             * @description Active prompts x runs a week x 52 / 12 x the task price, as if the engine were on. Null when the price book has no price.
+             */
+            estimated_monthly_cost_usd: string | null;
+            /**
+             * Is Configured
+             * @description The project has settings for the engine.
+             */
+            is_configured: boolean;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Location Ids */
+            location_ids: number[];
+            /** Provider Code */
+            provider_code: string;
+            /** Replicates */
+            replicates: number;
+        };
+        /** ProjectEngineList */
+        ProjectEngineList: {
+            /** Data */
+            data: components["schemas"]["ProjectEngine"][];
+        };
+        /** ProjectEngineResponse */
+        ProjectEngineResponse: {
+            data: components["schemas"]["ProjectEngine"];
+        };
         /** ProjectEntity */
         ProjectEntity: {
             /**
@@ -4595,6 +5238,349 @@ export interface components {
             status?: "active" | "paused" | "archived";
             /** Timezone */
             timezone?: string;
+        };
+        /** Prompt */
+        Prompt: {
+            /** Country Iso */
+            country_iso: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Creation Method
+             * @enum {string}
+             */
+            creation_method: "human" | "template" | "llm_generated" | "imported";
+            current_version: components["schemas"]["PromptVersion"];
+            /**
+             * Funnel Stage
+             * @enum {string}
+             */
+            funnel_stage: "tofu" | "mofu" | "bofu" | "retention" | "unknown";
+            /** Importance */
+            importance: number;
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent: "informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown";
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Is Branded
+             * @description Names an own brand: computed from the project's own aliases when the prompt is saved; a change may set it.
+             */
+            is_branded: boolean;
+            /** Language Code */
+            language_code: string;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /**
+             * Prompt Type
+             * @enum {string}
+             */
+            prompt_type: "question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other";
+            /** Source */
+            source: string;
+            /** Terms */
+            terms: components["schemas"]["PromptTerm"][];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** PromptBulkCreate */
+        PromptBulkCreate: {
+            /** Items */
+            items: components["schemas"]["PromptCreate"][];
+            /**
+             * On Duplicate
+             * @description A prompt the project has already: `skip` lists it in `skipped`, `error` in `rejected` with `duplicate`.
+             * @default skip
+             * @enum {string}
+             */
+            on_duplicate: "skip" | "error";
+        };
+        /** PromptBulkResponse */
+        PromptBulkResponse: {
+            data: components["schemas"]["PromptBulkResult"];
+        };
+        /** PromptBulkResult */
+        PromptBulkResult: {
+            /** Created */
+            created: string[];
+            /** Rejected */
+            rejected: components["schemas"]["PromptRejected"][];
+            /** Skipped */
+            skipped: components["schemas"]["PromptSkipped"][];
+        };
+        /**
+         * PromptCreate
+         * @description One prompt. Its text is fixed once saved: to change it, archive the prompt and add a new
+         *     one.
+         */
+        PromptCreate: {
+            /**
+             * Country Iso
+             * @description The market the prompt stands for. Every enabled engine needs a location in it (`location_not_supported` otherwise).
+             */
+            country_iso: string;
+            /**
+             * Funnel Stage
+             * @default unknown
+             * @enum {string}
+             */
+            funnel_stage: "tofu" | "mofu" | "bofu" | "retention" | "unknown";
+            /**
+             * Importance
+             * @default 3
+             */
+            importance: number;
+            /**
+             * Intent
+             * @default unknown
+             * @enum {string}
+             */
+            intent: "informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown";
+            /** Language Code */
+            language_code: string;
+            /**
+             * Prompt Type
+             * @default question
+             * @enum {string}
+             */
+            prompt_type: "question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other";
+            /**
+             * Term Ids
+             * @description Topics and other terms the project may use.
+             */
+            term_ids?: string[];
+            /**
+             * Text
+             * @description Trimmed and composed (NFC); one line.
+             */
+            text: string;
+        };
+        /** PromptLint */
+        PromptLint: {
+            /** Is Branded */
+            is_branded: boolean;
+            /**
+             * Matched Aliases
+             * @description Own brand names found, each once.
+             */
+            matched_aliases: components["schemas"]["MatchedAlias"][];
+            /**
+             * Text
+             * @description As it would be saved.
+             */
+            text: string;
+            /** Warnings */
+            warnings: components["schemas"]["LintWarning"][];
+        };
+        /** PromptLintRequest */
+        PromptLintRequest: {
+            /**
+             * Engine Codes
+             * @description The engines whose length limits apply. Left out: every one.
+             */
+            engine_codes?: components["schemas"]["EngineCode"][] | null;
+            /** Texts */
+            texts: string[];
+        };
+        /** PromptLintResponse */
+        PromptLintResponse: {
+            /** Data */
+            data: components["schemas"]["PromptLint"][];
+            quota: components["schemas"]["PromptQuota"];
+        };
+        /** PromptPage */
+        PromptPage: {
+            /** Data */
+            data: components["schemas"]["Prompt"][];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /**
+         * PromptPatch
+         * @description At least one member. The text, language and country are fixed (`immutable_field`).
+         */
+        PromptPatch: {
+            /**
+             * Funnel Stage
+             * @enum {string}
+             */
+            funnel_stage?: "tofu" | "mofu" | "bofu" | "retention" | "unknown";
+            /** Importance */
+            importance?: number;
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent?: "informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown";
+            /**
+             * Is Active
+             * @description `true` brings an archived prompt back; it counts against the quota.
+             */
+            is_active?: boolean;
+            /** Is Branded */
+            is_branded?: boolean;
+            /**
+             * Prompt Type
+             * @enum {string}
+             */
+            prompt_type?: "question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other";
+            /**
+             * Term Ids
+             * @description Replaces the prompt's terms.
+             */
+            term_ids?: string[];
+        };
+        /** PromptQuota */
+        PromptQuota: {
+            /** Limit */
+            limit: number;
+            /**
+             * Used
+             * @description Active prompts in the whole workspace.
+             */
+            used: number;
+        };
+        /** PromptRejected */
+        PromptRejected: {
+            /** Code */
+            code: string;
+            /** Index */
+            index: number;
+            /** Message */
+            message: string;
+        };
+        /** PromptResponse */
+        PromptResponse: {
+            data: components["schemas"]["Prompt"];
+        };
+        /** PromptSkipped */
+        PromptSkipped: {
+            /**
+             * Existing Id
+             * Format: uuid
+             */
+            existing_id: string;
+            /** Index */
+            index: number;
+        };
+        /** PromptSubject */
+        PromptSubject: {
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /**
+             * Prompt Version Id
+             * Format: uuid
+             */
+            prompt_version_id: string;
+            /**
+             * Type
+             * @constant
+             */
+            type: "prompt";
+            /** Version No */
+            version_no: number;
+        };
+        /** PromptSummaryRow */
+        PromptSummaryRow: {
+            /** Engines */
+            engines: components["schemas"]["EngineSummary"][];
+            /** Is Branded */
+            is_branded: boolean;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /** Text */
+            text: string;
+            /** Topic Term Ids */
+            topic_term_ids: string[];
+        };
+        /** PromptTerm */
+        PromptTerm: {
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+            /**
+             * Term Id
+             * Format: uuid
+             */
+            term_id: string;
+            /** Vocabulary Kind */
+            vocabulary_kind: string;
+        };
+        /** PromptVersion */
+        PromptVersion: {
+            /**
+             * Change Kind
+             * @enum {string}
+             */
+            change_kind: "initial" | "wording" | "typo" | "context";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Prompt Version Id
+             * Format: uuid
+             */
+            prompt_version_id: string;
+            /**
+             * Text
+             * @description Exactly what the engines receive.
+             */
+            text: string;
+            /**
+             * Text Hash
+             * @description sha256 of the text, hex.
+             */
+            text_hash: string;
+            /** Version No */
+            version_no: number;
+        };
+        /** PromptsSummary */
+        PromptsSummary: {
+            /** Engine Codes */
+            engine_codes: string[];
+            /**
+             * Entities
+             * @description The tracked entity set Share of voice is computed over now: the own brand and the competitors (watched entities are not in it).
+             */
+            entities: components["schemas"]["SummaryEntity"][];
+            /**
+             * Entity Config Versions
+             * @description The entity configuration versions of the answers counted. More than one means the entity set changed inside the window and older answers keep their set.
+             */
+            entity_config_versions: number[];
+            /** Include Branded */
+            include_branded: boolean;
+            metric_context: components["schemas"]["SummaryMetricContext"];
+            /** Prompts */
+            prompts: components["schemas"]["PromptSummaryRow"][];
+            /** Topics */
+            topics: components["schemas"]["TopicSummaryRow"][];
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** PromptsSummaryResponse */
+        PromptsSummaryResponse: {
+            data: components["schemas"]["PromptsSummary"];
         };
         /**
          * RankCell
@@ -4975,6 +5961,14 @@ export interface components {
         /** RunDetailResponse */
         RunDetailResponse: {
             data: components["schemas"]["RunDetail"];
+        };
+        /**
+         * RunNow
+         * @description The engines to ask the prompt on now, each once, through the standard queue.
+         */
+        RunNow: {
+            /** Engine Codes */
+            engine_codes: components["schemas"]["EngineCode"][];
         };
         /** RunPage */
         RunPage: {
@@ -5620,6 +6614,28 @@ export interface components {
              */
             t: string;
         };
+        /** SummaryEntity */
+        SummaryEntity: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "own" | "competitor";
+        };
+        /** SummaryMetricContext */
+        SummaryMetricContext: {
+            cited: components["schemas"]["MetricContext"];
+            mentioned: components["schemas"]["MetricContext"];
+            outcomes: components["schemas"]["MetricContext"];
+            share_of_voice: components["schemas"]["MetricContext"];
+        };
         /** Term */
         Term: {
             /**
@@ -5809,6 +6825,17 @@ export interface components {
             parent_id?: string | null;
             /** Slug */
             slug?: string;
+        };
+        /** TopicSummaryRow */
+        TopicSummaryRow: {
+            /** Engines */
+            engines: components["schemas"]["EngineSummary"][];
+            /** Name */
+            name: string | null;
+            /** Prompt Count */
+            prompt_count: number;
+            /** Term Id */
+            term_id: string | null;
         };
         /** TotpConfirmRequest */
         TotpConfirmRequest: {
@@ -8707,6 +9734,158 @@ export interface operations {
             };
         };
     };
+    list_observations_api_v1_workspaces__workspace_id__projects__project_id__ai_observations_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: string[] | null;
+                "filter[prompt_id]"?: string | null;
+                "filter[status_in]"?: ("complete" | "partial" | "empty" | "refused" | "error")[] | null;
+                "filter[is_valid]"?: boolean | null;
+                "filter[outcome_in]"?: ("mentioned_and_cited" | "mentioned_only" | "cited_only" | "neither")[] | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObservationPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_observation_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__get: {
+        parameters: {
+            query?: {
+                /** @description A hint to find the month. */
+                observed_at?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                observation_id: number;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObservationResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    observation_raw_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__raw_get: {
+        parameters: {
+            query?: {
+                /** @description A hint to find the month. */
+                observed_at?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                observation_id: number;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: string[] | null;
+                include_branded?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptsSummaryResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     alias_test_api_v1_workspaces__workspace_id__projects__project_id__alias_test_post: {
         parameters: {
             query?: never;
@@ -8765,6 +9944,106 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ProjectDomainList"];
                 };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_engines_api_v1_workspaces__workspace_id__projects__project_id__engines_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectEngineList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_engine_api_v1_workspaces__workspace_id__projects__project_id__engines__engine_code__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                engine_code: components["schemas"]["EngineCode"];
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngineUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectEngineResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_engine_api_v1_workspaces__workspace_id__projects__project_id__engines__engine_code__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                engine_code: components["schemas"]["EngineCode"];
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
             default: {
@@ -9600,6 +10879,294 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["MetricsRefresh"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_get: {
+        parameters: {
+            query?: {
+                "filter[q]"?: string | null;
+                "filter[term]"?: string | null;
+                "filter[intent_in]"?: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown")[] | null;
+                "filter[country_iso]"?: string | null;
+                "filter[language_code]"?: string | null;
+                "filter[is_active]"?: boolean;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    bulk_create_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_create_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptBulkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptBulkResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    lint_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_lint_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptLintRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptLintResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                prompt_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    archive_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                prompt_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                prompt_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    run_now_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__run_now_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                prompt_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunNow"];
             };
         };
         responses: {
@@ -11218,12 +12785,15 @@ export const pathsApiV1WorkspacesWorkspace_idCostsGetParametersQueryGroup_byAnyO
 export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterEntity_typeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[entity_type]"]> = ["brand", "product", "organization", "person", "other"];
 export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idKeywordsKeyword_idMetricsHistoryGetParametersQuerySourceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}/metrics-history"]["get"]["parameters"]["query"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["complete", "partial", "empty", "refused", "error"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idDomainsGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordGroupsGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups"]["get"]["parameters"]["query"]["format"]> = ["tree", "flat"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports"]["get"]["parameters"]["query"]["filter[status]"]> = ["uploaded", "parsing", "needs_mapping", "preview_ready", "writing", "completed", "completed_with_errors", "failed", "cancelled", "expired"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsImport_idRowsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["new", "duplicate", "variant", "conflict", "invalid"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsImport_idRowsGetParametersQueryFilterActionAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows"]["get"]["parameters"]["query"]["filter[action]"]> = ["create", "skip", "merge", "force_separate"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idPromptsGetParametersQueryFilterIntent_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"]["get"]["parameters"]["query"]["filter[intent_in]"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterWorkload_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[workload_in]"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterTrigger_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[trigger_in]"]> = ["schedule", "manual", "backfill", "retry"];
@@ -11255,6 +12825,7 @@ export const analyticsPropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRe
 export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["action_on_hard"]> = ["pause", "alert_only"];
 export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
+export const citationOutDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationOut"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
 export const configVersionDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ConfigVersion"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const connectionAuth_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["auth_method"]> = ["oauth", "api_key", "api_token", "service_account"];
@@ -11263,6 +12834,7 @@ export const connectionStatusValues: ReadonlyArray<FlattenedDeepRequired<compone
 export const costWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CostWorkload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync", "ai_overview", "extraction_llm", "keyword_research", "first_party"];
 export const domainInputMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainInput"]["match_scope"]> = ["path_prefix", "host", "registrable"];
 export const domainRefCategory_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainRef"]["category_source"]> = ["seed_list", "rule", "llm", "manual", "tenant_override"];
+export const engineCodeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineCode"]> = ["chatgpt_web", "gemini_web", "google_ai_mode"];
 export const entityEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Entity"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
 export const entityCreateEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityCreate"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
 export const entityDetailEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityDetail"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
@@ -11298,8 +12870,18 @@ export const keywordImportConfirmDuplicate_actionValues: ReadonlyArray<Flattened
 export const keywordImportCreateSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImportCreate"]["source"]> = ["paste", "api"];
 export const keywordMetricsCompetition_levelAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordMetrics"]["competition_level"]> = ["LOW", "MEDIUM", "HIGH"];
 export const keywordMetricsSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordMetrics"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
+export const lintWarningRuleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LintWarning"]["rule"]> = ["contains_brand_alias", "engine_limit"];
+export const lintWarningSeverityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LintWarning"]["severity"]> = ["info", "warning", "error"];
 export const meWorkspaceStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MeWorkspace"]["status"]> = ["active", "suspended", "deleting"];
+export const mentionOutMention_statusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MentionOut"]["mention_status"]> = ["accepted", "uncertain"];
+export const mentionOutRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MentionOut"]["role"]> = ["own", "competitor", "watch", "untracked"];
+export const metricContextPrompt_rowsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricContext"]["prompt_rows"]> = ["observation_weighted", "prompt_weighted"];
+export const metricContextTopic_rowsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricContext"]["topic_rows"]> = ["observation_weighted", "prompt_weighted"];
 export const metricValueUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricValue"]["unit"]> = ["ratio", "count", "rank", "score", "usd", "clicks"];
+export const observationClassValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationClass"]> = ["consumer_ui", "official_api", "serp_ai"];
+export const observationDetailStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationDetail"]["status"]> = ["complete", "partial", "empty", "refused", "error"];
+export const observationFactsOutcomeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationFacts"]["outcome"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
+export const observationSummaryStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationSummary"]["status"]> = ["complete", "partial", "empty", "refused", "error"];
 export const operationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["kind"]> = ["collection_run", "keyword_import"];
 export const operationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["status"]> = ["queued", "running", "waiting_for_input", "succeeded", "succeeded_with_errors", "failed", "cancelled", "blocked"];
 export const progressUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Progress"]["unit"]> = ["tasks", "rows", "observations", "days", "items"];
@@ -11309,6 +12891,18 @@ export const projectEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<compon
 export const projectEntityCreateRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectEntityCreate"]["role"]> = ["own", "competitor", "watch"];
 export const projectEntityUpdateRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectEntityUpdate"]["role"]> = ["own", "competitor", "watch"];
 export const projectUpdateStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectUpdate"]["status"]> = ["active", "paused", "archived"];
+export const promptCreation_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["creation_method"]> = ["human", "template", "llm_generated", "imported"];
+export const promptFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const promptIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const promptPrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
+export const promptBulkCreateOn_duplicateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptBulkCreate"]["on_duplicate"]> = ["skip", "error"];
+export const promptCreateFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const promptCreateIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const promptCreatePrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
+export const promptPatchFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptPatch"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const promptPatchIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptPatch"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const promptPatchPrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptPatch"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
+export const promptVersionChange_kindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptVersion"]["change_kind"]> = ["initial", "wording", "typo", "context"];
 export const rankCellStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RankCell"]["state"]> = ["ranked", "beyond_depth", "not_checked", "failed"];
 export const rankChangeLabelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RankChange"]["label"]> = ["numeric", "new", "lost", "unchanged_beyond", "consistent_beyond", "first_check"];
 export const readinessStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Readiness"]["status"]> = ["ready", "not_ready"];
@@ -11349,6 +12943,7 @@ export const serpSnapshotSummaryAi_overview_stateAnyOf0Values: ReadonlyArray<Fla
 export const signInResponseStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SignInResponse"]["status"]> = ["signed_in", "totp_required"];
 export const sitePropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SiteProperty"]["property_type"]> = ["domain", "url_prefix"];
 export const sparklinePointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SparklinePoint"]["state"]> = ["ranked", "beyond_depth"];
+export const summaryEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SummaryEntity"]["role"]> = ["own", "competitor"];
 export const termSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Term"]["source"]> = ["manual", "import", "auto_cluster", "ai_suggestion"];
 export const termAssignmentOpValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["op"]> = ["add", "remove", "replace"];
 export const termAssignmentSubject_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["subject_type"]> = ["tracked_keyword", "prompt"];

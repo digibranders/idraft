@@ -15,6 +15,7 @@ from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -70,7 +71,7 @@ AIO_HISTORY_MAX = 1000
 EVENTS_MAX_WINDOW = timedelta(days=90)
 
 
-def _event_bounds(
+def request_bounds(
     start: datetime | date | None, end: datetime | date | None, zone: ZoneInfo
 ) -> tuple[datetime | None, datetime | None]:
     """The instants a request's `from` and `to` mean: a timestamp is itself, and a date is a
@@ -127,6 +128,31 @@ def _unpack_inline(data: bytes, compression: str) -> bytes:
             return gzip.decompress(data)
         case _:
             return decompress(data)
+
+
+async def read_stored_answer(row: Any, store: ObjectStore | None, what: str) -> bytes:
+    """The provider's answer a raw payload registry row names, as received. `what` names the
+    thing it belongs to in the errors (`snapshot`, `observation`)."""
+    if row.expires_at is not None and row.expires_at <= datetime.now(UTC):
+        raise RawExpiredError(f"The raw answer of this {what} is past its retention.")
+    if row.object_key is None:
+        if row.inline_body is None:
+            raise RawExpiredError(f"The raw answer of this {what} is no longer kept.")
+        try:
+            body = await asyncio.to_thread(
+                _unpack_inline, bytes(row.inline_body), str(row.compression)
+            )
+        except (RawStorageError, OSError, EOFError):
+            raise RawUnavailableError("The stored answer could not be read.") from None
+        if digest(body) != bytes(row.sha256):
+            raise RawUnavailableError("The stored answer could not be read.")
+        return body
+    if store is None:
+        raise RawUnavailableError("Raw answers need object storage, which is not set up.")
+    try:
+        return await read_payload(store, row.object_key, bytes(row.sha256))
+    except (RawStorageError, KeyError):
+        raise RawUnavailableError("The stored answer could not be read. Try again.") from None
 
 
 def _query_error(name: str, code: str, message: str) -> RequestValidationError:
@@ -585,26 +611,7 @@ class RankService:
             row = await repository.raw_payload(db, snapshot_id)
         if row is None:
             raise NotFoundError
-        if row.expires_at is not None and row.expires_at <= datetime.now(UTC):
-            raise RawExpiredError("The raw answer of this snapshot is past its retention.")
-        if row.object_key is None:
-            if row.inline_body is None:
-                raise RawExpiredError("The raw answer of this snapshot is no longer kept.")
-            try:
-                body = await asyncio.to_thread(
-                    _unpack_inline, bytes(row.inline_body), str(row.compression)
-                )
-            except (RawStorageError, OSError, EOFError):
-                raise RawUnavailableError("The stored answer could not be read.") from None
-            if digest(body) != bytes(row.sha256):
-                raise RawUnavailableError("The stored answer could not be read.")
-            return RawAnswer(body)
-        if self._raw_store is None:
-            raise RawUnavailableError("Raw answers need object storage, which is not set up.")
-        try:
-            return RawAnswer(await read_payload(self._raw_store, row.object_key, bytes(row.sha256)))
-        except (RawStorageError, KeyError):
-            raise RawUnavailableError("The stored answer could not be read. Try again.") from None
+        return RawAnswer(await read_stored_answer(row, self._raw_store, "snapshot"))
 
     # Features and AI Overview history.
 
@@ -791,7 +798,7 @@ class RankService:
             zone_row = await repository.project_zone(db, access.workspace_id, project_id)
         if zone_row is None:
             raise NotFoundError
-        since, until = _event_bounds(start, end, ZoneInfo(zone_row.timezone))
+        since, until = request_bounds(start, end, ZoneInfo(zone_row.timezone))
         if tracked_keyword_id is None:
             if since is None:
                 since = (until or datetime.now(UTC)) - EVENTS_MAX_WINDOW

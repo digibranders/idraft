@@ -38,8 +38,17 @@ const LIST_BODY = z.object({
   page: z.record(z.string(), z.unknown()),
 });
 
-beforeEach(stubWideScreen);
+// The mock rank state reads the clock (which keywords are stale, how long their history is), so
+// the order of the rows in a group changes with the day. Pin the date alone, so that timers still run.
+const PINNED_NOW = Date.parse('2026-11-11T12:00:00Z');
+
+beforeEach(() => {
+  stubWideScreen();
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(PINNED_NOW);
+});
 afterEach(() => {
+  vi.useRealTimers();
   restoreWideScreen();
   server.events.removeAllListeners();
 });
