@@ -23,6 +23,7 @@ from idraft.api.auth.tokens import hash_token, new_token
 from idraft.api.main import create_app
 from idraft.api.openapi import placeholder_settings
 from idraft.api.resources import Resources
+from idraft.api.stubs import is_not_built
 from idraft.storage.raw import compress, digest
 from idraft.vault.envelope import EnvelopeCipher
 from idraft.vault.store import REFRESH_TOKEN
@@ -64,15 +65,37 @@ def _routes() -> list[tuple[str, str]]:
 ALL_ROUTES = _routes()
 
 
+def _not_built() -> set[tuple[str, str]]:
+    """Routes whose contract is published and whose body is not built (idraft.api.stubs): they
+    answer 501 once every access check has passed."""
+    found: set[tuple[str, str]] = set()
+    for route in iter_route_contexts(create_app(placeholder_settings()).routes):
+        assert route.path is not None
+        assert route.methods
+        if is_not_built(getattr(route.original_route, "endpoint", None)):
+            found.update((method, route.path) for method in route.methods)
+    return found
+
+
+NOT_BUILT = _not_built()
+
+
 def _names(path: str) -> list[str]:
     """The path's parameters, written `{name}` or `{name:converter}`."""
     return PATH_PARAMETER.findall(path)
 
 
+# A path parameter that is a word, not an id of the tenant: it must not count as one of its
+# secrets, since every response would then seem to hold it.
+WORDS = {"kind": "gsc", "engine_code": "chatgpt_web", "screen": "ai_overview"}
+
 WORKSPACE_ROUTES = [(method, path) for method, path in ALL_ROUTES if "workspace_id" in _names(path)]
-# Routes that also name something inside the workspace: a project, a member, an invitation.
+# Routes that also name something inside the workspace: a project, a member, an invitation. A
+# word (`WORDS`) names nothing, so a path whose only other parameter is a word is no child.
 CHILD_ROUTES = [
-    (method, path) for method, path in WORKSPACE_ROUTES if set(_names(path)) - {"workspace_id"}
+    (method, path)
+    for method, path in WORKSPACE_ROUTES
+    if set(_names(path)) - {"workspace_id", *WORDS}
 ]
 # Every GET that returns tenant data without naming a child: the lists, and the two routes
 # that list the caller's workspaces.
@@ -208,6 +231,23 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
     # your entries under your own line, nowhere else in this table.
     # WP-03 contract-pack
+    ("POST", _W + "/projects/{project_id}/prompts/bulk-update"): {
+        "ids": ["{prompt_id}"],
+        "set": {"importance": 1},
+    },
+    ("POST", _W + "/projects/{project_id}/notes"): {
+        "on": "2026-11-03",
+        "text": "Planted note",
+        "scope": {"kind": "project"},
+    },
+    ("PUT", _W + "/me/layouts/{screen}"): {
+        "schema": 1,
+        "cards": [{"id": "c1", "type": "ai.by_engine"}],
+    },
+    ("PUT", _W + "/layouts/{screen}/default"): {
+        "schema": 1,
+        "cards": [{"id": "c1", "type": "ai.by_engine"}],
+    },
     # WP-11 layouts-api
     # WP-12 summary-lane
     # WP-13 prompts-lane
@@ -239,9 +279,6 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     # WP-69 first-party-signals
     # WP-70 geo-readiness
 }
-# A path parameter that is a word, not an id of the tenant: it must not count as one of its
-# secrets, since every response would then seem to hold it.
-WORDS = {"kind": "gsc", "engine_code": "chatgpt_web"}
 # Routes that a member limited to some projects is refused even inside their own project: they
 # change the workspace's credentials, which belong to no one project (docs/24 section 3.2).
 EVERY_PROJECT_ONLY = {
@@ -697,6 +734,9 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     # rows under its own line (docs/ai-visibility/MASTER-PLAN.md section 3.6).
     more_ids: dict[str, str] = {}
     # WP-03 contract-pack
+    # No notes table yet: a note id that names nothing. WP-38 seeds a real note under its own
+    # line and removes this one.
+    more_ids["note_id"] = str(uuid.uuid4())
 
     # WP-11 layouts-api
 
@@ -1039,6 +1079,14 @@ def test_every_route_is_scoped_by_a_workspace_or_accounted_for() -> None:
     assert mutating_with_body == set(BODIES)
 
 
+def test_the_published_contracts_are_the_not_built_routes() -> None:
+    """The stubs of docs/superpowers/plans/2026-11-13-ai-wp-03-contract-pack.md; a package that
+    builds a body drops its route from this set by removing the mark."""
+    assert NOT_BUILT.issubset(WORKSPACE_ROUTES)
+    assert ("GET", _W + "/layouts/{screen}") in NOT_BUILT
+    assert ("GET", _W + "/layouts/{screen}") not in CHILD_ROUTES
+
+
 @pytest.mark.parametrize(("method", "path"), WORKSPACE_ROUTES)
 async def test_another_workspaces_path_is_not_found(
     api: httpx.AsyncClient, tenants: tuple[Tenant, Tenant], method: str, path: str
@@ -1055,6 +1103,18 @@ async def test_another_workspaces_path_is_not_found(
     assert _without_request_details(foreign) == _without_request_details(nowhere)
 
 
+def _answer_for_a_foreign_child(method: str, path: str) -> tuple[int, str]:
+    """What a route answers for a child id (a project, a member) that is not in the workspace.
+
+    A stub reads nothing and holds no project row, so a project outside this workspace gets the
+    same 501 as the caller's own project; the callers below still require the foreign id and an
+    id that names nothing to answer identically. The strict 404 applies the moment a package
+    drops `@not_built` (idraft.api.stubs), which also fails the stub branch: the route then
+    answers 404 or 200 instead of 501. WP-11 and later packages move a route out of NOT_BUILT
+    by dropping the mark, nowhere else."""
+    return (501, "not_implemented") if (method, path) in NOT_BUILT else (404, "not_found")
+
+
 @pytest.mark.parametrize(("method", "path"), CHILD_ROUTES)
 async def test_another_workspaces_child_in_the_callers_own_path_is_not_found(
     api: httpx.AsyncClient, tenants: tuple[Tenant, Tenant], method: str, path: str
@@ -1068,7 +1128,7 @@ async def test_another_workspaces_child_in_the_callers_own_path_is_not_found(
     foreign = await _call(api, method, path, ids, a.headers)
     nowhere = await _call(api, method, path, missing, a.headers)
 
-    assert _problem(foreign) == _problem(nowhere) == (404, "not_found")
+    assert _problem(foreign) == _problem(nowhere) == _answer_for_a_foreign_child(method, path)
     assert _without_request_details(foreign) == _without_request_details(nowhere)
 
 
@@ -1105,6 +1165,9 @@ async def test_a_project_outside_the_members_scope_is_not_found(
     assert _without_request_details(outside) == _without_request_details(nowhere)
     if (method, path) in EVERY_PROJECT_ONLY:
         assert _problem(inside) == (403, "forbidden")
+    elif (method, path) in NOT_BUILT:
+        # Inside the member's scope a published contract answers that its body is not built.
+        assert _problem(inside) == (501, "not_implemented")
     else:
         assert inside.status_code < 300, inside.text
     row = await fetchrow(migrated, "SELECT name FROM core.projects WHERE id = $1", hidden)
@@ -1142,6 +1205,9 @@ async def test_a_list_holds_nothing_of_another_workspace(
         _fill(path, a.ids()), params=QUERIES.get((method, path)), headers=a.headers
     )
 
+    if (method, path) in NOT_BUILT:
+        assert _problem(response) == (501, "not_implemented")
+        return
     assert response.status_code == 200, response.text
     body = response.json()
     for secret in b.secrets():
@@ -1193,8 +1259,14 @@ async def test_the_same_holds_once_the_session_is_cached_and_for_a_member_of_bot
     # B's children are not reachable through A's path even for a member of both.
     for method, path in CHILD_ROUTES:
         ids = {**b.ids(), "workspace_id": str(a.workspace.id)}
+        missing = {**_nowhere(b.ids()), "workspace_id": str(a.workspace.id)}
         response = await _call(api, method, path, ids, cookie(token))
-        assert _problem(response) == (404, "not_found"), (method, path)
+        nowhere = await _call(api, method, path, missing, cookie(token))
+        assert _problem(response) == _answer_for_a_foreign_child(method, path), (method, path)
+        assert _without_request_details(response) == _without_request_details(nowhere), (
+            method,
+            path,
+        )
     rows = await fetch(migrated, "SELECT name FROM core.projects WHERE id = $1", b.project_id)
     assert [row["name"] for row in rows] == ["crm software"]
     await execute(migrated, "DELETE FROM auth.memberships WHERE user_id = $1", both.id)

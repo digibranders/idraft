@@ -423,6 +423,32 @@ EXPECTED: dict[tuple[str, str], str] = {
     # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
     # your entries under your own line, nowhere else in this table.
     # WP-03 contract-pack
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-update"): (
+        "prompts:write"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/limits"): "data:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}/ai-coverage"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/collection/daily"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/changes"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/annotations"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/notes"): "data:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/notes"): "notes:write",
+    ("DELETE", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/notes/{note_id}"): (
+        "notes:write"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/layouts/{screen}"): "member",
+    ("PUT", "/api/v1/workspaces/{workspace_id}/me/layouts/{screen}"): "member",
+    ("DELETE", "/api/v1/workspaces/{workspace_id}/me/layouts/{screen}"): "member",
+    ("PUT", "/api/v1/workspaces/{workspace_id}/layouts/{screen}/default"): "layouts:manage",
+    ("DELETE", "/api/v1/workspaces/{workspace_id}/layouts/{screen}/default"): "layouts:manage",
     # WP-11 layouts-api
     # WP-12 summary-lane
     # WP-13 prompts-lane
@@ -527,6 +553,10 @@ PATH_PARAMETERS = {
     # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
     # your entries under your own line, nowhere else in this table.
     # WP-03 contract-pack
+    # A screen key of the layout spec (`ai_overview`), a word and not an id, after the workspace.
+    "screen",
+    # Inside one project, after `{project_id}`: the service reads the note within it.
+    "note_id",
     # WP-11 layouts-api
     # WP-12 summary-lane
     # WP-13 prompts-lane
