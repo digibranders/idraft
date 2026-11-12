@@ -230,16 +230,10 @@ export function topicPrompts(
 export const topicSummaryRow = (summary: PromptsSummary | undefined, key: string): TopicSummaryRow | undefined =>
   summary?.topics.find((topic) => (topic.term_id ?? NO_TOPIC) === key);
 
-/** The tabs of the topic drawer built in slice 1: Competitors and Related wait for slices 2 and 3. */
-export const TOPIC_TABS = ['overview', 'prompts'] as const;
-export type TopicTab = (typeof TOPIC_TABS)[number];
-export const parseTopicTab = (value: string): TopicTab => (value === 'prompts' ? 'prompts' : 'overview');
-
-/** The tabs of the prompt inspector (`?itab=`): Citations joins them with the citation routes. */
-export const PROMPT_TABS = ['latest', 'history', 'competitors', 'stats'] as const;
-export type PromptTab = (typeof PROMPT_TABS)[number];
-/** Latest when the address names no tab of the prompt's (the inspector's first tab is `overview` in the address). */
-export const parsePromptTab = (value: string): PromptTab => PROMPT_TABS.find((tab) => tab === value) ?? 'latest';
+/** The `itab` of the topic drawer: a built-in tab or one of `TOPIC_TAB_ENTRIES`. */
+export type TopicTab = string;
+/** The built-in tabs of the topic drawer, as the address names them. */
+export const TOPIC_TAB = { overview: 'overview', prompts: 'prompts' } as const;
 
 /**
  * Why an answer could not be read, as a key of `prompts.answer.failedReasons`. The code is the provider's task

@@ -16,7 +16,7 @@ import {
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { parseAsString, useQueryStates } from 'nuqs';
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { AddPromptsDialog } from './add-prompts-dialog';
 import { AnswerInspector } from './answer-inspector';
@@ -34,9 +34,7 @@ import {
   NO_TOPIC,
   parseCountry,
   parseMetric,
-  parsePromptTab,
   parseTab,
-  parseTopicTab,
   parseWindow,
   PROMPTS_TABS,
   RATE_METRICS,
@@ -56,6 +54,8 @@ import {
 import { enginesQuery, observationQuery, summaryQuery, usePromptList, type PromptScope } from './prompt-queries';
 import { PromptsCountryControl, PromptsWindowControl } from './prompts-scope';
 import { PromptsStrip } from './prompts-strip';
+import { PROMPT_ACTION_ENTRIES, withActionEntries } from './seams/actions';
+import { PROMPTS_TOOLBAR_ENTRIES, promptsToolbarItems } from './seams/toolbar';
 import { topicsSpanned, type StripPrompt } from './strip-model';
 import { usePromptActions } from './use-prompt-actions';
 import { TopicInspector } from './topic-inspector';
@@ -92,7 +92,7 @@ import { formatBusinessDate, formatInteger, formatList, formatRelative } from '@
 import { formatInspectTarget } from '@/lib/inspector/placement';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { useCountries } from '@/lib/locations/countries';
-import { useCan } from '@/lib/permissions';
+import { useCan, useMembership } from '@/lib/permissions';
 import { projectPath } from '@/lib/routes/paths';
 import {
   DEFAULT_DENSITY,
@@ -174,9 +174,11 @@ export function PromptsScreen(props: PromptsScreenProps): ReactNode {
 
 function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenProps): ReactNode {
   const t = useTranslations('prompts');
+  const root = useTranslations();
   const common = useTranslations('common');
   const locale = useLocale();
   const canWrite = useCan('prompts:write');
+  const { permissions } = useMembership();
   const [addOpen, setAddOpen] = useState(false);
   const scope = useMemo((): PromptScope => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
@@ -438,7 +440,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // The topic drawer, and the topic a prompt was opened from the drawer of: its prompts are the list J and K step
   // through and its badge leads back to the tab it left (ADR-DS-022 decision 8). A link has none, like any list it lacks
   const openTopic = inspector.target?.type === 'topic' ? inspector.target.id : null;
-  const topicTab = parseTopicTab(inspector.tab);
+  const topicTab = inspector.tab;
   const [promptFrom, setPromptFrom] = useState<TopicOrigin | null>(null);
   const firstShown = shown[0]?.engine.engine_code;
   const originKey = promptFrom?.key ?? null;
@@ -524,7 +526,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     // it failed) some of them are not in it, so the actions that read them wait
     const listReason =
       list.loading || list.fetching || list.hasMore || list.error !== null ? t('bulk.listLoading') : null;
-    return [
+    const builtIns: PromptAction[] = [
       {
         id: 'open',
         label: t('rowMenu.open'),
@@ -579,6 +581,20 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           ]
         : []),
     ];
+    return withActionEntries(
+      builtIns,
+      PROMPT_ACTION_ENTRIES,
+      {
+        surface: 'topicRow',
+        scope,
+        promptIds: target.promptIds,
+        prompts: target.promptIds.flatMap((id) => rowsById.get(id)?.prompt ?? []),
+        topicKey: target.key,
+        busyReason: actions.busyReason,
+        t: root,
+      },
+      permissions,
+    );
   };
 
   // The summary is pending only before its first answer: a new window keeps the last counts meanwhile
@@ -674,6 +690,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       toast(copied ? { type: 'success', title: t('linkCopied') } : { type: 'error', title: common('copy.failed') }),
     );
   };
+  // What later packages add to the header: items of the More actions menu, and controls before it
+  const extras = promptsToolbarItems(PROMPTS_TOOLBAR_ENTRIES, { scope, project, t: root }, permissions);
+  const extraControls = extras.actions.map(({ id, node }) => <Fragment key={id}>{node}</Fragment>);
   const moreMenu = (
     <Menu
       align="end"
@@ -684,7 +703,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           <span>{windowCaption}</span>
         </div>
       }
-      items={[{ id: COPY_LINK, label: t('copyLink'), icon: Link2, onSelect: copyLink }]}
+      items={[{ id: COPY_LINK, label: t('copyLink'), icon: Link2, onSelect: copyLink }, ...extras.more]}
     />
   );
 
@@ -798,6 +817,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               <span className="hidden type-meta whitespace-nowrap @5xl:inline">{updatedText}</span>
             </Tooltip>
           )}
+          {extraControls}
           {moreMenu}
           {showAdd ? headerAdd : null}
         </div>
@@ -1011,7 +1031,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 onOpen: () => inspector.open({ type: 'topic', id: origin.key }, { tab: origin.tab }),
               }
         }
-        tab={parsePromptTab(inspector.tab)}
+        tab={inspector.tab}
         // Latest is the inspector's first tab, which the address leaves out
         onTabChange={(next) => inspector.setTab(next === 'latest' ? DEFAULT_INSPECTOR_TAB : next)}
         onClose={() => inspector.close()}
@@ -1055,6 +1075,18 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       />
     );
 
+  // With neither Add prompts nor a control of the seam nothing is passed, so no wrapper is drawn
+  const addInEmpty = showAdd ? headerAdd : undefined;
+  const emptyActions: ReactNode =
+    extraControls.length === 0 ? (
+      addInEmpty
+    ) : (
+      <>
+        {extraControls}
+        {addInEmpty}
+      </>
+    );
+
   return (
     <InspectorLayout inspector={promptInspector ?? answerInspector ?? topicInspector}>
       <TopBarPortal>
@@ -1075,8 +1107,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           title={t('title')}
           titleHidden
           toolbar={toolbar}
-          // Without the table (an empty state) only Add prompts is left of the header's right side
-          actions={toolbar === undefined && showAdd ? headerAdd : undefined}
+          // Without the table (an empty state) only Add prompts is left of the header's right side, and the controls
+          // of the toolbar seam before it
+          actions={toolbar === undefined ? emptyActions : undefined}
         />
         {content}
       </div>

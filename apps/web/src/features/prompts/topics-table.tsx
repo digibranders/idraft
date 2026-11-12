@@ -14,6 +14,7 @@ import {
   topicMembers,
   topicRowKept,
   TOPIC_ROW_PROMPTS,
+  TOPIC_TAB,
   type TopicDescendants,
   type TopicTab,
 } from './prompt-model';
@@ -261,7 +262,7 @@ export function TopicsTable({
                 aria-label={rowName(row)}
                 className="max-w-full min-w-0 justify-start"
                 onClick={(event) =>
-                  openTopic(row.key, 'prompts', event.metaKey || event.ctrlKey ? 'new-tab' : 'inspector')
+                  openTopic(row.key, TOPIC_TAB.prompts, event.metaKey || event.ctrlKey ? 'new-tab' : 'inspector')
                 }
               >
                 <span className="truncate">{t('topics.showAll', { count: row.total })}</span>
@@ -279,7 +280,7 @@ export function TopicsTable({
                 // count: the name is cut only when it is longer than the cell, and the count gives way first
                 className="max-w-full min-w-0 shrink-0 justify-start text-foreground"
                 onClick={(event) =>
-                  openTopic(row.key, 'overview', event.metaKey || event.ctrlKey ? 'new-tab' : 'inspector')
+                  openTopic(row.key, TOPIC_TAB.overview, event.metaKey || event.ctrlKey ? 'new-tab' : 'inspector')
                 }
               >
                 <span className="truncate">{row.name}</span>
@@ -578,7 +579,7 @@ export function TopicsTable({
           // A topic row that opens no group (a topic under its parent, or one whose prompts cannot be told yet) and
           // the "Show all" row open the drawer
           if (row.kind !== 'prompt') {
-            openTopic(row.key, row.kind === 'more' ? 'prompts' : 'overview', intent);
+            openTopic(row.key, row.kind === 'more' ? TOPIC_TAB.prompts : TOPIC_TAB.overview, intent);
             return;
           }
           setClicked(row.id);

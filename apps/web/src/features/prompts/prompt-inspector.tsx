@@ -11,7 +11,7 @@ import { InspectorLatest } from './inspector-latest';
 import type { PromptAnswers, PromptCounts } from './inspector-reads';
 import { InspectorStats } from './inspector-stats';
 import { InspectorStrip } from './inspector-strip';
-import { asksIn, fitsEngine, PROMPT_TABS, topicTermsOf, type DateRange, type PromptTab } from './prompt-model';
+import { asksIn, fitsEngine, topicTermsOf, type DateRange } from './prompt-model';
 import {
   ARCHIVE_PROMPT,
   isPromptId,
@@ -22,6 +22,9 @@ import {
   UPDATE_PROMPT,
   type PromptScope,
 } from './prompt-queries';
+import { asMenuItems, PROMPT_ACTION_ENTRIES, withActionEntries } from './seams/actions';
+import { PROMPT_TAB_ENTRIES, promptTabs, type PromptInspectorTab, type PromptTabContext } from './seams/inspector-tabs';
+import { chosenTab } from './seams/shared';
 import { Inspector } from '@/components/app/inspector/inspector';
 import type { InspectorNavigation } from '@/components/app/inspector/inspector-header';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
@@ -41,7 +44,7 @@ import type { ProjectEngine, Prompt } from '@/lib/api/types';
 import { EMPTY_VALUE, formatDetailDateTime, formatInteger, formatList } from '@/lib/format';
 import { languageName } from '@/lib/format/language';
 import { useCountries } from '@/lib/locations/countries';
-import { useCan } from '@/lib/permissions';
+import { useCan, useMembership } from '@/lib/permissions';
 
 /** The catalog key of each reason Run now refuses an engine (`422 validation_failed`, one item per engine). */
 const REFUSAL_KEYS = {
@@ -54,14 +57,6 @@ type Refusal = keyof typeof REFUSAL_KEYS;
 const isRefusal = (code: string): code is Refusal => code in REFUSAL_KEYS;
 
 export type { PromptCounts } from './inspector-reads';
-
-/** The key of the label of each tab. */
-const TAB_LABEL = {
-  latest: 'tabLatest',
-  history: 'tabHistory',
-  competitors: 'tabCompetitors',
-  stats: 'tabStats',
-} as const satisfies Record<PromptTab, string>;
 
 export interface PromptInspectorProps {
   scope: PromptScope;
@@ -84,9 +79,9 @@ export interface PromptInspectorProps {
    * drawer. Left out for a prompt that was not opened from a topic.
    */
   topic?: { name: string; onOpen: () => void } | null | undefined;
-  /** The tab shown (`?itab=`), and the choice of another. */
-  tab: PromptTab;
-  onTabChange: (tab: PromptTab) => void;
+  /** The tab the address asks for (`?itab=`), which the inspector resolves against the tabs it shows, and the choice of another. */
+  tab: string;
+  onTabChange: (tab: string) => void;
   onClose: () => void;
   /**
    * Opens the answer in the answer viewer; without it the dates of the answers are plain text. `observedAt` is
@@ -122,6 +117,7 @@ export function PromptInspector({
   onOpenAnswer,
 }: PromptInspectorProps): ReactElement {
   const t = useTranslations('prompts.inspector');
+  const root = useTranslations();
   const words = useTranslations('prompts');
   const common = useTranslations('common');
   const inspectorWords = useTranslations('inspector');
@@ -129,11 +125,14 @@ export function PromptInspector({
   const queryClient = useQueryClient();
   const canTrigger = useCan('runs:trigger');
   const canWrite = useCan('prompts:write');
+  const { permissions } = useMembership();
   const { countries, isError: countriesFailed } = useCountries();
   const detail = useQuery(promptQuery(scope, promptId));
   // An id that is no prompt's (a hand-typed address, or one the API refuses) is a prompt that is not there
   const notFound = isApiProblem(detail.error, 'not_found') || isApiProblem(detail.error, 'validation_failed');
-  // The window's answers are read for the tabs that list or count them, History and Competitors, and for no other
+  // The window's answers are read for the tabs that list or count them, History and Competitors, and for no other. The
+  // address's own tab is read here, not the one chosen below: the tabs need the answers (their context holds them),
+  // and History and Competitors are built in, so the address names them exactly when they are shown
   const answers = useQuery({
     ...observationsQuery(scope, promptId, range),
     enabled: isPromptId(promptId) && !notFound && (tab === 'history' || tab === 'competitors'),
@@ -299,6 +298,93 @@ export function PromptInspector({
     ];
   };
 
+  // The tabs: the four built-in ones, which close over this component's state, and the entries of the seam
+  const exists = isPromptId(promptId) && !notFound;
+  const context: PromptTabContext = {
+    scope,
+    promptId,
+    prompt,
+    exists,
+    range,
+    timeZone,
+    engines,
+    labelOf,
+    counts,
+    answers: promptAnswers,
+    noCountsReason: countsReason,
+    onOpenAnswer,
+  };
+  const builtInTabs: PromptInspectorTab[] = [
+    {
+      id: 'latest',
+      label: (translate) => translate('prompts.inspector.tabLatest'),
+      render: () => (
+        <InspectorLatest
+          scope={scope}
+          promptId={promptId}
+          exists={exists}
+          range={range}
+          timeZone={timeZone}
+          engines={engines}
+          onOpenAnswer={onOpenAnswer}
+        >
+          <InspectorSection title={t('facts')} icon={ClipboardList} status={prompt === null ? 'loading' : 'ready'}>
+            {prompt === null ? null : <KeyValues items={factsOf(prompt)} />}
+          </InspectorSection>
+        </InspectorLatest>
+      ),
+    },
+    {
+      id: 'history',
+      label: (translate) => translate('prompts.inspector.tabHistory'),
+      render: () => (
+        <InspectorHistory
+          counts={counts}
+          engines={engines}
+          range={range}
+          timeZone={timeZone}
+          createdAt={prompt?.created_at ?? null}
+          answers={promptAnswers}
+          labelOf={labelOf}
+          noCountsReason={countsReason}
+          onOpenAnswer={onOpenAnswer}
+        />
+      ),
+    },
+    {
+      id: 'competitors',
+      label: (translate) => translate('prompts.inspector.tabCompetitors'),
+      render: () => <InspectorCompetitors scope={scope} counts={counts} engines={engines} answers={promptAnswers} />,
+    },
+    {
+      id: 'stats',
+      label: (translate) => translate('prompts.inspector.tabStats'),
+      render: () => <InspectorStats engines={engines} counts={counts} noCountsReason={countsReason} />,
+    },
+  ];
+  const tabs = promptTabs(builtInTabs, PROMPT_TAB_ENTRIES, context);
+  const current = chosenTab(tabs, tab);
+  const builtInMore: MenuItemDef[] = canWrite && prompt?.is_active === true ? [archiveAction] : [];
+  const moreActions = [
+    ...builtInMore,
+    ...asMenuItems(
+      withActionEntries(
+        [],
+        PROMPT_ACTION_ENTRIES,
+        {
+          surface: 'inspectorMore',
+          scope,
+          promptIds: [promptId],
+          prompts: prompt === null ? [] : [prompt],
+          topicKey: null,
+          busyReason: null,
+          t: root,
+        },
+        permissions,
+      ),
+    ),
+  ];
+
   return (
     <Inspector
       type="prompt"
@@ -346,7 +432,7 @@ export function PromptInspector({
               {t('runNow')}
             </Button>
           ) : null,
-        moreActions: canWrite && prompt?.is_active === true ? [archiveAction] : [],
+        moreActions,
       }}
     >
       {detail.isError && prompt === null ? (
@@ -382,50 +468,17 @@ export function PromptInspector({
             ) : null}
             <InspectorStrip engines={engines} counts={counts} noCountsReason={countsReason} />
           </div>
-          <InspectorTabs<PromptTab>
+          <InspectorTabs<string>
             label={t('tabsLabel')}
-            value={tab}
+            value={current}
             onValueChange={onTabChange}
-            items={PROMPT_TABS.map((value) => ({ value, label: t(TAB_LABEL[value]) }))}
+            items={tabs.map((entry) => ({ value: entry.id, label: entry.label(root) }))}
           >
-            <InspectorPanel<PromptTab> value="latest">
-              <InspectorLatest
-                scope={scope}
-                promptId={promptId}
-                exists={isPromptId(promptId) && !notFound}
-                range={range}
-                timeZone={timeZone}
-                engines={engines}
-                onOpenAnswer={onOpenAnswer}
-              >
-                <InspectorSection
-                  title={t('facts')}
-                  icon={ClipboardList}
-                  status={prompt === null ? 'loading' : 'ready'}
-                >
-                  {prompt === null ? null : <KeyValues items={factsOf(prompt)} />}
-                </InspectorSection>
-              </InspectorLatest>
-            </InspectorPanel>
-            <InspectorPanel<PromptTab> value="history">
-              <InspectorHistory
-                counts={counts}
-                engines={engines}
-                range={range}
-                timeZone={timeZone}
-                createdAt={prompt?.created_at ?? null}
-                answers={promptAnswers}
-                labelOf={labelOf}
-                noCountsReason={countsReason}
-                onOpenAnswer={onOpenAnswer}
-              />
-            </InspectorPanel>
-            <InspectorPanel<PromptTab> value="competitors">
-              <InspectorCompetitors scope={scope} counts={counts} engines={engines} answers={promptAnswers} />
-            </InspectorPanel>
-            <InspectorPanel<PromptTab> value="stats">
-              <InspectorStats engines={engines} counts={counts} noCountsReason={countsReason} />
-            </InspectorPanel>
+            {tabs.map((entry) => (
+              <InspectorPanel<string> key={entry.id} value={entry.id}>
+                {entry.render(context)}
+              </InspectorPanel>
+            ))}
           </InspectorTabs>
         </>
       )}

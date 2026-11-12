@@ -20,11 +20,8 @@ import {
   outcomeKey,
   parseCountry,
   parseMetric,
-  parsePromptTab,
   parseTab,
-  parseTopicTab,
   parseWindow,
-  PROMPT_TABS,
   PROMPT_TEXT_MAX,
   promptKeyOf,
   readPromptLines,
@@ -610,12 +607,6 @@ describe('the topic drawer', () => {
     expect(topicSummaryRow(undefined, 'seo')).toBeUndefined();
   });
 
-  it('opens on Overview unless the link names the Prompts tab', () => {
-    expect(parseTopicTab('prompts')).toBe('prompts');
-    expect(parseTopicTab('overview')).toBe('overview');
-    expect(parseTopicTab('answers')).toBe('overview');
-  });
-
   it('averages the rates of the engines that have one, and counts those engines', () => {
     expect(acrossEngines([rated(0.25), rated(0.5), rated(0.75)])).toEqual({ value: 0.5, engines: 3 });
     // An engine with no valid answer takes no part: it is not a rate of 0
@@ -662,19 +653,6 @@ describe('the widest window of the API', () => {
   it('counts calendar days across a month and a year, whatever the zone', () => {
     expect(trailingRange('2026-01-05', 7)).toEqual({ from: '2025-12-30', to: '2026-01-05' });
     expect(trailingRange('2026-03-01', 2)).toEqual({ from: '2026-02-28', to: '2026-03-01' });
-  });
-});
-
-describe('the tabs of the prompt inspector', () => {
-  it('reads the tab of the address, Latest when it names none that exists', () => {
-    expect(PROMPT_TABS).toEqual(['latest', 'history', 'competitors', 'stats']);
-    expect(parsePromptTab('history')).toBe('history');
-    expect(parsePromptTab('competitors')).toBe('competitors');
-    expect(parsePromptTab('stats')).toBe('stats');
-    // The first tab of every inspector is `overview` in the address: it is Latest here
-    expect(parsePromptTab('overview')).toBe('latest');
-    // The topic drawer's tab, left in the address by a prompt opened from it
-    expect(parsePromptTab('prompts')).toBe('latest');
   });
 });
 

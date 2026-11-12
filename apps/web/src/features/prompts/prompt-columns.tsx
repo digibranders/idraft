@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { countText, engineSortId, SORT_ID, validAnswers, type RateMetric } from './prompt-model';
 import { ENGINE_COLUMN_WIDTH, useEngineRateColumns, useRateColumns } from './rate-columns';
 import { cellFigure } from './rate-model';
+import { PROMPT_COLUMN_ENTRIES, withColumnEntries } from './seams/columns';
 import { useTrendColumn } from './trend-column';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
@@ -118,13 +119,14 @@ const cellsOfPrompt = (row: PromptRow): readonly EngineSummary[] | undefined =>
  */
 export function usePromptColumns(engines: readonly ProjectEngine[], metric: RateMetric): PromptColumns {
   const t = useTranslations('prompts');
+  const root = useTranslations();
   const locale = useLocale();
   const { mention, citation } = useRateColumns(engines, cellsOfPrompt);
   const trend = useTrendColumn(engines, cellsOfPrompt);
   const engineRateColumns = useEngineRateColumns(engines, cellsOfPrompt, metric);
   const countColumns = useEngineColumns(engines, cellsOfPrompt, { sortable: true, defaultVisible: false });
   return useMemo(() => {
-    const columns: DataTableColumn<PromptRow>[] = [
+    const builtIn: DataTableColumn<PromptRow>[] = [
       col.keyword<PromptRow>(SORT_ID.prompt, (row) => row.prompt.current_version.text, {
         header: t('columns.prompt'),
         trailing: (row) => (row.prompt.is_branded ? <Badge>{t('branded')}</Badge> : null),
@@ -173,11 +175,13 @@ export function usePromptColumns(engines: readonly ProjectEngine[], metric: Rate
       ...engineRateColumns,
       ...countColumns,
     ];
+    // Before the sort fields are read, so a sortable column of an entry is a valid `?sort=` id
+    const columns = withColumnEntries(builtIn, PROMPT_COLUMN_ENTRIES, { engines, metric, t: root, locale });
     return {
       columns,
       sortFields: new Set(columns.flatMap((column) => (column.sortValue === undefined ? [] : [column.id]))),
       searchText: (row) => `${row.prompt.current_version.text} ${row.topics ?? ''}`.toLocaleLowerCase(locale),
       rowName: (row) => row.prompt.current_version.text,
     };
-  }, [t, locale, mention, citation, trend, engineRateColumns, countColumns]);
+  }, [t, root, locale, engines, metric, mention, citation, trend, engineRateColumns, countColumns]);
 }

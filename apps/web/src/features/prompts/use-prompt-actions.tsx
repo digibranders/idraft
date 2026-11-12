@@ -25,6 +25,7 @@ import {
   type RunProblem,
   type SkipCounts,
 } from './run-model';
+import { PROMPT_ACTION_ENTRIES, withActionEntries, type PromptActionSurface } from './seams/actions';
 import { gridTabStop } from '@/components/app/data-table/grid-focus';
 import { ConfirmDialog } from '@/components/ui/alert-dialog';
 import { toast } from '@/components/ui/toast';
@@ -34,7 +35,7 @@ import { csvBlob, downloadBlob } from '@/lib/csv/csv-write';
 import { copyText } from '@/lib/dom/clipboard';
 import { formatCurrency, formatList } from '@/lib/format';
 import { useCountries } from '@/lib/locations/countries';
-import { useCan } from '@/lib/permissions';
+import { useCan, useMembership } from '@/lib/permissions';
 
 /** Above this many prompts, archiving asks first (12-tables.md section 14), as Rankings does for keywords. */
 const CONFIRM_ARCHIVE_ABOVE = 100;
@@ -105,11 +106,13 @@ export function usePromptActions({
   onDone,
 }: PromptActionsOptions): PromptActions {
   const t = useTranslations('prompts');
+  const root = useTranslations();
   const common = useTranslations('common');
   const locale = useLocale();
   const queryClient = useQueryClient();
   const canTrigger = useCan('runs:trigger');
   const canWrite = useCan('prompts:write');
+  const { permissions } = useMembership();
   const { countries } = useCountries();
   const runNow = useMutation(RUN_NOW);
   const [asking, setAsking] = useState<Asking>(null);
@@ -509,13 +512,34 @@ export function usePromptActions({
     else void archivePrompts(ids);
   };
 
+  /** The built-in actions of a surface, then the entries of the action seam offered on it. */
+  const withEntries = (
+    builtIns: readonly PromptAction[],
+    surface: PromptActionSurface,
+    ids: readonly string[],
+  ): PromptAction[] =>
+    withActionEntries(
+      builtIns,
+      PROMPT_ACTION_ENTRIES,
+      {
+        surface,
+        scope,
+        promptIds: ids,
+        prompts: rowsOf(ids).map((row) => row.prompt),
+        topicKey: null,
+        busyReason,
+        t: root,
+      },
+      permissions,
+    );
+
   const bar = (ids: readonly string[]): PromptAction[] => {
     const plan = planRuns(
       rowsOf(ids).map((row) => row.prompt),
       engines,
       countries.length > 0 ? countries : null,
     );
-    return [
+    const builtIns: PromptAction[] = [
       ...(canTrigger
         ? [
             {
@@ -550,6 +574,7 @@ export function usePromptActions({
           ]
         : []),
     ];
+    return withEntries(builtIns, 'bulk', ids);
   };
 
   const copyPrompt = (text: string): void => {
@@ -562,7 +587,7 @@ export function usePromptActions({
     const row = rowsById.get(promptId);
     if (row === undefined) return [];
     const runnable = planRuns([row.prompt], engines, countries.length > 0 ? countries : null).runnable.length > 0;
-    return [
+    const builtIns: PromptAction[] = [
       { id: 'open', label: t('rowMenu.open'), icon: PanelRight, group: 'open', run: open },
       ...(canTrigger
         ? [
@@ -598,6 +623,7 @@ export function usePromptActions({
           ]
         : []),
     ];
+    return withEntries(builtIns, 'promptRow', [promptId]);
   };
 
   const count = asking?.ids.length ?? 0;

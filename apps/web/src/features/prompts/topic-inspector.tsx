@@ -8,13 +8,14 @@ import {
   acrossEngines,
   countText,
   NO_TOPIC,
-  TOPIC_TABS,
+  TOPIC_TAB,
   TOPIC_TOP_PROMPTS,
   topicPrompts,
   topicSummaryRow,
   type TopicDescendants,
-  type TopicTab,
 } from './prompt-model';
+import { chosenTab } from './seams/shared';
+import { TOPIC_TAB_ENTRIES, topicTabs, type TopicInspectorTab, type TopicTabContext } from './seams/topic-tabs';
 import { Inspector } from '@/components/app/inspector/inspector';
 import { InspectorSection, type InspectorSectionStatus } from '@/components/app/inspector/inspector-section';
 import { InspectorBody, InspectorPanel, InspectorTabs } from '@/components/app/inspector/inspector-tabs';
@@ -47,8 +48,9 @@ export interface TopicInspectorProps {
   treeName: string | null;
   /** The trees are being read: until they are, the prompts of a topic cannot be told. */
   treePending: boolean;
-  tab: TopicTab;
-  onTabChange: (tab: TopicTab) => void;
+  /** The tab the address asks for (`?itab=`), which the drawer resolves against the tabs it shows. */
+  tab: string;
+  onTabChange: (tab: string) => void;
   onOpenPrompt: (promptId: string) => void;
   onClose: () => void;
 }
@@ -170,6 +172,7 @@ export function TopicInspector({
   onClose,
 }: TopicInspectorProps): ReactElement {
   const t = useTranslations('prompts.topicDrawer');
+  const root = useTranslations();
   const words = useTranslations('prompts');
   const common = useTranslations('common');
   const inspectorWords = useTranslations('inspector');
@@ -243,64 +246,77 @@ export function TopicInspector({
       </InspectorBody>
     );
   } else {
-    body = (
-      <InspectorTabs<TopicTab>
-        label={t('tabsLabel')}
-        value={tab}
-        onValueChange={onTabChange}
-        items={TOPIC_TABS.map((value) => ({ value, label: t(value === 'overview' ? 'tabOverview' : 'tabPrompts') }))}
+    const overview = (
+      <>
+        <InspectorSection title={t('rates')} icon={Percent} status={sectionStatus()} error={failed}>
+          <KeyValues items={headline} />
+        </InspectorSection>
+        <InspectorSection title={t('byEngine')} icon={ListChecks} status={sectionStatus()} error={failed}>
+          <div className="flex flex-col gap-4">
+            {engines.map((engine) => (
+              <div key={engine.engine.engine_code} className="flex flex-col gap-2">
+                <h4 className="type-body-strong">{engine.engine.label}</h4>
+                <KeyValues
+                  items={METRICS.map(({ key, label }) => ({
+                    id: key,
+                    label: t(label),
+                    value: <Rate cell={cellOf(enginesOf(engine), key)} metric={key} />,
+                  }))}
+                />
+              </div>
+            ))}
+            <p className="type-meta text-foreground-tertiary">{words('topics.weighted')}</p>
+          </div>
+        </InspectorSection>
+        <InspectorSection
+          title={t('topPrompts')}
+          icon={ListOrdered}
+          status={promptsStatus}
+          error={failed}
+          empty={noPrompts}
+          action={
+            prompts !== null && prompts.length > TOPIC_TOP_PROMPTS ? (
+              <Button variant="link" size="sm" onClick={() => onTabChange(TOPIC_TAB.prompts)}>
+                {words('topics.showAll', { count: prompts.length })}
+              </Button>
+            ) : undefined
+          }
+        >
+          {prompts === null ? null : (
+            <PromptList prompts={prompts.slice(0, TOPIC_TOP_PROMPTS)} engines={engines} onOpen={onOpenPrompt} />
+          )}
+        </InspectorSection>
+      </>
+    );
+    const promptsPanel = (
+      <InspectorSection
+        title={t('prompts')}
+        icon={MessageSquare}
+        status={promptsStatus}
+        error={failed}
+        empty={noPrompts}
       >
-        <InspectorPanel<TopicTab> value="overview">
-          <InspectorSection title={t('rates')} icon={Percent} status={sectionStatus()} error={failed}>
-            <KeyValues items={headline} />
-          </InspectorSection>
-          <InspectorSection title={t('byEngine')} icon={ListChecks} status={sectionStatus()} error={failed}>
-            <div className="flex flex-col gap-4">
-              {engines.map((engine) => (
-                <div key={engine.engine.engine_code} className="flex flex-col gap-2">
-                  <h4 className="type-body-strong">{engine.engine.label}</h4>
-                  <KeyValues
-                    items={METRICS.map(({ key, label }) => ({
-                      id: key,
-                      label: t(label),
-                      value: <Rate cell={cellOf(enginesOf(engine), key)} metric={key} />,
-                    }))}
-                  />
-                </div>
-              ))}
-              <p className="type-meta text-foreground-tertiary">{words('topics.weighted')}</p>
-            </div>
-          </InspectorSection>
-          <InspectorSection
-            title={t('topPrompts')}
-            icon={ListOrdered}
-            status={promptsStatus}
-            error={failed}
-            empty={noPrompts}
-            action={
-              prompts !== null && prompts.length > TOPIC_TOP_PROMPTS ? (
-                <Button variant="link" size="sm" onClick={() => onTabChange('prompts')}>
-                  {words('topics.showAll', { count: prompts.length })}
-                </Button>
-              ) : undefined
-            }
-          >
-            {prompts === null ? null : (
-              <PromptList prompts={prompts.slice(0, TOPIC_TOP_PROMPTS)} engines={engines} onOpen={onOpenPrompt} />
-            )}
-          </InspectorSection>
-        </InspectorPanel>
-        <InspectorPanel<TopicTab> value="prompts">
-          <InspectorSection
-            title={t('prompts')}
-            icon={MessageSquare}
-            status={promptsStatus}
-            error={failed}
-            empty={noPrompts}
-          >
-            {prompts === null ? null : <PromptList prompts={prompts} engines={engines} onOpen={onOpenPrompt} />}
-          </InspectorSection>
-        </InspectorPanel>
+        {prompts === null ? null : <PromptList prompts={prompts} engines={engines} onOpen={onOpenPrompt} />}
+      </InspectorSection>
+    );
+    const context: TopicTabContext = { topicKey, summary, counts, engines, descendants, onOpenPrompt };
+    const builtInTabs: TopicInspectorTab[] = [
+      { id: 'overview', label: (translate) => translate('prompts.topicDrawer.tabOverview'), render: () => overview },
+      { id: 'prompts', label: (translate) => translate('prompts.topicDrawer.tabPrompts'), render: () => promptsPanel },
+    ];
+    const tabs = topicTabs(builtInTabs, TOPIC_TAB_ENTRIES, context);
+    body = (
+      <InspectorTabs<string>
+        label={t('tabsLabel')}
+        value={chosenTab(tabs, tab)}
+        onValueChange={onTabChange}
+        items={tabs.map((entry) => ({ value: entry.id, label: entry.label(root) }))}
+      >
+        {tabs.map((entry) => (
+          <InspectorPanel<string> key={entry.id} value={entry.id}>
+            {entry.render(context)}
+          </InspectorPanel>
+        ))}
       </InspectorTabs>
     );
   }
