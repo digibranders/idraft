@@ -35,6 +35,8 @@ import {
   type TopicTab,
 } from './prompt-model';
 import { enginesQuery, observationQuery, summaryQuery, usePromptList, type PromptScope } from './prompt-queries';
+import { PromptsStrip } from './prompts-strip';
+import { topicsSpanned, type StripPrompt } from './strip-model';
 import { TopicInspector } from './topic-inspector';
 import { TopicsTable } from './topics-table';
 import { DataTable } from '@/components/app/data-table/data-table';
@@ -285,6 +287,23 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       });
   }, [list.rows, includeBranded, topicIds, kept, values.country, summaryById, countsLoaded, countryName, locale]);
 
+  // The strip reads the prompts in scope (a search is no filter, so it does not narrow it, ADR-DS-022 decision 6)
+  const stripPrompts = useMemo(
+    (): StripPrompt[] =>
+      rows.map((row) => ({
+        topic_term_ids: row.summary?.topic_term_ids ?? topicTermsOf(row.prompt).map((term) => term.term_id),
+        engines: row.summary?.engines ?? [],
+      })),
+    [rows],
+  );
+  const stripTopics = useMemo(
+    () =>
+      summary.data === undefined
+        ? null
+        : topicsSpanned(summary.data.data.topics, stripPrompts, descendants, topicIds.length > 0 ? kept : null),
+    [summary.data, stripPrompts, descendants, topicIds, kept],
+  );
+
   const { columns, sortFields, searchText, rowName } = usePromptColumns(shown);
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const sort = useMemo((): readonly SortKey[] => {
@@ -500,8 +519,19 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     content = noPrompts;
   } else {
     toolbar = <FilterBar fields={fields} values={values} onChange={setValues} />;
+    // Not under the empty states, nor before the engines are known (the cards are the engines)
+    const stripStatus = waiting ? 'loading' : summary.isFetching || list.fetching ? 'refetching' : 'ready';
     content = (
       <>
+        {engines.data !== undefined && (waiting || rows.length > 0) ? (
+          <PromptsStrip
+            prompts={stripPrompts}
+            engines={shown}
+            topics={stripTopics}
+            status={stripStatus}
+            countsFailed={summaryFailed}
+          />
+        ) : null}
         {noAnswers ? <Banner tone="info" placement="region" message={t('noAnswers')} /> : null}
         {listIncomplete ? (
           <Banner

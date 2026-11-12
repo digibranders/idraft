@@ -119,11 +119,11 @@ export const topicRowKept = (termId: string | null, kept: ReadonlySet<string>): 
  * below it, each once, though no prompt carries the topic itself; `null` termId is the prompts without a
  * topic. `null` when the tree does not hold the topic (it is not read yet), so its prompts cannot be told.
  */
-export function topicMembers(
+export function topicMembers<T extends Pick<PromptSummaryRow, 'topic_term_ids'>>(
   termId: string | null,
-  prompts: readonly PromptSummaryRow[],
+  prompts: readonly T[],
   descendants: TopicDescendants,
-): PromptSummaryRow[] | null {
+): T[] | null {
   if (termId === null) return prompts.filter((prompt) => prompt.topic_term_ids.length === 0);
   const below = descendants.get(termId);
   if (below === undefined) return null;

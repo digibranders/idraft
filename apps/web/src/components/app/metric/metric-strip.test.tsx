@@ -79,6 +79,17 @@ describe('MetricStrip', () => {
     expect(screen.queryByTestId('meter')).toBeNull();
   });
 
+  it('describes an item with the tooltip text that carries its counts, and draws none while loading', () => {
+    const tipped: MetricStripGroup[] = [
+      { id: 'ai', items: [{ id: 'mention', label: 'Mention rate', value: '50%', tip: 'Mentioned: 4 of 8 answers' }] },
+    ];
+    const { unmount } = renderWithProviders(<MetricStrip size="md" label="Summary" groups={tipped} status="ready" />);
+    expect(screen.getByRole('definition')).toHaveAccessibleDescription('Mentioned: 4 of 8 answers');
+    unmount();
+    renderWithProviders(<MetricStrip size="md" label="Summary" groups={tipped} status="loading" />);
+    expect(screen.getByRole('definition')).not.toHaveAccessibleDescription();
+  });
+
   it('keeps one row while every cell gets 140 px', () => {
     renderWithProviders(<MetricStrip size="md" label="Summary" groups={GROUPS} status="ready" />);
     expect(columnsOf('Summary')).toBe('repeat(4, minmax(0, 1fr))');

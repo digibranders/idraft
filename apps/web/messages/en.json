@@ -3305,6 +3305,32 @@
       "validOfTip": "{valid, number} valid of {all, number} answers",
       "notLoadedTip": "The counts are not loaded yet."
     },
+    "rate": {
+      "insufficient": "{count, plural, one {# answer} other {# answers}}",
+      "insufficientTip": "Too few valid answers for a rate: {count, number} of the {min, number} it needs.",
+      "basis": "{successes, number} of {answers, plural, one {# answer} other {# answers}}",
+      "basisAnswers": "{answers, plural, one {# answer} other {# answers}}",
+      "reason": "{reason, select, noAnswers {No answers} noneValid {None valid} other {No brand named}}"
+    },
+    "strip": {
+      "label": "Summary of the prompts in view",
+      "prompts": "Prompts",
+      "topicsSpanned": "{count, plural, one {across # topic} other {across # topics}}",
+      "engineRate": "{engine} mention rate",
+      "line": "Cited {cited} {separator} {name} {shareOfVoice}",
+      "shareOfVoice": "Share of voice",
+      "shareOfVoiceShort": "SOV",
+      "tipMentioned": "Mentioned",
+      "tipCited": "Cited",
+      "tipShareOfVoice": "Share of voice",
+      "tipRate": "{metric}: {detail}",
+      "tipInsufficient": "{basis}, too few for a rate",
+      "tipReason": "{reason, select, noAnswers {no answers} noneValid {none valid} other {no brand named}}",
+      "tipShareBasis": "{basis} that name a brand",
+      "tip": "{mentioned}. {cited}. {shareOfVoice}. {prompts}.",
+      "tipNoPrompts": "{mentioned}. {cited}. {shareOfVoice}.",
+      "tipPrompts": "{count, plural, one {# prompt} other {# prompts}}, each counted once"
+    },
     "filters": {
       "topic": "Topic",
       "country": "Country",

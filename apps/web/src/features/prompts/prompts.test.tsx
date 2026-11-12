@@ -1324,3 +1324,162 @@ describe('Topics & Prompts: the Topics tab', () => {
     });
   });
 });
+
+describe('Topics & Prompts: the metric strip', () => {
+  const STRIP = 'Summary of the prompts in view';
+  const DOT = String.fromCodePoint(0xb7);
+  const stripOf = (): Promise<HTMLElement> => screen.findByRole('group', { name: STRIP });
+  const counted = (
+    valid: number,
+    mentioned: number,
+    cited: number,
+    naming: number,
+    share: number,
+    observations = valid,
+  ): Counts => ({
+    ...NO_COUNTS,
+    n_valid: valid,
+    n_observations: observations,
+    mentioned,
+    cited,
+    sov_answers: naming,
+    sov_share: share,
+  });
+  /**
+   * Prompts 1 and 2 are in Germany, prompt 3 in the US. ChatGPT: 1 of 4, 3 of 4 and 4 of 4 answers mention the
+   * brand; Gemini has two answers on prompt 1 and none on the others.
+   */
+  const CHATGPT = [counted(4, 1, 2, 3, 1.5), counted(4, 3, 0, 1, 0.5), counted(4, 4, 4, 4, 4)];
+  const GEMINI = [counted(2, 1, 0, 0, 0), NO_COUNTS, NO_COUNTS];
+  const serveStrip = (): void =>
+    server.use(
+      http.get(LIST_PATH, () =>
+        HttpResponse.json(
+          pageOf(
+            CHATGPT.map((_, index) => ({ ...promptOf(index + 1), country_iso: index === 2 ? 'US' : 'DE' })),
+            null,
+          ),
+        ),
+      ),
+      http.get(SUMMARY_PATH, () =>
+        HttpResponse.json({
+          data: {
+            ...EMPTY_SUMMARY.data,
+            engine_codes: ['chatgpt_web', 'gemini_web'],
+            prompts: CHATGPT.map((counts, index) => ({
+              prompt_id: idOf(1, index + 1),
+              text: `Question number ${String(index + 1)}?`,
+              is_branded: false,
+              topic_term_ids: [],
+              engines: [promptCells('chatgpt_web', counts), promptCells('gemini_web', GEMINI[index] ?? NO_COUNTS)],
+            })),
+            topics: [
+              {
+                term_id: null,
+                name: null,
+                prompt_count: 3,
+                engines: [topicCells('chatgpt_web', CHATGPT), topicCells('gemini_web', GEMINI)],
+              },
+            ],
+          },
+        }),
+      ),
+    );
+  /** The strip once its cards have values: a card is a definition with the label above it. */
+  const cards = async (): Promise<HTMLElement[]> => {
+    const strip = await stripOf();
+    await vi.waitFor(() => expect(strip).not.toHaveAttribute('aria-busy'));
+    return within(strip).getAllByRole('definition');
+  };
+
+  it('shows the prompts in view with the topics they span, and one card per engine with its rates', async () => {
+    serveStrip();
+    const { container } = renderWithProviders(promptsAs('viewer'));
+    const [prompts, chatgpt] = await cards();
+    expect(
+      within(await stripOf())
+        .getAllByRole('term')
+        .map((term) => term.textContent),
+    ).toEqual(['Prompts', 'ChatGPT mention rate', 'Gemini mention rate']);
+    expect(prompts).toHaveTextContent('3across 1 topic');
+    // The mean of 25%, 75% and 100%, and 6 of 8 answers that name a brand; the counts are in the tooltip
+    expect(chatgpt).toHaveTextContent(`67%Cited 50% ${DOT} Share of voice 75%`);
+    expect(chatgpt).toHaveAccessibleDescription(
+      'Mentioned: 8 of 12 answers. Cited: 6 of 12 answers. Share of voice: 8 answers that name a brand. 3 prompts, each counted once.',
+    );
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('follows the filters: the prompts and the rates of the prompts left', async () => {
+    serveStrip();
+    renderOnPrompts(promptsAs('viewer'), { searchParams: '?country=DE' });
+    const [prompts, chatgpt] = await cards();
+    expect(prompts).toHaveTextContent('2across 1 topic');
+    expect(chatgpt).toHaveTextContent(`50%Cited 25% ${DOT} Share of voice 50%`);
+  });
+
+  it('shows the answers there are, hatched, in place of a rate under four valid answers', async () => {
+    serveStrip();
+    renderWithProviders(promptsAs('viewer'));
+    const gemini = (await cards())[2];
+    expect(gemini).toHaveTextContent(`2 answersCited 2 answers ${DOT} Share of voice n/a`);
+    expect(within(gemini as HTMLElement).getByText('2 answers')).toHaveClass('bg-insufficient');
+    expect(gemini).not.toHaveTextContent('%');
+    expect(gemini).toHaveAccessibleDescription(
+      'Mentioned: 1 of 2 answers, too few for a rate. Cited: 0 of 2 answers, too few for a rate. Share of voice: no brand named. 1 prompt, each counted once.',
+    );
+  });
+
+  it('writes SOV where the strip is narrow', async () => {
+    serveStrip();
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    renderWithProviders(promptsAs('viewer'));
+    expect((await cards())[1]).toHaveTextContent(`67%Cited 50% ${DOT} SOV 75%`);
+  });
+
+  it('keeps the labels and shows no values while the summary loads', async () => {
+    const held = gate();
+    server.use(
+      http.get(SUMMARY_PATH, async () => {
+        await held.opened;
+        return HttpResponse.json(EMPTY_SUMMARY);
+      }),
+    );
+    renderWithProviders(promptsAs('viewer'));
+    const strip = await stripOf();
+    expect(strip).toHaveAttribute('aria-busy', 'true');
+    expect(within(strip).getByText('ChatGPT mention rate')).toBeInTheDocument();
+    expect(within(strip).queryByText('n/a')).toBeNull();
+    held.open();
+  });
+
+  it('shows only the Prompts card when the counts did not load, and leaves the failure to the banner', async () => {
+    server.use(http.get(SUMMARY_PATH, () => HttpResponse.json({ code: 'boom' }, { status: 500 })));
+    renderOnPrompts(promptsAs('viewer'));
+    const strip = await stripOf();
+    await vi.waitFor(() => expect(within(strip).getAllByRole('term')).toHaveLength(1));
+    expect(within(strip).getByRole('term')).toHaveTextContent('Prompts');
+    expect(within(strip).getByRole('definition')).toHaveTextContent(/^\d+$/);
+    expect(
+      await screen.findAllByText('The answer counts could not be loaded. The prompts are listed without them.'),
+    ).toHaveLength(1);
+  });
+
+  it('is not there when the page shows no prompts or no engine', async () => {
+    server.use(
+      http.get(LIST_PATH, () => HttpResponse.json({ data: [], page: { has_more: false, next_cursor: null } })),
+    );
+    const first = renderWithProviders(promptsAs('viewer'));
+    expect(await screen.findByRole('heading', { name: NO_PROMPTS_TITLE })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: STRIP })).toBeNull();
+    first.unmount();
+    renderWithProviders(promptsAs('editor', asProject(cleanstart, 'US')));
+    expect(await screen.findByRole('heading', { name: 'No AI engine is on' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: STRIP })).toBeNull();
+  });
+});

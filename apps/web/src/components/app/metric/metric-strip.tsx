@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip } from '@/components/ui/tooltip';
 import { Truncate } from '@/components/ui/truncate';
 import { cn } from '@/lib/utils';
 
@@ -30,6 +31,8 @@ export interface MetricStripItem {
   context?: string | null | undefined;
   /** A `BudgetMeter` or similar bar under the value, in the context position (23 section 11.1). */
   meter?: ReactNode;
+  /** The counts behind the value, in a tooltip over it and as its description (23 section 2.1: "the full context is in the value tooltip"). */
+  tip?: string | undefined;
 }
 
 export interface MetricStripGroup {
@@ -145,46 +148,51 @@ export function MetricStrip({ size, label, groups, status }: MetricStripProps): 
                 <Truncate text={item.label} className="text-foreground-tertiary" />
                 {item.labelAddon}
               </dt>
-              <dd className="flex min-w-0 flex-col">
-                {status === 'loading' ? (
-                  <span className={cn('flex items-center', md ? 'h-8 w-16' : 'h-6 w-14')}>
-                    <Skeleton shape="text-14" widthPct={100} />
-                  </span>
-                ) : (
-                  <span className="flex min-w-0 items-baseline gap-2">
-                    {unknown === null && item.text === true ? (
-                      <span
-                        className={cn('flex min-w-0 items-center type-body-strong text-foreground', md ? 'h-8' : 'h-6')}
-                      >
-                        {item.value}
-                      </span>
-                    ) : unknown === null ? (
-                      <span className={cn('shrink-0 num text-foreground', md ? 'type-metric' : 'type-metric-sm')}>
-                        {item.value}
-                      </span>
-                    ) : (
-                      <span
-                        className={cn(
-                          'flex shrink-0 items-center type-body text-foreground-tertiary',
-                          md ? 'h-8' : 'h-6',
-                          unknown.kind === 'insufficient' && 'bg-insufficient',
-                        )}
-                      >
-                        {item.value}
-                      </span>
-                    )}
-                    {item.delta === undefined || item.delta === null ? null : (
-                      <span className="shrink-0 num type-body-strong">{item.delta}</span>
-                    )}
-                  </span>
-                )}
-                {item.context === undefined || item.context === null ? null : (
-                  <Truncate text={item.context} className="type-meta text-foreground-tertiary" />
-                )}
-                {item.meter === undefined || item.meter === null || status === 'loading' ? null : (
-                  <span className="mt-1.5 flex">{item.meter}</span>
-                )}
-              </dd>
+              <Tooltip content={item.tip ?? ''} disabled={item.tip === undefined || status === 'loading'}>
+                <dd className="flex min-w-0 flex-col">
+                  {status === 'loading' ? (
+                    <span className={cn('flex items-center', md ? 'h-8 w-16' : 'h-6 w-14')}>
+                      <Skeleton shape="text-14" widthPct={100} />
+                    </span>
+                  ) : (
+                    <span className="flex min-w-0 items-baseline gap-2">
+                      {unknown === null && item.text === true ? (
+                        <span
+                          className={cn(
+                            'flex min-w-0 items-center type-body-strong text-foreground',
+                            md ? 'h-8' : 'h-6',
+                          )}
+                        >
+                          {item.value}
+                        </span>
+                      ) : unknown === null ? (
+                        <span className={cn('shrink-0 num text-foreground', md ? 'type-metric' : 'type-metric-sm')}>
+                          {item.value}
+                        </span>
+                      ) : (
+                        <span
+                          className={cn(
+                            'flex shrink-0 items-center type-body text-foreground-tertiary',
+                            md ? 'h-8' : 'h-6',
+                            unknown.kind === 'insufficient' && 'bg-insufficient',
+                          )}
+                        >
+                          {item.value}
+                        </span>
+                      )}
+                      {item.delta === undefined || item.delta === null ? null : (
+                        <span className="shrink-0 num type-body-strong">{item.delta}</span>
+                      )}
+                    </span>
+                  )}
+                  {item.context === undefined || item.context === null ? null : (
+                    <Truncate text={item.context} className="type-meta text-foreground-tertiary" />
+                  )}
+                  {item.meter === undefined || item.meter === null || status === 'loading' ? null : (
+                    <span className="mt-1.5 flex">{item.meter}</span>
+                  )}
+                </dd>
+              </Tooltip>
             </div>
           );
         })}
