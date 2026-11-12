@@ -1466,7 +1466,29 @@
     "legend": "Series in {title}",
     "noValue": "No data",
     "failed": "Failed",
-    "tableRegion": "Table of {title}"
+    "tableRegion": "Table of {title}",
+    "more": "More actions for {title}",
+    "updating": "Updating",
+    "seriesHidden": "{name} hidden",
+    "seriesShown": "{name} shown",
+    "menu": {
+      "png": "Download PNG",
+      "csv": "Download CSV",
+      "link": "Copy link",
+      "linkCopied": "Link copied",
+      "copyFailed": "Could not copy the link",
+      "pngFailed": "Could not make the image of the chart"
+    },
+    "tip": {
+      "answers": "{k, number} of {n, number} answers",
+      "prompts": "{count, plural, one {# prompt} other {# prompts}}, each counts once",
+      "thin": "{n, plural, one {# answer} other {# answers}}, fewer than {min, number}",
+      "pooled": "pooled over {weeks, plural, one {# week} other {# weeks}}",
+      "noAnswers": "No answers"
+    },
+    "sparkline": {
+      "tipPoint": "{date}: {value}"
+    }
   },
   "inspector": {
     "resize": "Resize inspector",
