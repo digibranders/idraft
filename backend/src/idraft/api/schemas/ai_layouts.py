@@ -27,6 +27,8 @@ LayoutScreen = Literal[
     "inspector.prompt",
     "inspector.page",
     "inspector.citation",
+    # The topic drawer (owner decision D-16).
+    "inspector.topic",
 ]
 CardWidth = Literal["third", "half", "two_thirds", "full"]
 # A plain token (layout spec section 6.3 rule 6).

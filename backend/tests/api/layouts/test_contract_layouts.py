@@ -35,6 +35,7 @@ SCREENS = [
     "inspector.prompt",
     "inspector.page",
     "inspector.citation",
+    "inspector.topic",
 ]
 
 
