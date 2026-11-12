@@ -200,8 +200,11 @@ describe('HeatmapGrid', () => {
       observe(target: Element): void {
         this.targets.push(target);
       }
+      disconnected = false;
       unobserve(): void {}
-      disconnect(): void {}
+      disconnect(): void {
+        this.disconnected = true;
+      }
     }
 
     const report = (observer: StubObserver, width: number): void => {
@@ -229,6 +232,27 @@ describe('HeatmapGrid', () => {
       report(observer, 36);
       expect(cellNamed(CRM_CHATGPT)).toHaveTextContent('47%');
       expect(cellNamed(CRM_GEMINI)).toHaveTextContent('3 ans');
+    });
+
+    it('watches the new first column header when the first column changes, with as many columns as before', () => {
+      StubObserver.instances = [];
+      vi.stubGlobal('ResizeObserver', StubObserver);
+      const { rerender } = renderWithProviders(<HeatmapGrid {...BASE} rows={FLAT_ROWS} />);
+      const [first] = StubObserver.instances as [StubObserver];
+      const before = screen.getByRole('columnheader', { name: 'ChatGPT' });
+      rerender(
+        <HeatmapGrid
+          {...BASE}
+          rows={FLAT_ROWS}
+          columns={[{ id: 'chatgpt-v2', label: 'ChatGPT v2' }, ...COLUMNS.slice(1)]}
+        />,
+      );
+      const after = screen.getByRole('columnheader', { name: 'ChatGPT v2' });
+      expect(before.isConnected).toBe(false);
+      expect(first.disconnected).toBe(true);
+      const latest = StubObserver.instances.at(-1) as StubObserver;
+      expect(latest).not.toBe(first);
+      expect(latest.targets).toEqual([after]);
     });
   });
 
@@ -307,12 +331,49 @@ describe('HeatmapGrid', () => {
   it('draws a 2 px rule before the columns that start after a version boundary', () => {
     renderWithProviders(<HeatmapGrid {...BASE} rows={FLAT_ROWS} boundaries={[2]} />);
     const rule = 'border-l-2';
-    expect(classesOf(screen.getByRole('columnheader', { name: 'Claude' }))).toContain(rule);
-    expect(classesOf(screen.getByRole('columnheader', { name: 'Claude' }))).toContain('border-foreground-muted');
-    expect(classesOf(cellNamed(CRM_CLAUDE))).toContain(rule);
-    expect(classesOf(cellNamed(CRM_CLAUDE))).toContain('border-foreground-muted');
+    const header = classesOf(screen.getByRole('columnheader', { name: 'Claude' }));
+    const cell = classesOf(cellNamed(CRM_CLAUDE));
+    expect(header).toContain(rule);
+    expect(header).toContain('border-l-foreground-muted');
+    expect(cell).toContain(rule);
+    expect(cell).toContain('border-l-foreground-muted');
+    // Only the left side takes the rule's colour: the hairline under the cell and the header's keep theirs
+    expect(cell).toContain('border-b-border-subtle');
+    expect(header).toContain('border-border');
+    expect(header).not.toMatch(/(^| )border-foreground-muted/);
+    expect(cell).not.toMatch(/(^| )border-foreground-muted/);
     expect(classesOf(cellNamed(CRM_GEMINI))).not.toContain(rule);
     expect(classesOf(screen.getByRole('columnheader', { name: 'Gemini' }))).not.toContain(rule);
+  });
+
+  it('pins the row header only in a container wide enough to leave room for the data (DS 19 rule 5a)', () => {
+    const { container } = renderWithProviders(<HeatmapGrid {...BASE} rows={FLAT_ROWS} />);
+    const root = container.firstElementChild as HTMLElement;
+    const scroller = root.firstElementChild as HTMLElement;
+    // The container is the root, so the scroller can answer to its width too
+    expect(classesOf(root)).toContain('@container');
+    expect(classesOf(root)).toContain('min-w-0');
+    expect(classesOf(scroller)).toContain('min-w-0');
+    expect(classesOf(scroller)).toContain('overflow-x-auto');
+    expect(classesOf(scroller)).toContain('@xl:scroll-pl-(--heatmap-row-header)');
+    const rowHeaders = [
+      screen.getByRole('rowheader', { name: 'CRM' }),
+      screen.getByRole('rowheader', { name: 'Email' }),
+    ];
+    for (const cell of rowHeaders) {
+      expect(cell.className.split(' ')).toEqual(expect.arrayContaining(['@xl:sticky']));
+      expect(cell.className.split(' ')).not.toContain('sticky');
+    }
+    for (const cell of [screen.getByRole('columnheader', { name: 'Topic' }), ...rowHeaders]) {
+      const classes = cell.className.split(' ');
+      // Below the container width the header scrolls away like any column
+      expect(classes).toEqual(expect.arrayContaining(['@xl:left-0', '@xl:z-(--z-pinned-cell)']));
+      expect(classes).not.toContain('left-0');
+      expect(classes).not.toContain('z-(--z-pinned-cell)');
+      // The edge of the pinned column shows only while it is pinned
+      expect(classes).toEqual(expect.arrayContaining(['@xl:border-r', '@xl:border-r-border-subtle']));
+      expect(classes).not.toContain('border-r');
+    }
   });
 
   it('sets the row height by density', () => {

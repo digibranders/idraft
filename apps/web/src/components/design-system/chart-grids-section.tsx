@@ -550,7 +550,7 @@ function ErrorSpecimen(): ReactElement {
 
 function StatesSpecimen({ density, words }: { density: Density; words: RateTipWords }): ReactElement {
   const rows = useMemo(() => topicRows(TOPICS.slice(1, 3), words), [words]);
-  const grid = (
+  const grid = (form: 'grid' | 'table'): ReactElement => (
     <HeatmapGrid
       caption="Mention rate by topic and engine, stale"
       rowHeader="Topic"
@@ -559,6 +559,7 @@ function StatesSpecimen({ density, words }: { density: Density; words: RateTipWo
       rows={rows}
       scale="sequential"
       density={density}
+      form={form}
     />
   );
   return (
@@ -589,8 +590,8 @@ function StatesSpecimen({ density, words }: { density: Density; words: RateTipWo
         <ChartFrame
           {...STATE_VIEW}
           title="Mention rate by topic, stale"
-          body={grid}
-          table={grid}
+          body={grid('grid')}
+          table={grid('table')}
           notice={{ kind: 'stale', text: 'Stale: last collected Nov 9, 18:30 CET' }}
           status="ready"
         />

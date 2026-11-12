@@ -4,7 +4,16 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 
 import { DIVERGING_BINS, SEQUENTIAL_BINS, cellUnder, divergingBin, sequentialBin, type HeatScale } from './heat-bins';
 import { IconButton } from '@/components/ui/icon-button';
@@ -77,7 +86,20 @@ const MIN_TEXT_WIDTH = 36;
 /** Rows a Page key moves; the grid has no scroll region of its own to measure. */
 const PAGE_ROWS = 10;
 
-const BOUNDARY = 'border-l-2 border-foreground-muted';
+/** Left side only: a colour for every side would override the hairline under the cell (`cn` merges them). */
+const BOUNDARY = 'border-l-2 border-l-foreground-muted';
+/**
+ * The row header's width, once, as a custom property on the root: the column, and the scroll padding that keeps
+ * a focused cell clear of the pinned header, read the same value. 12 steps of the spacing scale (192 px).
+ */
+const ROW_HEADER_VAR = '--heatmap-row-header';
+const ROW_HEADER_STYLE = { [ROW_HEADER_VAR]: 'calc(var(--spacing) * 48)' } as CSSProperties;
+/**
+ * The pinned column: DS 19 rule 5a pins it only while it leaves 360 px for the data, and the smallest named
+ * container width of 192 + 360 is `@xl` (576 px). Narrower, it scrolls away like a column. Its right edge shows
+ * only while it is pinned (DS 19 section 3).
+ */
+const PINNED = '@xl:sticky @xl:left-0 @xl:z-(--z-pinned-cell) @xl:border-r @xl:border-r-border-subtle';
 /** A data cell: no padding, so its fill reaches the edges, and a hairline under it. */
 const CELL = 'border-b border-b-border-subtle p-0 outline-none';
 const CELL_TEXT = 'text-center num';
@@ -168,6 +190,8 @@ export function HeatmapGrid({
   const showPrompts = promptsHeader !== undefined && someRow(rows, (row) => row.prompts !== undefined);
   const dataStart = showPrompts ? 2 : 1;
   const columnCount = dataStart + columns.length;
+  // The observed header is keyed by its column's id, so a new first column is a new element to watch
+  const firstColumnId = columns[0]?.id;
   const asTable = form === 'table';
   const rowIndex = Math.max(
     0,
@@ -186,7 +210,7 @@ export function HeatmapGrid({
     });
     observer.observe(head);
     return () => observer.disconnect();
-  }, [asTable, columns.length]);
+  }, [asTable, firstColumnId]);
 
   // A key moved the focus: the cell is rendered by now, whether a row opened or not
   useEffect(() => {
@@ -293,9 +317,9 @@ export function HeatmapGrid({
   const headClass = 'sticky top-0 border-b border-border bg-surface-subtle px-3 font-normal type-table-header';
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Only this scrolls on a narrow screen, never the page */}
-      <div className="overflow-x-auto rounded-md border border-border-subtle">
+    <div style={ROW_HEADER_STYLE} className="@container flex min-w-0 flex-col gap-3">
+      {/* Only this scrolls on a narrow screen, never the page; a pinned header leaves room for a focused cell */}
+      <div className="min-w-0 overflow-x-auto rounded-md border border-border-subtle @xl:scroll-pl-(--heatmap-row-header)">
         {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- The role is grid or treegrid; the rule reads only a literal role */}
         <table
           ref={table}
@@ -305,7 +329,7 @@ export function HeatmapGrid({
         >
           <caption className="sr-only">{caption}</caption>
           <colgroup>
-            <col className="w-48" />
+            <col className="w-(--heatmap-row-header)" />
             {showPrompts ? <col className="w-22" /> : null}
             {columns.map((column) => (
               <col key={column.id} className={dataWidth} />
@@ -313,7 +337,7 @@ export function HeatmapGrid({
           </colgroup>
           <thead>
             <tr role="row" className="h-row-header">
-              <th role="columnheader" scope="col" className={cn(headClass, 'left-0 z-(--z-pinned-cell) text-left')}>
+              <th role="columnheader" scope="col" className={cn(headClass, PINNED, 'text-left')}>
                 {rowHeader}
               </th>
               {showPrompts ? (
@@ -354,7 +378,10 @@ export function HeatmapGrid({
                   scope="row"
                   aria-label={row.name}
                   {...cellProps(index, 0, row.id)}
-                  className="sticky left-0 z-(--z-pinned-cell) border-b border-b-border-subtle bg-surface px-3 text-left font-normal outline-none focus-visible:focus-ring-inset"
+                  className={cn(
+                    PINNED,
+                    'border-b border-b-border-subtle bg-surface px-3 text-left font-normal outline-none focus-visible:focus-ring-inset',
+                  )}
                 >
                   <span className={cn('flex min-w-0 items-center gap-1', level === 2 && 'pl-6', level > 2 && 'pl-12')}>
                     {expandable ? (
