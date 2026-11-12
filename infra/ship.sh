@@ -86,11 +86,15 @@ behind_vps() {
   # behind_vps <part> <paths>: the VPS serves an older commit of this part (or a legacy release)
   local serving
   serving="$(remote /usr/local/sbin/idraft-activate deployed "$1")" || die "cannot ask the VPS what $1 serves"
+  printf -v "served_$1" '%s' "$serving"
   git cat-file -e "$serving^{commit}" 2>/dev/null || return 0
-  git diff --name-only "$serving" HEAD | grep -qE "$2"
+  # Not `grep -q`: it can quit at the first match and, under pipefail, a git killed by SIGPIPE would read as
+  # "nothing changed". Suspected, not proven, cause of the release of 2026-11-12 that pushed main and deployed
+  # nothing; the "Release" line below now names what the VPS serves so the next one is easy to read.
+  git diff --name-only "$serving" HEAD | grep -E "$2" >/dev/null
 }
 part_changed() { [ "${SHIP_ALL:-0}" = 1 ] || grep -qE "$1" "$changed"; }
-deploy_backend=0 deploy_web=0 backend=0 web=0 infra=0
+deploy_backend=0 deploy_web=0 backend=0 web=0 infra=0 served_backend=unasked served_web=unasked
 { [ "${SHIP_ALL:-0}" = 1 ] || behind_vps backend "$backend_paths"; } && deploy_backend=1
 { [ "${SHIP_ALL:-0}" = 1 ] || behind_vps web "$web_paths"; } && deploy_web=1
 { part_changed "$backend_paths" || [ "$deploy_backend" = 1 ]; } && backend=1
@@ -101,7 +105,7 @@ if [ "$sha" = "$(git rev-parse origin/main)" ] && [ "$deploy_backend$deploy_web"
   say "main already has $source_ref and the VPS serves it: nothing to release"
   exit 0
 fi
-say "Release ${sha:0:12}: check backend=$backend web=$web infra=$infra; deploy backend=$deploy_backend web=$deploy_web"
+say "Release ${sha:0:12}: check backend=$backend web=$web infra=$infra; deploy backend=$deploy_backend web=$deploy_web (the VPS serves backend ${served_backend:0:12} web ${served_web:0:12})"
 
 logs="$(mktemp -d "${TMPDIR:-/tmp}/idraft-ship.XXXXXX")"
 
