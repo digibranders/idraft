@@ -199,6 +199,10 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("POST", _W + "/projects/{project_id}/prompts/bulk-create"): {
         "items": [{"text": "Planted prompt?", "language_code": "en", "country_iso": "US"}],
     },
+    ("POST", _W + "/projects/{project_id}/prompts/bulk-archive"): {
+        "ids": ["{prompt_id}"],
+        "archive": True,
+    },
     ("POST", _W + "/projects/{project_id}/prompts/lint"): {"texts": ["Is Acme good?"]},
     ("PATCH", _W + "/projects/{project_id}/prompts/{prompt_id}"): {"importance": 1},
 }

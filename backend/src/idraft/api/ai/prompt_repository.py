@@ -445,6 +445,39 @@ async def replace_terms(
     await add_terms(db, workspace_id, [(prompt_id, term_id) for term_id in term_ids])
 
 
+async def lock_prompts(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, ids: Sequence[UUID]
+) -> dict[UUID, bool]:
+    """The project's live prompts among `ids`, each with whether it is active, held (FOR NO KEY
+    UPDATE) until the transaction ends, taken in id order so two writers never wait on each
+    other in a circle."""
+    p = ai_prompts.c
+    rows = await db.execute(
+        select(p.id, p.is_active)
+        .where(
+            p.workspace_id == workspace_id,
+            p.project_id == project_id,
+            p.deleted_at.is_(None),
+            among_ids(p.id, ids),
+        )
+        .order_by(p.id)
+        .with_for_update(key_share=True)
+    )
+    return {row.id: row.is_active for row in rows}
+
+
+async def set_active(
+    db: AsyncSession, workspace_id: UUID, ids: Sequence[UUID], is_active: bool, now: datetime
+) -> None:
+    if not ids:
+        return
+    await db.execute(
+        update(ai_prompts)
+        .where(ai_prompts.c.workspace_id == workspace_id, among_ids(ai_prompts.c.id, ids))
+        .values(is_active=is_active, updated_at=now)
+    )
+
+
 async def update_prompt(
     db: AsyncSession, workspace_id: UUID, prompt_id: UUID, values: Mapping[str, object]
 ) -> None:

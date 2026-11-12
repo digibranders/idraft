@@ -3,7 +3,7 @@ manual run, and archiving or bringing back many prompts at once."""
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Final, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -49,3 +49,16 @@ class RunBulkMeta(BaseModel):
 class RunBulkResponse(BaseModel):
     data: Run
     meta: RunBulkMeta
+
+
+# Prompts one bulk archive names; a workspace keeps archived prompts, so more than its 150.
+BULK_ARCHIVE_MAX: Final = 1000
+
+
+class PromptBulkArchive(Body):
+    """The project's prompts to archive (`archive: true`) or bring back (`false`)."""
+
+    ids: Annotated[list[UUID], Field(min_length=1, max_length=BULK_ARCHIVE_MAX)]
+    archive: bool = Field(
+        description="false brings the prompts back, within the active prompt quota."
+    )

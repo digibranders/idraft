@@ -399,6 +399,10 @@ EXPECTED: dict[tuple[str, str], str] = {
     ): "prompts:write",
     (
         "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-archive",
+    ): "prompts:write",
+    (
+        "POST",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/lint",
     ): "data:read",
     (

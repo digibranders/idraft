@@ -80,6 +80,7 @@ AuditAction = Literal[
     "prompt.created",
     "prompt.updated",
     "prompt.archived",
+    "prompt.bulk_changed",
 ]
 
 
