@@ -33,6 +33,7 @@ from idraft.db.tables import (
     taxonomy_terms,
     taxonomy_vocabularies,
 )
+from idraft.keywords.trees import descendants
 
 _F, _O = ai_observation_facts.c, ai_observations.c
 
@@ -137,9 +138,18 @@ def _topic_terms() -> Any:
 
 
 async def summary_prompts(
-    db: AsyncSession, workspace_id: UUID, project_id: UUID, *, include_branded: bool
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    *,
+    include_branded: bool,
+    branded_only: bool = False,
+    country_iso: str | None = None,
+    term_id: UUID | None = None,
 ) -> list[SummaryPrompt]:
-    """The project's active prompts (not archived), oldest first, with their topics."""
+    """The project's active prompts (not archived), oldest first, with their topics. Branded
+    prompts only with `include_branded`, or alone with `branded_only`; of one country; given
+    `term_id` or a term under it (as the prompt list's `filter[term]`)."""
     p, v = ai_prompts.c, ai_prompt_versions.c
     statement = (
         select(p.id, v.text, p.is_branded)
@@ -155,8 +165,20 @@ async def summary_prompts(
         )
         .order_by(p.created_at, p.id)
     )
-    if not include_branded:
+    if branded_only:
+        statement = statement.where(p.is_branded)
+    elif not include_branded:
         statement = statement.where(~p.is_branded)
+    if country_iso is not None:
+        statement = statement.where(p.country_iso == country_iso)
+    if term_id is not None:
+        tagged = select(ai_prompt_terms.c.prompt_id).where(
+            ai_prompt_terms.c.workspace_id == workspace_id,
+            ai_prompt_terms.c.term_id.in_(
+                descendants("term", [term_id], workspace_id, "term_tree")
+            ),
+        )
+        statement = statement.where(p.id.in_(tagged))
     rows = list(await db.execute(statement))
     if not rows:
         return []
@@ -177,6 +199,12 @@ async def summary_prompts(
         )
         for row in rows
     ]
+
+
+async def term_subtree(db: AsyncSession, workspace_id: UUID, term_id: UUID) -> set[UUID]:
+    """The term and every term under it, in the caller's workspace (none for another's)."""
+    rows = await db.execute(descendants("term", [term_id], workspace_id, "term_tree"))
+    return {row.id for row in rows}
 
 
 async def enabled_engine_codes(db: AsyncSession, workspace_id: UUID, project_id: UUID) -> list[str]:

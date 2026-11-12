@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Collection, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Final, Literal, cast
 from uuid import UUID
@@ -38,6 +39,19 @@ from idraft.db.engine import workspace_transaction
 SUMMARY_DAYS: Final = 28
 SUMMARY_MAX_DAYS: Final = 92
 _NONE: Final = Counts()
+
+
+@dataclass(frozen=True, slots=True)
+class SummaryQuery:
+    """What one summary is asked for: the route's query parameters."""
+
+    start: date | None = None
+    end: date | None = None
+    engine_codes: Sequence[str] | None = None
+    include_branded: bool = False
+    branded_only: bool = False
+    country_iso: str | None = None
+    term_id: UUID | None = None
 
 
 def _out_of_range(field: str) -> RequestValidationError:
@@ -240,14 +254,7 @@ class SummaryService:
         return workspace_transaction(self._sessions, access.workspace_id, user_id=access.user_id)
 
     async def summary(
-        self,
-        access: WorkspaceAccess,
-        project_id: UUID,
-        *,
-        start: date | None,
-        end: date | None,
-        engine_codes: Sequence[str] | None,
-        include_branded: bool,
+        self, access: WorkspaceAccess, project_id: UUID, query: SummaryQuery
     ) -> PromptsSummary:
         ws = access.workspace_id
         async with self._transaction(access) as db:
@@ -255,41 +262,59 @@ class SummaryService:
             if zone_row is None:
                 raise NotFoundError
             zone = ZoneInfo(zone_row.timezone)
-            first, last = summary_dates(start, end, datetime.now(zone).date())
+            first, last = summary_dates(query.start, query.end, datetime.now(zone).date())
             try:
                 since, until = instants(first, last, zone)
             except (OverflowError, ValueError):
                 raise _out_of_range("to") from None
             prompts = await repository.summary_prompts(
-                db, ws, project_id, include_branded=include_branded
+                db,
+                ws,
+                project_id,
+                include_branded=query.include_branded,
+                branded_only=query.branded_only,
+                country_iso=query.country_iso,
+                term_id=query.term_id,
             )
             ids = [prompt.id for prompt in prompts]
-            window: dict[str, Any] = {"since": since, "until": until, "engine_codes": engine_codes}
+            window: dict[str, Any] = {
+                "since": since,
+                "until": until,
+                "engine_codes": query.engine_codes,
+            }
             by_prompt = await repository.counts_by_prompt(db, ws, project_id, ids, **window)
             held = await repository.topic_rollup(db, ws, ids)
+            if query.term_id is not None:
+                # Under a term filter the topic rows are the term's and those below it.
+                subtree = await repository.term_subtree(db, ws, query.term_id)
+                held = {term: members for term, members in held.items() if term in subtree}
             versions = await repository.entity_config_versions(db, ws, project_id, ids, **window)
             enabled = await repository.enabled_engine_codes(db, ws, project_id)
             tracked = await repository.tracked_entities(db, ws, project_id)
             names = await repository.topic_names(db, ws, held.keys())
         seen = {engine for _, engine in by_prompt}
         shown = sorted(
-            code for code in set(enabled) | seen if engine_codes is None or code in engine_codes
+            code
+            for code in set(enabled) | seen
+            if query.engine_codes is None or code in query.engine_codes
         )
         prompt_rows = [_prompt_row(prompt, shown, by_prompt) for prompt in prompts]
         # Topic rows are sums of the prompts' counts. Each topic row holds the prompts given the
-        # term or a term below it, each once; the last row holds the prompts given no topic.
+        # term or a term below it, each once; the last row holds the prompts given no topic,
+        # except under a term filter.
         topic_rows = [
             _topic_row(term_id, names.get(term_id), held[term_id], shown, by_prompt)
             for term_id in sorted(held, key=lambda term: (names.get(term, ""), str(term)))
         ]
         untopiced = [prompt.id for prompt in prompts if not prompt.topic_term_ids]
-        if untopiced:
+        if untopiced and query.term_id is None:
             topic_rows.append(_topic_row(None, None, untopiced, shown, by_prompt))
         return PromptsSummary(
             window=MetricWindow(
                 from_=first.isoformat(), to=last.isoformat(), timezone=zone_row.timezone
             ),
-            include_branded=include_branded,
+            include_branded=query.include_branded or query.branded_only,
+            branded_only=query.branded_only,
             engine_codes=shown,
             metric_context=_context(),
             entities=[

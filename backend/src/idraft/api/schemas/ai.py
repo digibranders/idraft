@@ -538,7 +538,10 @@ class SummaryMetricContext(BaseModel):
 
 class PromptsSummary(BaseModel):
     window: MetricWindow
-    include_branded: bool
+    include_branded: bool = Field(
+        description="Branded prompts are counted: `include_branded` or `branded_only` was set."
+    )
+    branded_only: bool = Field(description="Only branded prompts are counted.")
     engine_codes: list[str]
     metric_context: SummaryMetricContext
     entities: list[SummaryEntity] = Field(

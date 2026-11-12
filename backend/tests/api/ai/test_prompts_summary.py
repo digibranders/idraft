@@ -624,18 +624,21 @@ async def _term(
     return term_id
 
 
-async def test_a_parent_topic_holds_the_prompts_of_its_children(
-    api: httpx.AsyncClient,
-    resources: Resources,
-    migrated: PostgresServer,
-    worker_db: Ledger,
-    import_store: MemoryStore,
-) -> None:
-    """Security holds SOC and Compliance. Prompt A is in both children, B in Security itself
-    and C in SOC: each is one prompt of Security, however it was assigned (docs/16 section 4)."""
+@dataclass(frozen=True)
+class Tree:
+    world: Summary
+    security: uuid.UUID
+    soc: uuid.UUID
+    compliance: uuid.UUID
+
+
+async def _tree(
+    resources: Resources, migrated: PostgresServer, worker_db: Ledger, store: MemoryStore
+) -> Tree:
+    """Security holds SOC and Compliance. Prompt A is in both children, B in Security itself and
+    C in SOC. A and C name the own brand, B names nobody; one answer each, a day ago."""
     world = await _world(resources, migrated)
-    prompts = await _prompts(migrated, world, ["a", "b", "c"])
-    world = replace(world, prompts=prompts)
+    world = replace(world, prompts=await _prompts(migrated, world, ["a", "b", "c"]))
     vocabulary = await fetchrow(
         migrated,
         "INSERT INTO core.taxonomy_vocabularies (workspace_id, project_id, kind, name) "
@@ -654,15 +657,28 @@ async def test_a_parent_topic_holds_the_prompts_of_its_children(
         world,
         migrated,
         worker_db,
-        import_store,
+        store,
         [
             Answer("a", OWN_ONLY, (), 1),
             Answer("b", NEITHER, (), 1),
             Answer("c", OWN_ONLY, (), 1),
         ],
     )
+    return Tree(world, security, soc, compliance)
 
-    response = await _summary(world, api)
+
+async def test_a_parent_topic_holds_the_prompts_of_its_children(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+) -> None:
+    """Each prompt is one prompt of Security however it was assigned (docs/16 section 4): see
+    `_tree`."""
+    tree = await _tree(resources, migrated, worker_db, import_store)
+
+    response = await _summary(tree.world, api)
 
     data = response.json()["data"]
     rows = {topic["name"]: topic for topic in data["topics"]}
@@ -672,15 +688,15 @@ async def test_a_parent_topic_holds_the_prompts_of_its_children(
         "SOC": 2,
         "Security": 3,
     }
-    assert rows["Security"]["term_id"] == str(security)
+    assert rows["Security"]["term_id"] == str(tree.security)
     assert _cell(rows["Compliance"]["engines"][0]["mentioned"]) == (1, 1, 1)
     assert _cell(rows["SOC"]["engines"][0]["mentioned"]) == (2, 2, 2)
     # A once, not twice: (1 + 0 + 1) / 3, not (1 + 1 + 0 + 1) / 4.
     assert _cell(rows["Security"]["engines"][0]["mentioned"]) == (2, 3, 3)
     assert _pooled(rows["Security"]["engines"][0]["mentioned"]) == (2, 3)
     # A prompt row lists the terms it was given, not the ones above them.
-    prompt_a = _by(data["prompts"], "prompt_id")[str(prompts["a"].id)]
-    assert prompt_a["topic_term_ids"] == sorted([str(soc), str(compliance)])
+    prompt_a = _by(data["prompts"], "prompt_id")[str(tree.world.prompts["a"].id)]
+    assert prompt_a["topic_term_ids"] == sorted([str(tree.soc), str(tree.compliance)])
 
 
 async def test_two_own_brands_in_an_answer_both_count_for_the_own_share(
@@ -1018,3 +1034,104 @@ async def test_the_last_answer_is_of_the_engines_shown(
         latest[GEMINI],
         latest[GEMINI],
     )
+
+
+async def test_a_country_filter_keeps_the_prompts_of_that_country(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    await execute(
+        migrated,
+        "UPDATE ai.prompts SET country_iso = 'IN' WHERE id = $1",
+        summary.prompts["pricing"].id,
+    )
+
+    india = (await _summary(summary, api, **{"filter[country_iso]": "IN"})).json()["data"]
+    states = (await _summary(summary, api, **{"filter[country_iso]": "US"})).json()["data"]
+    lower = await _summary(summary, api, **{"filter[country_iso]": "in"})
+
+    assert [row["prompt_id"] for row in india["prompts"]] == [str(summary.prompts["pricing"].id)]
+    assert [(t["name"], t["prompt_count"]) for t in india["topics"]] == [("Managed SOC", 1)]
+    # Managed SOC is `pricing` alone here: 0 of its one valid answer.
+    assert _cell(india["topics"][0]["engines"][0]["mentioned"]) == (0, 1, 1)
+    assert {row["prompt_id"] for row in states["prompts"]} == {
+        str(summary.prompts[name].id) for name in ("providers", "misc")
+    }
+    assert [(t["name"], t["prompt_count"]) for t in states["topics"]] == [
+        ("Compliance", 1),
+        ("Managed SOC", 1),
+        (None, 1),
+    ]
+    # Managed SOC is `providers` alone here: 2 of 5.
+    soc = _by(states["topics"], "name")["Managed SOC"]
+    assert _cell(soc["engines"][0]["mentioned"]) == (pytest.approx(0.4), 1, 6)
+    assert problem(lower) == (422, "validation_failed")
+
+
+async def test_a_term_filter_keeps_the_term_and_the_terms_below_it(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+) -> None:
+    tree = await _tree(resources, migrated, worker_db, import_store)
+    ids = {name: str(prompt.id) for name, prompt in tree.world.prompts.items()}
+
+    async def scoped(term: uuid.UUID) -> dict[str, Any]:
+        response = await _summary(tree.world, api, **{"filter[term]": str(term)})
+        assert response.status_code == 200, response.text
+        data: dict[str, Any] = response.json()["data"]
+        return data
+
+    security = await scoped(tree.security)
+    soc = await scoped(tree.soc)
+    compliance = await scoped(tree.compliance)
+    unknown = await scoped(uuid.uuid4())
+
+    assert {row["prompt_id"] for row in security["prompts"]} == set(ids.values())
+    assert [t["name"] for t in security["topics"]] == ["Compliance", "SOC", "Security"]
+    # A is in Compliance too, but under SOC the rows are SOC and the terms below it.
+    assert {row["prompt_id"] for row in soc["prompts"]} == {ids["a"], ids["c"]}
+    assert [(t["name"], t["prompt_count"]) for t in soc["topics"]] == [("SOC", 2)]
+    assert _cell(soc["topics"][0]["engines"][0]["mentioned"]) == (2, 2, 2)
+    assert [row["prompt_id"] for row in compliance["prompts"]] == [ids["a"]]
+    assert [(t["name"], t["prompt_count"]) for t in compliance["topics"]] == [("Compliance", 1)]
+    assert (unknown["prompts"], unknown["topics"]) == ([], [])
+
+
+async def test_another_workspaces_term_holds_no_prompt(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    other_workspace = await make_workspace(migrated)
+    other = Project(other_workspace.id, await make_project(migrated, other_workspace.id))
+    term = await _topic(migrated, other, "Managed SOC")
+
+    response = await _summary(summary, api, **{"filter[term]": str(term)})
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert (data["prompts"], data["topics"]) == ([], [])
+
+
+async def test_branded_only_keeps_the_branded_prompts(
+    api: httpx.AsyncClient, summary: Summary
+) -> None:
+    alone = (await _summary(summary, api, branded_only="true")).json()["data"]
+    both = (await _summary(summary, api, branded_only="true", include_branded="true")).json()[
+        "data"
+    ]
+    soc = (
+        await _summary(
+            summary, api, branded_only="true", **{"filter[term]": str(summary.topics["soc"])}
+        )
+    ).json()["data"]
+    default = (await _summary(summary, api)).json()["data"]
+
+    assert [row["prompt_id"] for row in alone["prompts"]] == [str(summary.prompts["brand"].id)]
+    assert [(t["term_id"], t["prompt_count"]) for t in alone["topics"]] == [(None, 1)]
+    assert _cell(alone["topics"][0]["engines"][0]["mentioned"]) == (1, 1, 1)
+    assert (alone["branded_only"], alone["include_branded"]) == (True, True)
+    assert both == alone
+    # The branded prompt has no topic, so nothing is under Managed SOC.
+    assert (soc["prompts"], soc["topics"]) == ([], [])
+    assert (default["branded_only"], default["include_branded"]) == (False, False)

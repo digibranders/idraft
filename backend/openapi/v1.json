@@ -8940,6 +8940,11 @@
       },
       "PromptsSummary": {
         "properties": {
+          "branded_only": {
+            "description": "Only branded prompts are counted.",
+            "title": "Branded Only",
+            "type": "boolean"
+          },
           "engine_codes": {
             "items": {
               "type": "string"
@@ -8964,6 +8969,7 @@
             "type": "array"
           },
           "include_branded": {
+            "description": "Branded prompts are counted: `include_branded` or `branded_only` was set.",
             "title": "Include Branded",
             "type": "boolean"
           },
@@ -8991,6 +8997,7 @@
         "required": [
           "window",
           "include_branded",
+          "branded_only",
           "engine_codes",
           "metric_context",
           "entities",
@@ -19226,7 +19233,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary": {
       "get": {
-        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null.",
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came.",
         "operationId": "prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get",
         "parameters": [
           {
@@ -19311,6 +19318,56 @@
               "default": false,
               "title": "Include Branded",
               "type": "boolean"
+            }
+          },
+          {
+            "description": "Only the branded prompts; wins over `include_branded`.",
+            "in": "query",
+            "name": "branded_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only the branded prompts; wins over `include_branded`.",
+              "title": "Branded Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
             }
           }
         ],
