@@ -86,6 +86,14 @@ import { llmDiagnosticHandlers } from './llm-diagnostics';
 import { firstPartyHandlers } from './first-party';
 // WP-70 geo-readiness
 import { geoReadinessHandlers } from './geo-readiness';
+// WP-28 prompt-import
+import { promptImportHandlers } from './prompt-import';
+// WP-40 project-overview-ai
+import { projectOverviewAiHandlers } from './project-overview-ai';
+// WP-53 command-palette
+import { commandPaletteHandlers } from './command-palette';
+// WP-55 recommendations
+import { recommendationHandlers } from './recommendations';
 
 /**
  * The two mock modes (NEXT_PUBLIC_API_MOCKING). `all` answers every API route and needs no backend;
@@ -179,6 +187,14 @@ export const handlers: readonly HttpHandler[] = [
   ...firstPartyHandlers,
   // WP-70 geo-readiness
   ...geoReadinessHandlers,
+  // WP-28 prompt-import
+  ...promptImportHandlers,
+  // WP-40 project-overview-ai
+  ...projectOverviewAiHandlers,
+  // WP-53 command-palette
+  ...commandPaletteHandlers,
+  // WP-55 recommendations
+  ...recommendationHandlers,
   ...pendingHandlers,
 ];
 

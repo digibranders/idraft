@@ -40,6 +40,10 @@ const SLOTS: ReadonlyArray<readonly [slug: string, name: string, load: ModuleLoa
   ['llm-diagnostics', 'llmDiagnosticHandlers', () => import('./llm-diagnostics')],
   ['first-party', 'firstPartyHandlers', () => import('./first-party')],
   ['geo-readiness', 'geoReadinessHandlers', () => import('./geo-readiness')],
+  ['prompt-import', 'promptImportHandlers', () => import('./prompt-import')],
+  ['project-overview-ai', 'projectOverviewAiHandlers', () => import('./project-overview-ai')],
+  ['command-palette', 'commandPaletteHandlers', () => import('./command-palette')],
+  ['recommendations', 'recommendationHandlers', () => import('./recommendations')],
 ];
 
 const INDEX_SOURCE = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
