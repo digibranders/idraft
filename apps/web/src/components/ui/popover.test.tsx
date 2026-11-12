@@ -82,8 +82,10 @@ describe('Popover', () => {
       'bg-surface-elevated',
       'shadow-popover',
       'min-w-popover-min',
-      'max-w-popover-max',
+      // The cap is the smaller of 360 px and the room the viewport leaves, so a 320 or 360 px phone never overflows
+      'max-w-[min(var(--size-popover-max),var(--available-width))]',
     );
+    expect(popup()).not.toHaveClass('max-w-popover-max', 'max-w-(--available-width)');
     expect(popup()?.parentElement).toHaveClass('z-(--z-dropdown)');
     expect(screen.getByText('Body').parentElement).toHaveClass('p-3');
     rerender(

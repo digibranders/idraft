@@ -33,7 +33,7 @@ export interface PopoverProps extends Omit<
 }
 
 const WIDTH_CLASS: Readonly<Record<PopoverWidth, string>> = {
-  content: cn('max-w-popover-max min-w-popover-min'),
+  content: cn('max-w-[min(var(--size-popover-max),var(--available-width))] min-w-popover-min'),
   min: cn('w-popover-min'),
   max: cn('w-popover-max'),
   notifications: cn('w-95'),
