@@ -5,6 +5,9 @@ import {
   asksIn,
   countriesForEngines,
   countText,
+  DEFAULT_PROMPT_SORT,
+  DEFAULT_TOPIC_SORT,
+  engineSortId,
   fitsEngine,
   collectTopicTerms,
   hasAnswers,
@@ -12,12 +15,14 @@ import {
   mostMentionedFirst,
   NO_TOPIC,
   outcomeKey,
+  parseMetric,
   parseTab,
   parseTopicTab,
   parseWindow,
   PROMPT_TEXT_MAX,
   promptKeyOf,
   readPromptLines,
+  SORT_ID,
   topicChoices,
   topicDescendants,
   topicMembers,
@@ -596,5 +601,27 @@ describe('the topic a prompt was opened from', () => {
     expect(topicOriginOf(origin, { ...open, projectId: 'other' })).toBeNull();
     expect(topicOriginOf(origin, { ...open, promptId: null })).toBeNull();
     expect(topicOriginOf(null, open)).toBeNull();
+  });
+});
+
+describe('the metric of the engine columns and the sort ids', () => {
+  it('reads the metric of the address, Mention when it names none that exists', () => {
+    expect(parseMetric(null)).toBe('mention');
+    expect(parseMetric('citation')).toBe('citation');
+    expect(parseMetric('sov')).toBe('sov');
+    expect(parseMetric('mentioned')).toBe('mention');
+  });
+
+  it('names the engine columns by engine code and what they show', () => {
+    expect(engineSortId('chatgpt_web', 'rate')).toBe('chatgpt_web_rate');
+    expect(engineSortId('gemini_web', 'cited')).toBe('gemini_web_cited');
+  });
+
+  it('sorts both tables by Mention rate high to low first, a tie by name', () => {
+    expect(DEFAULT_TOPIC_SORT).toEqual([{ id: SORT_ID.mention, desc: true }]);
+    expect(DEFAULT_PROMPT_SORT).toEqual([
+      { id: SORT_ID.mention, desc: true },
+      { id: SORT_ID.prompt, desc: false },
+    ]);
   });
 });

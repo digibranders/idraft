@@ -160,6 +160,8 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 - [ ] W2-T: add `topic-tree.ts` and `topic-tree.test.ts` (order the rows parent first with children after, depth, parent lookup, ancestors of a match) from the API rows and `useVocabularies`; render the Topics tab through the `DataTable` treegrid (`rowTree`, `onToggleGroup`). Show at most two levels: skip topics deeper than level 2 as rows (the API rows already roll their counts into level 2 and level 1) and show the deeper name as a path in the drawer. `RowTree.level` stays `1 | 2`; no change to `RowTree`, `DataTable` or `aria-level`. Add the rollup note and the expanded set in the URL.
 - [ ] Gate.
 
+**Status (2026-11-12): W2a is done** (commit "Topics & Prompts: Mention rate and Citation rate columns, Top engine, a metric switcher on the Prompts tab and sorting by rate"). It lives in `rate-model.ts` (`averageRate`, `cellFigure`, `topEngine`, `sortByKeys`; the plan's `sort-model.ts` is folded into it), `rate-columns.tsx` (the columns), `prompt-model.ts` (`SORT_ID`, the defaults and `parseMetric`), `prompt-columns.tsx`, `topics-table.tsx` and `prompts-screen.tsx`. Not done, and the next task W2b: the indented topic tree (W2-T), Expand all and Collapse all, the topic subtitle, the path badge, the footer counts and the drawer's engine bars (G113).
+
 **Commit:** `Topics & Prompts: rate columns, sorting, topic subtitle and path, indented topic tree, expand all`
 
 ### Task W3: Previous period compare and deltas (G05, G06, G111, G115; PR-41, DB-02)

@@ -5,14 +5,18 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, t
 
 import { useEngineColumns } from './prompt-columns';
 import {
+  DEFAULT_TOPIC_SORT,
   mostMentionedFirst,
   NO_TOPIC,
+  SORT_ID,
   topicMembers,
   topicRowKept,
   TOPIC_ROW_PROMPTS,
   type TopicDescendants,
   type TopicTab,
 } from './prompt-model';
+import { useRateColumns } from './rate-columns';
+import { sortByKeys } from './rate-model';
 import { col } from '@/components/app/data-table/columns';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { DataTableColumn, RowTree, TableStatus } from '@/components/app/data-table/types';
@@ -21,22 +25,24 @@ import { Button } from '@/components/ui/button';
 import type { EngineSummary, ProjectEngine, PromptsSummary } from '@/lib/api/types';
 import { EMPTY_VALUE } from '@/lib/format';
 import { CELL_CONTROL } from '@/lib/tables/grid-focus';
-import type { Density, SortKey } from '@/lib/tables/table-state';
+import { formatSort, parseSort, sameSort, type Density, type SortKey } from '@/lib/tables/table-state';
+
+type TopicHead = {
+  kind: 'topic';
+  id: string;
+  /** The term id, or `__none` for the prompts without a topic. */
+  key: string;
+  name: string;
+  promptCount: number;
+  engines: readonly EngineSummary[];
+  position: number;
+  /** Whether the topic's prompts can be listed: a topic the vocabulary trees do not hold (not read yet) has no place known. */
+  openable: boolean;
+};
 
 /** A topic, one of its prompts while the topic is open, or the row that offers the rest of them. */
 type TopicRow =
-  | {
-      kind: 'topic';
-      id: string;
-      /** The term id, or `__none` for the prompts without a topic. */
-      key: string;
-      name: string;
-      promptCount: number;
-      engines: readonly EngineSummary[];
-      position: number;
-      /** Whether the topic's prompts can be listed: a topic the vocabulary trees do not hold (not read yet) has no place known. */
-      openable: boolean;
-    }
+  | TopicHead
   | {
       kind: 'prompt';
       /** Topic and prompt: a prompt of two topics is a row under each. */
@@ -62,7 +68,6 @@ type TopicRow =
       siblings: number;
     };
 
-const NO_SORT: readonly SortKey[] = [];
 const rowId = (row: TopicRow): string => row.id;
 const cellsOf = (row: TopicRow): readonly EngineSummary[] => (row.kind === 'more' ? [] : row.engines);
 
@@ -89,6 +94,9 @@ export interface TopicsTableProps {
   /** No topic at all, and no search or topic filter to blame. */
   emptyState: ReactNode;
   filteredEmptyState: ReactNode;
+  /** The `sort` of the address (`-id` for descending), or `null`: the table reads the ids it has (`SORT_ID`). */
+  sortText: string | null;
+  onSortTextChange: (sort: string | null) => void;
   search: string;
   onSearchChange: (search: string) => void;
   density: Density;
@@ -106,9 +114,11 @@ export interface TopicsTableProps {
 }
 
 /**
- * The Topics tab (ADR-DS-022 decisions 2 and 3): one row per topic that has prompts in scope, the largest
- * first (as the API sends them when two are equal), and per engine its Mentioned and Cited counts. The API
- * rolls a topic up as the prompts given it or a topic below it and weights each prompt once, so a topic's
+ * The Topics tab (ADR-DS-022 decisions 2, 3 and 5): one row per topic that has prompts in scope, with its Mention
+ * rate and Citation rate (the average of the engines shown), its Top engine, and per engine its Mentioned and
+ * Cited counts. The rows come highest Mention rate first, a tie by name, and sort by each column that has a sort
+ * (`sortText`, the address's `sort`); the table sorts the topics itself, since a tree shows its rows as given.
+ * The API rolls a topic up as the prompts given it or a topic below it and weights each prompt once, so a topic's
  * count is the answers behind its prompts and its rate is the mean of theirs. A topic opens in place and lists
  * its prompts, most mentioned first on the first engine shown, eight at most and then "Show all" (decision 2).
  * Its name opens the topic drawer. Prompts without a topic share a row, "No topic". The search finds a topic by
@@ -124,6 +134,8 @@ export function TopicsTable({
   errorState,
   emptyState,
   filteredEmptyState,
+  sortText,
+  onSortTextChange,
   search,
   onSearchChange,
   density,
@@ -141,7 +153,9 @@ export function TopicsTable({
   const [clicked, setClicked] = useState<string | null>(null);
   const [visible, setVisible] = useState<readonly string[] | null>(null);
   // The rates are prompt weighted while the counts shown are answers: the header says so
-  const engineColumns = useEngineColumns(engines, cellsOf, { sortable: false, note: t('topics.weighted') });
+  const note = t('topics.weighted');
+  const rateColumns = useRateColumns(engines, cellsOf, { note });
+  const engineColumns = useEngineColumns(engines, cellsOf, { sortable: true, note });
   // The latest handler, so the columns (which the table keys its work by) do not change with every render
   const latestOpenTopic = useRef(onOpenTopic);
   useEffect(() => {
@@ -191,47 +205,60 @@ export function TopicsTable({
         },
       },
       blankOnMore(
-        col.count<TopicRow>('prompts', (row) => (row.kind === 'topic' ? row.promptCount : null), {
+        col.count<TopicRow>(SORT_ID.prompts, (row) => (row.kind === 'topic' ? row.promptCount : null), {
           header: t('topics.prompts'),
-          sortable: false,
           minWidth: 100,
           unknown: () => ({ label: EMPTY_VALUE }),
         }),
       ),
+      blankOnMore(rateColumns.mention),
+      blankOnMore(rateColumns.citation),
+      blankOnMore(rateColumns.topEngine),
       ...engineColumns.map(blankOnMore),
     ];
-  }, [t, rowName, openTopic, engineColumns]);
+  }, [t, rowName, openTopic, rateColumns, engineColumns]);
+  const sortValues = useMemo(() => new Map(columns.map((column) => [column.id, column.sortValue])), [columns]);
+  const sort = useMemo((): readonly SortKey[] => {
+    const parsed = parseSort(sortText, new Set(sortValues.keys()));
+    return parsed.length === 0 ? DEFAULT_TOPIC_SORT : parsed;
+  }, [sortText, sortValues]);
   const firstEngine = engines[0]?.engine.engine_code;
   const rows = useMemo((): TopicRow[] => {
     if (summary === undefined) return [];
     const query = search.trim().toLocaleLowerCase(locale);
     const groups = summary.topics
       .filter((topic) => !filtering || topicRowKept(topic.term_id, kept))
-      .map((topic) => ({
-        topic,
-        name: topic.name ?? t('columns.noTopic'),
-        members: topicMembers(topic.term_id, summary.prompts, descendants),
-      }))
+      .map((topic) => {
+        const key = topic.term_id ?? NO_TOPIC;
+        const members = topicMembers(topic.term_id, summary.prompts, descendants);
+        const head: TopicHead = {
+          kind: 'topic',
+          id: `topic:${key}`,
+          key,
+          name: topic.name ?? t('columns.noTopic'),
+          promptCount: topic.prompt_count,
+          engines: topic.engines,
+          position: 0,
+          openable: members !== null,
+        };
+        return { head, members };
+      })
       .filter(
-        ({ name, members }) =>
+        ({ head, members }) =>
           query === '' ||
-          name.toLocaleLowerCase(locale).includes(query) ||
+          head.name.toLocaleLowerCase(locale).includes(query) ||
           (members ?? []).some((member) => member.text.toLocaleLowerCase(locale).includes(query)),
-      )
-      // The sort is stable: topics of one size stay in the order the API sent them
-      .sort((a, b) => b.topic.prompt_count - a.topic.prompt_count);
-    return groups.flatMap(({ topic, name, members }, index): TopicRow[] => {
-      const key = topic.term_id ?? NO_TOPIC;
-      const head: TopicRow = {
-        kind: 'topic',
-        id: `topic:${key}`,
-        key,
-        name,
-        promptCount: topic.prompt_count,
-        engines: topic.engines,
-        position: index + 1,
-        openable: members !== null,
-      };
+      );
+    // The topics in the order of the sort; the prompts under an open topic keep theirs
+    const sorted = sortByKeys(
+      groups,
+      sort,
+      ({ head }, id) => sortValues.get(id)?.(head) ?? null,
+      ({ head }) => head.name,
+    );
+    return sorted.flatMap(({ head: unplaced, members }, index): TopicRow[] => {
+      const { key, name } = unplaced;
+      const head: TopicHead = { ...unplaced, position: index + 1 };
       if (members === null || !open.has(key)) return [head];
       const ordered = mostMentionedFirst(members, firstEngine);
       const listed = ordered.slice(0, TOPIC_ROW_PROMPTS);
@@ -265,7 +292,7 @@ export function TopicsTable({
           : []),
       ];
     });
-  }, [summary, descendants, kept, filtering, search, locale, open, t, firstEngine]);
+  }, [summary, descendants, kept, filtering, search, locale, open, t, firstEngine, sort, sortValues]);
   const topicCount = rows.filter((row) => row.kind === 'topic').length;
   // A prompt of two open topics is two rows and one step
   const promptOrder = useMemo(
@@ -318,9 +345,9 @@ export function TopicsTable({
       getRowId={rowId}
       rows={rows}
       total={topicCount}
-      sort={NO_SORT}
-      onSortChange={() => undefined}
-      defaultSort={NO_SORT}
+      sort={sort}
+      onSortChange={(next) => onSortTextChange(sameSort(next, DEFAULT_TOPIC_SORT) ? null : formatSort(next))}
+      defaultSort={DEFAULT_TOPIC_SORT}
       density={density}
       onDensityChange={onDensityChange}
       columnState={{ visible, onChange: setVisible }}

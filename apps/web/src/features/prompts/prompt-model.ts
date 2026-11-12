@@ -10,6 +10,7 @@ import type {
 import { formatIsoDate, formatSampleCount } from '@/lib/format';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 import type { Country } from '@/lib/locations/countries';
+import type { SortKey } from '@/lib/tables/table-state';
 
 /**
  * Plain data and functions of Topics & Prompts (spec 2026-11-11 section 4.6): the window, the tabs, a pasted
@@ -38,6 +39,55 @@ export function windowRange(days: WindowDays, now: Date, timeZone: string): Date
   const from = new Date(Date.UTC(year, month - 1, day - (days - 1)));
   return { from: from.toISOString().slice(0, 10), to };
 }
+
+/**
+ * The metric the engine columns of the Prompts tab show (`?metric=`, Mention when the address names none):
+ * the share of valid answers that name the brand, that cite its domain, or its share of voice. The key of the
+ * cell each one reads is `CELL_OF_METRIC`.
+ */
+export const RATE_METRICS = ['mention', 'citation', 'sov'] as const;
+export type RateMetric = (typeof RATE_METRICS)[number];
+export const parseMetric = (value: string | null): RateMetric =>
+  RATE_METRICS.find((metric) => metric === value) ?? 'mention';
+export const CELL_OF_METRIC = {
+  mention: 'mentioned',
+  citation: 'cited',
+  sov: 'share_of_voice',
+} as const satisfies Record<RateMetric, string>;
+
+/**
+ * The ids `?sort=` names (`-id` for descending, two keys at most). A value a column does not have, or a rate
+ * that is insufficient, sorts after every row that has one, whichever way the sort runs.
+ * - Prompts tab: `prompt`, `topic` and `country` (A to Z first); `mention` and `citation`, the average of the
+ *   engines shown; `<engine_code>_rate`, the engine's value of the chosen metric; `<engine_code>_mentioned` and
+ *   `<engine_code>_cited`, its rate of Mentioned and Cited (the count columns of the chooser). All but the text
+ *   columns sort high to low first.
+ * - Topics tab: `prompts` (how many prompts the topic holds), `mention`, `citation`, `top_engine` (by the
+ *   engine's name, A to Z first), and `<engine_code>_mentioned` and `<engine_code>_cited`. The sort orders the
+ *   topics; the prompts under an open topic keep their order, most mentioned first.
+ * A tie goes to the name. An id the open tab does not have is ignored, so one `sort` serves both tabs.
+ */
+export const SORT_ID = {
+  prompt: 'prompt',
+  topic: 'topic',
+  country: 'country',
+  prompts: 'prompts',
+  mention: 'mention',
+  citation: 'citation',
+  topEngine: 'top_engine',
+} as const;
+
+/** The id of an engine's column: the metric chosen (`rate`), or its count columns of Mentioned and Cited. */
+export const engineSortId = (engineCode: string, shown: 'rate' | 'mentioned' | 'cited'): string =>
+  `${engineCode}_${shown}`;
+
+/** Both tables open on the highest Mention rate, the rows without one last (parity spec G23, G40). */
+export const DEFAULT_TOPIC_SORT: readonly SortKey[] = [{ id: SORT_ID.mention, desc: true }];
+/** The Prompts tab breaks a tie by the text of the prompt, A to Z. */
+export const DEFAULT_PROMPT_SORT: readonly SortKey[] = [
+  { id: SORT_ID.mention, desc: true },
+  { id: SORT_ID.prompt, desc: false },
+];
 
 /** The tabs of slice 1 (ADR-DS-022): Panels and Versions wait for slice 4. */
 export const PROMPTS_TABS = ['topics', 'prompts'] as const;

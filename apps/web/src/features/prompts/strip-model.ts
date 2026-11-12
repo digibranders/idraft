@@ -29,6 +29,9 @@ export interface RateFigure {
   reason: RateReason | null;
 }
 
+/** What the words of a rate need: a figure over prompts, or an average over engines (`rate-model.ts`). */
+export type RateReading = Omit<RateFigure, 'prompts'>;
+
 export interface EngineRates {
   mentioned: RateFigure;
   cited: RateFigure;

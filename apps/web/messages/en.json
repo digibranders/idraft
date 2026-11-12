@@ -3303,7 +3303,28 @@
       "noAnswersTip": "No answer in this window yet. Each prompt is asked twice a week.",
       "noValidTip": "{count, plural, one {# answer} other {# answers}} in this window, none of them valid",
       "validOfTip": "{valid, number} valid of {all, number} answers",
-      "notLoadedTip": "The counts are not loaded yet."
+      "notLoadedTip": "The counts are not loaded yet.",
+      "mentionRate": "Mention rate",
+      "citationRate": "Citation rate",
+      "topEngine": "Top engine",
+      "mentionRateTip": "The share of valid answers that name your brand, averaged over the engines shown",
+      "citationRateTip": "The share of valid answers that cite your domain, averaged over the engines shown",
+      "topEngineTip": "The engine with the highest mention rate. A pointer, not a ranking.",
+      "topEngineRates": "{engine} {rate}",
+      "engineMention": "{engine} mention",
+      "engineCitation": "{engine} citation",
+      "engineShareOfVoice": "{engine} SOV",
+      "shareOfVoiceTip": "Your share of the brands the answers name, of the valid answers that name a brand",
+      "shareBasisTip": "{count, plural, one {# answer} other {# answers}} that name a brand",
+      "noBrandTip": "No valid answer in this window names a brand",
+      "noTopEngineTip": "No engine has enough valid answers for a rate"
+    },
+    "metric": {
+      "label": "Metric of the engine columns",
+      "placeholder": "Metric",
+      "mention": "Mention",
+      "citation": "Citation",
+      "sov": "Share of voice"
     },
     "rate": {
       "insufficient": "{count, plural, one {# answer} other {# answers}}",
@@ -3311,7 +3332,10 @@
       "insufficientTip": "Too few valid answers for a rate: {count, number} of the {min, number} it needs.",
       "basis": "{successes, number} of {answers, plural, one {# answer} other {# answers}}",
       "basisAnswers": "{answers, plural, one {# answer} other {# answers}}",
-      "reason": "{reason, select, noAnswers {No answers} noneValid {None valid} other {No brand named}}"
+      "reason": "{reason, select, noAnswers {No answers} noneValid {None valid} other {No brand named}}",
+      "avgLabel": "{count, plural, one {1 engine} other {avg of #}}",
+      "avgTip": "Equal weight average of {engines}, each engine counting once",
+      "onlyTip": "{engines} only"
     },
     "strip": {
       "label": "Summary of the prompts in view",

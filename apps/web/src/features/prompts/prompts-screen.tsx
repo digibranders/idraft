@@ -9,18 +9,21 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
 import { AddPromptsDialog } from './add-prompts-dialog';
 import { AnswerInspector } from './answer-inspector';
-import { DEFAULT_SORT, usePromptColumns, type PromptRow } from './prompt-columns';
+import { usePromptColumns, type PromptRow } from './prompt-columns';
 import { PromptInspector, type PromptCounts } from './prompt-inspector';
 import {
   collectTopicTerms,
+  DEFAULT_PROMPT_SORT,
   DEFAULT_WINDOW,
   hasAnswers,
   matchesTopics,
   NO_TOPIC,
+  parseMetric,
   parseTab,
   parseTopicTab,
   parseWindow,
   PROMPTS_TABS,
+  RATE_METRICS,
   topicChoices,
   topicDescendants,
   topicPrompts,
@@ -31,6 +34,7 @@ import {
   WINDOW_DAYS,
   windowRange,
   type PromptsTab,
+  type RateMetric,
   type TopicOrigin,
   type TopicTab,
 } from './prompt-model';
@@ -97,7 +101,8 @@ export interface PromptsScreenProps {
 
 /**
  * The URL's keys besides the filters': the tab (Topics has none), the window and the tables' state. They all
- * stay when the tab changes; the sort and the columns are the Prompts table's, and the Topics table ignores them.
+ * stay when the tab changes. Each table reads the sort ids it has and ignores the others (`SORT_ID` in
+ * prompt-model.ts); the columns and the metric of the engine columns are the Prompts table's.
  */
 const VIEW_STATE = {
   tab: parseAsString,
@@ -106,6 +111,7 @@ const VIEW_STATE = {
   sort: parseAsString,
   cols: parseAsString,
   density: parseAsString,
+  metric: parseAsString,
 };
 
 const promptRowId = (row: PromptRow): string => row.prompt.prompt_id;
@@ -305,11 +311,12 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     [summary.data, topicsUnknown, stripPrompts, descendants, topicIds, kept],
   );
 
-  const { columns, sortFields, searchText, rowName } = usePromptColumns(shown);
+  const metric = parseMetric(view.metric);
+  const { columns, sortFields, searchText, rowName } = usePromptColumns(shown, metric);
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const sort = useMemo((): readonly SortKey[] => {
     const parsed = parseSort(view.sort, sortFields);
-    return parsed.length === 0 ? DEFAULT_SORT : parsed;
+    return parsed.length === 0 ? DEFAULT_PROMPT_SORT : parsed;
   }, [view.sort, sortFields]);
   const visible = useMemo(() => parseColumns(view.cols, columnIds, ['prompt']), [view.cols, columnIds]);
   const density = parseDensity(view.density);
@@ -587,6 +594,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               errorState={summaryFailed ? summaryError : listError}
               emptyState={noPrompts}
               filteredEmptyState={filteredEmpty}
+              sortText={view.sort}
+              onSortTextChange={(next) => void setView({ sort: next })}
               search={view.q}
               onSearchChange={(next) => void setView({ q: next === '' ? null : next })}
               density={density}
@@ -626,8 +635,22 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 rows={rows}
                 total={rows.length}
                 sort={sort}
-                onSortChange={(next) => void setView({ sort: sameSort(next, DEFAULT_SORT) ? null : formatSort(next) })}
-                defaultSort={DEFAULT_SORT}
+                onSortChange={(next) =>
+                  void setView({ sort: sameSort(next, DEFAULT_PROMPT_SORT) ? null : formatSort(next) })
+                }
+                defaultSort={DEFAULT_PROMPT_SORT}
+                toolbarEnd={
+                  <div className="w-44">
+                    <Select<RateMetric>
+                      aria-label={t('metric.label')}
+                      size="sm"
+                      value={metric}
+                      onValueChange={(next) => void setView({ metric: next === 'mention' ? null : next })}
+                      placeholder={t('metric.placeholder')}
+                      options={RATE_METRICS.map((value) => ({ value, label: t(`metric.${value}`) }))}
+                    />
+                  </div>
+                }
                 density={density}
                 onDensityChange={(next: Density) => void setView({ density: next === DEFAULT_DENSITY ? null : next })}
                 columnState={{

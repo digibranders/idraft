@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
-import type { RateFigure } from './strip-model';
+import type { RateReading } from './strip-model';
 import { Tooltip } from '@/components/ui/tooltip';
 import { EMPTY_VALUE, formatPercent } from '@/lib/format';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
@@ -11,29 +11,33 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
 /**
  * A rate over fewer than `MIN_OBSERVATIONS` valid answers, in place of a percent (parity spec decision D-1): the
  * answers there are, on the hatched muted ground of InsufficientData (docs/design-system/12 section 7.3), with
- * what is missing in a tooltip. The tables' cells show an insufficient rate this way (task W2 wires it in). The
- * strip does not use it: `MetricStrip` draws the same hatched ground for an item that is `insufficient`.
+ * what is missing in a tooltip. The tables' cells show an insufficient rate this way. The strip does not use it:
+ * `MetricStrip` draws the same hatched ground for an item that is `insufficient`. A table cell carries the
+ * tooltip itself, where the keyboard reaches it: it passes `tip={false}` and gives the same text as the cell's.
  */
-export function InsufficientPill({ answers }: { answers: number }): ReactElement {
+export function InsufficientPill({ answers, tip = true }: { answers: number; tip?: boolean }): ReactElement {
   const t = useTranslations('prompts.rate');
-  return (
-    <Tooltip content={t('insufficientTip', { count: answers, min: MIN_OBSERVATIONS })}>
-      <span className="inline-flex h-6 items-center rounded-xs bg-insufficient px-1.5 type-label whitespace-nowrap text-foreground-tertiary">
-        {t('insufficient', { count: answers })}
-      </span>
-    </Tooltip>
+  const pill = (
+    <span className="inline-flex h-6 items-center rounded-xs bg-insufficient px-1.5 type-label whitespace-nowrap text-foreground-tertiary">
+      {t('insufficient', { count: answers })}
+    </span>
+  );
+  return tip ? (
+    <Tooltip content={t('insufficientTip', { count: answers, min: MIN_OBSERVATIONS })}>{pill}</Tooltip>
+  ) : (
+    pill
   );
 }
 
 export interface RateWords {
   /** The percent; the answers there are when they are too few; "n/a" when there is no rate. */
-  text: (rate: RateFigure) => string;
+  text: (rate: RateReading) => string;
   /** The same for a line of text that names the rate before it: "too few answers (3)" is not a count of what it names. */
-  inline: (rate: RateFigure) => string;
+  inline: (rate: RateReading) => string;
   /** The counts behind it: "4 of 8 answers", or "31 answers" for share of voice; `null` without any answer. */
-  basis: (rate: RateFigure) => string | null;
+  basis: (rate: RateReading) => string | null;
   /** Why there is no rate: "No answers", "None valid"; `null` when there is one. */
-  reason: (rate: RateFigure) => string | null;
+  reason: (rate: RateReading) => string | null;
 }
 
 /** A rate figure put into words, the same in the strip and the tables. */

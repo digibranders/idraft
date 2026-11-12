@@ -32,6 +32,13 @@ describe('InsufficientPill', () => {
     renderWithProviders(<InsufficientPill answers={1} />);
     expect(screen.getByText('1 answer')).toBeInTheDocument();
   });
+
+  it('leaves its tooltip to the table cell it sits in, which carries it for the keyboard too', () => {
+    renderWithProviders(<InsufficientPill answers={3} tip={false} />);
+    const pill = screen.getByText('3 answers');
+    expect(pill).toHaveClass('bg-insufficient');
+    expect(pill).not.toHaveAccessibleDescription();
+  });
 });
 
 /** The words of one figure, read as the strip reads them. */
