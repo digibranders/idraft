@@ -3307,6 +3307,7 @@
     },
     "rate": {
       "insufficient": "{count, plural, one {# answer} other {# answers}}",
+      "insufficientInline": "too few answers ({count, number})",
       "insufficientTip": "Too few valid answers for a rate: {count, number} of the {min, number} it needs.",
       "basis": "{successes, number} of {answers, plural, one {# answer} other {# answers}}",
       "basisAnswers": "{answers, plural, one {# answer} other {# answers}}",
@@ -3327,9 +3328,9 @@
       "tipInsufficient": "{basis}, too few for a rate",
       "tipReason": "{reason, select, noAnswers {no answers} noneValid {none valid} other {no brand named}}",
       "tipShareBasis": "{basis} that name a brand",
-      "tip": "{mentioned}. {cited}. {shareOfVoice}. {prompts}.",
+      "tip": "{mentioned}. {cited}. {prompts}. {shareOfVoice}.",
       "tipNoPrompts": "{mentioned}. {cited}. {shareOfVoice}.",
-      "tipPrompts": "{count, plural, one {# prompt} other {# prompts}}, each counted once"
+      "tipPrompts": "Over {count, plural, one {# prompt} other {# prompts}}, each counted once"
     },
     "filters": {
       "topic": "Topic",

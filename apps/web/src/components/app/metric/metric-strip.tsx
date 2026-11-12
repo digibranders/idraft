@@ -31,7 +31,12 @@ export interface MetricStripItem {
   context?: string | null | undefined;
   /** A `BudgetMeter` or similar bar under the value, in the context position (23 section 11.1). */
   meter?: ReactNode;
-  /** The counts behind the value, in a tooltip over it and as its description (23 section 2.1: "the full context is in the value tooltip"). */
+  /**
+   * The counts behind the value, in a tooltip and as the cell's description (23 section 2.1: "the full context is
+   * in the value tooltip"). The cell becomes a tab stop that opens the tooltip on focus (20 section 6.2 rule 6),
+   * and its context line wraps instead of truncating, so a touch screen, which has no tooltip, still reads it
+   * whole. Ignored by `size="inline"`, which has no tooltip of its own.
+   */
   tip?: string | undefined;
 }
 
@@ -134,6 +139,7 @@ export function MetricStrip({ size, label, groups, status }: MetricStripProps): 
         {items.map(({ item, groupStart }, index) => {
           const firstInRow = index % columns === 0;
           const unknown = item.unknown ?? null;
+          const tipped = item.tip !== undefined && status !== 'loading';
           return (
             <div
               key={item.id}
@@ -148,8 +154,13 @@ export function MetricStrip({ size, label, groups, status }: MetricStripProps): 
                 <Truncate text={item.label} className="text-foreground-tertiary" />
                 {item.labelAddon}
               </dt>
-              <Tooltip content={item.tip ?? ''} disabled={item.tip === undefined || status === 'loading'}>
-                <dd className="flex min-w-0 flex-col">
+              <Tooltip content={item.tip ?? ''} disabled={!tipped}>
+                <dd
+                  // A cell with counts in its tooltip is a tab stop that opens it (20 section 6.2 rule 6: a
+                  // tooltip on an element nothing focuses reaches no keyboard user); the lint rule cannot see why
+                  {...(tipped ? { tabIndex: 0 } : {})}
+                  className={cn('flex min-w-0 flex-col', tipped && 'outline-none focus-visible:focus-ring-inset')}
+                >
                   {status === 'loading' ? (
                     <span className={cn('flex items-center', md ? 'h-8 w-16' : 'h-6 w-14')}>
                       <Skeleton shape="text-14" widthPct={100} />
@@ -185,8 +196,10 @@ export function MetricStrip({ size, label, groups, status }: MetricStripProps): 
                       )}
                     </span>
                   )}
-                  {item.context === undefined || item.context === null ? null : (
+                  {item.context === undefined || item.context === null ? null : item.tip === undefined ? (
                     <Truncate text={item.context} className="type-meta text-foreground-tertiary" />
+                  ) : (
+                    <span className="type-meta text-foreground-tertiary">{item.context}</span>
                   )}
                   {item.meter === undefined || item.meter === null || status === 'loading' ? null : (
                     <span className="mt-1.5 flex">{item.meter}</span>

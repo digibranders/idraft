@@ -7,8 +7,11 @@ import { useRateWords } from './rate-view';
 import { engineRates, type RateFigure, type StripPrompt } from './strip-model';
 import { MetricStrip, type MetricStripGroup, type MetricStripItem } from '@/components/app/metric/metric-strip';
 import type { ProjectEngine } from '@/lib/api/types';
-import { MEDIA, useMediaQuery } from '@/lib/dom/use-media-query';
+import { useMinWidth } from '@/lib/dom/use-min-width';
 import { formatInteger } from '@/lib/format';
+
+/** The strip width in px from which "Share of voice" is written out. */
+const WIDE_STRIP = 1280;
 
 export interface PromptsStripProps {
   /** The prompts in scope: those the Prompts tab lists after the filters. */
@@ -32,8 +35,9 @@ export function PromptsStrip({ prompts, engines, topics, status, countsFailed }:
   const t = useTranslations('prompts.strip');
   const separator = useTranslations('inspector')('separator');
   const words = useRateWords();
-  // "Share of voice" is written out from a strip as wide as 1,280 px; under it the three rates would not fit
-  const wide = useMediaQuery(MEDIA.xl);
+  // "Share of voice" is written out from a strip as wide as 1,280 px (ADR-DS-022 decision 12); until the strip is
+  // measured, and under that width, it is "SOV"
+  const [stripRef, wide] = useMinWidth<HTMLDivElement>(WIDE_STRIP);
 
   /** One rate in the tooltip: the counts behind it, or why there is none. */
   const detailOf = (figure: RateFigure, ofBrandNamed = false): string => {
@@ -72,10 +76,10 @@ export function PromptsStrip({ prompts, engines, topics, status, countsFailed }:
           mentioned.state === 'none'
             ? words.reason(mentioned)
             : t('line', {
-                cited: words.text(cited),
+                cited: words.inline(cited),
                 separator,
                 name: t(wide ? 'shareOfVoice' : 'shareOfVoiceShort'),
-                shareOfVoice: words.text(shareOfVoice),
+                shareOfVoice: words.inline(shareOfVoice),
               }),
         tip:
           mentioned.prompts === 0
@@ -85,5 +89,9 @@ export function PromptsStrip({ prompts, engines, topics, status, countsFailed }:
     }
   }
   const groups: readonly MetricStripGroup[] = [{ id: 'ai', items }];
-  return <MetricStrip size="md" label={t('label')} groups={groups} status={status} />;
+  return (
+    <div ref={stripRef}>
+      <MetricStrip size="md" label={t('label')} groups={groups} status={status} />
+    </div>
+  );
 }

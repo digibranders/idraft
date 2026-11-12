@@ -1351,12 +1351,24 @@ describe('Topics & Prompts: the metric strip', () => {
    */
   const CHATGPT = [counted(4, 1, 2, 3, 1.5), counted(4, 3, 0, 1, 0.5), counted(4, 4, 4, 4, 4)];
   const GEMINI = [counted(2, 1, 0, 0, 0), NO_COUNTS, NO_COUNTS];
-  const serveStrip = (): void =>
+  /** Prompts 1 and 2 are given SEO and prompt 3 Paid search: two topics, of which one is left under the German filter. */
+  const SEO_TERM = { term_id: idOf(3, 1), name: 'SEO', path: 'seo', vocabulary_kind: 'topic' };
+  const PAID_TERM = { term_id: idOf(3, 3), name: 'Paid search', path: 'paid-search', vocabulary_kind: 'topic' };
+  const TERMS_OF = [[SEO_TERM], [SEO_TERM], [PAID_TERM]];
+  const serveStrip = (): void => {
+    serveVocabulary([
+      treeNode(SEO_TERM.term_id, 'SEO', null, []),
+      treeNode(PAID_TERM.term_id, 'Paid search', null, []),
+    ]);
     server.use(
       http.get(LIST_PATH, () =>
         HttpResponse.json(
           pageOf(
-            CHATGPT.map((_, index) => ({ ...promptOf(index + 1), country_iso: index === 2 ? 'US' : 'DE' })),
+            CHATGPT.map((_, index) => ({
+              ...promptOf(index + 1),
+              country_iso: index === 2 ? 'US' : 'DE',
+              terms: TERMS_OF[index] ?? [],
+            })),
             null,
           ),
         ),
@@ -1370,21 +1382,28 @@ describe('Topics & Prompts: the metric strip', () => {
               prompt_id: idOf(1, index + 1),
               text: `Question number ${String(index + 1)}?`,
               is_branded: false,
-              topic_term_ids: [],
+              topic_term_ids: (TERMS_OF[index] ?? []).map((term) => term.term_id),
               engines: [promptCells('chatgpt_web', counts), promptCells('gemini_web', GEMINI[index] ?? NO_COUNTS)],
             })),
             topics: [
               {
-                term_id: null,
-                name: null,
-                prompt_count: 3,
-                engines: [topicCells('chatgpt_web', CHATGPT), topicCells('gemini_web', GEMINI)],
+                term_id: SEO_TERM.term_id,
+                name: 'SEO',
+                prompt_count: 2,
+                engines: [topicCells('chatgpt_web', CHATGPT.slice(0, 2)), topicCells('gemini_web', GEMINI.slice(0, 2))],
+              },
+              {
+                term_id: PAID_TERM.term_id,
+                name: 'Paid search',
+                prompt_count: 1,
+                engines: [topicCells('chatgpt_web', CHATGPT.slice(2)), topicCells('gemini_web', GEMINI.slice(2))],
               },
             ],
           },
         }),
       ),
     );
+  };
   /** The strip once its cards have values: a card is a definition with the label above it. */
   const cards = async (): Promise<HTMLElement[]> => {
     const strip = await stripOf();
@@ -1401,13 +1420,25 @@ describe('Topics & Prompts: the metric strip', () => {
         .getAllByRole('term')
         .map((term) => term.textContent),
     ).toEqual(['Prompts', 'ChatGPT mention rate', 'Gemini mention rate']);
-    expect(prompts).toHaveTextContent('3across 1 topic');
+    expect(prompts).toHaveTextContent('3across 2 topics');
     // The mean of 25%, 75% and 100%, and 6 of 8 answers that name a brand; the counts are in the tooltip
     expect(chatgpt).toHaveTextContent(`67%Cited 50% ${DOT} Share of voice 75%`);
     expect(chatgpt).toHaveAccessibleDescription(
-      'Mentioned: 8 of 12 answers. Cited: 6 of 12 answers. Share of voice: 8 answers that name a brand. 3 prompts, each counted once.',
+      'Mentioned: 8 of 12 answers. Cited: 6 of 12 answers. Over 3 prompts, each counted once. Share of voice: 8 answers that name a brand.',
     );
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('puts the counts in reach of the keyboard: the card is a tab stop that opens its tooltip', async () => {
+    serveStrip();
+    const { user } = renderWithProviders(promptsAs('viewer'));
+    const chatgpt = (await cards())[1] as HTMLElement;
+    expect(chatgpt).toHaveAttribute('tabindex', '0');
+    for (let stops = 0; stops < 30 && document.activeElement !== chatgpt; stops += 1) await user.tab();
+    expect(chatgpt).toHaveFocus();
+    expect(
+      await screen.findByText(/^Mentioned: 8 of 12 answers\./, { selector: '[data-slot="tooltip"] span' }),
+    ).toBeInTheDocument();
   });
 
   it('follows the filters: the prompts and the rates of the prompts left', async () => {
@@ -1418,26 +1449,57 @@ describe('Topics & Prompts: the metric strip', () => {
     expect(chatgpt).toHaveTextContent(`50%Cited 25% ${DOT} Share of voice 50%`);
   });
 
+  it('leaves a country to the Prompts tab: the Topics tab has no such filter and its table is not narrowed', async () => {
+    serveStrip();
+    renderWithProviders(promptsAs('viewer'), { searchParams: '?country=DE' });
+    const [prompts, chatgpt] = await cards();
+    expect(prompts).toHaveTextContent('3across 2 topics');
+    expect(chatgpt).toHaveTextContent(`67%Cited 50% ${DOT} Share of voice 75%`);
+  });
+
+  it('does not say how many topics the prompts span until the topic tree is read', async () => {
+    serveStrip();
+    const held = gate();
+    server.use(
+      http.get(TERMS_PATH, async () => {
+        await held.opened;
+        return HttpResponse.json({ data: [] });
+      }),
+    );
+    renderWithProviders(promptsAs('viewer'));
+    const prompts = (await cards())[0];
+    expect(prompts).toHaveTextContent(/^3$/);
+    held.open();
+    await vi.waitFor(() => expect(prompts).toHaveTextContent('3across'));
+  });
+
   it('shows the answers there are, hatched, in place of a rate under four valid answers', async () => {
     serveStrip();
     renderWithProviders(promptsAs('viewer'));
     const gemini = (await cards())[2];
-    expect(gemini).toHaveTextContent(`2 answersCited 2 answers ${DOT} Share of voice n/a`);
+    // The line names the state, not a bare count that could be read as 2 citations
+    expect(gemini).toHaveTextContent(`2 answersCited too few answers (2) ${DOT} Share of voice n/a`);
     expect(within(gemini as HTMLElement).getByText('2 answers')).toHaveClass('bg-insufficient');
     expect(gemini).not.toHaveTextContent('%');
     expect(gemini).toHaveAccessibleDescription(
-      'Mentioned: 1 of 2 answers, too few for a rate. Cited: 0 of 2 answers, too few for a rate. Share of voice: no brand named. 1 prompt, each counted once.',
+      'Mentioned: 1 of 2 answers, too few for a rate. Cited: 0 of 2 answers, too few for a rate. Over 1 prompt, each counted once. Share of voice: no brand named.',
     );
   });
 
-  it('writes SOV where the strip is narrow', async () => {
+  it('writes SOV where the strip is narrower than 1,280 px, whatever the window', async () => {
     serveStrip();
-    vi.stubGlobal('matchMedia', (query: string) => ({
-      matches: false,
-      media: query,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    }));
+    class StripObserver {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element): void {
+        this.callback(
+          [{ target, contentRect: { width: 1100, height: 96 } } as unknown as ResizeObserverEntry],
+          this as unknown as ResizeObserver,
+        );
+      }
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal('ResizeObserver', StripObserver);
     renderWithProviders(promptsAs('viewer'));
     expect((await cards())[1]).toHaveTextContent(`67%Cited 50% ${DOT} SOV 75%`);
   });

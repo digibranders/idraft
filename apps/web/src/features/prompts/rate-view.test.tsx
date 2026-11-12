@@ -40,6 +40,7 @@ function Words({ rate }: { rate: RateFigure }) {
   return (
     <p>
       <span data-testid="text">{words.text(rate)}</span>
+      <span data-testid="inline">{words.inline(rate)}</span>
       <span data-testid="basis">{words.basis(rate) ?? 'none'}</span>
       <span data-testid="reason">{words.reason(rate) ?? 'none'}</span>
     </p>
@@ -73,6 +74,22 @@ describe('useRateWords', () => {
       basis: '1 of 3 answers',
       reason: 'none',
     });
+  });
+
+  it('writes a rate inside a line as a percent, or as the state it is in rather than a bare count of answers', () => {
+    const inline = (rate: RateFigure): string | null => {
+      const { unmount } = renderWithProviders(<Words rate={rate} />);
+      const text = screen.getByTestId('inline').textContent;
+      unmount();
+      return text;
+    };
+    expect(inline(figure({}))).toBe('83%');
+    expect(inline(figure({ state: 'insufficient', value: null, answers: 3, successes: 1 }))).toBe(
+      'too few answers (3)',
+    );
+    expect(inline(figure({ state: 'none', value: null, answers: 0, successes: null, reason: 'noAnswers' }))).toBe(
+      'n/a',
+    );
   });
 
   it('writes n/a with the reason the tables give when there is no rate', () => {

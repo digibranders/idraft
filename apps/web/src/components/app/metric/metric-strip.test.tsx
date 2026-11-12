@@ -90,6 +90,41 @@ describe('MetricStrip', () => {
     expect(screen.getByRole('definition')).not.toHaveAccessibleDescription();
   });
 
+  it('gives an item with a tooltip a tab stop that opens it, wraps its context, and leaves other items alone', async () => {
+    const mixed: MetricStripGroup[] = [
+      {
+        id: 'ai',
+        items: [
+          { id: 'plain', label: 'Prompts', value: '3', context: 'across 1 topic' },
+          {
+            id: 'mention',
+            label: 'Mention rate',
+            value: '50%',
+            context: 'Cited 25% and Share of voice 50%',
+            tip: 'Mentioned: 4 of 8 answers',
+          },
+        ],
+      },
+    ];
+    const { container, user } = renderWithProviders(
+      <MetricStrip size="md" label="Summary" groups={mixed} status="ready" />,
+    );
+    const [plain, tipped] = screen.getAllByRole('definition');
+    expect(plain).not.toHaveAttribute('tabindex');
+    expect(tipped).toHaveAttribute('tabindex', '0');
+    await user.tab();
+    expect(tipped).toHaveFocus();
+    expect(
+      await screen.findByText('Mentioned: 4 of 8 answers', { selector: '[data-slot="tooltip"] span' }),
+    ).toBeInTheDocument();
+    expect(await axe(container)).toHaveNoViolations();
+    // A tipped item shows its whole context line (it wraps), where the plain one truncates
+    const context = (cell: HTMLElement | undefined, text: string): HTMLElement =>
+      within(cell as HTMLElement).getByText(text);
+    expect(context(tipped, 'Cited 25% and Share of voice 50%')).not.toHaveAttribute('data-truncate');
+    expect(context(plain, 'across 1 topic')).toHaveAttribute('data-truncate');
+  });
+
   it('keeps one row while every cell gets 140 px', () => {
     renderWithProviders(<MetricStrip size="md" label="Summary" groups={GROUPS} status="ready" />);
     expect(columnsOf('Summary')).toBe('repeat(4, minmax(0, 1fr))');

@@ -41,19 +41,19 @@ If the API changed, `pnpm gen:api` runs in a web commit of its own, right after 
 
 ## Facts this plan relies on (grepped 2026-11-12)
 
-| Fact | Where |
-|---|---|
-| The Prompts feature has no `MetricStrip` yet; `MetricStrip` takes `groups`, `size`, `label`, `status` and items with `unknown: { kind: 'insufficient' }` | `apps/web/src/components/app/metric/metric-strip.tsx` |
-| `MIN_OBSERVATIONS = 4`, `rateState`, `equalWeightAverage`, `promptWeightedRate`; `isDetectableChange(current: Counts, previous: Counts)` with `Counts = { k, n }`; `wilsonInterval(k, n, z)` | `apps/web/src/lib/stats/rates.ts`, `change.ts`, `wilson.ts` |
-| `formatMetricDelta({ value, unit, polarity, isDetectable })` exists; **no `Delta` component exists** (grep finds none) | `apps/web/src/lib/format/delta.ts` |
-| `acrossEngines(cells)`, `countText(cell)`, `topicSummaryRow`, `hasAnswers`, `NO_TOPIC`, `TOPIC_TOP_PROMPTS` | `apps/web/src/features/prompts/prompt-model.ts` |
-| `summaryQuery`, `observationsQuery`, `observationQuery`, `RUN_NOW`, `ARCHIVE_PROMPT`, `UPDATE_PROMPT`, `BULK_CREATE_PROMPTS` | `apps/web/src/features/prompts/prompt-queries.ts` |
-| `ObservationFacts` has `own_mentioned: boolean` and `competitor_mentions: string[]`; `ObservationSummary` has `fanout_count` | `apps/web/src/lib/api/schema.ts` |
-| Topics table uses `NO_SORT`; Prompts table has a `DEFAULT_SORT` | `topics-table.tsx`, `prompts-screen.tsx` |
-| Topic drawer has tabs Overview and Prompts; the Competitors tab is a documented shortcut | `topic-inspector.tsx` |
-| Client export pattern | `apps/web/src/features/rankings/export` (`export-file.ts`, `export-model.ts`) |
-| Mocks | `apps/web/src/mocks/handlers/prompts.ts`, `prompt-answers.ts`, `prompt-run-now.ts`, `prompts-state.ts`, `prompt-fixtures.ts` |
-| `DataTable` has bulk actions (`bulk-action-bar.tsx`), column chooser, tree rows | `apps/web/src/components/app/data-table` |
+| Fact                                                                                                                                                                                         | Where                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| The Prompts feature has no `MetricStrip` yet; `MetricStrip` takes `groups`, `size`, `label`, `status` and items with `unknown: { kind: 'insufficient' }`                                     | `apps/web/src/components/app/metric/metric-strip.tsx`                                                                        |
+| `MIN_OBSERVATIONS = 4`, `rateState`, `equalWeightAverage`, `promptWeightedRate`; `isDetectableChange(current: Counts, previous: Counts)` with `Counts = { k, n }`; `wilsonInterval(k, n, z)` | `apps/web/src/lib/stats/rates.ts`, `change.ts`, `wilson.ts`                                                                  |
+| `formatMetricDelta({ value, unit, polarity, isDetectable })` exists; **no `Delta` component exists** (grep finds none)                                                                       | `apps/web/src/lib/format/delta.ts`                                                                                           |
+| `acrossEngines(cells)`, `countText(cell)`, `topicSummaryRow`, `hasAnswers`, `NO_TOPIC`, `TOPIC_TOP_PROMPTS`                                                                                  | `apps/web/src/features/prompts/prompt-model.ts`                                                                              |
+| `summaryQuery`, `observationsQuery`, `observationQuery`, `RUN_NOW`, `ARCHIVE_PROMPT`, `UPDATE_PROMPT`, `BULK_CREATE_PROMPTS`                                                                 | `apps/web/src/features/prompts/prompt-queries.ts`                                                                            |
+| `ObservationFacts` has `own_mentioned: boolean` and `competitor_mentions: string[]`; `ObservationSummary` has `fanout_count`                                                                 | `apps/web/src/lib/api/schema.ts`                                                                                             |
+| Topics table uses `NO_SORT`; Prompts table has a `DEFAULT_SORT`                                                                                                                              | `topics-table.tsx`, `prompts-screen.tsx`                                                                                     |
+| Topic drawer has tabs Overview and Prompts; the Competitors tab is a documented shortcut                                                                                                     | `topic-inspector.tsx`                                                                                                        |
+| Client export pattern                                                                                                                                                                        | `apps/web/src/features/rankings/export` (`export-file.ts`, `export-model.ts`)                                                |
+| Mocks                                                                                                                                                                                        | `apps/web/src/mocks/handlers/prompts.ts`, `prompt-answers.ts`, `prompt-run-now.ts`, `prompts-state.ts`, `prompt-fixtures.ts` |
+| `DataTable` has bulk actions (`bulk-action-bar.tsx`), column chooser, tree rows                                                                                                              | `apps/web/src/components/app/data-table`                                                                                     |
 
 ## Names (the contract between tasks)
 
@@ -74,22 +74,22 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 
 ## File map
 
-| File | Task |
-|---|---|
-| `components/app/metric/insufficient-pill.tsx` (+ test), `features/prompts/rate-model.ts`, `strip-model.ts`, `prompts-strip.tsx`, `prompt-columns.tsx`, `prompts-screen.tsx` | W1 |
-| `features/prompts/sort-model.ts`, `topics-table.tsx`, `prompt-columns.tsx`, `prompts-screen.tsx` | W2 |
-| `components/app/metric/delta.tsx`, `features/prompts/compare-model.ts`, `prompt-queries.ts`, `strip-model.ts`, tables, drawers, `mocks/handlers/prompts.ts` | W3 |
-| `features/prompts/prompt-inspector.tsx` (split), `inspector-*.tsx`, `history-model.ts`, `competitor-counts.ts` | W4 |
-| `features/prompts/row-menu.tsx`, `bulk-bar.tsx`, `export-rows.ts`, `views-model.ts`, `edit-details-dialog.tsx`, `add-prompts-dialog.tsx`, `topic-inspector.tsx` | W5 |
-| `prompts-screen.tsx`, `topics-table.tsx`, `prompt-queries.ts`, mocks | W6 |
-| `inspector-citations.tsx`, `features/citations/*` (new feature), navigation registry, mocks | W7 |
-| `topic-inspector.tsx`, `prompt-columns.tsx`, `competitors` views, mocks | W8 |
-| `features/prompts/fanout-*.tsx`, mocks | W9 |
-| bulk bar, mocks | W10 |
-| `sparkline` columns, drawer trend chart, mocks | W11 |
-| `features/discover/*` (new), mocks | W12 |
-| `features/ai-overview/*` (new) | W13 |
-| panels and versions | W14 |
+| File                                                                                                                                                                        | Task |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| `components/app/metric/insufficient-pill.tsx` (+ test), `features/prompts/rate-model.ts`, `strip-model.ts`, `prompts-strip.tsx`, `prompt-columns.tsx`, `prompts-screen.tsx` | W1   |
+| `features/prompts/sort-model.ts`, `topics-table.tsx`, `prompt-columns.tsx`, `prompts-screen.tsx`                                                                            | W2   |
+| `components/app/metric/delta.tsx`, `features/prompts/compare-model.ts`, `prompt-queries.ts`, `strip-model.ts`, tables, drawers, `mocks/handlers/prompts.ts`                 | W3   |
+| `features/prompts/prompt-inspector.tsx` (split), `inspector-*.tsx`, `history-model.ts`, `competitor-counts.ts`                                                              | W4   |
+| `features/prompts/row-menu.tsx`, `bulk-bar.tsx`, `export-rows.ts`, `views-model.ts`, `edit-details-dialog.tsx`, `add-prompts-dialog.tsx`, `topic-inspector.tsx`             | W5   |
+| `prompts-screen.tsx`, `topics-table.tsx`, `prompt-queries.ts`, mocks                                                                                                        | W6   |
+| `inspector-citations.tsx`, `features/citations/*` (new feature), navigation registry, mocks                                                                                 | W7   |
+| `topic-inspector.tsx`, `prompt-columns.tsx`, `competitors` views, mocks                                                                                                     | W8   |
+| `features/prompts/fanout-*.tsx`, mocks                                                                                                                                      | W9   |
+| bulk bar, mocks                                                                                                                                                             | W10  |
+| `sparkline` columns, drawer trend chart, mocks                                                                                                                              | W11  |
+| `features/discover/*` (new), mocks                                                                                                                                          | W12  |
+| `features/ai-overview/*` (new)                                                                                                                                              | W13  |
+| panels and versions                                                                                                                                                         | W14  |
 
 ---
 
@@ -102,16 +102,19 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 **Read first:** `components/app/metric/metric-strip.tsx` and its test; `AI_DEVELOPMENT_UI_RULES.md` rules 6, 10, 11; `docs/design-system/23-application-patterns.md` sections 2 and 8.5; `lib/stats/rates.ts`; `prompt-model.ts` (`countText`, `acrossEngines`); `prompt-columns.tsx`; the summary section of `docs/superpowers/plans/2026-11-11-ai-prompts-b-collection-and-extraction.md` (cell shapes).
 
 **Files:**
+
 - Create: `components/app/metric/insufficient-pill.tsx`, `insufficient-pill.test.tsx`, `features/prompts/rate-model.ts`, `rate-model.test.ts`, `strip-model.ts`, `strip-model.test.ts`, `prompts-strip.tsx`, `prompts-strip.test.tsx`
 - Modify: `features/prompts/prompt-columns.tsx`, `prompts-screen.tsx`, `apps/web/messages/en.json`
 
 **Failing tests first:**
+
 - `rate-model.test.ts`: `rateView` of a prompt cell `{ numerator: 5, denominator: 6, value: 0.83 }` gives `{ state: 'ok', percent: '83%', count: '5 of 6' }`; of a cell with `n_observations: 3` gives `state: 'insufficient'` and no percent; of `value: null` gives `state: 'none'`; a topic cell (fractional numerator, `pooled`) reads its count from `pooled`; share of voice gives a percent and no count text.
 - `strip-model.test.ts`: per engine value is the mean of the prompt rows' mention rates (prompt weighted); sum of denominators below 4 gives `unknown: { kind: 'insufficient' }`; the Prompts item counts the prompt rows in scope and says "N topics" in `context`; one enabled engine gives Mentioned, Cited, Share of voice and Valid answers (no Recommendation until S2); an engine with no answers gives "Not collected yet" (`unknown.kind: 'pending'`).
 - `prompts-strip.test.tsx`: renders the group list with `MetricStrip size="md"`; `status="loading"` shows skeletons with the labels; hidden (renders nothing) when `hasAnswers(summary)` is false or no prompt exists; axe clean.
 - `insufficient-pill.test.tsx`: renders hatching and "N obs"; has an accessible name "Insufficient data, N answers"; axe clean.
 
 **Steps:**
+
 - [ ] Write `InsufficientPill({ n })` in `components/app/metric` (hatched background token from DS 23 8.5, `type-caption`), used by the strip's `unknown` path and by table cells.
 - [ ] Write `rate-model.ts` (pure): `rateView(cell)`, `engineRate(rows, engine)` (mean of row values over rows with a value, plus summed denominators), `shareOfVoice(rows, engine)` (sum of numerators over sum of denominators: one answer, one weight; check `summary.py` `_topic_engine` first and note any difference in the commit).
 - [ ] Write `strip-model.ts`: Prompts card, then one `MetricStripGroup` per enabled engine in fixed engine order (DS 14 section 4), items Mentioned (value percent, context "k of n answers"), Cited, Share of voice; counts also in the tooltip text.
@@ -119,6 +122,8 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 - [ ] Change the existing Mentioned and Cited cells in `prompt-columns.tsx` and `topics-table.tsx` to render percent beside the count and `InsufficientPill` under 4 answers, tooltips keep "N valid of M answers".
 - [ ] Messages: `prompts.strip.*`, `prompts.rate.*`.
 - [ ] Gate (with `pnpm build`).
+
+**Status (2026-11-12): the strip is done**, in `37ff14f` and its review fixes. It lives in `features/prompts` (`strip-model.ts`, `rate-view.tsx`, `prompts-strip.tsx`), not in the files listed above: `rate-view.tsx` holds `InsufficientPill` and `useRateWords`, `strip-model.ts` holds `engineRates`, `shareOfVoiceTotals` and `topicsSpanned`, and `MetricStrip` gained an optional `tip`. **The cell wiring moves to W2:** the step that changes the Mentioned and Cited cells of `prompt-columns.tsx` and `topics-table.tsx` to a percent beside the count, with `InsufficientPill` under 4 answers, is not done. `InsufficientPill` is unused until then.
 
 **Commit:** `Topics & Prompts: metric strip, percent beside counts and the insufficient data pill`
 
@@ -129,27 +134,30 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 **Read first:** `topics-table.tsx`, `prompt-columns.tsx`, `prompts-screen.tsx` (`DEFAULT_SORT`), `DataTable` sort props and tree rows (`components/app/data-table`), `useVocabularies`, the topic tree helpers in `prompt-model.ts`, parity spec sections 5.2 and 5.3.
 
 **Files:**
+
 - Create: `features/prompts/sort-model.ts`, `sort-model.test.ts`
 - Modify: `topics-table.tsx`, `prompt-columns.tsx`, `prompts-screen.tsx`, `topic-inspector.tsx` (engine bars, G113), `messages/en.json`; tests `prompts.test.tsx`, `topic-drawer.test.tsx`
 
 **Failing tests first:**
+
 - `sort-model.test.ts`: `sortTopics` by Mention rate descending puts the highest average first and rows with no rate last; ties break by name; `sortPrompts` default is Mention rate descending; Top engine column value is the engine with the highest mention rate (ties by engine order); SOV sorts by value.
 - `prompts.test.tsx`: Topics tab shows "Mention rate" with "avg of 3" note and counts in the tooltip, "Citation rate", "Top engine" (logo and name); default order is Mention desc; the header sorts on click and the sort is in the URL; "Expand all" and "Collapse all" toggle every topic; each topic row shows "Category, N prompts" (parent name, or "Topic" when top level) and a footer "13 topics, 250 prompts" using the formatted counts; Prompts tab has the metric switcher (Mention, Citation, Share of voice) and a path badge with the full path in the tooltip.
 - `topic-drawer.test.tsx`: the By engine section shows a bar, percent and "k of n" per engine.
-- **Sub-task W2-T, the indented topic tree (G32, D-3).** `topic-tree.test.ts` (pure model, no DOM) and `prompts.test.tsx`:
-  - **Indent:** a child topic row is drawn one level under its parent in tree order (parent, then its children, then the next parent); the identity cell is indented by depth with token spacing (no arbitrary values) and carries `aria-level`; a topic with no children is an ordinary row without a disclosure button.
-  - **Rollup:** a parent row's counts and rates equal the roll up of its children and its own prompts, each prompt counted once in the parent (the API already returns a row for every topic and every ancestor with counts rolled up: read the parent row as given, never add the children in the web); a prompt in a child counts in the child row and again in each ancestor row, and a test pins that.
+- **Sub-task W2-T, the indented topic tree (G32, D-3).** Decided 2026-11-12, and the table depth stays at two: the Topics table shows at most two levels (a top topic and its children). Topics deeper than level 2 get no row of their own. `topic-tree.test.ts` (pure model, no DOM) and `prompts.test.tsx`:
+  - **Indent:** a level 2 topic row is drawn one level under its level 1 parent in tree order (parent, then its children, then the next parent); the identity cell is indented with token spacing (no arbitrary values) and carries `aria-level` (1 or 2, as `RowTree` already sets it); a topic with no children is an ordinary row without a disclosure button.
+  - **Rollup:** a parent row's counts and rates equal the roll up of its children and its own prompts, each prompt counted once in the parent (the API already returns a row for every topic and every ancestor with counts rolled up: read the parent row as given, never add the children in the web); a prompt in a level 2 topic counts in that row and again in its level 1 row. A three level fixture (level 1, level 2 and a level 3 topic with prompts) rolls up into the level 2 row and the level 1 row, and a test pins that no level 3 row is rendered.
   - **Rollup note:** a note under the table header, from `messages/en.json`, says rows do not add up to the parent ("A parent row counts every prompt under it, so rows do not add up to the parent."); it is shown only when at least one parent row is visible; the drawer and the footer counts count each topic and prompt once (footer "13 topics, 250 prompts" is never a sum of the rows).
-  - **Expand and collapse:** a disclosure button on every parent row, with the whole accessible name ("Expand Security group, 4 topics") from `RowTree.label`; click toggles one parent; "Expand all" and "Collapse all" toggle every parent; the expanded set is in the URL (`nuqs`, `history: 'replace'`) so a shared link restores it; collapsed children are not rendered; sorting reorders the siblings under each parent, never moves a child out of its parent; a filter that matches only a child keeps its ancestors visible and expanded.
+  - **Expand and collapse:** a disclosure button on every parent row, with the whole accessible name ("Expand Security group, 4 topics") from `RowTree.label`; click toggles one parent; "Expand all" and "Collapse all" toggle every parent; the expanded set is in the URL (`nuqs`, `history: 'replace'`) so a shared link restores it; collapsed children are not rendered; sorting reorders the siblings under each parent, never moves a child out of its parent; a filter that matches only a level 2 topic keeps its level 1 row visible and expanded; a filter that matches only a level 3 topic keeps its level 2 and level 1 rows visible and expanded.
   - **Keyboard:** Right Arrow on a collapsed parent row expands it and Left Arrow on an expanded parent collapses it (the `DataTable` treegrid keys); Left Arrow on a child row moves focus to its parent row; Enter and Space toggle a parent row from its first cell; focus stays on the row that was toggled; the tab stop is single (roving) as in the rest of the table; the screen reader hears level, position and set size and the expanded state.
 
 **Steps:**
+
 - [ ] Add `sort-model.ts`; wire `DataTable` sort for both tables (replace `NO_SORT`), default Mention rate descending, keep URL state keys of the existing filters.
 - [ ] Mention rate and Citation rate columns use `acrossEngines` and `InsufficientPill`; label "avg of N" from `engines`.
 - [ ] Top engine column with the engine logo (ADR-DS-020) and all rates in the tooltip.
 - [ ] Prompts tab: grouped two row header with the metric switcher (Mention, Citation, Share of voice; Recommendation appears in S2).
 - [ ] Topic subtitle and path badge from the topic tree; footer counts.
-- [ ] W2-T: add `topic-tree.ts` and `topic-tree.test.ts` (order the rows parent first with children after, depth, parent lookup, ancestors of a match) from the API rows and `useVocabularies`; render the Topics tab through the `DataTable` treegrid (`rowTree`, `onToggleGroup`). `RowTree.level` is `1 | 2` today: if the taxonomy is deeper than two levels, extend `RowTree` and `DataTable` to a numeric level with an indent and `aria-level` in `components/app/data-table` first (its own test in `data-table.test.tsx`), in this commit or a commit before it. Add the rollup note and the expanded set in the URL.
+- [ ] W2-T: add `topic-tree.ts` and `topic-tree.test.ts` (order the rows parent first with children after, depth, parent lookup, ancestors of a match) from the API rows and `useVocabularies`; render the Topics tab through the `DataTable` treegrid (`rowTree`, `onToggleGroup`). Show at most two levels: skip topics deeper than level 2 as rows (the API rows already roll their counts into level 2 and level 1) and show the deeper name as a path in the drawer. `RowTree.level` stays `1 | 2`; no change to `RowTree`, `DataTable` or `aria-level`. Add the rollup note and the expanded set in the URL.
 - [ ] Gate.
 
 **Commit:** `Topics & Prompts: rate columns, sorting, topic subtitle and path, indented topic tree, expand all`
@@ -161,15 +169,18 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 **Read first:** `lib/stats/change.ts`, `lib/format/delta.ts`, `docs/design-system/23-application-patterns.md` sections 8.4 and 8.5, `docs/17-statistical-methodology.md` section 6, parity spec decision D-2, `AI_DEVELOPMENT_UI_RULES.md` rule 6.
 
 **Files:**
+
 - Create: `components/app/metric/delta.tsx` (+ test), `features/prompts/compare-model.ts` (+ test)
 - Modify: `prompt-queries.ts` (`previousSummaryQuery`), `strip-model.ts`, `topics-table.tsx`, `prompt-columns.tsx`, `topic-inspector.tsx`, `prompt-inspector.tsx`, `prompts-screen.tsx`, `messages/en.json`, `mocks/handlers/prompts.ts`
 
 **Failing tests first:**
+
 - `delta.test.tsx`: renders `formatMetricDelta` text; coloured only when `isDetectable` is true; when false shows the neutral tone with the "Within normal variation" note in the tooltip; when null shows nothing (never a zero); axe clean.
 - `compare-model.test.ts`: `previousWindow` of 28 days ending on a date is the 28 days before it; `changeOf` uses `isDetectableChange({k, n}, {k, n})` with pooled counts and returns `detectable: null` when either side is insufficient; the delta is in points of the displayed (prompt weighted) value.
 - `prompts.test.tsx`: Compare control (Previous period, No comparison; Same period last year is not offered because there is no data); with comparison on, two summary reads happen (the mock sees both windows); the strip, the Mention rate column and the topic drawer rate cards show a `Delta`; "Detectable changes only" chip hides rows without a detectable change and is in the URL; the tooltip says "interim test" until slice 3.
 
 **Steps:**
+
 - [ ] `Delta` component on `formatMetricDelta` (no component exists yet; spec in DS 23 8.4).
 - [ ] `previousSummaryQuery` in `prompt-queries.ts`, enabled only while the Compare control is on; the previous read follows the same engine, branded and (when W6 lands) scope filters.
 - [ ] `compare-model.ts` and deltas on strip items, Mention and Citation columns, drawer rate cards (G111) and top prompts (G115).
@@ -186,15 +197,18 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 **Read first:** `prompt-inspector.tsx` (one scroll today), `answer-inspector.tsx`, `components/app/inspector/inspector-tabs.tsx`, `topic-inspector.tsx` (tabs pattern), `components/app/chart` (`ChartFrame`), `lib/stats/wilson.ts`, `docs/design-system/15-data-visualization.md` (bands), parity spec section 5.6.
 
 **Files:**
+
 - Create: `history-model.ts` (+ test), `competitor-counts.ts` (+ test), `inspector-latest.tsx`, `inspector-history.tsx`, `inspector-citations.tsx`, `inspector-competitors.tsx`, `inspector-stats.tsx` (each with a test)
 - Modify: `prompt-inspector.tsx`, `prompt-queries.ts` (an `observationsQuery` call with `filter[prompt_id]`, 90 days, limit 200), `messages/en.json`, `mocks/handlers/prompt-answers.ts`
 
 **Failing tests first:**
+
 - `history-model.test.ts`: `rollingSeries` over 90 days of answers gives one point per day with the trailing 28 day mentions k of n, the Wilson band from `wilsonInterval(k, n)`, and no band when n is under 4; answers with `status` not valid are left out and counted.
 - `competitor-counts.test.ts`: counts `facts.competitor_mentions` ids per engine over the valid answers, names from `summary.entities`, the own brand listed first; an answer with no competitor counts toward n only; 200 rows is the page limit and a `has_more` page is fetched until the window is covered.
 - `prompt-inspector.test.tsx`: tabs Latest, History, Citations, Competitors, Stats in the URL (`?inspect=prompt:<id>&tab=`); Latest shows the latest valid answer per engine (one `GET ai/observations/{id}` each) with marked mentions, the facts Mentioned, Cited, and no Rank or Recommended (D-9); History shows the chart, a last 10 table with outcome words and an event list (added, stale, model change from `model_reported`); Competitors shows counts for this prompt only; Stats shows estimate, interval bar and sample per engine for Mention and Citation with the method note; Citations shows the empty state; keyboard J and K still step; header badges show topic path, Branded, Archived and no Type.
 
 **Steps:**
+
 - [ ] Split `prompt-inspector.tsx` into the five tab panels without changing its Run now, Archive and Undo behaviour (existing tests must stay green).
 - [ ] History and Stats read one observation list; no per-tab refetch.
 - [ ] Interval text also in rate tooltips (G48).
@@ -209,10 +223,12 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 **Read first:** `components/app/data-table/bulk-action-bar.tsx`, `components/ui/menu.tsx`, `features/rankings/export/*`, `add-prompts-dialog.tsx` (defaults), `docs/design-system/23-application-patterns.md` (menus, bulk), `RUN_NOW` errors in `prompt-run-now.ts` (`manual_run_limit`).
 
 **Files:**
+
 - Create: `row-menu.tsx`, `bulk-bar.tsx`, `export-rows.ts`, `views-model.ts`, `edit-details-dialog.tsx` (each with a test)
 - Modify: `prompts-screen.tsx`, `topics-table.tsx`, `prompt-columns.tsx`, `add-prompts-dialog.tsx`, `topic-inspector.tsx`, `prompt-queries.ts`, `messages/en.json`
 
 **Failing tests first:**
+
 - `export-rows.test.ts`: CSV of loaded rows with percent, counts and window in the header, formula injection guarded (leading `=`, `+`, `-`, `@` prefixed), UTF-8 with BOM only if the rankings export does the same.
 - `views-model.test.ts`: presets Default and Branded prompts map to URL states (Branded prompts is `branded=only`) and round trip; no persistence.
 - `row-menu.test.tsx`: Prompt row menu: Open, Run now, Copy prompt, Archive (Edit details opens the dialog); topic menu: Open, Show in Prompts (switches tab, keeps the topic filter), Add prompt (dialog with the topic preselected), Export; right click opens it; Run now on a refused prompt shows the named reason.
@@ -221,6 +237,7 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 - screen tests: custom date range up to 92 days (a longer range is refused with the reason), Branded three way (Excluded, Included, Only) on the Prompts tab, Copy link copies the current URL, topic J and K steps and "3 of 13".
 
 **Steps:**
+
 - [ ] Build each piece against existing mutations; Archive per id until B7 adds `bulk-archive`.
 - [ ] Add prompt buttons: topic menu, drawer header, bulk bar; the dialog takes the topic as a default term.
 - [ ] Client CSV export reusing the rankings export file helper through `@/lib` (move the helper there if needed, features do not import each other).
@@ -346,25 +363,25 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 
 ## Each task: what it needs and what it can be built against
 
-| Task | Backend need | Build against mocks first | Can start now |
-|---|---|---|---|
-| W1 | none | not needed | yes |
-| W2 | none (D-3 decided: indented tree) | not needed | yes |
-| W3 | none; later D1 Task 3 (B4) replaces the second read | yes, two windows | yes |
-| W4 | none (Citations tab empty until W7) | yes, 90 days of answers | yes |
-| W5 | none; B7 later lifts the 20 a day cap | existing mocks | yes |
-| W6 | B1 built; B2 (D1 Task 2) | yes, to D1 | B1 part yes, scope part after mocks |
-| W7 | B6 | yes, to the handoff | yes (mock first) |
-| W8 | B5 (D1 Task 5) | yes, to D1 | yes (mock first) |
-| W9 | B19 | yes, to the handoff | yes (mock first); interim from `fanout_count` |
-| W10 | B7 | yes | yes (mock first) |
-| W11 | B3 (D1 Task 4); entity lines B5 | yes, to D1 | yes (mock first) |
-| W12 | S4 candidates | yes | no (wait for slice 4 contract) |
-| W13 | Ph 9 overview or B6 plus B5 | partly | after W7, W8 |
-| W14 | S4 B10 to B12 (decisions made 2026-11-12) | no | no |
-| W15 | product decision, fetch service | no | no |
-| W16 | B9 visibility only | partly | counts and Top 10 yes |
-| W17 | B16 (decided 2026-11-12) | yes | after the mock |
+| Task | Backend need                                        | Build against mocks first | Can start now                                 |
+| ---- | --------------------------------------------------- | ------------------------- | --------------------------------------------- |
+| W1   | none                                                | not needed                | yes                                           |
+| W2   | none (D-3 decided: indented tree)                   | not needed                | yes                                           |
+| W3   | none; later D1 Task 3 (B4) replaces the second read | yes, two windows          | yes                                           |
+| W4   | none (Citations tab empty until W7)                 | yes, 90 days of answers   | yes                                           |
+| W5   | none; B7 later lifts the 20 a day cap               | existing mocks            | yes                                           |
+| W6   | B1 built; B2 (D1 Task 2)                            | yes, to D1                | B1 part yes, scope part after mocks           |
+| W7   | B6                                                  | yes, to the handoff       | yes (mock first)                              |
+| W8   | B5 (D1 Task 5)                                      | yes, to D1                | yes (mock first)                              |
+| W9   | B19                                                 | yes, to the handoff       | yes (mock first); interim from `fanout_count` |
+| W10  | B7                                                  | yes                       | yes (mock first)                              |
+| W11  | B3 (D1 Task 4); entity lines B5                     | yes, to D1                | yes (mock first)                              |
+| W12  | S4 candidates                                       | yes                       | no (wait for slice 4 contract)                |
+| W13  | Ph 9 overview or B6 plus B5                         | partly                    | after W7, W8                                  |
+| W14  | S4 B10 to B12 (decisions made 2026-11-12)           | no                        | no                                            |
+| W15  | product decision, fetch service                     | no                        | no                                            |
+| W16  | B9 visibility only                                  | partly                    | counts and Top 10 yes                         |
+| W17  | B16 (decided 2026-11-12)                            | yes                       | after the mock                                |
 
 ## Self-review checklist
 

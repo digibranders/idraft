@@ -174,9 +174,9 @@ describe('topicsSpanned', () => {
     expect(topicsSpanned(topics, inScope(['technical'], ['technical'], ['paid']), below, null)).toBe(3);
   });
 
-  it('counts the row of the prompts without a topic only when one is in scope', () => {
-    expect(topicsSpanned(topics, inScope([], ['paid']), below, null)).toBe(2);
-    expect(topicsSpanned(topics, inScope(['paid']), below, null)).toBe(1);
+  it('never counts the row of the prompts without a topic: No topic is no topic', () => {
+    expect(topicsSpanned(topics, inScope([], ['paid']), below, null)).toBe(1);
+    expect(topicsSpanned(topics, inScope([], []), below, null)).toBe(0);
   });
 
   it('leaves out a topic no prompt in scope belongs to, and every topic a topic filter does not keep', () => {

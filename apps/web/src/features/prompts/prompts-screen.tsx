@@ -296,12 +296,13 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       })),
     [rows],
   );
+  // Without the topic trees (still being read, or failed) a topic cannot be rolled up, so the count would fall short
   const stripTopics = useMemo(
     () =>
-      summary.data === undefined
+      summary.data === undefined || topicsUnknown
         ? null
         : topicsSpanned(summary.data.data.topics, stripPrompts, descendants, topicIds.length > 0 ? kept : null),
-    [summary.data, stripPrompts, descendants, topicIds, kept],
+    [summary.data, topicsUnknown, stripPrompts, descendants, topicIds, kept],
   );
 
   const { columns, sortFields, searchText, rowName } = usePromptColumns(shown);
