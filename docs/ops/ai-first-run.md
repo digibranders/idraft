@@ -81,7 +81,7 @@ Turning an engine on makes the project's two schedules. A schedule spends money 
 4. Pause each: `POST {P}/schedules/{schedule_id}/pause` with `{"reason": "first run, paused until step 3"}`.
 5. Check: `GET {P}/schedules?filter[workload]=ai_prompt` shows `is_active: false` for both.
 
-A paused schedule stays in place. Switching engines on again later does not make new ones, and nothing runs from them. A deleted schedule is different: if both AI schedules of a project are deleted, switching an engine from off to on makes two new ones, which spend at their next window. Saving the countries of an engine that is already on never makes any.
+A paused schedule stays in place. Switching engines on again later does not make new ones, and nothing runs from them. A deleted schedule is different: if both AI schedules of a project are deleted, switching an engine from off to on, or turning on another engine for the first time, makes two new ones, which spend at their next window. Saving the countries of an engine that is already on never makes any.
 
 ## Step C: the probe (costs 0.0072 USD)
 
