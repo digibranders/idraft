@@ -582,6 +582,8 @@ export function DataTable<TRow extends RowData>({
   const contextIndex = contextMenu === null ? undefined : indexOfId.get(contextMenu.rowId);
   const contextRow = contextIndex === undefined ? undefined : rows[contextIndex];
   const contextActions = contextRow === undefined ? [] : actionsOf(rowActions, contextRow);
+  // The row went, or has no actions now: the menu is gone for good, and does not come back with the row
+  if (contextMenu !== null && contextActions.length === 0) setContextMenu(null);
   // The row whose menu is on show, which a long press that began earlier reads when its timer ends
   const contextOpenId = contextMenu !== null && contextActions.length > 0 ? contextMenu.rowId : null;
   const openContextId = useRef<string | null>(null);
@@ -591,6 +593,21 @@ export function DataTable<TRow extends RowData>({
   // Set for the moment after Shift+F10 or the Menu key opened the More menu: the browser's own contextmenu event
   // for that key press is then not a right click
   const keyOpened = useRef(false);
+  const keyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The key is down and opened a menu: Windows and Linux raise contextmenu when it comes up
+  const keyHeld = useRef(false);
+  const armKeyOpened = (): void => {
+    keyOpened.current = true;
+    if (keyTimer.current !== null) clearTimeout(keyTimer.current);
+    keyTimer.current = setTimeout(() => {
+      keyOpened.current = false;
+    }, 0);
+  };
+  const onKeyUp = (event: KeyboardEvent<HTMLTableElement>): void => {
+    if (!keyHeld.current || (event.key !== 'F10' && event.key !== 'ContextMenu')) return;
+    keyHeld.current = false;
+    armKeyOpened();
+  };
   const press = useRef<{ x: number; y: number; timer: ReturnType<typeof setTimeout> } | null>(null);
   // The click that ends a long press is not a tap on the row, so the inspector does not open
   const swallowClick = useRef(false);
@@ -627,6 +644,8 @@ export function DataTable<TRow extends RowData>({
   ): void => {
     swallowClick.current = false;
     cancelPress();
+    // A menu portaled out of the row reaches it through React: a touch in it is not a press on the row
+    if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
     const facts = { shiftKey: false, target: event.target, fromKeyboard: false };
     if (!rowContextMenu || event.pointerType !== 'touch' || !ownsContextMenu(facts, hasActions)) return;
     const point = { x: event.clientX, y: event.clientY };
@@ -798,10 +817,8 @@ export function DataTable<TRow extends RowData>({
       if (row !== undefined && actionsOf(rowActions, row).length > 0) {
         event.preventDefault();
         // The browser may raise contextmenu for this same key press: this menu is its answer
-        keyOpened.current = true;
-        setTimeout(() => {
-          keyOpened.current = false;
-        }, 0);
+        keyHeld.current = true;
+        armKeyOpened();
         setContextMenu(null);
         setMenu({ kind: 'row', id: getRowId(row) });
       }
@@ -1206,6 +1223,7 @@ export function DataTable<TRow extends RowData>({
           aria-multiselectable={selection === undefined ? undefined : true}
           aria-busy={status === 'refetching' || status === 'loading' ? true : undefined}
           onKeyDown={onKeyDown}
+          onKeyUp={onKeyUp}
           onKeyDownCapture={onKeyDownCapture}
           onFocus={(event) => {
             focusInGrid.current = true;

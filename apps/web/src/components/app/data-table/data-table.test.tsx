@@ -3006,6 +3006,38 @@ describe('DataTable row context menu', () => {
       expect(anchor()).toHaveStyle({ left: '90px', top: '70px' });
     });
 
+    it('treats a contextmenu raised on key up (Windows, Linux) as the key press that opened the menu', async () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      const cell = cellOf('keyword 001', 1);
+      focus(cell);
+      fireEvent.keyDown(cell, { key: 'F10', shiftKey: true });
+      await screen.findByRole('menu');
+      // Time passes while the key is held, then it is released and the browser answers
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+      fireEvent.keyUp(document.activeElement ?? cell, { key: 'F10', shiftKey: true });
+      expect(leftToBrowser(cell, { clientX: 5, clientY: 6 })).toBe(false);
+      expect(anchor()).toBeNull();
+      expect(screen.getAllByRole('menu')).toHaveLength(1);
+      // The key up re-armed the flag for that one event only
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+      leftToBrowser(cellOf('keyword 002', 1), { clientX: 77, clientY: 88 });
+      await waitFor(() => expect(anchor()).toHaveStyle({ left: '77px', top: '88px' }));
+    });
+
+    it('arms nothing on a key up when the key opened no menu', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} rowActions={NO_ACTIONS_FOR_K1} />);
+      const cell = cellOf('keyword 001', 1);
+      focus(cell);
+      fireEvent.keyDown(cell, { key: 'F10', shiftKey: true });
+      fireEvent.keyUp(cell, { key: 'F10', shiftKey: true });
+      expect(leftToBrowser(cell)).toBe(true);
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+
     it('leaves a contextmenu of the browser alone when the key opened no menu (a row without actions)', () => {
       renderWithProviders(<ContextHarness rows={rowsOf(3)} rowActions={NO_ACTIONS_FOR_K1} />);
       const cell = cellOf('keyword 001', 1);
@@ -3109,12 +3141,45 @@ describe('DataTable row context menu', () => {
 
     it('does not open a second time for a press on the row whose menu is already open', () => {
       renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
-      // Android raises contextmenu on the long press as well
+      // Android raises contextmenu on the long press as well, a pixel away from where the press began
       fireEvent.pointerDown(target(), touch());
-      leftToBrowser(target(), { clientX: 60, clientY: 90 });
+      leftToBrowser(target(), { clientX: 61, clientY: 90 });
+      expect(anchor()).toHaveStyle({ left: '61px', top: '90px' });
       wait(500);
+      // The press's own timer found the menu open and left it: the anchor is where contextmenu put it
+      expect(anchor()).toHaveStyle({ left: '61px', top: '90px' });
       expect(screen.getAllByRole('menu')).toHaveLength(1);
       expect(document.querySelectorAll('[data-slot="row-context-anchor"]')).toHaveLength(1);
+    });
+
+    it('does not press for a touch on the More menu, which reaches the row through React', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      const cell = cellOf('keyword 001', 1);
+      act(() => cell.focus());
+      fireEvent.keyDown(cell, { key: 'F10', shiftKey: true });
+      const item = screen.getByRole('menuitem', { name: 'Archive' });
+      fireEvent.pointerDown(item, touch());
+      wait(600);
+      expect(anchor()).toBeNull();
+      expect(screen.getAllByRole('menu')).toHaveLength(1);
+      expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
+    });
+
+    it('clears the timer of a press that is still running when the table goes', () => {
+      const set = vi.spyOn(globalThis, 'setTimeout');
+      const clear = vi.spyOn(globalThis, 'clearTimeout');
+      const { unmount } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      fireEvent.pointerDown(target(), touch());
+      const press = set.mock.calls.findIndex(([, delay]) => delay === 500);
+      expect(press).toBeGreaterThanOrEqual(0);
+      const timer: unknown = set.mock.results[press]?.value;
+      clear.mockClear();
+      unmount();
+      expect(clear).toHaveBeenCalledWith(timer);
+      wait(600);
+      expect(screen.queryByRole('menu')).toBeNull();
+      set.mockRestore();
+      clear.mockRestore();
     });
 
     it('lets the next tap open a row even when no click followed the long press', () => {
@@ -3129,6 +3194,74 @@ describe('DataTable row context menu', () => {
       expect(onOpen).toHaveBeenCalledTimes(1);
       expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 'k2' }), 'inspector');
     });
+  });
+
+  it('counts Ctrl plus click, which a Mac raises as contextmenu, as a right click', async () => {
+    renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    expect(leftToBrowser(cellOf('keyword 001', 1), { ctrlKey: true })).toBe(false);
+    expect(await screen.findByRole('menu', { name: 'Actions for keyword 001' })).toBeInTheDocument();
+  });
+
+  it('leaves a contenteditable cell to the browser', () => {
+    const editable = col.url<Row>('editable', () => null, {
+      header: 'Editable',
+      sortable: false,
+      cell: () => (
+        <div contentEditable suppressContentEditableWarning>
+          <b>text</b>
+        </div>
+      ),
+    });
+    renderWithProviders(<ContextHarness rows={rowsOf(3)} columns={[...COLUMNS, editable]} />);
+    const inner = bodyRow('keyword 001').querySelector('b');
+    if (inner === null) throw new Error('no editable text');
+    expect(leftToBrowser(inner)).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+    // Its cell around it is still the table's
+    expect(leftToBrowser(cellOf('keyword 001', 1))).toBe(false);
+  });
+
+  it('opens the row menu, once, on the selection cell, its checkbox, the actions cell and the More button, and selects nothing', async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    const row = bodyRow('keyword 001');
+    const targets: [string, Element | null][] = [
+      ['selection cell', cellOf('keyword 001', 0)],
+      ['checkbox', row.querySelector('[role="checkbox"]')],
+      ['actions cell', cellOf('keyword 001', 4)],
+      ['More button', row.querySelector('button[aria-label="Actions for keyword 001"]')],
+    ];
+    for (const [, element] of targets) {
+      if (element === null) throw new Error('missing target');
+      expect(leftToBrowser(element)).toBe(false);
+      expect(await screen.findByRole('menu', { name: 'Actions for keyword 001' })).toBeInTheDocument();
+      expect(screen.getAllByRole('menu')).toHaveLength(1);
+      expect(document.querySelectorAll('[data-slot="row-context-anchor"]')).toHaveLength(1);
+      expect(selectedKeywords()).toEqual([]);
+      expect(onOpen).not.toHaveBeenCalled();
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    }
+  });
+
+  it('forgets the menu when its row goes, so it does not reopen at the old point when the row returns', async () => {
+    const { rerender } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    leftToBrowser(cellOf('keyword 001', 1), { clientX: 120, clientY: 80 });
+    await screen.findByRole('menu');
+    rerender(<ContextHarness rows={rowsOf(3).filter((row) => row.id !== 'k1')} />);
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    rerender(<ContextHarness rows={rowsOf(3)} />);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(anchor()).toBeNull();
+  });
+
+  it('forgets the menu when its row loses its actions, and when the actions come back', async () => {
+    const { rerender } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    leftToBrowser(cellOf('keyword 001', 1));
+    await screen.findByRole('menu');
+    rerender(<ContextHarness rows={rowsOf(3)} rowActions={NO_ACTIONS_FOR_K1} />);
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    rerender(<ContextHarness rows={rowsOf(3)} />);
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 
   it('right click on a tree group row opens its menu and does not toggle the group', async () => {
