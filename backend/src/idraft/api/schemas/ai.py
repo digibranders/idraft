@@ -487,7 +487,9 @@ class OutcomeCells(BaseModel):
 
 class EntityCells(BaseModel):
     """One tracked entity's cells, weighted as the engine's: in a topic row Mentioned is prompt
-    weighted, Share of voice one answer one weight."""
+    weighted, Share of voice one answer one weight. The shares of all the entities an answer
+    names add up to 1; the cells shown may hold fewer (at most 20, and an entity no longer
+    tracked has none)."""
 
     entity_id: UUID
     mentioned: MetricCell = Field(

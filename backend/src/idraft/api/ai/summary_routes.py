@@ -45,7 +45,8 @@ Summaries = Annotated[SummaryService, Depends(get_summary_service)]
     "`filter[term]` they are the term and the topics below it, with no row for prompts without "
     "a topic. Each row says when its last counted answer and its last valid one came."
     " `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each "
-    "tracked entity (the own ones first, at most 20); an answer's shares add up to 1.",
+    "tracked entity (the own ones first, at most 20); across all the entities an answer names, "
+    "its shares add up to 1.",
 )
 async def prompts_summary(
     project_id: UUID,

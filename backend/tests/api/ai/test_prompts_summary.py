@@ -1427,3 +1427,138 @@ async def test_entity_cells_stop_at_twenty_entities(
         str(entity) for entity in (world.own, world.rival, *extra[:18])
     ]
     assert _cell(cells[0]["mentioned"]) == (0, 0, 0)
+
+
+async def test_an_invalid_answer_counts_for_no_entity_cell(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+) -> None:
+    """A refusal that names both brands still has mention rows with an order and counts them in
+    its fact row; the cells read valid answers only, as the engine's do."""
+    world = await _world(resources, migrated)
+    world = replace(world, prompts=await _prompts(migrated, world, ["x"]))
+    refusal = f"{REFUSAL} {OWN_NAME} and {RIVAL_NAME} may know."
+    await _ingested(
+        world,
+        migrated,
+        worker_db,
+        import_store,
+        [Answer("x", OWN_ONLY, (), 1), Answer("x", refusal, (), 2)],
+    )
+    held = await fetchrow(
+        migrated,
+        "SELECT count(*) AS n FROM ai.observation_facts f JOIN ai.entity_mentions m "
+        "ON m.observation_id = f.observation_id AND m.observed_at = f.observed_at "
+        "AND m.derivation_id = f.derivation_id "
+        "WHERE f.project_id = $1 AND NOT f.is_valid AND f.tracked_entities_mentioned = 2 "
+        "AND m.mention_order IS NOT NULL",
+        world.project.id,
+    )
+    assert held["n"] == 2
+
+    response = await _summary(world, api, include="entities")
+
+    assert response.status_code == 200, response.text
+    engine = response.json()["data"]["prompts"][0]["engines"][0]
+    assert _cell(engine["mentioned"]) == (1, 1, 2)
+    own, rival = (_entity_cell(engine, entity) for entity in (world.own, world.rival))
+    assert _cell(own["mentioned"]) == (1, 1, 2)
+    assert _cell(own["share_of_voice"]) == (1, 1, 2)
+    assert _cell(rival["mentioned"]) == (0, 1, 2)
+    assert _cell(rival["share_of_voice"]) == (0, 1, 2)
+
+
+async def test_several_own_brands_share_the_engines_own_share_of_voice(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+) -> None:
+    """Two own brands and a rival, four answers: A names both own brands, B the first, C the
+    second and the rival, D the rival. Each answer is shared out among the brands it names."""
+    world = await _world(resources, migrated)
+    second_name = "Northwind Labs"
+    second = await _entity(migrated, world.project, second_name, "northwind-labs.example", "own")
+    prompts = await _prompts(migrated, world, ["a", "b", "c", "d"])
+    world = replace(world, prompts=prompts)
+    await _ingested(
+        world,
+        migrated,
+        worker_db,
+        import_store,
+        [
+            Answer("a", f"{OWN_NAME} and {second_name} both run managed SOC services.", (), 1),
+            Answer("b", OWN_ONLY, (), 1),
+            Answer("c", f"{second_name} and {RIVAL_NAME} both run managed SOC services.", (), 1),
+            Answer("d", RIVAL_ONLY, (), 1),
+        ],
+    )
+
+    response = await _summary(world, api, include="entities")
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert {(e["entity_id"], e["role"]) for e in data["entities"]} == {
+        (str(world.own), "own"),
+        (str(second), "own"),
+        (str(world.rival), "competitor"),
+    }
+    rows = _by(data["prompts"], "prompt_id")
+    expected: dict[str, dict[uuid.UUID, float]] = {
+        "a": {world.own: 0.5, second: 0.5, world.rival: 0},
+        "b": {world.own: 1, second: 0, world.rival: 0},
+        "c": {world.own: 0, second: 0.5, world.rival: 0.5},
+        "d": {world.own: 0, second: 0, world.rival: 1},
+    }
+    for name, shares in expected.items():
+        engine = rows[str(prompts[name].id)]["engines"][0]
+        for entity, share in shares.items():
+            cell = _entity_cell(engine, entity)
+            assert _cell(cell["share_of_voice"]) == (share, 1, 1)
+            assert cell["mentioned"]["numerator"] == (1 if share else 0)
+    # The row without a topic holds all four answers: each brand's cells, and the own brands'
+    # shares add up to the engine's own.
+    engine = data["topics"][-1]["engines"][0]
+    assert _cell(engine["share_of_voice"]) == (2.5, 4, 4)
+    own, other, rival = (_entity_cell(engine, e) for e in (world.own, second, world.rival))
+    assert _cell(own["share_of_voice"]) == (1.5, 4, 4)
+    assert _cell(other["share_of_voice"]) == (1, 4, 4)
+    assert _cell(rival["share_of_voice"]) == (1.5, 4, 4)
+    assert (
+        own["share_of_voice"]["numerator"] + other["share_of_voice"]["numerator"]
+        == (engine["share_of_voice"]["numerator"])
+    )
+
+
+async def test_the_engine_filter_narrows_the_entity_cells(
+    api: httpx.AsyncClient, summary: Summary
+) -> None:
+    response = await _summary(
+        summary, api, include="entities", **{"filter[engine_code_in]": GEMINI}
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    providers = _by(data["prompts"], "prompt_id")[str(summary.prompts["providers"].id)]
+    assert [engine["engine_code"] for engine in providers["engines"]] == [GEMINI]
+    engine = providers["engines"][0]
+    # The one Gemini answer names both brands: half of it each.
+    for entity in (summary.own, summary.rival):
+        cell = _entity_cell(engine, entity)
+        assert _cell(cell["mentioned"]) == (1, 1, 1)
+        assert _cell(cell["share_of_voice"]) == (0.5, 1, 1)
+
+
+@pytest.mark.parametrize("include", ["series", "entities,series", "bogus"])
+async def test_an_include_that_is_not_built_is_refused(
+    api: httpx.AsyncClient, summary: Summary, include: str
+) -> None:
+    """`series` is a later task of plan D1: until it is built, it is a validation error like any
+    unknown value."""
+    response = await _summary(summary, api, include=include)
+
+    assert problem(response) == (422, "validation_failed")
