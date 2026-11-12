@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T03:32:20+05:30",
+ "updated": "2026-11-13T03:53:49+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -421,7 +421,7 @@
     "done": 2
    },
    "owner": "",
-   "notes": "file work-packages/WP-11-layouts-api.md; estimate 8 tasks; decisions D-01, D-09, D-10, D-11, D-12"
+   "notes": "file work-packages/WP-11-layouts-api.md; estimate 8 tasks; decisions D-01, D-09, D-10, D-11, D-12 | steps 1/8; plan: migration 0021_layouts, RLS owner policy, ETag, advisory lock; dev DB needs alembic upgrade head after merge"
   },
   {
    "id": "WP-12",
@@ -644,7 +644,7 @@
     "done": 7
    },
    "owner": "",
-   "notes": "file work-packages/WP-15-layouts-react-core.md; estimate 9 tasks; decisions D-14"
+   "notes": "file work-packages/WP-15-layouts-react-core.md; estimate 9 tasks; decisions D-14 | from WP-11: the web catalog offers engine google_ai_overview which the API refuses (Q8); do not offer it until slice 2"
   },
   {
    "id": "WP-16",
@@ -3971,6 +3971,48 @@
    "granted": "2026-11-13T03:13:15+05:30",
    "scope": "additive: bg-seq-1..7 utilities (WP-05 adds first, WP-06 reuses or rebases); no other edits",
    "until": "WP-05 and WP-06 merged"
+  },
+  {
+   "path": "backend/src/idraft/db/tables.py",
+   "wp": "WP-11",
+   "granted": "2026-11-13T03:53:49+05:30",
+   "scope": "add the layouts Table only; migration 0021_layouts",
+   "until": "WP-11 merged"
+  },
+  {
+   "path": "backend/tests/db/test_tables.py",
+   "wp": "WP-11",
+   "granted": "2026-11-13T03:53:49+05:30",
+   "scope": "DECLARED entry for layouts",
+   "until": "WP-11 merged"
+  },
+  {
+   "path": "backend/tests/db/test_grants.py",
+   "wp": "WP-11",
+   "granted": "2026-11-13T03:53:49+05:30",
+   "scope": "one row for layouts",
+   "until": "WP-11 merged"
+  },
+  {
+   "path": "backend/tests/db/support.py",
+   "wp": "WP-11",
+   "granted": "2026-11-13T03:53:49+05:30",
+   "scope": "TENANT_TABLES entry and a seeded team row",
+   "until": "WP-11 merged"
+  },
+  {
+   "path": "apps/web/package.json",
+   "wp": "WP-11",
+   "granted": "2026-11-13T03:53:49+05:30",
+   "scope": "scripts entry gen:layout-catalog only (task T5b)",
+   "until": "WP-11 merged"
+  },
+  {
+   "path": "apps/web/src/lib/layouts/catalog-json.test.ts",
+   "wp": "WP-11",
+   "granted": "2026-11-13T03:53:49+05:30",
+   "scope": "new web freshness test (task T5b); WP-15 owns the rest of lib/layouts",
+   "until": "WP-11 merged"
   }
  ],
  "followups": [
