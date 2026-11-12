@@ -1542,6 +1542,31 @@
       "interval": "95% interval",
       "previous": "Previous",
       "current": "Current"
+    },
+    "heatmap": {
+      "insufficient": "{count, number} ans",
+      "none": "n/a",
+      "expand": "Expand {name}",
+      "collapse": "Collapse {name}",
+      "key": "Key to the cell fills",
+      "keyInsufficient": "Fewer than {min, number} answers",
+      "keyNone": "No answers",
+      "bins": {
+        "seq1": "0%",
+        "seq2": "Under 10%",
+        "seq3": "10% to 20%",
+        "seq4": "20% to 35%",
+        "seq5": "35% to 50%",
+        "seq6": "50% to 70%",
+        "seq7": "70% and up",
+        "divNeg3": "Fall of 15 pts or more",
+        "divNeg2": "Fall of 5 to 15 pts",
+        "divNeg1": "Fall under 5 pts",
+        "divZero": "Within normal variation",
+        "divPos1": "Rise under 5 pts",
+        "divPos2": "Rise of 5 to 15 pts",
+        "divPos3": "Rise of 15 pts or more"
+      }
     }
   },
   "inspector": {

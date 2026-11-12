@@ -8,6 +8,7 @@ import {
   DIVERGING_BINS,
   RATE_BIN_EDGES,
   SEQUENTIAL_BINS,
+  cellUnder,
   divergingBin,
   heatmapCsv,
   sequentialBin,
@@ -142,6 +143,13 @@ const ROWS: readonly HeatCsvRow[] = [
     ],
   },
 ];
+
+describe('cellUnder', () => {
+  it('returns the cell of a column, and throws for a row that is short of one', () => {
+    expect(cellUnder(['a', 'b'], 1, 'CRM')).toBe('b');
+    expect(() => cellUnder(['a'], 1, 'CRM')).toThrow(RangeError);
+  });
+});
 
 describe('heatmapCsv', () => {
   const table = heatmapCsv({

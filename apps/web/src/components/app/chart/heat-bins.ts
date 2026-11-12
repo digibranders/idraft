@@ -9,11 +9,28 @@ import type { RateState } from '@/lib/stats';
 
 export type HeatScale = 'sequential' | 'diverging';
 
+/** The keys of `chart.heatmap.bins`, one for each bin of both scales. */
+export type HeatBinKey =
+  | 'seq1'
+  | 'seq2'
+  | 'seq3'
+  | 'seq4'
+  | 'seq5'
+  | 'seq6'
+  | 'seq7'
+  | 'divNeg3'
+  | 'divNeg2'
+  | 'divNeg1'
+  | 'divZero'
+  | 'divPos1'
+  | 'divPos2'
+  | 'divPos3';
+
 /** A bin: the full class strings of its fill and of its text, and its key under `chart.heatmap.bins`. */
 export interface HeatBin {
   fill: string;
   text: string;
-  key: string;
+  key: HeatBinKey;
 }
 
 /**
@@ -77,6 +94,14 @@ export function divergingBin(points: number, detectable: boolean | null): HeatBi
   if (detectable !== true || size === 0) return neutral;
   const step = 1 + CHANGE_EDGES_POINTS.filter((edge) => size >= edge).length;
   return DIVERGING_BINS[points > 0 ? 3 + step : 3 - step] as HeatBin;
+}
+
+/** The cell under column `index`. A row with fewer cells than the grid has columns is the feature's bug: it throws. */
+export function cellUnder<T>(cells: readonly T[], index: number, rowName: string): T {
+  const cell = cells[index];
+  if (cell === undefined)
+    throw new RangeError(`Row "${rowName}" has ${cells.length} cells, no cell for column ${index}`);
+  return cell;
 }
 
 /** What the CSV needs of a cell: whether it has a rate, and its words with their counts (R1). */
