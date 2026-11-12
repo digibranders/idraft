@@ -50,6 +50,17 @@ def test_the_real_fixture_loads_with_its_counts() -> None:
     assert sum(part.branded for part in fixture.prompts) == 7
 
 
+def _first_prompt_repeats_its_topic(data: dict[str, Any]) -> None:
+    topic = data["prompts"][0]["topics"][0]
+    data["prompts"][0]["topics"] = [topic, topic]
+
+
+def _first_prompt_has_three_topics(data: dict[str, Any]) -> None:
+    parent = data["topics"][0]
+    children = parent["children"]
+    data["prompts"][0]["topics"] = [parent["slug"], children[0]["slug"], children[1]["slug"]]
+
+
 CASES: list[tuple[str, Change, str]] = [
     ("unknown top level key", lambda d: d.update(extra=1), "extra: Extra inputs are not permitted"),
     ("unknown prompt key", lambda d: d["prompts"][0].update(answer="x"), "prompts.0.answer"),
@@ -91,6 +102,41 @@ CASES: list[tuple[str, Change, str]] = [
         "repeated domain",
         lambda d: d["competitors"][0].update(domains=["eventussecurity.com"]),
         "repeated entity domain eventussecurity.com",
+    ),
+    (
+        "repeated entity key",
+        lambda d: d["competitors"][0].update(key=d["brand"]["key"]),
+        "repeated entity key eventus",
+    ),
+    (
+        "repeated entity name, ignoring case",
+        lambda d: d["competitors"][0].update(name=d["brand"]["name"].upper()),
+        "repeated entity name eventus security",
+    ),
+    (
+        "repeated engine",
+        lambda d: d["engines"][1].update(engine_code=d["engines"][0]["engine_code"]),
+        "repeated engine chatgpt_web",
+    ),
+    (
+        "repeated prompt key",
+        lambda d: d["prompts"][1].update(key=d["prompts"][0]["key"]),
+        "repeated prompt key p01",
+    ),
+    (
+        "hints without ambiguous",
+        lambda d: d["competitors"][0].update(disambiguation_hints=["a hint"]),
+        "competitors.0: Value error, disambiguation_hints are given exactly when ambiguous",
+    ),
+    (
+        "more than two topics",
+        _first_prompt_has_three_topics,
+        "prompts.0.topics: List should have at most 2 items",
+    ),
+    (
+        "repeated topic in one prompt",
+        _first_prompt_repeats_its_topic,
+        "repeated topic in prompt p01",
     ),
 ]
 

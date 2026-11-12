@@ -47,9 +47,26 @@ def test_the_test_environment_is_refused() -> None:
         check_development(_settings(app_env="test"))
 
 
+# Every host here passes `Settings` validation (checked when this list was written), so each
+# refusal below is the guard's own decision, not the settings'. `[[::1]]` reaches the guard as
+# the host `[::1]` and `localhost]` as itself: the guard does not strip brackets.
 @pytest.mark.parametrize(
     "host",
-    ["db.internal", "201.18.204.36", "postgres", "localhost.example.com", "10.0.0.5", "0.0.0.0"],
+    [
+        "db.internal",
+        "201.18.204.36",
+        "postgres",
+        "localhost.example.com",
+        "10.0.0.5",
+        "0.0.0.0",
+        "localhost.",
+        "127.0.0.2",
+        "127.1",
+        "localhost,evil.example",
+        "[::2]",
+        "[[::1]]",
+        "localhost]",
+    ],
 )
 def test_a_database_elsewhere_is_refused(host: str) -> None:
     with pytest.raises(NotDevelopmentError, match="DATABASE_URL") as caught:
@@ -65,6 +82,7 @@ def test_a_database_elsewhere_is_refused(host: str) -> None:
         "http://localhost.example.com:3000",
         "http://10.0.0.5:3000",
         "https://127.0.0.1.nip.io",
+        "http://localhost.:3000",  # passes Settings validation; the guard refuses the trailing dot
     ],
 )
 def test_an_origin_elsewhere_is_refused(origin: str) -> None:
@@ -113,3 +131,50 @@ def test_a_missing_host_is_refused_not_assumed_local() -> None:
         check_development(no_database_host)
     with pytest.raises(NotDevelopmentError, match="APP_ORIGIN"):
         check_development(no_origin_host)
+
+
+def _unvalidated(*, database_url: str, app_origin: str = "http://localhost:3000") -> Settings:
+    """Settings as they would be if built without validation, which is the only way a URL that
+    cannot be parsed reaches the guard."""
+    return Settings.model_construct(
+        app_env="local", app_origin=app_origin, database_url=SecretStr(database_url)
+    )
+
+
+@pytest.mark.parametrize(
+    "database_url",
+    [
+        f"not a url {PASSWORD}",  # SQLAlchemy raises ArgumentError, whose text quotes the URL
+        f"postgresql://app_api:{PASSWORD}@::1:54329/idraft",  # int() of a port raises ValueError
+    ],
+    ids=["argument-error", "value-error"],
+)
+def test_a_database_url_that_cannot_be_read_gets_the_generic_refusal(database_url: str) -> None:
+    with pytest.raises(NotDevelopmentError, match="DATABASE_URL could not be read") as caught:
+        check_development(_unvalidated(database_url=database_url))
+
+    message = str(caught.value)
+    assert PASSWORD not in message
+    assert "app_api" not in message
+    assert caught.value.__suppress_context__
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        f"http://user:{PASSWORD}@[bad",  # urlsplit raises ValueError: Invalid IPv6 URL
+        "http://localhost]:3000",
+        "http://[[::1]]:3000",
+        "http://[localhost]:3000",  # a bracket around a name is not an IPv6 literal
+    ],
+)
+def test_an_origin_that_cannot_be_read_gets_the_generic_refusal(origin: str) -> None:
+    settings = _unvalidated(
+        database_url=f"postgresql://app_api:{PASSWORD}@127.0.0.1:54329/idraft", app_origin=origin
+    )
+
+    with pytest.raises(NotDevelopmentError, match="APP_ORIGIN could not be read") as caught:
+        check_development(settings)
+
+    assert PASSWORD not in str(caught.value)
+    assert caught.value.__suppress_context__

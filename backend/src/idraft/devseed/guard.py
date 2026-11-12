@@ -20,6 +20,7 @@ from typing import Final
 from urllib.parse import urlsplit
 
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 from idraft.config.settings import Settings
 
@@ -32,7 +33,24 @@ class NotDevelopmentError(Exception):
 
 
 def _on_this_machine(host: str | None) -> bool:
-    return (host or "").strip("[]").lower() in LOOPBACK
+    # No bracket handling: `make_url` and `urlsplit` already unwrap the one pair around an IPv6
+    # literal, so a host that still carries a bracket (`[[::1]]`, `localhost]`) is not a loopback.
+    return (host or "").lower() in LOOPBACK
+
+
+def _database_host(settings: Settings) -> str | None:
+    try:
+        return make_url(settings.sqlalchemy_url).host
+    except (ArgumentError, ValueError):
+        # Never chain or quote the parser's error: SQLAlchemy's text includes the whole URL.
+        raise NotDevelopmentError("DATABASE_URL could not be read as a database URL.") from None
+
+
+def _origin_host(settings: Settings) -> str | None:
+    try:
+        return urlsplit(settings.app_origin).hostname
+    except ValueError:
+        raise NotDevelopmentError("APP_ORIGIN could not be read as a URL.") from None
 
 
 def check_development(settings: Settings) -> None:
@@ -40,12 +58,12 @@ def check_development(settings: Settings) -> None:
         raise NotDevelopmentError(
             f"APP_ENV is {settings.app_env}; the seed runs only where it is local."
         )
-    if not _on_this_machine(make_url(settings.sqlalchemy_url).host):
+    if not _on_this_machine(_database_host(settings)):
         raise NotDevelopmentError(
             "DATABASE_URL names a database that is not on this machine "
             "(localhost, 127.0.0.1 or ::1)."
         )
-    if not _on_this_machine(urlsplit(settings.app_origin).hostname):
+    if not _on_this_machine(_origin_host(settings)):
         raise NotDevelopmentError(
             "APP_ORIGIN is not on this machine (localhost, 127.0.0.1 or ::1)."
         )

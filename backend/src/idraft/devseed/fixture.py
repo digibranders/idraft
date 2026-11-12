@@ -161,6 +161,7 @@ class EventusFixture(_Strict):
         ]
         known = set(slugs)
         for prompt in self.prompts:
+            problems.extend(_repeats(f"topic in prompt {prompt.key}", prompt.topics))
             unknown = sorted(set(prompt.topics) - known)
             if unknown:
                 problems.append(f"prompt {prompt.key} names unknown topics {', '.join(unknown)}")
