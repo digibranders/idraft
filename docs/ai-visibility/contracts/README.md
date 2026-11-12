@@ -17,8 +17,10 @@ Brief: [WP-03](../work-packages/WP-03-contract-pack.md).
 | [annotations-notes.md](annotations-notes.md) | N9 annotations and N13 notes | `GET {P}/ai/annotations`, `GET` and `POST {P}/notes`, `DELETE {P}/notes/{note_id}` | [WP-38](../work-packages/WP-38-notes-annotations.md) |
 | [c12a-layouts.md](c12a-layouts.md) | C12a: team and personal page layouts | `GET {W}/layouts/{screen}`, `PUT` and `DELETE {W}/me/layouts/{screen}`, `PUT` and `DELETE {W}/layouts/{screen}/default` | [WP-11](../work-packages/WP-11-layouts-api.md) |
 
-14 new routes (all answer `501 not_implemented` after their access checks) and 11 built operations with
-optional additions (answer `501` when an addition is used). Owners follow MASTER-PLAN 3.3 (modules)
+14 new routes (all answered `501 not_implemented` after their access checks when published) and 11 built
+operations with optional additions (answer `501` when an addition is used). Update 2026-11-13: the five
+layout routes of C12a are built by WP-11 and no longer answer `501`; the other notes are still stubs
+until their owners build them. Owners follow MASTER-PLAN 3.3 (modules)
 and 3.6 (ownership). WP-03 edited the summary, prompt, lint and source models of other packages
 only additively (plan decision D4).
 
@@ -91,9 +93,9 @@ of `NOT_BUILT` by dropping `@not_built` and the `raise`; from then on the strict
 foreign child, `2xx` inside the scope, a list that shows the caller's own data). A body that still
 raises after the mark was dropped fails the suite, and a mark left on a built body does too.
 `test_the_published_contracts_are_the_not_built_routes` asserts that every marked route is a workspace
-route and, as a fixed example, that `GET {W}/layouts/{screen}` is marked and is not a child route: WP-11
-edits that one example when it builds the route (see the layouts note). Routes extended through
-`refuse_unbuilt` are ordinary routes and are not marked.
+route (the fixed layouts example this note once described no longer exists in the test; the layouts
+note says what WP-11 did).
+Routes extended through `refuse_unbuilt` are ordinary routes and are not marked.
 
 ## How an owner fills a note (all notes)
 

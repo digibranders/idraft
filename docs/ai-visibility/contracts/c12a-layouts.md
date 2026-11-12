@@ -2,15 +2,21 @@
 
 ## Status
 
-Published by WP-03 on 2026-11-13 as five new routes that answer `501 not_implemented` after their access
-checks. Owner package: [WP-11 layouts-api](../work-packages/WP-11-layouts-api.md) (MASTER-PLAN 3.3:
-`api/layouts/routes.py`; doc 19 section 3.11.5c; the layout spec sections 4, 6 and 9). The schemas are
-in `backend/src/idraft/api/schemas/ai_layouts.py`. Web consumers: WP-15 and WP-16.
+Built by WP-11 on 2026-11-13. Published by WP-03 on 2026-11-13 as five new routes that answered `501
+not_implemented` after their access checks; all five now answer as described below. Owner package:
+[WP-11 layouts-api](../work-packages/WP-11-layouts-api.md) (MASTER-PLAN 3.3: `api/layouts/routes.py`;
+doc 19 section 3.11.5c; the layout spec sections 4, 6 and 9). The schemas are in
+`backend/src/idraft/api/schemas/ai_layouts.py`, the service in `api/layouts/service.py`, the catalog
+check in `api/layouts/catalog.py`. Web consumers: WP-15 and WP-16.
 
 A layout belongs to the workspace and is the same in every project. Presets are code in the web app
-(owner decision D-01), so there is no preset route. No table is added by WP-03: WP-11 adds
-`core.layouts` (owner decision D-09: row-level security on the current user id plus the application
-check, both tested).
+(owner decision D-01), so there is no preset route. WP-11 added `core.layouts` (migration
+`0021_layouts`, doc 04 section 11.6a; owner decision D-09: row-level security on the current user id
+plus the application check, both tested).
+
+OPERATIONS NOTE: migration `0021_layouts` is new. The shared development database needs
+`alembic upgrade head`; this package does not run it (the coordinator does, with the ops session).
+Releases apply it forward-only.
 
 ## Routes and parameters
 
@@ -19,21 +25,44 @@ Paths start with `{W}` (`/api/v1/workspaces/{workspace_id}`); these routes have 
 | Method | Path | Permission | Success |
 |---|---|---|---|
 | GET | `{W}/layouts/{screen}` | any member | `200 ResolvedLayoutResponse`, with an `ETag` |
-| PUT | `{W}/me/layouts/{screen}` | any member | `200 ResolvedLayoutResponse` |
-| DELETE | `{W}/me/layouts/{screen}` | any member | `204`, no body |
-| PUT | `{W}/layouts/{screen}/default` | `layouts:manage` (owner, admin; D-11) | `200 ResolvedLayoutResponse` |
+| PUT | `{W}/me/layouts/{screen}` | any member, session only | `200 ResolvedLayoutResponse`, with the new `ETag` |
+| DELETE | `{W}/me/layouts/{screen}` | any member, session only | `204`, no body |
+| PUT | `{W}/layouts/{screen}/default` | `layouts:manage` (owner, admin only; D-11) | `200 ResolvedLayoutResponse`, with the new `ETag` |
 | DELETE | `{W}/layouts/{screen}/default` | `layouts:manage` | `204`, no body |
 
 Common parameters:
 
 | Parameter | In | Type | Bounds | Meaning |
 |---|---|---|---|---|
-| `screen` | path | string | 1 to 64, `^[a-z_]+(\.[a-z_]+)?$` | A screen key (layout spec section 4); an unknown one is `404` (WP-11 checks it). |
-| `If-Match` | header, `PUT` only | string | up to 128 characters | The `ETag` of the layout as read: required when one exists, `412 precondition_failed` when it changed. Declared optional here. |
+| `screen` | path | string | 1 to 64, `^[a-z_]+(\.[a-z_]+)?$` | A screen key (layout spec section 4); a key that is not one of the 12 below is `404`. |
+| `If-Match` | header, `PUT` only | string | up to 128 characters | The `ETag` of the layout as read: required when the target layout exists, `412 precondition_failed` when it is missing or stale. Declared optional in the OpenAPI document, because a first save needs none. Resolved by WP-11 (see Open choices). |
 
-The screens the response names (`LayoutScreen`): `overview`, `ai_overview`, `rankings`, `prompts`,
-`citations`, `sources`, `pages`, `inspector.keyword`, `inspector.prompt`, `inspector.page`,
-`inspector.citation`.
+The screens the API accepts and the response names (`LayoutScreen`): `overview`, `ai_overview`,
+`rankings`, `prompts`, `citations`, `sources`, `pages`, `inspector.keyword`, `inspector.prompt`,
+`inspector.page`, `inspector.citation` and `inspector.topic` (added by WP-11, 2026-11-13, owner
+decision D-16).
+
+### How WP-11 built it
+
+- `ETag`: strong and opaque, `"` plus the first 32 hex characters of the SHA-256 of `<personal id>:<personal
+  updated_at>|<team id>:<team updated_at>` (`-` for a missing row) plus `"`. It covers the caller's
+  personal layout and the team default of the screen, so one `GET` serves both `PUT` routes. Every
+  `PUT` answers with the new `ETag`; `DELETE` sends none.
+- `If-Match`, when sent, must equal the current `ETag`; when absent, the target row (personal, or the
+  team default on the team route) must not exist. A first save needs no `If-Match`. Either failure is
+  `412 precondition_failed` (doc 19 has no `428`). The `DELETE` routes take no `If-Match`.
+- Writers of one screen of one workspace take turns (a transaction advisory lock), so of two racing
+  saves one wins and the other is `412`.
+- Saving the stored document again writes nothing and audits nothing; a `DELETE` answers `204` also when
+  nothing was there.
+- A stored value that is not a valid layout document counts as absent on read; a stored document is
+  answered as stored (the web app sanitizes).
+- A screen the catalog JSON does not list yet takes only an empty document. The catalog is
+  `backend/src/idraft/api/layouts/catalog.json`, generated by `pnpm gen:layout-catalog` in `apps/web`
+  and checked fresh by a test on each side.
+- Session only: no API key authentication exists yet, so no API key can call these routes.
+- Audit entries (`layout.default.set`, `layout.default.remove`): `target_type` `layout`, `target_id` the
+  row id, `before` and `after` are `{"screen": ..., "document": {...}}` (null on the missing side).
 
 ### Request body of both `PUT` routes: `LayoutDocument`
 
@@ -82,34 +111,35 @@ The `PUT` routes answer the layout as it now resolves. The team default is audit
 | Status | Code | When |
 |---|---|---|
 | 401 | `unauthenticated` | No session. |
-| 404 | `not_found` | Not a member of the workspace; once built, an unknown `screen`. |
-| 403 | `forbidden` | The team default routes: the role lacks `layouts:manage`. |
-| 403 | `workspace_suspended` | A write in a suspended workspace. |
-| 412 | `precondition_failed` | A later body: `If-Match` is not the layout's current ETag. What a missing `If-Match` answers when a layout exists is WP-11's to fix (the header text says required). |
+| 404 | `not_found` | Not a member of the workspace; a `screen` that is not one of the 12 keys. |
+| 403 | `forbidden` | The team default routes: the role lacks `layouts:manage` (owner and admin only). |
+| 403 | `workspace_suspended` | A write in a suspended workspace (also a `DELETE`). |
+| 412 | `precondition_failed` | `If-Match` is not the current ETag ("This layout was changed somewhere else."), or it is missing while the target layout exists ("This layout exists: send its ETag in If-Match."). |
 | 422 | `validation_failed` | A value outside its bounds: a `screen` that is not a key, a bad `schema`, an unknown member, more than 12 cards or 6 numbers, a bad `id`, `type` or `metric` token, a bad `width`, an option key or value out of bounds, an `engine` outside `EngineCode`. The `errors` list carries field paths. |
-| 422 | `validation_failed` (later body) | A card type or metric key not in the catalog for the screen, a width the screen does not allow, a missing `engine` for an AI metric, a document over 16 KB. |
-| 501 | `not_implemented` | All five routes, until WP-11 builds them. |
+| 422 | `validation_failed` (catalog) | All problems of one request in one answer: `not_on_screen` at `numbers` or `cards`, `not_in_catalog` at `numbers.N.metric` or `cards.N.type`, `width_not_allowed` at `cards.N.width`, `required` (an AI metric without `engine`) and `not_applicable` (an `engine` on a metric that is not per engine) at `numbers.N.engine`, `too_large` at the body (empty path) over 16384 bytes. |
 
-Order: 401, 404, 403, 422 (path, header and body values), then `501`. The stubs check the document's
-shape and bounds only, not the catalog or the screen's existence.
+Order: 401, 404 (not a member), 403 (suspended workspace, or the role), 422 (path, header and body
+values), 404 (unknown screen), 422 (size, then catalog), 412.
 
 ## Example
 
-The `501` body is in the [README](README.md). The responses show what WP-11 will return. The card types,
-metric keys and options below are made up; the catalog decides them (D-10).
+The `501` body (the stubs' answer, no longer returned by these routes) is in the [README](README.md).
+The examples use the `overview` screen, whose catalog allows these card types and metric keys today
+(`ai_overview` takes only an empty document until WP-15 adds its cards to the catalog, D-10). Ids,
+names and the `ETag` value are made up; the options are not checked by the API.
 
 ### Read: nothing saved yet
 
 ```http
-GET {W}/layouts/ai_overview
+GET {W}/layouts/overview
 ```
 
-`200`, with an `ETag` header (its format is WP-11's):
+`200`, with an `ETag` header such as `ETag: "9f2c41d07b3a8e5516c0d4e7a2b8f903"`:
 
 ```json
 {
   "data": {
-    "screen": "ai_overview",
+    "screen": "overview",
     "source": "builtin",
     "document": null,
     "team_default_exists": false,
@@ -122,8 +152,8 @@ GET {W}/layouts/ai_overview
 ### Save the caller's own layout
 
 ```http
-PUT {W}/me/layouts/ai_overview
-If-Match: "5d1e8a"
+PUT {W}/me/layouts/overview
+If-Match: "9f2c41d07b3a8e5516c0d4e7a2b8f903"
 ```
 
 ```json
@@ -142,7 +172,7 @@ If-Match: "5d1e8a"
 ```json
 {
   "data": {
-    "screen": "ai_overview",
+    "screen": "overview",
     "source": "personal",
     "document": {
       "schema": 1,
@@ -162,7 +192,7 @@ If-Match: "5d1e8a"
 ### Go back to the team or built-in default
 
 ```http
-DELETE {W}/me/layouts/ai_overview
+DELETE {W}/me/layouts/overview
 ```
 
 `204`, no body.
@@ -170,8 +200,8 @@ DELETE {W}/me/layouts/ai_overview
 ### Save the team default (needs `layouts:manage`)
 
 ```http
-PUT {W}/layouts/ai_overview/default
-If-Match: "5d1e8a"
+PUT {W}/layouts/overview/default
+If-Match: "9f2c41d07b3a8e5516c0d4e7a2b8f903"
 ```
 
 The body is the same `LayoutDocument` as above. `200`:
@@ -179,7 +209,7 @@ The body is the same `LayoutDocument` as above. `200`:
 ```json
 {
   "data": {
-    "screen": "ai_overview",
+    "screen": "overview",
     "source": "team",
     "document": {
       "schema": 1,
@@ -199,24 +229,34 @@ The body is the same `LayoutDocument` as above. `200`:
 ### Remove the team default (needs `layouts:manage`)
 
 ```http
-DELETE {W}/layouts/ai_overview/default
+DELETE {W}/layouts/overview/default
 ```
 
 `204`, no body.
 
 ## Open choices
 
-Each row can be tightened by WP-11 through the change log.
+Each row could be tightened by WP-11 through the change log. The last column says what WP-11 decided
+(2026-11-13).
 
-| Q | Question | Choice | Why |
-|---|---|---|---|
-| Q20 | `{screen}` as an enum (`422`) or a string (`404` when unknown) | A bounded string; unknown is `404` (WP-11) | Doc 19 says `404 unknown screen`. |
-| Q21 | Card type and metric keys as enums | Bounded strings checked against the generated catalog JSON by WP-11 | The catalog grows per card (LD 7.4); an enum would change the contract each time. |
-| Q22 | Bounds of `options` | Keys `^[a-z0-9_]+$` up to 64, values up to 256 printable characters | D7; loosening later is additive. |
-| Q23 | Item `id` pattern | `^[A-Za-z0-9_-]{1,64}$` | LD's own definition of a plain token. |
-| D7 | Other bounds | 12 cards, 6 numbers, 16 KB, `If-Match` up to 128, `screen` up to 64 | House rule: bounded lists and strings. |
+| Q | Question | Choice | Why | Resolved by WP-11 |
+|---|---|---|---|---|
+| Q20 | `{screen}` as an enum (`422`) or a string (`404` when unknown) | A bounded string; unknown is `404` (WP-11) | Doc 19 says `404 unknown screen`. | Resolved: a key outside the 12 of `LayoutScreen` is `404` on all five routes. |
+| Q21 | Card type and metric keys as enums | Bounded strings checked against the generated catalog JSON by WP-11 | The catalog grows per card (LD 7.4); an enum would change the contract each time. | Resolved: checked against `api/layouts/catalog.json`, codes in the error table. |
+| Q22 | Bounds of `options` | Keys `^[a-z0-9_]+$` up to 64, values up to 256 printable characters | D7; loosening later is additive. | Unchanged: the API checks the shape only, each card type checks its own options in the web app. |
+| Q23 | Item `id` pattern | `^[A-Za-z0-9_-]{1,64}$` | LD's own definition of a plain token. | Unchanged; duplicate ids are not checked (the web app replaces them). |
+| D7 | Other bounds | 12 cards, 6 numbers, 16 KB, `If-Match` up to 128, `screen` up to 64 | House rule: bounded lists and strings. | Unchanged; the 16 KB is measured on the stored compact JSON text and backed by a table check. |
+| ETag | The `ETag` format (open in the stubs) | Left to WP-11 | | Resolved: strong, opaque, 32 hex characters in quotes, covering the personal layout and the team default of the screen. |
+| Missing `If-Match` | What a `PUT` without `If-Match` answers when a layout exists | Left to WP-11 | | Resolved: `412 precondition_failed`; a first save (no target row) needs no header. |
+| Suspended | `workspace_suspended` on writes | `403` on a write in a suspended workspace | | Resolved: applies to all four writes, `DELETE` included; reads stay open. |
 
 ## How the owner package fills it
+
+Done by WP-11 on 2026-11-13; the steps stay as the record of what a package does. Differences: the
+`test_the_published_contracts_are_the_not_built_routes` test no longer asserts a fixed example (WP-03
+reduced it to "every `NOT_BUILT` route is a workspace route"), so step 3 had no example to edit; the
+`COUNT_ROUTES` line of step 3 belongs to the cross-tenant task of the WP-11 plan (T6), not to this
+note's commit; and the web side added `pnpm gen:layout-catalog` and its freshness test.
 
 1. In `api/layouts/routes.py` drop `@not_built` and `raise not_built_yet()` (`idraft.api.stubs`) from the
    five functions; add `core.layouts` with row-level security (D-09), the catalog check (D-10), the
@@ -238,3 +278,8 @@ Each row can be tightened by WP-11 through the change log.
 Newest last; one line per change, in the form `date package: change`.
 
 2026-11-13 WP-03: contract published
+2026-11-13 WP-11: built; `inspector.topic` added to `LayoutScreen` (D-16), an added response value
+2026-11-13 WP-11: route descriptions no longer say `Not built yet`; the team routes say owner and admin only; no response shape changed
+2026-11-13 WP-11: `ETag` covers the caller's personal layout and the team default; `If-Match` required once the target exists; missing or stale is `412`; a first save needs none
+2026-11-13 WP-11: catalog checks with codes `not_on_screen`, `not_in_catalog`, `width_not_allowed`, `required`, `not_applicable` (an engine on a non AI number: a tightening), `too_large`
+2026-11-13 WP-11: `DELETE` answers `204` also when nothing was there; no audit entry then
