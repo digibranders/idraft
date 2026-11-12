@@ -11,7 +11,7 @@
 #   --wait   give up after MIN minutes in the queue, exit 75 (default 60)
 #   --max    kill the command's process group after MIN minutes, exit 124 (default 40)
 #
-# Exit codes: the command's own code; 64 usage; 75 gave up waiting; 124 run timeout; 130 INT; 143 TERM.
+# Exit codes: the command's own code; 64 usage; 75 gave up waiting; 124 run timeout; 129 HUP; 130 INT; 143 TERM.
 #
 # State lives in <git common dir>/idraft-locks/<lane>/: slot-N directories taken with mkdir, and a
 # tickets/ directory with one file per waiter. Dead waiters and dead jobs are swept on every poll. While

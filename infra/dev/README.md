@@ -111,10 +111,11 @@ heavy job. When both lanes are idle and `pgrep -f 'bash.*infra/ship.sh'` prints 
 ## Self-test
 
 ```bash
-infra/dev/heavy --lane medium --label wp-00-selftest -- bash infra/test/dev-heavy.sh [all|heavy|wp-status|wp-start]
+infra/dev/heavy --label wp-00-selftest -- bash infra/test/dev-heavy.sh [all|heavy|wp-status|wp-start]
 ```
 
-It sets its own lock root, so it does not collide with the lock that runs it. `TEST_BASH` picks the bash that
+It sets its own lock root, so it does not collide with the lock that runs it. Run it in the heavy lane: two
+copies at once count each other's watchdog processes and fail. `TEST_BASH` picks the bash that
 runs the scripts under test.
 
 ## Known limits
@@ -124,3 +125,24 @@ runs the scripts under test.
 - A `kill -9` of the wrapper skips its cleanup. The slot stays held while the command's group is alive, and
   frees itself once the group is gone. The watchdog of that run exits at the same moment.
 - If the OS reuses the pid of a dead waiter, its ticket stays queued until that process exits.
+
+## As built (WP-00)
+
+Built as `heavy`, `wp-status`, `wp-start` and the self-test `infra/test/dev-heavy.sh` (44 tests, about 35 s, run
+under `/bin/bash` 3.2 and bash 5). The package changes no backend or web code, so docs 19 and 29 take no note.
+
+Decisions taken:
+
+- Nanosecond ticket names come from `perl` (`Time::HiRes`), not `python3`: on a clean Mac `python3` is the Xcode
+  stub, which can open an install dialog.
+- A slot is held while its wrapper pid (checked with its `ps` start time, against pid reuse) or its command's
+  process group is alive. Reaping renames the slot first, then judges the renamed copy, then removes it.
+- The watchdog polls once a second and leaves when the wrapper and the group are both gone.
+- `wp-start` creates branches with `--no-track`, so a bare `git push` cannot reach `develop`, and allows one
+  branch per package. It finds the repository from the current directory.
+- The status line uses `tasks`, as MASTER-PLAN 6.4 does, not the `steps` of the WP-00 brief.
+- All tests are in one file, as the brief names one self-test.
+
+Not covered: pid reuse for tickets, a TERM sent to a waiting wrapper (acted on after the current poll, up to 5 s), nesting `heavy` in the same lane, `infra/ship.sh` taking the lock by itself,
+Linux `stat` and `ps` differences (only this Mac runs it), a branch named like a tag in `wp-status`, and a
+`wp-start` clone whose `remote.origin.fetch` does not cover `develop`.
