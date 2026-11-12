@@ -8,10 +8,11 @@ D-09); the policy `layouts_owner` is the database half.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import delete, func, insert, literal, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.db.tables import layouts, users
@@ -59,3 +60,75 @@ async def stored_layouts(
     personal = next((row for row in found if row.owner_user_id is not None), None)
     team = next((row for row in found if row.owner_user_id is None), None)
     return personal, team
+
+
+async def lock_screen(db: AsyncSession, workspace_id: UUID, screen: str) -> None:
+    """Writers of one screen of one workspace take turns until the transaction ends, so a read,
+    its If-Match comparison and the write are never overtaken (plan decision L8)."""
+    await db.execute(
+        select(
+            func.pg_advisory_xact_lock(
+                func.hashtextextended(literal(f"layouts:{workspace_id}:{screen}"), 0)
+            )
+        )
+    )
+
+
+async def insert_layout(
+    db: AsyncSession,
+    workspace_id: UUID,
+    owner_user_id: UUID | None,
+    screen: str,
+    document: dict[str, Any],
+    user_id: UUID,
+) -> UUID:
+    layout_id: UUID = (
+        await db.execute(
+            insert(layouts)
+            .values(
+                workspace_id=workspace_id,
+                owner_user_id=owner_user_id,
+                screen=screen,
+                document=document,
+                schema_version=document["schema"],
+                updated_by=user_id,
+            )
+            .returning(layouts.c.id)
+        )
+    ).scalar_one()
+    return layout_id
+
+
+async def update_layout(
+    db: AsyncSession, workspace_id: UUID, layout_id: UUID, document: dict[str, Any], user_id: UUID
+) -> None:
+    await db.execute(
+        update(layouts)
+        .where(layouts.c.workspace_id == workspace_id, layouts.c.id == layout_id)
+        .values(
+            document=document,
+            schema_version=document["schema"],
+            updated_by=user_id,
+            updated_at=datetime.now(UTC),
+        )
+    )
+
+
+async def delete_layout(
+    db: AsyncSession, workspace_id: UUID, owner_user_id: UUID | None, screen: str
+) -> tuple[UUID, object] | None:
+    """Removes the caller's personal layout, or the team default for `owner_user_id=None`; the
+    id and the document removed, or None."""
+    owner = (
+        layouts.c.owner_user_id.is_(None)
+        if owner_user_id is None
+        else layouts.c.owner_user_id == owner_user_id
+    )
+    row = (
+        await db.execute(
+            delete(layouts)
+            .where(layouts.c.workspace_id == workspace_id, layouts.c.screen == screen, owner)
+            .returning(layouts.c.id, layouts.c.document)
+        )
+    ).one_or_none()
+    return None if row is None else (row.id, row.document)

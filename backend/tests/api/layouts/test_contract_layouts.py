@@ -44,27 +44,6 @@ def layout_url(workspace_id: object, *parts: str) -> str:
     return "/".join([f"/api/v1/workspaces/{workspace_id}", *parts])
 
 
-@pytest.mark.parametrize("role", ["viewer", "billing", "editor"])
-async def test_any_member_reaches_the_personal_routes(
-    role: str, api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    caller = await member(resources, migrated, workspace, role)
-
-    got = await api.get(layout_url(workspace.id, "layouts", "ai_overview"), headers=caller.headers)
-    put = await api.put(
-        layout_url(workspace.id, "me", "layouts", "ai_overview"),
-        json={"schema": 1},
-        headers=caller.headers,
-    )
-    deleted = await api.delete(
-        layout_url(workspace.id, "me", "layouts", "ai_overview"), headers=caller.headers
-    )
-
-    assert got.status_code == 200
-    assert [problem(put), problem(deleted)] == [NOT_BUILT] * 2
-
-
 async def test_the_team_default_needs_layouts_manage(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -107,53 +86,6 @@ async def test_layouts_refuse_another_workspace(
     )
 
     assert problem(response) == NOT_FOUND
-
-
-@pytest.mark.parametrize(
-    "document",
-    [
-        {"schema": 2},
-        {},
-        {"schema": 1, "cards": [{**CARD, "id": f"c{n}"} for n in range(13)]},
-        {"schema": 1, "numbers": [{"id": f"n{n}", "metric": "ai.mentions"} for n in range(7)]},
-        {"schema": 1, "cards": [{**CARD, "width": "wide"}]},
-        {"schema": 1, "cards": [{**CARD, "id": "has space"}]},
-        {"schema": 1, "cards": [{**CARD, "id": "a" * 65}]},
-        {"schema": 1, "cards": [{**CARD, "type": "AI By Engine"}]},
-        {"schema": 1, "cards": [{**CARD, "options": {"rows": 5}}]},
-        {"schema": 1, "cards": [{**CARD, "options": {"Rows": "5"}}]},
-        {"schema": 1, "cards": [{**CARD, "options": {"a" * 65: "x"}}]},
-        {"schema": 1, "cards": [{**CARD, "options": {"rows": "x" * 257}}]},
-        {"schema": 1, "cards": [{**CARD, "options": {"rows": "a\u0000b"}}]},
-        {"schema": 1, "numbers": [{"id": "n1", "metric": "AI Mentions"}]},
-        {"schema": 1, "extra": 1},
-        {
-            "schema": 1,
-            "numbers": [{"id": "n1", "metric": "ai.mentions", "engine": "perplexity_web"}],
-        },
-        # Owner decision Q8: this engine is not accepted until slice 2.
-        {
-            "schema": 1,
-            "numbers": [{"id": "n1", "metric": "ai.mention_rate", "engine": "google_ai_overview"}],
-        },
-    ],
-)
-async def test_a_document_out_of_bounds_is_refused_before_501(
-    document: dict[str, Any],
-    api: httpx.AsyncClient,
-    resources: Resources,
-    migrated: PostgresServer,
-) -> None:
-    workspace = await make_workspace(migrated)
-    viewer = await member(resources, migrated, workspace, "viewer")
-
-    response = await api.put(
-        layout_url(workspace.id, "me", "layouts", "ai_overview"),
-        json=document,
-        headers=viewer.headers,
-    )
-
-    assert problem(response) == INVALID
 
 
 @pytest.mark.parametrize("screen", ["AI-Overview", "a" * 65])

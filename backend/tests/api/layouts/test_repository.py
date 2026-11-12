@@ -10,10 +10,12 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from idraft.api.layouts.repository import stored_layouts
+from idraft.api.layouts.repository import delete_layout, stored_layouts
 from idraft.config.settings import to_sqlalchemy_url
+from idraft.db.tables import layouts
 from tests.api.auth.support import add_member, make_user, make_workspace
 from tests.api.layouts.support import DOCUMENT, insert_layout
 from tests.conftest import PostgresServer
@@ -65,6 +67,55 @@ async def test_the_read_names_the_screen_without_row_security(
     personal, team = await stored_layouts(owner_db, workspace.id, a.id, "overview")
 
     assert (personal and personal.id, team and team.id) == (overview_personal, overview_team)
+
+
+async def test_a_delete_reaches_only_the_callers_row_without_row_security(
+    migrated: PostgresServer, owner_db: AsyncSession
+) -> None:
+    here = await make_workspace(migrated)
+    there = await make_workspace(migrated)
+    a = await make_user(migrated)
+    b = await make_user(migrated)
+    for workspace in (here, there):
+        await add_member(migrated, workspace, a, "editor")
+        await add_member(migrated, workspace, b, "editor")
+    a_row = await insert_layout(migrated, here.id, a.id, "overview", DOCUMENT, a.id)
+    kept = [
+        await insert_layout(migrated, here.id, b.id, "overview", DOCUMENT, b.id),
+        await insert_layout(migrated, here.id, None, "overview", DOCUMENT, a.id),
+        await insert_layout(migrated, here.id, a.id, "rankings", DOCUMENT, a.id),
+        await insert_layout(migrated, there.id, a.id, "overview", DOCUMENT, a.id),
+    ]
+
+    removed = await delete_layout(owner_db, here.id, a.id, "overview")
+    again = await delete_layout(owner_db, here.id, a.id, "overview")
+
+    assert removed is not None
+    assert removed[0] == a_row
+    assert again is None
+    left = await owner_db.execute(
+        select(layouts.c.id).where(layouts.c.workspace_id.in_([here.id, there.id]))
+    )
+    assert sorted(left.scalars().all()) == sorted(kept)
+
+
+async def test_a_delete_of_the_team_default_leaves_personal_rows(
+    migrated: PostgresServer, owner_db: AsyncSession
+) -> None:
+    workspace = await make_workspace(migrated)
+    a = await make_user(migrated)
+    await add_member(migrated, workspace, a, "editor")
+    personal = await insert_layout(migrated, workspace.id, a.id, "overview", DOCUMENT, a.id)
+    team_row = await insert_layout(migrated, workspace.id, None, "overview", DOCUMENT, a.id)
+
+    removed = await delete_layout(owner_db, workspace.id, None, "overview")
+
+    assert removed is not None
+    assert removed[0] == team_row
+    left = await owner_db.execute(
+        select(layouts.c.id).where(layouts.c.workspace_id == workspace.id)
+    )
+    assert left.scalars().all() == [personal]
 
 
 async def test_the_read_names_the_workspace_without_row_security(

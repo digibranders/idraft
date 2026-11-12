@@ -16,9 +16,10 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.layouts import repository
-from idraft.api.layouts.catalog import SCREENS
+from idraft.api.layouts.catalog import SCREENS, stored_document
 from idraft.api.layouts.repository import StoredLayout
-from idraft.api.problems import NotFoundError
+from idraft.api.problems import NotFoundError, PreconditionFailedError
+from idraft.api.request_info import RequestInfo
 from idraft.api.schemas.ai_layouts import LayoutDocument, LayoutEditor, ResolvedLayout
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
@@ -75,6 +76,15 @@ def known(screen: str) -> None:
         raise NotFoundError
 
 
+def precondition(if_match: str | None, current: str, target: StoredLayout | None) -> None:
+    """`If-Match`, when sent, is the current ETag; without it the layout must not exist yet."""
+    if if_match is None:
+        if target is not None:
+            raise PreconditionFailedError("This layout exists: send its ETag in If-Match.")
+    elif if_match.strip() != current:
+        raise PreconditionFailedError("This layout was changed somewhere else.")
+
+
 class LayoutService:
     def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
@@ -90,3 +100,54 @@ class LayoutService:
                 db, access.workspace_id, access.user_id, screen
             )
         return resolved(screen, personal, team)
+
+    async def save(
+        self,
+        access: WorkspaceAccess,
+        screen: str,
+        body: LayoutDocument,
+        if_match: str | None,
+        *,
+        team: bool,
+        info: RequestInfo,
+    ) -> Resolved:
+        known(screen)
+        document = stored_document(screen, body)
+        async with self._transaction(access) as db:
+            await repository.lock_screen(db, access.workspace_id, screen)
+            personal, team_row = await repository.stored_layouts(
+                db, access.workspace_id, access.user_id, screen
+            )
+            target = team_row if team else personal
+            precondition(if_match, etag(personal, team_row), target)
+            if target is None or target.document != document:
+                if target is None:
+                    layout_id = await repository.insert_layout(
+                        db,
+                        access.workspace_id,
+                        None if team else access.user_id,
+                        screen,
+                        document,
+                        access.user_id,
+                    )
+                else:
+                    layout_id = target.id
+                    await repository.update_layout(
+                        db, access.workspace_id, layout_id, document, access.user_id
+                    )
+                # T4 adds the audit entry here for `team`.
+                personal, team_row = await repository.stored_layouts(
+                    db, access.workspace_id, access.user_id, screen
+                )
+        return resolved(screen, personal, team_row)
+
+    async def remove(
+        self, access: WorkspaceAccess, screen: str, *, team: bool, info: RequestInfo
+    ) -> None:
+        known(screen)
+        async with self._transaction(access) as db:
+            await repository.lock_screen(db, access.workspace_id, screen)
+            await repository.delete_layout(
+                db, access.workspace_id, None if team else access.user_id, screen
+            )
+            # T4 adds the audit entry here for `team`.

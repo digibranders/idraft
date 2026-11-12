@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Header, Path, Response
 
 from idraft.api.layouts.service import LayoutService, Resolved
 from idraft.api.permissions import Permission
+from idraft.api.request_info import Info
 from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai_layouts import LayoutDocument, ResolvedLayoutResponse
 from idraft.api.stubs import not_built, not_built_yet
@@ -73,25 +74,34 @@ async def get_layout(
     "/me/layouts/{screen}",
     summary="Save the caller's own layout of a screen",
     description="Card types and metric keys of the catalog for the screen, allowed widths, at "
-    "most 12 cards and 6 numbers, at most 16 KB (`422 validation_failed` with field paths)."
-    + _NOT_BUILT,
+    "most 12 cards and 6 numbers, at most 16 KB (`422 validation_failed` with field paths). "
+    "`If-Match` is required once the caller has a layout of the screen; a missing or stale one "
+    "is `412 precondition_failed`. Answers the layout as it now resolves, with its new `ETag`.",
 )
-@not_built
 async def put_personal_layout(
-    screen: Screen, body: LayoutDocument, access: MemberAccess, if_match: IfMatch = None
+    screen: Screen,
+    body: LayoutDocument,
+    access: MemberAccess,
+    layouts: Layouts,
+    info: Info,
+    response: Response,
+    if_match: IfMatch = None,
 ) -> ResolvedLayoutResponse:
-    raise not_built_yet()
+    found = await layouts.save(access, screen, body, if_match, team=False, info=info)
+    return answer(found, response)
 
 
 @router.delete(
     "/me/layouts/{screen}",
     status_code=204,
     summary="Go back to the team or built-in default",
-    description=_NOT_BUILT.strip(),
+    description="`204` also when there was nothing to remove.",
 )
-@not_built
-async def delete_personal_layout(screen: Screen, access: MemberAccess) -> Response:
-    raise not_built_yet()
+async def delete_personal_layout(
+    screen: Screen, access: MemberAccess, layouts: Layouts, info: Info
+) -> Response:
+    await layouts.remove(access, screen, team=False, info=info)
+    return Response(status_code=204)
 
 
 @router.put(
