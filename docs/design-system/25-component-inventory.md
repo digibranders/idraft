@@ -1347,6 +1347,8 @@ interface CountTabsProps<TValue extends string> {
 - **Use:** event-type filters above `EventTimeline` on full pages and in the inspector, and above full event lists.
 - **Not for:** switching panels (`Tabs`), a single-choice view option (`SegmentedControl`), page filters (`FilterBar`).
 
+> As built (WP-08): the file is `apps/web/src/components/app/feed/count-tabs.tsx`, not `ui/count-tabs.tsx`. It is a toolbar of `aria-pressed` buttons with one Tab stop and arrow-key movement; each label carries its count ("Lost sources, 3"), the pressed item is `type-body-strong` with a primary fill, pressing All when it is already pressed does nothing, and a disabled item stays focusable (`aria-disabled`) and gives its reason through a tooltip. A value that matches no item leaves nothing pressed and sets `data-unmatched-value` on the toolbar.
+
 ## 4. Form components
 
 Layout, validation timing, error copy and server error mapping are in [10-forms.md](10-forms.md) §3, §18, §19 and §23. Every field control below is rendered inside `FormField` (react-hook-form) or, for inline and non-form uses, inside the Field parts directly.
@@ -2917,6 +2919,8 @@ interface DomainCellProps {
 - **Variants:** none. **States:** favicon loaded, placeholder square, redirect flag (`TriangleAlert`), truncated subdomain (registrable part always visible).
 - **A11y:** favicon `alt=""`; row header when it is the identity column. **Use:** `col.domain`. **Not for:** full URLs (`URLCell`), citation source rows (`SourceDomainCell` preset).
 
+> As built (WP-08): the file is `apps/web/src/components/app/cells/domain-cell.tsx`, with `DomainRoleBadge` and `Favicon` beside it. The role prop is `role` (`own`, `competitor`, `third_party`); it is never spread onto a DOM element, but `jsx-a11y/aria-role` flags a literal `role="own"`, so callers pass a typed constant. The icon is a `favicon` prop (`show`, `hide` or absent for no slot) because the project setting does not exist yet; the host is always visible beside it, the request carries only the normalized registrable domain, and a host the normalizer refuses is never requested. The role is a neutral badge word. Bidi controls in host text are neutralised (`visible-text.ts`), the prefix shrinks first and the registrable domain stays, and the category is sr-only text outside the link.
+
 ### 8.9 URLCell
 `app/cells/url-cell.tsx` · V1 · [12 §6](12-tables.md), [22 §5](22-content-formatting.md)
 
@@ -2933,6 +2937,8 @@ interface URLCellProps {
 
 - **Variants:** none. **States:** valid, invalid URL (raw string with `warning-text` icon, "Invalid URL" tooltip), empty, focused (widget mode reaches Copy and Open).
 - **A11y:** buttons "Copy ranking URL" and "Open /pricing in a new tab" (24 px); tooltip shows the full display URL. **Use:** `col.url`. **Not for:** domains (`DomainCell`), ranking URL with target logic (`RankingURLCell`).
+
+> As built (WP-08): the file is `apps/web/src/components/app/cells/url-cell.tsx`. It takes the API's URL string and shows the display URL with the host always visible; an address a browser would run as script (`javascript:`, `data:`, `vbscript:`), one with credentials (including the `https://google.com@evil.com/` decoy) or a protocol-relative one is shown as plain text with the "Invalid URL" warning and no link. Hostile text is always React text. The link names carry the host and path, an external Open link is a plain `<a>` with `rel="noopener noreferrer nofollow"`, and a link to an inspector is a typed `Route`. `CopyButton` has a new `inGrid` prop (default true, unchanged): `URLCell` passes `inGrid={context === 'grid'}`, so Copy is a Tab stop in a list, a drawer or a card and keeps `tabindex` -1 in a grid.
 
 ### 8.10 SparklineCell
 `app/sparkline/sparkline-cell.tsx` · V1 · [12 §6](12-tables.md), [15 §9](15-data-visualization.md)
@@ -3716,6 +3722,8 @@ interface ChangeFeedProps { items: readonly ChangeFeedItem[]; totalText: string;
 - **Variants:** none. Each group (Needs attention, Changes, Notices) has a 48 px header row: name in `type-subsection-title` plus the count in `type-meta` ("Needs attention · 3"). Rows 36 px: time (`type-meta num`), 16 px glyph (`TrendingUp` in `positive-text` or `TrendingDown` in `negative-text` for rank moves, `foreground-tertiary` otherwise), sentence in `type-body` with entity names in weight 500 and links in `primary-text`, neutral type `Badge`, source in `type-meta`, right-aligned "View" link. **States:** items, empty ("No detectable changes in the last 28 days"), anomaly hold notice line.
 - **A11y:** group headers with counts; each item a link to its evidence. **Use:** Overview only. **Not for:** per-object history (`EventTimeline`); undetectable AI changes (excluded).
 
+> As built (WP-08): the files are `apps/web/src/components/app/feed/change-feed.tsx`, `feed-row.tsx` and `feed-model.ts`. The group wrappers are plain `div`s around lists named by their heading (the frame is the only `section`). `FeedRow` has a compact form (a 128 px relative time, the sentence, the change in a fixed slot) and a full form (fixed time, badge and source slots on every row, so columns never shift; the badge is hidden below 448 px and its words stay in the sr-only text). A change is text first and coloured only by `Delta` when detectable. The state is one of loading, empty, error, ready or refetching, with `notice` for stale and partial data and `hold` for days that are not compared; rows that arrive are announced through the page announcer, counting only the rows shown, and the error state takes the caller's title and reason.
+
 ### 12.3 SeverityIcon (SeverityLabel)
 `app/status/severity.tsx` · V1 · [18 §2](18-notifications-alerts.md)
 
@@ -4390,6 +4398,8 @@ interface DomainChipListProps {
 - **A11y:** `ul` named by `label`; chips with `href` are links; the overflow chip is a button named "2 more cited domains" that opens a `Popover` listing them.
 - **Use:** cited sources in the prompt and answer inspectors and in evidence headers.
 - **Not for:** filters (`FilterChip`), removable values (`Tag`), table cells (`DomainCell`), categorical metadata (`Badge`).
+
+> As built (WP-08): the files are `apps/web/src/components/app/cells/domain-chip.tsx` (`DomainChip`, `DomainChipList`, three chips by default and a "+N" button) and `count-popover.tsx` (`CountPopover`), not `app/ai/`. The chip list's "+N" opens a popover of the rest; `CountPopover` shows a count as a button that lists at most 5 domains each with its own count, "and N more" (a link when `moreHref` is given), a 24 px trigger, focus on the popup so one Escape closes it, and no trigger at all for a count of 0 or an unknown count. A count column is 64 px wide and fits about 9 characters. `ui/popover.tsx` now caps a `content` popover at the smaller of 360 px and the room the viewport leaves.
 
 ## 16. Cross-channel components
 
