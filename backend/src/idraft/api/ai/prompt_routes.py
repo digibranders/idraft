@@ -22,7 +22,9 @@ from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai import (
     CountryIso,
     Importance,
+    LintNearDuplicate,
     LintSpan,
+    LintTracked,
     LintWarning,
     MatchedAlias,
     Prompt,
@@ -275,6 +277,12 @@ def _lint_view(item: LintedPrompt) -> PromptLint:
             )
             for note in item.notes
         ],
+        tracked=None
+        if item.tracked is None
+        else LintTracked(prompt_id=item.tracked[0], is_active=item.tracked[1]),
+        near_duplicate_of=None
+        if item.near_duplicate_of is None
+        else LintNearDuplicate(prompt_id=item.near_duplicate_of[0], text=item.near_duplicate_of[1]),
     )
 
 
@@ -315,20 +323,24 @@ async def bulk_create_prompts(
     description="Nothing is stored. For each text, as it would be saved: whether it names an own "
     "brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine "
     "it is too long for (`engine_limit`: a warning when the engine skips it, an error when it "
-    "is too long to save). `quota` is the workspace's active prompt limit and use. `items` (with "
-    "language and country, to say what is tracked) and `language_code` are published and not "
-    "built yet (`501`).",
+    "is too long to save). `quota` is the workspace's active prompt limit and use. With `items` "
+    "(text, language and country) each result also says which prompt of the project it is "
+    "(`tracked`, archived ones too) or, when none, the one that differs only in case and "
+    "spacing (`near_duplicate_of`), and `quota.would_create` counts the items saving would "
+    "create: not tracked, not a repeat of an earlier item, not too long to save. `language_code` "
+    "is published and not built yet (`501`).",
 )
 async def lint_prompts(
     project_id: UUID, body: PromptLintBody, access: ReadData, prompts: Prompts
 ) -> PromptLintResponse:
-    if isinstance(body, PromptLintItems):
-        raise not_built_yet("Not built yet: items.")
-    refuse_unbuilt({"language_code": body.language_code is not None})
+    if not isinstance(body, PromptLintItems):
+        refuse_unbuilt({"language_code": body.language_code is not None})
     outcome = await prompts.lint(access, project_id, body)
     return PromptLintResponse(
         data=[_lint_view(item) for item in outcome.prompts],
-        quota=PromptQuota(limit=outcome.limit, used=outcome.used),
+        quota=PromptQuota(
+            limit=outcome.limit, used=outcome.used, would_create=outcome.would_create
+        ),
     )
 
 

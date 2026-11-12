@@ -336,7 +336,7 @@ class PromptLintItems(Body):
     )
 
 
-# `texts` or `items`: the shape sent is the one validated. `items`: not built yet (`501`).
+# `texts` or `items`: the shape sent is the one validated.
 PromptLintBody = Annotated[
     Annotated[PromptLintRequest, Tag(ONE_TAG)] | Annotated[PromptLintItems, Tag(BATCH_TAG)],
     Discriminator(body_shape),
@@ -381,13 +381,13 @@ class PromptLint(BaseModel):
     tracked: LintTracked | None = Field(
         default=None,
         exclude_if=_absent,
-        description="The project's prompt with this identity, archived ones too (with `items`). "
-        + _NOT_RETURNED,
+        description="The project's prompt with this identity, archived ones too (with `items`).",
     )
     near_duplicate_of: LintNearDuplicate | None = Field(
         default=None,
         exclude_if=_absent,
-        description="A prompt that differs only in case and spacing. " + _NOT_RETURNED,
+        description="A prompt of the same language and country that differs only in case and "
+        "spacing (with `items`, when the text is not tracked).",
     )
     suggested_prompt_type: PromptType | None = Field(
         default=None,
@@ -402,7 +402,8 @@ class PromptQuota(BaseModel):
     would_create: int | None = Field(
         default=None,
         exclude_if=_absent,
-        description="Of the items, those neither tracked nor repeated. " + _NOT_RETURNED,
+        description="With `items`: of the items, those neither tracked nor repeated nor too long "
+        "to save.",
     )
 
 

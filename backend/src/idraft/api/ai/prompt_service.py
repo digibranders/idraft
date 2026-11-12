@@ -18,7 +18,7 @@ import asyncio
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Final
 from uuid import UUID
@@ -30,7 +30,13 @@ from idraft.api import audit
 from idraft.api.ai import engine_repository as engines
 from idraft.api.ai import prompt_repository as prompts
 from idraft.api.ai.engine_service import live_project
-from idraft.api.ai.prompt_repository import NewPrompt, PromptFilter, PromptKey, PromptRecord
+from idraft.api.ai.prompt_repository import (
+    LintRow,
+    NewPrompt,
+    PromptFilter,
+    PromptKey,
+    PromptRecord,
+)
 from idraft.api.entities.project_repository import MatcherEntity
 from idraft.api.entities.project_service import MatcherRules, matcher_rules, to_utf16
 from idraft.api.keywords import repository as keywords
@@ -49,6 +55,8 @@ from idraft.api.schemas.ai import (
     LintSeverity,
     PromptBulkCreate,
     PromptCreate,
+    PromptLintItem,
+    PromptLintItems,
     PromptLintRequest,
     PromptPatch,
 )
@@ -109,6 +117,10 @@ class LintedPrompt:
     is_branded: bool
     aliases: list[LintedAlias]
     notes: list[LintNote]
+    # The prompt with this identity: its id and whether it is active (`items` shape only).
+    tracked: tuple[UUID, bool] | None = None
+    # A prompt of the market that differs only in case and spacing: its id and text.
+    near_duplicate_of: tuple[UUID, str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +128,8 @@ class LintOutcome:
     prompts: list[LintedPrompt]
     limit: int
     used: int
+    # Items neither tracked nor repeated nor too long to save; `items` shape only.
+    would_create: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,6 +175,49 @@ def _country_error(country_iso: str, countries: Mapping[EngineCode, set[str]]) -
 
 def key_of(item: PromptCreate) -> PromptKey:
     return (text_hash(item.text), item.language_code, item.country_iso)
+
+
+def fold(text: str) -> str:
+    """Case and spacing set aside: what makes two texts near duplicates."""
+    return " ".join(text.casefold().split())
+
+
+@dataclass(frozen=True, slots=True)
+class ItemMatches:
+    """What the project already has for each linted item, in the order of the items."""
+
+    tracked: list[tuple[UUID, bool] | None]
+    near_duplicate_of: list[tuple[UUID, str] | None]
+    would_create: int
+
+
+def match_items(items: Sequence[PromptLintItem], rows: Sequence[LintRow]) -> ItemMatches:
+    """For each item the prompt it is (`tracked`) or, when none is, the one it nearly is
+    (`near_duplicate_of`); and how many items saving them would create: not tracked, not a repeat
+    of an earlier item and not too long to save. Rows come oldest first, so the oldest wins."""
+    by_key: dict[PromptKey, LintRow] = {}
+    by_fold: dict[tuple[str, str | None, str], LintRow] = {}
+    for row in rows:
+        by_key.setdefault((row.text_hash, row.language_code, row.country_iso), row)
+        by_fold.setdefault((row.language_code, row.country_iso, fold(row.text)), row)
+    tracked: list[tuple[UUID, bool] | None] = []
+    near: list[tuple[UUID, str] | None] = []
+    seen: set[PromptKey] = set()
+    would_create = 0
+    for item in items:
+        key = (text_hash(item.text), item.language_code, item.country_iso)
+        found = by_key.get(key)
+        similar = (
+            None
+            if found is not None
+            else by_fold.get((item.language_code, item.country_iso, fold(item.text)))
+        )
+        tracked.append(None if found is None else (found.id, found.is_active))
+        near.append(None if similar is None else (similar.id, similar.text))
+        if found is None and key not in seen and len(item.text) <= PROMPT_TEXT_MAX:
+            would_create += 1
+        seen.add(key)
+    return ItemMatches(tracked=tracked, near_duplicate_of=near, would_create=would_create)
 
 
 def quota_error(limit: int, used: int, requested: int) -> QuotaExceededError:
@@ -445,25 +502,52 @@ class PromptService:
         )
 
     async def lint(
-        self, access: WorkspaceAccess, project_id: UUID, body: PromptLintRequest
+        self, access: WorkspaceAccess, project_id: UUID, body: PromptLintRequest | PromptLintItems
     ) -> LintOutcome:
         """What saving these texts would meet, with nothing stored: own brand names (the
-        prompt would be branded) and engine limits, and the workspace's prompt quota."""
+        prompt would be branded) and engine limits, and the workspace's prompt quota. With
+        `items`, also which of them the project tracks already, which nearly, and how many
+        saving them would create."""
+        items: list[PromptLintItem] | None = None
+        texts = body.texts if isinstance(body, PromptLintRequest) else []
+        if isinstance(body, PromptLintItems):
+            items = body.items
+            texts = [item.text for item in items]
         async with self._transaction(access) as db:
             await live_project(db, access, project_id)
             rules = await matcher_rules(db, access.workspace_id, project_id)
             limit, used = await prompts.quota_usage(db, access.workspace_id)
+            rows = (
+                []
+                if items is None
+                else await prompts.lint_matches(
+                    db,
+                    access.workspace_id,
+                    project_id,
+                    {(item.language_code, item.country_iso) for item in items},
+                )
+            )
         own = own_entities(rules)
         entities = {entity.id: entity for entity in rules.entities}
         codes = body.engine_codes or list(EngineCode)
-        results = await matched(rules, body.texts)
+        results = await matched(rules, texts)
+        linted = [
+            _lint(text, result, entities, own, codes)
+            for text, result in zip(texts, results, strict=True)
+        ]
+        if items is None:
+            return LintOutcome(prompts=linted, limit=limit, used=used)
+        found = match_items(items, rows)
         return LintOutcome(
             prompts=[
-                _lint(text, result, entities, own, codes)
-                for text, result in zip(body.texts, results, strict=True)
+                replace(item, tracked=tracked, near_duplicate_of=near)
+                for item, tracked, near in zip(
+                    linted, found.tracked, found.near_duplicate_of, strict=True
+                )
             ],
             limit=limit,
             used=used,
+            would_create=found.would_create,
         )
 
     async def update(

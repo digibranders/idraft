@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Row, Select, and_, delete, func, insert, literal, select, update
+from sqlalchemy import Row, Select, and_, delete, func, insert, literal, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.api.keywords.repository import UserRecord
@@ -342,6 +342,54 @@ async def existing(
         if key in wanted:
             found[key] = row.id
     return found
+
+
+@dataclass(frozen=True, slots=True)
+class LintRow:
+    id: UUID
+    text: str
+    text_hash: bytes
+    language_code: str
+    country_iso: str | None
+    is_active: bool
+
+
+async def lint_matches(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    markets: Collection[tuple[str, str]],
+) -> list[LintRow]:
+    """The project's prompts, archived ones too, in these (language, country) markets, oldest
+    first: one statement whatever the number of items linted."""
+    if not markets:
+        return []
+    p, v = ai_prompts.c, ai_prompt_versions.c
+    # shortcut: reads every prompt of these markets; a functional index on the folded text
+    # when a project passes 10,000 prompts.
+    rows = await db.execute(
+        select(p.id, v.text, v.text_hash, p.language_code, p.country_iso, p.is_active)
+        .select_from(ai_prompts.join(ai_prompt_versions, _current_version()))
+        .where(
+            p.workspace_id == workspace_id,
+            p.project_id == project_id,
+            p.deleted_at.is_(None),
+            v.workspace_id == workspace_id,
+            tuple_(p.language_code, p.country_iso).in_(sorted(markets)),
+        )
+        .order_by(p.id)
+    )
+    return [
+        LintRow(
+            id=row.id,
+            text=row.text,
+            text_hash=bytes(row.text_hash),
+            language_code=row.language_code,
+            country_iso=row.country_iso,
+            is_active=row.is_active,
+        )
+        for row in rows
+    ]
 
 
 async def insert_prompts(

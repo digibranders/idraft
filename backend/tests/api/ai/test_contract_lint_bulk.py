@@ -90,22 +90,6 @@ def test_a_lint_items_body_is_refused_with_its_code(body: dict[str, Any], code: 
     assert code in _codes(TypeAdapter(PromptLintBody), body)
 
 
-async def test_lint_items_answers_501_for_a_reader(
-    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    viewer = await member(resources, migrated, workspace, "viewer")
-    project = await ai_project(migrated, workspace)
-
-    response = await api.post(
-        project_url(workspace, project, "prompts", "lint"),
-        json={"items": [ITEM]},
-        headers=viewer.headers,
-    )
-
-    assert problem(response) == NOT_BUILT
-
-
 async def test_lint_language_code_answers_501(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
