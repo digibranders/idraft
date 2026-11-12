@@ -287,12 +287,18 @@ def statements(resources: Resources) -> Iterator[list[str]]:
         event.remove(engine, "before_cursor_execute", record)
 
 
+FULL_SUPERSEDED = 300
+FULL_ANSWERS = 3600 - FULL_SUPERSEDED
+
+
 async def full_project(
     resources: Resources, pg: PostgresServer, *, citations: int = 10, fan_out: bool = False
 ) -> World:
-    """The base plan at capacity: 150 prompts, three engines, eight valid answers each over the
-    last 22 days (3,600), each citing `citations` of 50 pages on 20 registrable domains, written
-    straight into the tables. With `fan_out`, every ChatGPT answer stored three queries."""
+    """The base plan at capacity: 150 prompts, three engines, eight answers each over the last 22
+    days (3,600), each citing `citations` of 50 pages on 20 registrable domains, written straight
+    into the tables. The oldest answer of `FULL_SUPERSEDED` prompt and engine pairs has been
+    replaced by the next newer one (`superseded_by` set), so `FULL_ANSWERS` count. With `fan_out`,
+    every ChatGPT answer stored three queries."""
     world = await make_world(resources, pg)
     for number in range(150):
         await add_prompt(pg, world.project, f"Question {number} about SOC services?")
@@ -352,6 +358,20 @@ async def full_project(
         world.project.id,
         citations,
         pages,
+    )
+    # Within each (prompt, engine) the answers are 3 days apart: rank 8 is the oldest and rank 7
+    # the answer that replaced it.
+    await execute(
+        pg,
+        "WITH ranked AS (SELECT id, observed_at, "
+        "lag(id) OVER pair AS newer, row_number() OVER pair AS rank FROM ai.observations "
+        "WHERE project_id = $1 WINDOW pair AS (PARTITION BY prompt_id, engine_code "
+        "ORDER BY observed_at DESC)), "
+        "oldest AS (SELECT id, observed_at, newer FROM ranked WHERE rank = 8 ORDER BY id LIMIT $2) "
+        "UPDATE ai.observations o SET superseded_by = r.newer FROM oldest r "
+        "WHERE o.id = r.id AND o.observed_at = r.observed_at",
+        world.project.id,
+        FULL_SUPERSEDED,
     )
     # No ANALYZE: a first read of bulk loaded rows has no statistics, and must still be fast.
     return world

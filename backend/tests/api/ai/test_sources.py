@@ -6,15 +6,24 @@ from __future__ import annotations
 
 import time
 import uuid
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
 import pytest
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
+from idraft.api.ai.sources import SourceService
+from idraft.api.auth.sessions import SessionContext
+from idraft.api.permissions import Role
 from idraft.api.resources import Resources
+from idraft.api.workspaces.access import WorkspaceAccess
+from idraft.db.engine import create_session_factory, workspace_transaction
 from tests.api.ai.sources_support import (
+    FULL_ANSWERS,
     GUIDE,
     GUIDE_TOP,
     OWN,
@@ -394,11 +403,16 @@ async def test_a_viewer_reads_the_sources(
 async def test_a_full_project_reads_as_many_statements_as_a_small_one(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, scene: Scene
 ) -> None:
-    """The base plan's 3,600 answers with 36,000 citations: one grouped statement for the rows
-    and two for the totals, whatever the size. A first read by each owner warms their session
-    cache, so both counted reads start alike."""
+    """The base plan's 3,600 answers with 36,000 citations, 300 of them replaced by a newer
+    answer and so not counted: one grouped statement for the rows and two for the totals,
+    whatever the size. The first read of the freshly loaded project (no ANALYZE: no statistics)
+    is timed: 15 s is the hard limit. A first read by each owner warms their session cache, so
+    both counted reads start alike."""
     full = await full_project(resources, migrated)
-    await _get(full, api, "sources", "domains")
+    started = time.perf_counter()
+    cold = await _get(full, api, "sources", "domains")
+    assert time.perf_counter() - started < 15
+    assert cold.status_code == 200, cold.text
     await _get(scene.world, api, "sources", "domains")
     with statements(resources) as small:
         await _get(scene.world, api, "sources", "domains")
@@ -407,9 +421,48 @@ async def test_a_full_project_reads_as_many_statements_as_a_small_one(
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert (body["meta"]["answers"], body["meta"]["citation_units"]) == (3600, 36000)
+    assert (body["meta"]["answers"], body["meta"]["citation_units"]) == (
+        FULL_ANSWERS,
+        FULL_ANSWERS * 10,
+    )
     assert body["page"]["total"] == 20
     assert len(large) == len(small), large
+
+
+async def test_the_read_transaction_turns_nested_loops_off_and_gives_the_connection_back(
+    engine: AsyncEngine,
+) -> None:
+    """The reads run at REPEATABLE READ with nested loops off, for this transaction only: the
+    guard that keeps a planner without statistics from timing out. The pool holds one
+    connection, so the next transaction runs on the same server session and must find the
+    defaults."""
+    sessions = create_session_factory(engine)
+    now = datetime.now(UTC)
+    access = WorkspaceAccess(
+        session=SessionContext(
+            session_id=uuid.uuid4(),
+            user_id=uuid.uuid4(),
+            state="active",
+            fresh_until=None,
+            idle_expires_at=now + timedelta(days=1),
+            absolute_expires_at=now + timedelta(days=1),
+            last_seen_at=now,
+        ),
+        workspace_id=uuid.uuid4(),
+        role=Role.VIEWER,
+        project_ids=None,
+    )
+    settings = ("SHOW enable_nestloop", "SHOW transaction_isolation")
+
+    async def read(transaction: AbstractAsyncContextManager[AsyncSession]) -> list[Any]:
+        async with transaction as db:
+            return [(await db.execute(text(sql))).scalar_one() for sql in settings]
+
+    guarded = await read(SourceService(sessions=sessions)._transaction(access))
+    ordinary = await read(workspace_transaction(sessions, access.workspace_id))
+
+    assert guarded == ["off", "repeatable read"]
+    assert ordinary == ["on", "read committed"]
 
 
 def _page(row: dict[str, Any]) -> tuple[Any, ...]:
@@ -579,8 +632,9 @@ async def test_pages_and_citations_of_a_full_project_are_fast_without_statistics
         assert response.status_code == 200, response.text
     assert max(cold.values()) < 15, cold
     pages = (await _get(full, api, "sources", "pages", limit=200)).json()
-    assert (pages["page"]["total"], pages["meta"]["citation_units"]) == (50, 36000)
-    assert sum(row["citation_units"] for row in pages["data"]) == 36000
+    units = FULL_ANSWERS * 10
+    assert (pages["page"]["total"], pages["meta"]["citation_units"]) == (50, units)
+    assert sum(row["citation_units"] for row in pages["data"]) == units
     first = (await _get(full, api, "citations", limit=50)).json()
     assert len(first["data"]) == 50
     assert first["page"]["has_more"] is True
