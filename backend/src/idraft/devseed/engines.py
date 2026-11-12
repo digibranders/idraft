@@ -1,10 +1,15 @@
-"""The fixture's engines on, at exactly their countries, with every active AI schedule of the
-project paused in the same transaction (plan D3 decision 10).
+"""The fixture's engines on, with every active AI schedule of the project paused in the same
+transaction (plan D3 decision 10).
+
+The seed never overwrites what a person set. An engine never configured is turned on at the
+fixture's countries. An engine already on gains the fixture's missing countries (the union, never
+fewer countries than it runs in) and is not put at all when it already covers them: a put always
+writes an audit entry, and the second run must write nothing. An engine a person turned off stays
+off and is reported in `EngineChanges.left_off`.
 
 Turning the first engine on makes the project's two AI answer schedules (`ensure_ai_schedule`),
 which would spend at their next window. Both are paused before the transaction commits, so they
-never exist active. An engine already on at those countries is not put again: a put always
-writes an audit entry, and the second run must write nothing.
+never exist active. Spend safety wins: every active AI schedule is paused on every run.
 """
 
 from __future__ import annotations
@@ -34,7 +39,13 @@ _SCHEDULES_MAX: Final = 100
 
 @dataclass(frozen=True, slots=True)
 class EngineChanges:
+    """`turned_on` were never configured and now run at the fixture's countries; `widened` were
+    on and gained countries; `left_off` were turned off by a person and stay off. `paused` is the
+    number of active AI schedules the run paused."""
+
     turned_on: tuple[EngineCode, ...]
+    widened: tuple[EngineCode, ...]
+    left_off: tuple[EngineCode, ...]
     paused: int
 
 
@@ -46,22 +57,31 @@ async def ensure_engines(
     location_ids: Mapping[str, int],
 ) -> EngineChanges:
     turned_on: list[EngineCode] = []
+    widened: list[EngineCode] = []
+    left_off: list[EngineCode] = []
     async with workspace_transaction(sessions, access.workspace_id, user_id=access.user_id) as db:
         current = await engine_repository.project_engines(db, access.workspace_id, project_id)
         for part in engines:
-            wanted = sorted({location_ids[country] for country in part.countries})
+            wanted = {location_ids[country] for country in part.countries}
             have = current.get(part.engine_code)
-            if have is not None and have.is_enabled and sorted(have.location_ids) == wanted:
+            if have is None:
+                put, changed = sorted(wanted), turned_on
+            elif not have.is_enabled:
+                left_off.append(part.engine_code)
                 continue
+            elif wanted <= set(have.location_ids):
+                continue
+            else:
+                put, changed = sorted(wanted | set(have.location_ids)), widened
             await put_engine(
                 db,
                 access,
                 project_id,
                 part.engine_code,
-                EngineUpdate(location_ids=wanted, is_enabled=True),
+                EngineUpdate(location_ids=put, is_enabled=True),
                 SEED_INFO,
             )
-            turned_on.append(part.engine_code)
+            changed.append(part.engine_code)
         active, _ = await schedules_repository.list_schedules(
             db,
             access.workspace_id,
@@ -75,4 +95,9 @@ async def ensure_engines(
             await pause_schedule(
                 db, access, project_id, schedule.id, SchedulePause(reason=PAUSE_REASON), SEED_INFO
             )
-    return EngineChanges(turned_on=tuple(turned_on), paused=len(active))
+    return EngineChanges(
+        turned_on=tuple(turned_on),
+        widened=tuple(widened),
+        left_off=tuple(left_off),
+        paused=len(active),
+    )

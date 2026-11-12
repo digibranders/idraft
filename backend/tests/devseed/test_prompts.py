@@ -1,6 +1,7 @@
 """The 72 prompts go through bulk-create: identity by text, language and country, `is_branded`
-from the brand's aliases, one version each. A second run makes nothing; a drifted prompt is put
-back; prompts past the quota stop the seed before anything is written."""
+from the brand's aliases, one version each. A second run makes nothing; a prompt that exists is
+never changed (only counted when archived or different); prompts past the quota stop the seed
+before anything is written."""
 
 from __future__ import annotations
 
@@ -52,7 +53,7 @@ async def test_the_prompts_are_made_through_bulk_create(
 
     changes = await ensure_prompts(sessions, access, project_id, "en", FIXTURE.prompts, term_ids)
 
-    assert changes == PromptChanges(created=72, updated=0, unchanged=0)
+    assert changes == PromptChanges(created=72, found=0, archived=0, differing=0)
     rows = await fetch(migrated, _PROMPTS, project_id)
     assert len(rows) == 72
     assert all(row["is_active"] for row in rows)
@@ -74,7 +75,7 @@ async def test_the_prompts_are_made_through_bulk_create(
     before_audit = await audit_count(migrated, workspace)
     before_rows = tuple(await fetchrow(migrated, _COUNTS, project_id))
     again = await ensure_prompts(sessions, access, project_id, "en", FIXTURE.prompts, term_ids)
-    assert again == PromptChanges(created=0, updated=0, unchanged=72)
+    assert again == PromptChanges(created=0, found=72, archived=0, differing=0)
     assert await audit_count(migrated, workspace) == before_audit
     assert tuple(await fetchrow(migrated, _COUNTS, project_id)) == before_rows
 
@@ -103,34 +104,51 @@ async def test_the_fixture_keys_are_never_stored(
     assert leaked == []
 
 
-async def test_a_prompt_that_drifted_is_brought_back_in_line(
+async def test_found_prompts_are_left_untouched_even_when_a_person_changed_them(
     migrated: PostgresServer, sessions: Sessions
 ) -> None:
-    access, _, project_id, term_ids = await _ready(migrated, sessions)
+    access, workspace, project_id, term_ids = await _ready(migrated, sessions)
     await ensure_prompts(sessions, access, project_id, "en", FIXTURE.prompts, term_ids)
-    first, second = FIXTURE.prompts[0], FIXTURE.prompts[1]
+    first, second, third = FIXTURE.prompts[0], FIXTURE.prompts[1], FIXTURE.prompts[2]
     assert first.importance != 1
+    where = (
+        "FROM ai.prompt_versions v WHERE v.id = p.current_version_id "
+        "AND p.project_id = $1 AND v.text = $2"
+    )
     await execute(
-        migrated,
-        "UPDATE ai.prompts p SET importance = 1 FROM ai.prompt_versions v "
-        "WHERE v.id = p.current_version_id AND p.project_id = $1 AND v.text = $2",
-        project_id,
-        first.text,
+        migrated, f"UPDATE ai.prompts p SET importance = 1 {where}", project_id, first.text
+    )
+    await execute(
+        migrated, f"UPDATE ai.prompts p SET is_active = false {where}", project_id, second.text
     )
     await execute(
         migrated,
-        "UPDATE ai.prompts p SET is_active = false FROM ai.prompt_versions v "
-        "WHERE v.id = p.current_version_id AND p.project_id = $1 AND v.text = $2",
+        "DELETE FROM ai.prompt_terms t USING ai.prompts p, ai.prompt_versions v "
+        "WHERE t.prompt_id = p.id AND v.id = p.current_version_id AND p.project_id = $1 "
+        "AND v.text = $2",
         project_id,
-        second.text,
+        third.text,
+    )
+    before_audit = await audit_count(migrated, workspace)
+    before_rows = tuple(await fetchrow(migrated, _COUNTS, project_id))
+    before_state = sorted(
+        (row["text"], row["importance"], row["is_active"])
+        for row in await fetch(migrated, _PROMPTS, project_id)
     )
 
     changes = await ensure_prompts(sessions, access, project_id, "en", FIXTURE.prompts, term_ids)
 
-    assert changes == PromptChanges(created=0, updated=2, unchanged=70)
-    by_text = {row["text"]: row for row in await fetch(migrated, _PROMPTS, project_id)}
-    assert by_text[first.text]["importance"] == first.importance
-    assert by_text[second.text]["is_active"]
+    assert changes == PromptChanges(created=0, found=72, archived=1, differing=2)
+    assert await audit_count(migrated, workspace) == before_audit
+    assert tuple(await fetchrow(migrated, _COUNTS, project_id)) == before_rows
+    after = {row["text"]: row for row in await fetch(migrated, _PROMPTS, project_id)}
+    assert sorted((t, r["importance"], r["is_active"]) for t, r in after.items()) == before_state
+    assert after[first.text]["importance"] == 1
+    assert not after[second.text]["is_active"]
+
+    again = await ensure_prompts(sessions, access, project_id, "en", FIXTURE.prompts, term_ids)
+    assert again == changes
+    assert await audit_count(migrated, workspace) == before_audit
 
 
 async def test_prompts_past_the_quota_stop_the_seed_before_anything_is_written(
@@ -152,7 +170,7 @@ async def test_prompts_past_the_quota_stop_the_seed_before_anything_is_written(
     await check_prompt_quota(sessions, access, None, "en", FIXTURE.prompts)
 
 
-async def test_the_quota_counts_an_archived_prompt_that_would_come_back(
+async def test_the_quota_counts_only_the_prompts_the_seed_would_make(
     migrated: PostgresServer, sessions: Sessions
 ) -> None:
     access, workspace, project_id, term_ids = await _ready(migrated, sessions)
@@ -160,6 +178,7 @@ async def test_the_quota_counts_an_archived_prompt_that_would_come_back(
     await set_prompt_quota(migrated, workspace, 72)
     # Everything is in the project and active: nothing is needed, so a full quota is fine.
     await check_prompt_quota(sessions, access, project_id, "en", FIXTURE.prompts)
+    # An archived prompt is found, never brought back, so it needs no room either.
     await execute(
         migrated,
         "UPDATE ai.prompts p SET is_active = false FROM ai.prompt_versions v "
@@ -167,10 +186,20 @@ async def test_the_quota_counts_an_archived_prompt_that_would_come_back(
         project_id,
         FIXTURE.prompts[0].text,
     )
-    await check_prompt_quota(sessions, access, project_id, "en", FIXTURE.prompts)
     await set_prompt_quota(migrated, workspace, 71)
+    await check_prompt_quota(sessions, access, project_id, "en", FIXTURE.prompts)
+    # A missing prompt does need room: one active prompt less than the quota allows is not enough.
+    await execute(
+        migrated,
+        "UPDATE ai.prompts SET deleted_at = now() WHERE id = (SELECT p.id FROM ai.prompts p "
+        "JOIN ai.prompt_versions v ON v.id = p.current_version_id "
+        "WHERE p.project_id = $1 AND v.text = $2)",
+        project_id,
+        FIXTURE.prompts[1].text,
+    )
+    await set_prompt_quota(migrated, workspace, 70)
 
-    with pytest.raises(SeedError, match="71 of 71 active prompts and the fixture needs 1 more"):
+    with pytest.raises(SeedError, match="70 of 70 active prompts and the fixture needs 1 more"):
         await check_prompt_quota(sessions, access, project_id, "en", FIXTURE.prompts)
 
 

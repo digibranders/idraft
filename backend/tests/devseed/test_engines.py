@@ -1,5 +1,6 @@
 """Both engines go on at India, the UAE and Saudi Arabia, the schedules that makes never commit
-active, and a second run changes nothing."""
+active, and a second run changes nothing. An engine a person set up is never narrowed or turned
+on again: it gains countries only, and one turned off stays off."""
 
 from __future__ import annotations
 
@@ -38,7 +39,10 @@ async def test_the_engines_go_on_and_their_schedules_are_paused(
     changes = await ensure_engines(sessions, access, project_id, FIXTURE.engines, COUNTRY_IDS)
 
     assert changes == EngineChanges(
-        turned_on=(EngineCode.CHATGPT_WEB, EngineCode.GEMINI_WEB), paused=2
+        turned_on=(EngineCode.CHATGPT_WEB, EngineCode.GEMINI_WEB),
+        widened=(),
+        left_off=(),
+        paused=2,
     )
     assert [tuple(row) for row in await fetch(migrated, _ENGINES, project_id)] == [
         ("chatgpt_web", _GULF, True),
@@ -55,7 +59,7 @@ async def test_the_engines_go_on_and_their_schedules_are_paused(
 
     before = await audit_count(migrated, workspace)
     again = await ensure_engines(sessions, access, project_id, FIXTURE.engines, COUNTRY_IDS)
-    assert again == EngineChanges(turned_on=(), paused=0)
+    assert again == EngineChanges(turned_on=(), widened=(), left_off=(), paused=0)
     assert await audit_count(migrated, workspace) == before
     assert await _schedule_states(migrated, project_id) == [False, False]
 
@@ -74,11 +78,11 @@ async def test_a_schedule_resumed_since_is_paused_again(
 
     changes = await ensure_engines(sessions, access, project_id, FIXTURE.engines, COUNTRY_IDS)
 
-    assert changes == EngineChanges(turned_on=(), paused=1)
+    assert changes == EngineChanges(turned_on=(), widened=(), left_off=(), paused=1)
     assert await _schedule_states(migrated, project_id) == [False, False]
 
 
-async def test_an_engine_on_in_fewer_countries_is_widened(
+async def test_an_engine_on_in_fewer_countries_gains_the_missing_ones(
     migrated: PostgresServer, sessions: Sessions
 ) -> None:
     access, workspace, project_id = await seeded_project(migrated, sessions)
@@ -86,12 +90,88 @@ async def test_an_engine_on_in_fewer_countries_is_widened(
 
     changes = await ensure_engines(sessions, access, project_id, FIXTURE.engines, COUNTRY_IDS)
 
-    assert changes.turned_on == (EngineCode.CHATGPT_WEB, EngineCode.GEMINI_WEB)
+    assert changes.widened == (EngineCode.CHATGPT_WEB,)
+    assert changes.turned_on == (EngineCode.GEMINI_WEB,)
     assert [tuple(row) for row in await fetch(migrated, _ENGINES, project_id)] == [
         ("chatgpt_web", _GULF, True),
         ("gemini_web", _GULF, True),
     ]
     assert await _schedule_states(migrated, project_id) == [False, False]
+
+
+async def test_an_engine_never_loses_a_country_a_person_added(
+    migrated: PostgresServer, sessions: Sessions
+) -> None:
+    access, workspace, project_id = await seeded_project(migrated, sessions)
+    await execute(
+        migrated,
+        "INSERT INTO core.locations (id, name, country_iso, location_type) "
+        "VALUES (2840, 'United States', 'US', 'Country') ON CONFLICT (id) DO UPDATE SET "
+        "is_active = true",
+    )
+    await enable_engine(migrated, workspace, project_id, "chatgpt_web", [COUNTRY_IDS["IN"], 2840])
+
+    changes = await ensure_engines(sessions, access, project_id, FIXTURE.engines, COUNTRY_IDS)
+
+    assert changes.widened == (EngineCode.CHATGPT_WEB,)
+    assert [tuple(row) for row in await fetch(migrated, _ENGINES, project_id)] == [
+        ("chatgpt_web", [2356, 2682, 2784, 2840], True),
+        ("gemini_web", _GULF, True),
+    ]
+
+
+async def test_an_engine_that_already_covers_the_countries_is_not_put(
+    migrated: PostgresServer, sessions: Sessions
+) -> None:
+    access, workspace, project_id = await seeded_project(migrated, sessions)
+    await execute(
+        migrated,
+        "INSERT INTO core.locations (id, name, country_iso, location_type) "
+        "VALUES (2840, 'United States', 'US', 'Country') ON CONFLICT (id) DO UPDATE SET "
+        "is_active = true",
+    )
+    wider = [*_GULF, 2840]
+    await enable_engine(migrated, workspace, project_id, "chatgpt_web", wider)
+    await enable_engine(migrated, workspace, project_id, "gemini_web", _GULF)
+    before = await audit_count(migrated, workspace)
+
+    changes = await ensure_engines(sessions, access, project_id, FIXTURE.engines, COUNTRY_IDS)
+
+    assert changes == EngineChanges(turned_on=(), widened=(), left_off=(), paused=0)
+    assert await audit_count(migrated, workspace) == before
+    assert [row["location_ids"] for row in await fetch(migrated, _ENGINES, project_id)] == [
+        wider,
+        _GULF,
+    ]
+
+
+async def test_an_engine_a_person_turned_off_stays_off_and_is_reported(
+    migrated: PostgresServer, sessions: Sessions
+) -> None:
+    access, workspace, project_id = await seeded_project(migrated, sessions)
+    await enable_engine(migrated, workspace, project_id, "chatgpt_web", [COUNTRY_IDS["IN"]])
+    await execute(
+        migrated,
+        "UPDATE ai.project_engines SET is_enabled = false "
+        "WHERE project_id = $1 AND engine_code = 'chatgpt_web'",
+        project_id,
+    )
+
+    changes = await ensure_engines(sessions, access, project_id, FIXTURE.engines, COUNTRY_IDS)
+
+    assert changes.left_off == (EngineCode.CHATGPT_WEB,)
+    assert changes.turned_on == (EngineCode.GEMINI_WEB,)
+    assert [tuple(row) for row in await fetch(migrated, _ENGINES, project_id)] == [
+        ("chatgpt_web", [COUNTRY_IDS["IN"]], False),
+        ("gemini_web", _GULF, True),
+    ]
+
+    before = await audit_count(migrated, workspace)
+    again = await ensure_engines(sessions, access, project_id, FIXTURE.engines, COUNTRY_IDS)
+    assert again == EngineChanges(
+        turned_on=(), widened=(), left_off=(EngineCode.CHATGPT_WEB,), paused=0
+    )
+    assert await audit_count(migrated, workspace) == before
 
 
 async def test_a_failure_midway_commits_neither_the_engines_nor_their_schedules(

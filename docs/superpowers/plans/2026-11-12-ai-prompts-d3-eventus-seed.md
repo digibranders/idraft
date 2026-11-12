@@ -44,13 +44,13 @@
    | Prompt | **the API's own identity: composed text, language and country** (`prompt_service.key_of`, sha256 of the NFC text) | `PromptService.bulk_create` with `on_duplicate: skip`, then `PromptService.update` for a found prompt that differs |
 
    Prompts have no key column and get none: the fixture's `p01` to `p72` are never stored. The API already treats the same text, language and country as one prompt (`409 duplicate`, archived ones included), so a second run's `bulk_create` lists all 72 in `skipped` and makes nothing. A fixture text that changes is a new prompt; the old one stays (archive it in the app).
-6. **Converge, never remove or rename.** The fields the fixture names are brought in line on every run: the project's name, time zone, language, primary domain and default location; an entity's ambiguity and hints; missing aliases and domains; missing roles; missing terms; each prompt's intent, funnel stage, type, importance and topics; a seeded prompt found archived is brought back (it counts against the quota). Nothing the fixture does not name is removed: extra aliases, domains, competitors, terms or prompts a developer added stay. Names are not rewritten: an entity found as `eventus security` keeps that spelling, a term found at the right path keeps its name. A role that contradicts the fixture (the brand as a competitor, a competitor as own) stops the seed with a message: changing a role is a person's decision.
+6. **Converge, never remove, rename or overwrite what a person set.** The fields the fixture names are brought in line on every run: the project's name, time zone, language, primary domain and default location; an entity's ambiguity and hints; missing aliases and domains; missing roles; missing terms. Engines and prompts are create-only. An engine never configured is turned on at the fixture's countries; an engine already on gains the fixture's missing countries (the union, never fewer than it runs in) and is not put at all when it already covers them; an engine a person turned off stays off and is reported (`EngineChanges.left_off`). A prompt found by its identity (text, language, country, archived ones included) is not touched at all: no update, no reactivation, no term change, no audit entry; the run only reports how many found prompts are archived and how many differ from the fixture (`PromptChanges.archived`, `.differing`). Nothing the fixture does not name is removed: extra aliases, domains, competitors, terms or prompts a developer added stay. Names are not rewritten: an entity found as `eventus security` keeps that spelling, a term found at the right path keeps its name. A role that contradicts the fixture (the brand as a competitor, a competitor as own) stops the seed with a message: changing a role is a person's decision.
 7. **Entities.** All nine are `entity_type: brand` (as the web mocks have them). Aliases are word aliases that ignore case (`AliasInput` defaults); the alias equal to the canonical name is left out, because the matcher matches an entity's canonical name without an alias (`matcher_rules` passes `canonical_name` to `EntityRule`; `_create_own_entity` does the same for a project's brand). Domains are `host` rules (the site and its www form). Darkwatch SOC is `is_ambiguous` with the hints `soc`, `security`, `mdr`. The brand gets the primary own role with `track_seo` and `track_ai`; each competitor the `competitor` role with `track_ai` on and **`track_seo` off**, so the seed cannot run into the 10 SEO competitor limit (`COMPETITOR_LIMIT`) and leaves the keyword pages' competitor lists alone (Open point 6).
 8. **Topics.** One project vocabulary, kind `topic`, named `Security topics` (the mocks' name), hierarchical, not single-valued (a prompt has one or two topics). Parents are added with their fixture slug first, then children under them, so every term's slug is the fixture's (a `path` input would slugify the parent's name: `managed-soc-and-mdr`, not `managed-soc-mdr`). A found vocabulary that is flat or single-valued stops the seed.
 9. **Engines.** `chatgpt_web` and `gemini_web` are put on with the active `Country` locations of IN, AE and SA through `put_engine`, the body of `EngineService.put` (runnable location check, upsert, `ensure_ai_schedule`, audit). An engine already on with exactly those locations is not put again (a put always writes an audit entry). The fixture's `model` (`gpt-6`, `3.5 Flash-Lite`) is not stored: the provider reports the model with each answer. Engines the fixture does not name (`google_ai_mode`) are left as they are; if a developer has one on without AE or SA, the prompts step stops with the API's `location_not_supported` message naming it.
 10. **The schedules are paused in the transaction that made them.** `ensure_engines` opens one `workspace_transaction`, calls `put_engine` for each engine and then `pause_schedule` for every live, active `ai_prompt` schedule of the project, with the reason `dev seed: paused so nothing spends by itself`, before the transaction commits. So the two schedules that turning the first engine on makes never exist active in a committed state. This needs the bodies of `EngineService.put` and `ScheduleService.pause` as functions that take the caller's session; Task 4 lifts them out unchanged (the service methods call them) and the existing engine and schedule tests prove behaviour did not move. Every run pauses every active AI schedule of the project, so a schedule a developer resumed is paused again by the next seed (Open point 4). A run in the dev database would otherwise spend real money where DataForSEO credentials are set.
 11. **Locations are never created by the seed.** It reads the active `Country` locations of IN, AE and SA and stops, naming the missing countries and the command that loads them, when any is absent or inactive. Loading them uses the existing safe path: `python -m idraft.worker.sync_locations` (DataForSEO's free list, or `--from-file`). Task 10 adds a three entry saved list (`BT/fixtures/dataforseo/locations-india-gulf.json`) for a machine without DataForSEO credentials, with a test that it reads as three countries.
-12. **Quota.** 72 prompts of the base plan's 150 (`BASE_PLAN.max_prompts`, or `core.workspace_quotas.max_active_prompts`). Before its first write, the seed counts the prompts it would make or bring back against the quota and stops with `The workspace has U of L active prompts and the fixture needs N more. Nothing was written. ...` when they do not fit. `bulk_create` checks again under the workspace's prompt lock, all or none, so a prompt added meanwhile still cannot take the workspace past its limit (that refusal is reported as `The API refused a step: Workspace limit reached (quota_exceeded). ...`).
+12. **Quota.** 72 prompts of the base plan's 150 (`BASE_PLAN.max_prompts`, or `core.workspace_quotas.max_active_prompts`). Before its first write, the seed counts the prompts it would make (the fixture's prompts not found; an archived one is found, so it needs no room) against the quota and stops with `The workspace has U of L active prompts and the fixture needs N more. Nothing was written. ...` when they do not fit. `bulk_create` checks again under the workspace's prompt lock, all or none, so a prompt added meanwhile still cannot take the workspace past its limit (that refusal is reported as `The API refused a step: Workspace limit reached (quota_exceeded). ...`).
 13. **Order of the steps.** Owner, countries, project lookup, quota preflight (everything a person must fix is checked before the first write), then project, entities (the brand's aliases exist before any prompt, so `is_branded` is computed from them: the fixture's 7 branded prompts come out branded), topics (term ids for the prompts), engines and pause (the prompts' country rule needs every enabled engine to run in their country), prompts.
 14. **Not one transaction overall.** Each service opens its own transaction, as each route does. A step that fails leaves the earlier steps written; running the seed again completes them, since every step is idempotent. The only cross-step transaction is engines plus pause (Decision 10).
 15. **No answers.** The seed makes no observation, run or task. `profile`, `sources`, `competitor_pages`, `phrases` and `model_change` are accepted by the loader as JSON and never read. Answers in dev come from a real run (Open point 1).
@@ -82,9 +82,9 @@ Signatures are exact; later tasks use them.
 
 **`idraft.devseed.topics`** (Task 6): `VOCABULARY_NAME: Final = "Security topics"`, `ensure_topics(sessions, access, project_id, topics) -> tuple[dict[str, UUID], int]`.
 
-**`idraft.devseed.engines`** (Task 7): `PAUSE_REASON: Final`, `EngineChanges(turned_on: tuple[EngineCode, ...], paused: int)`, `ensure_engines(sessions, access, project_id, engines, location_ids) -> EngineChanges`.
+**`idraft.devseed.engines`** (Task 7): `PAUSE_REASON: Final`, `EngineChanges(turned_on, widened, left_off: tuple[EngineCode, ...], paused: int)`, `ensure_engines(sessions, access, project_id, engines, location_ids) -> EngineChanges`.
 
-**`idraft.devseed.prompts`** (Task 8): `PromptChanges(created, updated, unchanged)`, `prompt_items(language_code, parts, term_ids) -> list[PromptCreate]`, `check_prompt_quota(sessions, access, project_id, language_code, parts) -> None`, `prompt_quota(sessions, access) -> tuple[int, int]`, `ensure_prompts(sessions, access, project_id, language_code, parts, term_ids) -> PromptChanges`.
+**`idraft.devseed.prompts`** (Task 8): `PromptChanges(created, found, archived, differing)` (all ints; `found` prompts are never written), `prompt_items(language_code, parts, term_ids) -> list[PromptCreate]`, `check_prompt_quota(sessions, access, project_id, language_code, parts) -> None`, `prompt_quota(sessions, access) -> tuple[int, int]`, `ensure_prompts(sessions, access, project_id, language_code, parts, term_ids) -> PromptChanges`.
 
 **`idraft.devseed.run`** (Task 9): `SeedReport` (with `lines() -> list[str]`), `seed_eventus(sessions, fixture, workspace_slug) -> SeedReport`, `run_seed(settings, fixture, workspace_slug) -> SeedReport`. **`idraft.cli`**: subcommand `seed-eventus`, handler `_seed_eventus(arguments) -> int`.
 
@@ -2035,7 +2035,10 @@ async def test_the_engines_go_on_and_their_schedules_are_paused(
     changes = await ensure_engines(sessions, access, project_id, FIXTURE.engines, COUNTRY_IDS)
 
     assert changes == EngineChanges(
-        turned_on=(EngineCode.CHATGPT_WEB, EngineCode.GEMINI_WEB), paused=2
+        turned_on=(EngineCode.CHATGPT_WEB, EngineCode.GEMINI_WEB),
+        widened=(),
+        left_off=(),
+        paused=2,
     )
     assert [tuple(row) for row in await fetch(migrated, _ENGINES, project_id)] == [
         ("chatgpt_web", _GULF, True),
@@ -2055,7 +2058,7 @@ async def test_the_engines_go_on_and_their_schedules_are_paused(
 
     before = await audit_count(migrated, workspace)
     again = await ensure_engines(sessions, access, project_id, FIXTURE.engines, COUNTRY_IDS)
-    assert again == EngineChanges(turned_on=(), paused=0)
+    assert again == EngineChanges(turned_on=(), widened=(), left_off=(), paused=0)
     assert await audit_count(migrated, workspace) == before
 
 
@@ -2072,14 +2075,14 @@ async def test_a_schedule_resumed_since_is_paused_again(
 
     changes = await ensure_engines(sessions, access, project_id, FIXTURE.engines, COUNTRY_IDS)
 
-    assert changes == EngineChanges(turned_on=(), paused=1)
+    assert changes == EngineChanges(turned_on=(), widened=(), left_off=(), paused=1)
     assert [row["is_active"] for row in await fetch(migrated, _SCHEDULES, project_id)] == [
         False,
         False,
     ]
 
 
-async def test_an_engine_on_in_fewer_countries_is_widened(
+async def test_an_engine_on_in_fewer_countries_gains_the_missing_ones(
     migrated: PostgresServer, sessions: Sessions
 ) -> None:
     access, workspace, project_id = await seeded_project(migrated, sessions)
@@ -2087,7 +2090,8 @@ async def test_an_engine_on_in_fewer_countries_is_widened(
 
     changes = await ensure_engines(sessions, access, project_id, FIXTURE.engines, COUNTRY_IDS)
 
-    assert changes.turned_on == (EngineCode.CHATGPT_WEB, EngineCode.GEMINI_WEB)
+    assert changes.widened == (EngineCode.CHATGPT_WEB,)
+    assert changes.turned_on == (EngineCode.GEMINI_WEB,)
     assert [tuple(row) for row in await fetch(migrated, _ENGINES, project_id)] == [
         ("chatgpt_web", _GULF, True),
         ("gemini_web", _GULF, True),
@@ -2108,13 +2112,18 @@ Expected: FAIL (collection error) with `ModuleNotFoundError: No module named 'id
 `backend/src/idraft/devseed/engines.py`:
 
 ```python
-"""The fixture's engines on, at exactly their countries, with every active AI schedule of the
-project paused in the same transaction (plan D3 decision 10).
+"""The fixture's engines on, with every active AI schedule of the project paused in the same
+transaction (plan D3 decision 10).
+
+The seed never overwrites what a person set. An engine never configured is turned on at the
+fixture's countries. An engine already on gains the fixture's missing countries (the union, never
+fewer countries than it runs in) and is not put at all when it already covers them: a put always
+writes an audit entry, and the second run must write nothing. An engine a person turned off stays
+off and is reported in `EngineChanges.left_off`.
 
 Turning the first engine on makes the project's two AI answer schedules (`ensure_ai_schedule`),
 which would spend at their next window. Both are paused before the transaction commits, so they
-never exist active. An engine already on at those countries is not put again: a put always
-writes an audit entry, and the second run must write nothing.
+never exist active. Spend safety wins: every active AI schedule is paused on every run.
 """
 
 from __future__ import annotations
@@ -2144,7 +2153,13 @@ _SCHEDULES_MAX: Final = 100
 
 @dataclass(frozen=True, slots=True)
 class EngineChanges:
+    """`turned_on` were never configured and now run at the fixture's countries; `widened` were
+    on and gained countries; `left_off` were turned off by a person and stay off. `paused` is the
+    number of active AI schedules the run paused."""
+
     turned_on: tuple[EngineCode, ...]
+    widened: tuple[EngineCode, ...]
+    left_off: tuple[EngineCode, ...]
     paused: int
 
 
@@ -2156,22 +2171,31 @@ async def ensure_engines(
     location_ids: Mapping[str, int],
 ) -> EngineChanges:
     turned_on: list[EngineCode] = []
+    widened: list[EngineCode] = []
+    left_off: list[EngineCode] = []
     async with workspace_transaction(sessions, access.workspace_id, user_id=access.user_id) as db:
         current = await engine_repository.project_engines(db, access.workspace_id, project_id)
         for part in engines:
-            wanted = sorted({location_ids[country] for country in part.countries})
+            wanted = {location_ids[country] for country in part.countries}
             have = current.get(part.engine_code)
-            if have is not None and have.is_enabled and sorted(have.location_ids) == wanted:
+            if have is None:
+                put, changed = sorted(wanted), turned_on
+            elif not have.is_enabled:
+                left_off.append(part.engine_code)
                 continue
+            elif wanted <= set(have.location_ids):
+                continue
+            else:
+                put, changed = sorted(wanted | set(have.location_ids)), widened
             await put_engine(
                 db,
                 access,
                 project_id,
                 part.engine_code,
-                EngineUpdate(location_ids=wanted, is_enabled=True),
+                EngineUpdate(location_ids=put, is_enabled=True),
                 SEED_INFO,
             )
-            turned_on.append(part.engine_code)
+            changed.append(part.engine_code)
         active, _ = await schedules_repository.list_schedules(
             db,
             access.workspace_id,
@@ -2185,17 +2209,24 @@ async def ensure_engines(
             await pause_schedule(
                 db, access, project_id, schedule.id, SchedulePause(reason=PAUSE_REASON), SEED_INFO
             )
-    return EngineChanges(turned_on=tuple(turned_on), paused=len(active))
+    return EngineChanges(
+        turned_on=tuple(turned_on),
+        widened=tuple(widened),
+        left_off=tuple(left_off),
+        paused=len(active),
+    )
 ```
+
+The tests above also construct `EngineChanges` with the four fields, and the widened test is `test_an_engine_on_in_fewer_countries_gains_the_missing_ones` (`changes.widened == (CHATGPT_WEB,)`, `turned_on == (GEMINI_WEB,)`). Three more tests, as built in `backend/tests/devseed/test_engines.py`: an engine on in IN and US keeps US (the union is `[2356, 2682, 2784, 2840]`); an engine that already covers the countries is not put (no audit entry, `EngineChanges` all empty, `paused=0`); an engine a person turned off stays off, is reported in `left_off` and the second run writes nothing.
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && DOCKER_HOST=unix://$HOME/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock uv run pytest tests/devseed/test_engines.py --no-cov -n 4 -q`
-Expected: PASS, 3 passed.
+Expected: PASS, 8 passed.
 
-- [ ] **Step 5: Prove it bites (the pause)**
+- [ ] **Step 5: Prove it bites**
 
-Delete the `for schedule in active: await pause_schedule(...)` loop: `test_the_engines_go_on_and_their_schedules_are_paused` fails with `[True, True]`, and so does every test that reads `_SCHEDULES`. Restore. Delete the `if have is not None and ...: continue` lines: the second run reports both engines turned on and the audit count grows. Restore; 3 passed.
+Delete the `for schedule in active: await pause_schedule(...)` loop: `test_the_engines_go_on_and_their_schedules_are_paused` fails with `[True, True]`, and so does every test that reads `_SCHEDULES`. Restore. Put `sorted(wanted)` instead of the union: the "never loses a country" test fails. Delete the `elif wanted <= set(...): continue` branch: the "already covers" test fails (audit entries written). Make the off engine fall through to a put: the "turned off stays off" test fails. Restore; 8 passed.
 
 - [ ] **Step 6: Gates and commit**
 
@@ -2266,7 +2297,7 @@ async def test_the_prompts_are_made_through_bulk_create(
         sessions, access, project_id, "en", FIXTURE.prompts, term_ids
     )
 
-    assert changes == PromptChanges(created=72, updated=0, unchanged=0)
+    assert changes == PromptChanges(created=72, found=0, archived=0, differing=0)
     rows = await fetch(migrated, _PROMPTS, project_id)
     assert len(rows) == 72
     assert all(row["is_active"] for row in rows)
@@ -2298,13 +2329,15 @@ async def test_the_prompts_are_made_through_bulk_create(
 
     before = await audit_count(migrated, workspace)
     again = await ensure_prompts(sessions, access, project_id, "en", FIXTURE.prompts, term_ids)
-    assert again == PromptChanges(created=0, updated=0, unchanged=72)
+    assert again == PromptChanges(created=0, found=72, archived=0, differing=0)
     assert await audit_count(migrated, workspace) == before
 
 
-async def test_a_prompt_that_drifted_is_brought_back_in_line(
+async def test_found_prompts_are_left_untouched_even_when_a_person_changed_them(
     migrated: PostgresServer, sessions: Sessions
 ) -> None:
+    # Shortened here; the built test also removes the terms of a third prompt and compares the
+    # row, version, term and audit counts before and after, and after a second run.
     access, _, project_id, term_ids = await _ready(migrated, sessions)
     await ensure_prompts(sessions, access, project_id, "en", FIXTURE.prompts, term_ids)
     first, second = FIXTURE.prompts[0], FIXTURE.prompts[1]
@@ -2325,10 +2358,10 @@ async def test_a_prompt_that_drifted_is_brought_back_in_line(
 
     changes = await ensure_prompts(sessions, access, project_id, "en", FIXTURE.prompts, term_ids)
 
-    assert changes == PromptChanges(created=0, updated=2, unchanged=70)
+    assert changes == PromptChanges(created=0, found=72, archived=1, differing=1)
     by_text = {row["text"]: row for row in await fetch(migrated, _PROMPTS, project_id)}
-    assert by_text[first.text]["importance"] == first.importance
-    assert by_text[second.text]["is_active"]
+    assert by_text[first.text]["importance"] == 1
+    assert not by_text[second.text]["is_active"]
 
 
 async def test_prompts_past_the_quota_stop_the_seed_before_anything_is_written(
@@ -2371,11 +2404,14 @@ Expected: FAIL (collection error) with `ModuleNotFoundError: No module named 'id
 ```python
 """The fixture's prompts, through `PromptService.bulk_create` (the route's path: the workspace's
 prompt lock, the quota, the duplicate rule, the engines' countries, `is_branded` from the
-project's aliases, one version each, audited) and `PromptService.update` for one that drifted.
+project's aliases, one version each, audited).
 
-A prompt has no key column. Its identity is the API's own: the composed text with its language
-and country (`prompt_service.key_of`), so the fixture's `p01` to `p72` are never stored, and a
-second run finds every prompt as a duplicate (`on_duplicate: skip`) and makes nothing.
+The seed only creates what is missing; it never changes a prompt that exists. A prompt has no key
+column. Its identity is the API's own: the composed text with its language and country
+(`prompt_service.key_of`), archived prompts included, so the fixture's `p01` to `p72` are never
+stored and a second run finds every prompt as a duplicate (`on_duplicate: skip`) and writes
+nothing. A found prompt is read once, to report whether it is archived or differs from the fixture,
+and is never written: a person's importance, topics or archive stay as they set them.
 """
 
 from __future__ import annotations
@@ -2384,25 +2420,26 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import func, select
-
 from idraft.ai.text import text_hash
 from idraft.api.ai import prompt_repository as prompt_rows
 from idraft.api.ai.prompt_repository import PromptKey, PromptRecord
 from idraft.api.ai.prompt_service import PromptService
-from idraft.api.schemas.ai import PromptBulkCreate, PromptCreate, PromptPatch
+from idraft.api.schemas.ai import PromptBulkCreate, PromptCreate
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
-from idraft.db.tables import ai_prompts
-from idraft.devseed.context import SEED_INFO, Sessions, SeedError
+from idraft.devseed.context import SEED_INFO, SeedError, Sessions
 from idraft.devseed.fixture import PromptPart
 
 
 @dataclass(frozen=True, slots=True)
 class PromptChanges:
+    """`found` prompts were left untouched; of those, `archived` are archived and `differing` do
+    not match the fixture in intent, funnel stage, type, importance, branded or topics."""
+
     created: int
-    updated: int
-    unchanged: int
+    found: int
+    archived: int
+    differing: int
 
 
 def prompt_items(
@@ -2436,9 +2473,10 @@ async def check_prompt_quota(
     language_code: str,
     parts: Sequence[PromptPart],
 ) -> None:
-    """Stops the seed before its first write when the prompts it would make, or bring back from
-    the archive, do not fit the workspace's active prompt quota. `bulk_create` checks again under
-    the workspace's prompt lock, so a prompt added meanwhile cannot take it past the quota."""
+    """Stops the seed before its first write when the prompts it would make do not fit the
+    workspace's active prompt quota. A found prompt, archived or not, is never made again, so it
+    needs nothing. `bulk_create` checks again under the workspace's prompt lock, so a prompt added
+    meanwhile cannot take it past the quota."""
     keys: list[PromptKey] = [(text_hash(part.text), language_code, part.country) for part in parts]
     async with workspace_transaction(sessions, access.workspace_id, user_id=access.user_id) as db:
         limit, used = await prompt_rows.quota_usage(db, access.workspace_id)
@@ -2447,20 +2485,7 @@ async def check_prompt_quota(
             if project_id is None
             else await prompt_rows.existing(db, access.workspace_id, project_id, keys)
         )
-        archived = 0
-        if found:
-            archived = (
-                await db.execute(
-                    select(func.count())
-                    .select_from(ai_prompts)
-                    .where(
-                        ai_prompts.c.workspace_id == access.workspace_id,
-                        ai_prompts.c.id.in_(sorted(found.values())),
-                        ai_prompts.c.is_active.is_(False),
-                    )
-                )
-            ).scalar_one()
-    needed = len(keys) - len(found) + archived
+    needed = len(keys) - len(found)
     if needed and used + needed > limit:
         raise SeedError(
             f"The workspace has {used} of {limit} active prompts and the fixture needs {needed} "
@@ -2470,20 +2495,15 @@ async def check_prompt_quota(
         )
 
 
-def _differences(record: PromptRecord, item: PromptCreate) -> dict[str, object]:
-    """What `PATCH` would set to bring a found prompt in line with the fixture."""
-    wanted: dict[str, object] = {
-        "intent": item.intent,
-        "funnel_stage": item.funnel_stage,
-        "prompt_type": item.prompt_type,
-        "importance": item.importance,
-    }
-    changes = {name: value for name, value in wanted.items() if getattr(record, name) != value}
-    if {term.term_id for term in record.terms} != set(item.term_ids):
-        changes["term_ids"] = list(item.term_ids)
-    if not record.is_active:
-        changes["is_active"] = True
-    return changes
+def _differs(record: PromptRecord, part: PromptPart, item: PromptCreate) -> bool:
+    return (
+        record.intent != item.intent
+        or record.funnel_stage != item.funnel_stage
+        or record.prompt_type != item.prompt_type
+        or record.importance != item.importance
+        or record.is_branded != part.branded
+        or {term.term_id for term in record.terms} != set(item.term_ids)
+    )
 
 
 async def ensure_prompts(
@@ -2494,11 +2514,11 @@ async def ensure_prompts(
     parts: Sequence[PromptPart],
     term_ids: Mapping[str, UUID],
 ) -> PromptChanges:
-    """The fixture's prompts made, and the found ones brought in line. A rejected item stops the
-    seed naming it; the accepted ones are saved by then, so running again finishes the rest."""
+    """The fixture's missing prompts made; the found ones are left as they are and reported. A
+    rejected item stops the seed naming it; the accepted ones are saved by then, so running again
+    finishes the rest."""
     items = prompt_items(language_code, parts, term_ids)
-    service = PromptService(sessions=sessions)
-    outcome = await service.bulk_create(
+    outcome = await PromptService(sessions=sessions).bulk_create(
         access, project_id, PromptBulkCreate(items=items, on_duplicate="skip"), SEED_INFO
     )
     if outcome.rejected:
@@ -2510,30 +2530,30 @@ async def ensure_prompts(
             f"Prompts were refused: {refused}. {len(outcome.created)} others were saved; fix the "
             "cause and run the seed again."
         )
-    updated = 0
-    for index, prompt_id in outcome.skipped:
-        record = await service.get(access, project_id, prompt_id)
-        changes = _differences(record, items[index])
-        if changes:
-            await service.update(
-                access, project_id, prompt_id, PromptPatch.model_validate(changes), SEED_INFO
-            )
-            updated += 1
+    async with workspace_transaction(sessions, access.workspace_id, user_id=access.user_id) as db:
+        records = await prompt_rows.prompts_by_ids(
+            db, access.workspace_id, project_id, [prompt_id for _, prompt_id in outcome.skipped]
+        )
+    by_id = {record.id: record for record in records}
+    found = [(index, by_id[prompt_id]) for index, prompt_id in outcome.skipped]
     return PromptChanges(
         created=len(outcome.created),
-        updated=updated,
-        unchanged=len(outcome.skipped) - updated,
+        found=len(found),
+        archived=sum(not record.is_active for _, record in found),
+        differing=sum(_differs(record, parts[index], items[index]) for index, record in found),
     )
 ```
+
+The tests above use the four-field `PromptChanges` (`created=72, found=0, archived=0, differing=0` on a clean project; `found=72` on the second run). The drift test is replaced by `test_found_prompts_are_left_untouched_even_when_a_person_changed_them` (a person changes one importance, archives one prompt and removes the terms of a third; the run reports `found=72, archived=1, differing=2`, and rows, versions, terms, audit entries and those values are unchanged, also after a second run), and the archived-comes-back quota test by `test_the_quota_counts_only_the_prompts_the_seed_would_make` (an archived prompt needs no room; a deleted, so missing, one does). Both are in `backend/tests/devseed/test_prompts.py`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && DOCKER_HOST=unix://$HOME/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock uv run pytest tests/devseed/test_prompts.py --no-cov -n 4 -q`
-Expected: PASS, 4 passed.
+Expected: PASS, 6 passed.
 
 - [ ] **Step 5: Prove it bites**
 
-In `check_prompt_quota`, delete the `if needed and used + needed > limit:` block: the quota test fails (`DID NOT RAISE`). Restore. In `_differences`, delete the `if not record.is_active:` lines: the drift test fails (`updated=1`, the archived prompt stays archived). Restore; 4 passed.
+In `check_prompt_quota`, make `needed = len(keys)`: the quota test fails. Restore. In `ensure_prompts`, call `PromptService.update` on a found prompt that differs or is archived: the untouched test fails. Restore; 6 passed.
 
 - [ ] **Step 6: Gates and commit**
 
