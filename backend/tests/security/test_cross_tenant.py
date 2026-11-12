@@ -581,7 +581,7 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         pg,
         "UPDATE ai.observations SET provider_extras = $2::jsonb, fanout_count = 1 WHERE id = $1",
         observation_id,
-        json.dumps({"fan_out_queries": ["best crm software"]}),
+        json.dumps({"fan_out_queries": [f"best crm software {label}"]}),
     )
     # A real connection of the same Google account in both: its refresh token is sealed as the
     # application seals one, and the fake Google accepts it.
