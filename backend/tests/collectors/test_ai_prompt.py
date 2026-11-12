@@ -230,7 +230,7 @@ async def test_a_manual_run_without_prompts_asks_nothing_and_one_of_too_many_is_
     nothing = await _plan(worker_db, _window(project, {}))
 
     assert nothing.tasks == []
-    with pytest.raises(ValueError, match="at most 100"):
+    with pytest.raises(ValueError, match="at most 150"):
         await _plan(worker_db, _window(project, too_many))
 
 

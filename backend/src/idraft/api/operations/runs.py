@@ -12,9 +12,11 @@ pending tasks; tasks the provider already has are still fetched (they are paid f
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Final
 from uuid import UUID
 
@@ -38,6 +40,7 @@ from idraft.api.problems import (
     InvalidStateTransitionError,
     ManualRunLimitError,
     NotFoundError,
+    NothingToRunError,
     ProviderPausedError,
     QuotaExceededError,
     invalid_field,
@@ -45,11 +48,12 @@ from idraft.api.problems import (
 )
 from idraft.api.request_info import RequestInfo
 from idraft.api.schemas.ai import RunNow
+from idraft.api.schemas.ai_bulk import RunBulk
 from idraft.api.schemas.keywords import MetricsRefresh
 from idraft.api.schemas.ranks import CheckNow
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.collectors import ai_prompt
-from idraft.collectors.ai_prompt import Subject
+from idraft.collectors.ai_prompt import Skipped, Subject
 from idraft.collectors.registry import ScheduleWindow
 from idraft.db.engine import workspace_transaction
 from idraft.providers.dataforseo.provider import CODE as DATAFORSEO
@@ -111,6 +115,27 @@ _NOT_ASKED_WHY: Final = {
 }
 
 
+def _manual_window(
+    access: WorkspaceAccess,
+    project_id: UUID,
+    prompt_ids: Sequence[str],
+    engines: Sequence[str],
+    now: datetime,
+) -> ScheduleWindow:
+    """The window the worker will plan a manual AI run in, with its selector."""
+    return ScheduleWindow(
+        schedule_id=None,
+        workspace_id=access.workspace_id,
+        project_id=project_id,
+        workload=ai_prompt.WORKLOAD,
+        provider_mode="live",
+        selector={"prompt_ids": list(prompt_ids), "engine_codes": list(engines)},
+        window_start=now,
+        window_end=now + MANUAL_WINDOW,
+        window_hours=1,
+    )
+
+
 async def _ai_subjects(
     db: AsyncSession, access: WorkspaceAccess, project_id: UUID, prompt_id: UUID, engines: list[str]
 ) -> list[Subject]:
@@ -119,17 +144,7 @@ async def _ai_subjects(
     limit) or an endpoint without a price is refused now, not planned into a run with nothing in
     it."""
     now = await _now(db)
-    window = ScheduleWindow(
-        schedule_id=None,
-        workspace_id=access.workspace_id,
-        project_id=project_id,
-        workload=ai_prompt.WORKLOAD,
-        provider_mode="live",
-        selector={"prompt_ids": [str(prompt_id)], "engine_codes": engines},
-        window_start=now,
-        window_end=now + MANUAL_WINDOW,
-        window_hours=1,
-    )
+    window = _manual_window(access, project_id, [str(prompt_id)], engines, now)
     subjects, skipped = await ai_prompt.select_subjects(db, window)
     asked = {subject.engine_code for subject in subjects}
     why = {item.engine_code: item.reason for item in skipped}
@@ -179,6 +194,47 @@ def _after(cursor: str, scope: dict[str, object]) -> tuple[datetime, UUID]:
     if created_at.tzinfo is None:
         raise invalid_cursor()
     return created_at, run_id
+
+
+@dataclass(frozen=True, slots=True)
+class Skip:
+    prompt_id: UUID
+    engine_code: str
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class BulkRun:
+    run: RunRecord
+    prompts: int
+    answers: int
+    estimated_cost_usd: Decimal
+    skipped: list[Skip]
+    manual_runs_today: int
+
+
+def _left_out(
+    skipped: Sequence[Skipped], pending: set[tuple[UUID, str]], engines: Sequence[str]
+) -> list[Skip]:
+    """What a bulk run leaves out and why, by prompt and engine: the planner's own skips, and
+    every asked engine of a prompt with an answer on its way, `check_pending` where it is pending
+    and `prompt_pending` on its other engines (a run's selector asks every prompt it names on
+    every engine it names, so such a prompt cannot be asked on some engines only)."""
+    reasons: dict[tuple[UUID, str], str] = {
+        (item.prompt_id, item.engine_code): item.reason for item in skipped
+    }
+    for prompt_id in {prompt for prompt, _ in pending}:
+        for code in engines:
+            if (prompt_id, code) in pending:
+                reasons[(prompt_id, code)] = "check_pending"
+            else:
+                reasons.setdefault((prompt_id, code), "prompt_pending")
+    return [
+        Skip(prompt_id, code, reason)
+        for (prompt_id, code), reason in sorted(
+            reasons.items(), key=lambda item: (str(item[0][0]), item[0][1])
+        )
+    ]
 
 
 class RunService:
@@ -453,6 +509,161 @@ class RunService:
         if created is None:  # pragma: no cover - inserted by this transaction
             raise NotFoundError
         return created
+
+    async def ai_bulk_run(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        body: RunBulk,
+        info: RequestInfo,
+    ) -> BulkRun:
+        """A manual AI run of many prompts through the standard queue, the path a schedule uses:
+        one of the project's manual runs of the day, each of its tasks one of the month's AI
+        answers. What the planner would skip, and every engine of a prompt with an answer on
+        its way, is left out and listed; the rest runs. `409 check_pending` when nothing is left
+        and something was pending, `422 nothing_to_run` when nothing is left otherwise."""
+        if await self._provider_paused():
+            raise ProviderPausedError(
+                "The data provider is not being asked just now. Try again in a few minutes.",
+                headers={"Retry-After": str(PAUSED_RETRY_SECONDS)},
+            )
+        wanted = sorted(set(body.prompt_ids))
+        async with self._transaction(access) as db:
+            await _live_project(db, access, project_id)
+            known = await ai_runs.runnable_prompts(db, access.workspace_id, project_id, wanted)
+            if len(known) != len(wanted):
+                raise invalid_field(
+                    "prompt_ids",
+                    code="prompt_unknown",
+                    message="A prompt the project does not ask: archived, deleted or of another "
+                    "project.",
+                )
+            askable = await ai_runs.askable_engines(db, access.workspace_id, project_id)
+            engines = (
+                askable
+                if body.engine_codes is None
+                else sorted({str(code) for code in body.engine_codes})
+            )
+            refused = [
+                FieldError(
+                    "engine_codes",
+                    "engine_not_enabled",
+                    f"{code}: {_NOT_ASKED_WHY['engine_not_enabled']}",
+                )
+                for code in engines
+                if code not in askable
+            ]
+            if refused:
+                raise invalid_fields(refused)
+            if not engines:
+                raise invalid_field(
+                    "engine_codes",
+                    code="engine_not_enabled",
+                    message="The project has no engine turned on.",
+                )
+            now = await _now(db)
+            subjects, skipped = await ai_prompt.select_subjects(
+                db,
+                _manual_window(
+                    access, project_id, [str(prompt_id) for prompt_id in wanted], engines, now
+                ),
+            )
+            await runs.lock_manual_runs(db, project_id)
+            # Under the lock, so two requests cannot both pass: an answer on its way is not
+            # paid for twice.
+            pending = await ai_runs.pending_pairs(
+                db, access.workspace_id, project_id, list(known.values()), engines
+            )
+            held = {prompt_id for prompt_id, _ in pending}
+            left = [subject for subject in subjects if subject.prompt_id not in held]
+            out = _left_out(skipped, pending, engines)
+            if not left:
+                listed = [
+                    {
+                        "prompt_id": str(item.prompt_id),
+                        "engine_code": item.engine_code,
+                        "reason": item.reason,
+                    }
+                    for item in out
+                ]
+                if held:
+                    raise CheckPendingError(
+                        "These prompts already have an answer queued or under way. Wait for it "
+                        "to end.",
+                        prompt_ids=sorted(str(prompt_id) for prompt_id in held),
+                        skipped=listed,
+                    )
+                raise NothingToRunError(
+                    "Every prompt is skipped on every engine asked.", skipped=listed
+                )
+            cost = await ai_prompt.estimate(
+                db, left, queue="standard", on=now.astimezone(UTC).date()
+            )
+            if cost is None:
+                raise invalid_field(
+                    "engine_codes",
+                    code="price_unavailable",
+                    message="The price book has no price for these engines today.",
+                )
+            used = await runs.manual_runs_since(
+                db, access.workspace_id, project_id, await _today(db)
+            )
+            if used >= MANUAL_RUNS_PER_DAY:
+                raise ManualRunLimitError(
+                    f"The project has had its {MANUAL_RUNS_PER_DAY} manual runs today (UTC).",
+                    limit=MANUAL_RUNS_PER_DAY,
+                )
+            limit = await ai_runs.lock_ai_observation_limit(db, access.workspace_id)
+            asked = await ai_runs.ai_tasks_since(db, access.workspace_id, await _month_start(db))
+            if asked + len(left) > limit:
+                raise QuotaExceededError(
+                    f"The workspace has asked for {asked} of its {limit} AI answers this month "
+                    f"(UTC); {len(left)} more do not fit.",
+                    limit=limit,
+                    used=asked,
+                    requested=len(left),
+                    quota="max_ai_observations_per_month",
+                )
+            prompt_ids = sorted({str(subject.prompt_id) for subject in left})
+            run_id = await runs.insert_manual_run(
+                db,
+                workspace_id=access.workspace_id,
+                project_id=project_id,
+                workload=AI_PROMPT,
+                user_id=access.user_id,
+                request_id=info.request_id,
+                selector={"prompt_ids": prompt_ids, "engine_codes": engines},
+                window=MANUAL_WINDOW,
+            )
+            await audit.record(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="collection_run.requested",
+                target_type="collection_run",
+                target_id=run_id,
+                info=info,
+                after={
+                    "project_id": str(project_id),
+                    "workload": AI_PROMPT,
+                    "prompt_count": len(prompt_ids),
+                    "engine_codes": engines,
+                    "answers": len(left),
+                    "skipped_total": len(out),
+                    "queue": "standard",
+                },
+            )
+            created = await runs.get_run(db, access.workspace_id, project_id, run_id)
+        if created is None:  # pragma: no cover - inserted by this transaction
+            raise NotFoundError
+        return BulkRun(
+            run=created,
+            prompts=len(prompt_ids),
+            answers=len(left),
+            estimated_cost_usd=cost,
+            skipped=out,
+            manual_runs_today=used + 1,
+        )
 
     async def page(
         self,

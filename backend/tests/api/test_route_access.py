@@ -164,6 +164,7 @@ EXPECTED: dict[tuple[str, str], str] = {
         "POST",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}/run-now",
     ): "runs:trigger",
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/runs"): "runs:trigger",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"): "data:read",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}"): "data:read",
     # Who may cancel is decided by the service: schedules:write, or runs:trigger for a manual

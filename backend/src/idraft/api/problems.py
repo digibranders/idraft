@@ -291,6 +291,13 @@ class CheckPendingError(ProblemError):
     status, code, title = 409, "check_pending", "A check is already under way"
 
 
+class NothingToRunError(ProblemError):
+    """Carries `skipped`: every prompt and engine of a bulk run would be skipped, none of them
+    because an answer is on its way."""
+
+    status, code, title = 422, "nothing_to_run", "Nothing left to ask"
+
+
 class TooManySubjectsError(ProblemError):
     """Carries `limit`: a filter of a bulk change matched more rows than one request changes."""
 

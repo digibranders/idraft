@@ -7,7 +7,7 @@ already refused a project outside the caller's scope.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Annotated, Final
+from typing import Annotated, Final, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -19,6 +19,7 @@ from idraft.api.pagination import Commas, Cursor, CursorPageInfo
 from idraft.api.permissions import Permission
 from idraft.api.request_info import Info
 from idraft.api.resources import Resources, get_resources
+from idraft.api.schemas.ai_bulk import RunBulk, RunBulkMeta, RunBulkResponse, RunSkip, SkipReason
 from idraft.api.schemas.keywords import MetricsRefresh
 from idraft.api.schemas.operations import (
     Actor,
@@ -43,6 +44,7 @@ from idraft.api.schemas.operations import (
 from idraft.api.schemas.ranks import CheckNow
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
+from idraft.domain.ai_engines import EngineCode
 
 router = APIRouter(
     prefix="/api/v1/workspaces/{workspace_id}/projects/{project_id}", tags=["operations"]
@@ -268,3 +270,45 @@ async def cancel_run(
     reason = None if body is None else body.reason
     record = await runs.cancel(access, project_id, run_id, reason, info)
     return RunResponse(data=run_view(record, access.workspace_id))
+
+
+@router.post(
+    "/ai/runs",
+    status_code=202,
+    tags=["ai"],
+    summary="Ask many prompts now, as one manual run through the provider's standard queue",
+    description="Up to 150 prompts the project asks (`422 validation_failed` with "
+    "`prompt_unknown` at `prompt_ids` for an archived, deleted or unknown one), each once on "
+    "each of `engine_codes` (default: every engine the project has turned on; one it has not "
+    "is `engine_not_enabled`), through the standard queue, the path a schedule uses. It is one "
+    "of the project's 20 manual runs a day (`429 manual_run_limit`) and each task one of the "
+    "month's AI answers (`422 quota_exceeded`). What the planner would skip "
+    "(`prompt_too_long`, `location_not_enabled`) and every engine of a prompt with an answer "
+    "already on its way (`check_pending` there, `prompt_pending` on its other engines) is left "
+    "out and listed in `meta.skipped`; the rest runs. Nothing left is `409 check_pending` "
+    "(with `prompt_ids`) when something was pending, else `422 nothing_to_run`; both carry "
+    "`skipped`. `422 price_unavailable` without a price; `503 provider_paused` while the "
+    "provider is refusing every request. A budget used up blocks the run when the worker plans "
+    "it (`budget_blocked`).",
+)
+async def ai_bulk_run(
+    project_id: UUID, body: RunBulk, access: TriggerRuns, runs: Runs, info: Info
+) -> RunBulkResponse:
+    outcome = await runs.ai_bulk_run(access, project_id, body, info)
+    return RunBulkResponse(
+        data=run_view(outcome.run, access.workspace_id),
+        meta=RunBulkMeta(
+            prompts=outcome.prompts,
+            answers=outcome.answers,
+            estimated_cost_usd=outcome.estimated_cost_usd,
+            skipped=[
+                RunSkip(
+                    prompt_id=item.prompt_id,
+                    engine_code=EngineCode(item.engine_code),
+                    reason=cast(SkipReason, item.reason),
+                )
+                for item in outcome.skipped
+            ],
+            manual_runs_today=ManualRuns(used=outcome.manual_runs_today, limit=MANUAL_RUNS_PER_DAY),
+        ),
+    )

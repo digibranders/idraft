@@ -10339,6 +10339,103 @@
         "title": "Run",
         "type": "object"
       },
+      "RunBulk": {
+        "additionalProperties": false,
+        "description": "The prompts to ask now, each once on each engine, through the standard queue. Without\n`engine_codes`, every engine the project has turned on.",
+        "properties": {
+          "engine_codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EngineCode"
+                },
+                "maxItems": 3,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Codes"
+          },
+          "prompt_ids": {
+            "description": "Up to 150, the base plan's prompts; a repeat is dropped.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 150,
+            "minItems": 1,
+            "title": "Prompt Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "prompt_ids"
+        ],
+        "title": "RunBulk",
+        "type": "object"
+      },
+      "RunBulkMeta": {
+        "properties": {
+          "answers": {
+            "description": "Tasks the run makes, one answer each: what counts against the month's AI answers.",
+            "title": "Answers",
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "description": "The price book's estimate on the standard queue; the worker checks the budget against it when it plans the run.",
+            "examples": [
+              "0.012000"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Estimated Cost Usd",
+            "type": "string"
+          },
+          "manual_runs_today": {
+            "$ref": "#/components/schemas/ManualRuns"
+          },
+          "prompts": {
+            "description": "Prompts the run asks.",
+            "title": "Prompts",
+            "type": "integer"
+          },
+          "skipped": {
+            "description": "Every prompt and engine left out, with why.",
+            "items": {
+              "$ref": "#/components/schemas/RunSkip"
+            },
+            "title": "Skipped",
+            "type": "array"
+          }
+        },
+        "required": [
+          "prompts",
+          "answers",
+          "estimated_cost_usd",
+          "skipped",
+          "manual_runs_today"
+        ],
+        "title": "RunBulkMeta",
+        "type": "object"
+      },
+      "RunBulkResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Run"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/RunBulkMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "RunBulkResponse",
+        "type": "object"
+      },
       "RunCancel": {
         "additionalProperties": false,
         "properties": {
@@ -10681,6 +10778,35 @@
           }
         },
         "title": "RunResults",
+        "type": "object"
+      },
+      "RunSkip": {
+        "properties": {
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "prompt_too_long",
+              "location_not_enabled",
+              "check_pending",
+              "prompt_pending"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "engine_code",
+          "reason"
+        ],
+        "title": "RunSkip",
         "type": "object"
       },
       "Schedule": {
@@ -20619,6 +20745,71 @@
         },
         "summary": "Mentioned, Cited, outcomes and Share of voice per prompt, engine and topic",
         "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/runs": {
+      "post": {
+        "description": "Up to 150 prompts the project asks (`422 validation_failed` with `prompt_unknown` at `prompt_ids` for an archived, deleted or unknown one), each once on each of `engine_codes` (default: every engine the project has turned on; one it has not is `engine_not_enabled`), through the standard queue, the path a schedule uses. It is one of the project's 20 manual runs a day (`429 manual_run_limit`) and each task one of the month's AI answers (`422 quota_exceeded`). What the planner would skip (`prompt_too_long`, `location_not_enabled`) and every engine of a prompt with an answer already on its way (`check_pending` there, `prompt_pending` on its other engines) is left out and listed in `meta.skipped`; the rest runs. Nothing left is `409 check_pending` (with `prompt_ids`) when something was pending, else `422 nothing_to_run`; both carry `skipped`. `422 price_unavailable` without a price; `503 provider_paused` while the provider is refusing every request. A budget used up blocks the run when the worker plans it (`budget_blocked`).",
+        "operationId": "ai_bulk_run_api_v1_workspaces__workspace_id__projects__project_id__ai_runs_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunBulk"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunBulkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Ask many prompts now, as one manual run through the provider's standard queue",
+        "tags": [
+          "operations",
           "ai"
         ]
       }
