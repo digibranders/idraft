@@ -1001,7 +1001,7 @@ export interface paths {
         };
         /**
          * Mentioned, Cited, outcomes and Share of voice per prompt, engine and topic
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most 20); across all the entities an answer names, its shares add up to 1.
          */
         get: operations["prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get"];
         put?: never;
@@ -3022,6 +3022,11 @@ export interface components {
             cited: components["schemas"]["MetricCell"];
             /** Engine Code */
             engine_code: string;
+            /**
+             * Entities
+             * @description With `include=entities`: a cell for each tracked entity of `entities`, the own ones first, then competitors by name, at most 20. Left out otherwise.
+             */
+            entities?: components["schemas"]["EntityCells"][] | null;
             mentioned: components["schemas"]["MetricCell"];
             outcomes: components["schemas"]["OutcomeCells"];
             share_of_voice: components["schemas"]["MetricCell"];
@@ -3076,6 +3081,24 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /**
+         * EntityCells
+         * @description One tracked entity's cells, weighted as the engine's: in a topic row Mentioned is prompt
+         *     weighted, Share of voice one answer one weight. The shares of all the entities an answer
+         *     names add up to 1; the cells shown may hold fewer (at most 20, and an entity no longer
+         *     tracked has none).
+         */
+        EntityCells: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** @description Valid answers whose share of voice set names the entity. */
+            mentioned: components["schemas"]["MetricCell"];
+            /** @description The entity's share of each answer that names a tracked entity: 1 / the tracked entities the answer names. */
+            share_of_voice: components["schemas"]["MetricCell"];
         };
         /** EntityCreate */
         EntityCreate: {
@@ -9890,6 +9913,8 @@ export interface operations {
                 "filter[country_iso]"?: string | null;
                 /** @description The prompts given the term or one under it. */
                 "filter[term]"?: string | null;
+                /** @description Blocks to add: `entities`. */
+                include?: "entities"[] | null;
             };
             header?: never;
             path: {
