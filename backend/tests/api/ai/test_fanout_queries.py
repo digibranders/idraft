@@ -363,3 +363,162 @@ async def test_the_longest_stored_lists_of_a_full_project_read_within_the_limit(
     assert (len(body["data"]), body["page"]["total"]) == (200, 250)
     assert all(len(row["cited_domains"]) == 5 for row in body["data"])
     assert elapsed < 15, elapsed
+
+
+async def test_a_query_an_answer_lists_twice_counts_once_for_it(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """One answer stores the same normalized query twice and cites one URL twice: it is one
+    answer for the query, and one citation unit for the domain."""
+    world = await make_world(resources, migrated)
+    prompt = await add_prompt(migrated, world.project, "Best managed SOC providers?")
+    await answer(
+        migrated,
+        world,
+        prompt,
+        days_ago=1,
+        fan_out=["Soc Pricing", "soc pricing "],
+        cites=[Cite(GUIDE), Cite(GUIDE)],
+    )
+
+    body = (await _get(world, api, min_support=1)).json()
+
+    (row,) = body["data"]
+    assert (row["normalized_text"], row["observations"], row["prompts"]) == (PRICING, 1, 1)
+    assert _cited(row) == [("example.org", "third_party", 1)]
+    assert _counts(body["meta"]) == (1, 1, 0)
+
+
+async def test_stored_lists_that_are_not_lists_of_text_are_read_as_what_they_hold(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The column is JSON ingest wrote, but the route must not fail on a shape it did not
+    expect: an object, a number or a JSON null is no queries (and a shorter list than the
+    answer issued); in a list, a null and blank texts are no query and a number is its text."""
+    world = await make_world(resources, migrated)
+    prompt = await add_prompt(migrated, world.project, "Best managed SOC providers?")
+    odd: list[dict[str, Any]] = [
+        {"fan_out_queries": {"soc pricing": 1}},
+        {"fan_out_queries": 7},
+        {"fan_out_queries": None},
+        {"fan_out_queries": [None, 5, "", "  ", "Real Query"]},
+    ]
+    for days, extras in enumerate(odd, 1):
+        await answer(migrated, world, prompt, days_ago=days, extras=extras, fanout_count=5)
+
+    response = await _get(world, api, min_support=1)
+
+    assert _rows(response) == [("5", "5", 1, 1), ("real query", "Real Query", 1, 1)]
+    assert response.json()["page"]["total"] == 2
+    assert _counts(response.json()["meta"]) == (4, 4, 3)
+
+
+async def test_accents_spaces_and_invisible_characters_in_query_text(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """Grouping is lower case (accents too), trimmed, runs of ASCII whitespace as one space. A
+    non-breaking space and a zero-width space are not folded: each keeps its query apart."""
+    world = await make_world(resources, migrated)
+    prompt = await add_prompt(migrated, world.project, "Best managed SOC providers?")
+    cafe = f"caf{chr(0xE9)}"
+    cafe_upper = f"CAF{chr(0xC9)}"
+    nbsp = f"soc{chr(0xA0)}pricing"
+    zero_width = f"soc{chr(0x200B)}pricing"
+    await answer(
+        migrated,
+        world,
+        prompt,
+        days_ago=1,
+        fan_out=[cafe, cafe_upper, nbsp, zero_width, PRICING],
+    )
+
+    response = await _get(world, api, min_support=1)
+
+    assert response.status_code == 200, response.text
+    # Two spellings of the first are one query, once for the answer.
+    assert sorted((row[0], row[2], row[3]) for row in _rows(response)) == sorted(
+        [(cafe, 1, 1), (nbsp, 1, 1), (zero_width, 1, 1), (PRICING, 1, 1)]
+    )
+
+
+async def test_texts_sharing_a_300_character_prefix_stay_separate_rows(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The response cuts a text to 300 characters, so two long queries look the same there; the
+    rows, their counts and their domains are by the full text."""
+    world = await make_world(resources, migrated)
+    prompt = await add_prompt(migrated, world.project, "Best managed SOC providers?")
+    stem = "x" * 300
+    await answer(
+        migrated,
+        world,
+        prompt,
+        days_ago=1,
+        fan_out=[stem + "a"],
+        cites=[Cite("https://www.site-a.net/page")],
+    )
+    await answer(
+        migrated,
+        world,
+        prompt,
+        days_ago=2,
+        fan_out=[stem + "a"],
+        cites=[Cite("https://www.site-a.net/other")],
+    )
+    await answer(
+        migrated,
+        world,
+        prompt,
+        days_ago=3,
+        fan_out=[stem + "b"],
+        cites=[Cite("https://www.site-b.net/page")],
+    )
+
+    response = await _get(world, api, min_support=1)
+
+    first, second = response.json()["data"]
+    assert first["query_text"] == second["query_text"] == "x" * 297 + "..."
+    assert first["normalized_text"] == second["normalized_text"] == "x" * 297 + "..."
+    assert (first["observations"], second["observations"]) == (2, 1)
+    assert _cited(first) == [("site-a.net", "third_party", 2)]
+    assert _cited(second) == [("site-b.net", "third_party", 1)]
+
+
+async def test_a_deleted_project_is_not_found_before_the_engines_are_checked(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    world = await make_world(resources, migrated)
+    await execute(
+        migrated, "UPDATE core.projects SET deleted_at = now() WHERE id = $1", world.project.id
+    )
+
+    refused = await _get(world, api, **{"filter[engine_code_in]": "gemini_web"})
+    plain = await _get(world, api)
+
+    assert problem(refused) == problem(plain) == (404, "not_found")
+
+
+async def test_min_support_stops_at_1000(api: httpx.AsyncClient, scene: Scene) -> None:
+    at_the_bound = await _get(scene.world, api, min_support=1000)
+    over = await _get(scene.world, api, min_support=1001)
+
+    assert _rows(at_the_bound) == []
+    assert problem(over) == (422, "validation_failed")
+
+
+async def test_an_archived_prompt_is_read_when_it_is_named(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """As in the other source reads: the active prompts count, and a prompt named by
+    `filter[prompt_id]` counts whether archived or not."""
+    world = await make_world(resources, migrated)
+    old = await add_prompt(migrated, world.project, "An old SOC question?", active=False)
+    await answer(migrated, world, old, days_ago=1, fan_out=[PRICING])
+
+    unnamed = await _get(world, api, min_support=1)
+    named = await _get(world, api, min_support=1, **{"filter[prompt_id]": str(old.id)})
+
+    assert _rows(unnamed) == []
+    assert _counts(unnamed.json()["meta"]) == (0, 0, 0)
+    assert _rows(named) == [(PRICING, PRICING, 1, 1)]
+    assert _counts(named.json()["meta"]) == (1, 1, 0)

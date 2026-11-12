@@ -459,13 +459,15 @@ class SourceService:
         """The queries the engines issued while answering (docs/16 F4), the most issued first.
         An engine that does not show them is refused, never read as zero."""
         engines = shown_engines(query.engine_codes) if query.engine_codes else list(FANOUT_ENGINES)
-        refused = [code for code in engines if code in NO_FANOUT]
-        if refused:
-            raise EngineHasNoFanoutError(
-                "These engines do not show the queries they issue.", engine_codes=refused
-            )
         async with self._transaction(access) as db:
+            # The project is looked up first: an unknown or deleted one is 404 whatever engines
+            # the request names.
             now = await scoped(db, access, project_id, query, engines)
+            refused = [code for code in engines if code in NO_FANOUT]
+            if refused:
+                raise EngineHasNoFanoutError(
+                    "These engines do not show the queries they issue.", engine_codes=refused
+                )
             rows, total = await repository.fanout_counts(
                 db, now.scope, min_support=min_support, offset=page.offset, limit=page.limit
             )
