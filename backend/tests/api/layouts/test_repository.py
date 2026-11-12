@@ -13,11 +13,11 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from idraft.api.layouts.repository import delete_layout, stored_layouts
+from idraft.api.layouts.repository import delete_layout, stored_layouts, update_layout
 from idraft.config.settings import to_sqlalchemy_url
 from idraft.db.tables import layouts
 from tests.api.auth.support import add_member, make_user, make_workspace
-from tests.api.layouts.support import DOCUMENT, insert_layout
+from tests.api.layouts.support import DOCUMENT, OTHER, insert_layout
 from tests.conftest import PostgresServer
 
 
@@ -97,6 +97,40 @@ async def test_a_delete_reaches_only_the_callers_row_without_row_security(
         select(layouts.c.id).where(layouts.c.workspace_id.in_([here.id, there.id]))
     )
     assert sorted(left.scalars().all()) == sorted(kept)
+
+
+async def test_an_update_reaches_only_its_own_row_without_row_security(
+    migrated: PostgresServer, owner_db: AsyncSession
+) -> None:
+    here = await make_workspace(migrated)
+    there = await make_workspace(migrated)
+    a = await make_user(migrated)
+    b = await make_user(migrated)
+    for workspace in (here, there):
+        await add_member(migrated, workspace, a, "editor")
+        await add_member(migrated, workspace, b, "editor")
+    target = await insert_layout(migrated, here.id, a.id, "overview", DOCUMENT, a.id)
+    others = [
+        await insert_layout(migrated, here.id, b.id, "overview", DOCUMENT, b.id),
+        await insert_layout(migrated, here.id, None, "overview", DOCUMENT, a.id),
+        await insert_layout(migrated, here.id, a.id, "rankings", DOCUMENT, a.id),
+    ]
+    elsewhere = await insert_layout(migrated, there.id, a.id, "overview", DOCUMENT, a.id)
+
+    # The id of a row of the other workspace, named with this workspace: nothing is updated.
+    await update_layout(owner_db, here.id, elsewhere, OTHER, b.id)
+    await update_layout(owner_db, here.id, target, OTHER, b.id)
+
+    rows = (
+        await owner_db.execute(
+            select(layouts.c.id, layouts.c.document, layouts.c.updated_by).where(
+                layouts.c.workspace_id.in_([here.id, there.id])
+            )
+        )
+    ).all()
+    assert {row.id for row in rows if row.document == OTHER} == {target}
+    assert {row.id for row in rows if row.document == DOCUMENT} == {*others, elsewhere}
+    assert {row.updated_by for row in rows if row.id == target} == {b.id}
 
 
 async def test_a_delete_of_the_team_default_leaves_personal_rows(

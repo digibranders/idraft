@@ -435,6 +435,52 @@ async def test_a_write_in_a_suspended_workspace_is_403(
     assert await rows(migrated, workspace.id) == []
 
 
+async def test_a_delete_in_a_suspended_workspace_is_403(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    await api.put(personal_url(workspace.id), json=DOCUMENT, headers=viewer.headers)
+    await execute(
+        migrated, "UPDATE auth.workspaces SET status = 'suspended' WHERE id = $1", workspace.id
+    )
+
+    response = await api.delete(personal_url(workspace.id), headers=viewer.headers)
+
+    assert problem(response) == (403, "workspace_suspended")
+    assert len(await rows(migrated, workspace.id)) == 1
+
+
+@pytest.mark.parametrize("if_match", [None, OLD_ETAG])
+async def test_an_invalid_document_is_422_before_the_precondition(
+    if_match: str | None,
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+) -> None:
+    """The layout exists, so a save without or with a stale If-Match would be 412 if the document
+    were valid: the document is checked first."""
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    await insert_layout(
+        migrated, workspace.id, viewer.user_id, "inspector.keyword", {"schema": 1}, viewer.user_id
+    )
+    headers = viewer.headers if if_match is None else {**viewer.headers, "If-Match": if_match}
+
+    response = await api.put(
+        personal_url(workspace.id, "inspector.keyword"),
+        json={"schema": 1, "cards": [{"id": "c1", "type": "ai.by_engine"}]},
+        headers=headers,
+    )
+
+    assert problem(response) == INVALID
+    assert [(item["path"], item["code"]) for item in response.json()["errors"]] == [
+        ("cards.0.type", "not_in_catalog")
+    ]
+    stored = await rows(migrated, workspace.id, "inspector.keyword")
+    assert [json.loads(row["document"]) for row in stored] == [{"schema": 1}]
+
+
 async def test_two_first_saves_at_the_same_moment_one_wins(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -476,3 +522,41 @@ async def test_two_saves_with_the_same_etag_at_the_same_moment_one_wins(
     winner = OTHER if responses[0].status_code == 200 else third
     row = await personal_row(migrated, workspace.id, viewer.user_id)
     assert json.loads(row["document"]) == winner
+
+
+async def test_a_delete_and_a_save_at_the_same_moment_leave_no_layout(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """Whichever takes the lock first, the save ends up deleted or refused as stale (the delete
+    changed the row id), never a saved layout that survives the delete."""
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    first_save = await api.put(personal_url(workspace.id), json=DOCUMENT, headers=viewer.headers)
+    headers = {**viewer.headers, "If-Match": first_save.headers["etag"]}
+
+    async with screen_lock_held(migrated, workspace.id, "overview"):
+        save = asyncio.create_task(api.put(personal_url(workspace.id), json=OTHER, headers=headers))
+        delete = asyncio.create_task(api.delete(personal_url(workspace.id), headers=viewer.headers))
+        await wait_until_queued(migrated, workspace.id, 2)
+    saved, deleted = await asyncio.gather(save, delete)
+
+    assert deleted.status_code == 204
+    assert saved.status_code in (200, 412)
+    assert await rows(migrated, workspace.id) == []
+
+
+async def test_two_deletes_at_the_same_moment_both_answer_204(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    await api.put(personal_url(workspace.id), json=DOCUMENT, headers=viewer.headers)
+
+    async with screen_lock_held(migrated, workspace.id, "overview"):
+        one = asyncio.create_task(api.delete(personal_url(workspace.id), headers=viewer.headers))
+        two = asyncio.create_task(api.delete(personal_url(workspace.id), headers=viewer.headers))
+        await wait_until_queued(migrated, workspace.id, 2)
+    responses = await asyncio.gather(one, two)
+
+    assert [response.status_code for response in responses] == [204, 204]
+    assert await rows(migrated, workspace.id) == []
