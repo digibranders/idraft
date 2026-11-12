@@ -2078,3 +2078,304 @@ describe('DataTable column groups', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 });
+
+describe('DataTable tree mode, third level', () => {
+  // A topic, its subtopics (one open, one closed), a plain row at level 2, and a second topic
+  const ROWS3: Row[] = [
+    { id: 't1', keyword: 'Topic A', volume: 50, difficulty: 1 },
+    { id: 's1', keyword: 'Sub A1', volume: 30, difficulty: 2 },
+    { id: 'p1', keyword: 'prompt one', volume: 20, difficulty: 3 },
+    { id: 'p2', keyword: 'prompt two', volume: 10, difficulty: 4 },
+    { id: 's2', keyword: 'Sub A2', volume: 15, difficulty: 5 },
+    { id: 'l1', keyword: 'Plain A3', volume: 5, difficulty: 6 },
+    { id: 't2', keyword: 'Topic B', volume: 40, difficulty: 7 },
+  ];
+  const TREE3: Readonly<Record<string, RowTree>> = {
+    t1: { level: 1, expanded: true, setSize: 2, posInSet: 1 },
+    s1: { level: 2, expanded: true, setSize: 3, posInSet: 1 },
+    p1: { level: 3, setSize: 2, posInSet: 1 },
+    p2: { level: 3, setSize: 2, posInSet: 2 },
+    s2: { level: 2, expanded: false, setSize: 3, posInSet: 2 },
+    l1: { level: 2, setSize: 3, posInSet: 3 },
+    t2: { level: 1, expanded: false, setSize: 2, posInSet: 2 },
+  };
+  const toggle = vi.fn<(row: Row) => void>();
+  const onChange = vi.fn<(ids: ReadonlySet<string>) => void>();
+
+  function ThreeHarness({
+    rows = ROWS3,
+    tree = TREE3,
+    selection = {},
+  }: {
+    rows?: Row[];
+    tree?: Readonly<Record<string, RowTree>>;
+    selection?: Partial<Selection>;
+  }): ReactElement {
+    const [search, setSearch] = useState('');
+    const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
+    return (
+      <div className="flex h-200 flex-col">
+        <DataTable<Row>
+          caption="Keywords"
+          itemNoun={{ one: 'keyword', other: 'keywords' }}
+          columns={COLUMNS}
+          getRowId={rowId}
+          rows={rows}
+          total={rows.length}
+          sort={[]}
+          onSortChange={vi.fn()}
+          defaultSort={DEFAULT_SORT}
+          density="compact"
+          onDensityChange={vi.fn()}
+          columnState={{ visible: null, onChange: vi.fn() }}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search keywords"
+          selection={{
+            selectedIds,
+            onChange: (next) => {
+              onChange(next);
+              setSelectedIds(next);
+            },
+            matchingTotal: null,
+            allMatching: false,
+            onAllMatchingChange: vi.fn(),
+            ...selection,
+          }}
+          rowName={keywordOf}
+          onRowOpen={onOpen}
+          rowTree={(row) => tree[row.id]}
+          onToggleGroup={toggle}
+          status="ready"
+          errorState={<p>The keywords did not load.</p>}
+          emptyState={<p>No keywords yet.</p>}
+          filteredEmptyState={<p>No keywords match.</p>}
+        />
+      </div>
+    );
+  }
+
+  const treeGrid = (): HTMLElement => screen.getByRole('treegrid', { name: 'Keywords' });
+  const bodyRows = (): HTMLElement[] => within(treeGrid()).getAllByRole('row').slice(1);
+  const rowOf = (id: string): HTMLElement => {
+    const index = ROWS3.findIndex((row) => row.id === id);
+    const row = bodyRows()[index];
+    if (row === undefined) throw new Error(`No row ${id}`);
+    return row;
+  };
+  const cellAt = (row: number, column: number): HTMLElement => {
+    const cell = treeGrid().querySelector<HTMLElement>(`[data-cell="${String(row)}:${String(column)}"]`);
+    if (cell === null) throw new Error(`No cell ${String(row)}:${String(column)}`);
+    return cell;
+  };
+  const focusedCell = (): string | undefined => (document.activeElement as HTMLElement | null)?.dataset.cell;
+  const headerOf = (id: string): HTMLElement => within(rowOf(id)).getByRole('rowheader');
+
+  beforeEach(() => {
+    toggle.mockReset();
+    onChange.mockReset();
+  });
+
+  it('sets aria-level 3 with its own setsize and posinset, aria-expanded on level 2 groups only, and ignores expanded on level 3', () => {
+    renderWithProviders(
+      <ThreeHarness tree={{ ...TREE3, p1: { level: 3, expanded: true, setSize: 2, posInSet: 1 } }} />,
+    );
+    expect(rowOf('p1')).toHaveAttribute('aria-level', '3');
+    expect(rowOf('p1')).toHaveAttribute('aria-setsize', '2');
+    expect(rowOf('p2')).toHaveAttribute('aria-posinset', '2');
+    expect(rowOf('p1')).not.toHaveAttribute('aria-expanded');
+    expect(rowOf('p1')).not.toHaveAttribute('data-group-row');
+    expect(within(rowOf('p1')).queryByRole('button', { name: /(Expand|Collapse)/ })).toBeNull();
+    expect(rowOf('s1')).toHaveAttribute('aria-level', '2');
+    expect(rowOf('s1')).toHaveAttribute('aria-expanded', 'true');
+    expect(rowOf('s1')).toHaveAttribute('data-group-row');
+    expect(rowOf('s2')).toHaveAttribute('aria-expanded', 'false');
+    expect(rowOf('l1')).not.toHaveAttribute('aria-expanded');
+    expect(rowOf('t1')).toHaveAttribute('aria-level', '1');
+  });
+
+  it('draws a level 2 group row as a band with a disclosure button, in the strong body type', async () => {
+    const { user } = renderWithProviders(<ThreeHarness />);
+    expect(headerOf('s1')).toHaveClass('type-body-strong', 'bg-surface-subtle');
+    expect(headerOf('l1')).not.toHaveClass('type-body-strong');
+    await user.click(screen.getByRole('button', { name: 'Collapse Sub A1' }));
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 's1' }));
+    expect(screen.getByRole('button', { name: 'Expand Sub A2' })).toBeInTheDocument();
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('toggles a level 2 group on click, Enter and Right and Left Arrow, calling onToggleGroup with that row', async () => {
+    const { user } = renderWithProviders(<ThreeHarness />);
+    await user.click(within(rowOf('s1')).getByText('Sub A1'));
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 's1' }));
+    expect(onOpen).not.toHaveBeenCalled();
+    toggle.mockClear();
+    act(() => cellAt(4, 1).focus());
+    await user.keyboard('{Enter}');
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 's2' }));
+    toggle.mockClear();
+    await user.keyboard('{ArrowRight}');
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 's2' }));
+    toggle.mockClear();
+    act(() => cellAt(1, 1).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 's1' }));
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('moves Right from an open level 2 group to its first level 3 row and Left from level 3 to the level 2 parent, not the level 1 group', async () => {
+    const { user } = renderWithProviders(<ThreeHarness />);
+    act(() => cellAt(1, 1).focus());
+    await user.keyboard('{ArrowRight}');
+    expect(focusedCell()).toBe('2:1');
+    expect(toggle).not.toHaveBeenCalled();
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('1:1');
+    act(() => cellAt(3, 1).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('1:1');
+    // The level 1 group still moves into its first row, which is the level 2 group
+    act(() => cellAt(0, 1).focus());
+    await user.keyboard('{ArrowRight}');
+    expect(focusedCell()).toBe('1:1');
+    expect(toggle).not.toHaveBeenCalled();
+  });
+
+  it('moves Left from a closed level 2 group to its level 1 parent and from a closed level 1 group one cell left', async () => {
+    const { user } = renderWithProviders(<ThreeHarness />);
+    act(() => cellAt(4, 1).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('0:1');
+    act(() => cellAt(5, 1).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('0:1');
+    act(() => cellAt(6, 1).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('6:0');
+    expect(toggle).not.toHaveBeenCalled();
+  });
+
+  it('hands focus to the level 2 group when it closes under a focused level 3 row, and to the level 1 group when that one closes', () => {
+    const { rerender } = renderWithProviders(<ThreeHarness />);
+    act(() => cellAt(2, 1).focus());
+    expect(cellAt(2, 1)).toHaveAttribute('tabindex', '0');
+    const withoutPrompts = ROWS3.filter((row) => row.id !== 'p1' && row.id !== 'p2');
+    rerender(
+      <ThreeHarness
+        rows={withoutPrompts}
+        tree={{ ...TREE3, s1: { level: 2, expanded: false, setSize: 3, posInSet: 1 } }}
+      />,
+    );
+    expect(cellAt(1, 1)).toHaveAttribute('tabindex', '0');
+    expect(focusedCell()).toBe('1:1');
+  });
+
+  it('hands focus to the level 1 group when its level 2 and level 3 rows go, and to the row at that place when every ancestor went', () => {
+    const { rerender, unmount } = renderWithProviders(<ThreeHarness />);
+    act(() => cellAt(2, 1).focus());
+    const onlyTopics = ROWS3.filter((row) => row.id === 't1' || row.id === 't2');
+    rerender(
+      <ThreeHarness
+        rows={onlyTopics}
+        tree={{ ...TREE3, t1: { level: 1, expanded: false, setSize: 2, posInSet: 1 } }}
+      />,
+    );
+    expect(cellAt(0, 1)).toHaveAttribute('tabindex', '0');
+    expect(focusedCell()).toBe('0:1');
+    unmount();
+    const other = renderWithProviders(<ThreeHarness />);
+    act(() => cellAt(2, 1).focus());
+    const fresh: Row[] = ['x0', 'x1', 'x2'].map((id) => ({ id, keyword: id, volume: 1, difficulty: 1 }));
+    const freshTree: Record<string, RowTree> = Object.fromEntries(
+      fresh.map((row, index) => [row.id, { level: 1, setSize: 3, posInSet: index + 1 } satisfies RowTree]),
+    );
+    other.rerender(<ThreeHarness rows={fresh} tree={freshTree} />);
+    expect(cellAt(2, 1)).toHaveAttribute('tabindex', '0');
+    expect(focusedCell()).toBe('2:1');
+  });
+
+  it('selects level 3 rows with a Shift range, the header checkbox and Ctrl+A, and leaves level 2 group rows out unless headerCoversGroups', async () => {
+    const { user, unmount } = renderWithProviders(<ThreeHarness />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select prompt one' }));
+    await user.keyboard('{Shift>}');
+    await user.click(screen.getByRole('checkbox', { name: 'Select Plain A3' }));
+    await user.keyboard('{/Shift}');
+    expect(onChange).toHaveBeenLastCalledWith(new Set(['p1', 'p2', 'l1']));
+    unmount();
+    onChange.mockClear();
+    const header = renderWithProviders(<ThreeHarness />);
+    await header.user.click(screen.getByRole('checkbox', { name: 'Select all 3 keywords loaded' }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set(['p1', 'p2', 'l1']));
+    header.unmount();
+    onChange.mockClear();
+    const keys = renderWithProviders(<ThreeHarness />);
+    act(() => cellAt(2, 1).focus());
+    await keys.user.keyboard('{Control>}a{/Control}');
+    expect(onChange).toHaveBeenLastCalledWith(new Set(['p1', 'p2', 'l1']));
+    keys.unmount();
+    onChange.mockClear();
+    const groups = renderWithProviders(<ThreeHarness selection={{ headerCoversGroups: true }} />);
+    await groups.user.click(screen.getByRole('checkbox', { name: 'Select all 7 keywords loaded' }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set(ROWS3.map((row) => row.id)));
+  });
+
+  it('gives an indeterminate level 2 group checkbox from indeterminateIds', () => {
+    renderWithProviders(
+      <ThreeHarness selection={{ selectedIds: new Set(['s2']), indeterminateIds: new Set(['s1']) }} />,
+    );
+    expect(screen.getByRole('checkbox', { name: 'Select Sub A1' })).toHaveAttribute('aria-checked', 'mixed');
+    expect(screen.getByRole('checkbox', { name: 'Select Sub A2' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select prompt one' })).not.toBeChecked();
+  });
+
+  it('indents with no spacer in a two level tree, with the spacer on level 3 and on level 2 leaves once a level 2 group exists', () => {
+    const twoLevels: Readonly<Record<string, RowTree>> = {
+      t1: { level: 1, expanded: true, setSize: 1, posInSet: 1 },
+      s1: { level: 2, setSize: 4, posInSet: 1 },
+      p1: { level: 2, setSize: 4, posInSet: 2 },
+      p2: { level: 2, setSize: 4, posInSet: 3 },
+      s2: { level: 2, setSize: 4, posInSet: 4 },
+    };
+    const { unmount } = renderWithProviders(<ThreeHarness rows={ROWS3.slice(0, 5)} tree={{ ...twoLevels }} />);
+    expect(treeGrid().querySelector('[data-tree-spacer]')).toBeNull();
+    expect(headerOf('s1')).toHaveClass('pl-10');
+    expect(headerOf('t1')).not.toHaveClass('pl-10');
+    unmount();
+    renderWithProviders(<ThreeHarness />);
+    // Level 3 and the level 2 leaf line up under the text of a level 2 group: both have the spacer
+    expect(headerOf('p1')).toHaveClass('pl-10');
+    expect(headerOf('p1').querySelector('[data-tree-spacer]')).not.toBeNull();
+    expect(headerOf('l1')).toHaveClass('pl-10');
+    expect(headerOf('l1').querySelector('[data-tree-spacer]')).not.toBeNull();
+    expect(headerOf('s1').querySelector('[data-tree-spacer]')).toBeNull();
+    expect(headerOf('t1').querySelector('[data-tree-spacer]')).toBeNull();
+    expect(headerOf('p1').querySelector('[data-tree-spacer]')).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('gives level 3 the spacer and level 2 leaves none while no level 2 row is a group', () => {
+    const noGroups: Readonly<Record<string, RowTree>> = {
+      ...TREE3,
+      s1: { level: 2, setSize: 3, posInSet: 1 },
+      s2: { level: 2, setSize: 3, posInSet: 2 },
+    };
+    renderWithProviders(<ThreeHarness tree={noGroups} />);
+    expect(headerOf('p1').querySelector('[data-tree-spacer]')).not.toBeNull();
+    expect(headerOf('l1').querySelector('[data-tree-spacer]')).toBeNull();
+    expect(headerOf('s1').querySelector('[data-tree-spacer]')).toBeNull();
+  });
+
+  it('counts every rendered row in aria-rowcount and numbers aria-rowindex across three levels', () => {
+    renderWithProviders(<ThreeHarness />);
+    expect(treeGrid()).toHaveAttribute('aria-rowcount', '8');
+    expect(
+      within(treeGrid())
+        .getAllByRole('row')
+        .map((row) => row.getAttribute('aria-rowindex')),
+    ).toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
+  });
+
+  it('passes the accessibility check with three levels', async () => {
+    const { container } = renderWithProviders(<ThreeHarness />);
+    expect(await axe(container)).toHaveNoViolations();
+  });
+});

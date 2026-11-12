@@ -23,6 +23,7 @@ import { ColumnChooser } from './column-chooser';
 import { planHeader } from './column-groups';
 import { TableFooter } from './table-footer';
 import { DataTableToolbar } from './toolbar';
+import { ancestorIndexes, treeKey, type TreeRowFacts } from './tree-rows';
 import type { ActionScope, CellTip, DataTableColumn, DataTableProps, RecordAction, RowActions, RowTree } from './types';
 import { useSortedRows } from './use-sorted-rows';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -62,9 +63,9 @@ const GROUP_ORDER: Readonly<Record<RecordAction<unknown>['group'], number>> = {
 const actionsOf = <TRow,>(rowActions: RowActions<TRow> | undefined, row: TRow): readonly RecordAction<TRow>[] =>
   rowActions === undefined ? [] : typeof rowActions === 'function' ? rowActions(row) : rowActions;
 
-/** A group row has rows to show or hide; a level 1 row without an expanded state is an ordinary row. */
-const isGroup = (tree: RowTree | undefined): tree is RowTree & { expanded: boolean } =>
-  tree?.level === 1 && tree.expanded !== undefined;
+/** A group row has rows to show or hide; a row without an expanded state, and any level 3 row, is an ordinary row. */
+const isGroup = (tree: RowTree | undefined): tree is RowTree & { level: 1 | 2; expanded: boolean } =>
+  (tree?.level === 1 || tree?.level === 2) && tree.expanded !== undefined;
 
 /** Whether a row has a checkbox: all do but the ones the caller marks `selectable: false`. */
 const hasCheckbox = (tree: RowTree | undefined): boolean => tree?.selectable !== false;
@@ -74,18 +75,21 @@ const hasCheckbox = (tree: RowTree | undefined): boolean => tree?.selectable !==
  * rows inside a group; a group row's checkbox is its own, and the caller maps it to the rows it holds.
  */
 const isPickable = (tree: RowTree | undefined, groupsToo: boolean): boolean =>
-  tree === undefined || ((groupsToo || tree.level === 2) && hasCheckbox(tree));
+  tree === undefined || (hasCheckbox(tree) && (groupsToo || (tree.level >= 2 && !isGroup(tree))));
 
 /** The identity cell is the row header (20-accessibility.md section 6.2, rule 1). */
 const cellTag = (identity: boolean): 'th' | 'td' => (identity ? 'th' : 'td');
 const ROW_SCOPE = 'row';
 
-/** The cell that holds the tab stop. `groupId` is the group row a row inside a group sits under: when the group closes, focus goes to it. */
+/**
+ * The cell that holds the tab stop. `ancestorIds` are the group rows a row in a tree sits under, nearest first:
+ * when its group closes, focus goes to the nearest one still shown.
+ */
 interface FocusCell {
   rowId: string | null;
   index: number;
   column: number;
-  groupId: string | null;
+  ancestorIds: readonly string[];
 }
 
 type GridColumn<TRow> = { kind: 'select' } | { kind: 'data'; column: DataTableColumn<TRow> } | { kind: 'actions' };
@@ -327,7 +331,7 @@ export function DataTable<TRow extends RowData>({
   // Focus: one cell holds the tab stop. It follows the row's id through sorting, searching and refetches
   // (20-accessibility.md section 6.4, rule 6); when the row goes, the row now at its index takes it.
   // `rowId` null is the header row.
-  const [focus, setFocus] = useState<FocusCell>({ rowId: null, index: -1, column: 0, groupId: null });
+  const [focus, setFocus] = useState<FocusCell>({ rowId: null, index: -1, column: 0, ancestorIds: [] });
   // A key's move, kept apart from focus that follows a click, so only keys scroll and move focus. A
   // request `ifLost` only takes focus that fell to the page body (the inspector closed around it).
   const [focusRequest, setFocusRequest] = useState<{
@@ -343,23 +347,27 @@ export function DataTable<TRow extends RowData>({
     row: showRows ? Math.min(focusedIndex, rows.length - 1) : -1,
     column: Math.min(focus.column, grid.length - 1),
   };
-  // The group row above the row at an index, when that row sits inside a group
-  const groupIdAbove = (row: number): string | null => {
-    if (row < 0 || treeAt(row)?.level !== 2) return null;
-    for (let index = row - 1; index >= 0; index -= 1) if (isGroup(treeAt(index))) return ids[index] ?? null;
-    return null;
-  };
+  // The level and group state of every row shown, for the tree keys and the rows a row sits under. A row
+  // without tree facts counts as an ordinary level 1 row.
+  const treeFacts = (): TreeRowFacts[] =>
+    rows.map((row) => {
+      const tree = rowTree?.(row);
+      return { level: tree?.level ?? 1, expanded: isGroup(tree) ? tree.expanded : null };
+    });
+  // The group rows above the row at an index, nearest first
+  const ancestorIdsOf = (row: number): readonly string[] =>
+    row < 0 || !treeMode ? [] : ancestorIndexes(treeFacts(), row).flatMap((index) => ids[index] ?? []);
   const cellAt = (row: number, column: number): FocusCell => ({
     rowId: row < 0 ? null : (ids[row] ?? null),
     index: row,
     column,
-    groupId: groupIdAbove(row),
+    ancestorIds: ancestorIdsOf(row),
   });
   // The focused row went (a refetch or a filter dropped it): the row now at its place takes the tab stop
   // for good, so the old row coming back (an undo) does not pull the tab stop away. A row inside a group
-  // that closed hands it to the group row.
+  // that closed hands it to the nearest group row above it that is still shown.
   if (showRows && current.row >= 0 && focus.rowId !== null && !indexOfId.has(focus.rowId)) {
-    const group = focus.groupId === null ? undefined : indexOfId.get(focus.groupId);
+    const group = focus.ancestorIds.map((ancestor) => indexOfId.get(ancestor)).find((index) => index !== undefined);
     setFocus(cellAt(group ?? current.row, current.column));
   }
   // Looked up by the grid's id when a menu closes, which is after render
@@ -652,35 +660,25 @@ export function DataTable<TRow extends RowData>({
     }
     // Tree keys (20-accessibility.md section 6.7), on the identity cell, which holds the disclosure button:
     // Right opens a closed group row, or moves from an open one to its first row; Left closes an open group
-    // row, or moves from a row to its group row. Any other cell (the checkbox cell too), and any other case,
+    // row, or moves from a row to its parent row. Any other cell (the checkbox cell too), and any other case,
     // moves between cells as in a grid.
     if (
+      treeMode &&
       row !== undefined &&
       current.column === identityIndex &&
       plain &&
       !event.shiftKey &&
       (event.key === 'ArrowRight' || event.key === 'ArrowLeft')
     ) {
-      const tree = treeAt(current.row);
-      const right = event.key === 'ArrowRight';
-      let destination: number | null = null;
-      if (isGroup(tree)) {
-        if (tree.expanded === right) {
-          // Right on an open group row: its first row, when it has one
-          if (right && treeAt(current.row + 1)?.level === 2) destination = current.row + 1;
-        } else {
-          event.preventDefault();
-          onToggleGroup?.(row);
-          return;
-        }
-      } else if (tree?.level === 2 && !right) {
-        for (let index = current.row - 1; index >= 0 && destination === null; index -= 1) {
-          if (isGroup(treeAt(index))) destination = index;
-        }
-      }
-      if (destination !== null) {
+      const result = treeKey(treeFacts(), current.row, event.key);
+      if (result?.kind === 'toggle') {
         event.preventDefault();
-        moveTo({ row: destination, column: identityIndex });
+        onToggleGroup?.(row);
+        return;
+      }
+      if (result?.kind === 'move') {
+        event.preventDefault();
+        moveTo({ row: result.row, column: identityIndex });
         return;
       }
     }
@@ -875,6 +873,14 @@ export function DataTable<TRow extends RowData>({
             ? -1
             : total + headerRows
           : rows.length + headerRows;
+  // Whether any level 2 row is a group: its rows are then drawn with room where the disclosure button is, so the
+  // text of every level 2 row lines up (all rows, not the ones in view, so scrolling does not shift it)
+  const hasSubgroups =
+    rowTree !== undefined &&
+    rows.some((row) => {
+      const tree = rowTree(row);
+      return isGroup(tree) && tree.level === 2;
+    });
   const bodyItems: ({ kind: 'gap'; key: string; height: number } | { kind: 'row'; row: TRow; index: number })[] = [];
   ranges.forEach((range, position) => {
     const height = gaps[position] ?? 0;
@@ -1175,6 +1181,9 @@ export function DataTable<TRow extends RowData>({
                         const id = getRowId(row);
                         const tree = rowTree?.(row);
                         const groupTree = isGroup(tree) ? tree : undefined;
+                        // Text lines up under a level 2 group's name, past where its disclosure button is
+                        const spaced =
+                          tree?.level === 3 || (hasSubgroups && tree?.level === 2 && groupTree === undefined);
                         const selectable = hasCheckbox(tree);
                         const isSelected = selectable && (allMatching || selected.has(id));
                         const isActive = activeRowId === id;
@@ -1249,7 +1258,7 @@ export function DataTable<TRow extends RowData>({
                                     identity &&
                                       'group-data-active:text-primary-text group-data-selected:text-primary-text',
                                     // The rows of a group sit under its name, past the disclosure button
-                                    identity && tree?.level === 2 && 'pl-10',
+                                    identity && tree !== undefined && tree.level >= 2 && 'pl-10',
                                   )}
                                 >
                                   {column.kind === 'select' ? (
@@ -1315,6 +1324,11 @@ export function DataTable<TRow extends RowData>({
                                           className={cn('transition-transform', groupTree.expanded && 'rotate-90')}
                                         />
                                       </button>
+                                      <span className="min-w-0 flex-1">{column.column.cell(row)}</span>
+                                    </span>
+                                  ) : identity && spaced ? (
+                                    <span className="flex min-w-0 items-center gap-2">
+                                      <span aria-hidden="true" data-tree-spacer="" className="size-5 shrink-0" />
                                       <span className="min-w-0 flex-1">{column.column.cell(row)}</span>
                                     </span>
                                   ) : (

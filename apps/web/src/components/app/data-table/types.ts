@@ -153,16 +153,21 @@ export interface Selection {
 
 /** The place of a row in a tree table (`DataTableProps.rowTree`). */
 export interface RowTree {
-  /** 1 for a group row, 2 for a row inside one. */
-  level: 1 | 2;
-  /** Group rows only: whether its rows are shown. A level 1 row without it has no rows to show, and is an ordinary row. */
+  /** 1 for a top level row, 2 for a row inside one, 3 for a row inside a level 2 group row. */
+  level: 1 | 2 | 3;
+  /**
+   * Group rows only (level 1 and 2): whether its rows are shown. A row without it has no rows to show, and is an
+   * ordinary row. Ignored on level 3: a level 3 row is always a leaf. Rows that load later are the caller's: it
+   * puts a row with `selectable: false` in their place while they load.
+   */
   expanded?: boolean | undefined;
   /** Rows at this level in the group it belongs to, and this row's place among them (aria-setsize, aria-posinset). */
   setSize: number;
   posInSet: number;
   /**
    * A row with `false` (a "Show all" row) draws no checkbox and is not part of a range, a select-all or the
-   * "select all N loaded" count. Group rows never are, whatever this says: only level 2 rows are counted.
+   * "select all N loaded" count. Group rows never are, whatever this says: only the rows that are not groups,
+   * from level 2 down, are counted.
    */
   selectable?: boolean | undefined;
   /** Group rows only: the whole accessible name of the disclosure button ("Expand CRM group, 42 keywords"); the row's name with Expand or Collapse when not given. */
