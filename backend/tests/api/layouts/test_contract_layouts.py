@@ -1,6 +1,7 @@
 """The published contract of layouts (WP-03 T3b; BE-LAYOUTS-02, 03, 04, 06, 07, CF-29): every
-route answers `501 not_implemented` after its access checks and a body check. WP-11 deletes this
-file when it writes the real tests."""
+route not built yet answers `501 not_implemented` after its access checks and a body check (the
+GET is built: tests/api/layouts/test_get_layout.py). WP-11 deletes this file when it writes the
+real tests."""
 
 from __future__ import annotations
 
@@ -60,7 +61,8 @@ async def test_any_member_reaches_the_personal_routes(
         layout_url(workspace.id, "me", "layouts", "ai_overview"), headers=caller.headers
     )
 
-    assert [problem(got), problem(put), problem(deleted)] == [NOT_BUILT] * 3
+    assert got.status_code == 200
+    assert [problem(put), problem(deleted)] == [NOT_BUILT] * 2
 
 
 async def test_the_team_default_needs_layouts_manage(
