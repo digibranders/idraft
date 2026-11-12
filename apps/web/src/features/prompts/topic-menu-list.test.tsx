@@ -43,6 +43,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   restoreWideScreen();
+  server.events.removeAllListeners();
 });
 
 function promptsAs(role: Role): ReactElement {
@@ -97,6 +98,29 @@ describe('the menu of a topic while the prompt list is not whole', () => {
     }
     // What does not read the list stays open
     expect(screen.getByRole('menuitem', { name: 'Show in Prompts' })).not.toHaveAttribute('aria-disabled', 'true');
+  });
+});
+
+describe('Run now from the menu of a topic', () => {
+  it('sends the prompts of the topic in one request, after the confirm, and says what started', async () => {
+    const bodies: { prompt_ids: string[]; engine_codes?: string[] }[] = [];
+    const singles: string[] = [];
+    server.events.on('request:start', async ({ request }) => {
+      if (request.method !== 'POST') return;
+      if (request.url.endsWith('/ai/runs')) bodies.push((await request.clone().json()) as (typeof bodies)[number]);
+      if (request.url.endsWith('/run-now')) singles.push(request.url);
+    });
+    const { user } = renderOn('editor');
+    await openSeoMenu(user);
+    await user.click(screen.getByRole('menuitem', { name: 'Run now' }));
+    await user.click(await screen.findByRole('button', { name: 'Run 12 prompts' }));
+    expect((await screen.findAllByText(/^Run started: 12 prompts on \d engines?$/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/^About \$/)).length).toBeGreaterThan(0);
+    // One request with the 12 prompts, and the engines left to the API; none of the single prompt route
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]?.prompt_ids).toHaveLength(12);
+    expect(bodies[0]?.engine_codes).toBeUndefined();
+    expect(singles).toEqual([]);
   });
 });
 

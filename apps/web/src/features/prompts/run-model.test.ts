@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  classifyRunError,
+  BULK_RUN_MAX,
+  chunkIds,
   MANUAL_RUN_CAP,
   planRuns,
-  runInTurn,
-  tallyRuns,
-  type RunResult,
-  type Stop,
+  runProblemOf,
+  skipCounts,
+  summarizeRuns,
+  type ChunkAnswer,
 } from './run-model';
 import { ApiProblem } from '@/lib/api/problem';
-import type { ProjectEngine, Prompt } from '@/lib/api/types';
+import type { ProjectEngine, Prompt, RunSkip, ValidationItem } from '@/lib/api/types';
 import type { Country } from '@/lib/locations/countries';
 
 const country = (location_id: number, country_iso: string): Country => ({
@@ -94,109 +95,243 @@ describe('the prompts a run can ask', () => {
   });
 });
 
+describe('the runs a choice of prompts makes', () => {
+  const ids = (count: number): string[] => Array.from({ length: count }, (_, at) => `p${String(at)}`);
+
+  it('knows the daily cap of manual runs and what one bulk run takes', () => {
+    expect(MANUAL_RUN_CAP).toBe(20);
+    expect(BULK_RUN_MAX).toBe(150);
+  });
+
+  it('keeps up to 150 prompts in one run, in order, and splits more into runs of 150', () => {
+    expect(chunkIds(ids(150)).map((run) => run.length)).toEqual([150]);
+    const runs = chunkIds(ids(160));
+    expect(runs.map((run) => run.length)).toEqual([150, 10]);
+    expect(runs[1]?.[0]).toBe('p150');
+    expect(chunkIds(ids(301)).map((run) => run.length)).toEqual([150, 150, 1]);
+    expect(chunkIds([])).toEqual([]);
+  });
+});
+
+const skip = (prompt_id: string, engine_code: RunSkip['engine_code'], reason: RunSkip['reason']): RunSkip => ({
+  prompt_id,
+  engine_code,
+  reason,
+});
+
+describe('the pairs a run left out, in words', () => {
+  it('counts each reason, an answer already on its way being one whether it is queued or the prompts', () => {
+    expect(
+      skipCounts([
+        skip('a', 'chatgpt_web', 'prompt_too_long'),
+        skip('b', 'chatgpt_web', 'prompt_too_long'),
+        skip('b', 'gemini_web', 'location_not_enabled'),
+        skip('c', 'chatgpt_web', 'check_pending'),
+        skip('c', 'gemini_web', 'prompt_pending'),
+      ]),
+    ).toEqual({ tooLong: 2, noLocation: 1, pending: 2 });
+    expect(skipCounts([])).toEqual({ tooLong: 0, noLocation: 0, pending: 0 });
+  });
+});
+
 const problem = (
   status: number,
   code: string,
   body: Record<string, unknown> = {},
   retryAfterSeconds: number | null = null,
+  errors: ValidationItem[] = [],
 ): ApiProblem =>
-  new ApiProblem({ status, code, title: code, detail: null, requestId: null, errors: [], retryAfterSeconds, body });
-
-const LIMIT: Stop = { reason: 'manual_run_limit', limit: 20, used: null, requested: null, retryMinutes: null };
+  new ApiProblem({ status, code, title: code, detail: null, requestId: null, errors, retryAfterSeconds, body });
+const item = (path: string, code: string, message = ''): ValidationItem => ({ location: 'body', path, code, message });
 
 describe('what a refused run means', () => {
-  it('stops the loop for the limits that every other prompt would meet too', () => {
-    expect(classifyRunError(problem(429, 'manual_run_limit', { limit: 20 }))).toEqual({ kind: 'stop', stop: LIMIT });
-    expect(classifyRunError(problem(422, 'quota_exceeded', { limit: 100, used: 99, requested: 2 }))).toEqual({
-      kind: 'stop',
-      stop: { reason: 'quota_exceeded', limit: 100, used: 99, requested: 2, retryMinutes: null },
+  it('reads the waits in whole minutes, at least one', () => {
+    expect(runProblemOf(problem(503, 'provider_paused', {}, 300))).toEqual({ kind: 'provider_paused', minutes: 5 });
+    expect(runProblemOf(problem(429, 'rate_limited', {}, 61))).toEqual({ kind: 'rate_limited', minutes: 2 });
+    expect(runProblemOf(problem(503, 'provider_paused'))).toEqual({ kind: 'provider_paused', minutes: 1 });
+  });
+
+  it('reads the limit of manual runs and the numbers of the month of answers', () => {
+    expect(runProblemOf(problem(429, 'manual_run_limit', { limit: 20 }))).toEqual({
+      kind: 'manual_run_limit',
+      limit: 20,
     });
-    expect(classifyRunError(problem(503, 'provider_paused', {}, 300))).toMatchObject({
-      kind: 'stop',
-      stop: { reason: 'provider_paused', retryMinutes: 5 },
+    expect(runProblemOf(problem(429, 'manual_run_limit'))).toEqual({ kind: 'manual_run_limit', limit: null });
+    expect(runProblemOf(problem(422, 'quota_exceeded', { limit: 100, used: 99, requested: 2 }))).toEqual({
+      kind: 'quota_exceeded',
+      limit: 100,
+      used: 99,
+      requested: 2,
     });
-    expect(classifyRunError(problem(429, 'rate_limited', {}, 61))).toMatchObject({
-      kind: 'stop',
-      stop: { reason: 'rate_limited', retryMinutes: 2 },
-    });
-    expect(classifyRunError(problem(403, 'forbidden'))).toMatchObject({ kind: 'stop', stop: { reason: 'forbidden' } });
-    // Whatever the API calls a refusal for want of permission, it is the same for every prompt after it
-    expect(classifyRunError(problem(403, 'permission_denied'))).toMatchObject({
-      kind: 'stop',
-      stop: { reason: 'forbidden' },
+    expect(runProblemOf(problem(422, 'quota_exceeded'))).toEqual({
+      kind: 'quota_exceeded',
+      limit: null,
+      used: null,
+      requested: null,
     });
   });
 
-  it('goes on after a refusal that belongs to the prompt', () => {
-    expect(classifyRunError(problem(409, 'check_pending'))).toEqual({ kind: 'refused', why: 'pending' });
-    expect(classifyRunError(problem(422, 'validation_failed'))).toEqual({ kind: 'refused', why: 'engines' });
-    expect(classifyRunError(problem(404, 'not_found'))).toEqual({ kind: 'refused', why: 'gone' });
-    expect(classifyRunError(problem(500, 'internal_error'))).toEqual({ kind: 'refused', why: 'failed' });
-    expect(classifyRunError(new Error('network'))).toEqual({ kind: 'refused', why: 'failed' });
+  it('says no permission by the status, whatever the problem calls it', () => {
+    expect(runProblemOf(problem(403, 'forbidden'))).toEqual({ kind: 'forbidden' });
+    expect(runProblemOf(problem(403, 'permission_denied'))).toEqual({ kind: 'forbidden' });
+  });
+
+  it('says that some prompts are archived or gone for a prompt id the project does not ask', () => {
+    expect(
+      runProblemOf(problem(422, 'validation_failed', {}, null, [item('prompt_ids', 'prompt_unknown', 'Unknown')])),
+    ).toEqual({ kind: 'prompt_unknown' });
+  });
+
+  it('names the engines that are refused, by reason, from the engine before the colon of the message', () => {
+    expect(
+      runProblemOf(
+        problem(422, 'validation_failed', {}, null, [
+          item('engine_codes', 'engine_not_enabled', 'gemini_web: The engine is not turned on for the project.'),
+          item('engine_codes', 'engine_not_enabled', 'google_ai_mode: The engine is not turned on for the project.'),
+          item('engine_codes', 'prompt_too_long', 'chatgpt_web: The prompt is longer than this engine takes.'),
+        ]),
+      ),
+    ).toEqual({
+      kind: 'engines_refused',
+      refused: { engine_not_enabled: ['gemini_web', 'google_ai_mode'], prompt_too_long: ['chatgpt_web'] },
+    });
+  });
+
+  it('takes a missing price as the run is, whether it is a problem of its own or an item', () => {
+    expect(runProblemOf(problem(422, 'price_unavailable'))).toEqual({
+      kind: 'engines_refused',
+      refused: { price_unavailable: [] },
+    });
+    expect(
+      runProblemOf(
+        problem(422, 'validation_failed', {}, null, [item('engine_codes', 'price_unavailable', 'No price')]),
+      ),
+    ).toEqual({ kind: 'engines_refused', refused: { price_unavailable: [] } });
+  });
+
+  it('says nothing was started, with the reasons, when every pair was left out', () => {
+    const skipped = [
+      skip('a', 'chatgpt_web', 'prompt_too_long'),
+      skip('b', 'chatgpt_web', 'location_not_enabled'),
+      skip('b', 'gemini_web', 'location_not_enabled'),
+    ];
+    expect(runProblemOf(problem(422, 'nothing_to_run', { skipped }))).toEqual({
+      kind: 'nothing_to_run',
+      skips: { tooLong: 1, noLocation: 2, pending: 0 },
+    });
+    expect(
+      runProblemOf(
+        problem(409, 'check_pending', { prompt_ids: ['a'], skipped: [skip('a', 'chatgpt_web', 'check_pending')] }),
+      ),
+    ).toEqual({ kind: 'check_pending', engines: [], skips: { tooLong: 0, noLocation: 0, pending: 1 } });
+    // Run now of one prompt names the engines instead
+    expect(runProblemOf(problem(409, 'check_pending', { engine_codes: ['gemini_web'] }))).toEqual({
+      kind: 'check_pending',
+      engines: ['gemini_web'],
+      skips: { tooLong: 0, noLocation: 0, pending: 0 },
+    });
+  });
+
+  it('never throws on a skipped list that is not one', () => {
+    expect(runProblemOf(problem(422, 'nothing_to_run', { skipped: 'x' }))).toEqual({
+      kind: 'nothing_to_run',
+      skips: { tooLong: 0, noLocation: 0, pending: 0 },
+    });
+    expect(runProblemOf(problem(422, 'nothing_to_run', { skipped: [null, { reason: 4 }, 'x'] }))).toEqual({
+      kind: 'nothing_to_run',
+      skips: { tooLong: 0, noLocation: 0, pending: 0 },
+    });
+  });
+
+  it('keeps a prompt that is gone, and every other failure, apart', () => {
+    expect(runProblemOf(problem(404, 'not_found'))).toEqual({ kind: 'gone' });
+    expect(runProblemOf(problem(500, 'internal_error'))).toEqual({ kind: 'failed' });
+    expect(runProblemOf(problem(422, 'validation_failed'))).toEqual({ kind: 'failed' });
+    expect(runProblemOf(new Error('network'))).toEqual({ kind: 'failed' });
   });
 });
 
-const STOP: RunResult = { kind: 'stop', stop: LIMIT };
-
-describe('running one prompt after the other', () => {
-  it('stops at the first limit and does not ask the prompts after it', async () => {
-    const asked: string[] = [];
-    const answers: RunResult[] = [{ kind: 'started' }, { kind: 'refused', why: 'pending' }, STOP];
-    const outcome = await runInTurn(['a', 'b', 'c', 'd', 'e'], (id) => {
-      asked.push(id);
-      return Promise.resolve(answers[asked.length - 1] ?? { kind: 'started' });
-    });
-    expect(asked).toEqual(['a', 'b', 'c']);
-    expect(outcome.results).toEqual([{ kind: 'started' }, { kind: 'refused', why: 'pending' }]);
-    expect(outcome.stop).toMatchObject({ reason: 'manual_run_limit' });
-    expect(outcome.notTried).toBe(2);
-  });
-
-  it('asks every prompt when none is stopped', async () => {
-    const outcome = await runInTurn(['a', 'b'], () => Promise.resolve({ kind: 'started' }));
-    expect(outcome).toMatchObject({ stop: null, notTried: 0 });
-    expect(outcome.results).toHaveLength(2);
-  });
-
-  it('can be told to stop between two prompts', async () => {
-    let stopped = false;
-    const outcome = await runInTurn(
-      ['a', 'b', 'c'],
-      () => {
-        stopped = true;
-        return Promise.resolve({ kind: 'started' });
-      },
-      () => stopped,
-    );
-    expect(outcome.results).toHaveLength(1);
-    expect(outcome.notTried).toBe(2);
-  });
+const answer = (
+  ids: readonly string[],
+  prompts: number,
+  cost: string,
+  skipped: RunSkip[],
+  used: number,
+): ChunkAnswer => ({
+  ids,
+  meta: {
+    prompts,
+    answers: prompts * 2,
+    estimated_cost_usd: cost,
+    skipped,
+    manual_runs_today: { used, limit: 20 },
+  },
 });
 
-describe('the summary of a run', () => {
-  it('counts what started, what was refused and why, what was set aside and what was not tried', () => {
-    const tally = tallyRuns(22, 2, {
-      results: [
-        { kind: 'started' },
-        { kind: 'started' },
-        { kind: 'refused', why: 'pending' },
-        { kind: 'refused', why: 'failed' },
-        { kind: 'refused', why: 'failed' },
+describe('the summary of the runs that were queued', () => {
+  const CODES = ['chatgpt_web', 'gemini_web'];
+
+  it('counts the prompts and the engines asked, the cost, and the pairs left out in words', () => {
+    const summary = summarizeRuns(
+      [
+        answer(
+          ['a', 'b', 'c'],
+          2,
+          '0.024000',
+          [
+            skip('c', 'chatgpt_web', 'prompt_too_long'),
+            skip('c', 'gemini_web', 'prompt_too_long'),
+            skip('b', 'gemini_web', 'location_not_enabled'),
+          ],
+          3,
+        ),
       ],
-      stop: LIMIT,
-      notTried: 14,
-    });
-    expect(tally).toMatchObject({
-      total: 22,
-      started: 2,
-      blocked: 2,
-      refused: { pending: 1, engines: 0, gone: 0, failed: 2 },
-      notTried: 14,
-    });
-    expect(tally.stop?.reason).toBe('manual_run_limit');
+      CODES,
+    );
+    expect(summary.prompts).toBe(2);
+    expect(summary.engines).toBe(2);
+    expect(summary.cost).toBeCloseTo(0.024);
+    expect(summary.skips).toEqual({ tooLong: 2, noLocation: 1, pending: 0 });
+    // The prompt left out on every engine did not start; the one left out on one engine did
+    expect(summary.startedIds).toEqual(['a', 'b']);
+    expect(summary.manualRuns).toEqual({ used: 3, limit: 20 });
   });
 
-  it('knows the daily cap of manual runs', () => {
-    expect(MANUAL_RUN_CAP).toBe(20);
+  it('does not count an engine that every prompt was left out on', () => {
+    const summary = summarizeRuns(
+      [
+        answer(
+          ['a', 'b'],
+          2,
+          '0.010000',
+          [skip('a', 'gemini_web', 'location_not_enabled'), skip('b', 'gemini_web', 'location_not_enabled')],
+          1,
+        ),
+      ],
+      CODES,
+    );
+    expect(summary.engines).toBe(1);
+    expect(summary.startedIds).toEqual(['a', 'b']);
+  });
+
+  it('adds up the runs of more than one request, and reads the day from the last of them', () => {
+    const summary = summarizeRuns(
+      [
+        answer(['a', 'b'], 2, '0.010000', [], 4),
+        answer(['c'], 1, '0.005000', [skip('c', 'gemini_web', 'prompt_pending')], 5),
+      ],
+      CODES,
+    );
+    expect(summary.prompts).toBe(3);
+    expect(summary.engines).toBe(2);
+    expect(summary.cost).toBeCloseTo(0.015);
+    expect(summary.skips).toEqual({ tooLong: 0, noLocation: 0, pending: 1 });
+    expect(summary.startedIds).toEqual(['a', 'b', 'c']);
+    expect(summary.manualRuns).toEqual({ used: 5, limit: 20 });
+  });
+
+  it('has no cost when one is not a price, and no day when nothing was queued', () => {
+    expect(summarizeRuns([answer(['a'], 1, 'unknown', [], 1)], CODES).cost).toBeNull();
+    expect(summarizeRuns([], CODES)).toMatchObject({ prompts: 0, engines: 0, startedIds: [], manualRuns: null });
   });
 });

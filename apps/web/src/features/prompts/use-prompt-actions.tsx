@@ -2,46 +2,48 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Archive, Copy, Download, PanelRight, Play } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import { buildPromptExport, exportFileName } from './export-rows';
 import type { PromptAction } from './prompt-action';
 import type { PromptRow } from './prompt-columns';
 import type { DateRange } from './prompt-model';
-import { ARCHIVE_PROMPT, refreshPrompts, RUN_NOW, UPDATE_PROMPT, type PromptScope } from './prompt-queries';
+import { bulkArchive, bulkRun, refreshPrompts, RUN_NOW, type PromptScope } from './prompt-queries';
 import {
-  CAP_NOTE_ABOVE,
-  classifyRunError,
+  BULK_RUN_MAX,
+  chunkIds,
   MANUAL_RUN_CAP,
   planRuns,
-  runInTurn,
-  tallyRuns,
-  type RefusedWhy,
-  type RunResult,
-  type RunTally,
-  type Stop,
+  runProblemOf,
+  skipCounts,
+  summarizeRuns,
+  type ChunkAnswer,
+  type EngineRefusal,
+  type RunProblem,
+  type SkipCounts,
 } from './run-model';
 import { gridTabStop } from '@/components/app/data-table/grid-focus';
 import { ConfirmDialog } from '@/components/ui/alert-dialog';
-import { toast, type ToastOptions } from '@/components/ui/toast';
+import { toast } from '@/components/ui/toast';
 import { projectKey } from '@/lib/api/keys';
-import { isApiProblem } from '@/lib/api/problem';
 import type { ProjectEngine } from '@/lib/api/types';
 import { csvBlob, downloadBlob } from '@/lib/csv/csv-write';
 import { copyText } from '@/lib/dom/clipboard';
+import { formatCurrency, formatList } from '@/lib/format';
 import { useCountries } from '@/lib/locations/countries';
 import { useCan } from '@/lib/permissions';
 
 /** Above this many prompts, archiving asks first (12-tables.md section 14), as Rankings does for keywords. */
 const CONFIRM_ARCHIVE_ABOVE = 100;
 
-const REFUSED_KEYS = {
-  pending: 'runRefusedPending',
-  engines: 'runRefusedEngines',
-  gone: 'runRefusedGone',
-  failed: 'runRefusedFailed',
-} as const satisfies Record<RefusedWhy, string>;
+/** The catalog key of each reason an engine is refused, the inspector's sentences. */
+const REFUSAL_KEYS = {
+  engine_not_enabled: 'engineNotEnabled',
+  prompt_too_long: 'promptTooLong',
+  location_not_enabled: 'locationNotEnabled',
+  price_unavailable: 'priceUnavailable',
+} as const satisfies Record<EngineRefusal, string>;
 
 /** What a confirm waits on: the prompts, and how many the caller named that the list does not hold (said in the toast). */
 type Asking = { kind: 'run' | 'archive'; ids: readonly string[]; skipped: number } | null;
@@ -58,7 +60,8 @@ export interface PromptActionsOptions {
   range: DateRange;
   /**
    * After an action changed some prompts: the ones it changed, which the screen takes out of the choice. A prompt the
-   * action did not reach (not tried after a limit, refused) stays chosen, and so does every other prompt of the choice.
+   * action did not reach (not asked after a refusal, left out by the API) stays chosen, and so does every other
+   * prompt of the choice.
    */
   onDone: (ids: readonly string[]) => void;
 }
@@ -79,14 +82,11 @@ export interface PromptActions {
 }
 
 /**
- * The actions on prompts of Topics & Prompts (parity spec G26, G46, G47, G124), the bulk bar's for now. Run now asks
- * each prompt on the engines that take it, one after the other, and stops at the first refusal every prompt would
- * get (the project's 20 manual runs a day, the month's answers, a paused provider); one summary says what started
- * and why the rest did not. Archive stops asking the prompts and offers one Undo for all of them. Export writes the
- * prompts as the Prompts table shows them.
- *
- * shortcut: Run now and Archive loop over the prompts, one request each (the API has neither `bulk-run` nor
- * `bulk-archive` yet, B7); the backend's bulk routes replace the loops and the 20 a day cap text.
+ * The actions on prompts of Topics & Prompts (parity spec G26, G46, G47, G124), the bulk bar's for now. Run now of
+ * one prompt is the prompt's own route; of many it is one request for up to 150 prompts, which the API makes one
+ * manual run (more prompts are split into runs of 150, each one of the day's 20). One toast says what started, and
+ * in words what the API left out and why. Archive is one request for all the prompts and offers one Undo. Export
+ * writes the prompts as the Prompts table shows them.
  */
 export function usePromptActions({
   scope,
@@ -98,14 +98,15 @@ export function usePromptActions({
 }: PromptActionsOptions): PromptActions {
   const t = useTranslations('prompts');
   const common = useTranslations('common');
+  const locale = useLocale();
   const queryClient = useQueryClient();
   const canTrigger = useCan('runs:trigger');
   const canWrite = useCan('prompts:write');
   const { countries } = useCountries();
   const runNow = useMutation(RUN_NOW);
-  const archive = useMutation(ARCHIVE_PROMPT);
-  const restore = useMutation(UPDATE_PROMPT);
   const [asking, setAsking] = useState<Asking>(null);
+  // The day's manual runs, as the last run of this project said: not known before the first one
+  const [manualRuns, setManualRuns] = useState<{ projectId: string; used: number; limit: number } | null>(null);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -113,7 +114,7 @@ export function usePromptActions({
       mounted.current = false;
     };
   }, []);
-  // One run or archive at a time: a second press while the loop goes on is ignored, and the actions say why they wait
+  // One run or archive at a time: a second press while the request goes on is ignored, and the actions say why they wait
   const busy = useRef(false);
   const [working, setWorking] = useState(false);
   const begin = (): boolean => {
@@ -148,171 +149,253 @@ export function usePromptActions({
     void refreshPrompts(queryClient, scope);
     onDone(done);
   };
+  /** The runs are in Runs at once, planned; the prompts' lists and answers are read again too. */
+  const queued = (done: readonly string[]): void => {
+    void queryClient.invalidateQueries({ queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'runs'] });
+    finish(done);
+  };
 
-  const stopText = (stop: Stop): string => {
-    switch (stop.reason) {
-      case 'manual_run_limit':
-        return t('bulk.runStopLimit', { limit: stop.limit ?? MANUAL_RUN_CAP });
-      case 'quota_exceeded':
-        return stop.limit !== null && stop.used !== null && stop.requested !== null
-          ? t('inspector.runQuota', { limit: stop.limit, used: stop.used, requested: stop.requested })
-          : t('bulk.runStopQuota');
+  const engineName = (code: string): string =>
+    engines.find((engine) => engine.engine.engine_code === code)?.engine.label ?? code;
+  /** The pairs left out, in words: "3 prompt and engine pairs were left out: 2 too long and 1 with no location". */
+  const skipText = (skips: SkipCounts): string => {
+    const total = skips.tooLong + skips.noLocation + skips.pending;
+    if (total === 0) return '';
+    const reasons = [
+      ...(skips.tooLong === 0 ? [] : [t('bulk.runSkipTooLong', { count: skips.tooLong })]),
+      ...(skips.noLocation === 0 ? [] : [t('bulk.runSkipNoLocation', { count: skips.noLocation })]),
+      ...(skips.pending === 0 ? [] : [t('bulk.runSkipPending', { count: skips.pending })]),
+    ];
+    return t('bulk.runSkipped', { count: total, reasons: formatList(reasons, locale) });
+  };
+  /** A refusal of Run now in words, one prompt's or many. */
+  const problemText = (problem: RunProblem): string => {
+    switch (problem.kind) {
       case 'provider_paused':
-        return t('inspector.runPaused', { minutes: stop.retryMinutes ?? 1 });
+        return t('inspector.runPaused', { minutes: problem.minutes });
       case 'rate_limited':
-        return t('inspector.runRateLimited', { minutes: stop.retryMinutes ?? 1 });
+        return t('inspector.runRateLimited', { minutes: problem.minutes });
+      case 'manual_run_limit':
+        return t('inspector.runLimit', { limit: problem.limit ?? MANUAL_RUN_CAP });
+      case 'quota_exceeded':
+        return problem.limit !== null && problem.used !== null && problem.requested !== null
+          ? t('inspector.runQuota', { limit: problem.limit, used: problem.used, requested: problem.requested })
+          : t('bulk.runStopQuota');
+      case 'prompt_unknown':
+        return t('bulk.runUnknown');
+      case 'engines_refused':
+        return (Object.keys(problem.refused) as EngineRefusal[])
+          .map((reason) => {
+            const named = problem.refused[reason] ?? [];
+            // A reason without an engine named is every engine asked
+            const names = (named.length === 0 ? engines.map((engine) => engine.engine.engine_code) : named).map(
+              engineName,
+            );
+            return t(`inspector.runRefused.${REFUSAL_KEYS[reason]}`, {
+              engines: formatList(names, locale),
+              count: names.length,
+            });
+          })
+          .join(' ');
+      case 'nothing_to_run':
+        return [t('bulk.runNothingToRun'), skipText(problem.skips)].filter((part) => part !== '').join(' ');
+      case 'check_pending':
+        return problem.engines.length > 0
+          ? t('inspector.runPending', { engines: formatList(problem.engines.map(engineName), locale) })
+          : t('bulk.runNothingPending');
       case 'forbidden':
         return t('inspector.runForbidden');
+      case 'gone':
+        return t('inspector.runGone');
+      case 'failed':
+        return t('inspector.runFailed');
     }
   };
-  /** One toast for the whole run: what started, and in words why the rest did not. */
-  const summaryOf = (tally: RunTally, skipped: number): ToastOptions => {
-    // The prompts the caller named that the list does not hold are said, not dropped in silence
-    const notLoaded = skipped === 0 ? [] : [t('bulk.notLoaded', { count: skipped })];
-    if (tally.started === tally.total) {
-      return {
-        type: 'success',
-        title: tally.total === 1 ? t('inspector.runQueued') : t('bulk.runsQueued', { count: tally.started }),
-        description: [t('inspector.runQueuedHint'), ...notLoaded].join(' '),
-      };
-    }
-    const reasons = [
-      ...(tally.stop === null ? [] : [stopText(tally.stop)]),
-      ...(tally.blocked === 0 ? [] : [t('bulk.runBlocked', { count: tally.blocked })]),
-      ...(Object.keys(REFUSED_KEYS) as RefusedWhy[]).flatMap((why) =>
-        tally.refused[why] === 0 ? [] : [t(`bulk.${REFUSED_KEYS[why]}`, { count: tally.refused[why] })],
-      ),
-      ...(tally.notTried === 0 ? [] : [t('bulk.notTried', { count: tally.notTried })]),
-      ...notLoaded,
-    ].join(' ');
-    return tally.started === 0
-      ? { type: 'error', title: t('inspector.runFailedTitle'), description: reasons }
-      : {
-          type: 'info',
-          title: t('bulk.runPartialTitle', { started: tally.started, total: tally.total }),
-          description: reasons,
-        };
-  };
-  const runPrompts = async (ids: readonly string[], skipped: number): Promise<void> => {
+  /** The title of a refusal: that nothing was started when the prompts were asked together and none could be. */
+  const problemTitle = (problem: RunProblem): string =>
+    problem.kind === 'nothing_to_run' || (problem.kind === 'check_pending' && problem.engines.length === 0)
+      ? t('bulk.runNothingStarted')
+      : t('inspector.runFailedTitle');
+
+  // The prompts the caller named that the list does not hold are said, not dropped in silence
+  const notLoadedText = (skipped: number): string[] => (skipped === 0 ? [] : [t('bulk.notLoaded', { count: skipped })]);
+
+  /** One prompt: its own route, on the engines that take it. */
+  const runOnePrompt = async (promptId: string, skipped: number): Promise<void> => {
     if (!begin()) return;
-    const started: string[] = [];
     try {
-      const plan = planRuns(
-        rowsOf(ids).map((row) => row.prompt),
+      const row = rowsById.get(promptId);
+      const [entry] = planRuns(
+        row === undefined ? [] : [row.prompt],
         engines,
         countries.length > 0 ? countries : null,
-      );
-      const engineCodes = new Map(plan.runnable.map((entry) => [entry.promptId, entry.engineCodes]));
-      const outcome = await runInTurn(
-        plan.runnable.map((entry) => entry.promptId),
-        async (promptId): Promise<RunResult> => {
-          try {
-            await runNow.mutateAsync({
-              params: { path: path(promptId) },
-              body: { engine_codes: engineCodes.get(promptId) ?? [] },
-            });
-            started.push(promptId);
-            return { kind: 'started' };
-          } catch (error) {
-            return classifyRunError(error);
-          }
-        },
-        () => !mounted.current,
-      );
-      const tally = tallyRuns(ids.length, plan.blocked.length, outcome);
-      // A page that was left in the middle of the run has nobody to tell that some prompts were not tried
-      if (mounted.current || tally.notTried === 0) toast(summaryOf(tally, skipped));
-      if (tally.started > 0) {
-        // The runs are in Runs at once, planned; the prompts' lists and answers are read again too
-        void queryClient.invalidateQueries({ queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'runs'] });
-        // Only the prompts that started leave the choice: the others stay chosen to be tried again
-        finish(started);
+      ).runnable;
+      if (entry === undefined) {
+        toast({
+          type: 'error',
+          title: t('inspector.runFailedTitle'),
+          description: [t('inspector.runNoEngine'), ...notLoadedText(skipped)].join(' '),
+        });
+        return;
       }
+      try {
+        await runNow.mutateAsync({ params: { path: path(promptId) }, body: { engine_codes: entry.engineCodes } });
+      } catch (error) {
+        const problem = runProblemOf(error);
+        toast({ type: 'error', title: problemTitle(problem), description: problemText(problem) });
+        return;
+      }
+      toast({
+        type: 'success',
+        title: t('inspector.runQueued'),
+        description: [t('inspector.runQueuedHint'), ...notLoadedText(skipped)].join(' '),
+      });
+      queued([promptId]);
     } finally {
       end();
     }
   };
 
-  const restorePrompts = async (ids: readonly string[]): Promise<void> => {
-    let done = 0;
-    let quota: { used: number; limit: number } | null = null;
-    for (const id of ids) {
-      try {
-        await restore.mutateAsync({ params: { path: path(id) }, body: { is_active: true } });
-        done += 1;
-      } catch (error) {
-        // The workspace is at its prompt limit: the rest would meet it too
-        if (isApiProblem(error, 'quota_exceeded')) {
-          quota = { used: error.number('used') ?? 0, limit: error.number('limit') ?? 0 };
-          break;
-        }
-      }
-    }
-    void refreshPrompts(queryClient, scope);
-    if (done === ids.length) {
-      toast({ type: 'success', title: t('bulk.restored', { count: done }) });
-      return;
-    }
-    toast({
-      type: 'error',
-      title: done === 0 ? t('inspector.restoreFailed') : t('bulk.restorePartialTitle', { done, total: ids.length }),
-      description:
-        quota === null ? t('bulk.restoreSome', { count: ids.length - done }) : t('inspector.restoreQuota', quota),
-    });
-  };
-  /** Why the archive stopped, in words: the refusals every other prompt would get too. */
-  const archiveStopText = (stop: Stop): string =>
-    stop.reason === 'forbidden' ? t('bulk.archiveForbidden') : stopText(stop);
-  const archivePrompts = async (ids: readonly string[]): Promise<void> => {
+  /** Many prompts: one request for each 150, one manual run each, stopping at the first refusal. */
+  const runPrompts = async (ids: readonly string[], skipped: number): Promise<void> => {
+    if (ids.length === 1 && ids[0] !== undefined) return runOnePrompt(ids[0], skipped);
     if (!begin()) return;
-    const archived: string[] = [];
-    // The prompts refused for their own sake, and what ended the loop with the prompts it did not ask
-    let failed = 0;
-    let stop: Stop | null = null;
+    const answers: ChunkAnswer[] = [];
+    let problem: RunProblem | null = null;
     let notTried = 0;
     try {
-      for (const [at, id] of ids.entries()) {
+      const runs = chunkIds(ids);
+      for (const [at, chunk] of runs.entries()) {
+        // The page was left in the middle of the runs: the prompts after the one that went are not asked
         if (!mounted.current) {
-          notTried = ids.length - at;
+          notTried = ids.length - answers.reduce((sum, answer) => sum + answer.ids.length, 0);
           break;
         }
         try {
-          await archive.mutateAsync({ params: { path: path(id) } });
-          archived.push(id);
+          const { meta } = await bulkRun(scope, chunk);
+          answers.push({ ids: chunk, meta });
         } catch (error) {
-          const result = classifyRunError(error);
-          // Too many requests or no permission: the prompts after this one would meet it too
-          if (result.kind === 'stop') {
-            stop = result.stop;
-            notTried = ids.length - at - 1;
-            break;
-          }
-          failed += 1;
+          problem = runProblemOf(error);
+          notTried = runs.slice(at).reduce((sum, left) => sum + left.length, 0);
+          break;
         }
       }
     } finally {
       end();
     }
-    const why = [
-      ...(stop === null ? [] : [archiveStopText(stop)]),
-      ...(notTried === 0 ? [] : [t('bulk.notTried', { count: notTried })]),
-      ...(failed === 0 ? [] : [t('bulk.archiveSome', { count: failed })]),
-    ].join(' ');
-    if (archived.length === 0) {
-      toast({ type: 'error', title: t('inspector.archiveFailed'), ...(why === '' ? {} : { description: why }) });
+    if (problem?.kind === 'prompt_unknown') void refreshPrompts(queryClient, scope);
+    if (answers.length === 0) {
+      if (problem !== null) {
+        toast({ type: 'error', title: problemTitle(problem), description: problemText(problem) });
+      }
       return;
     }
-    // Only the prompts that were archived leave the choice
-    finish(archived);
+    const summary = summarizeRuns(
+      answers,
+      engines.map((engine) => engine.engine.engine_code),
+    );
+    const day = summary.manualRuns;
+    if (day !== null) setManualRuns({ projectId: scope.projectId, used: day.used, limit: day.limit });
+    // A page that was left has nobody to tell that some prompts were not asked
+    if (mounted.current || notTried === 0) {
+      const stopped = [
+        ...(problem === null ? [] : [problemText(problem)]),
+        ...(notTried === 0 ? [] : [t('bulk.notTried', { count: notTried })]),
+      ];
+      const left = skipText(skipCounts(answers.flatMap((answer) => answer.meta.skipped)));
+      toast({
+        type: stopped.length === 0 ? 'success' : 'info',
+        // The title is one line of the toast and the description two: the cost and what was left out come first, and the
+        // hint of when the answers come only when there is room, since the toast is written out in full for assistive technology
+        title: t('bulk.runStarted', { prompts: summary.prompts, engines: summary.engines }),
+        description: [
+          ...(summary.cost === null ? [] : [t('bulk.runCost', { cost: formatCurrency(summary.cost) })]),
+          left === '' ? t('inspector.runQueuedHint') : left,
+          ...stopped,
+          ...notLoadedText(skipped),
+        ].join(' '),
+      });
+    }
+    // Only the prompts asked on an engine leave the choice: the others stay chosen to be tried again
+    queued(summary.startedIds);
+  };
+
+  /** Brings the prompts back (Undo): all or none against the workspace's prompt limit. */
+  const restorePrompts = async (ids: readonly string[]): Promise<void> => {
+    try {
+      const { data } = await bulkArchive(scope, ids, false);
+      void refreshPrompts(queryClient, scope);
+      toast(
+        data.updated === ids.length
+          ? { type: 'success', title: t('bulk.restored', { count: data.updated }) }
+          : {
+              type: 'info',
+              title: t('bulk.restorePartialTitle', { done: data.updated, total: ids.length }),
+            },
+      );
+    } catch (error) {
+      void refreshPrompts(queryClient, scope);
+      const problem = runProblemOf(error);
+      toast({
+        type: 'error',
+        title: t('bulk.restoreFailedTitle'),
+        description:
+          problem.kind === 'quota_exceeded' &&
+          problem.limit !== null &&
+          problem.used !== null &&
+          problem.requested !== null
+            ? t('bulk.restoreQuota', { limit: problem.limit, used: problem.used, requested: problem.requested })
+            : t('bulk.tryAgain'),
+      });
+    }
+  };
+  /** Why an archive was refused, in words. */
+  const archiveProblemText = (problem: RunProblem): string =>
+    problem.kind === 'forbidden'
+      ? t('bulk.archiveForbidden')
+      : problem.kind === 'rate_limited'
+        ? t('inspector.runRateLimited', { minutes: problem.minutes })
+        : t('bulk.tryAgain');
+  const archivePrompts = async (ids: readonly string[]): Promise<void> => {
+    if (!begin()) return;
+    let result: { matched: number; updated: number } | null = null;
+    let failure: RunProblem = { kind: 'failed' };
+    try {
+      result = (await bulkArchive(scope, ids, true)).data;
+    } catch (error) {
+      failure = runProblemOf(error);
+    } finally {
+      end();
+    }
+    if (result === null) {
+      toast({ type: 'error', title: t('bulk.archiveFailedTitle'), description: archiveProblemText(failure) });
+      return;
+    }
+    const { matched, updated } = result;
+    if (updated === 0) {
+      // Every prompt was gone or archived already: the lists are read again, and nothing leaves the choice
+      void refreshPrompts(queryClient, scope);
+      toast({
+        type: 'error',
+        title: t('bulk.archiveFailedTitle'),
+        description: t('bulk.archiveLeft', { count: ids.length }),
+      });
+      return;
+    }
+    // The prompts the request named leave the choice: the lists no longer hold the ones it did not change
+    finish(ids);
     toast({
       type: 'success',
       title:
-        archived.length === ids.length
-          ? t('bulk.archived', { count: archived.length })
-          : t('bulk.archivePartialTitle', { done: archived.length, total: ids.length }),
-      ...(why === '' ? {} : { description: why }),
-      // The toast does not wait for the lists to be read again: Undo is there while the rows go
-      action: { label: t('inspector.undo'), onAction: () => void restorePrompts(archived) },
+        updated === ids.length
+          ? t('bulk.archived', { count: updated })
+          : t('bulk.archivePartialTitle', { done: updated, total: ids.length }),
+      ...(updated === ids.length ? {} : { description: t('bulk.archiveLeft', { count: ids.length - updated }) }),
+      // Which prompts were changed is not told when some were archived already: Undo would bring those back too, so it
+      // is there only when every prompt the request found was changed. The toast does not wait for the lists to be read
+      ...(updated === matched
+        ? { action: { label: t('inspector.undo'), onAction: () => void restorePrompts(ids) } }
+        : {}),
     });
   };
 
@@ -475,6 +558,15 @@ export function usePromptActions({
   };
 
   const count = asking?.ids.length ?? 0;
+  // Each 150 prompts is a manual run of the day's 20; how many were used is known once a run of this project was made
+  const runs = Math.ceil(count / BULK_RUN_MAX);
+  const day = manualRuns?.projectId === scope.projectId ? manualRuns : null;
+  const runDescription = [
+    runs <= 1 ? t('bulk.runConfirmOne', { count }) : t('bulk.runConfirmMany', { count, runs, size: BULK_RUN_MAX }),
+    day === null
+      ? t('bulk.runConfirmCounts', { runs, limit: MANUAL_RUN_CAP })
+      : t('bulk.runConfirmUsed', { used: day.used, limit: day.limit }),
+  ].join(' ');
   const dialogs = (
     <ConfirmDialog
       open={asking !== null}
@@ -486,13 +578,7 @@ export function usePromptActions({
       title={
         asking?.kind === 'archive' ? t('bulk.archiveConfirmTitle', { count }) : t('bulk.runConfirmTitle', { count })
       }
-      description={
-        asking?.kind === 'archive'
-          ? t('bulk.archiveConfirmDescription')
-          : count > CAP_NOTE_ABOVE
-            ? `${t('bulk.runConfirmDescription')} ${t('bulk.runConfirmCap', { limit: MANUAL_RUN_CAP })}`
-            : t('bulk.runConfirmDescription')
-      }
+      description={asking?.kind === 'archive' ? t('bulk.archiveConfirmDescription') : runDescription}
       confirmLabel={
         asking?.kind === 'archive' ? t('bulk.archiveConfirmLabel', { count }) : t('bulk.runConfirmLabel', { count })
       }

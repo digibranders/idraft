@@ -247,7 +247,7 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 - [ ] Client CSV export reusing the rankings export file helper through `@/lib` (move the helper there if needed, features do not import each other).
 - [ ] Messages, then gate (with `pnpm build`).
 
-**Status (2026-11-12): the selection, bulk actions and row menus of W5 are done** (commits "Topics & Prompts: row selection with a bulk bar", "Topics & Prompts: bulk Run now, Archive and Export CSV" and the row menus commit). They live in `selection-model.ts`, `run-model.ts`, `export-rows.ts`, `prompt-action.ts`, `use-prompt-actions.tsx` (not the plan's `row-menu.tsx` and `bulk-bar.tsx`: the shared `DataTable` bulk bar and row menus are reused), `topics-table.tsx` and `prompts-screen.tsx`, and the CSV writer moved to `lib/csv/csv-write.ts`. Moved to B7: the one request bulk Run now and `bulk-archive` replace the client loops, and the 20 a day cap text goes with them. Not done: view presets (`views-model.ts`, G02), the Edit details dialog and its menu item (G46), the header "Add prompt" beyond the existing button, the Add prompt and Run now buttons in the topic drawer, "Select all N matching" (the list holds every matching prompt, as Rankings in client mode), right click (the shared table has none) and the Branded three way (G08).
+**Status (2026-11-12): the selection, bulk actions and row menus of W5 are done** (commits "Topics & Prompts: row selection with a bulk bar", "Topics & Prompts: bulk Run now, Archive and Export CSV" and the row menus commit). They live in `selection-model.ts`, `run-model.ts`, `export-rows.ts`, `prompt-action.ts`, `use-prompt-actions.tsx` (not the plan's `row-menu.tsx` and `bulk-bar.tsx`: the shared `DataTable` bulk bar and row menus are reused), `topics-table.tsx` and `prompts-screen.tsx`, and the CSV writer moved to `lib/csv/csv-write.ts`. The client loops are replaced (W10, below): bulk Run now is one `POST {P}/ai/runs` and Archive one `bulk-archive`, and the 20 a day cap text is now the confirm's "one manual run" sentence. Not done: view presets (`views-model.ts`, G02), the Edit details dialog and its menu item (G46), the header "Add prompt" beyond the existing button, the Add prompt and Run now buttons in the topic drawer, "Select all N matching" (the list holds every matching prompt, as Rankings in client mode), right click (the shared table has none) and the Branded three way (G08).
 
 **Commit:** `Topics & Prompts: row and topic menus, bulk actions, CSV export, view presets, details dialog`
 
@@ -308,6 +308,8 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 **Commit:** `Prompt fan-out tab: queries by frequency and who is cited`
 
 ### Task W10: Bulk run (G26, G47, G66; U-21)
+
+**Status (2026-11-12): done** (commit "Topics & Prompts: bulk Run now and Archive use the bulk routes"). It lives in `use-prompt-actions.tsx` and `run-model.ts` (`chunkIds`, `skipCounts`, `runProblemOf`, `summarizeRuns`), with `bulkRun` and `bulkArchive` of `prompt-queries.ts`. More than 150 prompts are sent as requests of 150, each one manual run; the confirm says so, and says how many of the 20 are used once a run of the project has answered. One prompt keeps the prompt's own run-now route.
 
 **Needs from the backend:** B7 (`POST {P}/ai/runs` with `prompt_ids` and `engine_codes`, one manual run). **Mocks first:** to the handoff.
 

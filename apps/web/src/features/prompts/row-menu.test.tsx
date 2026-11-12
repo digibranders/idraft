@@ -166,12 +166,14 @@ describe('the row menu of a topic', () => {
     expect(within(dialog).getByRole('combobox', { name: /^Topic/ })).toHaveTextContent('SEO');
   });
 
-  it('asks before it runs the prompts of the topic, and names the cap above five', async () => {
+  it('asks before it runs the prompts of the topic, and says it is one of the 20 manual runs of the day', async () => {
     const { user } = renderOn('editor', '');
     await openMenu(user, await topics(), 'SEO');
     await user.click(screen.getByRole('menuitem', { name: 'Run now' }));
     const dialog = await screen.findByRole('alertdialog', { name: 'Run 12 prompts now?' });
-    expect(within(dialog).getByText(/A project can make 20 manual runs a day/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText('This is one manual run of 12 prompts. It counts as one of your 20 manual runs a day.'),
+    ).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
   });
