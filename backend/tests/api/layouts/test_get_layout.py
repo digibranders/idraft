@@ -103,8 +103,31 @@ async def test_the_team_default_when_there_is_no_personal_layout(
     data = response.json()["data"]
     assert data["source"] == "team"
     assert data["team_default_exists"] is True
-    assert data["updated_by"]["user_id"] == str(admin.user_id)
+    assert data["updated_by"] == {
+        "user_id": str(admin.user_id),
+        "name": await user_name(migrated, admin.user_id),
+    }
+    assert data["updated_at"] is not None
     assert data["document"] == stored_form(DOCUMENT)
+
+
+async def test_a_layout_of_another_screen_is_never_read(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    admin = await member(resources, migrated, workspace, "admin")
+    viewer = await member(resources, migrated, workspace, "viewer")
+    await insert_layout(migrated, workspace.id, None, "overview", DOCUMENT, admin.user_id)
+    await insert_layout(
+        migrated, workspace.id, viewer.user_id, "overview", DOCUMENT, viewer.user_id
+    )
+
+    response = await api.get(
+        layout_url(workspace.id, "layouts", "rankings"), headers=viewer.headers
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"data": {**BUILTIN, "screen": "rankings"}}
 
 
 async def test_another_members_personal_layout_is_never_read(
@@ -190,6 +213,53 @@ async def test_the_etag_changes_when_a_row_changes(
     after = await api.get(url, headers=viewer.headers)
 
     assert before.headers["etag"] != after.headers["etag"]
+
+
+async def test_the_etag_changes_when_the_team_default_changes(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    admin = await member(resources, migrated, workspace, "admin")
+    viewer = await member(resources, migrated, workspace, "viewer")
+    url = layout_url(workspace.id, "layouts", "overview")
+    await insert_layout(
+        migrated, workspace.id, viewer.user_id, "overview", DOCUMENT, viewer.user_id
+    )
+
+    before = await api.get(url, headers=viewer.headers)
+    await insert_layout(migrated, workspace.id, None, "overview", DOCUMENT, admin.user_id)
+    created = await api.get(url, headers=viewer.headers)
+    await execute(
+        migrated,
+        "UPDATE core.layouts SET updated_at = updated_at + interval '1 second' "
+        "WHERE workspace_id = $1 AND owner_user_id IS NULL",
+        workspace.id,
+    )
+    bumped = await api.get(url, headers=viewer.headers)
+
+    assert len({before.headers["etag"], created.headers["etag"], bumped.headers["etag"]}) == 3
+
+
+async def test_the_etag_changes_when_a_team_default_appears_over_the_builtin(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    admin = await member(resources, migrated, workspace, "admin")
+    viewer = await member(resources, migrated, workspace, "viewer")
+    url = layout_url(workspace.id, "layouts", "overview")
+
+    before = await api.get(url, headers=viewer.headers)
+    await insert_layout(migrated, workspace.id, None, "overview", DOCUMENT, admin.user_id)
+    created = await api.get(url, headers=viewer.headers)
+    await execute(
+        migrated,
+        "UPDATE core.layouts SET updated_at = updated_at + interval '1 second' "
+        "WHERE workspace_id = $1",
+        workspace.id,
+    )
+    bumped = await api.get(url, headers=viewer.headers)
+
+    assert len({before.headers["etag"], created.headers["etag"], bumped.headers["etag"]}) == 3
 
 
 async def test_the_stored_document_is_answered_as_stored(

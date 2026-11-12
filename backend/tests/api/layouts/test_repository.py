@@ -48,6 +48,25 @@ async def test_the_read_names_the_caller_without_row_security(
     assert (personal and personal.id, team and team.id) == (a_row, team_row)
 
 
+async def test_the_read_names_the_screen_without_row_security(
+    migrated: PostgresServer, owner_db: AsyncSession
+) -> None:
+    workspace = await make_workspace(migrated)
+    a = await make_user(migrated)
+    await add_member(migrated, workspace, a, "editor")
+    # The `rankings` rows go in first: without the filter on the screen they would be found.
+    await insert_layout(migrated, workspace.id, a.id, "rankings", DOCUMENT, a.id)
+    await insert_layout(migrated, workspace.id, None, "rankings", DOCUMENT, a.id)
+    overview_personal = await insert_layout(
+        migrated, workspace.id, a.id, "overview", DOCUMENT, a.id
+    )
+    overview_team = await insert_layout(migrated, workspace.id, None, "overview", DOCUMENT, a.id)
+
+    personal, team = await stored_layouts(owner_db, workspace.id, a.id, "overview")
+
+    assert (personal and personal.id, team and team.id) == (overview_personal, overview_team)
+
+
 async def test_the_read_names_the_workspace_without_row_security(
     migrated: PostgresServer, owner_db: AsyncSession
 ) -> None:
