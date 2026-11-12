@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T03:08:01+05:30",
+ "updated": "2026-11-13T03:12:21+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -225,7 +225,7 @@
    "title": "Chart parts: HeatmapGrid with tree rows, SmallMultiples, connected crosshair",
    "wave": "W1",
    "kind": "web",
-   "status": "planning",
+   "status": "building",
    "dependsOn": [
     "WP-02"
    ],
@@ -247,7 +247,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-06-chart-grids.md; estimate 5 tasks; decisions D-04, D-05"
+   "notes": "file work-packages/WP-06-chart-grids.md; estimate 5 tasks; decisions D-04, D-05 | tasks 0/7; plan on develop; defaults Q3-Q5 accepted"
   },
   {
    "id": "WP-07",
@@ -3922,6 +3922,48 @@
    "granted": "2026-11-13T01:37:54+05:30",
    "scope": "one-line additions per package; on rebase keep both sides",
    "until": "all of those merged"
+  },
+  {
+   "path": "apps/web/messages/en.json",
+   "wp": "SHARED WP-06 (and any package adding under its own namespaces)",
+   "granted": "2026-11-13T03:12:21+05:30",
+   "scope": "additive: new sub-objects chart.heatmap and chart.multiples only",
+   "until": "WP-06 merged"
+  },
+  {
+   "path": "apps/web/src/styles/tokens.css",
+   "wp": "WP-06",
+   "granted": "2026-11-13T03:12:21+05:30",
+   "scope": "one token only: dark --seq-5 to oklch(0.61 0.15 262) for 4.5:1; grep other uses first and re-run design-system e2e",
+   "until": "WP-06 merged"
+  },
+  {
+   "path": "docs/design-system/02-color-system.md",
+   "wp": "WP-06",
+   "granted": "2026-11-13T03:12:21+05:30",
+   "scope": "section 7.3 row for dark --seq-5 only",
+   "until": "WP-06 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/chart/echart.tsx",
+   "wp": "WP-06",
+   "granted": "2026-11-13T03:12:21+05:30",
+   "scope": "additive group?: string prop (instance.group + connect) and its echart.test.tsx case",
+   "until": "WP-06 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/chart/echart.test.tsx",
+   "wp": "WP-06",
+   "granted": "2026-11-13T03:12:21+05:30",
+   "scope": "one added case for group",
+   "until": "WP-06 merged"
+  },
+  {
+   "path": "apps/web/src/components/design-system/chart-grids-section.tsx",
+   "wp": "WP-06",
+   "granted": "2026-11-13T03:12:21+05:30",
+   "scope": "new file; registry lines covered by the shared registry lease",
+   "until": "WP-06 merged"
   }
  ]
 }
