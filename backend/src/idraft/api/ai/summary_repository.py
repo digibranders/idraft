@@ -329,8 +329,9 @@ async def entity_counts(
     """Per prompt, engine and entity: the valid answers whose share of voice set holds the
     entity, and its share of each, 1 / the entities the set holds (docs/16 section 5). The set
     is the mentions with an order (`extraction.ai_facts`: accepted, own or competitor, a product
-    counted as its brand), the same set `tracked_entities_mentioned` counts, so an answer's
-    shares add up to 1 and the own entities' add up to the fact row's own share."""
+    counted as its brand), the same set `tracked_entities_mentioned` counts, so across all the
+    entities an answer names its shares add up to 1 and the own entities' add up to the fact
+    row's own share. The caller may ask for fewer entities than the answer names."""
     if not prompt_ids or not entity_ids:
         return {}
     m = ai_entity_mentions.c
