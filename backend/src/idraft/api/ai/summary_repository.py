@@ -17,7 +17,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Float, and_, cast, func, literal, or_, select, tuple_
+from sqlalchemy import Date, Float, and_, cast, func, literal, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.db.tables import (
@@ -79,8 +79,9 @@ class TrackedEntity:
     role: str
 
 
-def _counts_columns() -> list[Any]:
-    valid = _F.is_valid
+def _counts_columns(c: Any = _F) -> list[Any]:
+    """The counts of the fact rows `c`: the facts table, or a subquery of all its columns."""
+    valid = c.is_valid
 
     def count(*conditions: Any) -> Any:
         return func.count().filter(and_(*conditions))
@@ -88,13 +89,13 @@ def _counts_columns() -> list[Any]:
     return [
         func.count().label("n_observations"),
         count(valid).label("n_valid"),
-        count(valid, _F.own_mentioned).label("mentioned"),
-        count(valid, _F.own_domain_cited).label("cited"),
-        count(valid, _F.own_mentioned, _F.own_domain_cited).label("mentioned_and_cited"),
-        count(valid, _F.own_mentioned, ~_F.own_domain_cited).label("mentioned_only"),
-        count(valid, ~_F.own_mentioned, _F.own_domain_cited).label("cited_only"),
-        count(valid, ~_F.own_mentioned, ~_F.own_domain_cited).label("neither"),
-        count(valid, _F.tracked_entities_mentioned >= 1).label("sov_answers"),
+        count(valid, c.own_mentioned).label("mentioned"),
+        count(valid, c.own_domain_cited).label("cited"),
+        count(valid, c.own_mentioned, c.own_domain_cited).label("mentioned_and_cited"),
+        count(valid, c.own_mentioned, ~c.own_domain_cited).label("mentioned_only"),
+        count(valid, ~c.own_mentioned, c.own_domain_cited).label("cited_only"),
+        count(valid, ~c.own_mentioned, ~c.own_domain_cited).label("neither"),
+        count(valid, c.tracked_entities_mentioned >= 1).label("sov_answers"),
         # The own share of an answer is the sum of sov_o(e) over the own entities (docs/16
         # section 5): each one named is 1 / |M_o|, and |M_o| counts every tracked entity named,
         # so the own entities are the tracked ones that are not competitors. A project may own
@@ -102,15 +103,15 @@ def _counts_columns() -> list[Any]:
         func.coalesce(
             func.sum(
                 cast(
-                    _F.tracked_entities_mentioned - func.cardinality(_F.competitor_mentions),
+                    c.tracked_entities_mentioned - func.cardinality(c.competitor_mentions),
                     Float,
                 )
-                / _F.tracked_entities_mentioned
-            ).filter(and_(valid, _F.tracked_entities_mentioned >= 1)),
+                / c.tracked_entities_mentioned
+            ).filter(and_(valid, c.tracked_entities_mentioned >= 1)),
             0.0,
         ).label("sov_share"),
-        func.max(_F.observed_at).label("last_observed_at"),
-        func.max(_F.observed_at).filter(valid).label("last_valid_at"),
+        func.max(c.observed_at).label("last_observed_at"),
+        func.max(c.observed_at).filter(valid).label("last_valid_at"),
     ]
 
 
@@ -313,6 +314,43 @@ async def counts_by_prompt(
         .group_by(_F.prompt_id, _F.engine_code)
     )
     return {(row.prompt_id, row.engine_code): _counts(row) for row in rows}
+
+
+async def weekly_counts(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    prompt_ids: Collection[UUID],
+    *,
+    since: datetime,
+    until: datetime,
+    engine_codes: Sequence[str] | None,
+    timezone: str,
+) -> dict[tuple[UUID, str, date], Counts]:
+    """The counts by prompt, engine and week. A week starts on Monday at midnight in the
+    project's timezone (docs/19 section 2.5, granularity `week`), the zone the Monday and
+    Thursday schedules run in, so one week holds one run of each. The week is worked out in a
+    subquery and grouped by its column there: grouped by the expression, its bound timezone
+    would be a second parameter, which PostgreSQL reads as a different expression."""
+    if not prompt_ids:
+        return {}
+    facts = (
+        select(
+            ai_observation_facts,
+            cast(func.date_trunc("week", func.timezone(timezone, _F.observed_at)), Date).label(
+                "week_start"
+            ),
+        )
+        .where(*_window(workspace_id, project_id, prompt_ids, since, until, engine_codes))
+        .subquery()
+    )
+    c = facts.c
+    rows = await db.execute(
+        select(c.prompt_id, c.engine_code, c.week_start, *_counts_columns(c)).group_by(
+            c.prompt_id, c.engine_code, c.week_start
+        )
+    )
+    return {(row.prompt_id, row.engine_code, row.week_start): _counts(row) for row in rows}
 
 
 async def entity_counts(

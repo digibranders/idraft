@@ -9,8 +9,9 @@ import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
@@ -57,9 +58,9 @@ GEMINI = "gemini_web"
 ENGINES = ("chatgpt_web", "gemini_web", "google_ai_mode")
 OUTCOMES = ("mentioned_and_cited", "mentioned_only", "cited_only", "neither")
 # Every option of the summary at once; each later task of plan D1 adds its own.
-EVERY_OPTION = {"include": "entities"}
+EVERY_OPTION = {"include": "entities,series"}
 # One grouped query more for each option.
-OPTION_QUERIES = 1
+OPTION_QUERIES = 2
 
 
 @dataclass(frozen=True)
@@ -911,6 +912,23 @@ def _entity_cell(engine: dict[str, Any], entity: uuid.UUID) -> dict[str, Any]:
     return cell
 
 
+def _monday(day: date) -> date:
+    return day - timedelta(days=day.weekday())
+
+
+def _week_starts(first: date, last: date) -> list[str]:
+    """The Mondays of the weeks the days touch, as the series names them."""
+    weeks, week = [], _monday(first)
+    while week <= last:
+        weeks.append(week.isoformat())
+        week += timedelta(days=7)
+    return weeks
+
+
+def _points(engine: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {point["week_start"]: point for point in engine["series"]}
+
+
 async def test_every_option_at_full_capacity_is_one_query_each(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -933,6 +951,15 @@ async def test_every_option_at_full_capacity_is_one_query_each(
         assert _cell(own["mentioned"]) == (150, 150, 1200)
         assert _pooled(own["mentioned"]) == (1200, 1200)
         assert _cell(own["share_of_voice"]) == (1200, 1200, 1200)
+    weeks = _week_starts(
+        date.fromisoformat(data["window"]["from"]), date.fromisoformat(data["window"]["to"])
+    )
+    for engine in data["topics"][0]["engines"]:
+        assert [point["week_start"] for point in engine["series"]] == weeks
+    for row in data["prompts"]:
+        for engine in row["engines"]:
+            # Each prompt's 8 answers are in its weeks, each once.
+            assert sum(point["mentioned"]["numerator"] for point in engine["series"]) == 8
 
 
 async def test_a_full_project_is_a_handful_of_statements(
@@ -1553,12 +1580,153 @@ async def test_the_engine_filter_narrows_the_entity_cells(
         assert _cell(cell["share_of_voice"]) == (0.5, 1, 1)
 
 
-@pytest.mark.parametrize("include", ["series", "entities,series", "bogus"])
+@pytest.mark.parametrize("include", ["bogus", "series,bogus"])
 async def test_an_include_that_is_not_built_is_refused(
     api: httpx.AsyncClient, summary: Summary, include: str
 ) -> None:
-    """`series` is a later task of plan D1: until it is built, it is a validation error like any
-    unknown value."""
     response = await _summary(summary, api, include=include)
 
     assert problem(response) == (422, "validation_failed")
+
+
+async def test_a_series_has_a_point_for_each_week_of_the_window(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+) -> None:
+    """Prompt A: two answers 7 days ago (own brand named, nobody named) and one 14 days ago (own
+    named). Prompt B: one 14 days ago (own named) and a refusal 21 days ago. Days 7, 14 and 21
+    ago fall in the three weeks before this one whatever today is. Topic T holds both."""
+    world = await _world(resources, migrated)
+    prompts = await _prompts(migrated, world, ["a", "b"])
+    world = replace(world, prompts=prompts)
+    topic = await _topic(migrated, world.project, "Managed SOC")
+    for name in ("a", "b"):
+        await _assign(migrated, world, name, topic)
+    await _ingested(
+        world,
+        migrated,
+        worker_db,
+        import_store,
+        [
+            Answer("a", OWN_ONLY, (), 7),
+            Answer("a", NEITHER, (), 7),
+            Answer("a", OWN_ONLY, (), 14),
+            Answer("b", OWN_ONLY, (), 14),
+            Answer("b", REFUSAL, (), 21),
+        ],
+    )
+
+    response = await _summary(world, api, include="series")
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    today = datetime.now(UTC).date()
+    weeks = _week_starts(today - timedelta(days=27), today)
+    one, two, three = (_monday(today - timedelta(days=7 * n)).isoformat() for n in (1, 2, 3))
+    rows = _by(data["prompts"], "prompt_id")
+    a = rows[str(prompts["a"].id)]["engines"][0]
+    b = rows[str(prompts["b"].id)]["engines"][0]
+    assert [point["week_start"] for point in a["series"]] == weeks
+    assert _cell(_points(a)[one]["mentioned"]) == (1, 2, 2)
+    assert _cell(_points(a)[one]["cited"]) == (0, 2, 2)
+    assert _cell(_points(a)[one]["share_of_voice"]) == (1, 1, 2)
+    assert _cell(_points(a)[two]["mentioned"]) == (1, 1, 1)
+    assert _cell(_points(b)[two]["mentioned"]) == (1, 1, 1)
+    # A refusal: an answer of the week, and no valid one.
+    assert _cell(_points(b)[three]["mentioned"]) == (0, 0, 1)
+    assert _points(b)[three]["mentioned"]["value"] is None
+    for week in set(weeks) - {one, two}:
+        assert _cell(_points(a)[week]["mentioned"]) == (0, 0, 0)
+    # A prompt's weeks add up to its window.
+    assert (
+        sum(point["mentioned"]["numerator"] for point in a["series"]) == a["mentioned"]["numerator"]
+    )
+    assert (
+        sum(point["mentioned"]["denominator"] for point in a["series"])
+        == a["mentioned"]["denominator"]
+    )
+    # The topic's weeks are prompt weighted as its window is: a week ago A alone (1 of 2), two
+    # weeks ago A and B (1 of 1 each), three weeks ago B's refusal only.
+    t = data["topics"][0]["engines"][0]
+    assert _cell(_points(t)[one]["mentioned"]) == (0.5, 1, 2)
+    assert _pooled(_points(t)[one]["mentioned"]) == (1, 2)
+    assert _cell(_points(t)[two]["mentioned"]) == (2, 2, 2)
+    assert _cell(_points(t)[three]["mentioned"]) == (0, 0, 1)
+    plain = (await _summary(world, api)).json()["data"]
+    assert "series" not in plain["prompts"][0]["engines"][0]
+    assert "series" not in plain["topics"][0]["engines"][0]
+
+
+async def test_a_week_starts_on_monday_in_the_projects_timezone(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+) -> None:
+    """Asia/Kolkata is 5:30 ahead of UTC, so 01:30 there on a Monday, when the Monday schedule
+    runs, is 20:00 UTC on the Sunday before: the answer is in the Monday's week."""
+    world = await _world(resources, migrated)
+    prompts = await _prompts(migrated, world, ["a"])
+    world = replace(world, prompts=prompts)
+    await execute(
+        migrated,
+        "UPDATE core.projects SET timezone = 'Asia/Kolkata' WHERE id = $1",
+        world.project.id,
+    )
+    kolkata = ZoneInfo("Asia/Kolkata")
+    monday = _monday(datetime.now(kolkata).date()) - timedelta(days=7)
+    when = datetime.combine(monday, time(1, 30), tzinfo=kolkata).astimezone(UTC)
+    await fetched_ai_task(
+        worker_db,
+        migrated,
+        world.project,
+        prompts["a"],
+        chatgpt_answer(OWN_ONLY, [], when=when),
+        import_store,
+        engine_code=CHATGPT,
+        fetched_at=when,
+    )
+    await ingest(worker_db, import_store)
+
+    response = await _summary(world, api, include="series")
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["window"]["timezone"] == "Asia/Kolkata"
+    points = _points(data["prompts"][0]["engines"][0])
+    assert _cell(points[monday.isoformat()]["mentioned"]) == (1, 1, 1)
+    assert _cell(points[(monday - timedelta(days=7)).isoformat()]["mentioned"]) == (0, 0, 0)
+
+
+async def test_a_series_follows_the_scope_and_the_engine_filter(
+    api: httpx.AsyncClient, summary: Summary
+) -> None:
+    """Only the valid, current, not superseded answers of the prompts and engines in scope are in
+    a week, so the weeks of a row add up to the row's window whatever the options."""
+    for params in ({}, {"filter[engine_code_in]": GEMINI}, {"include_branded": "true"}):
+        data = (await _summary(summary, api, include="series", **params)).json()["data"]
+        for row in [*data["prompts"], *data["topics"]]:
+            for engine in row["engines"]:
+                for name in ("mentioned", "cited", "share_of_voice"):
+                    points = [point[name] for point in engine["series"]]
+                    assert (
+                        sum(p["n_observations"] for p in points) == engine[name]["n_observations"]
+                    )
+                    if row.get("prompt_id"):
+                        assert sum(p["denominator"] for p in points) == engine[name]["denominator"]
+                        assert sum(p["numerator"] for p in points) == pytest.approx(
+                            engine[name]["numerator"]
+                        )
+
+
+async def test_the_series_is_cut_at_the_window(api: httpx.AsyncClient, summary: Summary) -> None:
+    """A week the window cuts counts only its days in the window: answer 9 (28 days old) is
+    outside the default window and in no point."""
+    data = (await _summary(summary, api, include="series")).json()["data"]
+    providers = _by(data["prompts"], "prompt_id")[str(summary.prompts["providers"].id)]
+    chatgpt = providers["engines"][0]
+    assert sum(p["mentioned"]["n_observations"] for p in chatgpt["series"]) == 6

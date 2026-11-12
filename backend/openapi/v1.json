@@ -2240,6 +2240,21 @@
           "outcomes": {
             "$ref": "#/components/schemas/OutcomeCells"
           },
+          "series": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/WeekCells"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=series`: a point for each week the window touches, oldest first, at most 14; a week without answers has counts of 0. Left out otherwise.",
+            "title": "Series"
+          },
           "share_of_voice": {
             "$ref": "#/components/schemas/MetricCell"
           }
@@ -16053,6 +16068,34 @@
         "title": "VocabularyUpdate",
         "type": "object"
       },
+      "WeekCells": {
+        "description": "One week of a series: the week's answers inside the window, weighted as the window's.",
+        "properties": {
+          "cited": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "mentioned": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "share_of_voice": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "week_start": {
+            "description": "The Monday the week starts on, in the project's zone.",
+            "format": "date",
+            "title": "Week Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week_start",
+          "mentioned",
+          "cited",
+          "share_of_voice"
+        ],
+        "title": "WeekCells",
+        "type": "object"
+      },
       "Workspace": {
         "properties": {
           "created_at": {
@@ -20588,7 +20631,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary": {
       "get": {
-        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most 20); across all the entities an answer names, its shares add up to 1.",
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came. `include=series` adds a point for each week the window touches (weeks start on Monday in the project's timezone), with Mentioned, Cited and Share of voice over the week's answers. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most 20); across all the entities an answer names, its shares add up to 1. Blocks not asked for are left out.",
         "operationId": "prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get",
         "parameters": [
           {
@@ -20726,7 +20769,7 @@
             }
           },
           {
-            "description": "Blocks to add: `entities`.",
+            "description": "Blocks to add: `series`, `entities`.",
             "in": "query",
             "name": "include",
             "required": false,
@@ -20734,7 +20777,10 @@
               "anyOf": [
                 {
                   "items": {
-                    "const": "entities",
+                    "enum": [
+                      "series",
+                      "entities"
+                    ],
                     "type": "string"
                   },
                   "type": "array"
@@ -20743,7 +20789,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Blocks to add: `entities`.",
+              "description": "Blocks to add: `series`, `entities`.",
               "title": "Include"
             }
           }

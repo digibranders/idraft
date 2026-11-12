@@ -32,6 +32,7 @@ from idraft.api.schemas.ai import (
     SummaryInclude,
     SummaryMetricContext,
     TopicSummaryRow,
+    WeekCells,
 )
 from idraft.api.schemas.metrics import MetricWindow
 from idraft.api.workspaces.access import WorkspaceAccess
@@ -83,6 +84,16 @@ def summary_dates(start: date | None, end: date | None, today: date) -> tuple[da
             f"A window is at most {SUMMARY_MAX_DAYS} days.", limit_days=SUMMARY_MAX_DAYS
         )
     return first, last
+
+
+def summary_weeks(first: date, last: date) -> list[date]:
+    """The Mondays of the weeks the days `first` to `last` touch: at most 14 in 92 days."""
+    week = first - timedelta(days=first.weekday())
+    weeks = [week]
+    while last - week >= timedelta(days=7):
+        week += timedelta(days=7)
+        weeks.append(week)
+    return weeks
 
 
 def _cell(numerator: float, denominator: int, n_observations: int) -> MetricCell:
@@ -155,14 +166,25 @@ def _topic_engine(engine_code: str, members: Sequence[Counts]) -> EngineSummary:
     )
 
 
+def _week(week: date, cells: EngineSummary) -> WeekCells:
+    return WeekCells(
+        week_start=week,
+        mentioned=cells.mentioned,
+        cited=cells.cited,
+        share_of_voice=cells.share_of_voice,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class _Read:
     """What the queries read, by prompt and engine. `entity_ids` is None unless the entity cells
-    were asked for."""
+    were asked for, and `weeks` None unless the series was."""
 
     counts: Mapping[tuple[UUID, str], Counts]
     entity_ids: Sequence[UUID] | None = None
     named: Mapping[tuple[UUID, str, UUID], EntityCounts] = field(default_factory=dict)
+    weeks: Sequence[date] | None = None
+    weekly: Mapping[tuple[UUID, str, date], Counts] = field(default_factory=dict)
 
 
 def _entity_cells(
@@ -202,19 +224,35 @@ def _engine_row(
 ) -> EngineSummary:
     """One engine's cells for a prompt row (`prompt_ids` holds the prompt alone) or a topic row
     (its prompts)."""
-    counts = read.counts
-    members = [counts[(prompt, code)] for prompt in prompt_ids if (prompt, code) in counts]
-    row = _topic_engine(code, members) if topic else _engine(code, members[0] if members else _NONE)
-    if read.entity_ids is None:
-        return row
-    return row.model_copy(
-        update={
-            "entities": [
-                _entity_cells(code, entity_id, prompt_ids, read, topic=topic)
-                for entity_id in read.entity_ids
-            ]
-        }
-    )
+
+    def cells(source: Mapping[tuple[UUID, str], Counts]) -> EngineSummary:
+        members = [source[(prompt, code)] for prompt in prompt_ids if (prompt, code) in source]
+        if topic:
+            return _topic_engine(code, members)
+        return _engine(code, members[0] if members else _NONE)
+
+    row = cells(read.counts)
+    update: dict[str, Any] = {}
+    if read.entity_ids is not None:
+        update["entities"] = [
+            _entity_cells(code, entity_id, prompt_ids, read, topic=topic)
+            for entity_id in read.entity_ids
+        ]
+    if read.weeks is not None:
+        update["series"] = [
+            _week(
+                week,
+                cells(
+                    {
+                        (prompt, code): read.weekly[(prompt, code, week)]
+                        for prompt in prompt_ids
+                        if (prompt, code, week) in read.weekly
+                    }
+                ),
+            )
+            for week in read.weeks
+        ]
+    return row.model_copy(update=update) if update else row
 
 
 def _last_answers(
@@ -347,6 +385,14 @@ class SummaryService:
                 # Under a term filter the topic rows are the term's and those below it.
                 subtree = await repository.term_subtree(db, ws, query.term_id)
                 held = {term: members for term, members in held.items() if term in subtree}
+            weeks = summary_weeks(first, last) if "series" in query.include else None
+            weekly: Mapping[tuple[UUID, str, date], Counts] = (
+                {}
+                if weeks is None
+                else await repository.weekly_counts(
+                    db, ws, project_id, ids, **window, timezone=zone_row.timezone
+                )
+            )
             versions = await repository.entity_config_versions(db, ws, project_id, ids, **window)
             enabled = await repository.enabled_engine_codes(db, ws, project_id)
             tracked = await repository.tracked_entities(db, ws, project_id)
@@ -370,7 +416,7 @@ class SummaryService:
             for code in set(enabled) | seen
             if query.engine_codes is None or code in query.engine_codes
         )
-        read = _Read(counts=by_prompt, entity_ids=cell_ids, named=named)
+        read = _Read(counts=by_prompt, entity_ids=cell_ids, named=named, weeks=weeks, weekly=weekly)
         prompt_rows = [_prompt_row(prompt, shown, read) for prompt in prompts]
         # Topic rows are sums of the prompts' counts. Each topic row holds the prompts given the
         # term or a term below it, each once; the last row holds the prompts given no topic,

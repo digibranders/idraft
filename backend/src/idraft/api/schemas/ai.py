@@ -469,8 +469,7 @@ class MetricCell(BaseModel):
     )
 
 
-# Plan D1 adds `series` here with the weekly series.
-SummaryInclude = Literal["entities"]
+SummaryInclude = Literal["series", "entities"]
 
 
 def _absent(value: object) -> bool:
@@ -501,12 +500,27 @@ class EntityCells(BaseModel):
     )
 
 
+class WeekCells(BaseModel):
+    """One week of a series: the week's answers inside the window, weighted as the window's."""
+
+    week_start: date = Field(description="The Monday the week starts on, in the project's zone.")
+    mentioned: MetricCell
+    cited: MetricCell
+    share_of_voice: MetricCell
+
+
 class EngineSummary(BaseModel):
     engine_code: str
     mentioned: MetricCell
     cited: MetricCell
     outcomes: OutcomeCells
     share_of_voice: MetricCell
+    series: list[WeekCells] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=series`: a point for each week the window touches, oldest "
+        "first, at most 14; a week without answers has counts of 0. Left out otherwise.",
+    )
     entities: list[EntityCells] | None = Field(
         default=None,
         exclude_if=_absent,

@@ -44,9 +44,11 @@ Summaries = Annotated[SummaryService, Depends(get_summary_service)]
     "given the term or one under it; the topic rows then hold only those prompts, and under "
     "`filter[term]` they are the term and the topics below it, with no row for prompts without "
     "a topic. Each row says when its last counted answer and its last valid one came."
-    " `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each "
-    "tracked entity (the own ones first, at most 20); across all the entities an answer names, "
-    "its shares add up to 1.",
+    " `include=series` adds a point for each week the window touches (weeks start on Monday in "
+    "the project's timezone), with Mentioned, Cited and Share of voice over the week's "
+    "answers. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for "
+    "each tracked entity (the own ones first, at most 20); across all the entities an answer "
+    "names, its shares add up to 1. Blocks not asked for are left out.",
 )
 async def prompts_summary(
     project_id: UUID,
@@ -76,7 +78,7 @@ async def prompts_summary(
     include: Annotated[
         list[SummaryInclude] | None,
         Commas,
-        Query(description="Blocks to add: `entities`."),
+        Query(description="Blocks to add: `series`, `entities`."),
     ] = None,
 ) -> PromptsSummaryResponse:
     return PromptsSummaryResponse(
