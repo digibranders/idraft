@@ -4,7 +4,7 @@ page, the citations behind them, and the queries ChatGPT issued while answering.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -18,6 +18,10 @@ from idraft.domain.ai_engines import EngineCode
 DomainRole = Literal["own", "competitor", "third_party"]
 SourceSort = Literal["-citation_units", "-observations", "-prompts"]
 SourceCompare = Literal["none", "previous_period"]
+SourceDomainInclude = Literal["series", "cited_with", "by_role_by_engine"]
+SourcePageInclude = Literal["series"]
+SourceChangeKind = Literal["new", "lost"]
+_NOT_RETURNED = "Not returned yet: absent from every response until it is built."
 
 TITLE_MAX = 300
 RAW_URL_MAX = 1000
@@ -74,6 +78,17 @@ class EngineUnits(BaseModel):
     citation_units: int
 
 
+class SourceWeekUnits(BaseModel):
+    week_start: date = Field(description="The Monday the week starts on, in the project's zone.")
+    citation_units: int
+    observations: int
+
+
+class CitedWith(BaseModel):
+    entity_id: UUID = Field(description="The tracked entity most named in answers citing it.")
+    observations: int = Field(description="Answers citing it that name the entity.")
+
+
 class SourceDomainRow(BaseModel):
     registrable_domain: str = Field(
         description="What sources are grouped by (docs/14 section 3, docs/16 C1): every host of "
@@ -98,12 +113,46 @@ class SourceDomainRow(BaseModel):
     first_seen_at: datetime = Field(description="Its first citation in the window.")
     last_seen_at: datetime = Field(description="Its last citation in the window.")
     previous: PreviousUnits | None = Field(default=None, exclude_if=_absent, description=_PREVIOUS)
+    series: list[SourceWeekUnits] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=series`: a point per week of the window, oldest first, at "
+        "most 14. " + _NOT_RETURNED,
+    )
+    cited_with: CitedWith | None = Field(
+        default=None, exclude_if=_absent, description="With `include=cited_with`. " + _NOT_RETURNED
+    )
+    category: str | None = Field(
+        default=None, exclude_if=_absent, description="The domain's category. " + _NOT_RETURNED
+    )
+    category_source: Literal["seed_list", "rule", "llm", "manual", "tenant_override"] | None = (
+        Field(default=None, exclude_if=_absent, description=_NOT_RETURNED)
+    )
 
 
 class RoleUnits(BaseModel):
     domain_role: DomainRole
     citation_units: int
     observations: int = Field(description="Answers that cite a source of this role.")
+
+
+class SourcesWeek(BaseModel):
+    week_start: date
+    answers: int
+    citation_units: int
+    distinct_domains: int
+
+
+class RoleAnswers(BaseModel):
+    citation_units: int
+    answers_citing: int
+
+
+class EngineRoleUnits(BaseModel):
+    engine_code: EngineCode
+    own: RoleAnswers
+    competitor: RoleAnswers
+    third_party: RoleAnswers
 
 
 class SourcesMeta(BaseModel):
@@ -127,6 +176,14 @@ class SourcesMeta(BaseModel):
         exclude_if=_absent,
         description="With `compare`: the valid answers in scope in that window. 0 means it has no "
         "data, so a `previous` of 0 there says nothing about the source.",
+    )
+    series: list[SourcesWeek] | None = Field(
+        default=None, exclude_if=_absent, description="With `include=series`. " + _NOT_RETURNED
+    )
+    by_role_by_engine: list[EngineRoleUnits] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=by_role_by_engine` on domains. " + _NOT_RETURNED,
     )
 
 
@@ -154,12 +211,43 @@ class SourcePageRow(BaseModel):
     first_seen_at: datetime
     last_seen_at: datetime
     previous: PreviousUnits | None = Field(default=None, exclude_if=_absent, description=_PREVIOUS)
+    series: list[SourceWeekUnits] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=series`: a point per week of the window, oldest first, at "
+        "most 14. " + _NOT_RETURNED,
+    )
 
 
 class SourcePagePage(BaseModel):
     data: list[SourcePageRow]
     page: OffsetPageInfo
     meta: SourcesMeta
+
+
+class SourceChangeRow(BaseModel):
+    registrable_domain: str
+    domain_role: DomainRole
+    role_entity_id: UUID | None
+    current_units: int = Field(description="Citation units in the window.")
+    previous_units: int = Field(description="Citation units in the window compared with.")
+    first_seen_at: datetime | None = Field(description="Its first citation in the window.")
+    last_seen_at: datetime | None = Field(description="Its last citation in the window.")
+
+
+class SourceChangesMeta(BaseModel):
+    window: MetricWindow
+    compare_window: MetricWindow
+    include_branded: bool
+    engine_codes: list[EngineCode]
+    kind: SourceChangeKind
+    min_support: int
+
+
+class SourceChangePage(BaseModel):
+    data: list[SourceChangeRow]
+    page: OffsetPageInfo
+    meta: SourceChangesMeta
 
 
 class CitationRow(BaseModel):

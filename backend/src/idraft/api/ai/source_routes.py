@@ -19,11 +19,16 @@ from idraft.api.schemas.ai_sources import (
     CitationPage,
     DomainRole,
     FanoutQueryPage,
+    SourceChangeKind,
+    SourceChangePage,
     SourceCompare,
+    SourceDomainInclude,
     SourceDomainPage,
+    SourcePageInclude,
     SourcePagePage,
     SourceSort,
 )
+from idraft.api.stubs import not_built, not_built_yet, refuse_unbuilt
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 from idraft.domain.ai_engines import EngineCode
@@ -98,6 +103,23 @@ COMPARE = (
     "C5), with `meta.compare_window` and `meta.previous_answers`."
 )
 
+_NOT_BUILT = "Not built yet: `501 not_implemented`."
+
+CountryFilter = Annotated[
+    str | None,
+    Query(
+        alias="filter[country_iso]",
+        pattern=r"^[A-Z]{2}$",
+        description="The answers of the prompts of one market, ISO 3166-1 alpha-2. " + _NOT_BUILT,
+    ),
+]
+MinSupport = Annotated[
+    int | None,
+    Query(
+        ge=1, le=1000, description="The fewest citation units a row is listed for. " + _NOT_BUILT
+    ),
+]
+
 
 @router.get(
     "/sources/domains",
@@ -117,7 +139,23 @@ async def source_domains(
     page: Offset,
     sort: SourceSort = "-citation_units",
     compare: SourceCompare = "none",
+    include: Annotated[
+        list[SourceDomainInclude] | None,
+        Commas,
+        Query(
+            description="Blocks to add: `series`, `cited_with`, `by_role_by_engine`. " + _NOT_BUILT
+        ),
+    ] = None,
+    min_support: MinSupport = None,
+    country_iso: CountryFilter = None,
 ) -> SourceDomainPage:
+    refuse_unbuilt(
+        {
+            "include": bool(include),
+            "min_support": min_support is not None,
+            "filter[country_iso]": country_iso is not None,
+        }
+    )
     return await sources.domains(access, project_id, scope, sort=sort, compare=compare, page=page)
 
 
@@ -150,7 +188,21 @@ async def source_pages(
     registrable_domain: RegistrableDomain = None,
     sort: SourceSort = "-citation_units",
     compare: SourceCompare = "none",
+    include: Annotated[
+        list[SourcePageInclude] | None,
+        Commas,
+        Query(description="Blocks to add: `series`. " + _NOT_BUILT),
+    ] = None,
+    min_support: MinSupport = None,
+    country_iso: CountryFilter = None,
 ) -> SourcePagePage:
+    refuse_unbuilt(
+        {
+            "include": bool(include),
+            "min_support": min_support is not None,
+            "filter[country_iso]": country_iso is not None,
+        }
+    )
     return await sources.pages(
         access,
         project_id,
@@ -160,6 +212,28 @@ async def source_pages(
         compare=compare,
         page=page,
     )
+
+
+@router.get(
+    "/sources/changes",
+    summary="New and lost sources against the window before",
+    description=SCOPE
+    + "`kind=new` (default): domains with at least `min_support` citation units in the window "
+    "and none in as many days before. `kind=lost`: domains with at least `min_support` units "
+    "before and none in the window. One row per registrable domain and role; offset pages. "
+    + _NOT_BUILT,
+)
+@not_built
+async def source_changes(
+    project_id: UUID,
+    access: ReadData,
+    scope: Scope,
+    page: Offset,
+    kind: SourceChangeKind = "new",
+    min_support: Annotated[int, Query(ge=1, le=1000)] = 2,
+    country_iso: CountryFilter = None,
+) -> SourceChangePage:
+    raise not_built_yet()
 
 
 @router.get(
@@ -179,7 +253,9 @@ async def citation_list(
     page: Cursor,
     registrable_domain: RegistrableDomain = None,
     url_id: Annotated[int | None, Query(alias="filter[url_id]", ge=1, le=2**63 - 1)] = None,
+    country_iso: CountryFilter = None,
 ) -> CitationPage:
+    refuse_unbuilt({"filter[country_iso]": country_iso is not None})
     return await sources.citations(
         access,
         project_id,
@@ -217,5 +293,7 @@ async def fanout_queries(
     min_support: Annotated[
         int, Query(ge=1, le=1000, description="The fewest answers a query is listed for.")
     ] = 2,
+    country_iso: CountryFilter = None,
 ) -> FanoutQueryPage:
+    refuse_unbuilt({"filter[country_iso]": country_iso is not None})
     return await sources.fanout(access, project_id, scope, min_support=min_support, page=page)
