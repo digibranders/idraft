@@ -419,8 +419,9 @@ library.
 - Encodings: rows = topics (top level by default; the chevron shows subtopics in place), columns = engines in fixed
   order then "avg of 3" (equal weight, R3); cell fill = 7 fixed bins of `seq-1` to `seq-7` (0, under 10, 10 to 20,
   20 to 35, 35 to 50, 50 to 70, 70 and up; bins stated in the footnote), cell text = rate in `num`, text colour per
-  bin so the pair meets 4.5:1 (`foreground` on `seq-1` to `seq-4`, `foreground-inverse` on `seq-5` to `seq-7` in
-  light; mirrored in dark, where `seq-7` is lightest). A column for Prompts (count). Rows sorted by prompt count,
+  bin so the pair meets 4.5:1 (`foreground` on `seq-1` to `seq-5`, `foreground-inverse` on `seq-6` to `seq-7` in
+  light (corrected by WP-06: `seq-5` needs `foreground`, 4.85:1; inverse gives 3.54:1); mirrored in dark, where `seq-7` is lightest and
+  dark `seq-5` is lifted to oklch(0.61 0.15 262) so it meets 4.5:1 with `foreground-inverse`). A column for Prompts (count). Rows sorted by prompt count,
   switchable to the average rate.
 - Tooltip: "CRM for startups on ChatGPT: 47%, prompt weighted over 17 prompts, 64 of 136 answers".
 - Legend: a 7-step bin key under the table with the bin bounds.
