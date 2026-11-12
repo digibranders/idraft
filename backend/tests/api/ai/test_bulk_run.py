@@ -8,18 +8,22 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from idraft.api.ai.run_repository import RunnablePrompt, pending_pairs
 from idraft.api.operations.runs import MANUAL_RUNS_PER_DAY
 from idraft.api.resources import Resources
 from idraft.collectors.ai_prompt import AiPromptWorkload
 from idraft.collectors.planner import plan_manual_runs
 from idraft.collectors.registry import Registry
+from idraft.db.engine import workspace_transaction
 from idraft.domain.ai_engines import BASE_PLAN
 from idraft.providers.dataforseo.provider import CODE as DATAFORSEO
 from tests.api.ai.sources_support import statements
@@ -29,7 +33,7 @@ from tests.api.keywords.support import OTHER_LOCATION, ensure_locations, errors,
 from tests.api.workspaces.support import make_project
 from tests.collectors.ai_support import Prompt, add_prompt, enable_engine
 from tests.collectors.rank_support import Ledger
-from tests.collectors.support import Project, make_budget
+from tests.collectors.support import Project, make_budget, make_schedule
 from tests.conftest import PostgresServer
 
 ENGINES = ["chatgpt_web", "gemini_web", "google_ai_mode"]
@@ -515,3 +519,88 @@ async def test_a_bulk_run_dearer_than_the_budget_is_blocked_whole(
 
     assert Decimal(response.json()["meta"]["estimated_cost_usd"]) == Decimal("0.0108")
     assert await _run_and_tasks(migrated, scene) == (["budget_blocked"], 0)
+
+
+class _PlanAfterFirstRead:
+    """A session that lets the worker plan its runs, in a commit of its own, right after the
+    first statement sent through it: between the two reads of `pending_pairs`."""
+
+    def __init__(self, db: AsyncSession, plan: Callable[[], Awaitable[None]]) -> None:
+        self._db = db
+        self._plan: Callable[[], Awaitable[None]] | None = plan
+
+    async def execute(self, *args: Any, **kwargs: Any) -> Any:
+        result = await self._db.execute(*args, **kwargs)
+        if self._plan is not None:
+            plan, self._plan = self._plan, None
+            await plan()
+        return result
+
+
+async def test_a_plan_committed_between_the_two_reads_cannot_hide_a_pending_prompt(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    scene = await _setup(resources, migrated, count=1)
+    (prompt,) = scene.prompts
+    await make_budget(migrated, scene.project, "10", workload="ai_prompt", for_project=True)
+    first = await _bulk(api, scene, [prompt.id])
+    asked = RunnablePrompt(prompt.id, prompt.version_id, text_length=10)
+
+    async with workspace_transaction(resources.sessions, scene.workspace.id) as db:
+        pending = await pending_pairs(
+            cast(AsyncSession, _PlanAfterFirstRead(db, lambda: _plan(worker_db))),
+            scene.workspace.id,
+            scene.project.id,
+            [asked],
+            ENGINES,
+        )
+
+    assert first.status_code == 202, first.text
+    # The worker did plan between the reads: the run is no longer planned, its tasks are made.
+    assert await _run_and_tasks(migrated, scene) == (["running"], 3)
+    assert pending == {(prompt.id, code) for code in ENGINES}
+
+
+async def test_the_pending_state_attaches_to_the_prompt_with_the_task_on_its_way(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    scene = await _setup(resources, migrated)
+    free, pending = scene.prompts
+    schedule = await make_schedule(migrated, scene.project, workload="ai_prompt")
+    (run,) = await fetch(
+        migrated,
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, schedule_id, workload, "
+        "window_start, window_end, trigger, status, created_by_type, config_snapshot) VALUES "
+        "($1, $2, $3, 'ai_prompt', now(), now() + interval '1 hour', 'schedule', 'running', "
+        "'system', '{}') RETURNING id",
+        scene.workspace.id,
+        scene.project.id,
+        schedule,
+    )
+    await execute(
+        migrated,
+        "INSERT INTO ops.collection_tasks (run_id, workspace_id, project_id, workload, "
+        "subject_type, subject_id, engine_code, location_id, idempotency_key, "
+        "request_fingerprint, provider_code, provider_endpoint, scheduled_for, status) VALUES "
+        "($1, $2, $3, 'ai_prompt', 'prompt_version', $4, 'gemini_web', 2840, $5, $5, "
+        "'dataforseo', 'ai_optimization/gemini/llm_scraper', now(), 'submitted')",
+        run["id"],
+        scene.workspace.id,
+        scene.project.id,
+        str(pending.version_id),
+        uuid.uuid4().bytes,
+    )
+
+    response = await _bulk(api, scene, [free.id, pending.id], ["chatgpt_web", "gemini_web"])
+
+    assert response.status_code == 202, response.text
+    assert _skipped(response) == [
+        (str(pending.id), "chatgpt_web", "prompt_pending"),
+        (str(pending.id), "gemini_web", "check_pending"),
+    ]
+    assert response.json()["meta"]["answers"] == 2
+    bulk = (await _runs(migrated, scene))[-1]
+    assert json.loads(bulk["config_snapshot"])["selector"]["prompt_ids"] == [str(free.id)]

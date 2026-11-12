@@ -105,24 +105,13 @@ async def pending_pairs(
     if not prompts or not engine_codes:
         return set()
     t, r = collection_tasks.c, collection_runs.c
-    by_version = {str(prompt.version_id): prompt.prompt_id for prompt in prompts}
-    found = {
-        (by_version[row.subject_id], row.engine_code)
-        for row in await db.execute(
-            select(t.subject_id, t.engine_code)
-            .distinct()
-            .where(
-                t.workspace_id == workspace_id,
-                t.project_id == project_id,
-                t.workload == AI_PROMPT,
-                t.subject_type == SUBJECT_TYPE,
-                t.subject_id.in_(sorted(by_version)),
-                t.engine_code.in_(list(engine_codes)),
-                t.status.in_(UNSETTLED),
-            )
-        )
-    }
+    found: set[tuple[UUID, str]] = set()
     by_prompt = {str(prompt.prompt_id): prompt.prompt_id for prompt in prompts}
+    # Planned runs first, tasks second. The worker's plan turns a planned run into a running one
+    # with its tasks in one commit (it does not take the manual lock), and each statement sees the
+    # database as of its own start. A run seen as planned is covered by its selector; a run no
+    # longer planned has already committed its tasks, so the later tasks read sees them. The other
+    # order can see neither: no tasks yet, then no planned run, and a second paid run is accepted.
     planned = await db.execute(
         select(r.config_snapshot).where(
             r.workspace_id == workspace_id,
@@ -141,6 +130,23 @@ async def pending_pairs(
                     for code in engine_codes
                     if named is None or code in named
                 )
+    by_version = {str(prompt.version_id): prompt.prompt_id for prompt in prompts}
+    found.update(
+        (by_version[row.subject_id], row.engine_code)
+        for row in await db.execute(
+            select(t.subject_id, t.engine_code)
+            .distinct()
+            .where(
+                t.workspace_id == workspace_id,
+                t.project_id == project_id,
+                t.workload == AI_PROMPT,
+                t.subject_type == SUBJECT_TYPE,
+                t.subject_id.in_(sorted(by_version)),
+                t.engine_code.in_(list(engine_codes)),
+                t.status.in_(UNSETTLED),
+            )
+        )
+    )
     return found
 
 
