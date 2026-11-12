@@ -182,7 +182,7 @@ export function ChangeFeed({
         sections.map((section) => {
           const headingId = `${titleId}-${section.group}`;
           return (
-            <section key={section.group}>
+            <div key={section.group}>
               <div className="flex h-9 items-center gap-2 border-t border-border-subtle bg-surface-subtle px-4">
                 <GroupHeading id={headingId} className="type-subsection-title">
                   {t(`groups.${GROUP_KEY[section.group]}`)}
@@ -194,7 +194,7 @@ export function ChangeFeed({
                   <FeedRow key={item.id} item={item} form="compact" timeZone={timeZone} now={now} />
                 ))}
               </ul>
-            </section>
+            </div>
           );
         })
       )}
