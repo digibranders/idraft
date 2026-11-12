@@ -77,7 +77,13 @@ function Harness({
   columns = COLUMNS,
   loadProgress = null,
   rowTone,
+  pinActions = false,
+  columnGroups = false,
+  startDensity,
 }: {
+  pinActions?: boolean;
+  columnGroups?: boolean;
+  startDensity?: Density;
   rowTone?: (row: Row) => 'own' | undefined;
   loadProgress?: { loaded: number; total: number } | null;
   columns?: readonly DataTableColumn<Row>[];
@@ -91,7 +97,7 @@ function Harness({
   rowName?: (row: Row) => string;
 }): ReactElement {
   const [sort, setSort] = useState<readonly SortKey[]>(DEFAULT_SORT);
-  const [density, setDensity] = useState<Density>(parseDensity(null));
+  const [density, setDensity] = useState<Density>(startDensity ?? parseDensity(null));
   const [visible, setVisible] = useState<readonly string[] | null>(null);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -102,6 +108,8 @@ function Harness({
         caption="Keywords"
         itemNoun={{ one: 'keyword', other: 'keywords' }}
         columns={columns}
+        pinActions={pinActions}
+        columnGroups={columnGroups}
         getRowId={rowId}
         rows={rows}
         total={server === undefined ? rows.length : 4812}
@@ -139,15 +147,22 @@ function Harness({
   );
 }
 
-/** The width the bulk bar's action area is given; the grid's region is always 1600 px. */
+/** The width the bulk bar's action area is given. */
 let actionsWidth = 1600;
+/** The width the grid's region is given: 1600 px unless a test makes the table overflow. */
+let regionWidth = 1600;
 
 class FixedResizeObserver {
   constructor(private readonly callback: ResizeObserverCallback) {}
   observe(target: Element): void {
     const inBar = target instanceof HTMLElement && target.dataset.slot === 'bulk-actions';
     this.callback(
-      [{ target, contentRect: { width: inBar ? actionsWidth : 1600, height: 480 } } as unknown as ResizeObserverEntry],
+      [
+        {
+          target,
+          contentRect: { width: inBar ? actionsWidth : regionWidth, height: 480 },
+        } as unknown as ResizeObserverEntry,
+      ],
       this as unknown as ResizeObserver,
     );
   }
@@ -157,6 +172,7 @@ class FixedResizeObserver {
 
 beforeEach(() => {
   actionsWidth = 1600;
+  regionWidth = 1600;
   onOpen.mockReset();
   archive.mockReset();
   vi.stubGlobal('ResizeObserver', FixedResizeObserver);
@@ -2376,6 +2392,178 @@ describe('DataTable tree mode, third level', () => {
 
   it('passes the accessibility check with three levels', async () => {
     const { container } = renderWithProviders(<ThreeHarness />);
+    expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('DataTable pinned actions column', () => {
+  const PIN_CLASSES = ['right-0', 'border-l', 'border-l-border', 'z-(--z-sticky)'];
+  const actionsHeader = (): HTMLElement => within(grid()).getByRole('columnheader', { name: 'Actions' });
+  const actionCells = (): HTMLElement[] =>
+    within(grid())
+      .getAllByRole('gridcell')
+      .filter((cell) => cell.classList.contains('text-right'));
+  const scrollRegion = (): HTMLElement => {
+    const element = grid().parentElement;
+    if (element === null) throw new Error('The grid has no scroll region');
+    return element;
+  };
+  /** The region as a browser lays it out (jsdom has no layout), scrolled to `left`, then the scroll event. */
+  const scrollTo = (left: number, scrollWidth = 1000, clientWidth = 700): void => {
+    const element = scrollRegion();
+    Object.defineProperty(element, 'scrollWidth', { value: scrollWidth, configurable: true });
+    Object.defineProperty(element, 'clientWidth', { value: clientWidth, configurable: true });
+    Object.defineProperty(element, 'scrollLeft', { value: left, configurable: true });
+    fireEvent.scroll(element);
+  };
+  const hasEdge = (element: HTMLElement): boolean =>
+    element.classList.contains('border-l') && element.classList.contains('border-l-border');
+
+  // The three columns of the harness need 448 px at their narrowest, so these regions are narrower than the table
+  it('leaves the actions column static unless pinActions is set', () => {
+    regionWidth = 400;
+    renderWithProviders(<Harness rows={rowsOf(3)} />);
+    scrollTo(0);
+    // Every header cell is sticky at the top already; only the right pin and its edge are new
+    for (const name of PIN_CLASSES) expect(actionsHeader()).not.toHaveClass(name);
+    expect(actionsHeader()).toHaveClass('z-(--z-table-header)');
+    expect(actionCells()).toHaveLength(3);
+    for (const cell of actionCells()) {
+      for (const name of ['sticky', ...PIN_CLASSES]) expect(cell).not.toHaveClass(name);
+      expect(cell.className).not.toMatch(/z-\(--z-(sticky|pinned-cell)\)/);
+    }
+  });
+
+  it('pins the actions header and cells to the right edge with the right z-index tokens', () => {
+    renderWithProviders(<Harness rows={rowsOf(3)} pinActions />);
+    expect(actionsHeader()).toHaveClass('sticky', 'right-0', 'top-0', 'z-(--z-sticky)');
+    expect(actionCells()).toHaveLength(3);
+    for (const cell of actionCells()) expect(cell).toHaveClass('sticky', 'right-0', 'z-(--z-pinned-cell)');
+    // The other columns are not pinned on the right
+    for (const header of within(grid()).getAllByRole('columnheader')) {
+      if (header !== actionsHeader()) expect(header).not.toHaveClass('right-0');
+    }
+  });
+
+  it('draws the pinned edge only while columns are hidden behind it: overflowing and not at the end, none when the table fits or after scrolling to the end', () => {
+    regionWidth = 400;
+    renderWithProviders(<Harness rows={rowsOf(3)} pinActions />);
+    scrollTo(0);
+    for (const cell of [actionsHeader(), ...actionCells()]) expect(hasEdge(cell)).toBe(true);
+    // Columns before the actions column carry no edge of their own
+    const keywordHeader = within(grid()).getByRole('columnheader', { name: /^Keyword/ });
+    expect(keywordHeader).not.toHaveClass('border-l');
+    scrollTo(150);
+    for (const cell of [actionsHeader(), ...actionCells()]) expect(hasEdge(cell)).toBe(true);
+    // Scrolled to the end (scrollWidth 1000, clientWidth 700): nothing is behind the pin
+    scrollTo(300);
+    for (const cell of [actionsHeader(), ...actionCells()]) expect(hasEdge(cell)).toBe(false);
+    scrollTo(100);
+    for (const cell of [actionsHeader(), ...actionCells()]) expect(hasEdge(cell)).toBe(true);
+  });
+
+  it('draws no edge when the table fits the region', () => {
+    renderWithProviders(<Harness rows={rowsOf(3)} pinActions />);
+    scrollTo(0, 1600, 1600);
+    for (const cell of [actionsHeader(), ...actionCells()]) expect(hasEdge(cell)).toBe(false);
+  });
+
+  it('re-renders only when the edge flips, not on every scroll event', () => {
+    regionWidth = 300;
+    const getVolume = vi.fn((row: Row) => row.volume);
+    const columns = [
+      col.keyword<Row>('keyword', (row) => row.keyword, { header: 'Keyword' }),
+      col.volume<Row>('volume', getVolume, { header: 'Volume', priority: 2 }),
+    ];
+    renderWithProviders(<Harness rows={rowsOf(3)} columns={columns} pinActions />);
+    scrollTo(0);
+    // The first no-change update may still be rendered once before React bails out
+    scrollTo(20);
+    const rendered = getVolume.mock.calls.length;
+    scrollTo(60);
+    scrollTo(120);
+    scrollTo(200);
+    expect(getVolume).toHaveBeenCalledTimes(rendered);
+    // The flip at the end is a render
+    scrollTo(300);
+    expect(getVolume.mock.calls.length).toBeGreaterThan(rendered);
+  });
+
+  it('keeps the left pin and the right pin together: selection cell left 0, identity left 40, actions right 0 at a 1280 wide region', () => {
+    regionWidth = 1280;
+    renderWithProviders(<Harness rows={rowsOf(3)} pinActions />);
+    const headers = within(grid()).getAllByRole('columnheader');
+    expect(headers[0]?.style.left).toBe('0px');
+    expect(within(grid()).getByRole('columnheader', { name: /^Keyword/ }).style.left).toBe('40px');
+    expect(actionsHeader()).toHaveClass('right-0');
+    expect(actionsHeader().style.left).toBe('');
+    const [firstRow] = within(grid()).getAllByRole('row').slice(1);
+    if (firstRow === undefined) throw new Error('no row');
+    const cells = within(firstRow).getAllByRole('gridcell');
+    expect(cells[0]?.style.left).toBe('0px');
+    expect(within(firstRow).getByRole('rowheader').style.left).toBe('40px');
+    expect(cells.at(-1)).toHaveClass('right-0');
+    expect(cells.at(-1)?.style.left).toBe('');
+  });
+
+  it('works under two header rows: the cell spans both, at the top', () => {
+    const group: ColumnGroup = { id: 'engine', label: 'Engine' };
+    const columns = [
+      col.keyword<Row>('keyword', (row) => row.keyword, { header: 'Keyword' }),
+      col.volume<Row>('volume', (row) => row.volume, { header: 'Volume', group }),
+      col.count<Row>('difficulty', (row) => row.difficulty, { header: 'KD', group }),
+    ];
+    renderWithProviders(<Harness rows={rowsOf(3)} columns={columns} columnGroups pinActions />);
+    const headerRows = grid().querySelectorAll('thead tr');
+    expect(headerRows).toHaveLength(2);
+    expect(actionsHeader()).toHaveAttribute('rowspan', '2');
+    expect(actionsHeader()).toHaveClass('sticky', 'right-0', 'top-0', 'z-(--z-sticky)');
+    expect(headerRows[0]?.contains(actionsHeader())).toBe(true);
+    expect(headerRows[1]?.contains(actionsHeader())).toBe(false);
+  });
+
+  it('changes nothing about row height in either density: the pin only adds its own classes to the actions cells', () => {
+    const rowClasses = (): string[] =>
+      within(grid())
+        .getAllByRole('row')
+        .map((row) => row.className);
+    const actionClasses = (): string[] => [actionsHeader(), ...actionCells()].map((cell) => cell.className);
+    const added = new Set(['sticky', 'right-0', 'z-(--z-sticky)', 'z-(--z-pinned-cell)']);
+    for (const startDensity of ['compact', 'default'] as const) {
+      const plain = renderWithProviders(<Harness rows={rowsOf(3)} startDensity={startDensity} />);
+      const rowsBefore = rowClasses();
+      const actionsBefore = actionClasses();
+      plain.unmount();
+      const pinned = renderWithProviders(<Harness rows={rowsOf(3)} startDensity={startDensity} pinActions />);
+      expect(rowClasses()).toEqual(rowsBefore);
+      const rowHeight = startDensity === 'compact' ? 'h-row-compact' : 'h-row';
+      for (const row of within(grid()).getAllByRole('row').slice(1)) expect(row).toHaveClass(rowHeight);
+      actionClasses().forEach((pinned, index) => {
+        const before = new Set((actionsBefore[index] ?? '').split(' '));
+        const extra = pinned.split(' ').filter((name) => !before.has(name));
+        // Only the pin's own classes: no height, padding or line-height of its own
+        expect(extra.filter((name) => !added.has(name))).toEqual([]);
+      });
+      pinned.unmount();
+    }
+  });
+
+  it('opens the row menu with Shift+F10 from the pinned cell and returns focus to the pinned cell', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(3)} pinActions />);
+    const cell = actionCells()[0];
+    if (cell === undefined) throw new Error('no actions cell');
+    act(() => cell.focus());
+    await user.keyboard('{Shift>}{F10}{/Shift}');
+    await user.click(await screen.findByRole('menuitem', { name: 'Open' }));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(cell);
+    });
+  });
+
+  it('passes the accessibility check', async () => {
+    regionWidth = 400;
+    const { container } = renderWithProviders(<Harness rows={rowsOf(3)} pinActions />);
+    scrollTo(0);
     expect(await axe(container)).toHaveNoViolations();
   });
 });

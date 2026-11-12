@@ -77,6 +77,10 @@ const hasCheckbox = (tree: RowTree | undefined): boolean => tree?.selectable !==
 const isPickable = (tree: RowTree | undefined, groupsToo: boolean): boolean =>
   tree === undefined || (hasCheckbox(tree) && (groupsToo || (tree.level >= 2 && !isGroup(tree))));
 
+/** Whether a region is scrolled as far to the right as it goes, within a pixel of rounding. */
+const scrolledToEnd = (element: HTMLElement): boolean =>
+  element.scrollLeft + element.clientWidth >= element.scrollWidth - 1;
+
 /** The identity cell is the row header (20-accessibility.md section 6.2, rule 1). */
 const cellTag = (identity: boolean): 'th' | 'td' => (identity ? 'th' : 'td');
 const ROW_SCOPE = 'row';
@@ -171,6 +175,7 @@ export function DataTable<TRow extends RowData>({
   compactToolbar = false,
   identityCap = false,
   columnGroups = false,
+  pinActions = false,
   bulkActions,
   rowActions,
   rowName,
@@ -319,6 +324,14 @@ export function DataTable<TRow extends RowData>({
   const widthOf = (column: GridColumn<TRow>): number => widths.get(keyOf(column)) ?? 0;
   const tableWidth = sized.reduce((sum, column) => sum + (widths.get(column.id) ?? column.width), 0);
   const identityPinned = tableWidth <= regionSize.width || identityNow <= regionSize.width - PIN_LEAVES_ROOM;
+  // The pinned actions column has an edge (a 1 px border, no shadow) only while columns are behind it. Whether
+  // the columns are scrolled to their end is a boolean, kept from the scroll event and from the layout after a
+  // resize or a change of columns, so the table renders again only when it flips and not on every scroll.
+  const [atEnd, setAtEnd] = useState(false);
+  useEffect(() => {
+    if (pinActions && region.current !== null) setAtEnd(scrolledToEnd(region.current));
+  }, [pinActions, tableWidth, regionSize.width]);
+  const pinEdge = pinActions && tableWidth > regionSize.width && !atEnd;
   // Pinned on the left: the selection column, then the identity column
   const stickyLeft = (column: GridColumn<TRow>): number | null => {
     if (column.kind === 'select') return 0;
@@ -950,6 +963,9 @@ export function DataTable<TRow extends RowData>({
           status === 'refetching' && 'after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary',
           column.kind === 'select' && 'px-0 text-center',
           column.kind === 'actions' && 'px-2 text-right',
+          // Pinned right: the header is sticky already, so with two rows it keeps `top-0` and spans both
+          column.kind === 'actions' && pinActions && 'right-0 z-(--z-sticky)',
+          column.kind === 'actions' && pinEdge && 'border-l border-l-border',
           column.kind === 'data' && ALIGN[COLUMN_TYPES[column.column.type].align],
         )}
       >
@@ -1079,7 +1095,10 @@ export function DataTable<TRow extends RowData>({
         ref={region}
         className="relative isolate min-h-0 flex-1 overflow-auto"
         // Rounded down, so scrolling renders again every SCROLL_STEP pixels rather than on every event
-        onScroll={(event) => setScrollTop(Math.floor(event.currentTarget.scrollTop / SCROLL_STEP) * SCROLL_STEP)}
+        onScroll={(event) => {
+          setScrollTop(Math.floor(event.currentTarget.scrollTop / SCROLL_STEP) * SCROLL_STEP);
+          if (pinActions) setAtEnd(scrolledToEnd(event.currentTarget));
+        }}
       >
         {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Both roles are interactive; the rule reads only a literal role */}
         <table
@@ -1254,6 +1273,8 @@ export function DataTable<TRow extends RowData>({
                                     first && 'group-data-active:row-active-edge',
                                     column.kind === 'select' && 'px-0 text-center',
                                     column.kind === 'actions' && 'px-2 text-right',
+                                    column.kind === 'actions' && pinActions && 'sticky right-0 z-(--z-pinned-cell)',
+                                    column.kind === 'actions' && pinEdge && 'border-l border-l-border',
                                     column.kind === 'data' && ALIGN[COLUMN_TYPES[column.column.type].align],
                                     identity &&
                                       'group-data-active:text-primary-text group-data-selected:text-primary-text',

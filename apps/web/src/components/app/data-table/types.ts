@@ -226,6 +226,8 @@ export interface DataTableProps<TRow> {
   identityCap?: boolean;
   /** Opt in: draw a group row over columns that share a `group`. Off: one header row, as before. */
   columnGroups?: boolean;
+  /** Opt in: the actions column sticks to the right edge while the columns scroll under it. Off: it scrolls with them. */
+  pinActions?: boolean;
   bulkActions?: readonly RecordAction<TRow>[] | undefined;
   /**
    * The actions of a row's menu: one list for every row, or a function of the row for actions that not
