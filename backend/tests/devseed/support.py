@@ -3,9 +3,13 @@ an audit count."""
 
 from __future__ import annotations
 
+import uuid
 from typing import Final
 
+from idraft.api.workspaces.access import WorkspaceAccess
+from idraft.devseed.context import Sessions, seed_access
 from idraft.devseed.fixture import DEFAULT_FIXTURE, load_fixture
+from idraft.devseed.project import ensure_project
 from tests.api.auth.support import (
     User,
     Workspace,
@@ -47,3 +51,14 @@ async def audit_count(pg: PostgresServer, workspace: Workspace) -> int:
         pg, "SELECT count(*) AS n FROM ops.audit_logs WHERE workspace_id = $1", workspace.id
     )
     return int(row["n"])
+
+
+async def seeded_project(
+    pg: PostgresServer, sessions: Sessions
+) -> tuple[WorkspaceAccess, Workspace, uuid.UUID]:
+    """An owner, their workspace, the three countries and the fixture's project."""
+    user, workspace = await owner_workspace(pg)
+    await gulf_locations(pg)
+    access = seed_access(user.id, workspace.id)
+    project_id, _ = await ensure_project(sessions, access, FIXTURE.project, COUNTRY_IDS["IN"])
+    return access, workspace, project_id
