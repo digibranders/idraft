@@ -4,8 +4,8 @@ window of project-local days and the answers the prompts summary counts."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from contextlib import AbstractAsyncContextManager
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import cast
@@ -13,6 +13,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from fastapi.exceptions import RequestValidationError
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.ai import source_repository as repository
@@ -94,6 +95,14 @@ async def scoped(
     zone = ZoneInfo(zone_row.timezone)
     first, last = summary_dates(query.start, query.end, datetime.now(zone).date())
     since, until = local_instants(first, last, zone)
+    prompt_ids = await repository.scope_prompts(
+        db,
+        access.workspace_id,
+        project_id,
+        include_branded=query.include_branded,
+        prompt_id=query.prompt_id,
+        term_id=query.term_id,
+    )
     return Scoped(
         scope=SourceScope(
             workspace_id=access.workspace_id,
@@ -101,9 +110,7 @@ async def scoped(
             since=since,
             until=until,
             engine_codes=tuple(engines),
-            include_branded=query.include_branded,
-            prompt_id=query.prompt_id,
-            term_id=query.term_id,
+            prompt_ids=prompt_ids,
         ),
         window=MetricWindow(
             from_=first.isoformat(), to=last.isoformat(), timezone=zone_row.timezone
@@ -153,8 +160,23 @@ class SourceService:
     def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
 
-    def _transaction(self, access: WorkspaceAccess) -> AbstractAsyncContextManager[AsyncSession]:
-        return workspace_transaction(self._sessions, access.workspace_id, user_id=access.user_id)
+    @asynccontextmanager
+    async def _transaction(self, access: WorkspaceAccess) -> AsyncIterator[AsyncSession]:
+        # One snapshot for the rows, the answer count and the role rollup, so a page and its
+        # `meta` and shares agree even while an answer is being ingested.
+        async with workspace_transaction(
+            self._sessions,
+            access.workspace_id,
+            user_id=access.user_id,
+            isolation_level="REPEATABLE READ",
+        ) as db:
+            # The citations join their answers on a key, but a planner without statistics (a
+            # new month's partition, a backfill) thinks the answers are one row and picks, for
+            # some statements, a nested loop that compares every answer with every citation
+            # (130 million comparisons, 7 s, for 3,600 answers). Hash and merge joins do not
+            # depend on that estimate. Local to this transaction, so the pool is untouched.
+            await db.execute(text("SET LOCAL enable_nestloop = off"))
+            yield db
 
     async def domains(
         self,

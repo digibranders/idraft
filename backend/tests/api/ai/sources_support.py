@@ -353,8 +353,5 @@ async def full_project(
         citations,
         pages,
     )
-    # Bulk inserted rows have no statistics until autovacuum looks at them; without this the
-    # first read plans blind and can run into the statement timeout on a loaded machine.
-    for table in ("ai.observations", "ai.observation_facts", "ai.citations", "core.urls"):
-        await execute(pg, f"ANALYZE {table}")
+    # No ANALYZE: a first read of bulk loaded rows has no statistics, and must still be fast.
     return world

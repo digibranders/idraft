@@ -36,6 +36,7 @@ from tests.collectors.support import Project
 from tests.conftest import PostgresServer
 
 EVENTUS, CYBERNX, EXAMPLE, WIKIPEDIA = OWN_HOST, RIVAL_HOST, "example.org", "wikipedia.org"
+PRICING = f"https://{OWN_HOST}/pricing"
 ENGINES = ["chatgpt_web", "gemini_web", "google_ai_mode"]
 
 
@@ -54,9 +55,11 @@ async def scene(resources: Resources, migrated: PostgresServer) -> Scene:
 
       a1 ChatGPT (1)  own page, guide, wiki, own page again   4 rows, 3 units
       a2 ChatGPT (2)  own page (title, 5 occurrences), own blog (www), rival
-      a3 Gemini  (3)  guide, guide top (www.example.org), rival
+      a3 Gemini  (3)  guide, guide top (www.example.org), rival, eventussecurity.com/pricing
+                      (cited as a third party: the domain is the own one, the role is not)
       b1 ChatGPT (2)  wiki, rival
       b2 AI Mode (4)  own page
+      c1 ChatGPT (6)  no citations at all
     Left out: a refusal, a superseded answer and one whose facts are not current, each citing the
     own page; an answer 28 days ago (the window opens 27 days ago); the branded prompt's answer
     (own page); the archived prompt's answer (rival)."""
@@ -90,9 +93,10 @@ async def scene(resources: Resources, migrated: PostgresServer) -> Scene:
             rival,
         ],
     )
-    await add("a3", "a", 3, [guide, top, rival], engine="gemini_web")
+    await add("a3", "a", 3, [guide, top, rival, Cite(PRICING)], engine="gemini_web")
     await add("b1", "b", 2, [wiki, rival])
     await add("b2", "b", 4, [own], engine="google_ai_mode")
+    await add("c1", "a", 6, [])
     await add("refused", "a", 5, [own], valid=False)
     await add("superseded", "a", 6, [own], superseded=True)
     await add("not_current", "a", 7, [own], current=False)
@@ -136,6 +140,7 @@ async def test_each_domain_has_its_units_answers_prompts_and_engines(
         (CYBERNX, "competitor", 3, 3, 2, [2, 1, 0]),
         (EXAMPLE, "third_party", 3, 2, 1, [1, 2, 0]),
         (WIKIPEDIA, "third_party", 2, 2, 2, [2, 0, 0]),
+        (EVENTUS, "third_party", 1, 1, 1, [0, 1, 0]),
     ]
     data = response.json()["data"]
     assert [engine["engine_code"] for engine in data[0]["engines"]] == ENGINES
@@ -145,9 +150,27 @@ async def test_each_domain_has_its_units_answers_prompts_and_engines(
     )
     assert data[2]["role_entity_id"] is None
     share = data[0]["source_share"]
-    assert (share["numerator"], share["denominator"], share["n_observations"]) == (4, 12, 5)
-    assert share["value"] == pytest.approx(4 / 12)
-    assert response.json()["page"] == {"offset": 0, "limit": 50, "total": 4}
+    assert (share["numerator"], share["denominator"], share["n_observations"]) == (4, 13, 6)
+    assert share["value"] == pytest.approx(4 / 13)
+    assert response.json()["page"] == {"offset": 0, "limit": 50, "total": 5}
+
+
+async def test_one_registrable_domain_cited_in_two_roles_is_two_rows(
+    api: httpx.AsyncClient, scene: Scene
+) -> None:
+    """The own domain is cited as the own brand (4 units) and, on its pricing page in a3, as a
+    third party (1 unit): one row for each role, not one for the domain."""
+    rows = [
+        row
+        for row in (await _get(scene.world, api, "sources", "domains")).json()["data"]
+        if row["registrable_domain"] == EVENTUS
+    ]
+
+    assert [(row["domain_role"], row["citation_units"]) for row in rows] == [
+        ("own", 4),
+        ("third_party", 1),
+    ]
+    assert [row["role_entity_id"] for row in rows] == [str(scene.world.own), None]
 
 
 async def test_a_url_cited_twice_in_one_answer_is_one_unit_and_occurrences_do_not_count(
@@ -166,11 +189,12 @@ async def test_the_meta_states_the_answers_the_units_and_each_role(
     response = await _get(scene.world, api, "sources", "domains")
 
     meta = response.json()["meta"]
-    assert (meta["answers"], meta["answers_citing"], meta["citation_units"]) == (5, 5, 12)
+    # c1 is counted and cites nothing: 6 answers, 5 of them citing.
+    assert (meta["answers"], meta["answers_citing"], meta["citation_units"]) == (6, 5, 13)
     assert meta["by_role"] == [
         {"domain_role": "own", "citation_units": 4, "observations": 3},
         {"domain_role": "competitor", "citation_units": 3, "observations": 3},
-        {"domain_role": "third_party", "citation_units": 5, "observations": 3},
+        {"domain_role": "third_party", "citation_units": 6, "observations": 3},
     ]
     assert meta["engine_codes"] == ENGINES
     assert meta["include_branded"] is False
@@ -191,8 +215,8 @@ async def test_domains_sort_by_prompts_then_units(api: httpx.AsyncClient, scene:
     by_prompts = _domains(await _get(scene.world, api, "sources", "domains", sort="-prompts"))
     by_answers = _domains(await _get(scene.world, api, "sources", "domains", sort="-observations"))
 
-    assert [row[0] for row in by_prompts] == [EVENTUS, CYBERNX, WIKIPEDIA, EXAMPLE]
-    assert [row[0] for row in by_answers] == [EVENTUS, CYBERNX, EXAMPLE, WIKIPEDIA]
+    assert [row[0] for row in by_prompts] == [EVENTUS, CYBERNX, WIKIPEDIA, EXAMPLE, EVENTUS]
+    assert [row[0] for row in by_answers] == [EVENTUS, CYBERNX, EXAMPLE, WIKIPEDIA, EVENTUS]
 
 
 async def test_branded_prompts_count_when_asked_for(api: httpx.AsyncClient, scene: Scene) -> None:
@@ -200,7 +224,7 @@ async def test_branded_prompts_count_when_asked_for(api: httpx.AsyncClient, scen
 
     assert _domains(response)[0] == (EVENTUS, "own", 5, 4, 3, [4, 0, 1])
     meta = response.json()["meta"]
-    assert (meta["answers"], meta["citation_units"], meta["include_branded"]) == (6, 13, True)
+    assert (meta["answers"], meta["citation_units"], meta["include_branded"]) == (7, 14, True)
 
 
 async def test_one_prompt_is_read_whether_archived_or_branded(
@@ -236,12 +260,13 @@ async def test_an_engine_filter_keeps_its_answers_and_its_column(
     assert _domains(response) == [
         (EXAMPLE, "third_party", 2, 1, 1, [2]),
         (CYBERNX, "competitor", 1, 1, 1, [1]),
+        (EVENTUS, "third_party", 1, 1, 1, [1]),
     ]
     meta = response.json()["meta"]
     assert (meta["engine_codes"], meta["answers"], meta["citation_units"]) == (
         ["gemini_web"],
         1,
-        3,
+        4,
     )
 
 
@@ -254,8 +279,8 @@ async def test_a_role_filter_narrows_the_rows_not_the_share(
 
     assert _domains(response) == [(EVENTUS, "own", 4, 3, 2, [3, 0, 1])]
     share = response.json()["data"][0]["source_share"]
-    assert (share["numerator"], share["denominator"]) == (4, 12)
-    assert response.json()["meta"]["citation_units"] == 12
+    assert (share["numerator"], share["denominator"]) == (4, 13)
+    assert response.json()["meta"]["citation_units"] == 13
 
 
 async def test_a_term_keeps_the_prompts_given_it(api: httpx.AsyncClient, scene: Scene) -> None:
@@ -276,9 +301,9 @@ async def test_pages_of_rows_and_a_page_past_the_end(api: httpx.AsyncClient, sce
     beyond = await _get(scene.world, api, "sources", "domains", offset=10, limit=2)
 
     assert [row[0] for row in _domains(second)] == [EXAMPLE, WIKIPEDIA]
-    assert second.json()["page"] == {"offset": 2, "limit": 2, "total": 4}
+    assert second.json()["page"] == {"offset": 2, "limit": 2, "total": 5}
     assert _domains(beyond) == []
-    assert beyond.json()["page"] == {"offset": 10, "limit": 2, "total": 4}
+    assert beyond.json()["page"] == {"offset": 10, "limit": 2, "total": 5}
 
 
 async def test_the_window_bounds_the_answers(api: httpx.AsyncClient, scene: Scene) -> None:
@@ -293,7 +318,7 @@ async def test_the_window_bounds_the_answers(api: httpx.AsyncClient, scene: Scen
     )
 
     meta = response.json()["meta"]
-    assert (meta["answers"], meta["citation_units"]) == (4, 9)
+    assert (meta["answers"], meta["citation_units"]) == (5, 10)
     assert problem(too_large) == (422, "window_too_large")
     assert problem(reversed_) == (422, "validation_failed")
 
@@ -319,6 +344,37 @@ async def test_another_projects_answers_do_not_count_and_a_deleted_project_is_no
 
     assert _domains(counted)[0] == (EVENTUS, "own", 4, 3, 2, [3, 0, 1])
     assert problem(deleted) == problem(unknown) == (404, "not_found")
+
+
+async def test_another_workspaces_answers_and_domains_are_never_counted_or_shown(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, scene: Scene
+) -> None:
+    """A second workspace answers the same prompt text, cites the own domain's page as its own
+    brand and a domain nobody in the first cites. The first workspace's rows, meta and shares do
+    not move, its body holds nothing of the second, and the second reads only its own."""
+    before = (await _get(scene.world, api, "sources", "domains")).json()
+
+    other = await make_world(resources, migrated)
+    theirs = await add_prompt(migrated, other.project, "Best managed SOC providers?")
+    await answer(
+        migrated,
+        other,
+        theirs,
+        days_ago=1,
+        cites=[other.own_cite(), Cite("https://secret.tenantb.io/soc")],
+    )
+    after = await _get(scene.world, api, "sources", "domains")
+    theirs_read = await _get(other, api, "sources", "domains")
+
+    assert after.json() == before
+    assert "tenantb.io" not in after.text
+    assert str(other.own) not in after.text
+    assert _domains(theirs_read) == [
+        (EVENTUS, "own", 1, 1, 1, [1, 0, 0]),
+        ("tenantb.io", "third_party", 1, 1, 1, [1, 0, 0]),
+    ]
+    assert theirs_read.json()["meta"]["answers"] == 1
+    assert str(scene.world.own) not in theirs_read.text
 
 
 async def test_a_viewer_reads_the_sources(

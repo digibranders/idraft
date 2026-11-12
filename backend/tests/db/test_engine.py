@@ -75,6 +75,22 @@ async def test_the_setting_is_an_empty_string_not_null_after_a_tenant_transactio
     assert raw == ""
 
 
+async def test_a_transaction_can_ask_for_a_level_and_the_connection_gives_it_back(
+    engine: AsyncEngine,
+) -> None:
+    sessions = create_session_factory(engine)
+    level = "SHOW transaction_isolation"
+
+    async with workspace_transaction(
+        sessions, uuid.uuid4(), isolation_level="REPEATABLE READ"
+    ) as session:
+        asked = await _scalar(session, level)
+    async with workspace_transaction(sessions, uuid.uuid4()) as session:
+        default = await _scalar(session, level)
+
+    assert (asked, default) == ("repeatable read", "read committed")
+
+
 @pytest.fixture
 async def scratch_table(engine: AsyncEngine) -> AsyncIterator[str]:
     """A throwaway table, removed afterwards so the shared database stays as migrations left it."""

@@ -7,7 +7,13 @@ not superseded (docs/16 rule 3), as in the prompts summary; only the citations a
 queries of counted answers are read. Every query bounds `observed_at` of each `ai.*` table it
 reads with the window's instants, so the partitions of other months are not read. Sources are
 aggregated by query: `ai.daily_domain_citations` is not built, and a 28 day window of a full
-project is about 3,600 answers."""
+project is about 3,600 answers.
+
+The statements must plan well without table statistics (a new month's partition, a backfill,
+a fresh deploy: autovacuum never analyzes a partitioned parent, and a blind planner nests loops
+over a wide join and runs into the statement timeout). So the prompts are resolved to their ids
+first and filter the facts as a literal list, and the superseded answers are looked up in a set
+(0020 indexes it) instead of joining `ai.observations`, as in `summary_repository._window`."""
 
 from __future__ import annotations
 
@@ -42,16 +48,15 @@ SORT_COLUMNS: Final = {
 
 @dataclass(frozen=True, slots=True)
 class SourceScope:
-    """Which answers a read counts: the project's, in [since, until), on these engines."""
+    """Which answers a read counts: the project's, in [since, until), on these engines, of
+    these prompts (from `scope_prompts`: at most the project's 150, or 1)."""
 
     workspace_id: UUID
     project_id: UUID
     since: datetime
     until: datetime
     engine_codes: tuple[str, ...]
-    include_branded: bool = False
-    prompt_id: UUID | None = None
-    term_id: UUID | None = None
+    prompt_ids: tuple[UUID, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,55 +98,46 @@ def _shifted(instant: datetime, days: int) -> date:
         return day
 
 
-def _prompts_in_scope(scope: SourceScope) -> Select[tuple[UUID]]:
-    """The prompts whose answers count: with `prompt_id` that prompt alone, archived or branded
-    (the inspector shows any prompt's sources); else the active prompts, the branded ones only
-    with `include_branded`. `term_id` keeps those given the term or a term under it."""
+async def scope_prompts(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    *,
+    include_branded: bool,
+    prompt_id: UUID | None,
+    term_id: UUID | None,
+) -> tuple[UUID, ...]:
+    """The ids of the prompts whose answers count: with `prompt_id` that prompt alone, archived
+    or branded (the inspector shows any prompt's sources); else the active prompts, the branded
+    ones only with `include_branded`. `term_id` keeps those given the term or a term under it."""
     p = ai_prompts.c
     statement = select(p.id).where(
-        p.workspace_id == scope.workspace_id,
-        p.project_id == scope.project_id,
-        p.deleted_at.is_(None),
+        p.workspace_id == workspace_id, p.project_id == project_id, p.deleted_at.is_(None)
     )
-    if scope.prompt_id is not None:
-        statement = statement.where(p.id == scope.prompt_id)
+    if prompt_id is not None:
+        statement = statement.where(p.id == prompt_id)
     else:
         statement = statement.where(p.is_active)
-        if not scope.include_branded:
+        if not include_branded:
             statement = statement.where(~p.is_branded)
-    if scope.term_id is not None:
+    if term_id is not None:
         tagged = select(ai_prompt_terms.c.prompt_id).where(
-            ai_prompt_terms.c.workspace_id == scope.workspace_id,
+            ai_prompt_terms.c.workspace_id == workspace_id,
             ai_prompt_terms.c.term_id.in_(
-                descendants("term", [scope.term_id], scope.workspace_id, "term_tree")
+                descendants("term", [term_id], workspace_id, "term_tree")
             ),
         )
         statement = statement.where(p.id.in_(tagged))
-    return statement
+    return tuple((await db.execute(statement)).scalars())
 
 
 def counted_answers(scope: SourceScope) -> Any:
-    """The counted answers, one row each: `observation_id`, `observed_at`, `prompt_id`,
-    `engine_code`, and for the fan-out reads `fanout_count` and the stored `fan_out` list."""
+    """The counted answers, one row each: `observation_id`, `observed_at`, `prompt_id` and
+    `engine_code`, from the facts alone. It does not join `ai.observations` (see the module
+    note): the fan-out reads need `fanout_count` and `provider_extras`, and join them to this
+    themselves on (`id`, `observed_at`, `workspace_id`) after the counted answers are known."""
     return (
-        select(
-            _F.observation_id,
-            _F.observed_at,
-            _F.prompt_id,
-            _F.engine_code,
-            _O.fanout_count,
-            _O.provider_extras["fan_out_queries"].label("fan_out"),
-        )
-        .select_from(
-            ai_observation_facts.join(
-                ai_observations,
-                and_(
-                    _O.id == _F.observation_id,
-                    _O.observed_at == _F.observed_at,
-                    _O.workspace_id == _F.workspace_id,
-                ),
-            )
-        )
+        select(_F.observation_id, _F.observed_at, _F.prompt_id, _F.engine_code)
         .where(
             _F.workspace_id == scope.workspace_id,
             _F.project_id == scope.project_id,
@@ -154,12 +150,20 @@ def counted_answers(scope: SourceScope) -> Any:
             _F.observed_date >= _shifted(scope.since, -1),
             _F.observed_date <= _shifted(scope.until, 1),
             _F.engine_code.in_(list(scope.engine_codes)),
-            _F.prompt_id.in_(_prompts_in_scope(scope)),
-            _O.workspace_id == scope.workspace_id,
-            _O.project_id == scope.project_id,
-            _O.observed_at >= scope.since,
-            _O.observed_at < scope.until,
-            _O.superseded_by.is_(None),
+            _F.prompt_id.in_(list(scope.prompt_ids)),
+            # A superseded answer is left out: its facts are looked up in the window's set of
+            # superseded answers, which is small and bounded like the facts (0020 indexes it).
+            tuple_(_F.observation_id, _F.observed_at).not_in(
+                select(_O.id, _O.observed_at).where(
+                    _O.workspace_id == scope.workspace_id,
+                    _O.project_id == scope.project_id,
+                    _O.observed_at >= scope.since,
+                    _O.observed_at < scope.until,
+                    _O.observed_date >= _shifted(scope.since, -1),
+                    _O.observed_date <= _shifted(scope.until, 1),
+                    _O.superseded_by.is_not(None),
+                )
+            ),
         )
         .subquery("counted")
     )
