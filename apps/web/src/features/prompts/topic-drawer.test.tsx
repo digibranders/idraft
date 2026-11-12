@@ -89,12 +89,12 @@ describe('the topic drawer: opening', () => {
     expect(screen.queryByRole('button', { name: 'Add prompts' })).toBeNull();
   });
 
-  it('shows eight prompts of an open topic, and Show all opens the drawer on its Prompts tab with every one', async () => {
+  it('offers the prompts of an open parent in Show all, which opens the drawer on its Prompts tab with every one', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
-    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 12 prompts' }));
-    // Eight prompts and the row that offers the rest, all at level 2
-    await waitFor(() => expect(tree.querySelectorAll('[role="row"][aria-level="2"]')).toHaveLength(9));
+    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 2 topics' }));
+    // The two topics under SEO and the row that offers its prompts, all at level 2
+    await waitFor(() => expect(tree.querySelectorAll('[role="row"][aria-level="2"]')).toHaveLength(3));
     // A topic of eight or fewer has nothing to show more of
     await user.click(within(tree).getByRole('button', { name: 'Expand Paid Search, 2 prompts' }));
     expect(within(tree).queryByRole('button', { name: /^Show all \d+ prompts of Paid Search$/ })).toBeNull();
@@ -251,16 +251,15 @@ describe('the topic drawer: a prompt opened from a topic', () => {
   it('keeps the topic for a prompt opened from an expanded topic row: the whole topic is its list, and the badge leads back', async () => {
     const { user } = renderOn('viewer', '');
     const tree = await treegrid();
-    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 12 prompts' }));
-    // Eight prompts show, but the topic holds twelve
-    await waitFor(() => expect(tree.querySelectorAll('[role="row"][aria-level="2"]')).toHaveLength(9));
+    await user.click(await within(tree).findByRole('button', { name: 'Expand Paid Search, 2 prompts' }));
+    await waitFor(() => expect(tree.querySelectorAll('[role="row"][aria-level="2"]')).toHaveLength(2));
     const row = tree.querySelector('[role="row"][aria-level="2"]');
     const title = row?.querySelector('[role="rowheader"]')?.textContent ?? '';
     await user.click(within(tree).getByText(title));
     const prompt = await screen.findByRole('complementary', { name: title });
-    expect(within(prompt).getByText(/^\d+ of 12$/)).toBeInTheDocument();
-    await user.click(within(prompt).getByRole('button', { name: 'Open the topic SEO' }));
-    const back = await drawer('SEO');
+    expect(within(prompt).getByText(/^\d+ of 2$/)).toBeInTheDocument();
+    await user.click(within(prompt).getByRole('button', { name: 'Open the topic Paid Search' }));
+    const back = await drawer('Paid Search');
     expect(within(back).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
   });
 

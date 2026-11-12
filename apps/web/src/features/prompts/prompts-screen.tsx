@@ -173,6 +173,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     () => vocabularies.loaded.filter((entry) => entry.vocabulary.kind === 'topic').flatMap((entry) => entry.terms),
     [vocabularies.loaded],
   );
+  const topicPaths = useMemo(() => new Map(topicTree.map((term) => [term.termId, term.path])), [topicTree]);
   const topicsUnknown = vocabularies.pending || vocabularies.error;
   const fields = useMemo((): FilterField[] => {
     const choices = topicChoices(topicTree, topicTerms);
@@ -282,16 +283,38 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           (countries.length === 0 || (prompt.country_iso !== null && countries.includes(prompt.country_iso))),
       )
       .map((prompt) => {
-        const topicNames = topicTermsOf(prompt).map((term) => term.name);
+        // Where a topic sits comes from the tree; until it is read the name is all there is
+        const topicList = topicTermsOf(prompt).map((term) => ({
+          name: term.name,
+          path: topicPaths.get(term.term_id) ?? term.name,
+        }));
         return {
           prompt,
           summary: summaryById.get(prompt.prompt_id),
           countsLoaded,
-          topics: topicNames.length === 0 ? null : formatList(topicNames, locale),
+          topics:
+            topicList.length === 0
+              ? null
+              : formatList(
+                  topicList.map((topic) => topic.name),
+                  locale,
+                ),
+          topicList,
           country: prompt.country_iso === null ? null : (countryName.get(prompt.country_iso) ?? prompt.country_iso),
         };
       });
-  }, [list.rows, includeBranded, topicIds, kept, values.country, summaryById, countsLoaded, countryName, locale]);
+  }, [
+    list.rows,
+    includeBranded,
+    topicIds,
+    kept,
+    values.country,
+    summaryById,
+    countsLoaded,
+    countryName,
+    topicPaths,
+    locale,
+  ]);
 
   // The strip reads the prompts in scope (a search is no filter, so it does not narrow it, ADR-DS-022 decision 6)
   const stripPrompts = useMemo(
@@ -588,6 +611,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               summary={summary.data?.data}
               engines={shown}
               descendants={descendants}
+              tree={topicTree}
               kept={kept}
               filtering={topicIds.length > 0}
               status={topicsStatus}

@@ -3317,7 +3317,8 @@
       "shareOfVoiceTip": "Your share of the brands the answers name, of the valid answers that name a brand",
       "shareBasisTip": "{count, plural, one {# answer} other {# answers}} that name a brand",
       "noBrandTip": "No valid answer in this window names a brand",
-      "noTopEngineTip": "No engine has enough valid answers for a rate"
+      "noTopEngineTip": "No engine has enough valid answers for a rate",
+      "moreTopics": "+{count, number}"
     },
     "metric": {
       "label": "Metric of the engine columns",
@@ -3382,9 +3383,16 @@
       "refreshFailed": "The topic counts could not be refreshed. The last counts loaded are shown.",
       "expand": "Expand {name}, {count, plural, one {# prompt} other {# prompts}}",
       "collapse": "Collapse {name}, {count, plural, one {# prompt} other {# prompts}}",
+      "expandTopics": "Expand {name}, {count, plural, one {# topic} other {# topics}}",
+      "collapseTopics": "Collapse {name}, {count, plural, one {# topic} other {# topics}}",
+      "childTopics": "{count, plural, one {# topic} other {# topics}}",
+      "expandAll": "Expand all",
+      "collapseAll": "Collapse all",
+      "rollupNote": "A parent row counts every prompt under it, so rows do not add up to the parent.",
+      "footerPrompts": "{count, plural, one {# prompt} other {# prompts}}",
       "openTopic": "Open the topic {name}",
-      "showAll": "Show all {count, number} prompts",
-      "showAllFor": "Show all {count, number} prompts of {name}"
+      "showAll": "{count, plural, one {Show the prompt} other {Show all {count, number} prompts}}",
+      "showAllFor": "{count, plural, one {Show the prompt of {name}} other {Show all {count, number} prompts of {name}}}"
     },
     "topicDrawer": {
       "type": "Topic",

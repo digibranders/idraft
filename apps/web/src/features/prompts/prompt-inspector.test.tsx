@@ -309,25 +309,6 @@ describe('the prompt inspector: opening and stepping', () => {
   });
 });
 
-describe('the prompt inspector: a prompt under two topics', () => {
-  it('marks, and returns focus to, the row that was clicked, not the first row of the prompt', async () => {
-    const { user } = renderOn('viewer', '');
-    const tree = await treegrid();
-    const text = 'How do I run a technical SEO audit on a large site?';
-    await user.click(await within(tree).findByRole('button', { name: /^Expand Technical SEO/ }));
-    await user.click(await within(tree).findByRole('button', { name: /^Expand SEO,/ }));
-    const rows = await within(tree).findAllByText(text);
-    expect(rows).toHaveLength(2);
-    const rowOf = (node: HTMLElement): HTMLElement => node.closest<HTMLElement>('[role="row"]') ?? node;
-    // The tree lists SEO before Technical SEO: the second row is the one under Technical SEO
-    await user.click(rows[1] ?? tree);
-    await panel(text);
-    const [above, below] = (await within(tree).findAllByText(text)).map(rowOf);
-    expect(above).not.toHaveAttribute('aria-current');
-    expect(below).toHaveAttribute('aria-current', 'true');
-  });
-});
-
 describe('the prompt inspector: the address and the answers', () => {
   it('says a prompt that is no prompt id does not exist, and asks for nothing', async () => {
     const asked: string[] = [];

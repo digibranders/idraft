@@ -1,5 +1,6 @@
 'use client';
 
+import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
@@ -17,13 +18,15 @@ import {
 } from './prompt-model';
 import { useRateColumns } from './rate-columns';
 import { sortByKeys } from './rate-model';
+import { buildTopicTree, countTopicRows, sortTopicTree, type TopicBranch } from './topic-tree';
 import { col } from '@/components/app/data-table/columns';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { DataTableColumn, RowTree, TableStatus } from '@/components/app/data-table/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import type { EngineSummary, ProjectEngine, PromptsSummary } from '@/lib/api/types';
+import type { EngineSummary, ProjectEngine, PromptsSummary, PromptSummaryRow, TopicSummaryRow } from '@/lib/api/types';
 import { EMPTY_VALUE } from '@/lib/format';
+import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 import { CELL_CONTROL } from '@/lib/tables/grid-focus';
 import { formatSort, parseSort, sameSort, type Density, type SortKey } from '@/lib/tables/table-state';
 
@@ -35,9 +38,15 @@ type TopicHead = {
   name: string;
   promptCount: number;
   engines: readonly EngineSummary[];
+  /** 1 for a top level topic, 2 for a topic listed under its parent. */
+  level: 1 | 2;
+  /** Level 1: the topics listed under it; with any, it opens onto them and not onto its prompts. */
+  childCount: number;
+  /** The place among the topics of its level, and how many there are (a level 2 topic counts its parent's "Show all" row too). */
   position: number;
-  /** Whether the topic's prompts can be listed: a topic the vocabulary trees do not hold (not read yet) has no place known. */
-  openable: boolean;
+  siblings: number;
+  /** The prompts the topic holds; `null` while the trees do not hold the topic (not read yet), when its prompts cannot be told. */
+  members: readonly PromptSummaryRow[] | null;
 };
 
 /** A topic, one of its prompts while the topic is open, or the row that offers the rest of them. */
@@ -85,6 +94,8 @@ export interface TopicsTableProps {
   engines: readonly ProjectEngine[];
   /** Each topic and the topics below it, from the vocabularies' trees: which prompts a topic holds. */
   descendants: TopicDescendants;
+  /** The terms of the topic vocabularies' trees: where each topic sits, so a topic is listed under its parent. */
+  tree: readonly NamedTerm[];
   /** With `filtering`, the topics the filter keeps: the chosen ones and those below them. */
   kept: ReadonlySet<string>;
   /** Whether a topic filter is set. */
@@ -114,13 +125,22 @@ export interface TopicsTableProps {
 }
 
 /**
- * The Topics tab (ADR-DS-022 decisions 2, 3 and 5): one row per topic that has prompts in scope, with its Mention
+ * The Topics tab (ADR-DS-022 decisions 2, 3 and 5, parity spec D-3): a tree of two levels, with each topic's Mention
  * rate and Citation rate (the average of the engines shown), its Top engine, and per engine its Mentioned and
  * Cited counts. The rows come highest Mention rate first, a tie by name, and sort by each column that has a sort
- * (`sortText`, the address's `sort`); the table sorts the topics itself, since a tree shows its rows as given.
+ * (`sortText`, the address's `sort`); the table sorts the topics itself, since a tree shows its rows as given, the
+ * top level among itself and the topics under a parent among theirs.
  * The API rolls a topic up as the prompts given it or a topic below it and weights each prompt once, so a topic's
- * count is the answers behind its prompts and its rate is the mean of theirs. A topic opens in place and lists
- * its prompts, most mentioned first on the first engine shown, eight at most and then "Show all" (decision 2).
+ * count is the answers behind its prompts and its rate is the mean of theirs, and a parent's row is not the sum
+ * of the rows under it (a note says so). A topic with topics below it opens onto them, and a topic without opens
+ * onto its prompts, most mentioned first on the first engine shown, eight at most and then "Show all" (decision 2).
+ *
+ * shortcut: `RowTree.level` is 1 or 2 and only a level 1 row can open, so the tree has the parent as its group and
+ * one level of rows under it. A parent's rows are therefore the topics below it, not their prompts: a child topic
+ * is a row of its own that opens the drawer, and the prompts of a parent (those of its children among them) are
+ * one "Show all" away in the drawer's Prompts tab. Upgrade when `RowTree` gets a third level: a child then opens
+ * onto its prompts, as a topic without children does here.
+ *
  * Its name opens the topic drawer. Prompts without a topic share a row, "No topic". The search finds a topic by
  * its name or by one of its prompts. A topic filter keeps the topic and the topics below it, as on the Prompts tab.
  */
@@ -128,6 +148,7 @@ export function TopicsTable({
   summary,
   engines,
   descendants,
+  tree,
   kept,
   filtering,
   status,
@@ -184,7 +205,7 @@ export function TopicsTable({
         cell: (row) => {
           if (row.kind === 'prompt') return name.cell(row);
           const showAll = row.kind === 'more';
-          return (
+          const button = (
             <Button
               {...CELL_CONTROL}
               variant="link"
@@ -201,6 +222,15 @@ export function TopicsTable({
             >
               <span className="truncate">{showAll ? t('topics.showAll', { count: row.total }) : row.name}</span>
             </Button>
+          );
+          // The topics under a parent, in words, on the one line of the compact row
+          return row.kind === 'topic' && row.childCount > 0 ? (
+            <span className="flex min-w-0 items-center gap-2">
+              {button}
+              <span className="shrink-0 type-meta">{t('topics.childTopics', { count: row.childCount })}</span>
+            </span>
+          ) : (
+            button
           );
         },
       },
@@ -223,77 +253,105 @@ export function TopicsTable({
     return parsed.length === 0 ? DEFAULT_TOPIC_SORT : parsed;
   }, [sortText, sortValues]);
   const firstEngine = engines[0]?.engine.engine_code;
-  const rows = useMemo((): TopicRow[] => {
+  // The topics as a tree of two levels, searched and in the order of the sort; open or not, the prompts under a topic keep theirs
+  const branches = useMemo((): TopicBranch<TopicHead>[] => {
     if (summary === undefined) return [];
     const query = search.trim().toLocaleLowerCase(locale);
-    const groups = summary.topics
-      .filter((topic) => !filtering || topicRowKept(topic.term_id, kept))
-      .map((topic) => {
-        const key = topic.term_id ?? NO_TOPIC;
-        const members = topicMembers(topic.term_id, summary.prompts, descendants);
-        const head: TopicHead = {
-          kind: 'topic',
-          id: `topic:${key}`,
-          key,
-          name: topic.name ?? t('columns.noTopic'),
-          promptCount: topic.prompt_count,
-          engines: topic.engines,
-          position: 0,
-          openable: members !== null,
-        };
-        return { head, members };
-      })
-      .filter(
-        ({ head, members }) =>
-          query === '' ||
-          head.name.toLocaleLowerCase(locale).includes(query) ||
-          (members ?? []).some((member) => member.text.toLocaleLowerCase(locale).includes(query)),
-      );
-    // The topics in the order of the sort; the prompts under an open topic keep theirs
-    const sorted = sortByKeys(
-      groups,
-      sort,
-      ({ head }, id) => sortValues.get(id)?.(head) ?? null,
-      ({ head }) => head.name,
+    const headOf = (topic: TopicSummaryRow, level: 1 | 2): TopicHead => {
+      const key = topic.term_id ?? NO_TOPIC;
+      return {
+        kind: 'topic',
+        id: `topic:${key}`,
+        key,
+        name: topic.name ?? t('columns.noTopic'),
+        promptCount: topic.prompt_count,
+        engines: topic.engines,
+        level,
+        childCount: 0,
+        position: 0,
+        siblings: 0,
+        members: topicMembers(topic.term_id, summary.prompts, descendants),
+      };
+    };
+    const nameMatches = (head: TopicHead): boolean => head.name.toLocaleLowerCase(locale).includes(query);
+    const matches = (head: TopicHead): boolean =>
+      query === '' ||
+      nameMatches(head) ||
+      (head.members ?? []).some((member) => member.text.toLocaleLowerCase(locale).includes(query));
+    const found = buildTopicTree(summary.topics, tree, (termId) => !filtering || topicRowKept(termId, kept)).flatMap(
+      ({ row, children }): TopicBranch<TopicHead>[] => {
+        const parent = headOf(row, 1);
+        if (!matches(parent)) return [];
+        // A parent that the search finds by its own name keeps all of its topics; otherwise those the search finds
+        const below = children.map((child) => headOf(child, 2));
+        return [{ row: parent, children: nameMatches(parent) ? below : below.filter(matches) }];
+      },
     );
-    return sorted.flatMap(({ head: unplaced, members }, index): TopicRow[] => {
-      const { key, name } = unplaced;
-      const head: TopicHead = { ...unplaced, position: index + 1 };
-      if (members === null || !open.has(key)) return [head];
-      const ordered = mostMentionedFirst(members, firstEngine);
-      const listed = ordered.slice(0, TOPIC_ROW_PROMPTS);
-      const more = ordered.length > listed.length;
-      const siblings = listed.length + (more ? 1 : 0);
-      return [
-        head,
-        ...listed.map((member, at): TopicRow => ({
-          kind: 'prompt',
-          id: `${key}:${member.prompt_id}`,
-          topicKey: key,
-          promptId: member.prompt_id,
-          name: member.text,
-          branded: member.is_branded,
-          engines: member.engines,
-          position: at + 1,
-          siblings,
-        })),
-        ...(more
-          ? [
-              {
-                kind: 'more' as const,
-                id: `${key}:more`,
-                key,
-                name,
-                total: ordered.length,
-                position: siblings,
-                siblings,
-              },
-            ]
-          : []),
-      ];
-    });
-  }, [summary, descendants, kept, filtering, search, locale, open, t, firstEngine, sort, sortValues]);
-  const topicCount = rows.filter((row) => row.kind === 'topic').length;
+    return sortTopicTree(found, (heads) =>
+      sortByKeys(
+        heads,
+        sort,
+        (head, id) => sortValues.get(id)?.(head) ?? null,
+        (head) => head.name,
+      ),
+    );
+  }, [summary, descendants, tree, kept, filtering, search, locale, t, sort, sortValues]);
+  const topicCount = countTopicRows(branches);
+  // The parents that open: onto their topics, or, with none below, onto their prompts (a topic the trees do not hold yet has none to show)
+  const groupKeys = useMemo(
+    () => branches.filter(({ row, children }) => children.length > 0 || row.members !== null).map(({ row }) => row.key),
+    [branches],
+  );
+  const allOpen = groupKeys.length > 0 && groupKeys.every((key) => open.has(key));
+  const rows = useMemo(
+    (): TopicRow[] =>
+      branches.flatMap(({ row: top, children }, index): TopicRow[] => {
+        const head: TopicHead = { ...top, childCount: children.length, position: index + 1, siblings: branches.length };
+        const { key, name, members } = top;
+        if (members === null || !open.has(key)) return [head];
+        if (children.length > 0) {
+          // The topics under the parent, and its prompts one "Show all" away
+          const siblings = children.length + 1;
+          return [
+            head,
+            ...children.map((child, at): TopicRow => ({ ...child, position: at + 1, siblings })),
+            { kind: 'more', id: `${key}:more`, key, name, total: members.length, position: siblings, siblings },
+          ];
+        }
+        const ordered = mostMentionedFirst(members, firstEngine);
+        const listed = ordered.slice(0, TOPIC_ROW_PROMPTS);
+        const more = ordered.length > listed.length;
+        const siblings = listed.length + (more ? 1 : 0);
+        return [
+          head,
+          ...listed.map((member, at): TopicRow => ({
+            kind: 'prompt',
+            id: `${key}:${member.prompt_id}`,
+            topicKey: key,
+            promptId: member.prompt_id,
+            name: member.text,
+            branded: member.is_branded,
+            engines: member.engines,
+            position: at + 1,
+            siblings,
+          })),
+          ...(more
+            ? [
+                {
+                  kind: 'more' as const,
+                  id: `${key}:more`,
+                  key,
+                  name,
+                  total: ordered.length,
+                  position: siblings,
+                  siblings,
+                },
+              ]
+            : []),
+        ];
+      }),
+    [branches, open, firstEngine],
+  );
   // A prompt of two open topics is two rows and one step
   const promptOrder = useMemo(
     () => [...new Set(rows.flatMap((row) => (row.kind === 'prompt' ? [row.promptId] : [])))],
@@ -314,15 +372,20 @@ export function TopicsTable({
     if (row.kind === 'more') {
       return { level: 2, setSize: row.siblings, posInSet: row.position, selectable: false };
     }
-    // A row without `expanded` has no prompts to show and is an ordinary row
-    if (!row.openable) return { level: 1, setSize: topicCount, posInSet: row.position };
+    // A topic listed under its parent opens the drawer: only a level 1 row can open (see the shortcut above)
+    if (row.level === 2) return { level: 2, setSize: row.siblings, posInSet: row.position };
+    // A row without `expanded` has nothing to show and is an ordinary row
+    if (row.members === null) return { level: 1, setSize: row.siblings, posInSet: row.position };
     const expanded = open.has(row.key);
+    const withTopics = row.childCount > 0;
     return {
       level: 1,
       expanded,
-      setSize: topicCount,
+      setSize: row.siblings,
       posInSet: row.position,
-      label: t(expanded ? 'topics.collapse' : 'topics.expand', { name: row.name, count: row.promptCount }),
+      label: withTopics
+        ? t(expanded ? 'topics.collapseTopics' : 'topics.expandTopics', { name: row.name, count: row.childCount })
+        : t(expanded ? 'topics.collapse' : 'topics.expand', { name: row.name, count: row.promptCount }),
     };
   };
   const toggle = (row: TopicRow): void => {
@@ -334,43 +397,64 @@ export function TopicsTable({
       return next;
     });
   };
+  // One button for both: it opens every parent, or closes them once all are open. The open parents are in memory only
+  const toggleAll = (): void => setOpen(allOpen ? new Set() : new Set(groupKeys));
   const settled = status === 'ready' || status === 'refetching';
   const shownStatus: TableStatus =
     settled && rows.length === 0 ? (search.trim() === '' && !filtering ? 'empty' : 'filtered-empty') : status;
+  // The prompts in scope, each once (the topic filter narrows them, a search does not): the footer's second count
+  const promptsInScope =
+    summary === undefined
+      ? null
+      : summary.prompts.filter((prompt) => !filtering || prompt.topic_term_ids.some((id) => kept.has(id))).length;
   return (
-    <DataTable<TopicRow>
-      caption={t('topics.caption')}
-      itemNoun={{ one: t('topics.noun.one'), other: t('topics.noun.other') }}
-      columns={columns}
-      getRowId={rowId}
-      rows={rows}
-      total={topicCount}
-      sort={sort}
-      onSortChange={(next) => onSortTextChange(sameSort(next, DEFAULT_TOPIC_SORT) ? null : formatSort(next))}
-      defaultSort={DEFAULT_TOPIC_SORT}
-      density={density}
-      onDensityChange={onDensityChange}
-      columnState={{ visible, onChange: setVisible }}
-      search={search}
-      onSearchChange={onSearchChange}
-      searchPlaceholder={t('topics.search')}
-      rowName={rowName}
-      rowTree={rowTree}
-      onToggleGroup={toggle}
-      onRowOpen={(row, intent) => {
-        // A topic row that opens no group (its prompts cannot be told yet) and the "Show all" row open the drawer
-        if (row.kind !== 'prompt') {
-          openTopic(row.key, row.kind === 'more' ? 'prompts' : 'overview', intent);
-          return;
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <DataTable<TopicRow>
+        caption={t('topics.caption')}
+        itemNoun={{ one: t('topics.noun.one'), other: t('topics.noun.other') }}
+        columns={columns}
+        getRowId={rowId}
+        rows={rows}
+        total={topicCount}
+        footerNote={promptsInScope === null ? undefined : t('topics.footerPrompts', { count: promptsInScope })}
+        sort={sort}
+        onSortChange={(next) => onSortTextChange(sameSort(next, DEFAULT_TOPIC_SORT) ? null : formatSort(next))}
+        defaultSort={DEFAULT_TOPIC_SORT}
+        toolbarEnd={
+          groupKeys.length === 0 ? undefined : (
+            <Button variant="ghost" size="sm" icon={allOpen ? ChevronsDownUp : ChevronsUpDown} onClick={toggleAll}>
+              {t(allOpen ? 'topics.collapseAll' : 'topics.expandAll')}
+            </Button>
+          )
         }
-        setClicked(row.id);
-        onOpenPrompt(row.promptId, intent, row.topicKey);
-      }}
-      activeRowId={activeRowId}
-      status={shownStatus}
-      errorState={errorState}
-      emptyState={emptyState}
-      filteredEmptyState={filteredEmptyState}
-    />
+        density={density}
+        onDensityChange={onDensityChange}
+        columnState={{ visible, onChange: setVisible }}
+        search={search}
+        onSearchChange={onSearchChange}
+        searchPlaceholder={t('topics.search')}
+        rowName={rowName}
+        rowTree={rowTree}
+        onToggleGroup={toggle}
+        onRowOpen={(row, intent) => {
+          // A topic row that opens no group (a topic under its parent, or one whose prompts cannot be told yet) and
+          // the "Show all" row open the drawer
+          if (row.kind !== 'prompt') {
+            openTopic(row.key, row.kind === 'more' ? 'prompts' : 'overview', intent);
+            return;
+          }
+          setClicked(row.id);
+          onOpenPrompt(row.promptId, intent, row.topicKey);
+        }}
+        activeRowId={activeRowId}
+        status={shownStatus}
+        errorState={errorState}
+        emptyState={emptyState}
+        filteredEmptyState={filteredEmptyState}
+      />
+      {branches.some(({ children }) => children.length > 0) ? (
+        <p className="type-meta">{t('topics.rollupNote')}</p>
+      ) : null}
+    </div>
   );
 }

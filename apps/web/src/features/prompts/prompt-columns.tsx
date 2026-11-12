@@ -10,7 +10,7 @@ import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { Badge } from '@/components/ui/badge';
 import type { EngineSummary, MetricCell, ProjectEngine, Prompt, PromptSummaryRow } from '@/lib/api/types';
-import { EMPTY_VALUE } from '@/lib/format';
+import { EMPTY_VALUE, formatList } from '@/lib/format';
 
 /** A row of the Prompts tab: the prompt, its counts when the summary has them, and its facts in words. */
 export interface PromptRow {
@@ -20,6 +20,8 @@ export interface PromptRow {
   countsLoaded: boolean;
   /** The prompt's topics, joined; `null` without one. */
   topics: string | null;
+  /** The prompt's topics, each with where it sits in the tree ("SEO / Technical SEO"; its name when the tree is not read). */
+  topicList: readonly { name: string; path: string }[];
   /** The country's name; `null` for a prompt without a country. */
   country: string | null;
 }
@@ -127,11 +129,36 @@ export function usePromptColumns(engines: readonly ProjectEngine[], metric: Rate
         header: t('columns.prompt'),
         trailing: (row) => (row.prompt.is_branded ? <Badge>{t('branded')}</Badge> : null),
       }),
-      col.text<PromptRow>(SORT_ID.topic, (row) => row.topics, {
-        header: t('columns.topic'),
-        priority: 2,
-        unknown: () => ({ label: t('columns.noTopic') }),
-      }),
+      {
+        // The topic as a badge, the first one when a prompt has several; where it sits in the tree is the cell's tooltip,
+        // which the table opens when the cell takes the keyboard focus
+        ...col.badge<PromptRow>(
+          SORT_ID.topic,
+          (row) => {
+            const [first, ...others] = row.topicList;
+            if (first === undefined) return null;
+            return others.length === 0
+              ? { label: first.name }
+              : { label: first.name, detail: t('columns.moreTopics', { count: others.length }) };
+          },
+          {
+            header: t('columns.topic'),
+            priority: 2,
+            width: 200,
+            unknown: () => ({ label: t('columns.noTopic') }),
+          },
+        ),
+        cellTip: (row) =>
+          // A topic at the top of the tree sits nowhere else: its name is all there is to say
+          row.topicList.some((topic) => topic.path !== topic.name)
+            ? {
+                content: formatList(
+                  row.topicList.map((topic) => topic.path),
+                  locale,
+                ),
+              }
+            : undefined,
+      },
       col.text<PromptRow>(SORT_ID.country, (row) => row.country, {
         header: t('columns.country'),
         priority: 3,
