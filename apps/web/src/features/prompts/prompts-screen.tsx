@@ -45,6 +45,7 @@ import { enginesQuery, observationQuery, summaryQuery, usePromptList, type Promp
 import { PromptsCountryControl, PromptsWindowControl } from './prompts-scope';
 import { PromptsStrip } from './prompts-strip';
 import { topicsSpanned, type StripPrompt } from './strip-model';
+import { usePromptActions } from './use-prompt-actions';
 import { TopicInspector } from './topic-inspector';
 import { TopicsTable } from './topics-table';
 import { DataTable } from '@/components/app/data-table/data-table';
@@ -349,7 +350,18 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     (ids: ReadonlySet<string>): void => setSelection({ key: selectionKey, ids }),
     [selectionKey],
   );
-  const bulkActions: readonly PromptAction[] = [];
+  const actions = usePromptActions({
+    scope,
+    rowsById,
+    engines: enabled,
+    shown,
+    range,
+    onDone: () => setChosen(NO_PROMPTS),
+  });
+  // In the order of the list, as the table shows them
+  const bulkActions: readonly PromptAction[] = actions.bar(
+    [...rowsById.keys()].filter((promptId) => chosen.has(promptId)),
+  );
 
   // The strip reads the prompts in scope (a search is no filter, so it does not narrow it, ADR-DS-022 decision 6)
   const stripPrompts = useMemo(
@@ -950,6 +962,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         />
         {content}
       </div>
+      {actions.dialogs}
       {canWrite ? (
         <AddPromptsDialog
           scope={scope}
