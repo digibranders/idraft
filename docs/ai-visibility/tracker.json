@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T01:44:47+05:30",
+ "updated": "2026-11-13T01:56:33+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -282,7 +282,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-07-app-parts-a.md; estimate 5 tasks; decisions none | tasks 0/7; plan on develop; banner tones: cited=info, not cited=neutral (new additive tone)"
+   "notes": "file work-packages/WP-07-app-parts-a.md; estimate 5 tasks; decisions none | tasks 5/7, rows 5/6; Delta, EngineLogo, Meter, Banner neutral done and reviewed"
   },
   {
    "id": "WP-08",
@@ -3970,6 +3970,13 @@
    "wp": "SHARED WP-07",
    "granted": "2026-11-13T01:44:47+05:30",
    "scope": "append As built blockquote in section 6 only",
+   "until": "WP-07 merged"
+  },
+  {
+   "path": "docs/design-system/18-notifications-alerts.md",
+   "wp": "WP-07",
+   "granted": "2026-11-13T01:56:33+05:30",
+   "scope": "section 4 only: add neutral tone and inspector placement",
    "until": "WP-07 merged"
   }
  ]
