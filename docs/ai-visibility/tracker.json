@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T04:54:21+05:30",
+ "updated": "2026-11-13T05:06:30+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -536,7 +536,7 @@
     "done": 8
    },
    "owner": "",
-   "notes": "file work-packages/WP-13-prompts-lane.md; estimate 10 tasks; decisions D-21, D-22, D-23, D-46"
+   "notes": "file work-packages/WP-13-prompts-lane.md; estimate 10 tasks; decisions D-21, D-22, D-23, D-46 | tasks 0/10, rows 8/31 built; plan on develop; migration ai_prompt_value_sources queued behind WP-11 0021_layouts"
   },
   {
    "id": "WP-14",
@@ -4020,6 +4020,41 @@
    "granted": "2026-11-13T04:54:21+05:30",
    "scope": "additive optional prop inGrid (default true = unchanged); plus its test",
    "until": "WP-08 merged"
+  },
+  {
+   "path": "backend/src/idraft/db/tables.py",
+   "wp": "WP-13 (alongside WP-11)",
+   "granted": "2026-11-13T05:06:30+05:30",
+   "scope": "two Column lines in ai_prompts (prompt_type_source, is_branded_source); WP-11 adds the layouts Table in the same file: both additive, rebase and keep both sides",
+   "until": "WP-13 merged"
+  },
+  {
+   "path": "backend/tests/db/test_grants.py",
+   "wp": "WP-13 (alongside WP-11)",
+   "granted": "2026-11-13T05:06:30+05:30",
+   "scope": "ai.prompts UPDATE tuple gains the two columns; WP-11 adds a layouts row: both additive",
+   "until": "WP-13 merged"
+  },
+  {
+   "path": "backend/src/idraft/api/schemas/taxonomy.py",
+   "wp": "WP-13",
+   "granted": "2026-11-13T05:06:30+05:30",
+   "scope": "TermNode.prompt_count, opt-in via include=prompt_count",
+   "until": "WP-13 merged"
+  },
+  {
+   "path": "backend/src/idraft/api/schemas/keywords.py",
+   "wp": "WP-13",
+   "granted": "2026-11-13T05:06:30+05:30",
+   "scope": "only the TermAssignment.subject_type description",
+   "until": "WP-13 merged"
+  },
+  {
+   "path": "docs/ai-visibility/contracts/c1-prompts.md",
+   "wp": "WP-13",
+   "granted": "2026-11-13T05:06:30+05:30",
+   "scope": "change log section only",
+   "until": "WP-13 merged"
   }
  ],
  "followups": [
@@ -4072,6 +4107,19 @@
    "owner": "quality sweep at wave end",
    "severity": "test debt",
    "status": "open"
+  }
+ ],
+ "migrations": [
+  {
+   "wp": "WP-11",
+   "name": "0021_layouts",
+   "status": "queued"
+  },
+  {
+   "wp": "WP-13",
+   "name": "ai_prompt_value_sources",
+   "status": "queued",
+   "note": "takes the next free number at push time; down_revision = the head on origin/develop then"
   }
  ]
 }
