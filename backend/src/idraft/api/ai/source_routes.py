@@ -143,7 +143,8 @@ async def source_domains(
         list[SourceDomainInclude] | None,
         Commas,
         Query(
-            description="Blocks to add: `series`, `cited_with`, `by_role_by_engine`. " + _NOT_BUILT
+            max_length=3,
+            description="Blocks to add: `series`, `cited_with`, `by_role_by_engine`. " + _NOT_BUILT,
         ),
     ] = None,
     min_support: MinSupport = None,
@@ -191,7 +192,7 @@ async def source_pages(
     include: Annotated[
         list[SourcePageInclude] | None,
         Commas,
-        Query(description="Blocks to add: `series`. " + _NOT_BUILT),
+        Query(max_length=1, description="Blocks to add: `series`. " + _NOT_BUILT),
     ] = None,
     min_support: MinSupport = None,
     country_iso: CountryFilter = None,

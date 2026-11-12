@@ -12,10 +12,12 @@ import pytest
 
 from idraft.api.openapi import build_openapi
 from idraft.api.resources import Resources
+from tests.api.ai.sources_support import GUIDE, Cite, answer, make_world
 from tests.api.ai.support import ai_project
 from tests.api.auth.support import make_workspace
 from tests.api.entities.support import member, problem
 from tests.api.keywords.support import project_url
+from tests.collectors.ai_support import add_prompt
 from tests.conftest import PostgresServer
 
 NOT_BUILT = (501, "not_implemented")
@@ -102,7 +104,10 @@ async def test_the_source_reads_check_access_first(
         ("sources/pages", {"include": "cited_with"}),
         ("sources/changes", {"kind": "gone"}),
         ("sources/changes", {"min_support": "0"}),
+        ("sources/changes", {"min_support": "1001"}),
         ("sources/domains", {"filter[country_iso]": "us"}),
+        ("sources/domains", {"include": "series,cited_with,by_role_by_engine,series"}),
+        ("sources/pages", {"include": "series,series"}),
     ],
 )
 async def test_an_addition_out_of_bounds_is_refused(
@@ -139,8 +144,33 @@ async def test_the_source_reads_without_additions_answer_as_before(
     assert "by_role_by_engine" not in meta
 
 
+@pytest.mark.parametrize("path", ["sources/domains", "sources/pages"])
+async def test_a_plain_source_row_holds_none_of_the_added_fields(
+    path: str, api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    world = await make_world(resources, migrated)
+    prompt = await add_prompt(migrated, world.project, "Best managed SOC providers?")
+    await answer(migrated, world, prompt, days_ago=1, cites=[world.own_cite(), Cite(GUIDE)])
+
+    response = await api.get(world.url("ai", path), headers=world.owner.headers)
+
+    assert response.status_code == 200, response.text
+    rows = response.json()["data"]
+    assert rows
+    for row in rows:
+        assert not {"series", "cited_with", "category", "category_source"} & row.keys()
+
+
 def _parameters(operation: dict[str, Any]) -> set[str]:
     return {parameter["name"] for parameter in operation["parameters"]}
+
+
+def _bound(schema: dict[str, Any], keyword: str) -> Any:
+    """A bound of a field, whether the field is nullable (`anyOf`) or not."""
+    for candidate in schema.get("anyOf", [schema]):
+        if keyword in candidate:
+            return candidate[keyword]
+    return None
 
 
 def test_the_api_document_has_the_source_additions() -> None:
@@ -175,3 +205,24 @@ def test_the_api_document_has_the_source_additions() -> None:
         for field in fields:
             assert field in schemas[model]["properties"], (model, field)
             assert field not in schemas[model].get("required", []), (model, field)
+    for model, field, bound in (
+        ("SourceDomainRow", "series", 14),
+        ("SourcePageRow", "series", 14),
+        ("SourcesMeta", "series", 14),
+        ("SourcesMeta", "by_role_by_engine", 3),
+        ("SourceChangesMeta", "engine_codes", 3),
+    ):
+        assert _bound(schemas[model]["properties"][field], "maxItems") == bound, (model, field)
+    for model, field, bound in (
+        ("SourceDomainRow", "category", 64),
+        ("SourceChangeRow", "registrable_domain", 253),
+    ):
+        assert _bound(schemas[model]["properties"][field], "maxLength") == bound, (model, field)
+    for path, bound in (("sources/domains", 3), ("sources/pages", 1)):
+        (include,) = (
+            parameter
+            for parameter in paths[f"{prefix}/{path}"]["get"]["parameters"]
+            if parameter["name"] == "include"
+        )
+        # The house list parameters (`filter[engine_code_in]`) publish their bound as `maxLength`.
+        assert include["schema"]["maxLength"] == bound, path

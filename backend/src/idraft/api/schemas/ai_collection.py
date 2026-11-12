@@ -13,6 +13,9 @@ from idraft.api.schemas.ai import MetricCell
 from idraft.api.schemas.metrics import MetricWindow
 from idraft.domain.ai_engines import EngineCode
 
+ENGINES_MAX = 3  # one entry per engine
+WINDOW_DAYS_MAX = 92  # the longest AI read window
+
 # `ops.collection_tasks.status` (migration 0004).
 TaskStatus = Literal[
     "pending",
@@ -53,7 +56,7 @@ class AiCoverageMissing(BaseModel):
 
 
 class AiCoverage(BaseModel):
-    by_engine: list[AiCoverageEngine]
+    by_engine: list[AiCoverageEngine] = Field(max_length=ENGINES_MAX)
     missing: list[AiCoverageMissing] = Field(
         description="Every planned task with no stored answer, at most the run's tasks."
     )
@@ -89,9 +92,11 @@ class CollectionDay(BaseModel):
 
 class CollectionDailyMeta(BaseModel):
     window: MetricWindow
-    engine_codes: list[EngineCode]
+    engine_codes: list[EngineCode] = Field(max_length=ENGINES_MAX)
 
 
 class CollectionDailyResponse(BaseModel):
-    data: list[CollectionDay]
+    data: list[CollectionDay] = Field(
+        max_length=WINDOW_DAYS_MAX * ENGINES_MAX, description="A row per day and engine."
+    )
     meta: CollectionDailyMeta

@@ -26,6 +26,10 @@ _NOT_RETURNED = "Not returned yet: absent from every response until it is built.
 TITLE_MAX = 300
 RAW_URL_MAX = 1000
 QUERY_MAX = 300
+SERIES_MAX = 14  # weeks: the 92 day window at most, plus the week it starts in
+ENGINES_MAX = 3  # one entry per engine
+DOMAIN_MAX = 253
+CATEGORY_MAX = 64
 
 
 def _bounded(limit: int) -> BeforeValidator:
@@ -116,6 +120,7 @@ class SourceDomainRow(BaseModel):
     series: list[SourceWeekUnits] | None = Field(
         default=None,
         exclude_if=_absent,
+        max_length=SERIES_MAX,
         description="With `include=series`: a point per week of the window, oldest first, at "
         "most 14. " + _NOT_RETURNED,
     )
@@ -123,7 +128,10 @@ class SourceDomainRow(BaseModel):
         default=None, exclude_if=_absent, description="With `include=cited_with`. " + _NOT_RETURNED
     )
     category: str | None = Field(
-        default=None, exclude_if=_absent, description="The domain's category. " + _NOT_RETURNED
+        default=None,
+        exclude_if=_absent,
+        max_length=CATEGORY_MAX,
+        description="The domain's category. " + _NOT_RETURNED,
     )
     category_source: Literal["seed_list", "rule", "llm", "manual", "tenant_override"] | None = (
         Field(default=None, exclude_if=_absent, description=_NOT_RETURNED)
@@ -178,11 +186,15 @@ class SourcesMeta(BaseModel):
         "data, so a `previous` of 0 there says nothing about the source.",
     )
     series: list[SourcesWeek] | None = Field(
-        default=None, exclude_if=_absent, description="With `include=series`. " + _NOT_RETURNED
+        default=None,
+        exclude_if=_absent,
+        max_length=SERIES_MAX,
+        description="With `include=series`. " + _NOT_RETURNED,
     )
     by_role_by_engine: list[EngineRoleUnits] | None = Field(
         default=None,
         exclude_if=_absent,
+        max_length=ENGINES_MAX,
         description="With `include=by_role_by_engine` on domains. " + _NOT_RETURNED,
     )
 
@@ -214,6 +226,7 @@ class SourcePageRow(BaseModel):
     series: list[SourceWeekUnits] | None = Field(
         default=None,
         exclude_if=_absent,
+        max_length=SERIES_MAX,
         description="With `include=series`: a point per week of the window, oldest first, at "
         "most 14. " + _NOT_RETURNED,
     )
@@ -226,7 +239,7 @@ class SourcePagePage(BaseModel):
 
 
 class SourceChangeRow(BaseModel):
-    registrable_domain: str
+    registrable_domain: str = Field(max_length=DOMAIN_MAX)
     domain_role: DomainRole
     role_entity_id: UUID | None
     current_units: int = Field(description="Citation units in the window.")
@@ -239,7 +252,7 @@ class SourceChangesMeta(BaseModel):
     window: MetricWindow
     compare_window: MetricWindow
     include_branded: bool
-    engine_codes: list[EngineCode]
+    engine_codes: list[EngineCode] = Field(max_length=ENGINES_MAX)
     kind: SourceChangeKind
     min_support: int
 

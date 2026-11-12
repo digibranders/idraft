@@ -90,8 +90,19 @@ async def test_a_bad_run_id_or_engine_is_refused(
         headers=viewer.headers,
     )
 
+    four_engines = await api.get(
+        project_url(
+            workspace,
+            project,
+            "ai/collection/daily?filter[engine_code_in]=chatgpt_web,gemini_web,google_ai_mode,"
+            "chatgpt_web",
+        ),
+        headers=viewer.headers,
+    )
+
     assert problem(bad_run) == INVALID
     assert problem(bad_engine) == INVALID
+    assert problem(four_engines) == INVALID
 
 
 def test_the_api_document_has_coverage_and_daily() -> None:
@@ -115,3 +126,6 @@ def test_the_api_document_has_coverage_and_daily() -> None:
     day = schemas["CollectionDay"]["properties"]
     assert "date" in day
     assert "date_" not in day
+    assert schemas["AiCoverage"]["properties"]["by_engine"]["maxItems"] == 3
+    assert schemas["CollectionDailyMeta"]["properties"]["engine_codes"]["maxItems"] == 3
+    assert schemas["CollectionDailyResponse"]["properties"]["data"]["maxItems"] == 276
