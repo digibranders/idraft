@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T04:47:37+05:30",
+ "updated": "2026-11-13T04:51:06+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -225,7 +225,7 @@
    "title": "Chart parts: HeatmapGrid with tree rows, SmallMultiples, connected crosshair",
    "wave": "W1",
    "kind": "web",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-02"
    ],
@@ -244,10 +244,10 @@
    },
    "counts": {
     "total": 1,
-    "done": 0
+    "done": 1
    },
    "owner": "",
-   "notes": "file work-packages/WP-06-chart-grids.md; estimate 5 tasks; decisions D-04, D-05 | tasks 2/7; HeatmapGrid + heat-bins + dark seq-5 on develop"
+   "notes": "file work-packages/WP-06-chart-grids.md; estimate 5 tasks; decisions D-04, D-05 | merged a7b79079; 5557/5558 tests (1 load flake), e2e 53/53; ScatterChart lazy chunk, bundle proof in docs/20 4.6"
   },
   {
    "id": "WP-07",
@@ -482,12 +482,12 @@
    "title": "Prompt records: lint upgrade, type rule, filters, bulk update, quotas, provenance",
    "wave": "W1",
    "kind": "backend",
-   "status": "not_started",
+   "status": "building",
    "dependsOn": [
     "WP-03"
    ],
-   "session": null,
-   "branch": null,
+   "session": "wp-00-kit",
+   "branch": "ai/wp-13-prompts-lane",
    "rows": {
     "BE": [
      "BE-PROMPTS-01",
@@ -3917,48 +3917,6 @@
    "until": "WP-06 merged"
   },
   {
-   "path": "apps/web/src/styles/tokens.css",
-   "wp": "WP-06",
-   "granted": "2026-11-13T03:12:21+05:30",
-   "scope": "one token only: dark --seq-5 to oklch(0.61 0.15 262) for 4.5:1; grep other uses first and re-run design-system e2e",
-   "until": "WP-06 merged"
-  },
-  {
-   "path": "docs/design-system/02-color-system.md",
-   "wp": "WP-06",
-   "granted": "2026-11-13T03:12:21+05:30",
-   "scope": "section 7.3 row for dark --seq-5 only",
-   "until": "WP-06 merged"
-  },
-  {
-   "path": "apps/web/src/components/app/chart/echart.tsx",
-   "wp": "WP-06",
-   "granted": "2026-11-13T03:12:21+05:30",
-   "scope": "additive group?: string prop (instance.group + connect) and its echart.test.tsx case",
-   "until": "WP-06 merged"
-  },
-  {
-   "path": "apps/web/src/components/app/chart/echart.test.tsx",
-   "wp": "WP-06",
-   "granted": "2026-11-13T03:12:21+05:30",
-   "scope": "one added case for group",
-   "until": "WP-06 merged"
-  },
-  {
-   "path": "apps/web/src/components/design-system/chart-grids-section.tsx",
-   "wp": "WP-06",
-   "granted": "2026-11-13T03:12:21+05:30",
-   "scope": "new file; registry lines covered by the shared registry lease",
-   "until": "WP-06 merged"
-  },
-  {
-   "path": "apps/web/src/styles/globals.css",
-   "wp": "SHARED WP-05/WP-06",
-   "granted": "2026-11-13T03:13:15+05:30",
-   "scope": "additive: bg-seq-1..7 utilities (WP-05 adds first, WP-06 reuses or rebases); no other edits",
-   "until": "WP-05 and WP-06 merged"
-  },
-  {
    "path": "backend/src/idraft/db/tables.py",
    "wp": "WP-11",
    "granted": "2026-11-13T03:53:49+05:30",
@@ -4071,6 +4029,26 @@
    "title": "10 e2e tests already fail on plain develop",
    "detail": "costs-runs x2, keyword-detail-snapshots, keyword-detail, rankings 'Rank shows' and 'keywords are added', schedules x2, shell x2. Cause: the /rankings URL moved to /keywords and rank text drifted; not table related. Release does not run e2e (ship.sh), so this did not block shipping, but the specs need updating.",
    "owner": "web (rankings and shell owners); schedule in the quality sweep at wave end",
+   "severity": "test debt",
+   "status": "open"
+  },
+  {
+   "id": "F-04",
+   "found": "2026-11-13T04:51:06+05:30",
+   "by": "WP-06",
+   "title": "echarts shared chunk is 208 KB gzip, over the 170 KB budget, and a scatter consumer adds about 700 B",
+   "detail": "/ai/prompts is byte identical today (41 chunks, 896,979 gzip). The CH-15 package (scatter) must re-run the bundle proof (method in docs/20 4.6 As built). Budget needs an owner call or a code-split plan for echarts.",
+   "owner": "CH-15 package; owner decision on the budget",
+   "severity": "performance",
+   "status": "open"
+  },
+  {
+   "id": "F-05",
+   "found": "2026-11-13T04:51:06+05:30",
+   "by": "WP-06",
+   "title": "Load-sensitive flaky tests",
+   "detail": "data-table.test.tsx right-click context menu test fails once under load, passes alone 185/185; also rankings and prompts DOM-timeout tests under uncapped load; backend test_five_thousand_keywords; prompt-inspector counts test. Harden with fake timers or longer waits in the quality sweep.",
+   "owner": "quality sweep at wave end",
    "severity": "test debt",
    "status": "open"
   }
