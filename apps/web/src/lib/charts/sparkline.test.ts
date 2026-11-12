@@ -17,6 +17,23 @@ describe('sparklineGeometry', () => {
     expect(sparklineGeometry([50, 100, 75])).toEqual(sparklineGeometry([50_000, 100_000, 75_000]));
   });
 
+  it('keeps a move smaller than the minimum span nearly flat and in the middle, as a rate of 40% and 41% is', () => {
+    const wobble = [0.4, 0.41, 0.4, 0.41];
+    const ys = (minSpan?: number): number[] =>
+      (sparklineGeometry(wobble, SPARK_WIDTH, SPARK_HEIGHT, minSpan).segments[0] ?? []).map((point) => point.y);
+    // Stretched to the box, a point of difference fills it
+    expect(Math.max(...ys()) - Math.min(...ys())).toBeGreaterThan(10);
+    // With a span of 20 points it is under a pixel, around the middle of the box
+    const flat = ys(0.2);
+    expect(Math.max(...flat) - Math.min(...flat)).toBeLessThan(1);
+    expect(Math.abs((Math.max(...flat) + Math.min(...flat)) / 2 - SPARK_HEIGHT / 2)).toBeLessThan(0.5);
+  });
+
+  it('leaves a series that moves more than the minimum span as it was', () => {
+    const rates = [0.2, 0.6, 0.4];
+    expect(sparklineGeometry(rates, SPARK_WIDTH, SPARK_HEIGHT, 0.2)).toEqual(sparklineGeometry(rates));
+  });
+
   it('draws a series that never moves in the middle of the box', () => {
     const { segments } = sparklineGeometry([300, 300, 300]);
     expect(segments[0]?.every((point) => point.y === SPARK_HEIGHT / 2)).toBe(true);

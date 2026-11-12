@@ -20,6 +20,8 @@ export interface SparklineCellProps {
   values: readonly SparkValue[];
   label: string;
   tone?: SparklineTone | undefined;
+  /** The least range the box stands for, in the values' unit: 0.2 for a rate, so a point or two stays flat. */
+  minSpan?: number | undefined;
   className?: string | undefined;
 }
 
@@ -28,10 +30,16 @@ export interface SparklineCellProps {
  * Draws on a 64 x 20 canvas with role="img" and accessible label.
  * An empty sparkline renders a 1 px dashed line across the width.
  */
-export function SparklineCell({ values, label, tone = 'reference', className }: SparklineCellProps): ReactElement {
+export function SparklineCell({
+  values,
+  label,
+  tone = 'reference',
+  minSpan,
+  className,
+}: SparklineCellProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const geo = useMemo(() => sparklineGeometry(values, SPARK_WIDTH, SPARK_HEIGHT), [values]);
+  const geo = useMemo(() => sparklineGeometry(values, SPARK_WIDTH, SPARK_HEIGHT, minSpan), [values, minSpan]);
   const hasSegments = geo.segments.length > 0;
 
   useEffect(() => {

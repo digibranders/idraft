@@ -997,10 +997,14 @@ describe('Topics & Prompts: the Topics tab', () => {
   });
 
   it('reads a parent as Rankings reads a group: its name with a muted count of what it opens onto, as "12 keywords" there', async () => {
-    renderWithProviders(promptsAs('viewer'));
+    const { user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
     await within(tree).findByText('Paid Search');
     const count = within(rowOf(tree, 'SEO')).getByText('2 topics');
+    // Cut to an ellipsis in a narrow cell, the count says all of itself in a tooltip
+    await user.hover(count);
+    expect(await screen.findByText('2 topics', { selector: '[data-slot="tooltip"] span' })).toBeInTheDocument();
+    await user.unhover(count);
     // The count gives way before the name does: it ends in an ellipsis where the name keeps its room
     expect(count).toHaveClass('text-foreground-tertiary', 'min-w-0', 'truncate');
     expect(within(rowOf(tree, 'SEO')).getByRole('button', { name: 'Open the topic SEO' })).toHaveClass('shrink-0');

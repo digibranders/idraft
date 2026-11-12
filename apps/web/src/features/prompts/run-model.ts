@@ -17,6 +17,20 @@ export const MANUAL_RUN_CAP = 20;
 /** The prompts one bulk run takes (the API's `prompt_ids` maximum). */
 export const BULK_RUN_MAX = 150;
 
+/** The prompts one bulk archive request takes (the API's `ids` maximum). */
+export const BULK_ARCHIVE_MAX = 1000;
+
+/** How long the count of the day's manual runs, read from a run's answer, is told as it stands. */
+const COUNT_FRESH_MS = 30 * 60_000;
+const utcDay = (instant: number): string => new Date(instant).toISOString().slice(0, 10);
+
+/**
+ * Whether a count read at `at` still stands at `now`: the API counts the day in UTC, and other people and keyword
+ * refreshes add to it, so the count is told for half an hour and never across midnight.
+ */
+export const isFreshCount = (at: number, now: number): boolean =>
+  now >= at && now - at < COUNT_FRESH_MS && utcDay(at) === utcDay(now);
+
 /** `ids` in runs of at most `size`, in order. */
 export function chunkIds(ids: readonly string[], size: number = BULK_RUN_MAX): string[][] {
   const runs: string[][] = [];

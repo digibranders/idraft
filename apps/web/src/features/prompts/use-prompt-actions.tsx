@@ -11,8 +11,10 @@ import type { PromptRow } from './prompt-columns';
 import type { DateRange } from './prompt-model';
 import { bulkArchive, bulkRun, refreshPrompts, RUN_NOW, type PromptScope } from './prompt-queries';
 import {
+  BULK_ARCHIVE_MAX,
   BULK_RUN_MAX,
   chunkIds,
+  isFreshCount,
   MANUAL_RUN_CAP,
   planRuns,
   runProblemOf,
@@ -46,7 +48,13 @@ const REFUSAL_KEYS = {
 } as const satisfies Record<EngineRefusal, string>;
 
 /** What a confirm waits on: the prompts, and how many the caller named that the list does not hold (said in the toast). */
-type Asking = { kind: 'run' | 'archive'; ids: readonly string[]; skipped: number } | null;
+type Asking = {
+  kind: 'run' | 'archive';
+  ids: readonly string[];
+  skipped: number;
+  /** The day's manual runs used, as far as they were known and fresh when the confirm opened. */
+  day: { used: number; limit: number } | null;
+} | null;
 
 export interface PromptActionsOptions {
   scope: PromptScope;
@@ -105,8 +113,9 @@ export function usePromptActions({
   const { countries } = useCountries();
   const runNow = useMutation(RUN_NOW);
   const [asking, setAsking] = useState<Asking>(null);
-  // The day's manual runs, as the last run of this project said: not known before the first one
-  const [manualRuns, setManualRuns] = useState<{ projectId: string; used: number; limit: number } | null>(null);
+  // The day's manual runs, as the last run of this project said, and when: not known before the first one, and not
+  // told once it may be out of date (`isFreshCount`)
+  const manualRuns = useRef<{ projectId: string; used: number; limit: number; at: number } | null>(null);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -168,8 +177,11 @@ export function usePromptActions({
     ];
     return t('bulk.runSkipped', { count: total, reasons: formatList(reasons, locale) });
   };
-  /** A refusal of Run now in words, one prompt's or many. */
-  const problemText = (problem: RunProblem): string => {
+  /**
+   * A refusal of Run now in words, one prompt's or many. `later`: runs before it were queued, so what it refuses is
+   * the next run and not the whole of Run now.
+   */
+  const problemText = (problem: RunProblem, later = false): string => {
     switch (problem.kind) {
       case 'provider_paused':
         return t('inspector.runPaused', { minutes: problem.minutes });
@@ -182,7 +194,7 @@ export function usePromptActions({
           ? t('inspector.runQuota', { limit: problem.limit, used: problem.used, requested: problem.requested })
           : t('bulk.runStopQuota');
       case 'prompt_unknown':
-        return t('bulk.runUnknown');
+        return t(later ? 'bulk.runUnknownNext' : 'bulk.runUnknown');
       case 'engines_refused':
         return (Object.keys(problem.refused) as EngineRefusal[])
           .map((reason) => {
@@ -198,11 +210,13 @@ export function usePromptActions({
           })
           .join(' ');
       case 'nothing_to_run':
-        return [t('bulk.runNothingToRun'), skipText(problem.skips)].filter((part) => part !== '').join(' ');
+        return [t(later ? 'bulk.runNothingToRunNext' : 'bulk.runNothingToRun'), skipText(problem.skips)]
+          .filter((part) => part !== '')
+          .join(' ');
       case 'check_pending':
         return problem.engines.length > 0
           ? t('inspector.runPending', { engines: formatList(problem.engines.map(engineName), locale) })
-          : t('bulk.runNothingPending');
+          : t(later ? 'bulk.runNothingPendingNext' : 'bulk.runNothingPending');
       case 'forbidden':
         return t('inspector.runForbidden');
       case 'gone':
@@ -263,6 +277,9 @@ export function usePromptActions({
     const answers: ChunkAnswer[] = [];
     let problem: RunProblem | null = null;
     let notTried = 0;
+    // The engines that are on go with the request: the API's answer does not say which engines it asked, so what it
+    // left out is read against exactly these. An engine turned off meanwhile is refused by name
+    const asked = engines.map((engine) => engine.engine.engine_code);
     try {
       const runs = chunkIds(ids);
       for (const [at, chunk] of runs.entries()) {
@@ -272,7 +289,7 @@ export function usePromptActions({
           break;
         }
         try {
-          const { meta } = await bulkRun(scope, chunk);
+          const { meta } = await bulkRun(scope, chunk, asked.length === 0 ? undefined : asked);
           answers.push({ ids: chunk, meta });
         } catch (error) {
           problem = runProblemOf(error);
@@ -290,16 +307,15 @@ export function usePromptActions({
       }
       return;
     }
-    const summary = summarizeRuns(
-      answers,
-      engines.map((engine) => engine.engine.engine_code),
-    );
+    const summary = summarizeRuns(answers, asked);
     const day = summary.manualRuns;
-    if (day !== null) setManualRuns({ projectId: scope.projectId, used: day.used, limit: day.limit });
+    if (day !== null) {
+      manualRuns.current = { projectId: scope.projectId, used: day.used, limit: day.limit, at: Date.now() };
+    }
     // A page that was left has nobody to tell that some prompts were not asked
     if (mounted.current || notTried === 0) {
       const stopped = [
-        ...(problem === null ? [] : [problemText(problem)]),
+        ...(problem === null ? [] : [problemText(problem, true)]),
         ...(notTried === 0 ? [] : [t('bulk.notTried', { count: notTried })]),
       ];
       const left = skipText(skipCounts(answers.flatMap((answer) => answer.meta.skipped)));
@@ -320,32 +336,41 @@ export function usePromptActions({
     queued(summary.startedIds);
   };
 
-  /** Brings the prompts back (Undo): all or none against the workspace's prompt limit. */
-  const restorePrompts = async (ids: readonly string[]): Promise<void> => {
-    try {
-      const { data } = await bulkArchive(scope, ids, false);
-      void refreshPrompts(queryClient, scope);
-      toast(
-        data.updated === ids.length
-          ? { type: 'success', title: t('bulk.restored', { count: data.updated }) }
-          : {
-              type: 'info',
-              title: t('bulk.restorePartialTitle', { done: data.updated, total: ids.length }),
-            },
-      );
-    } catch (error) {
-      void refreshPrompts(queryClient, scope);
-      const problem = runProblemOf(error);
+  /**
+   * Brings the prompts back (Undo), in requests of the most the API takes, each all or none against the workspace's
+   * prompt limit. `archived` is how many the archive changed: the count the result is told against, since some of
+   * the prompts named may have been gone by then.
+   */
+  const restorePrompts = async (ids: readonly string[], archived: number): Promise<void> => {
+    let restored = 0;
+    let failure: RunProblem | null = null;
+    for (const chunk of chunkIds(ids, BULK_ARCHIVE_MAX)) {
+      try {
+        restored += (await bulkArchive(scope, chunk, false)).data.updated;
+      } catch (error) {
+        failure = runProblemOf(error);
+        break;
+      }
+    }
+    void refreshPrompts(queryClient, scope);
+    const why =
+      failure === null
+        ? undefined
+        : failure.kind === 'quota_exceeded' &&
+            failure.limit !== null &&
+            failure.used !== null &&
+            failure.requested !== null
+          ? t('bulk.restoreQuota', { limit: failure.limit, used: failure.used, requested: failure.requested })
+          : t('bulk.tryAgain');
+    if (failure !== null && restored === 0) {
+      toast({ type: 'error', title: t('bulk.restoreFailedTitle'), ...(why === undefined ? {} : { description: why }) });
+    } else if (restored === archived) {
+      toast({ type: 'success', title: t('bulk.restored', { count: restored }) });
+    } else {
       toast({
-        type: 'error',
-        title: t('bulk.restoreFailedTitle'),
-        description:
-          problem.kind === 'quota_exceeded' &&
-          problem.limit !== null &&
-          problem.used !== null &&
-          problem.requested !== null
-            ? t('bulk.restoreQuota', { limit: problem.limit, used: problem.used, requested: problem.requested })
-            : t('bulk.tryAgain'),
+        type: 'info',
+        title: t('bulk.restorePartialTitle', { done: restored, total: archived }),
+        ...(why === undefined ? {} : { description: why }),
       });
     }
   };
@@ -358,43 +383,55 @@ export function usePromptActions({
         : t('bulk.tryAgain');
   const archivePrompts = async (ids: readonly string[]): Promise<void> => {
     if (!begin()) return;
-    let result: { matched: number; updated: number } | null = null;
-    let failure: RunProblem = { kind: 'failed' };
+    // The prompts of the requests that went, what they found and changed, and what stopped the rest
+    const sent: string[] = [];
+    let matched = 0;
+    let updated = 0;
+    let failure: RunProblem | null = null;
     try {
-      result = (await bulkArchive(scope, ids, true)).data;
-    } catch (error) {
-      failure = runProblemOf(error);
+      for (const chunk of chunkIds(ids, BULK_ARCHIVE_MAX)) {
+        try {
+          const { data } = await bulkArchive(scope, chunk, true);
+          sent.push(...chunk);
+          matched += data.matched;
+          updated += data.updated;
+        } catch (error) {
+          failure = runProblemOf(error);
+          break;
+        }
+      }
     } finally {
       end();
     }
-    if (result === null) {
-      toast({ type: 'error', title: t('bulk.archiveFailedTitle'), description: archiveProblemText(failure) });
-      return;
-    }
-    const { matched, updated } = result;
     if (updated === 0) {
-      // Every prompt was gone or archived already: the lists are read again, and nothing leaves the choice
-      void refreshPrompts(queryClient, scope);
+      // Nothing was changed: the prompts were gone or archived already, or the first request failed. Nothing leaves
+      // the choice, and the lists are read again for the prompts that were gone
+      if (failure === null) void refreshPrompts(queryClient, scope);
       toast({
         type: 'error',
         title: t('bulk.archiveFailedTitle'),
-        description: t('bulk.archiveLeft', { count: ids.length }),
+        description: failure === null ? t('bulk.archiveLeft', { count: ids.length }) : archiveProblemText(failure),
       });
       return;
     }
-    // The prompts the request named leave the choice: the lists no longer hold the ones it did not change
-    finish(ids);
+    // The prompts of the requests that went leave the choice: the lists no longer hold the ones not changed
+    finish(sent);
     toast({
       type: 'success',
       title:
         updated === ids.length
           ? t('bulk.archived', { count: updated })
           : t('bulk.archivePartialTitle', { done: updated, total: ids.length }),
-      ...(updated === ids.length ? {} : { description: t('bulk.archiveLeft', { count: ids.length - updated }) }),
+      ...(failure === null && updated === ids.length
+        ? {}
+        : {
+            description:
+              failure === null ? t('bulk.archiveLeft', { count: ids.length - updated }) : archiveProblemText(failure),
+          }),
       // Which prompts were changed is not told when some were archived already: Undo would bring those back too, so it
-      // is there only when every prompt the request found was changed. The toast does not wait for the lists to be read
+      // is there only when every prompt the requests found was changed. The toast does not wait for the lists to be read
       ...(updated === matched
-        ? { action: { label: t('inspector.undo'), onAction: () => void restorePrompts(ids) } }
+        ? { action: { label: t('inspector.undo'), onAction: () => void restorePrompts(sent, updated) } }
         : {}),
     });
   };
@@ -456,13 +493,19 @@ export function usePromptActions({
       return;
     }
     changed.current = false;
-    if (ids.length > 1) setAsking({ kind: 'run', ids, skipped });
+    // The count of the day is told only while it stands: it was read from this project's last run a short time ago
+    const last = manualRuns.current;
+    const day =
+      last !== null && last.projectId === scope.projectId && isFreshCount(last.at, Date.now())
+        ? { used: last.used, limit: last.limit }
+        : null;
+    if (ids.length > 1) setAsking({ kind: 'run', ids, skipped, day });
     else void runPrompts(ids, skipped);
   };
   /** Above 100 prompts asks first; fewer run at once with Undo, as Rankings archives keywords. */
   const startArchive = (ids: readonly string[]): void => {
     changed.current = false;
-    if (ids.length > CONFIRM_ARCHIVE_ABOVE) setAsking({ kind: 'archive', ids, skipped: 0 });
+    if (ids.length > CONFIRM_ARCHIVE_ABOVE) setAsking({ kind: 'archive', ids, skipped: 0, day: null });
     else void archivePrompts(ids);
   };
 
@@ -560,7 +603,7 @@ export function usePromptActions({
   const count = asking?.ids.length ?? 0;
   // Each 150 prompts is a manual run of the day's 20; how many were used is known once a run of this project was made
   const runs = Math.ceil(count / BULK_RUN_MAX);
-  const day = manualRuns?.projectId === scope.projectId ? manualRuns : null;
+  const day = asking?.day ?? null;
   const runDescription = [
     runs <= 1 ? t('bulk.runConfirmOne', { count }) : t('bulk.runConfirmMany', { count, runs, size: BULK_RUN_MAX }),
     day === null

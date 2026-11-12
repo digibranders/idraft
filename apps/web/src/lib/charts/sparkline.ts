@@ -24,14 +24,22 @@ export interface SparklineGeometry {
 /** A month's volume, or `null` where the provider sent none. */
 export type SparkValue = number | null;
 
+/**
+ * `minSpan` (opt in) is the least range the box stands for, in the values' own unit: a series that moves less
+ * than it is drawn around the middle of that range, so a rate that moves a point or two stays flat
+ * (15-data-visualization.md section 9, "Rates": 0.2 for a share). Without it a series fills the box.
+ */
 export function sparklineGeometry(
   values: readonly SparkValue[],
   width: number = SPARK_WIDTH,
   height: number = SPARK_HEIGHT,
+  minSpan = 0,
 ): SparklineGeometry {
   const known = values.filter((value): value is number => value !== null);
-  const low = Math.min(...known);
-  const range = Math.max(...known) - low;
+  const lowest = Math.min(...known);
+  const highest = Math.max(...known);
+  const range = Math.max(highest - lowest, minSpan);
+  const low = highest - lowest >= minSpan ? lowest : (lowest + highest) / 2 - minSpan / 2;
   const segments: SparkPoint[][] = [];
   const step = values.length > 1 ? (width - PAD * 2) / (values.length - 1) : 0;
   let run: SparkPoint[] | null = null;

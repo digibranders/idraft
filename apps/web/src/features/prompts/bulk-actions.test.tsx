@@ -197,7 +197,7 @@ describe('Export CSV', () => {
 });
 
 describe('Run now for the chosen prompts', () => {
-  it('asks first, sends one request for every prompt with the engines left to the API, and says what started', async () => {
+  it('asks first, sends one request for every prompt on the engines that are on, and says what started', async () => {
     const bulk: { prompt_ids: string[]; engine_codes?: string[] }[] = [];
     const single: string[] = [];
     server.events.on('request:start', async ({ request }) => {
@@ -219,7 +219,8 @@ describe('Run now for the chosen prompts', () => {
     await said(/^About \$\d/);
     expect(bulk).toHaveLength(1);
     expect(bulk[0]?.prompt_ids).toHaveLength(2);
-    expect(bulk[0]?.engine_codes).toBeUndefined();
+    // The engines that are on go with it: the API's answer is read against exactly these
+    expect(bulk[0]?.engine_codes).toEqual(['chatgpt_web', 'gemini_web']);
     expect(single).toEqual([]);
     // The choice is dropped once the runs are in
     await waitFor(() => expect(screen.queryByRole('group', { name: /^Bulk actions/ })).toBeNull());
@@ -272,6 +273,30 @@ describe('Run now for the chosen prompts', () => {
     expect(
       within(dialog).getByText('This is one manual run of 2 prompts. You have used 4 of 20 manual runs today.'),
     ).toBeInTheDocument();
+  });
+
+  it.each([
+    ['half an hour', '2026-11-12T12:00:00Z', '2026-11-12T12:31:00Z'],
+    ['UTC midnight', '2026-11-12T23:50:00Z', '2026-11-13T00:10:00Z'],
+  ])('forgets the count of the day after %s, for others may have added to it', async (_name, first, later) => {
+    vi.setSystemTime(new Date(first));
+    server.use(http.post(BULK_RUN, () => queued(2, [], 4)));
+    const { user } = renderOn('editor', '?tab=prompts');
+    await tick(user, [FIRST, SECOND]);
+    await confirmRun(user, 2);
+    await said('Run started: 2 prompts on 2 engines');
+    await tick(user, [FIRST, SECOND]);
+    await user.click(within(bar()).getByRole('button', { name: 'Run now' }));
+    let dialog = await screen.findByRole('alertdialog', { name: 'Run 2 prompts now?' });
+    expect(within(dialog).getByText(/You have used 4 of 20 manual runs today\./)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    // Later, the count is not told: it only says what a run is
+    vi.setSystemTime(new Date(later));
+    await user.click(within(bar()).getByRole('button', { name: 'Run now' }));
+    dialog = await screen.findByRole('alertdialog', { name: 'Run 2 prompts now?' });
+    expect(within(dialog).queryByText(/You have used/)).toBeNull();
+    expect(within(dialog).getByText(/It counts as one of your 20 manual runs a day\./)).toBeInTheDocument();
   });
 
   it.each([
@@ -468,6 +493,49 @@ describe('Run now for more prompts than one run takes', () => {
     await waitFor(() => expect(within(bar()).getByText('33 selected')).toBeInTheDocument());
   }, 60_000);
 
+  it.each([
+    [
+      'nothing_to_run',
+      () => refused(422, 'nothing_to_run', { skipped: [] }),
+      /The next run was not started: none of its prompts can be asked on an enabled engine\./,
+    ],
+    [
+      'check_pending',
+      () => refused(409, 'check_pending', { prompt_ids: ['a'], skipped: [] }),
+      /The next run was not started: every one of its prompts has an answer on its way already\./,
+    ],
+    [
+      'prompt_unknown',
+      () =>
+        refused(422, 'validation_failed', {
+          errors: [{ location: 'body', path: 'prompt_ids', code: 'prompt_unknown', message: 'Unknown prompt' }],
+        }),
+      /The next run was not started: some of its prompts are archived or gone\. The list is read again\./,
+    ],
+  ])(
+    'says the next run was not started, not that nothing was, when the first went and %s refuses the second',
+    async (_name, respond, text) => {
+      addPrompts(160);
+      let calls = 0;
+      server.use(
+        http.post(BULK_RUN, async ({ request }) => {
+          calls += 1;
+          const ids = await idsOf(request);
+          return calls === 1 ? queued(ids.length) : respond();
+        }),
+      );
+      const { user } = renderOn('editor', '?tab=prompts');
+      const table = await prompts();
+      await user.click(await within(table).findByRole('checkbox', { name: 'Select all 183 prompts loaded' }));
+      await confirmRun(user, 183);
+      await said('Run started: 150 prompts on 2 engines');
+      await said(text);
+      expect(screen.queryByText(/Nothing was started/)).toBeNull();
+      expect(calls).toBe(2);
+    },
+    60_000,
+  );
+
   it('asks no run after the page was left in the middle of the first', async () => {
     addPrompts(160);
     let calls = 0;
@@ -598,6 +666,18 @@ describe('Archive for the chosen prompts', () => {
     await said(
       'The workspace has 149 of 150 active prompts, so 2 prompts do not fit. None was brought back. Archive other prompts first.',
     );
+  });
+
+  it('counts what Undo brings back against what was archived, not against the prompts that were named', async () => {
+    // One of the three prompts is gone by the time of either request
+    server.use(http.post(BULK_ARCHIVE, () => HttpResponse.json({ data: { matched: 2, updated: 2 } })));
+    const { user } = renderOn('editor', '?tab=prompts');
+    await tick(user, [FIRST, SECOND, THIRD]);
+    await user.click(within(bar()).getByRole('button', { name: 'Archive' }));
+    await said('Archived 2 of 3 prompts');
+    await user.click((await screen.findAllByRole('button', { name: 'Undo' }))[0] as HTMLElement);
+    await said('2 prompts restored');
+    expect(screen.queryByText(/Restored 2 of 3/)).toBeNull();
   });
 
   it('says how many were brought back when Undo found fewer', async () => {

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  BULK_ARCHIVE_MAX,
   BULK_RUN_MAX,
   chunkIds,
+  isFreshCount,
   MANUAL_RUN_CAP,
   planRuns,
   runProblemOf,
@@ -110,6 +112,32 @@ describe('the runs a choice of prompts makes', () => {
     expect(runs[1]?.[0]).toBe('p150');
     expect(chunkIds(ids(301)).map((run) => run.length)).toEqual([150, 150, 1]);
     expect(chunkIds([])).toEqual([]);
+  });
+
+  it('takes 1,000 prompts in one archive request, and splits more into requests of 1,000', () => {
+    expect(BULK_ARCHIVE_MAX).toBe(1000);
+    expect(chunkIds(ids(1100), BULK_ARCHIVE_MAX).map((request) => request.length)).toEqual([1000, 100]);
+  });
+});
+
+describe('how long the count of the day stays true', () => {
+  const at = Date.parse('2026-11-12T12:00:00Z');
+  const minutes = (count: number): number => count * 60_000;
+
+  it('is true for half an hour of the same UTC day', () => {
+    expect(isFreshCount(at, at)).toBe(true);
+    expect(isFreshCount(at, at + minutes(29))).toBe(true);
+    expect(isFreshCount(at, at + minutes(31))).toBe(false);
+  });
+
+  it('is not true on the next UTC day, however short the time since', () => {
+    const late = Date.parse('2026-11-12T23:50:00Z');
+    expect(isFreshCount(late, late + minutes(5))).toBe(true);
+    expect(isFreshCount(late, late + minutes(20))).toBe(false);
+  });
+
+  it('is not true when the clock went back', () => {
+    expect(isFreshCount(at, at - minutes(1))).toBe(false);
   });
 });
 

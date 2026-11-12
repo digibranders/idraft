@@ -116,10 +116,10 @@ describe('Run now from the menu of a topic', () => {
     await user.click(await screen.findByRole('button', { name: 'Run 12 prompts' }));
     expect((await screen.findAllByText(/^Run started: 12 prompts on \d engines?$/)).length).toBeGreaterThan(0);
     expect((await screen.findAllByText(/^About \$/)).length).toBeGreaterThan(0);
-    // One request with the 12 prompts, and the engines left to the API; none of the single prompt route
+    // One request with the 12 prompts and the engines that are on, so what the API left out is read against them; none of the single prompt route
     expect(bodies).toHaveLength(1);
     expect(bodies[0]?.prompt_ids).toHaveLength(12);
-    expect(bodies[0]?.engine_codes).toBeUndefined();
+    expect(bodies[0]?.engine_codes).toEqual(['chatgpt_web', 'gemini_web']);
     expect(singles).toEqual([]);
   });
 });

@@ -30,19 +30,20 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
   restoreWideScreen();
   server.events.removeAllListeners();
 });
 
-const cell = (value: number | null): MetricCell => ({
+const cell = (value: number | null, answers = 4): MetricCell => ({
   value,
-  numerator: value === null ? 0 : value * 4,
-  denominator: value === null ? 0 : 4,
-  n_observations: 4,
+  numerator: value === null ? 0 : value * answers,
+  denominator: value === null ? 0 : answers,
+  n_observations: answers,
 });
-const week = (weekStart: string, value: number | null): WeekCells => ({
+const week = (weekStart: string, value: number | null, answers = 4): WeekCells => ({
   week_start: weekStart,
-  mentioned: cell(value),
+  mentioned: cell(value, answers),
   cited: cell(null),
   share_of_voice: cell(null),
 });
@@ -79,22 +80,36 @@ function Trend({ row }: { row: TestRow }): ReactElement {
 }
 
 describe('the Trend cell of a row', () => {
+  const FIVE = ['2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02', '2026-11-09'] as const;
+  const fiveWeeks = (rates: readonly (number | null)[], answers = 4): WeekCells[] =>
+    FIVE.map((start, at) => week(start, rates[at] ?? null, answers));
+
   it('draws the weekly mention rate and says it in words: the rate of each week, a gap saying so', () => {
+    const rates = [0.3, 0.2, null, 0.6, 0.7];
     renderWithProviders(
       <Trend
-        row={{
-          cells: [
-            summaryOf('chatgpt_web', [week('2026-10-12', 0.2), week('2026-10-19', null), week('2026-10-26', 0.6)]),
-            summaryOf('gemini_web', [week('2026-10-12', 0.2), week('2026-10-19', null), week('2026-10-26', 0.6)]),
-          ],
-        }}
+        row={{ cells: [summaryOf('chatgpt_web', fiveWeeks(rates)), summaryOf('gemini_web', fiveWeeks(rates))] }}
       />,
     );
-    expect(screen.getByRole('img', { name: 'Mention rate by week: 20%, no answers, 60%' })).toBeInTheDocument();
-    // The first and the last week with a rate, and which way it went, for the keyboard too
+    expect(
+      screen.getByRole('img', { name: 'Mention rate by week: 30%, 20%, no answers, 60%, 70%' }),
+    ).toBeInTheDocument();
+    // The first and the last week with a rate, and which way it went between the full weeks, for the keyboard too
     expect(screen.getByTestId('tip')).toHaveTextContent(
-      '20% the week of Oct 12, 60% the week of Oct 26 | Going up over the window',
+      '30% the week of Oct 12, 70% the week of Nov 9 | Going up over the full weeks with enough answers',
     );
+  });
+
+  it('says no direction from weeks of one answer each, though it lists their rates', () => {
+    renderWithProviders(<Trend row={{ cells: [summaryOf('chatgpt_web', fiveWeeks([0, 1, 0, 1, 0], 1))] }} />);
+    expect(screen.getByRole('img', { name: 'Mention rate by week: 0%, 100%, 0%, 100%, 0%' })).toBeInTheDocument();
+    expect(screen.getByTestId('tip')).toHaveTextContent('0% the week of Oct 12, 0% the week of Nov 9 |');
+    expect(screen.getByTestId('tip')).not.toHaveTextContent(/Going|About the same/);
+  });
+
+  it('reads the direction from the weeks inside the window, not from the first and the last, which it cuts', () => {
+    renderWithProviders(<Trend row={{ cells: [summaryOf('chatgpt_web', fiveWeeks([0.1, 0.5, 0.5, 0.5, 0.9]))] }} />);
+    expect(screen.getByTestId('tip')).toHaveTextContent('About the same over the full weeks with enough answers');
   });
 
   it('says so, and draws a dashed line, when no week has a rate', () => {
@@ -109,7 +124,9 @@ describe('the Trend cell of a row', () => {
     renderWithProviders(
       <Trend row={{ cells: [summaryOf('chatgpt_web', [week('2026-10-12', null), week('2026-10-19', 0.4)])] }} />,
     );
-    expect(screen.getByTestId('tip')).toHaveTextContent('40% the week of Oct 19 | About the same over the window');
+    // One week with a rate has nothing to compare with
+    expect(screen.getByTestId('tip')).toHaveTextContent('40% the week of Oct 19 |');
+    expect(screen.getByTestId('tip')).not.toHaveTextContent(/Going|About the same/);
   });
 
   it('is blank, and has no tooltip, while the series is not there: not loaded, a failed read, or an older API', () => {
@@ -169,6 +186,22 @@ describe('the Trend column of the tables', () => {
     // One read of the summary, for the strip and both tables, and it asks for the weeks
     expect(summaries.length).toBeGreaterThan(0);
     expect(summaries.every((url) => /[?&]include=series(&|$)/.test(url))).toBe(true);
+  });
+
+  it('does not draw the sparklines again when a row is chosen: only a change of the data draws them', async () => {
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext');
+    const { user } = renderOn('?tab=prompts');
+    const grid = await screen.findByRole('grid', { name: 'Prompts' });
+    await waitFor(() =>
+      expect(within(grid).getAllByRole('img', { name: /^Mention rate by week: / }).length).toBeGreaterThan(0),
+    );
+    const [, first, second] = within(grid).getAllByRole('checkbox');
+    await user.click(first as HTMLElement);
+    await waitFor(() => expect(screen.getByRole('group', { name: /^Bulk actions, 1 selected/ })).toBeInTheDocument());
+    const drawn = getContext.mock.calls.length;
+    await user.click(second as HTMLElement);
+    await waitFor(() => expect(screen.getByRole('group', { name: /^Bulk actions, 2 selected/ })).toBeInTheDocument());
+    expect(getContext.mock.calls.length).toBe(drawn);
   });
 
   it('is on the Prompts tab after Citation rate, with a sparkline for each prompt', async () => {

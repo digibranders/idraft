@@ -1,5 +1,6 @@
+import { validAnswers } from './prompt-model';
 import type { EngineSummary } from '@/lib/api/types';
-import { equalWeightAverage } from '@/lib/stats';
+import { equalWeightAverage, MIN_OBSERVATIONS } from '@/lib/stats';
 
 /**
  * The weekly Trend of Topics & Prompts (parity spec G29, task W11): a row's mention rate for each week of the
@@ -10,6 +11,8 @@ import { equalWeightAverage } from '@/lib/stats';
 export interface TrendPoint {
   weekStart: string;
   value: number | null;
+  /** An engine has a rate this week over at least `MIN_OBSERVATIONS` valid answers: the week may say which way things went. */
+  enough: boolean;
 }
 
 /**
@@ -28,29 +31,34 @@ export function trendPoints(
     engineCodes.includes(cell.engine_code) && cell.series != null ? [cell.series] : [],
   );
   if (series.length === 0) return null;
-  const weeks = [...new Set(series.flatMap((weeks) => weeks.map((entry) => entry.week_start)))].sort();
-  return weeks.map((weekStart) => ({
-    weekStart,
-    value: equalWeightAverage(
-      series.map((weeks) => weeks.find((entry) => entry.week_start === weekStart)?.mentioned.value ?? null),
-    ).value,
-  }));
+  const starts = [...new Set(series.flatMap((weeks) => weeks.map((entry) => entry.week_start)))].sort();
+  return starts.map((weekStart) => {
+    const ofWeek = series.flatMap((weeks) => weeks.find((entry) => entry.week_start === weekStart)?.mentioned ?? []);
+    return {
+      weekStart,
+      value: equalWeightAverage(ofWeek.map((cell) => cell.value)).value,
+      // A topic's weekly cell counts its answers in `pooled`, a prompt's in its denominator
+      enough: ofWeek.some((cell) => cell.value !== null && validAnswers(cell) >= MIN_OBSERVATIONS),
+    };
+  });
 }
 
-/** A move of less than this many points (as a share, so 0.05 is 5 points) between the first and last week is no move. */
+/** A move of less than this many points (as a share, so 0.05 is 5 points) between two weeks is no move. */
 export const TREND_FLAT_BAND = 0.05;
 
-export type TrendDirection = 'up' | 'down' | 'flat';
+/** `none`: there are not two weeks to compare, so nothing is said about a direction. */
+export type TrendDirection = 'up' | 'down' | 'flat' | 'none';
 
 /**
- * Which way the rate went: the last week with a rate against the first one. Flat without two such weeks, and
- * within `TREND_FLAT_BAND`. The sparkline's color and its words follow this.
+ * Which way the rate went: the last week against the first one that have a rate over enough valid answers, leaving
+ * out the first and the last week of the series, which the window cuts short. `none` without two such weeks (a
+ * rate over one answer against another over one is no direction), else flat within `TREND_FLAT_BAND`.
  */
 export function trendDirection(points: readonly TrendPoint[]): TrendDirection {
-  const known = points.flatMap((point) => (point.value === null ? [] : [point.value]));
+  const known = points.slice(1, -1).flatMap((point) => (point.enough && point.value !== null ? [point.value] : []));
   const first = known[0];
   const last = known.at(-1);
-  if (known.length < 2 || first === undefined || last === undefined) return 'flat';
+  if (known.length < 2 || first === undefined || last === undefined) return 'none';
   const change = last - first;
   return Math.abs(change) < TREND_FLAT_BAND ? 'flat' : change > 0 ? 'up' : 'down';
 }

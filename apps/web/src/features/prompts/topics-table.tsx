@@ -27,6 +27,7 @@ import { DataTable } from '@/components/app/data-table/data-table';
 import type { DataTableColumn, RowTree, TableStatus } from '@/components/app/data-table/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tooltip } from '@/components/ui/tooltip';
 import type { EngineSummary, ProjectEngine, PromptsSummary, PromptSummaryRow, TopicSummaryRow } from '@/lib/api/types';
 import { EMPTY_VALUE } from '@/lib/format';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
@@ -227,6 +228,11 @@ export function TopicsTable({
     [t],
   );
   const columns = useMemo((): DataTableColumn<TopicRow>[] => {
+    /** What a topic opens onto, in words: its topics, or its prompts when it has none below it. */
+    const countText = (row: TopicHead): string =>
+      row.childCount > 0
+        ? t('topics.childTopics', { count: row.childCount })
+        : t('topics.promptCount', { count: row.promptCount });
     const name = col.keyword<TopicRow>('topic', rowName, {
       header: t('topics.topic'),
       // Room for a name and the count after it, which the identity column's default leaves too little of: a topic such
@@ -280,11 +286,11 @@ export function TopicsTable({
               </Button>
               {/* Only a row that opens (its prompts are known) has the count of what it opens onto */}
               {row.members === null ? null : (
-                <span className="min-w-0 truncate num font-normal text-foreground-tertiary">
-                  {row.childCount > 0
-                    ? t('topics.childTopics', { count: row.childCount })
-                    : t('topics.promptCount', { count: row.promptCount })}
-                </span>
+                // Cut to an ellipsis where the cell is narrow: the tooltip has all of it (it repeats the text, so it is
+                // for sighted users only)
+                <Tooltip content={countText(row)} purpose="label">
+                  <span className="min-w-0 truncate num font-normal text-foreground-tertiary">{countText(row)}</span>
+                </Tooltip>
               )}
             </span>
           );
