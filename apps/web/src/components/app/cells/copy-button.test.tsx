@@ -58,6 +58,24 @@ describe('CopyButton', () => {
     expect(button()).toHaveFocus();
   });
 
+  it('outside a grid is a normal tab stop with a focus ring, and still copies and announces', async () => {
+    // user-event paces its keys on timers, which the fake ones would never fire
+    vi.useRealTimers();
+    const { user } = renderWithProviders(
+      <CopyButton text="seo agency" label={NAME} announcement="Keyword copied" inGrid={false} />,
+    );
+    stubClipboard({ writeText });
+    expect(button()).not.toHaveAttribute('tabindex', '-1');
+    expect(button()).not.toHaveAttribute('data-cell-control');
+    expect(button()).toHaveClass('focus-visible:focus-ring');
+    await user.tab();
+    expect(button()).toHaveFocus();
+    await click(button());
+    expect(writeText).toHaveBeenCalledExactlyOnceWith('seo agency');
+    expect(polite()).toHaveTextContent('Keyword copied');
+    expect(glyph(copiedButton())).toContain('lucide-check');
+  });
+
   it('copies exactly the text it was given, quotes, line breaks and parameters included', async () => {
     const text = 'say "hi"\nthen\tgo https://fynix.digital/a?utm_source=x&b=1#frag';
     renderButton(text);

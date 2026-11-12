@@ -178,6 +178,34 @@ describe('URLCell links and actions', () => {
     expect(link).toHaveFocus();
   });
 
+  it('in a list reaches Copy by Tab after the link, and Open after Copy', async () => {
+    const { user } = renderWithProviders(<URLCell {...cell({ context: 'list', inspectorHref: HREF })} />);
+    const copy = screen.getByRole('button', { name: 'Copy cited page' });
+    expect(copy).not.toHaveAttribute('tabindex', '-1');
+    expect(copy).not.toHaveAttribute('data-cell-control');
+    await user.tab();
+    expect(screen.getByRole('link', { name: 'hubspot.com/pricing' })).toHaveFocus();
+    await user.tab();
+    expect(copy).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('link', { name: 'Open hubspot.com/pricing in a new tab' })).toHaveFocus();
+  });
+
+  it('in a list without an inspector reaches Copy by Tab after the outbound link', async () => {
+    const { user } = renderWithProviders(<URLCell {...cell({ context: 'list' })} />);
+    await user.tab();
+    expect(screen.getByRole('link')).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Copy cited page' })).toHaveFocus();
+  });
+
+  it('in a grid keeps Copy out of the tab order, a cell control the table reaches with F2', () => {
+    renderWithProviders(<URLCell {...cell()} />);
+    const copy = screen.getByRole('button', { name: 'Copy cited page' });
+    expect(copy).toHaveAttribute('tabindex', '-1');
+    expect(copy).toHaveAttribute('data-cell-control');
+  });
+
   it('copies the original address, not what the cell shows', async () => {
     const { user } = renderWithProviders(<URLCell {...cell()} />);
     await user.click(screen.getByRole('button', { name: 'Copy cited page' }));

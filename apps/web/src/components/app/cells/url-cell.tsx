@@ -100,7 +100,13 @@ export function URLCell({
   const href = parsed.valid ? webHref(url) : null;
   const gridProps = context === 'grid' ? GRID_LINK : {};
   const copy = (placement: 'overlay' | 'inline'): ReactElement => (
-    <CopyButton text={url} label={t('copy', { label })} announcement={t('copied', { label })} placement={placement} />
+    <CopyButton
+      text={url}
+      label={t('copy', { label })}
+      announcement={t('copied', { label })}
+      placement={placement}
+      inGrid={context === 'grid'}
+    />
   );
   const root = cn(
     'group/cell relative flex min-w-0 items-center gap-1.5 bg-inherit font-mono type-table',
