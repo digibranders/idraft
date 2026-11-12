@@ -126,6 +126,51 @@
       "analyst": "Analyst",
       "viewer": "Viewer",
       "billing": "Billing"
+    },
+    "domainCell": {
+      "roles": {
+        "own": "Own",
+        "competitor": "Competitor",
+        "thirdParty": "Third party"
+      },
+      "redirect": "Redirect not resolved"
+    },
+    "domainChip": {
+      "more": "{count} more cited domains"
+    },
+    "urlCell": {
+      "none": "No URL",
+      "invalid": "Invalid URL",
+      "copy": "Copy {label}",
+      "copied": "{label} copied",
+      "open": "Open {path} in a new tab"
+    },
+    "countPopover": {
+      "more": "and {count} more"
+    },
+    "changeFeed": {
+      "groups": {
+        "needsAttention": "Needs attention",
+        "changes": "Changes",
+        "notices": "Notices"
+      },
+      "groupCount": "{count, plural, one {# change} other {# changes}}",
+      "viewAll": "View all {count} changes",
+      "view": "View",
+      "viewItem": "View: {text}",
+      "loading": "Loading changes",
+      "empty": "No detectable changes in {window}",
+      "emptyReason": "Changes within normal variation are left out.",
+      "errorTitle": "Changes did not load",
+      "errorReason": "The request failed. Try again.",
+      "arrived": "{count, plural, one {# new change} other {# new changes}}"
+    },
+    "countTabs": {
+      "item": "{label}, {count}"
+    },
+    "inspectorStepping": {
+      "position": "{index} of {count}",
+      "announce": "{type}, {index} of {count}"
     }
   },
   "auth": {

@@ -21,6 +21,7 @@ export const PREVIEW_SECTION_SLUGS = [
   'feedback',
   'metric-parts',
   'chart-grids',
+  'domains-feeds',
 ] as const;
 
 export type PreviewSectionSlug = (typeof PREVIEW_SECTION_SLUGS)[number];
