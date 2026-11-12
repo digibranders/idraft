@@ -72,9 +72,9 @@ describe.each(PREVIEW_SECTIONS)('the $slug section', ({ title, render: Section }
           <Section />
         </>,
       );
-      // Every specimen group is a titled section; a section inside a specimen (a panel's) has its own heading level
+      // Every section is titled by an h2, except the sections of a StatisticsPanel, which are h3 by design
       const groups = Array.from(container.querySelectorAll('section')).filter(
-        (group) => group.parentElement?.closest('section') === null,
+        (group) => group.closest('[data-slot="statistics-panel"]') === null,
       );
       expect(groups.length).toBeGreaterThan(0);
       for (const group of groups) expect(group.querySelector('h2')?.textContent).toBeTruthy();
