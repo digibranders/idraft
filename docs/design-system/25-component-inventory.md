@@ -4563,7 +4563,7 @@ interface CostSummaryProps { monthToDate: MetricValue; projected: MetricValue; b
 ### 17.2 BudgetMeter
 `app/metric/budget-meter.tsx` · V1 · [23 §11.2](23-application-patterns.md)
 
-> As built (WP-07): the component is in `apps/web/src/components/app/metric/meter.tsx`, not `metric/budget-meter.tsx`, and `apps/web/src/features/costs/budget-meter.tsx` re-exports it. The props are the costs ones (`pct`, `softLimitPct`, `state`, `size`, `label`), not `spentUsd` and `limitUsd`, so the costs screens and this preset share one implementation.
+> As built (WP-07): the component is in `apps/web/src/components/app/metric/meter.tsx`, not `metric/budget-meter.tsx`, and `apps/web/src/features/costs/budget-meter.tsx` re-exports it. The props are the costs ones (`pct`, `softLimitPct`, `state`, `size`, `label`), not `spentUsd` and `limitUsd`, so the costs screens and this preset share one implementation. One edge differs from the old costs meter: when the soft limit is 100 or more and the share passes 100 without the hard state, the whole fill turns warning (the old meter drew a zero width warning segment). The API cannot produce that case.
 
 Purpose: `Meter` preset: 6 px outline-track meter, fill `foreground-muted` below the soft limit and `warning-solid` from it, tick at the soft limit, text value always beside it.
 

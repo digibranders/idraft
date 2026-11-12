@@ -1167,7 +1167,7 @@ Opened from any AI rate tile, rate column header, or trend chart via "Statistics
 > - MetricInfo and StatisticsPanel take typed content props instead of a `metricKey`, because no metric registry exists yet. Consumers map API data to them.
 > - No `RefetchBar` exists. A refetching StatisticsPanel keeps its data at full opacity with `aria-busy`, and the consuming inspector draws the 2 px bar.
 > - The movers (item 4) and panel sizing (item 6) are not rendered. WP-58 and the panels packages add them.
-> - The Banner tone `neutral` (a fact with no judgement, used for "not cited") and placement `inspector` are additive. WP-41 reuses them.
+> - The Banner tone `neutral` (a fact with no judgement, used for "not cited") and placement `inspector` are additive. WP-21 uses them for the citation banner of the prompt inspector (WB-PI-21).
 > - EngineBadge with a logo repeats the neutral subtle classes of `Badge` in a span. Revisit this when `ui/badge.tsx` exports `badgeVariants`.
 > - The "interim" test label stays until the API sends `is_detectable` (D-2).
 

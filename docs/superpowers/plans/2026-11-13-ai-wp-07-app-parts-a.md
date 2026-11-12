@@ -275,7 +275,7 @@ Behaviour: `neutral` uses `border-border-subtle bg-surface-subtle` with the `Inf
 the live role rule is unchanged (`status` for every tone except `negative`). Inspector use (WB-PI-21): cited is
 `tone="info"`, lead "Cited", message "Cited in 3 of 8 answers; last answer Nov 11, 09:05; 13 pages cited"; not cited
 is `tone="neutral"`, "Not cited in any of the 8 answers". Every count shows its denominator; with no answers the
-consumer shows no banner (unknown is never "0 of 0"). The copy itself belongs to WP-25 (inspector completion); the
+consumer shows no banner (unknown is never "0 of 0"). The copy itself belongs to WP-21 (Prompt Citations tab); the
 gallery and tests pass sample strings as props.
 
 Tests first (`banner.test.tsx`):
@@ -439,7 +439,7 @@ infra/dev/heavy --label wp-07-e2e   -- bash -c 'cd apps/web && E2E_PORT=3107 pnp
 | What | Where it lands |
 |---|---|
 | Delta, DeltaCell and EngineLogo in real pages, strips, legends and columns, with real data and their page-level loading, empty, error, partial and stale states | W3 web packages, WB-OV, WB-CIT, WB-CMP (the inventory's "Needed by") |
-| The citation banner copy and data in the prompt inspector (WB-PI-21) | WP-25 inspector completion |
+| The citation banner copy and data in the prompt inspector (WB-PI-21) | WP-21 citations core |
 | The quota meter "120 of 150 active prompts" (WB-TPH-14) and the budgets page (WB-SET-15) | Their packages, once the CF-11 limits read exists |
 | `itab=stats` and `stats=<metric>:<engine>` URL state, the 560 px region, RefetchBar | The inspector and statistics consumers (WP-25, WP-58 web side) |
 | Movers (BH) and panel sizing sections; the paired test and server interval that end the "interim" label | WP-58 and the panels packages |

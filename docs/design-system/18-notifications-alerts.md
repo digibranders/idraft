@@ -112,7 +112,7 @@ Toast copy: result first, past tense, with the object and count: "12 keywords ar
 
 | Property | Page banner | Region banner (dialog, panel) |
 |---|---|---|
-| Position | Directly under the page header (and filter bar), above the first content region | Top of the inspector body, dialog body or panel |
+| Position | Directly under the page header (and filter bar), above the first content region | Top of the dialog body or panel |
 | Width | Full content width, no radius, 1 px bottom border in the family's `-border` | Content width, `rounded-md`, 1 px border all sides |
 | Padding | 8 px vertical, 20 px horizontal (the page gutter) | 8 px vertical, 12 px horizontal |
 | Background | Family `-subtle` | Family `-subtle` |
