@@ -9,7 +9,7 @@ import {
   MarkPointComponent,
   TooltipComponent,
 } from 'echarts/components';
-import { init, use as registerModules, type ECharts } from 'echarts/core';
+import { connect, init, use as registerModules, type ECharts } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { useEffect, useRef, type ReactElement } from 'react';
 
@@ -33,7 +33,12 @@ export interface EChartProps {
   option: (tokens: ChartTokens) => Record<string, unknown>;
   /** Pixel height of the canvas: 140, 180, 240 or 280 by context. */
   height: number;
+  /** Charts with the same group share their axis pointer: hovering one shows the crosshair in all (small multiples). */
+  group?: string | undefined;
 }
+
+/** Groups `connect` has been called for; the call is idempotent, so once is enough. */
+const connectedGroups = new Set<string>();
 
 /**
  * The ECharts canvas (15-data-visualization.md section 3): the instance lives with the element, follows
@@ -41,7 +46,7 @@ export interface EChartProps {
  * class and a colour scheme on `<html>`, which the theme switch writes after React commits, so the canvas
  * watches `<html>` and reads the colours again once they have changed.
  */
-export function EChart({ option, height }: EChartProps): ReactElement {
+export function EChart({ option, height, group }: EChartProps): ReactElement {
   const element = useRef<HTMLDivElement>(null);
   const chart = useRef<ECharts | null>(null);
   const latestOption = useRef(option);
@@ -64,6 +69,16 @@ export function EChart({ option, height }: EChartProps): ReactElement {
       chart.current = null;
     };
   }, []);
+
+  // After the instance exists (effects run in order)
+  useEffect(() => {
+    if (group === undefined || chart.current === null) return;
+    chart.current.group = group;
+    if (!connectedGroups.has(group)) {
+      connectedGroups.add(group);
+      connect(group);
+    }
+  }, [group]);
 
   useEffect(() => {
     latestOption.current = option;
