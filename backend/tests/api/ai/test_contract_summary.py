@@ -32,7 +32,6 @@ _UUID = uuid.UUID("3b1c5f0e-7a64-4d52-9c0a-1f2e8d6b4a97")
 
 # Every value of the contract the summary does not build yet, one for each parameter at least.
 NOT_BUILT_OPTIONS = [
-    {"compare": "previous_period"},
     {"include": "total"},
     {"include": "series,co_mentions"},
     {"rows": "topics"},
@@ -72,7 +71,7 @@ async def test_the_summary_checks_access_before_it_says_not_built(
     outsider = await member(resources, migrated, await make_workspace(migrated), "owner")
     project = await ai_project(migrated, workspace)
     url = project_url(workspace, project, "ai", "prompts-summary")
-    params = {"compare": "previous_period"}
+    params = {"include": "total"}
 
     refused = await api.get(url, params=params, headers=billing.headers)
     unseen = await api.get(url, params=params, headers=outsider.headers)
@@ -110,7 +109,7 @@ async def test_the_summary_checks_access_before_it_checks_a_value(
 
     response = await api.get(
         project_url(workspace, project, "ai", "prompts-summary"),
-        params={"compare": "previous_year"},
+        params={"compare": "previous_decade"},
         headers=billing.headers,
     )
 
@@ -126,7 +125,7 @@ async def test_a_value_out_of_the_contract_is_refused_before_one_not_built(
 
     response = await api.get(
         project_url(workspace, project, "ai", "prompts-summary"),
-        params={"group_by": "language", "compare": "previous_period"},
+        params={"group_by": "language", "rows": "topics"},
         headers=viewer.headers,
     )
 
@@ -136,7 +135,11 @@ async def test_a_value_out_of_the_contract_is_refused_before_one_not_built(
 @pytest.mark.parametrize(
     "params",
     [
-        {"compare": "previous_year"},
+        {"compare": "previous_decade"},
+        {"compare_from": "2026-01-01"},
+        {"compare_to": "2026-01-10"},
+        {"compare_from": "2026-01-10", "compare_to": "2026-01-01"},
+        {"compare_from": "2026-01-01", "compare_to": "nope"},
         {"rows": "all"},
         {"filter[opportunity]": "lost_to:nope"},
         {"filter[opportunity]": "xnamed_not_citedx"},
@@ -170,6 +173,62 @@ async def test_an_option_value_out_of_the_contract_is_refused(
     )
 
     assert problem(response) == INVALID
+
+
+async def test_a_compare_window_is_at_most_92_days(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "ai", "prompts-summary")
+
+    longest = await api.get(
+        url,
+        params={"compare_from": "2026-01-01", "compare_to": "2026-04-02"},
+        headers=viewer.headers,
+    )
+    too_long = await api.get(
+        url,
+        params={"compare_from": "2026-01-01", "compare_to": "2026-04-03"},
+        headers=viewer.headers,
+    )
+
+    assert longest.status_code == 200, longest.text
+    assert problem(too_long) == (422, "window_too_large")
+    assert too_long.json()["limit_days"] == 92
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"compare": "previous_period"},
+        {"compare": "previous_year"},
+        {"compare_from": "2026-01-05", "compare_to": "2026-01-10"},
+        {"compare": "none", "compare_from": "2026-01-05", "compare_to": "2026-01-10"},
+    ],
+    ids=str,
+)
+async def test_every_compare_option_is_built_and_states_its_window(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    params: dict[str, str],
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.get(
+        project_url(workspace, project, "ai", "prompts-summary"),
+        params=params,
+        headers=viewer.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert set(data["compare_window"]) == {"from", "to", "timezone"}
+    assert data["previous_answers"] == 0
 
 
 @pytest.mark.parametrize(
@@ -256,7 +315,17 @@ def test_the_api_document_has_the_summary_additions() -> None:
 
     parameters = document["paths"][SUMMARY_PATH]["get"]["parameters"]
     names = {parameter["name"] for parameter in parameters}
-    assert {"compare", "rows", "filter[outcome]", "filter[opportunity]", "group_by"} <= names
+    assert {
+        "compare",
+        "compare_from",
+        "compare_to",
+        "rows",
+        "filter[outcome]",
+        "filter[opportunity]",
+        "group_by",
+    } <= names
+    compare = next(item for item in parameters if item["name"] == "compare")
+    assert set(compare["schema"]["enum"]) == {"none", "previous_period", "previous_year"}
     include = next(item for item in parameters if item["name"] == "include")
     array = next(option for option in include["schema"]["anyOf"] if option["type"] == "array")
     assert set(array["items"]["enum"]) == {

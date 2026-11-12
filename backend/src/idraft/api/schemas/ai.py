@@ -10,6 +10,7 @@ sections 3.7.1 and 3.7.4).
 from __future__ import annotations
 
 from datetime import date, datetime
+from enum import Enum
 from typing import Annotated, Final, Literal
 from uuid import UUID
 
@@ -616,7 +617,7 @@ class MetricCell(BaseModel):
 
 # `total` and `co_mentions`: contract C2, not built yet (`501`).
 SummaryInclude = Literal["series", "entities", "total", "co_mentions"]
-SummaryCompare = Literal["none", "previous_period"]
+SummaryCompare = Literal["none", "previous_period", "previous_year"]
 SummaryRows = Literal["topics", "none"]
 SummaryGroupBy = Literal["country"]
 OPPORTUNITY_PATTERN = (
@@ -630,6 +631,21 @@ class OutcomeCells(BaseModel):
     mentioned_only: MetricCell
     cited_only: MetricCell
     neither: MetricCell
+
+
+class NotAsked(Enum):
+    """The default of `previous`, which tells "compare was not asked" (the key is left out)
+    from None, "asked, and the window has no answer" (the key is null): the contract keeps
+    them apart (C2 change log, C-2)."""
+
+    NOT_ASKED = "not_asked"
+
+
+NOT_ASKED: Final = NotAsked.NOT_ASKED
+
+
+def _not_asked(value: object) -> bool:
+    return value is NOT_ASKED
 
 
 class EngineCells(BaseModel):
@@ -660,11 +676,15 @@ class EntityCells(BaseModel):
         description="The entity's share of each answer that names a tracked entity: 1 / the "
         "tracked entities the answer names."
     )
-    previous: EntityPreviousCells | None = Field(
-        default=None,
-        exclude_if=_absent,
-        description="With `compare=previous_period`: the cells over `compare_window`, null when "
-        "the entity had no answer there; never set inside a week. " + _NOT_RETURNED,
+    previous: EntityPreviousCells | SkipJsonSchema[NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With a compare window and `include=entities`: Mentioned and Share of voice "
+        "over `compare_window`. Null exactly when the engine's `previous` is null, that is, when "
+        "none of the row's prompts has an answer of the engine there; otherwise cells, an "
+        "entity not named in the valid answers being 0 of their number. Never set inside a week. "
+        "Left out when no compare window was asked for.",
     )
 
 
@@ -694,12 +714,14 @@ class EngineSummary(BaseModel):
     cited: MetricCell
     outcomes: OutcomeCells
     share_of_voice: MetricCell
-    previous: EngineCells | None = Field(
-        default=None,
-        exclude_if=_absent,
-        description="With `compare=previous_period`: the same cells over `compare_window`, null "
-        "when the engine had no answer of the row's prompts there (no data is not a rate of 0). "
-        + _NOT_RETURNED,
+    previous: EngineCells | SkipJsonSchema[NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With a compare window: the same cells over `compare_window`. Null when none "
+        "of the row's prompts has an answer of any status on the engine there (no data is not a "
+        "rate of 0); with answers but no valid one, cells with a denominator of 0 and no value. "
+        "Left out when no compare window was asked for.",
     )
     series: list[WeekCells] | None = Field(
         default=None,
@@ -801,14 +823,16 @@ class PromptsSummary(BaseModel):
     compare_window: MetricWindow | None = Field(
         default=None,
         exclude_if=_absent,
-        description="With `compare=previous_period`: as many days just before `window`. "
-        + _NOT_RETURNED,
+        description="With a compare window (`compare`, or `compare_from` and `compare_to`): the "
+        "days compared with. The window before `window`, as many days, for `previous_period`; "
+        "the same dates a year earlier for `previous_year`; the two dates given, which win over "
+        "`compare`.",
     )
     previous_answers: int | None = Field(
         default=None,
         exclude_if=_absent,
-        description="With `compare`: the valid answers in scope in that window; 0 means it has "
-        "no data. " + _NOT_RETURNED,
+        description="With a compare window: the valid answers in scope in that window, on the "
+        "engines shown; 0 means it has no data.",
     )
     include_branded: bool = Field(
         description="Branded prompts are counted: `include_branded` or `branded_only` was set."

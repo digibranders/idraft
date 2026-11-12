@@ -69,6 +69,8 @@ class SummaryPrompt:
     id: UUID
     text: str
     is_branded: bool
+    # The prompt's market, null when it has none.
+    country_iso: str | None
     topic_term_ids: tuple[UUID, ...]
 
 
@@ -161,7 +163,7 @@ async def summary_prompts(
     `term_id` or a term under it (as the prompt list's `filter[term]`)."""
     p, v = ai_prompts.c, ai_prompt_versions.c
     statement = (
-        select(p.id, v.text, p.is_branded)
+        select(p.id, v.text, p.is_branded, p.country_iso)
         .join(
             ai_prompt_versions,
             and_(v.id == p.current_version_id, v.workspace_id == p.workspace_id),
@@ -204,6 +206,7 @@ async def summary_prompts(
             id=row.id,
             text=row.text,
             is_branded=row.is_branded,
+            country_iso=row.country_iso,
             topic_term_ids=tuple(sorted(assigned.get(row.id, []), key=str)),
         )
         for row in rows

@@ -62,10 +62,16 @@ Summaries = Annotated[SummaryService, Depends(get_summary_service)]
     "(sums of per-week prompt rates and prompt counts) do not add up to the window cell, while "
     "`pooled`, Share of voice and n_observations do. `include=entities` adds, per engine, a "
     "Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most "
-    "20); across all the entities an answer names, its shares add up to 1. Blocks not asked for "
-    "are left out. `compare`, `include=total`, `include=co_mentions`, `rows`, "
-    "`filter[outcome]`, `filter[opportunity]` and `group_by` are published and not built yet "
-    "(`501`).",
+    "20); across all the entities an answer names, its shares add up to 1. "
+    "`compare=previous_period` (as many days just before the window), `compare=previous_year` "
+    "(the same dates a year earlier; 29 February becomes the 28th) or `compare_from` with "
+    "`compare_to` (both or neither, at most 92 days, any position; they win over `compare`) add "
+    "`compare_window` and `previous_answers` (the valid answers in scope there), and `previous` "
+    "beside each engine's cells, and beside each entity's with `include=entities`: null when "
+    "none of the row's prompts has an answer of the engine in that window, cells with a "
+    "denominator of 0 when it has answers and none valid. Blocks not asked for are left out. "
+    "`include=total`, `include=co_mentions`, `rows`, `filter[outcome]`, `filter[opportunity]` "
+    "and `group_by` are published and not built yet (`501`).",
 )
 async def prompts_summary(
     project_id: UUID,
@@ -102,8 +108,26 @@ async def prompts_summary(
     ] = None,
     compare: Annotated[
         SummaryCompare,
-        Query(description="`previous_period` adds `previous` cells. Not built yet: `501`."),
+        Query(
+            description="`previous_period`: as many days just before the window; "
+            "`previous_year`: the same dates a year earlier. Adds `compare_window`, "
+            "`previous_answers` and `previous` cells."
+        ),
     ] = "none",
+    compare_from: Annotated[
+        date | None,
+        Query(
+            description="First day of a window to compare with, project-local; needs "
+            "`compare_to`, and wins over `compare`."
+        ),
+    ] = None,
+    compare_to: Annotated[
+        date | None,
+        Query(
+            description="Last day of the window to compare with, included; at most 92 days from "
+            "`compare_from`."
+        ),
+    ] = None,
     rows: Annotated[
         SummaryRows | None,
         Query(
@@ -132,7 +156,6 @@ async def prompts_summary(
     asked = frozenset(include or ())
     refuse_unbuilt(
         {
-            "compare": compare != "none",
             "include=total": "total" in asked,
             "include=co_mentions": "co_mentions" in asked,
             "rows": rows is not None,
@@ -154,6 +177,9 @@ async def prompts_summary(
                 country_iso=country_iso,
                 term_id=term_id,
                 include=asked,
+                compare=compare,
+                compare_from=compare_from,
+                compare_to=compare_to,
             ),
         )
     )

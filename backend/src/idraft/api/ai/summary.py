@@ -20,14 +20,19 @@ from idraft.api.problems import NotFoundError, WindowTooLargeError
 from idraft.api.ranks.repository import project_zone
 from idraft.api.ranks.service import instants
 from idraft.api.schemas.ai import (
+    NOT_ASKED,
+    EngineCells,
     EngineSummary,
     EntityCells,
+    EntityPreviousCells,
     MetricCell,
     MetricContext,
+    NotAsked,
     OutcomeCells,
     Pooled,
     PromptsSummary,
     PromptSummaryRow,
+    SummaryCompare,
     SummaryEntity,
     SummaryInclude,
     SummaryMetricContext,
@@ -59,6 +64,10 @@ class SummaryQuery:
     country_iso: str | None = None
     term_id: UUID | None = None
     include: frozenset[SummaryInclude] = frozenset()
+    compare: SummaryCompare = "none"
+    # A window of the caller's own: both dates or neither, and they win over `compare`.
+    compare_from: date | None = None
+    compare_to: date | None = None
 
 
 def _out_of_range(field: str) -> RequestValidationError:
@@ -67,23 +76,95 @@ def _out_of_range(field: str) -> RequestValidationError:
     )
 
 
-def summary_dates(start: date | None, end: date | None, today: date) -> tuple[date, date]:
-    """The local days a summary covers, both included."""
+def summary_dates(
+    start: date | None,
+    end: date | None,
+    today: date,
+    names: tuple[str, str] = ("from", "to"),
+) -> tuple[date, date]:
+    """The local days a summary covers, both included. `names` are the parameters the dates
+    came from, for the error."""
+    first_name, last_name = names
     last = end or today
     try:
         first = start or last - timedelta(days=SUMMARY_DAYS - 1)
         days = (last - first).days + 1
     except OverflowError:
-        raise _out_of_range("to") from None
+        raise _out_of_range(last_name) from None
     if first > last:
         raise RequestValidationError(
-            [{"loc": ("query", "from"), "type": "range_invalid", "msg": "`from` is after `to`."}]
+            [
+                {
+                    "loc": ("query", first_name),
+                    "type": "range_invalid",
+                    "msg": f"`{first_name}` is after `{last_name}`.",
+                }
+            ]
         )
     if days > SUMMARY_MAX_DAYS:
         raise WindowTooLargeError(
             f"A window is at most {SUMMARY_MAX_DAYS} days.", limit_days=SUMMARY_MAX_DAYS
         )
     return first, last
+
+
+def previous_dates(first: date, last: date) -> tuple[date, date]:
+    """The days just before `first` to `last`, as many of them (docs/19 section 2.5
+    `previous_period`)."""
+    try:
+        return first - (last - first) - timedelta(days=1), first - timedelta(days=1)
+    except OverflowError:
+        raise _out_of_range("from") from None
+
+
+def _a_year_before(day: date) -> date:
+    if (day.month, day.day) == (2, 29):
+        return day.replace(year=day.year - 1, day=28)
+    return day.replace(year=day.year - 1)
+
+
+def previous_year_dates(first: date, last: date) -> tuple[date, date]:
+    """The same dates one year earlier; 29 February becomes 28 February (C-1)."""
+    try:
+        return _a_year_before(first), _a_year_before(last)
+    except ValueError:
+        raise _out_of_range("from") from None
+
+
+def compare_dates(
+    first: date,
+    last: date,
+    compare: SummaryCompare,
+    compare_from: date | None,
+    compare_to: date | None,
+    today: date,
+) -> tuple[date, date] | None:
+    """The days compared with, or None when nothing is compared. Two dates of the caller's own
+    win over `compare` whatever it says; one alone is refused at the missing one (C-1)."""
+    if compare_from is not None or compare_to is not None:
+        if compare_from is None or compare_to is None:
+            raise RequestValidationError(
+                [
+                    {
+                        "loc": ("query", "compare_to" if compare_to is None else "compare_from"),
+                        "type": "missing",
+                        "msg": "`compare_from` and `compare_to` come together.",
+                    }
+                ]
+            )
+        return summary_dates(compare_from, compare_to, today, ("compare_from", "compare_to"))
+    if compare == "previous_period":
+        return previous_dates(first, last)
+    if compare == "previous_year":
+        return previous_year_dates(first, last)
+    return None
+
+
+def _instants(first: date, last: date, zone: ZoneInfo, name: str) -> tuple[datetime, datetime]:
+    try:
+        return instants(first, last, zone)
+    except (OverflowError, ValueError):
+        raise _out_of_range(name) from None
 
 
 def summary_weeks(first: date, last: date) -> list[date]:
@@ -105,10 +186,10 @@ def _cell(numerator: float, denominator: int, n_observations: int) -> MetricCell
     )
 
 
-def _engine(engine_code: str, counts: Counts) -> EngineSummary:
+def _engine(counts: Counts) -> EngineCells:
+    """The cells of one prompt and engine: counts of answers."""
     valid, total = counts.n_valid, counts.n_observations
-    return EngineSummary(
-        engine_code=engine_code,
+    return EngineCells(
         mentioned=_cell(counts.mentioned, valid, total),
         cited=_cell(counts.cited, valid, total),
         outcomes=OutcomeCells(
@@ -145,11 +226,10 @@ def _weighted(members: Sequence[Counts], pick: Callable[[Counts], int]) -> Metri
     )
 
 
-def _topic_engine(engine_code: str, members: Sequence[Counts]) -> EngineSummary:
+def _topic_engine(members: Sequence[Counts]) -> EngineCells:
     """The cells of a topic and engine from the counts of the topic's prompts. Share of voice
     stays one answer one weight (docs/16 section 5), so it is the sum over the answers."""
-    return EngineSummary(
-        engine_code=engine_code,
+    return EngineCells(
         mentioned=_weighted(members, lambda counts: counts.mentioned),
         cited=_weighted(members, lambda counts: counts.cited),
         outcomes=OutcomeCells(
@@ -166,7 +246,7 @@ def _topic_engine(engine_code: str, members: Sequence[Counts]) -> EngineSummary:
     )
 
 
-def _week(week: date, cells: EngineSummary) -> WeekCells:
+def _week(week: date, cells: EngineCells) -> WeekCells:
     """One point of a series. The first and last weeks are cut at the window bounds. On a prompt
     row the weeks add up to the window cell (numerators, denominators, n_observations). On a
     topic row `mentioned` and `cited` are prompt weighted per week, so their numerators and
@@ -183,22 +263,34 @@ def _week(week: date, cells: EngineSummary) -> WeekCells:
 @dataclass(frozen=True, slots=True)
 class _Read:
     """What the queries read, by prompt and engine. `entity_ids` is None unless the entity cells
-    were asked for, and `weeks` None unless the series was."""
+    were asked for, `weeks` None unless the series was, and `previous` None unless a window was
+    compared with (`previous_named` is then its entity counts, when the entity cells were asked
+    for)."""
 
     counts: Mapping[tuple[UUID, str], Counts]
     entity_ids: Sequence[UUID] | None = None
     named: Mapping[tuple[UUID, str, UUID], EntityCounts] = field(default_factory=dict)
     weeks: Sequence[date] | None = None
     weekly: Mapping[tuple[UUID, str, date], Counts] = field(default_factory=dict)
+    previous: Mapping[tuple[UUID, str], Counts] | None = None
+    previous_named: Mapping[tuple[UUID, str, UUID], EntityCounts] = field(default_factory=dict)
 
 
 def _entity_cells(
-    code: str, entity_id: UUID, prompt_ids: Collection[UUID], read: _Read, *, topic: bool
-) -> EntityCells:
+    code: str,
+    entity_id: UUID,
+    prompt_ids: Collection[UUID],
+    window_counts: Mapping[tuple[UUID, str], Counts],
+    window_named: Mapping[tuple[UUID, str, UUID], EntityCounts],
+    *,
+    topic: bool,
+) -> EntityPreviousCells:
+    """One entity's Mentioned and Share of voice over the window the counts were read for: the
+    window itself, or the one compared with."""
     parts = [
         (
-            read.counts.get((prompt, code), _NONE),
-            read.named.get((prompt, code, entity_id), _NOT_NAMED),
+            window_counts.get((prompt, code), _NONE),
+            window_named.get((prompt, code, entity_id), _NOT_NAMED),
         )
         for prompt in prompt_ids
     ]
@@ -213,8 +305,7 @@ def _entity_cells(
             sum(counts.n_valid for counts, _ in parts),
             n_observations,
         )
-    return EntityCells(
-        entity_id=entity_id,
+    return EntityPreviousCells(
         mentioned=mentioned,
         share_of_voice=_cell(
             sum(named.sov_share for _, named in parts),
@@ -230,34 +321,65 @@ def _engine_row(
     """One engine's cells for a prompt row (`prompt_ids` holds the prompt alone) or a topic row
     (its prompts)."""
 
-    def cells(source: Mapping[tuple[UUID, str], Counts]) -> EngineSummary:
-        members = [source[(prompt, code)] for prompt in prompt_ids if (prompt, code) in source]
-        if topic:
-            return _topic_engine(code, members)
-        return _engine(code, members[0] if members else _NONE)
+    def found(source: Mapping[tuple[UUID, str], Counts]) -> list[Counts]:
+        return [source[(prompt, code)] for prompt in prompt_ids if (prompt, code) in source]
 
-    row = cells(read.counts)
-    update: dict[str, Any] = {}
-    if read.entity_ids is not None:
-        update["entities"] = [
-            _entity_cells(code, entity_id, prompt_ids, read, topic=topic)
-            for entity_id in read.entity_ids
-        ]
-    if read.weeks is not None:
-        update["series"] = [
+    def cells(members: Sequence[Counts]) -> EngineCells:
+        if topic:
+            return _topic_engine(members)
+        return _engine(members[0] if members else _NONE)
+
+    row = cells(found(read.counts))
+    previous: EngineCells | NotAsked | None = NOT_ASKED
+    if read.previous is not None:
+        # No answer of the row's prompts in the window before is null, so that no data is never
+        # read as a rate of 0; answers that are none valid are cells with a denominator of 0.
+        before = found(read.previous)
+        previous = cells(before) if before else None
+
+    def entity(entity_id: UUID) -> EntityCells:
+        current = _entity_cells(code, entity_id, prompt_ids, read.counts, read.named, topic=topic)
+        earlier: EntityPreviousCells | NotAsked | None = NOT_ASKED
+        if read.previous is not None:
+            # Null exactly when the engine's `previous` is null (C-2).
+            earlier = (
+                None
+                if previous is None
+                else _entity_cells(
+                    code, entity_id, prompt_ids, read.previous, read.previous_named, topic=topic
+                )
+            )
+        return EntityCells(
+            entity_id=entity_id,
+            mentioned=current.mentioned,
+            share_of_voice=current.share_of_voice,
+            previous=earlier,
+        )
+
+    return EngineSummary(
+        engine_code=code,
+        mentioned=row.mentioned,
+        cited=row.cited,
+        outcomes=row.outcomes,
+        share_of_voice=row.share_of_voice,
+        previous=previous,
+        series=None
+        if read.weeks is None
+        else [
             _week(
                 week,
                 cells(
-                    {
-                        (prompt, code): read.weekly[(prompt, code, week)]
+                    [
+                        read.weekly[(prompt, code, week)]
                         for prompt in prompt_ids
                         if (prompt, code, week) in read.weekly
-                    }
+                    ]
                 ),
             )
             for week in read.weeks
-        ]
-    return row.model_copy(update=update) if update else row
+        ],
+        entities=None if read.entity_ids is None else [entity(e) for e in read.entity_ids],
+    )
 
 
 def _last_answers(
@@ -364,11 +486,19 @@ class SummaryService:
             if zone_row is None:
                 raise NotFoundError
             zone = ZoneInfo(zone_row.timezone)
-            first, last = summary_dates(query.start, query.end, datetime.now(zone).date())
-            try:
-                since, until = instants(first, last, zone)
-            except (OverflowError, ValueError):
-                raise _out_of_range("to") from None
+            today = datetime.now(zone).date()
+            first, last = summary_dates(query.start, query.end, today)
+            since, until = _instants(first, last, zone, "to")
+            compared = compare_dates(
+                first, last, query.compare, query.compare_from, query.compare_to, today
+            )
+            before = (
+                None
+                if compared is None
+                else _instants(
+                    *compared, zone, "from" if query.compare_from is None else "compare_to"
+                )
+            )
             prompts = await repository.summary_prompts(
                 db,
                 ws,
@@ -385,6 +515,18 @@ class SummaryService:
                 "engine_codes": query.engine_codes,
             }
             by_prompt = await repository.counts_by_prompt(db, ws, project_id, ids, **window)
+            # The window compared with is read over the same prompts, so the branded exclusion,
+            # the term subtree and the country scope hold for it as they do for the window.
+            before_window: dict[str, Any] = (
+                {}
+                if before is None
+                else {"since": before[0], "until": before[1], "engine_codes": query.engine_codes}
+            )
+            previous = (
+                None
+                if before is None
+                else await repository.counts_by_prompt(db, ws, project_id, ids, **before_window)
+            )
             held = await repository.topic_rollup(db, ws, ids)
             if query.term_id is not None:
                 # Under a term filter the topic rows are the term's and those below it.
@@ -414,6 +556,13 @@ class SummaryService:
                 if cell_ids is None
                 else await repository.entity_counts(db, ws, project_id, ids, cell_ids, **window)
             )
+            previous_named: Mapping[tuple[UUID, str, UUID], EntityCounts] = (
+                {}
+                if before is None or cell_ids is None
+                else await repository.entity_counts(
+                    db, ws, project_id, ids, cell_ids, **before_window
+                )
+            )
             names = await repository.topic_names(db, ws, held.keys())
         seen = {engine for _, engine in by_prompt}
         shown = sorted(
@@ -421,7 +570,15 @@ class SummaryService:
             for code in set(enabled) | seen
             if query.engine_codes is None or code in query.engine_codes
         )
-        read = _Read(counts=by_prompt, entity_ids=cell_ids, named=named, weeks=weeks, weekly=weekly)
+        read = _Read(
+            counts=by_prompt,
+            entity_ids=cell_ids,
+            named=named,
+            weeks=weeks,
+            weekly=weekly,
+            previous=previous,
+            previous_named=previous_named,
+        )
         prompt_rows = [_prompt_row(prompt, shown, read) for prompt in prompts]
         # Topic rows are sums of the prompts' counts. Each topic row holds the prompts given the
         # term or a term below it, each once; the last row holds the prompts given no topic,
@@ -437,6 +594,17 @@ class SummaryService:
             window=MetricWindow(
                 from_=first.isoformat(), to=last.isoformat(), timezone=zone_row.timezone
             ),
+            compare_window=None
+            if compared is None
+            else MetricWindow(
+                from_=compared[0].isoformat(),
+                to=compared[1].isoformat(),
+                timezone=zone_row.timezone,
+            ),
+            # The valid answers of the engines shown, as the cells of `previous` read them.
+            previous_answers=None
+            if previous is None
+            else sum(c.n_valid for (_, engine), c in previous.items() if engine in shown),
             include_branded=query.include_branded or query.branded_only,
             branded_only=query.branded_only,
             engine_codes=shown,
