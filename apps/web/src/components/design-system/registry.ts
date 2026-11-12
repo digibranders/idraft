@@ -9,6 +9,7 @@ import { FiltersSection } from './filters-section';
 import { FormsSection } from './forms-section';
 import { IconsSection } from './icons-section';
 import { InspectorPreviewSection } from './inspector-section';
+import { MetricPartsSection } from './metric-parts-section';
 import { OverlaysSection } from './overlays-section';
 import type { PreviewSectionSlug } from './section-slugs';
 import { SizesSection } from './sizes-section';
@@ -38,6 +39,7 @@ export const PREVIEW_SECTIONS: readonly PreviewSection[] = [
   { slug: 'charts', title: 'Charts', render: ChartsSection },
   { slug: 'overlays', title: 'Overlays', render: OverlaysSection },
   { slug: 'feedback', title: 'Feedback', render: FeedbackSection },
+  { slug: 'metric-parts', title: 'Metrics and engines', render: MetricPartsSection },
 ];
 
 export const previewSection = (slug: string): PreviewSection | undefined =>

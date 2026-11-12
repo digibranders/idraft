@@ -28,6 +28,7 @@ describe('the preview registry', () => {
       'charts',
       'overlays',
       'feedback',
+      'metric-parts',
     ]);
     expect(new Set(PREVIEW_SECTIONS.map((section) => section.title)).size).toBe(PREVIEW_SECTIONS.length);
     // The end-to-end and visual tests visit the sections by this list
@@ -71,8 +72,10 @@ describe.each(PREVIEW_SECTIONS)('the $slug section', ({ title, render: Section }
           <Section />
         </>,
       );
-      // Every specimen group is a titled section
-      const groups = container.querySelectorAll('section');
+      // Every specimen group is a titled section; a section inside a specimen (a panel's) has its own heading level
+      const groups = Array.from(container.querySelectorAll('section')).filter(
+        (group) => group.parentElement?.closest('section') === null,
+      );
       expect(groups.length).toBeGreaterThan(0);
       for (const group of groups) expect(group.querySelector('h2')?.textContent).toBeTruthy();
       expect(await axe(container)).toHaveNoViolations();
