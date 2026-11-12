@@ -71,6 +71,169 @@
         "title": "Actor",
         "type": "object"
       },
+      "AiCoverage": {
+        "properties": {
+          "by_engine": {
+            "items": {
+              "$ref": "#/components/schemas/AiCoverageEngine"
+            },
+            "maxItems": 3,
+            "title": "By Engine",
+            "type": "array"
+          },
+          "missing": {
+            "description": "Every planned task with no stored answer, at most the run's tasks.",
+            "items": {
+              "$ref": "#/components/schemas/AiCoverageMissing"
+            },
+            "title": "Missing",
+            "type": "array"
+          }
+        },
+        "required": [
+          "by_engine",
+          "missing"
+        ],
+        "title": "AiCoverage",
+        "type": "object"
+      },
+      "AiCoverageEngine": {
+        "properties": {
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "invalid_by_status": {
+            "$ref": "#/components/schemas/InvalidByStatus"
+          },
+          "observed": {
+            "description": "Answers stored, of any status.",
+            "title": "Observed",
+            "type": "integer"
+          },
+          "planned": {
+            "description": "Tasks the run planned on the engine.",
+            "title": "Planned",
+            "type": "integer"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "integer"
+          },
+          "valid_rate": {
+            "$ref": "#/components/schemas/MetricCell",
+            "description": "`valid` of `planned`."
+          }
+        },
+        "required": [
+          "engine_code",
+          "planned",
+          "observed",
+          "valid",
+          "invalid_by_status",
+          "valid_rate"
+        ],
+        "title": "AiCoverageEngine",
+        "type": "object"
+      },
+      "AiCoverageMissing": {
+        "properties": {
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "replicate_index": {
+            "title": "Replicate Index",
+            "type": "integer"
+          },
+          "task_status": {
+            "enum": [
+              "pending",
+              "submit_unknown",
+              "submitted",
+              "ready",
+              "fetched",
+              "ingested",
+              "failed",
+              "dead",
+              "cancelled",
+              "skipped_cached"
+            ],
+            "title": "Task Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "engine_code",
+          "location_id",
+          "replicate_index",
+          "task_status"
+        ],
+        "title": "AiCoverageMissing",
+        "type": "object"
+      },
+      "AiCoverageResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiCoverage"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AiCoverageResponse",
+        "type": "object"
+      },
+      "AiLimits": {
+        "description": "What the page header and the confirm dialogs show before a click (CF-11, prompt-dialogs\nN06): the same numbers the writes check.",
+        "properties": {
+          "ai_observations_month": {
+            "$ref": "#/components/schemas/QuotaUse",
+            "description": "AI answers of the whole workspace this UTC month, planned runs included, against `max_ai_observations_per_month`, counted as Run now counts them."
+          },
+          "manual_runs_today": {
+            "$ref": "#/components/schemas/ManualRuns"
+          },
+          "prompts": {
+            "$ref": "#/components/schemas/QuotaUse",
+            "description": "Active prompts of the whole workspace against `max_active_prompts`."
+          }
+        },
+        "required": [
+          "prompts",
+          "ai_observations_month",
+          "manual_runs_today"
+        ],
+        "title": "AiLimits",
+        "type": "object"
+      },
+      "AiLimitsResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiLimits"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AiLimitsResponse",
+        "type": "object"
+      },
       "AioCitations": {
         "properties": {
           "citation_position": {
@@ -782,6 +945,131 @@
         "title": "AnalyticsPropertyList",
         "type": "object"
       },
+      "Annotation": {
+        "description": "A boundary drawn on every time chart (overview-and-charts N9).",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "engine_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineCode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set for a model change."
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The value before the change.",
+            "title": "From"
+          },
+          "kind": {
+            "enum": [
+              "model_changed",
+              "entity_set_changed",
+              "extractor_changed",
+              "prompt_set_changed"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The value after the change.",
+            "title": "To"
+          }
+        },
+        "required": [
+          "at",
+          "kind",
+          "engine_code",
+          "from",
+          "to",
+          "label"
+        ],
+        "title": "Annotation",
+        "type": "object"
+      },
+      "AnnotationList": {
+        "properties": {
+          "data": {
+            "description": "Oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AnnotationList",
+        "type": "object"
+      },
+      "AnswerStatusCounts": {
+        "properties": {
+          "complete": {
+            "title": "Complete",
+            "type": "integer"
+          },
+          "empty": {
+            "title": "Empty",
+            "type": "integer"
+          },
+          "error": {
+            "title": "Error",
+            "type": "integer"
+          },
+          "partial": {
+            "title": "Partial",
+            "type": "integer"
+          },
+          "refused": {
+            "title": "Refused",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "complete",
+          "partial",
+          "empty",
+          "refused",
+          "error"
+        ],
+        "title": "AnswerStatusCounts",
+        "type": "object"
+      },
       "AuthorizationResponse": {
         "properties": {
           "data": {
@@ -1155,6 +1443,71 @@
         "title": "BulkUpdateResult",
         "type": "object"
       },
+      "CardItem": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "patternProperties": {
+                  "^[a-z0-9_]+$": {
+                    "maxLength": 256,
+                    "type": "string"
+                  }
+                },
+                "propertyNames": {
+                  "maxLength": 64,
+                  "minLength": 1
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A flat object of strings; each card type checks its own in the web app.",
+            "title": "Options"
+          },
+          "type": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+(\\.[a-z0-9_]+)*$",
+            "title": "Type",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "enum": [
+                  "third",
+                  "half",
+                  "two_thirds",
+                  "full"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Dashboard screens only; left out: the type's default.",
+            "title": "Width"
+          }
+        },
+        "required": [
+          "id",
+          "type"
+        ],
+        "title": "CardItem",
+        "type": "object"
+      },
       "CheckNow": {
         "additionalProperties": false,
         "description": "Keywords to check at once, each a search of its own through the standard queue.",
@@ -1445,6 +1798,160 @@
           "occurrences"
         ],
         "title": "CitationRow",
+        "type": "object"
+      },
+      "CitedWith": {
+        "properties": {
+          "entity_id": {
+            "description": "The tracked entity most named in answers citing it.",
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "observations": {
+            "description": "Answers citing it that name the entity.",
+            "title": "Observations",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entity_id",
+          "observations"
+        ],
+        "title": "CitedWith",
+        "type": "object"
+      },
+      "CoMentionPair": {
+        "properties": {
+          "a": {
+            "description": "A tracked entity.",
+            "format": "uuid",
+            "title": "A",
+            "type": "string"
+          },
+          "answers": {
+            "description": "Valid answers in scope that name both.",
+            "title": "Answers",
+            "type": "integer"
+          },
+          "b": {
+            "description": "Another tracked entity.",
+            "format": "uuid",
+            "title": "B",
+            "type": "string"
+          }
+        },
+        "required": [
+          "a",
+          "b",
+          "answers"
+        ],
+        "title": "CoMentionPair",
+        "type": "object"
+      },
+      "CollectionDailyMeta": {
+        "properties": {
+          "engine_codes": {
+            "items": {
+              "$ref": "#/components/schemas/EngineCode"
+            },
+            "maxItems": 3,
+            "title": "Engine Codes",
+            "type": "array"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow"
+          }
+        },
+        "required": [
+          "window",
+          "engine_codes"
+        ],
+        "title": "CollectionDailyMeta",
+        "type": "object"
+      },
+      "CollectionDailyResponse": {
+        "properties": {
+          "data": {
+            "description": "A row per day and engine.",
+            "items": {
+              "$ref": "#/components/schemas/CollectionDay"
+            },
+            "maxItems": 276,
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/CollectionDailyMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "CollectionDailyResponse",
+        "type": "object"
+      },
+      "CollectionDay": {
+        "properties": {
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "budget_blocked": {
+            "description": "Runs of the day a budget blocked.",
+            "title": "Budget Blocked",
+            "type": "integer"
+          },
+          "by_status": {
+            "$ref": "#/components/schemas/AnswerStatusCounts"
+          },
+          "date": {
+            "description": "A project day.",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "runs": {
+            "description": "The runs whose answers the day holds.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "scheduled": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Answers the schedules active that day planned; null when unknown, never 0 for unknown.",
+            "title": "Scheduled"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "engine_code",
+          "scheduled",
+          "answers",
+          "by_status",
+          "valid",
+          "budget_blocked",
+          "runs"
+        ],
+        "title": "CollectionDay",
         "type": "object"
       },
       "CompetitorOverride": {
@@ -1950,6 +2457,27 @@
         "title": "CostWorkload",
         "type": "string"
       },
+      "CountrySummary": {
+        "properties": {
+          "country_iso": {
+            "title": "Country Iso",
+            "type": "string"
+          },
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/EngineSummary"
+            },
+            "title": "Engines",
+            "type": "array"
+          }
+        },
+        "required": [
+          "country_iso",
+          "engines"
+        ],
+        "title": "CountrySummary",
+        "type": "object"
+      },
       "CursorPageInfo": {
         "description": "A keyset page (docs/19 section 2.4). `next_cursor` is opaque; pass it back as `cursor`.",
         "properties": {
@@ -2201,6 +2729,58 @@
         "title": "Engine",
         "type": "object"
       },
+      "EngineCells": {
+        "description": "The cells of one engine over the comparison window, weighted as the current ones.",
+        "properties": {
+          "cited": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "mentioned": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "outcomes": {
+            "$ref": "#/components/schemas/OutcomeCells"
+          },
+          "share_of_voice": {
+            "$ref": "#/components/schemas/MetricCell"
+          }
+        },
+        "required": [
+          "mentioned",
+          "cited",
+          "outcomes",
+          "share_of_voice"
+        ],
+        "title": "EngineCells",
+        "type": "object"
+      },
+      "EngineCoMentions": {
+        "properties": {
+          "answers": {
+            "description": "Valid answers in scope on the engine: the denominator.",
+            "title": "Answers",
+            "type": "integer"
+          },
+          "engine_code": {
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "pairs": {
+            "items": {
+              "$ref": "#/components/schemas/CoMentionPair"
+            },
+            "title": "Pairs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "engine_code",
+          "answers",
+          "pairs"
+        ],
+        "title": "EngineCoMentions",
+        "type": "object"
+      },
       "EngineCode": {
         "enum": [
           "chatgpt_web",
@@ -2209,6 +2789,91 @@
         ],
         "title": "EngineCode",
         "type": "string"
+      },
+      "EngineEstimate": {
+        "properties": {
+          "answers_per_month": {
+            "title": "Answers Per Month",
+            "type": "integer"
+          },
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "monthly_cost_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the price book has no price.",
+            "title": "Monthly Cost Usd"
+          },
+          "prompts_fit": {
+            "description": "Prompts it would create that the engine takes.",
+            "title": "Prompts Fit",
+            "type": "integer"
+          },
+          "run_now_answers": {
+            "title": "Run Now Answers",
+            "type": "integer"
+          },
+          "run_now_cost_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Now Cost Usd"
+          }
+        },
+        "required": [
+          "engine_code",
+          "prompts_fit",
+          "answers_per_month",
+          "monthly_cost_usd",
+          "run_now_answers",
+          "run_now_cost_usd"
+        ],
+        "title": "EngineEstimate",
+        "type": "object"
+      },
+      "EngineRoleUnits": {
+        "properties": {
+          "competitor": {
+            "$ref": "#/components/schemas/RoleAnswers"
+          },
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "own": {
+            "$ref": "#/components/schemas/RoleAnswers"
+          },
+          "third_party": {
+            "$ref": "#/components/schemas/RoleAnswers"
+          }
+        },
+        "required": [
+          "engine_code",
+          "own",
+          "competitor",
+          "third_party"
+        ],
+        "title": "EngineRoleUnits",
+        "type": "object"
       },
       "EngineSummary": {
         "properties": {
@@ -2239,6 +2904,17 @@
           },
           "outcomes": {
             "$ref": "#/components/schemas/OutcomeCells"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineCells"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `compare=previous_period`: the same cells over `compare_window`, null when the engine had no answer of the row's prompts there (no data is not a rate of 0). Not returned yet: absent from every response until it is built."
           },
           "series": {
             "anyOf": [
@@ -2419,6 +3095,17 @@
           "mentioned": {
             "$ref": "#/components/schemas/MetricCell",
             "description": "Valid answers whose share of voice set names the entity."
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EntityPreviousCells"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `compare=previous_period`: the cells over `compare_window`, null when the entity had no answer there; never set inside a week. Not returned yet: absent from every response until it is built."
           },
           "share_of_voice": {
             "$ref": "#/components/schemas/MetricCell",
@@ -2755,6 +3442,22 @@
           "page"
         ],
         "title": "EntityPage",
+        "type": "object"
+      },
+      "EntityPreviousCells": {
+        "properties": {
+          "mentioned": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "share_of_voice": {
+            "$ref": "#/components/schemas/MetricCell"
+          }
+        },
+        "required": [
+          "mentioned",
+          "share_of_voice"
+        ],
+        "title": "EntityPreviousCells",
         "type": "object"
       },
       "EntityProjectRole": {
@@ -3234,6 +3937,16 @@
         "minItems": 1,
         "type": "array"
       },
+      "FilterList_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_1___Le_le_5_____": {
+        "items": {
+          "maximum": 5.0,
+          "minimum": 1.0,
+          "type": "integer"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
       "FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___": {
         "items": {
           "enum": [
@@ -3314,6 +4027,24 @@
         "minItems": 1,
         "type": "array"
       },
+      "FilterList_Literal__question____comparison____recommendation____how_to____definition____local____transactional____other___": {
+        "items": {
+          "enum": [
+            "question",
+            "comparison",
+            "recommendation",
+            "how_to",
+            "definition",
+            "local",
+            "transactional",
+            "other"
+          ],
+          "type": "string"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
       "FilterList_Literal__tofu____mofu____bofu____retention____unknown___": {
         "items": {
           "enum": [
@@ -3337,6 +4068,32 @@
         "maxItems": 100,
         "minItems": 1,
         "type": "array"
+      },
+      "GeneratedFrom": {
+        "additionalProperties": false,
+        "properties": {
+          "template": {
+            "enum": [
+              "recommendation",
+              "comparison",
+              "how_to",
+              "procurement"
+            ],
+            "title": "Template",
+            "type": "string"
+          },
+          "tracked_keyword_id": {
+            "format": "uuid",
+            "title": "Tracked Keyword Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tracked_keyword_id",
+          "template"
+        ],
+        "title": "GeneratedFrom",
+        "type": "object"
       },
       "GroupMembers": {
         "additionalProperties": false,
@@ -4641,6 +5398,34 @@
         "title": "IntegrationSync",
         "type": "object"
       },
+      "InvalidByStatus": {
+        "properties": {
+          "empty": {
+            "title": "Empty",
+            "type": "integer"
+          },
+          "error": {
+            "title": "Error",
+            "type": "integer"
+          },
+          "partial": {
+            "title": "Partial",
+            "type": "integer"
+          },
+          "refused": {
+            "title": "Refused",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "partial",
+          "empty",
+          "refused",
+          "error"
+        ],
+        "title": "InvalidByStatus",
+        "type": "object"
+      },
       "Invitation": {
         "properties": {
           "created_at": {
@@ -5688,6 +6473,124 @@
         "title": "KeywordPage",
         "type": "object"
       },
+      "LayoutDocument": {
+        "additionalProperties": false,
+        "description": "The numbers and cards of one screen, in order: a full snapshot, at most 16 KB.",
+        "properties": {
+          "cards": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CardItem"
+                },
+                "maxItems": 12,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cards"
+          },
+          "numbers": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NumberItem"
+                },
+                "maxItems": 6,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Numbers"
+          },
+          "schema": {
+            "const": 1,
+            "description": "The document format version.",
+            "title": "Schema",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema"
+        ],
+        "title": "LayoutDocument",
+        "type": "object"
+      },
+      "LayoutEditor": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name"
+        ],
+        "title": "LayoutEditor",
+        "type": "object"
+      },
+      "LintEstimate": {
+        "description": "What the prompts that would be created cost on the standard queue (prompt-dialogs N05).",
+        "properties": {
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/EngineEstimate"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "total_monthly_cost_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Monthly Cost Usd"
+          }
+        },
+        "required": [
+          "engines",
+          "total_monthly_cost_usd"
+        ],
+        "title": "LintEstimate",
+        "type": "object"
+      },
+      "LintNearDuplicate": {
+        "properties": {
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "text"
+        ],
+        "title": "LintNearDuplicate",
+        "type": "object"
+      },
       "LintSpan": {
         "properties": {
           "end": {
@@ -5704,6 +6607,25 @@
           "end"
         ],
         "title": "LintSpan",
+        "type": "object"
+      },
+      "LintTracked": {
+        "properties": {
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "is_active"
+        ],
+        "title": "LintTracked",
         "type": "object"
       },
       "LintWarning": {
@@ -5726,7 +6648,12 @@
           "rule": {
             "enum": [
               "contains_brand_alias",
-              "engine_limit"
+              "engine_limit",
+              "word_count",
+              "multiple_questions",
+              "leading_wording",
+              "language_mismatch",
+              "contains_competitor_alias"
             ],
             "title": "Rule",
             "type": "string"
@@ -6761,6 +7688,195 @@
           "search_volume"
         ],
         "title": "MonthlySearches",
+        "type": "object"
+      },
+      "Note": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NoteAuthor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note_id": {
+            "format": "uuid",
+            "title": "Note Id",
+            "type": "string"
+          },
+          "on": {
+            "format": "date",
+            "title": "On",
+            "type": "string"
+          },
+          "scope": {
+            "discriminator": {
+              "mapping": {
+                "project": "#/components/schemas/ProjectNoteScope",
+                "term": "#/components/schemas/TermNoteScope"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProjectNoteScope"
+              },
+              {
+                "$ref": "#/components/schemas/TermNoteScope"
+              }
+            ],
+            "title": "Scope"
+          },
+          "text": {
+            "description": "Shown as text, never as markup.",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note_id",
+          "on",
+          "text",
+          "scope",
+          "created_by",
+          "created_at"
+        ],
+        "title": "Note",
+        "type": "object"
+      },
+      "NoteAuthor": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name"
+        ],
+        "title": "NoteAuthor",
+        "type": "object"
+      },
+      "NoteCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "on": {
+            "description": "The project day the note is drawn on.",
+            "format": "date",
+            "title": "On",
+            "type": "string"
+          },
+          "scope": {
+            "discriminator": {
+              "mapping": {
+                "project": "#/components/schemas/ProjectNoteScope",
+                "term": "#/components/schemas/TermNoteScope"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProjectNoteScope"
+              },
+              {
+                "$ref": "#/components/schemas/TermNoteScope"
+              }
+            ],
+            "title": "Scope"
+          },
+          "text": {
+            "maxLength": 140,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "on",
+          "text",
+          "scope"
+        ],
+        "title": "NoteCreate",
+        "type": "object"
+      },
+      "NoteList": {
+        "properties": {
+          "data": {
+            "description": "By `on`, then `created_at`, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/Note"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "NoteList",
+        "type": "object"
+      },
+      "NoteResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Note"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "NoteResponse",
+        "type": "object"
+      },
+      "NumberItem": {
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineCode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required when `metric` is an AI metric."
+          },
+          "id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "metric": {
+            "description": "A metric registry key (docs/16 section 2.1).",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+(\\.[a-z0-9_]+)*$",
+            "title": "Metric",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "metric"
+        ],
+        "title": "NumberItem",
         "type": "object"
       },
       "OAuthStart": {
@@ -8453,6 +9569,21 @@
         "title": "ProjectEntityUpdate",
         "type": "object"
       },
+      "ProjectNoteScope": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "project",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "ProjectNoteScope",
+        "type": "object"
+      },
       "ProjectPage": {
         "properties": {
           "data": {
@@ -8690,6 +9821,22 @@
             "title": "Is Branded",
             "type": "boolean"
           },
+          "is_branded_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "computed",
+                  "override"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Not returned yet: absent from every response until it is built.",
+            "title": "Is Branded Source"
+          },
           "language_code": {
             "title": "Language Code",
             "type": "string"
@@ -8712,6 +9859,22 @@
             ],
             "title": "Prompt Type",
             "type": "string"
+          },
+          "prompt_type_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "rule",
+                  "person"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Not returned yet: absent from every response until it is built.",
+            "title": "Prompt Type Source"
           },
           "source": {
             "title": "Source",
@@ -8776,6 +9939,26 @@
           "archive"
         ],
         "title": "PromptBulkArchive",
+        "type": "object"
+      },
+      "PromptBulkArchiveByFilter": {
+        "additionalProperties": false,
+        "description": "Every prompt of the project the filter matches. Not built yet (`501`).",
+        "properties": {
+          "archive": {
+            "description": "false brings the prompts back, within the active prompt quota.",
+            "title": "Archive",
+            "type": "boolean"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/PromptSelectionFilter"
+          }
+        },
+        "required": [
+          "filter",
+          "archive"
+        ],
+        "title": "PromptBulkArchiveByFilter",
         "type": "object"
       },
       "PromptBulkCreate": {
@@ -8852,6 +10035,156 @@
         "title": "PromptBulkResult",
         "type": "object"
       },
+      "PromptBulkSet": {
+        "additionalProperties": false,
+        "description": "At least one member; none may be null.",
+        "properties": {
+          "funnel_stage": {
+            "enum": [
+              "tofu",
+              "mofu",
+              "bofu",
+              "retention",
+              "unknown"
+            ],
+            "title": "Funnel Stage",
+            "type": "string"
+          },
+          "importance": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Importance",
+            "type": "integer"
+          },
+          "intent": {
+            "enum": [
+              "informational",
+              "navigational",
+              "commercial",
+              "transactional",
+              "local",
+              "unknown"
+            ],
+            "title": "Intent",
+            "type": "string"
+          },
+          "is_branded": {
+            "title": "Is Branded",
+            "type": "boolean"
+          },
+          "prompt_type": {
+            "enum": [
+              "question",
+              "comparison",
+              "recommendation",
+              "how_to",
+              "definition",
+              "local",
+              "transactional",
+              "other"
+            ],
+            "title": "Prompt Type",
+            "type": "string"
+          }
+        },
+        "title": "PromptBulkSet",
+        "type": "object"
+      },
+      "PromptBulkUpdate": {
+        "additionalProperties": false,
+        "description": "Exactly one of `ids` and `filter`; at least one of `set`, `add_term_ids` and\n`remove_term_ids`.",
+        "properties": {
+          "add_term_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Add Term Ids",
+            "type": "array"
+          },
+          "filter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromptSelectionFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 1000,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ids"
+          },
+          "remove_term_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Remove Term Ids",
+            "type": "array"
+          },
+          "set": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromptBulkSet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "PromptBulkUpdate",
+        "type": "object"
+      },
+      "PromptBulkUpdateResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PromptBulkUpdateResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PromptBulkUpdateResponse",
+        "type": "object"
+      },
+      "PromptBulkUpdateResult": {
+        "properties": {
+          "matched": {
+            "description": "The project's prompts found.",
+            "title": "Matched",
+            "type": "integer"
+          },
+          "updated": {
+            "description": "Of those, the prompts that changed.",
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matched",
+          "updated"
+        ],
+        "title": "PromptBulkUpdateResult",
+        "type": "object"
+      },
       "PromptCreate": {
         "additionalProperties": false,
         "description": "One prompt. Its text is fixed once saved: to change it, archive the prompt and add a new\none.",
@@ -8861,6 +10194,23 @@
             "pattern": "^[A-Z]{2}$",
             "title": "Country Iso",
             "type": "string"
+          },
+          "creation_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "human",
+                  "template",
+                  "imported"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How it was written; left out: `human`. Not built yet: `501 not_implemented`.",
+            "title": "Creation Method"
           },
           "funnel_stage": {
             "default": "unknown",
@@ -8873,6 +10223,17 @@
             ],
             "title": "Funnel Stage",
             "type": "string"
+          },
+          "generated_from": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GeneratedFrom"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The tracked keyword and template it was generated from. Not built yet: `501 not_implemented`."
           },
           "importance": {
             "default": 3,
@@ -8894,6 +10255,18 @@
             "title": "Intent",
             "type": "string"
           },
+          "is_branded": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Overrides the branded flag computed from the own aliases. Not built yet: `501 not_implemented`.",
+            "title": "Is Branded"
+          },
           "language_code": {
             "pattern": "^[a-z]{2}$",
             "title": "Language Code",
@@ -8913,6 +10286,25 @@
             ],
             "title": "Prompt Type",
             "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "manual",
+                  "csv_import",
+                  "seo_keyword",
+                  "paa",
+                  "gsc_query"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the prompt came from; left out: `manual`. Not built yet: `501 not_implemented`.",
+            "title": "Source"
           },
           "term_ids": {
             "description": "Topics and other terms the project may use.",
@@ -8954,10 +10346,54 @@
             "title": "Matched Aliases",
             "type": "array"
           },
+          "near_duplicate_of": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LintNearDuplicate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A prompt that differs only in case and spacing. Not returned yet: absent from every response until it is built."
+          },
+          "suggested_prompt_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "question",
+                  "comparison",
+                  "recommendation",
+                  "how_to",
+                  "definition",
+                  "local",
+                  "transactional",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The type the server rule gives the text. Not returned yet: absent from every response until it is built.",
+            "title": "Suggested Prompt Type"
+          },
           "text": {
             "description": "As it would be saved.",
             "title": "Text",
             "type": "string"
+          },
+          "tracked": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LintTracked"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The project's prompt with this identity, archived ones too (with `items`). Not returned yet: absent from every response until it is built."
           },
           "warnings": {
             "items": {
@@ -8974,6 +10410,70 @@
           "warnings"
         ],
         "title": "PromptLint",
+        "type": "object"
+      },
+      "PromptLintItem": {
+        "additionalProperties": false,
+        "properties": {
+          "country_iso": {
+            "pattern": "^[A-Z]{2}$",
+            "title": "Country Iso",
+            "type": "string"
+          },
+          "language_code": {
+            "pattern": "^[a-z]{2}$",
+            "title": "Language Code",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "language_code",
+          "country_iso"
+        ],
+        "title": "PromptLintItem",
+        "type": "object"
+      },
+      "PromptLintItems": {
+        "additionalProperties": false,
+        "description": "Texts with their language and country, so the lint can say which are tracked already.",
+        "properties": {
+          "engine_codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EngineCode"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The engines whose length limits apply. Left out: every one.",
+            "title": "Engine Codes"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PromptLintItem"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PromptLintItems",
         "type": "object"
       },
       "PromptLintRequest": {
@@ -8994,6 +10494,19 @@
             ],
             "description": "The engines whose length limits apply. Left out: every one.",
             "title": "Engine Codes"
+          },
+          "language_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The language the texts should be in, for `language_mismatch`. Not built yet: `501 not_implemented`.",
+            "title": "Language Code"
           },
           "texts": {
             "items": {
@@ -9021,6 +10534,17 @@
             },
             "title": "Data",
             "type": "array"
+          },
+          "estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LintEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Not returned yet: absent from every response until it is built."
           },
           "quota": {
             "$ref": "#/components/schemas/PromptQuota"
@@ -9133,6 +10657,18 @@
             "description": "Active prompts in the whole workspace.",
             "title": "Used",
             "type": "integer"
+          },
+          "would_create": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Of the items, those neither tracked nor repeated. Not returned yet: absent from every response until it is built.",
+            "title": "Would Create"
           }
         },
         "required": [
@@ -9175,6 +10711,126 @@
           "data"
         ],
         "title": "PromptResponse",
+        "type": "object"
+      },
+      "PromptSelectionFilter": {
+        "additionalProperties": false,
+        "description": "The list's filters as a body: the names of `GET {P}/prompts` without the brackets. A list\nholds 1 to 100 values. `is_active` left out takes archived and active prompts alike.",
+        "properties": {
+          "country_iso": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Iso"
+          },
+          "funnel_stage_in": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FilterList_Literal__tofu____mofu____bofu____retention____unknown___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "importance_in": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FilterList_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_1___Le_le_5_____"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intent_in": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "is_branded": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Branded"
+          },
+          "language_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Code"
+          },
+          "prompt_type_in": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FilterList_Literal__question____comparison____recommendation____how_to____definition____local____transactional____other___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "q": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q"
+          },
+          "term": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The term or one under it.",
+            "title": "Term"
+          }
+        },
+        "title": "PromptSelectionFilter",
         "type": "object"
       },
       "PromptSkipped": {
@@ -9380,6 +11036,47 @@
             "title": "Branded Only",
             "type": "boolean"
           },
+          "by_country": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CountrySummary"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `group_by=country`: the engine cells per prompt country. Not returned yet: absent from every response until it is built.",
+            "title": "By Country"
+          },
+          "co_mentions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EngineCoMentions"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=co_mentions`: per engine, how often two tracked entities are named in one valid answer. Not returned yet: absent from every response until it is built.",
+            "title": "Co Mentions"
+          },
+          "compare_window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `compare=previous_period`: as many days just before `window`. Not returned yet: absent from every response until it is built."
+          },
           "engine_codes": {
             "items": {
               "type": "string"
@@ -9411,6 +11108,18 @@
           "metric_context": {
             "$ref": "#/components/schemas/SummaryMetricContext"
           },
+          "previous_answers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `compare`: the valid answers in scope in that window; 0 means it has no data. Not returned yet: absent from every response until it is built.",
+            "title": "Previous Answers"
+          },
           "prompts": {
             "items": {
               "$ref": "#/components/schemas/PromptSummaryRow"
@@ -9424,6 +11133,17 @@
             },
             "title": "Topics",
             "type": "array"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SummaryTotal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=total`. Not returned yet: absent from every response until it is built."
           },
           "window": {
             "$ref": "#/components/schemas/MetricWindow"
@@ -9453,6 +11173,24 @@
           "data"
         ],
         "title": "PromptsSummaryResponse",
+        "type": "object"
+      },
+      "QuotaUse": {
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "used"
+        ],
+        "title": "QuotaUse",
         "type": "object"
       },
       "RankCell": {
@@ -10114,6 +11852,95 @@
         ],
         "type": "string"
       },
+      "ResolvedLayout": {
+        "properties": {
+          "document": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LayoutDocument"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when `source` is `builtin`: the web app holds the built-in default."
+          },
+          "screen": {
+            "enum": [
+              "overview",
+              "ai_overview",
+              "rankings",
+              "prompts",
+              "citations",
+              "sources",
+              "pages",
+              "inspector.keyword",
+              "inspector.prompt",
+              "inspector.page",
+              "inspector.citation"
+            ],
+            "title": "Screen",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "personal",
+              "team",
+              "builtin"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "team_default_exists": {
+            "title": "Team Default Exists",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "updated_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LayoutEditor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "screen",
+          "source",
+          "document",
+          "team_default_exists",
+          "updated_at",
+          "updated_by"
+        ],
+        "title": "ResolvedLayout",
+        "type": "object"
+      },
+      "ResolvedLayoutResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ResolvedLayout"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ResolvedLayoutResponse",
+        "type": "object"
+      },
       "Role": {
         "enum": [
           "owner",
@@ -10125,6 +11952,24 @@
         ],
         "title": "Role",
         "type": "string"
+      },
+      "RoleAnswers": {
+        "properties": {
+          "answers_citing": {
+            "title": "Answers Citing",
+            "type": "integer"
+          },
+          "citation_units": {
+            "title": "Citation Units",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "citation_units",
+          "answers_citing"
+        ],
+        "title": "RoleAnswers",
+        "type": "object"
       },
       "RoleUnits": {
         "properties": {
@@ -12555,6 +14400,151 @@
         "title": "SitePropertyList",
         "type": "object"
       },
+      "SourceChangePage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SourceChangeRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/SourceChangesMeta"
+          },
+          "page": {
+            "$ref": "#/components/schemas/OffsetPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page",
+          "meta"
+        ],
+        "title": "SourceChangePage",
+        "type": "object"
+      },
+      "SourceChangeRow": {
+        "properties": {
+          "current_units": {
+            "description": "Citation units in the window.",
+            "title": "Current Units",
+            "type": "integer"
+          },
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "first_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its first citation in the window.",
+            "title": "First Seen At"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its last citation in the window.",
+            "title": "Last Seen At"
+          },
+          "previous_units": {
+            "description": "Citation units in the window compared with.",
+            "title": "Previous Units",
+            "type": "integer"
+          },
+          "registrable_domain": {
+            "maxLength": 253,
+            "title": "Registrable Domain",
+            "type": "string"
+          },
+          "role_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Entity Id"
+          }
+        },
+        "required": [
+          "registrable_domain",
+          "domain_role",
+          "role_entity_id",
+          "current_units",
+          "previous_units",
+          "first_seen_at",
+          "last_seen_at"
+        ],
+        "title": "SourceChangeRow",
+        "type": "object"
+      },
+      "SourceChangesMeta": {
+        "properties": {
+          "compare_window": {
+            "$ref": "#/components/schemas/MetricWindow"
+          },
+          "engine_codes": {
+            "items": {
+              "$ref": "#/components/schemas/EngineCode"
+            },
+            "maxItems": 3,
+            "title": "Engine Codes",
+            "type": "array"
+          },
+          "include_branded": {
+            "title": "Include Branded",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "new",
+              "lost"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "min_support": {
+            "title": "Min Support",
+            "type": "integer"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow"
+          }
+        },
+        "required": [
+          "window",
+          "compare_window",
+          "include_branded",
+          "engine_codes",
+          "kind",
+          "min_support"
+        ],
+        "title": "SourceChangesMeta",
+        "type": "object"
+      },
       "SourceDomainPage": {
         "properties": {
           "data": {
@@ -12581,10 +14571,53 @@
       },
       "SourceDomainRow": {
         "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The domain's category. Not returned yet: absent from every response until it is built.",
+            "title": "Category"
+          },
+          "category_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "seed_list",
+                  "rule",
+                  "llm",
+                  "manual",
+                  "tenant_override"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Not returned yet: absent from every response until it is built.",
+            "title": "Category Source"
+          },
           "citation_units": {
             "description": "Citation units: distinct canonical URLs per answer (docs/16 C2); a URL an answer cites twice is one, and `occurrences` never counts.",
             "title": "Citation Units",
             "type": "integer"
+          },
+          "cited_with": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CitedWith"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=cited_with`. Not returned yet: absent from every response until it is built."
           },
           "domain_role": {
             "enum": [
@@ -12653,6 +14686,22 @@
             ],
             "description": "The tracked entity whose domain rule the citations matched; null for a third party. A registrable domain whose citations matched different rules has a row per role and entity.",
             "title": "Role Entity Id"
+          },
+          "series": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SourceWeekUnits"
+                },
+                "maxItems": 14,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=series`: a point per week of the window, oldest first, at most 14. Not returned yet: absent from every response until it is built.",
+            "title": "Series"
           },
           "source_share": {
             "$ref": "#/components/schemas/MetricCell",
@@ -12772,6 +14821,22 @@
             ],
             "title": "Role Entity Id"
           },
+          "series": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SourceWeekUnits"
+                },
+                "maxItems": 14,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=series`: a point per week of the window, oldest first, at most 14. Not returned yet: absent from every response until it is built.",
+            "title": "Series"
+          },
           "source_share": {
             "$ref": "#/components/schemas/MetricCell"
           },
@@ -12816,6 +14881,31 @@
         "title": "SourcePageRow",
         "type": "object"
       },
+      "SourceWeekUnits": {
+        "properties": {
+          "citation_units": {
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "observations": {
+            "title": "Observations",
+            "type": "integer"
+          },
+          "week_start": {
+            "description": "The Monday the week starts on, in the project's zone.",
+            "format": "date",
+            "title": "Week Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week_start",
+          "citation_units",
+          "observations"
+        ],
+        "title": "SourceWeekUnits",
+        "type": "object"
+      },
       "SourcesMeta": {
         "properties": {
           "answers": {
@@ -12835,6 +14925,22 @@
             },
             "title": "By Role",
             "type": "array"
+          },
+          "by_role_by_engine": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EngineRoleUnits"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=by_role_by_engine` on domains. Not returned yet: absent from every response until it is built.",
+            "title": "By Role By Engine"
           },
           "citation_units": {
             "description": "Every citation unit in scope: the denominator of `source_share`. `filter[domain_role_in]` narrows the rows, not this.",
@@ -12875,6 +14981,22 @@
             "description": "With `compare`: the valid answers in scope in that window. 0 means it has no data, so a `previous` of 0 there says nothing about the source.",
             "title": "Previous Answers"
           },
+          "series": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SourcesWeek"
+                },
+                "maxItems": 14,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=series`. Not returned yet: absent from every response until it is built.",
+            "title": "Series"
+          },
           "window": {
             "$ref": "#/components/schemas/MetricWindow"
           }
@@ -12889,6 +15011,35 @@
           "by_role"
         ],
         "title": "SourcesMeta",
+        "type": "object"
+      },
+      "SourcesWeek": {
+        "properties": {
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "citation_units": {
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "distinct_domains": {
+            "title": "Distinct Domains",
+            "type": "integer"
+          },
+          "week_start": {
+            "format": "date",
+            "title": "Week Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week_start",
+          "answers",
+          "citation_units",
+          "distinct_domains"
+        ],
+        "title": "SourcesWeek",
         "type": "object"
       },
       "Sparkline": {
@@ -13004,6 +15155,56 @@
           "share_of_voice"
         ],
         "title": "SummaryMetricContext",
+        "type": "object"
+      },
+      "SummaryTotal": {
+        "description": "Every prompt in scope as one row, aggregated as a topic row is (OV-N1).",
+        "properties": {
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/EngineSummary"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "last_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest answer counted in the window (current, not superseded), of any status, on the engines shown; null when there is none.",
+            "title": "Last Observed At"
+          },
+          "last_valid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest valid answer counted in the window, on the engines shown; null if none.",
+            "title": "Last Valid At"
+          },
+          "prompt_count": {
+            "title": "Prompt Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "prompt_count",
+          "last_observed_at",
+          "last_valid_at",
+          "engines"
+        ],
+        "title": "SummaryTotal",
         "type": "object"
       },
       "Term": {
@@ -13384,6 +15585,28 @@
           "children"
         ],
         "title": "TermNode",
+        "type": "object"
+      },
+      "TermNoteScope": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "term",
+            "title": "Kind",
+            "type": "string"
+          },
+          "term_id": {
+            "description": "A term the project may use (`term_unknown` otherwise).",
+            "format": "uuid",
+            "title": "Term Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "term_id"
+        ],
+        "title": "TermNoteScope",
         "type": "object"
       },
       "TermRef": {
@@ -16073,6 +18296,21 @@
         "properties": {
           "cited": {
             "$ref": "#/components/schemas/MetricCell"
+          },
+          "entities": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EntityCells"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=series,entities`: the week's cells per tracked entity, weighted as the week's own (at most 20). Not returned yet: absent from every response until it is built.",
+            "title": "Entities"
           },
           "mentioned": {
             "$ref": "#/components/schemas/MetricCell"
@@ -19234,6 +21472,336 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/layouts/{screen}": {
+      "get": {
+        "description": "Their personal layout, else the team default, else `source: builtin` with a null document; with an `ETag`. Not built yet: `501 not_implemented`.",
+        "operationId": "get_layout_api_v1_workspaces__workspace_id__layouts__screen__get",
+        "parameters": [
+          {
+            "description": "A screen key (layout spec section 4); an unknown one is `404`.",
+            "in": "path",
+            "name": "screen",
+            "required": true,
+            "schema": {
+              "description": "A screen key (layout spec section 4); an unknown one is `404`.",
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-z_]+(\\.[a-z_]+)?$",
+              "title": "Screen",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedLayoutResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The layout a member sees on a screen",
+        "tags": [
+          "layouts"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/layouts/{screen}/default": {
+      "delete": {
+        "description": "Audited as `layout.default.remove`. Not built yet: `501 not_implemented`.",
+        "operationId": "delete_team_layout_api_v1_workspaces__workspace_id__layouts__screen__default_delete",
+        "parameters": [
+          {
+            "description": "A screen key (layout spec section 4); an unknown one is `404`.",
+            "in": "path",
+            "name": "screen",
+            "required": true,
+            "schema": {
+              "description": "A screen key (layout spec section 4); an unknown one is `404`.",
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-z_]+(\\.[a-z_]+)?$",
+              "title": "Screen",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Remove the team default of a screen",
+        "tags": [
+          "layouts"
+        ]
+      },
+      "put": {
+        "description": "As the personal layout; audited as `layout.default.set` with the documents before and after. Not built yet: `501 not_implemented`.",
+        "operationId": "put_team_layout_api_v1_workspaces__workspace_id__layouts__screen__default_put",
+        "parameters": [
+          {
+            "description": "A screen key (layout spec section 4); an unknown one is `404`.",
+            "in": "path",
+            "name": "screen",
+            "required": true,
+            "schema": {
+              "description": "A screen key (layout spec section 4); an unknown one is `404`.",
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-z_]+(\\.[a-z_]+)?$",
+              "title": "Screen",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The `ETag` of the layout as read; required when one exists, `412 precondition_failed` when it changed.",
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The `ETag` of the layout as read; required when one exists, `412 precondition_failed` when it changed.",
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LayoutDocument"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedLayoutResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Save the team default of a screen",
+        "tags": [
+          "layouts"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/me/layouts/{screen}": {
+      "delete": {
+        "description": "Not built yet: `501 not_implemented`.",
+        "operationId": "delete_personal_layout_api_v1_workspaces__workspace_id__me_layouts__screen__delete",
+        "parameters": [
+          {
+            "description": "A screen key (layout spec section 4); an unknown one is `404`.",
+            "in": "path",
+            "name": "screen",
+            "required": true,
+            "schema": {
+              "description": "A screen key (layout spec section 4); an unknown one is `404`.",
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-z_]+(\\.[a-z_]+)?$",
+              "title": "Screen",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Go back to the team or built-in default",
+        "tags": [
+          "layouts"
+        ]
+      },
+      "put": {
+        "description": "Card types and metric keys of the catalog for the screen, allowed widths, at most 12 cards and 6 numbers, at most 16 KB (`422 validation_failed` with field paths). Not built yet: `501 not_implemented`.",
+        "operationId": "put_personal_layout_api_v1_workspaces__workspace_id__me_layouts__screen__put",
+        "parameters": [
+          {
+            "description": "A screen key (layout spec section 4); an unknown one is `404`.",
+            "in": "path",
+            "name": "screen",
+            "required": true,
+            "schema": {
+              "description": "A screen key (layout spec section 4); an unknown one is `404`.",
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-z_]+(\\.[a-z_]+)?$",
+              "title": "Screen",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The `ETag` of the layout as read; required when one exists, `412 precondition_failed` when it changed.",
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The `ETag` of the layout as read; required when one exists, `412 precondition_failed` when it changed.",
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LayoutDocument"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedLayoutResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Save the caller's own layout of a screen",
+        "tags": [
+          "layouts"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/members": {
       "get": {
         "operationId": "list_members_api_v1_workspaces__workspace_id__members_get",
@@ -19788,6 +22356,114 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/annotations": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), oldest first: a new `model_reported` per engine, entity set, extractor and prompt set changes. Not built yet: `501 not_implemented`.",
+        "operationId": "list_annotations_api_v1_workspaces__workspace_id__projects__project_id__ai_annotations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The changes every AI time chart marks",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations": {
       "get": {
         "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per citation of a counted answer, in the answer's order (a URL listed twice is two rows and one unit). `filter[registrable_domain]` and `filter[url_id]` give the citations behind a domain or page row. Keyset pages `(observed_at DESC, observation_id DESC, citation_index)`; a cursor is bound to its filters (`400 invalid_cursor` otherwise).",
@@ -19849,6 +22525,25 @@
                 }
               ],
               "title": "Filter[Url Id]"
+            }
+          },
+          {
+            "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+              "title": "Filter[Country Iso]"
             }
           },
           {
@@ -20038,6 +22733,114 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/collection/daily": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`): per day and engine the answers the schedules planned, the answers stored by status, the valid ones, the runs a budget blocked and the runs behind them. Not built yet: `501 not_implemented`.",
+        "operationId": "collection_daily_api_v1_workspaces__workspace_id__projects__project_id__ai_collection_daily_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionDailyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "AI collection per project day and engine",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/fanout-queries": {
       "get": {
         "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). Read from the lists ingest stored with each answer (engines that show them: ChatGPT; `filter[engine_code_in]` naming another is `422 engine_has_no_fanout`, and `meta.engines_without_fanout` lists them so they read as not exposed, never zero). One row per normalized text (lower case, trimmed, inner whitespace as one space) and engine, the most issued first: the most common spelling, the answers and prompts that issued it, when it was first and last seen, and the 5 registrable domains with the most citation units in those answers (an association: which query found which source is not stored). A query issued by fewer than `min_support` answers (default 2) is left out. `meta.answers` is the denominator; `meta.answers_truncated` counts the answers whose stored list is shorter than the queries they issued (the 16 KB bound keeps the first ones). Offset pages.",
@@ -20075,6 +22878,25 @@
               "minimum": 1,
               "title": "Min Support",
               "type": "integer"
+            }
+          },
+          {
+            "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+              "title": "Filter[Country Iso]"
             }
           },
           {
@@ -20227,6 +23049,60 @@
           }
         },
         "summary": "The queries ChatGPT issued while answering, by how many answers issued them",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/limits": {
+      "get": {
+        "description": "The workspace's active prompts and AI answers this UTC month, and the project's manual runs today (UTC), each with its limit, as the writes count them. Not built yet: `501 not_implemented`.",
+        "operationId": "ai_limits_api_v1_workspaces__workspace_id__projects__project_id__ai_limits_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiLimitsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Active prompts, monthly AI answers and manual runs: used and limit",
         "tags": [
           "ai"
         ]
@@ -20631,7 +23507,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary": {
       "get": {
-        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came. `include=series` adds a point for each week the window touches (weeks start on Monday in the project's timezone), with Mentioned, Cited and Share of voice over the week's answers. The first and last points may be partial weeks (cut at the window bounds; the first `week_start` can precede `window.from`). On a prompt row the weeks' numerators, denominators and n_observations add up to the window cell. On a topic row the weekly Mentioned and Cited are prompt weighted per week, so their numerators and denominators (sums of per-week prompt rates and prompt counts) do not add up to the window cell, while `pooled`, Share of voice and n_observations do. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most 20); across all the entities an answer names, its shares add up to 1. Blocks not asked for are left out.",
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came. `include=series` adds a point for each week the window touches (weeks start on Monday in the project's timezone), with Mentioned, Cited and Share of voice over the week's answers. The first and last points may be partial weeks (cut at the window bounds; the first `week_start` can precede `window.from`). On a prompt row the weeks' numerators, denominators and n_observations add up to the window cell. On a topic row the weekly Mentioned and Cited are prompt weighted per week, so their numerators and denominators (sums of per-week prompt rates and prompt counts) do not add up to the window cell, while `pooled`, Share of voice and n_observations do. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most 20); across all the entities an answer names, its shares add up to 1. Blocks not asked for are left out. `compare`, `include=total`, `include=co_mentions`, `rows`, `filter[outcome]`, `filter[opportunity]` and `group_by` are published and not built yet (`501`).",
         "operationId": "prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get",
         "parameters": [
           {
@@ -20769,7 +23645,7 @@
             }
           },
           {
-            "description": "Blocks to add: `series`, `entities`.",
+            "description": "Blocks to add: `series`, `entities`; `total` and `co_mentions` are not built yet (`501`).",
             "in": "query",
             "name": "include",
             "required": false,
@@ -20779,7 +23655,9 @@
                   "items": {
                     "enum": [
                       "series",
-                      "entities"
+                      "entities",
+                      "total",
+                      "co_mentions"
                     ],
                     "type": "string"
                   },
@@ -20789,8 +23667,108 @@
                   "type": "null"
                 }
               ],
-              "description": "Blocks to add: `series`, `entities`.",
+              "description": "Blocks to add: `series`, `entities`; `total` and `co_mentions` are not built yet (`501`).",
               "title": "Include"
+            }
+          },
+          {
+            "description": "`previous_period` adds `previous` cells. Not built yet: `501`.",
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "default": "none",
+              "description": "`previous_period` adds `previous` cells. Not built yet: `501`.",
+              "enum": [
+                "none",
+                "previous_period"
+              ],
+              "title": "Compare",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`topics` leaves the prompt rows out, `none` both row lists (with `include=total`). Left out: every row. Not built yet: `501`.",
+            "in": "query",
+            "name": "rows",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "topics",
+                    "none"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`topics` leaves the prompt rows out, `none` both row lists (with `include=total`). Left out: every row. Not built yet: `501`.",
+              "title": "Rows"
+            }
+          },
+          {
+            "description": "Prompt rows by outcome. Not built yet: `501`.",
+            "in": "query",
+            "name": "filter[outcome]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "mentioned_and_cited",
+                    "mentioned_only",
+                    "cited_only",
+                    "neither"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Prompt rows by outcome. Not built yet: `501`.",
+              "title": "Filter[Outcome]"
+            }
+          },
+          {
+            "description": "`named_not_cited`, `cited_not_named`, `nobody_named` or `lost_to:<entity_id>`. Not built yet: `501`.",
+            "in": "query",
+            "name": "filter[opportunity]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(named_not_cited|cited_not_named|nobody_named|lost_to:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`named_not_cited`, `cited_not_named`, `nobody_named` or `lost_to:<entity_id>`. Not built yet: `501`.",
+              "title": "Filter[Opportunity]"
+            }
+          },
+          {
+            "description": "`country` adds `by_country`. Not built yet: `501`.",
+            "in": "query",
+            "name": "group_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "country",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`country` adds `by_country`. Not built yet: `501`.",
+              "title": "Group By"
             }
           }
         ],
@@ -20887,6 +23865,256 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/changes": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). `kind=new` (default): domains with at least `min_support` citation units in the window and none in as many days before. `kind=lost`: domains with at least `min_support` units before and none in the window. One row per registrable domain and role; offset pages. Not built yet: `501 not_implemented`.",
+        "operationId": "source_changes_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_changes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "new",
+              "enum": [
+                "new",
+                "lost"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_support",
+            "required": false,
+            "schema": {
+              "default": 2,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Min Support",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[domain_role_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "own",
+                      "competitor",
+                      "third_party"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Domain Role In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "One prompt's answers, whether it is active, archived or branded.",
+            "in": "query",
+            "name": "filter[prompt_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One prompt's answers, whether it is active, archived or branded.",
+              "title": "Filter[Prompt Id]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceChangePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "New and lost sources against the window before",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains": {
       "get": {
         "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per registrable domain and role (and the entity whose domain rule matched): citation units, answers, prompts, units per engine and `source_share` (its units over every unit in scope; `filter[domain_role_in]` narrows the rows, not the denominator). `meta` states the answers, the units and the units of each role. Offset pages; `sort` is `-citation_units` (default), `-observations` or `-prompts`. `compare=previous_period` (default `none`) adds `previous` to each row, its units and citing answers over as many days just before the window (0 when not cited there: docs/16 C5), with `meta.compare_window` and `meta.previous_answers`.",
@@ -20939,6 +24167,72 @@
               ],
               "title": "Compare",
               "type": "string"
+            }
+          },
+          {
+            "description": "Blocks to add: `series`, `cited_with`, `by_role_by_engine`. Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "series",
+                      "cited_with",
+                      "by_role_by_engine"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Blocks to add: `series`, `cited_with`, `by_role_by_engine`. Not built yet: `501 not_implemented`.",
+              "maxLength": 3,
+              "title": "Include"
+            }
+          },
+          {
+            "description": "The fewest citation units a row is listed for. Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "min_support",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1000,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The fewest citation units a row is listed for. Not built yet: `501 not_implemented`.",
+              "title": "Min Support"
+            }
+          },
+          {
+            "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+              "title": "Filter[Country Iso]"
             }
           },
           {
@@ -21193,6 +24487,68 @@
               ],
               "title": "Compare",
               "type": "string"
+            }
+          },
+          {
+            "description": "Blocks to add: `series`. Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "const": "series",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Blocks to add: `series`. Not built yet: `501 not_implemented`.",
+              "maxLength": 1,
+              "title": "Include"
+            }
+          },
+          {
+            "description": "The fewest citation units a row is listed for. Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "min_support",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1000,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The fewest citation units a row is listed for. Not built yet: `501 not_implemented`.",
+              "title": "Min Support"
+            }
+          },
+          {
+            "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+              "title": "Filter[Country Iso]"
             }
           },
           {
@@ -23412,9 +26768,216 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/notes": {
+      "get": {
+        "description": "Notes drawn on days from `from` to `to` (default the 28 days ending today; at most 92, `422 window_too_large`), project wide and per term. Not built yet: `501 not_implemented`.",
+        "operationId": "list_notes_api_v1_workspaces__workspace_id__projects__project_id__notes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The project's chart notes",
+        "tags": [
+          "notes"
+        ]
+      },
+      "post": {
+        "description": "At most 140 characters on one line, for the project or one term (`term_unknown` for a term the project may not use). Not built yet: `501 not_implemented`.",
+        "operationId": "create_note_api_v1_workspaces__workspace_id__projects__project_id__notes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Add a chart note",
+        "tags": [
+          "notes"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/notes/{note_id}": {
+      "delete": {
+        "description": "Not built yet: `501 not_implemented`.",
+        "operationId": "delete_note_api_v1_workspaces__workspace_id__projects__project_id__notes__note_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "note_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Note Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Delete a chart note",
+        "tags": [
+          "notes"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts": {
       "get": {
-        "description": "Newest first. `filter[is_active]` is true when left out; archived prompts are listed with false. `filter[term]` takes the term or one under it, `filter[q]` matches the text as a substring without case, and `filter[intent_in]` takes a comma list. A cursor is bound to its filters (`400 invalid_cursor` otherwise).",
+        "description": "Newest first. `filter[is_active]` is true when left out; archived prompts are listed with false. `filter[term]` takes the term or one under it, `filter[q]` matches the text as a substring without case, and `filter[intent_in]` takes a comma list. A cursor is bound to its filters (`400 invalid_cursor` otherwise). The type, funnel stage, importance and branded filters, `sort` and `filter[is_active]=any` are published and not built yet (`501`).",
         "operationId": "list_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_get",
         "parameters": [
           {
@@ -23534,13 +27097,151 @@
             }
           },
           {
+            "description": "`true` (default) or `false`; `any` lists both. `any`: Not built yet: `501 not_implemented`.",
             "in": "query",
             "name": "filter[is_active]",
             "required": false,
             "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "const": "any",
+                  "type": "string"
+                }
+              ],
               "default": true,
-              "title": "Filter[Is Active]",
-              "type": "boolean"
+              "description": "`true` (default) or `false`; `any` lists both. `any`: Not built yet: `501 not_implemented`.",
+              "title": "Filter[Is Active]"
+            }
+          },
+          {
+            "description": "Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "filter[prompt_type_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "question",
+                      "comparison",
+                      "recommendation",
+                      "how_to",
+                      "definition",
+                      "local",
+                      "transactional",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Not built yet: `501 not_implemented`.",
+              "title": "Filter[Prompt Type In]"
+            }
+          },
+          {
+            "description": "Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "filter[funnel_stage_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "tofu",
+                      "mofu",
+                      "bofu",
+                      "retention",
+                      "unknown"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Not built yet: `501 not_implemented`.",
+              "title": "Filter[Funnel Stage In]"
+            }
+          },
+          {
+            "description": "Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "filter[importance_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "maximum": 5,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Not built yet: `501 not_implemented`.",
+              "title": "Filter[Importance In]"
+            }
+          },
+          {
+            "description": "Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "filter[is_branded]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Not built yet: `501 not_implemented`.",
+              "title": "Filter[Is Branded]"
+            }
+          },
+          {
+            "description": "A field, `-` first for descending; left out: newest first. Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "text",
+                    "-text",
+                    "importance",
+                    "-importance",
+                    "created_at",
+                    "-created_at",
+                    "updated_at",
+                    "-updated_at"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A field, `-` first for descending; left out: newest first. Not built yet: `501 not_implemented`.",
+              "title": "Sort"
             }
           },
           {
@@ -23667,7 +27368,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-archive": {
       "post": {
-        "description": "Up to 1,000 `ids` of the project's prompts; an id it does not have is not matched. `archive: true` archives them as `DELETE` does one, `false` brings them back as `PATCH is_active: true` does; answers, versions and terms stay. Bringing back counts against the workspace's active prompt limit, all or none (`422 quota_exceeded` with `limit`, `used` and `requested`). `matched` is the prompts found, `updated` those whose state changed. One audit entry for the request and one per prompt changed.",
+        "description": "Up to 1,000 `ids` of the project's prompts; an id it does not have is not matched. `archive: true` archives them as `DELETE` does one, `false` brings them back as `PATCH is_active: true` does; answers, versions and terms stay. Bringing back counts against the workspace's active prompt limit, all or none (`422 quota_exceeded` with `limit`, `used` and `requested`). `matched` is the prompts found, `updated` those whose state changed. One audit entry for the request and one per prompt changed. `filter` in place of `ids` is published and not built yet (`501`).",
         "operationId": "bulk_archive_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_archive_post",
         "parameters": [
           {
@@ -23695,7 +27396,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PromptBulkArchive"
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/PromptBulkArchive"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PromptBulkArchiveByFilter"
+                  }
+                ],
+                "title": "Body"
               }
             }
           },
@@ -23793,9 +27502,73 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-update": {
+      "post": {
+        "description": "Up to 1,000 `ids` of the project's prompts, or `filter` (the list's filters), exactly one. `set` changes intent, funnel stage, type, importance and the branded flag; `add_term_ids` and `remove_term_ids` add and remove terms. `matched` is the prompts found, `updated` those that changed. One transaction; one `prompt.bulk_changed` audit entry and one `prompt.updated` per prompt changed. Not built yet: `501 not_implemented`.",
+        "operationId": "bulk_update_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_update_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptBulkUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptBulkUpdateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change the metadata of many prompts",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/lint": {
       "post": {
-        "description": "Nothing is stored. For each text, as it would be saved: whether it names an own brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine it is too long for (`engine_limit`: a warning when the engine skips it, an error when it is too long to save). `quota` is the workspace's active prompt limit and use.",
+        "description": "Nothing is stored. For each text, as it would be saved: whether it names an own brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine it is too long for (`engine_limit`: a warning when the engine skips it, an error when it is too long to save). `quota` is the workspace's active prompt limit and use. `items` (with language and country, to say what is tracked) and `language_code` are published and not built yet (`501`).",
         "operationId": "lint_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_lint_post",
         "parameters": [
           {
@@ -23823,7 +27596,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PromptLintRequest"
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/PromptLintRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PromptLintItems"
+                  }
+                ],
+                "title": "Body"
               }
             }
           },
@@ -24006,6 +27787,25 @@
               "format": "uuid",
               "title": "Workspace Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "The `ETag` of the prompt as read; a changed prompt is `412 precondition_failed`. Not built yet: `501 not_implemented`.",
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The `ETag` of the prompt as read; a changed prompt is `412 precondition_failed`. Not built yet: `501 not_implemented`.",
+              "title": "If-Match"
             }
           }
         ],
@@ -24409,6 +28209,70 @@
         "summary": "One run",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}/ai-coverage": {
+      "get": {
+        "description": "A run of workload `ai_prompt` (`422 not_an_ai_run` otherwise): per engine the tasks planned, the answers stored, the valid ones and the others by status, with the valid rate; and every planned task with no stored answer. Not built yet: `501 not_implemented`.",
+        "operationId": "ai_coverage_api_v1_workspaces__workspace_id__projects__project_id__runs__run_id__ai_coverage_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiCoverageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Per engine, what an AI run planned, stored and found valid",
+        "tags": [
+          "ai"
         ]
       }
     },
