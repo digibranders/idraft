@@ -1394,7 +1394,9 @@ export function DataTable<TRow extends RowData>({
                                     column.kind === 'select' && 'px-0 text-center',
                                     column.kind === 'actions' && 'px-2 text-right',
                                     column.kind === 'actions' && pinActions && 'sticky right-0 z-(--z-pinned-cell)',
-                                    column.kind === 'actions' && pinEdge && 'border-l border-l-border',
+                                    // The border takes 1 px of the cell's width: 6 px of padding plus it keeps the
+                                    // trigger where it is when the edge appears
+                                    column.kind === 'actions' && pinEdge && 'border-l border-l-border pl-1.5',
                                     column.kind === 'data' && ALIGN[COLUMN_TYPES[column.column.type].align],
                                     identity &&
                                       'group-data-active:text-primary-text group-data-selected:text-primary-text',

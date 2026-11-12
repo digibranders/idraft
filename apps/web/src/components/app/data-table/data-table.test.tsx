@@ -1907,12 +1907,15 @@ describe('DataTable column groups', () => {
     columnGroups = true,
     server,
     status = 'ready',
+    bare = false,
   }: {
     rows?: Row[];
     columns?: readonly DataTableColumn<Row>[];
     columnGroups?: boolean;
     server?: ServerPaging;
     status?: TableStatus;
+    /** No selection and no row actions: the data columns are the whole table, so a group can end it. */
+    bare?: boolean;
   }): ReactElement {
     const [sort, setSort] = useState<readonly SortKey[]>(DEFAULT_SORT);
     const [visible, setVisible] = useState<readonly string[] | null>(null);
@@ -1939,8 +1942,8 @@ describe('DataTable column groups', () => {
           onSearchChange={setSearch}
           searchPlaceholder="Search keywords"
           searchText={keywordOf}
-          selection={{ ...SELECTION_STATE, selectedIds: selected, onChange: setSelected }}
-          rowActions={ACTIONS}
+          selection={bare ? undefined : { ...SELECTION_STATE, selectedIds: selected, onChange: setSelected }}
+          rowActions={bare ? undefined : ACTIONS}
           rowName={keywordOf}
           onRowOpen={onOpen}
           status={status}
@@ -2091,6 +2094,13 @@ describe('DataTable column groups', () => {
     renderWithProviders(<GroupHarness />);
     expect(grid().querySelector('[aria-colindex]')).toBeNull();
     expect(grid()).not.toHaveAttribute('aria-colcount');
+  });
+
+  it('draws no right border on the group cell that ends the table, and one on a group cell with a column after it', () => {
+    renderWithProviders(<GroupHarness bare />);
+    // Engine B ends the table (no selection or actions column); Engine A has Engine B's columns after it
+    expect(headerCell('Engine A')).toHaveClass('border-r');
+    expect(headerCell('Engine B')).not.toHaveClass('border-r');
   });
 
   it('draws the refetch bar on the leaf and tall header cells, whose bottom edge ends the header, and not on a group cell', () => {
@@ -2472,6 +2482,15 @@ describe('DataTable pinned actions column', () => {
     for (const cell of [actionsHeader(), ...actionCells()]) expect(hasEdge(cell)).toBe(false);
     scrollTo(100);
     for (const cell of [actionsHeader(), ...actionCells()]) expect(hasEdge(cell)).toBe(true);
+  });
+
+  it('gives a body cell with the edge 6 px of left padding, so the trigger does not move by the 1 px border', () => {
+    regionWidth = 400;
+    renderWithProviders(<Harness rows={rowsOf(3)} pinActions />);
+    scrollTo(0);
+    for (const cell of actionCells()) expect(cell).toHaveClass('border-l', 'pl-1.5');
+    scrollTo(300);
+    for (const cell of actionCells()) expect(cell).not.toHaveClass('pl-1.5');
   });
 
   it('draws no edge when the table fits the region', () => {

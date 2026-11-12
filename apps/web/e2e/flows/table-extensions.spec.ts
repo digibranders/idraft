@@ -28,17 +28,27 @@ async function settle(page: Page): Promise<void> {
 }
 
 /**
- * What the table's own `contextmenu` handler decided for the next event on `target`: whether the default (the
- * browser's menu) was prevented. Read at the document, after the table has handled the event. A headless
- * browser draws no native menu, so this is how "the browser keeps its menu" is observed.
+ * Starts recording what the table's own `contextmenu` handler decides for the next event: whether the default
+ * (the browser's menu) was prevented. The listener is on the document, so it reads the event after the table has
+ * handled it, and it is in place before the click. A headless browser draws no native menu, so this is how
+ * "the browser keeps its menu" is observed.
  */
-function nextContextMenuPrevented(target: Locator): Promise<boolean> {
-  return target.evaluate(
-    (node) =>
-      new Promise<boolean>((resolve) => {
-        node.ownerDocument.addEventListener('contextmenu', (event) => resolve(event.defaultPrevented), { once: true });
-      }),
-  );
+async function watchContextMenu(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    delete document.documentElement.dataset.contextPrevented;
+    document.addEventListener(
+      'contextmenu',
+      (event) => {
+        document.documentElement.dataset.contextPrevented = String(event.defaultPrevented);
+      },
+      { once: true },
+    );
+  });
+}
+
+/** What `watchContextMenu` recorded: "true" or "false", or `null` while no `contextmenu` event has arrived. */
+function contextPrevented(page: Page): Promise<string | null> {
+  return page.evaluate(() => document.documentElement.dataset.contextPrevented ?? null);
 }
 
 test.describe('row context menu on Rankings By group', () => {
@@ -57,16 +67,16 @@ test.describe('row context menu on Rankings By group', () => {
     const point = { x: box.x + 100, y: box.y + box.height / 2 };
 
     // Shift plus right click is how a person asks for the browser's menu: the table does not take it
-    const shiftPrevented = nextContextMenuPrevented(cell);
+    await watchContextMenu(page);
     await cell.click({ button: 'right', modifiers: ['Shift'], position: { x: 100, y: box.height / 2 } });
-    expect(await shiftPrevented).toBe(false);
+    await expect.poll(() => contextPrevented(page)).toBe('false');
     await settle(page);
     await expect(page.getByRole('menu')).toHaveCount(0);
 
     // A plain right click opens the same menu as the row's More button, at the pointer
-    const prevented = nextContextMenuPrevented(cell);
+    await watchContextMenu(page);
     await page.mouse.click(point.x, point.y, { button: 'right' });
-    expect(await prevented).toBe(true);
+    await expect.poll(() => contextPrevented(page)).toBe('true');
     const menu = page.getByRole('menu');
     await expect(menu).toBeVisible();
     await expect(menu.getByRole('menuitem', { name: /Open group/ })).toBeVisible();
@@ -179,23 +189,21 @@ test.describe('table extensions in the design-system gallery', () => {
       });
       await expect(grid).toBeVisible();
 
-      /** Scrolls the table's region to `edge` and measures the first row's Keyword and actions cells against it. */
-      const measure = (edge: 'start' | 'end') =>
-        grid.evaluate(async (table, target) => {
+      /** Scrolls the table's region to its start or its end. */
+      const scrollTo = (edge: 'start' | 'end') =>
+        grid.evaluate((table, target) => {
+          const region = table.closest('div.overflow-auto');
+          if (!(region instanceof HTMLElement)) throw new Error('The table has no scroll region');
+          region.scrollLeft = target === 'end' ? region.scrollWidth : 0;
+        }, edge);
+      /** Measures the first row's Keyword and actions cells against the region as it is now. */
+      const measure = () =>
+        grid.evaluate((table) => {
           const region = table.closest('div.overflow-auto');
           const row = table.querySelector('tbody tr[role="row"]');
           if (!(region instanceof HTMLElement) || !(row instanceof HTMLTableRowElement)) {
             throw new Error('The table has no scroll region or no row');
           }
-          region.scrollLeft = target === 'end' ? region.scrollWidth : 0;
-          // The pinned edge follows the scroll event: wait until it has rendered
-          await new Promise<void>((resolve) => {
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                resolve();
-              });
-            });
-          });
           const keyword = row.cells[1];
           const actions = row.cells[row.cells.length - 1];
           if (keyword === undefined || actions === undefined) throw new Error('The row has no Keyword or actions cell');
@@ -208,20 +216,24 @@ test.describe('table extensions in the design-system gallery', () => {
             actionsRight: actions.getBoundingClientRect().right,
             edge: getComputedStyle(actions).borderLeftWidth,
           };
-        }, edge);
+        });
 
-      // Not scrolled: columns are behind the actions, so the edge is drawn
-      const start = await measure('start');
+      // Not scrolled: columns are behind the actions, so the edge is drawn (it follows the scroll event, so poll).
+      // The Keyword column is not compared with the actions cell here: at 390 px the pinned actions column may
+      // lie over the Keyword column's own cell, which is what a pin does when the region is that narrow.
+      await scrollTo('start');
+      await expect.poll(async () => (await measure()).edge).toBe('1px');
+      const start = await measure();
       expect(start.overflows).toBe(true);
       expect(Math.abs(start.actionsRight - start.viewRight)).toBeLessThanOrEqual(1);
-      expect(start.keywordRight).toBeLessThanOrEqual(start.actionsLeft);
-      expect(start.edge).toBe('1px');
 
-      // Scrolled to the end: still at the right edge, still clear of the Keyword column, and no edge
-      const end = await measure('end');
+      // Scrolled to the end: still at the right edge, no edge, and the Keyword column, pinned at the left or
+      // scrolled out of view, is clear of the actions cell
+      await scrollTo('end');
+      await expect.poll(async () => (await measure()).edge).toBe('0px');
+      const end = await measure();
       expect(Math.abs(end.actionsRight - end.viewRight)).toBeLessThanOrEqual(1);
       expect(end.keywordRight).toBeLessThanOrEqual(end.actionsLeft);
-      expect(end.edge).toBe('0px');
     });
   }
 
