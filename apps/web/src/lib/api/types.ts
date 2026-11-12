@@ -157,6 +157,8 @@ export type RunSkip = Schemas['RunSkip'];
 export type PromptSummaryRow = Schemas['PromptSummaryRow'];
 export type TopicSummaryRow = Schemas['TopicSummaryRow'];
 export type PromptsSummary = Schemas['PromptsSummary'];
+export type SummaryEntity = Schemas['SummaryEntity'];
+export type ObservationFacts = Schemas['ObservationFacts'];
 
 /** Runtime lists from the OpenAPI enums: a form checks a slug against them before it asks the API. */
 export { reservedProjectSlugValues, reservedWorkspaceSlugValues, roleValues } from './schema';

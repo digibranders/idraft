@@ -226,6 +226,19 @@ export const TOPIC_TABS = ['overview', 'prompts'] as const;
 export type TopicTab = (typeof TOPIC_TABS)[number];
 export const parseTopicTab = (value: string): TopicTab => (value === 'prompts' ? 'prompts' : 'overview');
 
+/** The tabs of the prompt inspector (`?itab=`): Citations joins them with the citation routes. */
+export const PROMPT_TABS = ['latest', 'history', 'competitors', 'stats'] as const;
+export type PromptTab = (typeof PROMPT_TABS)[number];
+/** Latest when the address names no tab of the prompt's (the inspector's first tab is `overview` in the address). */
+export const parsePromptTab = (value: string): PromptTab => PROMPT_TABS.find((tab) => tab === value) ?? 'latest';
+
+/**
+ * Why an answer could not be read, as a key of `prompts.answer.failedReasons`. The code is the provider's task
+ * status as text (`missing` when it sent none; DataForSEO's 50000 range is its own errors), and is never shown as it is.
+ */
+export const failedReasonKey = (code: string | null): 'missing' | 'providerError' | 'unknown' =>
+  code === 'missing' ? 'missing' : code !== null && /^5\d{4}$/.test(code) ? 'providerError' : 'unknown';
+
 /** The topic a prompt was opened from (ADR-DS-022 decision 8), and what it was opened for. */
 export interface TopicOrigin {
   key: string;

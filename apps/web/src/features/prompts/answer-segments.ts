@@ -64,3 +64,27 @@ export function answerSegments<M extends Spanned>(text: string, mentions: readon
   if (at < text.length) segments.push({ kind: 'text', start: at, text: text.slice(at) });
   return segments;
 }
+
+/**
+ * The first `max` UTF-16 units of the segments of an answer (an excerpt): a mention the limit cuts through keeps
+ * the part before it, and the limit moves back rather than split a character past U+FFFF. `clipped` says whether
+ * anything was left out. The segments are those of `answerSegments`, which cover the text from its start.
+ */
+export function clipSegments<M extends Spanned>(
+  segments: readonly AnswerSegment<M>[],
+  max: number,
+): { segments: AnswerSegment<M>[]; clipped: boolean } {
+  const text = segments.map((segment) => segment.text).join('');
+  if (text.length <= max) return { segments: [...segments], clipped: false };
+  const limit = splitsCharacter(text, max) ? max - 1 : max;
+  const kept: AnswerSegment<M>[] = [];
+  for (const segment of segments) {
+    if (segment.start >= limit) break;
+    kept.push(
+      segment.start + segment.text.length <= limit
+        ? segment
+        : { ...segment, text: segment.text.slice(0, limit - segment.start) },
+    );
+  }
+  return { segments: kept, clipped: true };
+}

@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useState, type ReactElement, type ReactNode } from 'react';
 
 import { answerSegments } from './answer-segments';
-import { outcomeKey } from './prompt-model';
+import { failedReasonKey, outcomeKey } from './prompt-model';
 import {
   fetchRawAnswer,
   observationQuery,
@@ -42,13 +42,6 @@ const SOURCE_ROLE_KEYS = { own: 'own', competitor: 'competitor', third_party: 't
 
 /** Only an http or https address becomes a link; anything else (`javascript:`, say) stays text. */
 const isWebAddress = (url: string | null): url is string => url !== null && /^https?:\/\//i.test(url);
-
-/**
- * Why an answer could not be read, in words. The code is the provider's task status as text (`missing` when it
- * sent none; DataForSEO's 50000 range is its own errors), and is never shown as it is.
- */
-const failedReasonKey = (code: string | null): 'missing' | 'providerError' | 'unknown' =>
-  code === 'missing' ? 'missing' : code !== null && /^5\d{4}$/.test(code) ? 'providerError' : 'unknown';
 
 export interface AnswerInspectorProps {
   scope: PromptScope;

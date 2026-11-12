@@ -9,6 +9,7 @@ import {
   DEFAULT_PROMPT_SORT,
   DEFAULT_TOPIC_SORT,
   engineSortId,
+  failedReasonKey,
   fitsEngine,
   collectTopicTerms,
   hasAnswers,
@@ -19,9 +20,11 @@ import {
   outcomeKey,
   parseCountry,
   parseMetric,
+  parsePromptTab,
   parseTab,
   parseTopicTab,
   parseWindow,
+  PROMPT_TABS,
   PROMPT_TEXT_MAX,
   promptKeyOf,
   readPromptLines,
@@ -645,6 +648,28 @@ describe('the topic a prompt was opened from', () => {
     expect(topicOriginOf(origin, { ...open, projectId: 'other' })).toBeNull();
     expect(topicOriginOf(origin, { ...open, promptId: null })).toBeNull();
     expect(topicOriginOf(null, open)).toBeNull();
+  });
+});
+
+describe('the tabs of the prompt inspector', () => {
+  it('reads the tab of the address, Latest when it names none that exists', () => {
+    expect(PROMPT_TABS).toEqual(['latest', 'history', 'competitors', 'stats']);
+    expect(parsePromptTab('history')).toBe('history');
+    expect(parsePromptTab('competitors')).toBe('competitors');
+    expect(parsePromptTab('stats')).toBe('stats');
+    // The first tab of every inspector is `overview` in the address: it is Latest here
+    expect(parsePromptTab('overview')).toBe('latest');
+    // The topic drawer's tab, left in the address by a prompt opened from it
+    expect(parsePromptTab('prompts')).toBe('latest');
+  });
+});
+
+describe('why an answer could not be read', () => {
+  it('says the provider sent nothing, had an error of its own (the 50000 range), or something else', () => {
+    expect(failedReasonKey('missing')).toBe('missing');
+    expect(failedReasonKey('50301')).toBe('providerError');
+    expect(failedReasonKey('4000')).toBe('unknown');
+    expect(failedReasonKey(null)).toBe('unknown');
   });
 });
 
