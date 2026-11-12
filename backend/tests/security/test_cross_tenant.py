@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import asyncpg
@@ -205,6 +205,39 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     },
     ("POST", _W + "/projects/{project_id}/prompts/lint"): {"texts": ["Is Acme good?"]},
     ("PATCH", _W + "/projects/{project_id}/prompts/{prompt_id}"): {"importance": 1},
+    # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
+    # your entries under your own line, nowhere else in this table.
+    # WP-03 contract-pack
+    # WP-11 layouts-api
+    # WP-12 summary-lane
+    # WP-13 prompts-lane
+    # WP-14 sources-lane
+    # WP-26 evidence-viewer
+    # WP-30 runs-costs-health
+    # WP-31 settings-engines
+    # WP-32 overview-aggregates
+    # WP-38 notes-annotations
+    # WP-41 versions
+    # WP-42 panels-api
+    # WP-44 links-generate
+    # WP-45 candidates-api
+    # WP-47 alerts-api
+    # WP-49 saved-views
+    # WP-50 exports
+    # WP-51 reports
+    # WP-54 extract-recommend
+    # WP-56 rederive-candidates
+    # WP-57 retrieval-fanout
+    # WP-58 stats-api
+    # WP-60 source-intel-api
+    # WP-62 performance
+    # WP-63 ssrf-webhooks
+    # WP-64 aio-xch-api
+    # WP-66 discovery-sources
+    # WP-67 engine-expansion
+    # WP-68 llm-advanced
+    # WP-69 first-party-signals
+    # WP-70 geo-readiness
 }
 # A path parameter that is a word, not an id of the tenant: it must not count as one of its
 # secrets, since every response would then seem to hold it.
@@ -230,6 +263,39 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     ("GET", _W + "/projects/{project_id}/ai/prompts-summary"): {"include": "entities"},
     # A tenant's answer issued one query; the default needs two answers.
     ("GET", _W + "/projects/{project_id}/ai/fanout-queries"): {"min_support": "1"},
+    # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
+    # your entries under your own line, nowhere else in this table.
+    # WP-03 contract-pack
+    # WP-11 layouts-api
+    # WP-12 summary-lane
+    # WP-13 prompts-lane
+    # WP-14 sources-lane
+    # WP-26 evidence-viewer
+    # WP-30 runs-costs-health
+    # WP-31 settings-engines
+    # WP-32 overview-aggregates
+    # WP-38 notes-annotations
+    # WP-41 versions
+    # WP-42 panels-api
+    # WP-44 links-generate
+    # WP-45 candidates-api
+    # WP-47 alerts-api
+    # WP-49 saved-views
+    # WP-50 exports
+    # WP-51 reports
+    # WP-54 extract-recommend
+    # WP-56 rederive-candidates
+    # WP-57 retrieval-fanout
+    # WP-58 stats-api
+    # WP-60 source-intel-api
+    # WP-62 performance
+    # WP-63 ssrf-webhooks
+    # WP-64 aio-xch-api
+    # WP-66 discovery-sources
+    # WP-67 engine-expansion
+    # WP-68 llm-advanced
+    # WP-69 first-party-signals
+    # WP-70 geo-readiness
 }
 # Lists under a workspace's path that hold the platform's data, the same for every workspace:
 # they have no tenant data of their own to show.
@@ -274,6 +340,8 @@ class Tenant:
     integration_id: uuid.UUID
     # A prompt of the project with the term, so changing or archiving it succeeds.
     prompt_id: uuid.UUID
+    # What the AI visibility packages seed in `_tenant`, by path parameter name.
+    more_ids: dict[str, str] = field(default_factory=dict)
 
     def ids(self) -> dict[str, str]:
         return {
@@ -299,6 +367,7 @@ class Tenant:
             "connection_id": str(self.connection_id),
             "integration_id": str(self.integration_id),
             "prompt_id": str(self.prompt_id),
+            **self.more_ids,
         }
 
     def secrets(self) -> list[str]:
@@ -624,6 +693,71 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         account.email,
         connection["id"],
     )
+    # Ids of what the AI visibility packages seed, by path parameter name; each package adds its
+    # rows under its own line (docs/ai-visibility/MASTER-PLAN.md section 3.6).
+    more_ids: dict[str, str] = {}
+    # WP-03 contract-pack
+
+    # WP-11 layouts-api
+
+    # WP-12 summary-lane
+
+    # WP-13 prompts-lane
+
+    # WP-14 sources-lane
+
+    # WP-26 evidence-viewer
+
+    # WP-30 runs-costs-health
+
+    # WP-31 settings-engines
+
+    # WP-32 overview-aggregates
+
+    # WP-38 notes-annotations
+
+    # WP-41 versions
+
+    # WP-42 panels-api
+
+    # WP-44 links-generate
+
+    # WP-45 candidates-api
+
+    # WP-47 alerts-api
+
+    # WP-49 saved-views
+
+    # WP-50 exports
+
+    # WP-51 reports
+
+    # WP-54 extract-recommend
+
+    # WP-56 rederive-candidates
+
+    # WP-57 retrieval-fanout
+
+    # WP-58 stats-api
+
+    # WP-60 source-intel-api
+
+    # WP-62 performance
+
+    # WP-63 ssrf-webhooks
+
+    # WP-64 aio-xch-api
+
+    # WP-66 discovery-sources
+
+    # WP-67 engine-expansion
+
+    # WP-68 llm-advanced
+
+    # WP-69 first-party-signals
+
+    # WP-70 geo-readiness
+
     # Fresh, so that a route wanting a recent credential is not refused for that instead.
     token, _ = await open_session(resources, owner, fresh=True)
     return Tenant(
@@ -652,6 +786,7 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         connection_id=connection["id"],
         integration_id=integration["id"],
         prompt_id=prompt_id,
+        more_ids=more_ids,
     )
 
 
@@ -842,6 +977,39 @@ _TENANT_ROWS = {
     "ai.citations": "workspace_id",
     "ai.entity_mentions": "workspace_id",
     "ai.observation_facts": "workspace_id",
+    # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
+    # your entries under your own line, nowhere else in this table.
+    # WP-03 contract-pack
+    # WP-11 layouts-api
+    # WP-12 summary-lane
+    # WP-13 prompts-lane
+    # WP-14 sources-lane
+    # WP-26 evidence-viewer
+    # WP-30 runs-costs-health
+    # WP-31 settings-engines
+    # WP-32 overview-aggregates
+    # WP-38 notes-annotations
+    # WP-41 versions
+    # WP-42 panels-api
+    # WP-44 links-generate
+    # WP-45 candidates-api
+    # WP-47 alerts-api
+    # WP-49 saved-views
+    # WP-50 exports
+    # WP-51 reports
+    # WP-54 extract-recommend
+    # WP-56 rederive-candidates
+    # WP-57 retrieval-fanout
+    # WP-58 stats-api
+    # WP-60 source-intel-api
+    # WP-62 performance
+    # WP-63 ssrf-webhooks
+    # WP-64 aio-xch-api
+    # WP-66 discovery-sources
+    # WP-67 engine-expansion
+    # WP-68 llm-advanced
+    # WP-69 first-party-signals
+    # WP-70 geo-readiness
 }
 
 

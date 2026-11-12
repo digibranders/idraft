@@ -6,6 +6,7 @@ access changes must change here too, so both show up in review.
 
 import importlib
 import re
+from pathlib import Path
 from typing import Annotated
 
 import pytest
@@ -419,6 +420,39 @@ EXPECTED: dict[tuple[str, str], str] = {
         "DELETE",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}",
     ): "prompts:write",
+    # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
+    # your entries under your own line, nowhere else in this table.
+    # WP-03 contract-pack
+    # WP-11 layouts-api
+    # WP-12 summary-lane
+    # WP-13 prompts-lane
+    # WP-14 sources-lane
+    # WP-26 evidence-viewer
+    # WP-30 runs-costs-health
+    # WP-31 settings-engines
+    # WP-32 overview-aggregates
+    # WP-38 notes-annotations
+    # WP-41 versions
+    # WP-42 panels-api
+    # WP-44 links-generate
+    # WP-45 candidates-api
+    # WP-47 alerts-api
+    # WP-49 saved-views
+    # WP-50 exports
+    # WP-51 reports
+    # WP-54 extract-recommend
+    # WP-56 rederive-candidates
+    # WP-57 retrieval-fanout
+    # WP-58 stats-api
+    # WP-60 source-intel-api
+    # WP-62 performance
+    # WP-63 ssrf-webhooks
+    # WP-64 aio-xch-api
+    # WP-66 discovery-sources
+    # WP-67 engine-expansion
+    # WP-68 llm-advanced
+    # WP-69 first-party-signals
+    # WP-70 geo-readiness
 }
 
 
@@ -490,6 +524,39 @@ PATH_PARAMETERS = {
     "engine_code",
     # Inside one project, after `{project_id}`: the service reads the prompt within it.
     "prompt_id",
+    # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
+    # your entries under your own line, nowhere else in this table.
+    # WP-03 contract-pack
+    # WP-11 layouts-api
+    # WP-12 summary-lane
+    # WP-13 prompts-lane
+    # WP-14 sources-lane
+    # WP-26 evidence-viewer
+    # WP-30 runs-costs-health
+    # WP-31 settings-engines
+    # WP-32 overview-aggregates
+    # WP-38 notes-annotations
+    # WP-41 versions
+    # WP-42 panels-api
+    # WP-44 links-generate
+    # WP-45 candidates-api
+    # WP-47 alerts-api
+    # WP-49 saved-views
+    # WP-50 exports
+    # WP-51 reports
+    # WP-54 extract-recommend
+    # WP-56 rederive-candidates
+    # WP-57 retrieval-fanout
+    # WP-58 stats-api
+    # WP-60 source-intel-api
+    # WP-62 performance
+    # WP-63 ssrf-webhooks
+    # WP-64 aio-xch-api
+    # WP-66 discovery-sources
+    # WP-67 engine-expansion
+    # WP-68 llm-advanced
+    # WP-69 first-party-signals
+    # WP-70 geo-readiness
 }
 # `{name}` or `{name:converter}`.
 PATH_PARAMETER = re.compile(r"\{(\w+)(?::\w+)?\}")
@@ -603,6 +670,51 @@ def test_no_route_is_hidden_by_an_earlier_one() -> None:
             ]
         earlier += [(method, route.path, _matcher(route.path)) for method in sorted(route.methods)]
     assert hidden == []
+
+
+# The AI visibility packages that add routes or tenant tables, in number order
+# (docs/ai-visibility/MASTER-PLAN.md section 3.6). Each has one anchor line in each table of this
+# file and of tests/security/test_cross_tenant.py, and adds its entries under that line only.
+PACKAGES = (
+    "WP-03 contract-pack",
+    "WP-11 layouts-api",
+    "WP-12 summary-lane",
+    "WP-13 prompts-lane",
+    "WP-14 sources-lane",
+    "WP-26 evidence-viewer",
+    "WP-30 runs-costs-health",
+    "WP-31 settings-engines",
+    "WP-32 overview-aggregates",
+    "WP-38 notes-annotations",
+    "WP-41 versions",
+    "WP-42 panels-api",
+    "WP-44 links-generate",
+    "WP-45 candidates-api",
+    "WP-47 alerts-api",
+    "WP-49 saved-views",
+    "WP-50 exports",
+    "WP-51 reports",
+    "WP-54 extract-recommend",
+    "WP-56 rederive-candidates",
+    "WP-57 retrieval-fanout",
+    "WP-58 stats-api",
+    "WP-60 source-intel-api",
+    "WP-62 performance",
+    "WP-63 ssrf-webhooks",
+    "WP-64 aio-xch-api",
+    "WP-66 discovery-sources",
+    "WP-67 engine-expansion",
+    "WP-68 llm-advanced",
+    "WP-69 first-party-signals",
+    "WP-70 geo-readiness",
+)
+ANCHOR = re.compile(r"^ *# (WP-\d{2} [a-z0-9-]+)$", re.MULTILINE)
+SECURITY_SUITE = Path(__file__).parents[1] / "security" / "test_cross_tenant.py"
+
+
+@pytest.mark.parametrize(("path", "tables"), [(Path(__file__), 2), (SECURITY_SUITE, 4)])
+def test_each_table_has_one_anchor_line_per_package_in_order(path: Path, tables: int) -> None:
+    assert ANCHOR.findall(path.read_text()) == list(PACKAGES) * tables
 
 
 def test_every_requirement_of_a_route_is_reported() -> None:
