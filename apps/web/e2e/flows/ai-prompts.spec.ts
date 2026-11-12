@@ -33,7 +33,8 @@ const inspectorOf = (page: Page, name: string): Locator =>
   page.getByRole('complementary', { name }).or(page.getByRole('dialog', { name }));
 
 async function openFirstPrompt(page: Page): Promise<Locator> {
-  await page.getByRole('grid', { name: 'Prompts' }).getByText(FIRST_PROMPT).click();
+  // Exact, because a row's checkbox carries a screen reader label "Select <prompt>"
+  await page.getByRole('grid', { name: 'Prompts' }).getByText(FIRST_PROMPT, { exact: true }).click();
   const inspector = inspectorOf(page, FIRST_PROMPT);
   await expect(inspector).toBeVisible();
   return inspector;
@@ -87,8 +88,8 @@ test.describe('AI prompt tracking', () => {
     // Topics and Prompts are a segmented control in the table toolbar: a radio group, not a tab list
     await page.getByRole('radio', { name: 'Prompts' }).click();
     const table = page.getByRole('grid', { name: 'Prompts' });
-    await expect(table.getByText('How often should an office be cleaned?')).toBeVisible();
-    await expect(table.getByText('Which cleaning service is best in Boston?')).toBeVisible();
+    await expect(table.getByText('How often should an office be cleaned?', { exact: true })).toBeVisible();
+    await expect(table.getByText('Which cleaning service is best in Boston?', { exact: true })).toBeVisible();
     // New prompts have no answer until the next run, and the page says so
     await expect(page.getByText(/^No data yet\. Each prompt is asked twice a week/)).toBeVisible();
     await expectAccessible(page);
@@ -101,7 +102,7 @@ test.describe('AI prompt tracking', () => {
     await signIn(page, VIEWER);
     await page.goto(`${FYNIX_PROMPTS}?tab=prompts`);
     const table = page.getByRole('grid', { name: 'Prompts' });
-    await expect(table.getByText(FIRST_PROMPT)).toBeVisible();
+    await expect(table.getByText(FIRST_PROMPT, { exact: true })).toBeVisible();
     // The table is there, so a missing button is the viewer's, not a page still loading
     await expect(page.getByRole('button', { name: 'Add prompts' })).toHaveCount(0);
     // A row's checkbox brings up the bulk bar, which gives a viewer Export CSV and no action that changes anything
@@ -161,17 +162,17 @@ test.describe('AI prompt tracking', () => {
     await signIn(page, EDITOR);
     await page.goto(`${FYNIX_PROMPTS}?tab=prompts`);
     const table = page.getByRole('grid', { name: 'Prompts' });
-    await table.getByText(SECOND_PROMPT).click();
+    await table.getByText(SECOND_PROMPT, { exact: true }).click();
     const inspector = page.getByRole('complementary', { name: SECOND_PROMPT });
     await inspector.getByRole('button', { name: `More actions for ${SECOND_PROMPT}` }).click();
     await page.getByRole('menuitem', { name: 'Archive' }).click();
     await expect(toastsOf(page).getByText('Prompt archived')).toBeVisible();
-    await expect(table.getByText(SECOND_PROMPT)).toBeHidden();
-    await expect(table.getByText(FIRST_PROMPT)).toBeVisible();
+    await expect(table.getByText(SECOND_PROMPT, { exact: true })).toBeHidden();
+    await expect(table.getByText(FIRST_PROMPT, { exact: true })).toBeVisible();
 
     await page.getByRole('button', { name: 'Undo' }).click();
     await expect(toastsOf(page).getByText('Prompt restored')).toBeVisible();
-    await expect(table.getByText(SECOND_PROMPT)).toBeVisible();
+    await expect(table.getByText(SECOND_PROMPT, { exact: true })).toBeVisible();
   });
 });
 
