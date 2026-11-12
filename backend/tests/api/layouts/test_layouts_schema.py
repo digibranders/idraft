@@ -188,6 +188,49 @@ async def test_a_document_is_an_object(
             await db.execute(INSERT_ROW, world.workspace_id, world.a, "pages", document, world.a)
 
 
+@pytest.mark.parametrize(
+    "screen",
+    ["Overview", "a b", "a.b.c", "", "inspector.", ".topic", "over_view1", "a" * 65],
+    ids=["upper", "space", "two-dots", "empty", "empty-tail", "empty-head", "digit", "65-chars"],
+)
+async def test_the_database_refuses_a_malformed_screen_key(
+    migrated: PostgresServer, world: World, screen: str
+) -> None:
+    async with connection(migrated) as db:
+        with pytest.raises(asyncpg.CheckViolationError):
+            await db.execute(INSERT_ROW, world.workspace_id, world.a, screen, DOCUMENT, world.a)
+
+
+@pytest.mark.parametrize("screen", ["ai_overview", "inspector.topic", "a" * 64])
+async def test_the_database_accepts_the_screen_keys_of_the_api(
+    migrated: PostgresServer, world: World, screen: str
+) -> None:
+    async with connection(migrated) as db:
+        await db.execute(INSERT_ROW, world.workspace_id, world.a, screen, DOCUMENT, world.a)
+
+
+async def test_the_schema_version_starts_at_one(migrated: PostgresServer, world: World) -> None:
+    async with connection(migrated) as db:
+        with pytest.raises(asyncpg.CheckViolationError):
+            await db.execute(
+                "INSERT INTO core.layouts (workspace_id, owner_user_id, screen, document, "
+                "schema_version, updated_by) VALUES ($1, $2, 'pages', $3::jsonb, 0, $2)",
+                world.workspace_id,
+                world.a,
+                DOCUMENT,
+            )
+
+
+async def test_the_author_of_a_layout_must_be_a_user(
+    migrated: PostgresServer, world: World
+) -> None:
+    async with connection(migrated) as db:
+        with pytest.raises(asyncpg.ForeignKeyViolationError):
+            await db.execute(
+                INSERT_ROW, world.workspace_id, world.a, "pages", DOCUMENT, uuid.uuid4()
+            )
+
+
 async def test_a_personal_layout_needs_a_membership(migrated: PostgresServer, world: World) -> None:
     async with connection(migrated) as db:
         stranger = await create_user(db, "layouts-stranger")
