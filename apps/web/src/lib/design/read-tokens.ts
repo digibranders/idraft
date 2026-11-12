@@ -19,6 +19,8 @@ export interface ChartTokens {
   borderStrong: string;
   foreground: string;
   foregroundSecondary: string;
+  /** Non-text marks that are not data: the version and set boundary lines. */
+  foregroundMuted: string;
   /** The page's font stack: a canvas cannot inherit it. */
   fontFamily: string;
 }
@@ -69,6 +71,7 @@ export function readChartTokens(root: Element = document.documentElement): Chart
     borderStrong: read('--border-strong'),
     foreground: read('--foreground'),
     foregroundSecondary: read('--foreground-secondary'),
+    foregroundMuted: read('--foreground-muted'),
     fontFamily: getComputedStyle(document.body).fontFamily,
   };
 }

@@ -1,6 +1,70 @@
 import { describe, expect, it } from 'vitest';
 
-import { SPARK_HEIGHT, SPARK_WIDTH, sparklineGeometry, sparklineSummary } from './sparkline';
+import {
+  RATE_SPAN,
+  SPARK_HEIGHT,
+  SPARK_HEIGHT_COMPACT,
+  SPARK_WIDTH,
+  sparklineGeometry,
+  sparklineSummary,
+} from './sparkline';
+
+describe('the sparkline sizes and the rate span', () => {
+  it('has the compact height of the design system, and the rate span of 20 points', () => {
+    expect(SPARK_HEIGHT_COMPACT).toBe(16);
+    expect(RATE_SPAN).toBe(0.2);
+  });
+});
+
+describe('sparklineGeometry on a fixed scale', () => {
+  const scale = { low: 0, high: 100, invert: false };
+  const ys = (values: readonly (number | null)[], fixed = scale): number[] =>
+    (sparklineGeometry(values, SPARK_WIDTH, SPARK_HEIGHT, 0, fixed).segments[0] ?? []).map((point) => point.y);
+
+  it('keeps two series of different ranges comparable: the same value is at the same height in both', () => {
+    const [calm] = ys([25, 25, 25]);
+    const [wide] = ys([25, 0, 100]);
+    expect(calm).toBe(wide);
+    // Without a scale the two would not agree
+    const own = (values: readonly number[]): number =>
+      sparklineGeometry(values, SPARK_WIDTH, SPARK_HEIGHT).segments[0]?.[0]?.y ?? 0;
+    expect(own([25, 25, 25])).not.toBe(own([25, 0, 100]));
+  });
+
+  it('puts the low end of the scale at the bottom edge and the high end at the top edge', () => {
+    const [bottom, top] = ys([0, 100]);
+    expect(bottom).toBeGreaterThan(top ?? 0);
+    expect(top).toBeGreaterThan(0);
+    expect(bottom).toBeLessThan(SPARK_HEIGHT);
+  });
+
+  it('inverts a rank scale: rank 1 on the top edge and the deepest rank on the bottom edge', () => {
+    const ranks = { low: 1, high: 20, invert: true };
+    const upright = sparklineGeometry([1, 20], SPARK_WIDTH, SPARK_HEIGHT, 0, { low: 1, high: 20, invert: false });
+    const inverted = sparklineGeometry([1, 20], SPARK_WIDTH, SPARK_HEIGHT, 0, ranks);
+    const [one, deep] = (inverted.segments[0] ?? []).map((point) => point.y);
+    expect(one).toBeLessThan(deep ?? 0);
+    // The inverted scale is the upright one turned over
+    const [upOne, upDeep] = (upright.segments[0] ?? []).map((point) => point.y);
+    expect(one).toBe(upDeep);
+    expect(deep).toBe(upOne);
+  });
+
+  it('breaks the line at a value outside the scale, and puts no last point on it', () => {
+    const ranks = { low: 1, high: 20, invert: true };
+    const { segments, last } = sparklineGeometry([3, 25, 4, 5], SPARK_WIDTH, SPARK_HEIGHT, 0, ranks);
+    expect(segments.map((run) => run.length)).toEqual([1, 2]);
+    expect(last).not.toBeNull();
+    expect(sparklineGeometry([3, 4, 25], SPARK_WIDTH, SPARK_HEIGHT, 0, ranks).last).toBeNull();
+  });
+
+  it('draws a value on a scale of no span in the middle, and ignores the least span', () => {
+    expect(ys([7, 7], { low: 7, high: 7, invert: false })).toEqual([SPARK_HEIGHT / 2, SPARK_HEIGHT / 2]);
+    expect(sparklineGeometry([10, 90], SPARK_WIDTH, SPARK_HEIGHT, 5, scale)).toEqual(
+      sparklineGeometry([10, 90], SPARK_WIDTH, SPARK_HEIGHT, 0, scale),
+    );
+  });
+});
 
 describe('sparklineGeometry', () => {
   it('puts the lowest month on the bottom edge and the highest on the top edge, higher volume higher up', () => {

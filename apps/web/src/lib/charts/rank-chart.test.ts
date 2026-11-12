@@ -19,6 +19,7 @@ const tokens: ChartTokens = {
   borderStrong: 'chart-border-strong',
   foreground: 'chart-foreground',
   foregroundSecondary: 'chart-foreground-secondary',
+  foregroundMuted: 'chart-foreground-muted',
 };
 
 const TICKS = z.object({ yAxis: z.object({ axisLabel: z.object({ customValues: z.array(z.number()) }) }) });

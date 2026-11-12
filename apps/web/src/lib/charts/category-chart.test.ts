@@ -18,6 +18,7 @@ const TOKENS: ChartTokens = {
   borderStrong: 'border-strong',
   foreground: 'foreground',
   foregroundSecondary: 'foreground-secondary',
+  foregroundMuted: 'foreground-muted',
   fontFamily: 'GeistSans',
 };
 

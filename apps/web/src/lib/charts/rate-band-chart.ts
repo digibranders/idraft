@@ -1,4 +1,6 @@
-import { escapeHtml } from './category-chart';
+import { boundaryMarkLines, type ChartBoundary } from './boundaries';
+import { smallSamplePoint } from './small-sample';
+import { tipRowHtml, tipTitleHtml } from './tooltip-row';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 
 /**
@@ -27,10 +29,16 @@ export interface RateBandExtras {
   dark: boolean;
   /** The title of the tooltip for each category, where the category's own label is not all there is to say. */
   titles?: readonly string[] | undefined;
+  /**
+   * The id of the previous period's series (a `reference` series of the frame, so it has its legend entry, Table
+   * column and CSV column): it gets no band, and its tooltip row comes after those of the engines.
+   */
+  previousId?: string | undefined;
+  /** Drawn with `boundaryMarkLines` on the categories of `base.xAxis.data`. */
+  boundaries?: readonly ChartBoundary[] | undefined;
 }
 
 const BAND_OPACITY = { light: 0.12, dark: 0.18 } as const;
-const HOLLOW_SIZE = 5;
 
 interface SeriesOption {
   id?: string;
@@ -46,13 +54,21 @@ interface TooltipParam {
   axisValueLabel?: string;
 }
 
+/** The categories of the x axis, which the boundaries sit on. */
+function categoriesOf(base: Record<string, unknown>): string[] {
+  const { xAxis } = base;
+  const data = typeof xAxis === 'object' && xAxis !== null && 'data' in xAxis ? xAxis.data : undefined;
+  return Array.isArray(data) ? data.filter((category): category is string => typeof category === 'string') : [];
+}
+
 export function rateBandOption(
   base: Record<string, unknown>,
   tokens: ChartTokens,
-  { points, ceiling, dark, titles }: RateBandExtras,
+  { points, ceiling, dark, titles, previousId, boundaries = [] }: RateBandExtras,
 ): Record<string, unknown> {
   const shown = (Array.isArray(base.series) ? base.series : []) as SeriesOption[];
   const opacity = dark ? BAND_OPACITY.dark : BAND_OPACITY.light;
+  const isPrevious = (entry: SeriesOption): boolean => previousId !== undefined && entry.id === previousId;
 
   const lines = shown.map((entry) => {
     const own = points[entry.id ?? ''] ?? [];
@@ -60,14 +76,9 @@ export function rateBandOption(
       ...entry,
       data: (entry.data ?? []).map((value, index) => {
         const at = own[index];
+        // Hollow, and still the marker shape of its engine: the shapes tell the series apart without colour
         return at?.thin === true && typeof value === 'number'
-          ? {
-              value,
-              // Hollow, and still the marker shape of its engine: the shapes tell the series apart without colour
-              symbol: entry.symbol ?? 'circle',
-              symbolSize: HOLLOW_SIZE,
-              itemStyle: { color: tokens.surfaceElevated, borderColor: entry.color, borderWidth: 2 },
-            }
+          ? smallSamplePoint(value, entry.symbol ?? 'circle', entry.color ?? tokens.other, tokens)
           : value;
       }),
     };
@@ -76,7 +87,7 @@ export function rateBandOption(
   // The lower edge is a stacked series with no line and no fill, the span above it is filled: the area between them
   const bands = shown.flatMap((entry) => {
     const own = points[entry.id ?? ''] ?? [];
-    if (!own.some((at) => at?.band != null)) return [];
+    if (isPrevious(entry) || !own.some((at) => at?.band != null)) return [];
     const common = { type: 'line', stack: `${entry.id ?? ''}:band`, symbol: 'none', silent: true, connectNulls: false };
     return [
       {
@@ -99,23 +110,28 @@ export function rateBandOption(
   const formatter = (params: readonly TooltipParam[]): string => {
     const [first] = params;
     const index = first?.dataIndex ?? -1;
-    // Best first (15-data-visualization.md, the time series tooltip): a point with no value comes last
+    // Best first (15-data-visualization.md, the time series tooltip): a point with no value comes last, and the
+    // previous period after every engine
     const ranked = shown
       .flatMap((entry) => {
         const at = points[entry.id ?? '']?.[index];
         return at == null ? [] : [{ entry, at }];
       })
-      .sort((a, b) => (b.at.value ?? -1) - (a.at.value ?? -1));
-    const rows = ranked.map(({ entry, at }) => {
-      return `<div style="display:flex;gap:8px;align-items:center"><span style="width:8px;height:8px;border-radius:50%;background:${escapeHtml(entry.color ?? tokens.other)}"></span><span style="color:${tokens.foregroundSecondary}">${escapeHtml(entry.name ?? '')}</span><span style="margin-left:auto;font-variant-numeric:tabular-nums">${escapeHtml(at.tip)}</span></div>`;
-    });
-    return `<div style="font-size:14px;line-height:20px;font-weight:600;margin-bottom:4px">${escapeHtml(titles?.[index] ?? first?.axisValueLabel ?? '')}</div>${rows.join('')}`;
+      .sort(
+        (a, b) => Number(isPrevious(a.entry)) - Number(isPrevious(b.entry)) || (b.at.value ?? -1) - (a.at.value ?? -1),
+      );
+    const rows = ranked.map(({ entry, at }) =>
+      tipRowHtml(entry.color ?? tokens.other, entry.name ?? '', at.tip, tokens),
+    );
+    return `${tipTitleHtml(titles?.[index] ?? first?.axisValueLabel ?? '')}${rows.join('')}`;
   };
+
+  const boundary = boundaryMarkLines(boundaries, categoriesOf(base), tokens);
 
   return {
     ...base,
     yAxis: { ...((base.yAxis as Record<string, unknown> | undefined) ?? {}), min: 0, max: ceiling },
     tooltip: { ...baseTooltip, formatter },
-    series: [...lines, ...bands],
+    series: [...lines, ...bands, ...(boundary === null ? [] : [boundary])],
   };
 }

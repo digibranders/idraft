@@ -18,6 +18,7 @@ const tokens: ChartTokens = {
   borderStrong: '#strong',
   foreground: '#fg',
   foregroundSecondary: '#fg2',
+  foregroundMuted: '#muted',
 };
 
 interface SeriesOut {
@@ -141,6 +142,104 @@ describe('the rate chart with its Wilson bands', () => {
     const html = formatter([{ dataIndex: 0, axisValueLabel: 'Oct 12' }]);
     expect(html.indexOf('HIGH')).toBeGreaterThan(-1);
     expect(html.indexOf('HIGH')).toBeLessThan(html.indexOf('LOW'));
+  });
+
+  it('keeps the option as it was without a previous series or boundaries: the same series and the same tooltip markup', () => {
+    const option = rateBandOption(base(), tokens, { points, ceiling: 0.9, dark: false });
+    expect(seriesOf(option).map((entry) => entry.id)).toEqual(['a', 'b', 'a:band-low', 'a:band']);
+    const formatter = (option.tooltip as { formatter: (params: unknown[]) => string }).formatter;
+    const dot = (color: string): string =>
+      `<span style="width:8px;height:8px;border-radius:50%;background:${color}"></span>`;
+    expect(formatter([{ dataIndex: 0, axisValueLabel: 'Oct 12' }])).toBe(
+      '<div style="font-size:14px;line-height:20px;font-weight:600;margin-bottom:4px">Oct 12</div>' +
+        `<div style="display:flex;gap:8px;align-items:center">${dot('#c1')}<span style="color:#fg2">Engine a</span><span style="margin-left:auto;font-variant-numeric:tabular-nums">50% (4 of 8)</span></div>` +
+        `<div style="display:flex;gap:8px;align-items:center">${dot('#c2')}<span style="color:#fg2">Engine b</span><span style="margin-left:auto;font-variant-numeric:tabular-nums">50% (1 of 2)</span></div>`,
+    );
+  });
+
+  describe('with a previous period', () => {
+    const withPrevious = (ids: readonly string[] = ['a', 'prev']): Record<string, unknown> => ({
+      ...base(ids),
+      series: ids.map((id, index) => ({
+        id,
+        name: id === 'prev' ? 'Previous period' : `Engine ${id}`,
+        type: 'line',
+        color: id === 'prev' ? tokens.reference : tokens.palette[index],
+        lineStyle: id === 'prev' ? { type: [4, 4] } : undefined,
+        data: [0.5, 0.75, null],
+      })),
+    });
+    const previousPoints = {
+      a: [point(0.5, [0.25, 0.75], false, 'A0'), point(0.75, [0.5, 0.9], false, 'A1'), null],
+      // A band is in the points of the previous period, and is not to be drawn
+      prev: [point(0.9, [0.8, 1], false, 'PREV0'), point(0.1, [0, 0.2], false, 'PREV1'), null],
+    };
+
+    it('draws no band for it, however much of a band its points have', () => {
+      const series = seriesOf(
+        rateBandOption(withPrevious(), tokens, { points: previousPoints, ceiling: 1, dark: false, previousId: 'prev' }),
+      );
+      expect(series.map((entry) => entry.id)).toEqual(['a', 'prev', 'a:band-low', 'a:band']);
+    });
+
+    it('lists it last in the tooltip, whatever its value', () => {
+      const option = rateBandOption(withPrevious(), tokens, {
+        points: previousPoints,
+        ceiling: 1,
+        dark: false,
+        previousId: 'prev',
+      });
+      const formatter = (option.tooltip as { formatter: (params: unknown[]) => string }).formatter;
+      const high = formatter([{ dataIndex: 0, axisValueLabel: 'Oct 12' }]);
+      expect(high.indexOf('A0')).toBeLessThan(high.indexOf('PREV0'));
+      // Its value is lower than the engine's here, and still it comes last
+      const low = formatter([{ dataIndex: 1, axisValueLabel: 'Oct 19' }]);
+      expect(low.indexOf('A1')).toBeLessThan(low.indexOf('PREV1'));
+      expect(low).toContain('Previous period');
+    });
+  });
+
+  describe('with boundaries', () => {
+    const dated = (ids: readonly string[] = ['a', 'b']): Record<string, unknown> => ({
+      ...base(ids),
+      xAxis: { type: 'category', data: ['Oct 12', 'Oct 19', 'Oct 26'] },
+    });
+
+    it('appends one boundary series, last, for the boundaries that are on the axis', () => {
+      const series = seriesOf(
+        rateBandOption(dated(), tokens, {
+          points,
+          ceiling: 0.9,
+          dark: false,
+          boundaries: [
+            { at: 'Oct 19', label: 'Extractor v4' },
+            { at: 'Sep 01', label: 'Before the window' },
+          ],
+        }),
+      );
+      expect(series.map((entry) => entry.id)).toEqual(['a', 'b', 'a:band-low', 'a:band', 'boundaries']);
+      expect(series.at(-1)).toMatchObject({
+        silent: true,
+        markLine: { data: [{ xAxis: 'Oct 19', lineStyle: { color: '#muted' } }] },
+      });
+    });
+
+    it('adds nothing when no boundary is on the axis, or the option has no categories', () => {
+      const none = rateBandOption(dated(), tokens, {
+        points,
+        ceiling: 0.9,
+        dark: false,
+        boundaries: [{ at: 'Sep 01', label: 'Before the window' }],
+      });
+      expect(seriesOf(none).map((entry) => entry.id)).toEqual(['a', 'b', 'a:band-low', 'a:band']);
+      const bare = rateBandOption(base(), tokens, {
+        points,
+        ceiling: 0.9,
+        dark: false,
+        boundaries: [{ at: 'Oct 19', label: 'Extractor v4' }],
+      });
+      expect(seriesOf(bare).map((entry) => entry.id)).toEqual(['a', 'b', 'a:band-low', 'a:band']);
+    });
   });
 
   it('never lets a name reach the tooltip as markup', () => {
