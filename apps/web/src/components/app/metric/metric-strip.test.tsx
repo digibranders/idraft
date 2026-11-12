@@ -177,6 +177,19 @@ describe('MetricStrip', () => {
     expect(screen.getByRole('definition')).not.toHaveAttribute('tabindex');
   });
 
+  it('wraps inline chips onto more rows, unless the toolbar asks for one line', () => {
+    const chips: MetricStripGroup[] = [{ id: 'ai', items: [{ id: 'a', label: 'Prompts', value: '3' }] }];
+    const { unmount } = renderWithProviders(
+      <MetricStrip size="inline" label="Summary" groups={chips} status="ready" />,
+    );
+    expect(screen.getByRole('group', { name: 'Summary' }).querySelector('dl')).toHaveClass('flex-wrap');
+    unmount();
+    renderWithProviders(<MetricStrip size="inline" nowrap label="Summary" groups={chips} status="ready" />);
+    const row = screen.getByRole('group', { name: 'Summary' }).querySelector('dl');
+    expect(row).toHaveClass('flex-nowrap');
+    expect(row).not.toHaveClass('flex-wrap');
+  });
+
   it('keeps one row while every cell gets 140 px', () => {
     renderWithProviders(<MetricStrip size="md" label="Summary" groups={GROUPS} status="ready" />);
     expect(columnsOf('Summary')).toBe('repeat(4, minmax(0, 1fr))');

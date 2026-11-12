@@ -3396,7 +3396,6 @@
       "collapse": "Collapse {name}, {count, plural, one {# prompt} other {# prompts}}",
       "expandTopics": "Expand {name}, {count, plural, one {# topic} other {# topics}}",
       "collapseTopics": "Collapse {name}, {count, plural, one {# topic} other {# topics}}",
-      "childTopics": "{count, plural, one {# topic} other {# topics}}",
       "expandAll": "Expand all",
       "collapseAll": "Collapse all",
       "rollupNote": "A parent row counts every prompt under it, so rows do not add up to the parent.",

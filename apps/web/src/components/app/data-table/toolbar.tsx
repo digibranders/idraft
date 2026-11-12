@@ -67,7 +67,8 @@ export function DataTableToolbar({
     // 48 px on one line; on a narrow table the bar wraps rather than scrolling the page sideways
     <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle px-3 py-2">
       {start}
-      <InputGroup leadingIcon={Search} size="sm" className="w-64 max-w-full min-w-0">
+      {/* On a phone the search takes what the start slot leaves of the row, and the controls go to the next one */}
+      <InputGroup leadingIcon={Search} size="sm" className="max-w-full min-w-0 flex-1 basis-32 sm:w-64 sm:flex-none">
         <Input
           ref={input}
           size="sm"
@@ -83,7 +84,10 @@ export function DataTableToolbar({
         />
       </InputGroup>
       {/* The table announces a new count itself, so it is heard while the bulk bar is up as well */}
-      {countText === null ? null : <p className="shrink-0 num type-meta whitespace-nowrap">{countText}</p>}
+      {/* The footer has the count too, so a phone's row keeps its room for the search */}
+      {countText === null ? null : (
+        <p className="hidden shrink-0 num type-meta whitespace-nowrap sm:block">{countText}</p>
+      )}
       {/* Shown from 1280 px, and always readable, since aria-sort names only the first key */}
       {sortSummary === null ? null : <p className="sr-only type-meta xl:not-sr-only">{sortSummary}</p>}
       {updating ? (

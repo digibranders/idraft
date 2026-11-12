@@ -58,6 +58,8 @@ export interface MetricStripProps {
   groups: readonly MetricStripGroup[];
   /** Loading keeps the labels and draws the values as bars; refetching keeps the values as they are. */
   status: 'loading' | 'ready' | 'refetching';
+  /** `inline` only: the chips stay on one line, for a toolbar that scrolls them sideways instead of wrapping. */
+  nowrap?: boolean | undefined;
 }
 
 /** Columns of the strip: one row when every cell gets 140 px, else two rows (23 section 2.3). */
@@ -72,7 +74,7 @@ function columnsFor(count: number, width: number | null, size: 'md' | 'sm' | 'in
  * panel, never a row of cards. Each item reads label, value, delta and context, as a `dt` and a `dd`.
  * Between channel groups the divider is the stronger border.
  */
-export function MetricStrip({ size, label, groups, status }: MetricStripProps): ReactElement {
+export function MetricStrip({ size, label, groups, status, nowrap = false }: MetricStripProps): ReactElement {
   const panel = useRef<HTMLDListElement>(null);
   const [width, setWidth] = useState<number | null>(null);
   useEffect(() => {
@@ -92,14 +94,14 @@ export function MetricStrip({ size, label, groups, status }: MetricStripProps): 
   if (size === 'inline') {
     return (
       <div role="group" aria-label={label} aria-busy={status === 'ready' ? undefined : true}>
-        <dl className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+        <dl className={cn('flex items-baseline gap-x-5 gap-y-1', nowrap ? 'flex-nowrap' : 'flex-wrap')}>
           {items.map(({ item }) => {
             const tipped = item.tip !== undefined && status !== 'loading';
             return (
               <div
                 key={item.id}
                 title={tipped ? undefined : (item.context ?? undefined)}
-                className="flex min-w-0 items-baseline gap-1.5"
+                className={cn('flex min-w-0 items-baseline gap-1.5', nowrap && 'shrink-0')}
               >
                 <dt className="type-meta text-foreground-tertiary">{item.label}</dt>
                 <Tooltip content={item.tip ?? ''} disabled={!tipped}>

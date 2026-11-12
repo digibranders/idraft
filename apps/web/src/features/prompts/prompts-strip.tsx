@@ -73,5 +73,5 @@ export function PromptsStrip({ prompts, engines, topics, status, countsFailed }:
     }
   }
   const groups: readonly MetricStripGroup[] = [{ id: 'ai', items }];
-  return <MetricStrip size="inline" label={t('label')} groups={groups} status={status} />;
+  return <MetricStrip size="inline" nowrap label={t('label')} groups={groups} status={status} />;
 }

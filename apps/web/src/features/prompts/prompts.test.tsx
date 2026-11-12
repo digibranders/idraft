@@ -984,12 +984,13 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(screen.queryByText(ROLLUP_NOTE)).toBeNull();
   });
 
-  it('shows how many topics a parent holds beside its name, and nothing beside a topic that holds none', async () => {
+  it('says how many topics a parent holds in its chevron, not beside its name where it would cover the next column', async () => {
     renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
     await within(tree).findByText('Paid Search');
-    expect(within(rowOf(tree, 'SEO')).getByText('2 topics')).toBeInTheDocument();
-    expect(within(rowOf(tree, 'Content Marketing')).getByText('1 topic')).toBeInTheDocument();
+    expect(within(tree).getByRole('button', { name: 'Expand SEO, 2 topics' })).toBeInTheDocument();
+    expect(within(tree).getByRole('button', { name: 'Expand Content Marketing, 1 topic' })).toBeInTheDocument();
+    expect(within(rowOf(tree, 'SEO')).queryByText('2 topics')).toBeNull();
     expect(within(rowOf(tree, 'Paid Search')).queryByText(/topic/)).toBeNull();
   });
 
@@ -2272,6 +2273,29 @@ describe('Topics & Prompts: the compact header and the country in the top bar', 
     const select = await screen.findByRole('combobox', { name: 'Window' });
     expect(select).toHaveTextContent('28d');
     expect(select).toHaveAccessibleDescription('Answers from Oct 16 to Nov 12, 2026');
+  });
+
+  it('ends a long topic badge in an ellipsis inside its cell, with the whole name as its title', async () => {
+    const long = 'A topic with a very long name that does not fit its column';
+    server.use(
+      http.get(LIST_PATH, () =>
+        HttpResponse.json(
+          pageOf(
+            [
+              {
+                ...promptOf(1),
+                terms: [{ term_id: idOf(3, 1), name: long, path: 'long', vocabulary_kind: 'topic' }],
+              },
+            ],
+            null,
+          ),
+        ),
+      ),
+    );
+    renderOnPrompts(promptsAs('viewer'));
+    const badge = await within(await grid()).findByText(long);
+    expect(badge).toHaveClass('truncate', 'min-w-0');
+    expect(badge).toHaveAttribute('title', long);
   });
 
   it('passes the accessibility checks with the header, the switch and the top bar', async () => {

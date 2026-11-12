@@ -200,6 +200,9 @@ export function TopicsTable({
   const columns = useMemo((): DataTableColumn<TopicRow>[] => {
     const name = col.keyword<TopicRow>('topic', rowName, {
       header: t('topics.topic'),
+      // The name column is the one the resolver squeezes first, and a topic's name needs about 240 px to read
+      width: 280,
+      minWidth: 240,
       sortable: false,
       trailing: (row) => (row.kind === 'prompt' && row.branded ? <Badge>{t('branded')}</Badge> : null),
     });
@@ -229,15 +232,8 @@ export function TopicsTable({
               <span className="truncate">{showAll ? t('topics.showAll', { count: row.total }) : row.name}</span>
             </Button>
           );
-          // The topics under a parent, in words, on the one line of the compact row
-          return row.kind === 'topic' && row.childCount > 0 ? (
-            <span className="flex min-w-0 items-center gap-2">
-              {button}
-              <span className="shrink-0 type-meta">{t('topics.childTopics', { count: row.childCount })}</span>
-            </span>
-          ) : (
-            button
-          );
+          // How many topics a parent holds is in its chevron's name ("Expand SEO, 2 topics"), not on the row
+          return button;
         },
       },
       blankOnMore(

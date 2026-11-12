@@ -369,12 +369,19 @@ export const col = {
       (row) => {
         const badge = value(row);
         if (badge === null) return <Unknown value={options.unknown?.(row) ?? NOT_AVAILABLE} />;
+        // A long label ends in an ellipsis inside the cell (the badge is a block for that, 22 px high with the text
+        // centered), and the detail ("+2") keeps its place
+        const label = (
+          <Badge className="block min-w-0 shrink truncate pt-0.5" title={badge.label}>
+            {badge.label}
+          </Badge>
+        );
         return badge.detail === undefined ? (
-          <Badge>{badge.label}</Badge>
+          <span className="flex min-w-0">{label}</span>
         ) : (
-          <span className="inline-flex items-center gap-1">
-            <Badge>{badge.label}</Badge>
-            <span className="type-label">{badge.detail}</span>
+          <span className="flex min-w-0 items-center gap-1">
+            {label}
+            <span className="shrink-0 type-label">{badge.detail}</span>
           </span>
         );
       },

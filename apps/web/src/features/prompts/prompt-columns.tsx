@@ -141,7 +141,9 @@ export function usePromptColumns(engines: readonly ProjectEngine[], metric: Rate
           {
             header: t('columns.topic'),
             priority: 2,
+            // The badge type stops at 180; a topic keeps 140 at least when the table is tight, and ends in an ellipsis
             width: 200,
+            minWidth: 140,
             unknown: () => ({ label: t('columns.noTopic') }),
           },
         ),

@@ -593,6 +593,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     />
   );
 
+  const showAdd = list.rows.length > 0 && headerAdd !== null;
   let content: ReactNode;
   // The filters belong to the table: the other states have nothing to filter
   let toolbar: ReactNode;
@@ -628,10 +629,12 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     // Not under the empty states, nor before the engines are known (the chips are the engines)
     const stripStatus = waiting ? 'loading' : summary.isFetching || list.fetching ? 'refetching' : 'ready';
     // The chips, then the filters: chips of the filters set wrap under them, and a bar without filters is one button
+    // On a phone: the chips on one line of their own (they scroll sideways when they do not fit), then the Filter
+    // button with the menu and Add prompts at the end of the same row. From 768 px it is one row, wrapping when full
     toolbar = (
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
         {engines.data !== undefined && (waiting || rows.length > 0) ? (
-          <div className="flex min-h-control-sm items-center">
+          <div className="scrollbar-none flex min-h-control w-full items-center overflow-x-auto md:w-auto">
             <PromptsStrip
               prompts={stripPrompts}
               engines={shown}
@@ -643,6 +646,16 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         ) : null}
         <div className="min-w-0 flex-1 basis-24">
           <FilterBar fields={fields} values={values} onChange={setValues} />
+        </div>
+        <div className="ml-auto flex h-control shrink-0 items-center gap-3">
+          {updatedText === null ? null : (
+            // The row has room for it from 1280 px; a narrower one has it in the More actions menu
+            <Tooltip content={windowCaption} purpose="label" side="bottom">
+              <span className="hidden type-meta whitespace-nowrap @5xl:inline">{updatedText}</span>
+            </Tooltip>
+          )}
+          {moreMenu}
+          {showAdd ? headerAdd : null}
         </div>
       </div>
     );
@@ -780,8 +793,6 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     );
   }
 
-  const showAdd = list.rows.length > 0 && headerAdd !== null;
-
   const counts: PromptCounts = {
     // The counts wait for the engines (the summary is not asked before them), and a new window keeps the last
     // counts on screen: they are not this window's until it has read
@@ -893,23 +904,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         <PageHeader
           title={t('title')}
           titleHidden
-          meta={
-            updatedText === null ? undefined : (
-              // The row has room for it from 1280 px; a narrower one has it in the More actions menu
-              <Tooltip content={windowCaption} purpose="label" side="bottom">
-                <span className="hidden @5xl:inline">{updatedText}</span>
-              </Tooltip>
-            )
-          }
           toolbar={toolbar}
-          actions={
-            toolbar === undefined && !showAdd ? undefined : (
-              <>
-                {toolbar === undefined ? null : moreMenu}
-                {showAdd ? headerAdd : null}
-              </>
-            )
-          }
+          // Without the table (an empty state) only Add prompts is left of the header's right side
+          actions={toolbar === undefined && showAdd ? headerAdd : undefined}
         />
         {content}
       </div>
