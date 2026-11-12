@@ -1080,11 +1080,24 @@ def test_every_route_is_scoped_by_a_workspace_or_accounted_for() -> None:
 
 
 def test_the_published_contracts_are_the_not_built_routes() -> None:
-    """The stubs of docs/superpowers/plans/2026-11-13-ai-wp-03-contract-pack.md; a package that
-    builds a body drops its route from this set by removing the mark."""
+    """A route whose contract is published and whose body is not built is a workspace route; a
+    package that builds a body drops its route from this set by removing the mark."""
     assert NOT_BUILT.issubset(WORKSPACE_ROUTES)
-    assert ("GET", _W + "/layouts/{screen}") in NOT_BUILT
-    assert ("GET", _W + "/layouts/{screen}") not in CHILD_ROUTES
+
+
+def test_a_word_in_a_path_is_never_a_child_and_always_resolves() -> None:
+    """A path whose only parameters besides the workspace are words names nothing inside the
+    workspace, so it is no child route. A parameter is an id (`*_id`, which `_fill` takes from
+    the tenant) or a word (`WORDS`, which `_fill` writes itself): a word left out of `WORDS`
+    would be asked for as an id, and one in it needs no id."""
+    children = set(CHILD_ROUTES)
+    for method, path in ALL_ROUTES:
+        for name in _names(path):
+            assert name.endswith("_id") or name in WORDS, f"{name} of {path} is neither"
+        if "workspace_id" in _names(path) and set(_names(path)) - {"workspace_id"} <= set(WORDS):
+            assert (method, path) not in children, (method, path)
+    for name, word in WORDS.items():
+        assert _fill(f"/{{{name}}}", {}) == f"/{word}", name
 
 
 @pytest.mark.parametrize(("method", "path"), WORKSPACE_ROUTES)
@@ -1206,14 +1219,15 @@ async def test_a_list_holds_nothing_of_another_workspace(
     )
 
     if (method, path) in NOT_BUILT:
+        # A stub answers 501 and still must not carry anything of another workspace.
         assert _problem(response) == (501, "not_implemented")
-        return
-    assert response.status_code == 200, response.text
+    else:
+        assert response.status_code == 200, response.text
     body = response.json()
     for secret in b.secrets():
         assert not _leaks(body, secret), f"{path} shows {secret} of another workspace"
-    # The list is not empty for a trivial reason: it shows A's own data.
-    if path not in PLATFORM_LISTS | COUNT_ROUTES:
+    # The list is not empty for a trivial reason: it shows A's own data (a stub shows none).
+    if (method, path) not in NOT_BUILT and path not in PLATFORM_LISTS | COUNT_ROUTES:
         assert any(own in response.text for own in [*a.ids().values(), str(a.owner.id)])
 
 
