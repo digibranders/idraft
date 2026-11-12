@@ -112,11 +112,17 @@ describe('one bin function', () => {
   // The utility form (bg-seq-3) and the variable shorthand (bg-(--seq-3)) of a sequential or diverging fill
   const FILL_CLASS = /bg-(?:seq|div)-|bg-\(--(?:seq|div)-/;
 
+  // Files that use the sequential steps as a plain palette (a named key to a colour), never to bin a rate.
+  // BarList draws its distribution mode (CH-18) with seq-1 to seq-7 by name. Add a file here only for that.
+  const PALETTE_USERS: readonly string[] = ['components/app/chart/bar-list.tsx'];
+
   // Limits: scans non-test .ts and .tsx under src, and only the bg-seq-, bg-div-, bg-(--seq- and bg-(--div- forms.
-  it('finds seq and div fill class strings only in heat-bins.ts', () => {
+  it('finds seq and div fill class strings only in heat-bins.ts and the listed palette users', () => {
     const files = sources();
     expect(files.map(([file]) => file)).toContain('components/app/chart/heat-bins.ts');
-    const offenders = files.filter(([, text]) => FILL_CLASS.test(text)).map(([file]) => file);
+    const offenders = files
+      .filter(([file, text]) => !PALETTE_USERS.includes(file) && FILL_CLASS.test(text))
+      .map(([file]) => file);
     expect(offenders).toEqual(['components/app/chart/heat-bins.ts']);
   });
 });
