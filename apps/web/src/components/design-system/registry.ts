@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { BadgesSection } from './badges-section';
 import { ButtonsSection } from './buttons-section';
+import { ChartGridsSection } from './chart-grids-section';
 import { ChartPartsSection } from './chart-parts-section';
 import { ChartsSection } from './charts-section';
 import { DataDisplaySection } from './data-display-section';
@@ -42,6 +43,7 @@ export const PREVIEW_SECTIONS: readonly PreviewSection[] = [
   { slug: 'overlays', title: 'Overlays', render: OverlaysSection },
   { slug: 'feedback', title: 'Feedback', render: FeedbackSection },
   { slug: 'metric-parts', title: 'Metrics and engines', render: MetricPartsSection },
+  { slug: 'chart-grids', title: 'Chart grids', render: ChartGridsSection },
 ];
 
 export const previewSection = (slug: string): PreviewSection | undefined =>

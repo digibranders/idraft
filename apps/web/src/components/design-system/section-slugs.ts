@@ -20,6 +20,7 @@ export const PREVIEW_SECTION_SLUGS = [
   'overlays',
   'feedback',
   'metric-parts',
+  'chart-grids',
 ] as const;
 
 export type PreviewSectionSlug = (typeof PREVIEW_SECTION_SLUGS)[number];
