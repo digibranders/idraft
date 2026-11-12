@@ -189,6 +189,8 @@ export interface DataTableProps<TRow> {
   onToggleGroup?: ((row: TRow) => void) | undefined;
   /** A slot at the end of the toolbar, before density and columns: the view switch. */
   toolbarEnd?: ReactNode;
+  /** A slot at the start of the toolbar, before the search: the switch between the views of a page. */
+  toolbarStart?: ReactNode;
   /**
    * Hold the identity column at its type maximum while the other columns can still widen toward theirs
    * (`resolveWidths` with `capIdentity`): for a table that shows few columns, the By group view.

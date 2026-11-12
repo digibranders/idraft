@@ -271,7 +271,7 @@ describe('the topic drawer: a prompt opened from a topic', () => {
     const opened = await screen.findByRole('complementary');
     expect(within(opened).getByRole('button', { name: 'Open the topic SEO' })).toBeInTheDocument();
     // A row of the Prompts tab is a flat list: no topic, and the prompts of all the project step
-    await user.click(screen.getByRole('tab', { name: 'Prompts' }));
+    await user.click(screen.getByRole('radio', { name: 'Prompts' }));
     const table = await screen.findByRole('grid', { name: 'Prompts' });
     const outside = 'What is the best way to manage paid search on a small budget?';
     await user.click(await within(table).findByText(outside));

@@ -294,6 +294,32 @@ export function topicChoices(tree: readonly NamedTerm[], carried: ReadonlyMap<st
   ];
 }
 
+/**
+ * The market of the top bar (`?country=`): two capital letters, the one the summary's `filter[country_iso]` takes.
+ * Anything else (a link's list of several, a lower case code) reads as every country.
+ */
+export const parseCountry = (value: string | null): string | null =>
+  value !== null && /^[A-Z]{2}$/.test(value) ? value : null;
+
+/** The countries the prompts carry, once each in order, with `selected` kept even when no prompt has it. */
+export function countryChoices(prompts: readonly Pick<Prompt, 'country_iso'>[], selected: string | null): string[] {
+  const isos = new Set(prompts.flatMap((prompt) => (prompt.country_iso === null ? [] : [prompt.country_iso])));
+  if (selected !== null) isos.add(selected);
+  return [...isos].sort();
+}
+
+/** When the newest answer of the summary was read (the newest of its prompts'), or `null` when there is none. */
+export function lastObservedAt(summary: PromptsSummary | undefined): string | null {
+  let newest: { text: string; time: number } | null = null;
+  for (const row of summary?.prompts ?? []) {
+    const time = row.last_observed_at === null ? Number.NaN : Date.parse(row.last_observed_at);
+    if (row.last_observed_at !== null && !Number.isNaN(time) && (newest === null || time > newest.time)) {
+      newest = { text: row.last_observed_at, time };
+    }
+  }
+  return newest?.text ?? null;
+}
+
 /** Whether any prompt has an answer on an engine in the window, valid or not: until one has, the page says when the first arrive. */
 export const hasAnswers = (summary: PromptsSummary): boolean =>
   summary.prompts.some((row) => row.engines.some((engine) => engine.mentioned.n_observations > 0));

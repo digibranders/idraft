@@ -35,7 +35,8 @@ export interface MetricStripItem {
    * The counts behind the value, in a tooltip and as the cell's description (23 section 2.1: "the full context is
    * in the value tooltip"). The cell becomes a tab stop that opens the tooltip on focus (20 section 6.2 rule 6),
    * and its context line wraps instead of truncating, so a touch screen, which has no tooltip, still reads it
-   * whole. Ignored by `size="inline"`, which has no tooltip of its own.
+   * whole. `size="inline"` makes the chip's value the tab stop and leaves its context out, since the tooltip
+   * is read in its place.
    */
   tip?: string | undefined;
 }
@@ -92,35 +93,53 @@ export function MetricStrip({ size, label, groups, status }: MetricStripProps): 
     return (
       <div role="group" aria-label={label} aria-busy={status === 'ready' ? undefined : true}>
         <dl className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-          {items.map(({ item }) => (
-            <div key={item.id} title={item.context ?? undefined} className="flex min-w-0 items-baseline gap-1.5">
-              <dt className="type-meta text-foreground-tertiary">{item.label}</dt>
-              <dd className="flex items-baseline gap-1.5">
-                {status === 'loading' ? (
-                  <span className="flex w-6 items-center">
-                    <Skeleton shape="text-14" widthPct={100} />
-                  </span>
-                ) : (
-                  <span
+          {items.map(({ item }) => {
+            const tipped = item.tip !== undefined && status !== 'loading';
+            return (
+              <div
+                key={item.id}
+                title={tipped ? undefined : (item.context ?? undefined)}
+                className="flex min-w-0 items-baseline gap-1.5"
+              >
+                <dt className="type-meta text-foreground-tertiary">{item.label}</dt>
+                <Tooltip content={item.tip ?? ''} disabled={!tipped}>
+                  <dd
+                    // A chip with counts in its tooltip is a tab stop that opens it (20 section 6.2 rule 6)
+                    {...(tipped ? { tabIndex: 0 } : {})}
                     className={cn(
-                      'num type-body-strong',
-                      item.unknown === null || item.unknown === undefined
-                        ? 'text-foreground'
-                        : 'text-foreground-tertiary',
+                      'flex items-baseline gap-1.5',
+                      tipped && '-mx-1 rounded-sm px-1 outline-none focus-visible:focus-ring-inset',
                     )}
                   >
-                    {item.value}
-                  </span>
-                )}
-                {item.delta === undefined || item.delta === null ? null : (
-                  <span className="num type-body-strong">{item.delta}</span>
-                )}
-                {item.context === undefined || item.context === null ? null : (
-                  <span className="sr-only">{item.context}</span>
-                )}
-              </dd>
-            </div>
-          ))}
+                    {status === 'loading' ? (
+                      <span className="flex w-6 items-center">
+                        <Skeleton shape="text-14" widthPct={100} />
+                      </span>
+                    ) : (
+                      <span
+                        className={cn(
+                          'num type-body-strong',
+                          item.unknown === null || item.unknown === undefined
+                            ? 'text-foreground'
+                            : 'text-foreground-tertiary',
+                          item.unknown?.kind === 'insufficient' && 'bg-insufficient',
+                        )}
+                      >
+                        {item.value}
+                      </span>
+                    )}
+                    {item.delta === undefined || item.delta === null ? null : (
+                      <span className="num type-body-strong">{item.delta}</span>
+                    )}
+                    {/* The tooltip carries the counts, so the context is read once */}
+                    {item.context === undefined || item.context === null || tipped ? null : (
+                      <span className="sr-only">{item.context}</span>
+                    )}
+                  </dd>
+                </Tooltip>
+              </div>
+            );
+          })}
         </dl>
       </div>
     );

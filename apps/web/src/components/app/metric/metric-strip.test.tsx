@@ -125,6 +125,58 @@ describe('MetricStrip', () => {
     expect(context(plain, 'across 1 topic')).toHaveAttribute('data-truncate');
   });
 
+  it('gives an inline chip with a tooltip a tab stop that opens it and describes it, and leaves the others alone', async () => {
+    const mixed: MetricStripGroup[] = [
+      {
+        id: 'ai',
+        items: [
+          { id: 'plain', label: 'Prompts', value: '3', context: 'across 1 topic' },
+          { id: 'mention', label: 'ChatGPT', value: '50%', context: 'Cited 25%', tip: 'Mentioned: 4 of 8 answers' },
+        ],
+      },
+    ];
+    const { container, user } = renderWithProviders(
+      <MetricStrip size="inline" label="Summary" groups={mixed} status="ready" />,
+    );
+    const [plain, tipped] = screen.getAllByRole('definition');
+    expect(plain).not.toHaveAttribute('tabindex');
+    expect(tipped).toHaveAttribute('tabindex', '0');
+    expect(tipped).toHaveAccessibleDescription('Mentioned: 4 of 8 answers');
+    // The tooltip carries the counts, so the context is not read a second time
+    expect(tipped).not.toHaveTextContent('Cited 25%');
+    expect(plain).toHaveTextContent('3across 1 topic');
+    await user.tab();
+    expect(tipped).toHaveFocus();
+    expect(
+      await screen.findByText('Mentioned: 4 of 8 answers', { selector: '[data-slot="tooltip"] span' }),
+    ).toBeInTheDocument();
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('draws no tab stop on an inline chip while it loads, and hatches an insufficient value', () => {
+    const tipped: MetricStripGroup[] = [
+      {
+        id: 'ai',
+        items: [
+          {
+            id: 'mention',
+            label: 'Gemini',
+            value: '2 answers',
+            unknown: { kind: 'insufficient' },
+            tip: 'Mentioned: 1 of 2 answers',
+          },
+        ],
+      },
+    ];
+    const { unmount } = renderWithProviders(
+      <MetricStrip size="inline" label="Summary" groups={tipped} status="ready" />,
+    );
+    expect(screen.getByText('2 answers')).toHaveClass('bg-insufficient');
+    unmount();
+    renderWithProviders(<MetricStrip size="inline" label="Summary" groups={tipped} status="loading" />);
+    expect(screen.getByRole('definition')).not.toHaveAttribute('tabindex');
+  });
+
   it('keeps one row while every cell gets 140 px', () => {
     renderWithProviders(<MetricStrip size="md" label="Summary" groups={GROUPS} status="ready" />);
     expect(columnsOf('Summary')).toBe('repeat(4, minmax(0, 1fr))');

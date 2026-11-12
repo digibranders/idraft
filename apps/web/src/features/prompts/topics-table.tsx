@@ -100,6 +100,8 @@ export interface TopicsTableProps {
   kept: ReadonlySet<string>;
   /** Whether a topic filter is set. */
   filtering: boolean;
+  /** A country of the top bar narrows the summary, so no topic left is a match that found nothing, not no prompts. */
+  countryChosen: boolean;
   status: TableStatus;
   errorState: ReactNode;
   /** No topic at all, and no search or topic filter to blame. */
@@ -122,6 +124,8 @@ export interface TopicsTableProps {
   onOpenTopic: (key: string, tab: TopicTab, intent: 'inspector' | 'new-tab') => void;
   /** The prompts the open topics list, in the order of the rows, each once: what the inspector steps through. */
   onPromptOrderChange: (promptIds: readonly string[]) => void;
+  /** The switch between the views of the page, at the start of the toolbar. */
+  toolbarStart?: ReactNode;
 }
 
 /**
@@ -151,6 +155,7 @@ export function TopicsTable({
   tree,
   kept,
   filtering,
+  countryChosen,
   status,
   errorState,
   emptyState,
@@ -166,6 +171,7 @@ export function TopicsTable({
   onOpenPrompt,
   onOpenTopic,
   onPromptOrderChange,
+  toolbarStart,
 }: TopicsTableProps): ReactElement {
   const t = useTranslations('prompts');
   const locale = useLocale();
@@ -408,7 +414,11 @@ export function TopicsTable({
   const toggleAll = (): void => setOpen(allOpen ? new Set() : new Set(groupKeys));
   const settled = status === 'ready' || status === 'refetching';
   const shownStatus: TableStatus =
-    settled && rows.length === 0 ? (search.trim() === '' && !filtering ? 'empty' : 'filtered-empty') : status;
+    settled && rows.length === 0
+      ? search.trim() === '' && !filtering && !countryChosen
+        ? 'empty'
+        : 'filtered-empty'
+      : status;
   // The prompts in scope, each once (the topic filter narrows them, a search does not): the footer's second count
   const promptsInScope =
     summary === undefined
@@ -427,6 +437,7 @@ export function TopicsTable({
         sort={sort}
         onSortChange={(next) => onSortTextChange(sameSort(next, DEFAULT_TOPIC_SORT) ? null : formatSort(next))}
         defaultSort={DEFAULT_TOPIC_SORT}
+        toolbarStart={toolbarStart}
         toolbarEnd={
           groupKeys.length === 0 ? undefined : (
             <Button variant="ghost" size="sm" icon={allOpen ? ChevronsDownUp : ChevronsUpDown} onClick={toggleAll}>

@@ -4,6 +4,7 @@ import {
   acrossEngines,
   asksIn,
   countriesForEngines,
+  countryChoices,
   countText,
   DEFAULT_PROMPT_SORT,
   DEFAULT_TOPIC_SORT,
@@ -11,10 +12,12 @@ import {
   fitsEngine,
   collectTopicTerms,
   hasAnswers,
+  lastObservedAt,
   matchesTopics,
   mostMentionedFirst,
   NO_TOPIC,
   outcomeKey,
+  parseCountry,
   parseMetric,
   parseTab,
   parseTopicTab,
@@ -368,6 +371,40 @@ describe('whether a window has answers', () => {
     expect(hasAnswers(summary(0))).toBe(false);
     expect(hasAnswers(summary(1))).toBe(true);
     expect(hasAnswers({ ...summary(1), prompts: [] })).toBe(false);
+  });
+});
+
+describe('the country of the top bar', () => {
+  it('reads one market of two capital letters, and every country for anything else', () => {
+    expect(parseCountry('DE')).toBe('DE');
+    for (const other of [null, '', 'de', 'DEU', 'D', 'DE,IN', 'D1', ' DE']) expect(parseCountry(other)).toBeNull();
+  });
+
+  it('lists the countries the prompts carry once, in order, and keeps the chosen one even when no prompt has it', () => {
+    const prompts = [{ country_iso: 'US' }, { country_iso: 'DE' }, { country_iso: null }, { country_iso: 'US' }];
+    expect(countryChoices(prompts as Prompt[], null)).toEqual(['DE', 'US']);
+    expect(countryChoices(prompts as Prompt[], 'IN')).toEqual(['DE', 'IN', 'US']);
+    expect(countryChoices([], null)).toEqual([]);
+  });
+});
+
+describe('when the answers were last read', () => {
+  const summary = (...times: (string | null)[]): PromptsSummary =>
+    ({
+      prompts: times.map((last_observed_at) => ({ last_observed_at })),
+    }) as unknown as PromptsSummary;
+
+  it('is the newest answer over the prompts, and null when none has an answer or there is no summary', () => {
+    expect(lastObservedAt(summary('2026-11-10T02:00:00Z', '2026-11-12T02:03:00Z', null, '2026-11-11T02:00:00Z'))).toBe(
+      '2026-11-12T02:03:00Z',
+    );
+    expect(lastObservedAt(summary(null, null))).toBeNull();
+    expect(lastObservedAt(summary())).toBeNull();
+    expect(lastObservedAt(undefined)).toBeNull();
+  });
+
+  it('compares instants, not text, so another offset does not mislead it', () => {
+    expect(lastObservedAt(summary('2026-11-12T01:30:00+02:00', '2026-11-12T00:30:00Z'))).toBe('2026-11-12T00:30:00Z');
   });
 });
 
