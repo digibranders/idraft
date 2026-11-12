@@ -1,6 +1,6 @@
 # Topics & Prompts: parity with the approved design preview
 
-Status: written 2026-11-12, awaiting owner review of the decisions in section 4. Read-only analysis; nothing was run. Gap statuses are as of `origin/develop` at `6d681a5`.
+Status: written 2026-11-12; the owner decided the open product decisions of section 4 on 2026-11-12 (D-3, D-6 and D-8, plus the backend decisions of the handoff section 5). Read-only analysis; nothing was run. Gap statuses are as of `origin/develop` at `6d681a5`.
 Sources compared: the preview (`apps/web/design-preview/prompts*.js`, `index.html`), the real app (`apps/web/src/features/prompts/*`, `apps/web/src/lib/api/schema.ts`), the backend (`backend/src/idraft/api/ai/*`, migration `0018_ai_prompts.py`), and the specs ([ADR-DS-022](../../design-system/adr/ADR-DS-022-topics-and-prompts.md), [24-page-templates](../../design-system/24-page-templates.md) 9.5, [20-frontend-specification](../../20-frontend-specification.md) 5.6, 5.7, 5.11, [23-application-patterns](../../design-system/23-application-patterns.md) 4.2, [19-api-specification](../../19-api-specification.md) 3.7, the [slice 1 spec](2026-11-11-ai-prompt-tracking-slice-1-design.md)).
 Companions: [competitor study](2026-11-12-ai-visibility-competitor-study.md), [web plan](../plans/2026-11-12-ai-prompts-w2-web-parity.md), [backend handoff](../plans/2026-11-12-ai-prompts-d-backend-handoff.md), [roadmap](../plans/2026-11-12-ai-visibility-roadmap.md). The backend plan for the summary additions is [D1](../plans/2026-11-12-ai-prompts-d1-summary-additions.md).
 
@@ -22,22 +22,22 @@ Reusable parts: `MetricStrip` (`apps/web/src/components/app/metric`), `Sparkline
 
 Status of the real app per gap: **BUILT**, **PARTIAL**, **MISSING**. Backend column: **ready** (API exists), **B n** (backend item, see handoff and D1), **blocked S n** (needs slice n). Size: S under a day, M one to three days, L more. Task is the web task of the [web plan](../plans/2026-11-12-ai-prompts-w2-web-parity.md).
 
-## 4. Product decisions made so far, with defaults
+## 4. Product decisions
 
-| # | Decision | Default applied in the plan | Open part |
+| # | Decision | Applied in the plan | Caveat or decision of 2026-11-12 |
 |---|---|---|---|
 | D-1 | Counts or percent | Percent next to the count in every rate cell ("83%" with "5 of 6" in the cell or its tooltip), and a hatched insufficient-data pill with "N obs" when a cell has fewer than `MIN_OBSERVATIONS` (4) valid answers. The preview shows a bare percent, the real app a bare count, the ADR and docs 16 and 19 say a count with its ratio: this takes the docs' form and adds the pill. With 2 answers a week and 28 days a cell has at most 8 answers, so a bare "50%" over 4 answers is what UI rule 11 warns against | none |
 | D-2 | Previous period delta | Two summary reads (current window and the preceding window of equal length) and the unpaired `isDetectableChange` from `lib/stats`. The delta is coloured only when detectable (rule 6). Labelled "interim test" in its tooltip until slice 3 (paired test). When D1 Task 3 is on develop the second read becomes `compare=previous_period` | The verdict and the number can disagree: the displayed value is prompt weighted, the test pools answers (ADR-DS-022 calls it temporary) |
-| D-3 | Nested topics | Keep the current flat list (every topic and every ancestor, counts rolled up) and add the category subtitle and path badge | Options below |
+| D-3 | Nested topics | **Decided 2026-11-12: an indented tree on the Topics tab.** A parent row rolls up its children, children indent under it (expand and collapse), and a note says rows do not add up to the parent. The category subtitle and the path badge stay | Decided; the sub-task is in W2 (parent counts roll up, so a prompt in a child counts in the child row and again in each ancestor row) |
 | D-4 | Panels and Versions tabs | Hidden until slice 4 (as the slice 1 spec says). The preview shows them; do not build stubs | none |
 | D-5 | Manual run limit | 20 manual runs a day per project (`MANUAL_RUNS_PER_DAY`, `429 manual_run_limit`) plus the month's answers cap (`422 quota_exceeded`). Bulk Run now on the web is capped at 20 a day and says so, until B7 makes it one run | Owner may prefer to wait for B7 |
-| D-6 | Cadence | Twice a week (Monday and Thursday) as built and as Settings > Engines says. The mocks were set to weekly by `c1abdd4` and the Panels tab of the preview says Core weekly and Discovery monthly; doc 11 section 8 says weekly core | Owner decision: weekly or twice a week (blocks Panels, AP-10) |
+| D-6 | Cadence | **Decided 2026-11-12: twice a week (Monday and Thursday) for every prompt**, as built and as Settings > Engines says; weekly may become a per panel option later. Doc 11 section 8 is corrected. The Panels tab copy of the preview (Core weekly, Discovery monthly) is not copied, and the mocks set weekly by `c1abdd4` go back to twice a week when W14 starts | Decided; Panels (AP-10) is unblocked on cadence |
 | D-7 | Branded prompts | Excluded from rates unless included (doc 16 rule 4); the Branded filter becomes three way (Excluded, Included, Only) | `is_branded` means "names the OWN brand" (doc 16, backend); the preview lint also errors on competitor aliases: keep the backend definition |
-| D-8 | Prompt type | Hide the Type filter and badge until the data is real | Where `prompt_type` comes from (B16) |
+| D-8 | Prompt type | **Decided 2026-11-12: a server rule at create plus a person override** in the Add dialog and `PATCH`, no LLM (" vs " or "versus" gives comparison, "how to" gives how_to, a leading interrogative gives question), and `filter[prompt_type_in]` on `GET {P}/prompts` (B16). The Type filter and badge stay hidden until B16 is on develop | Decided; B16 is unblocked |
 | D-9 | Rank in the Latest card | Never show `own_mention_order` as Rank; structured list rank is slice 2 | none |
 | D-10 | Competitor and trend numbers | Never invent them. A tab is empty with a reason until its backend item lands | none |
 
-**D-3 options for nested topics.** (a) Indent children under their parents with rolled-up counts and a note "rows do not sum to parents" (doc 20 5.11 had the note; the preview drops it). (b) Show leaf topics only, each with its category as a subtitle (what the preview does with its two fixed levels). (c) Keep the flat overlapping list (today). Recommended once decided: (a) for a taxonomy deeper than two levels, (b) otherwise. Until then (c) with subtitle and path badge, which cannot mislead because each row's own prompts are counted once per row.
+**D-3, the choice made.** Of the three options considered (an indented tree with a note that rows do not sum to parents; leaf topics only with the category as a subtitle, as the preview does; the current flat overlapping list), the owner chose the indented tree on 2026-11-12. The preview drops the "rows do not sum to parents" note that doc 20 5.11 had; the real page keeps it.
 
 ## 5. Gap table
 
@@ -56,7 +56,7 @@ Order column of the earlier analysis: 1 frontend only, 2 frontend plus a small b
 | G07 | Date range (top bar) | top bar | PARTIAL: 7, 28, 90 select | custom from and to | ready (`from`, `to`, 92 days max) | S | W5 |
 | G08 | Branded filter three way | `BRANDED_LABEL`; `FIELDS.branded` | PARTIAL: Include only | `branded_only` | Prompts tab web only (rows carry `is_branded`). Topics tab and strip: D1 Task 2 (B2) | S, S | W5, W6 |
 | G09 | Panel filter chip | `FIELDS.panel` | MISSING | panels | blocked S4 | M | W14 |
-| G10 | Type filter chip and badge | `FIELDS.type`, `promptLine` | MISSING | prompt type per prompt | `Prompt.prompt_type` exists but the Add dialog sets `question` on every prompt (`API_DEFAULTS` in `add-prompts-dialog.tsx`); no `filter[prompt_type_in]`. B16 and decision D-8 | M | blocked |
+| G10 | Type filter chip and badge | `FIELDS.type`, `promptLine` | MISSING | prompt type per prompt | `Prompt.prompt_type` exists but the Add dialog sets `question` on every prompt (`API_DEFAULTS` in `add-prompts-dialog.tsx`); no `filter[prompt_type_in]`. Source decided (D-8); B16 builds the rule and the filter | M | W17 (after B16) |
 | G11 | Country filter on Topics tab | top bar location | PARTIAL: Prompts tab only | summary scoped by country | D1 Task 2 (B2) | S | W6 |
 | G12 | Strip: "Prompts" card plus one card per engine (value, delta, "Cited 21%, SOV 27%", counts in tooltip); single engine shows 4 rates | `renderStrip`, `engineCard`, `scopeRate` | MISSING: no strip | per engine prompt weighted mention and citation, pooled SOV, topic count | web computes from `prompts-summary` prompt rows. Recommendation card S2. Deltas G05 | M | W1 |
 | G13 | Insufficient data state (under 4 answers) | `prompts-parts.js` `insufficient`; `lib/stats` `rateState` | MISSING | n per cell | web (`MIN_OBSERVATIONS`) | S | W1 |
@@ -78,7 +78,7 @@ Order column of the earlier analysis: 1 frontend only, 2 frontend plus a small b
 | G29 | Trend sparkline column (weekly mention rate) | `groupTrend`, `sparkCell` | MISSING | weekly points per topic | `include=series` is D1 Task 4 (B3) | M | W11 |
 | G30 | Updated column and Stale badge | `updatedCell`, `groupUpdated` | MISSING | last observed, last valid | B1 BUILT | S | W6 |
 | G31 | SEO visibility and Top 10 columns (topic's tracked keywords) | `seoOf`, `COLUMNS.seo/top10` | MISSING | tracked count, top 10, volume weighted visibility | Top 10 and counts: `GET {P}/tracked-keywords` `filter[term]`, `filter[rank_lte]=10`, `page.total`. Visibility: B9 (`seo/metrics/breakdown?dimension=term`, not built). Verify that keyword and prompt topics share one vocabulary | M | W16 |
-| G32 | Nested topics | fixed two levels (`TOPIC_PARENT`) | PARTIAL: flat and overlapping, no subtitle | tree depth | ready. Decision D-3 | M | W2 (subtitle), decision open |
+| G32 | Nested topics | fixed two levels (`TOPIC_PARENT`) | PARTIAL: flat and overlapping, no subtitle | tree depth | ready. Decided (D-3): indented tree | M | W2 (subtitle and the indented tree) |
 | G33 | Footer "13 topics, 250 prompts, Updated ..." | `renderChrome` | PARTIAL: DataTable footer count only | G01 | ready | S | W2 |
 
 ### 5.3 Prompts tab
@@ -108,7 +108,7 @@ Order column of the earlier analysis: 1 frontend only, 2 frontend plus a small b
 | G65 | Sizing guidance: flip rate per engine, "can detect N points" | MISSING | formula in `lib/stats/panel.ts`; flip rate needs paired runs (`ai.flip_rate`, S3). Do not ship constants | M | W14 |
 | G66 | Run now for a panel | MISSING | needs B7 and panels | M | W14 |
 | G67 | Versions table | MISSING | S4; project wide feed is B12 (new route) | M | W14 |
-| G68 | Restore a version | MISSING | S4 (resolve the `restore` change kind first, section 6 item 9) | M | W14 |
+| G68 | Restore a version | MISSING | S4 (B11). Decided: a restore is not a `change_kind`; it re-points `current_version_id` and writes an audit entry (section 6 item 9) | M | W14 |
 | G69 | Edit prompt text as a new version | MISSING | S4 (`POST prompts/{id}/versions`) | L | W14 |
 | G70 | Version boundary marker on charts | MISSING | S4 | S | W14 |
 
@@ -172,13 +172,13 @@ The ids are not contiguous (the earlier analysis numbered 77 gaps). BUILT rows: 
 |---|---|---|
 | 1 | Manual runs: `MANUAL_RUNS_LEFT = 400` "this month", computed as prompts times engines; Run now "queued then the toast" | Real limit is 20 manual runs a day per project (`MANUAL_RUNS_PER_DAY`, `429 manual_run_limit`) plus the month's answers cap (`max_ai_observations_per_month`, `422 quota_exceeded`). Answers arrive in minutes through the standard queue. A bulk run of 30 prompts exceeds the day limit until B7 makes it one run |
 | 2 | `PROMPT_QUOTA = 600`, 302 fixture prompts (250 core, 12 branded, 40 discovery) | Base plan is 150 active prompts (`max_active_prompts`, slice spec 4.7). Do not tune pagination or "Select all N matching" to 250 |
-| 3 | Panels tab says Core "Weekly", Discovery "Monthly" | Decision D-6. Slice 1 and the base plan run twice a week; doc 11 section 8 says weekly core; commit `c1abdd4` made the mocks weekly. Settle one before Panels |
+| 3 | Panels tab says Core "Weekly", Discovery "Monthly" | Decision D-6, decided: twice a week (Monday and Thursday). Doc 11 section 8 is corrected; commit `c1abdd4` made the mocks weekly, so they go back to twice a week when W14 starts |
 | 4 | Every panel lists ChatGPT, Gemini and AI Mode | Doc 11 section 8: Discovery uses ChatGPT and AI Mode, Experiment is configurable |
 | 5 | Bare percent with the sample in a tooltip | Decision D-1 |
 | 6 | Invented numbers: competitor trend lines (random jitter in `entitySeries`), competitor recommendation "roughly half of mentions", random citation shares with hard coded domains, versions' authors and reasons (`CHANGE_REASONS`), flip rates (`FLIP_RATE`), membership history | Layout only. The data contracts are B3, B5, B6, B10, B11 |
-| 7 | Two fixed topic levels, one row per leaf | Decision D-3. The API returns a row for every topic and every ancestor and counts roll up |
+| 7 | Two fixed topic levels, one row per leaf | Decision D-3, decided: an indented tree. The API returns a row for every topic and every ancestor and counts roll up, so the tree shows each parent row with its children indented under it and a note that rows do not add up to the parent |
 | 8 | `isDetectableChange(pooled, pooled)` on pooled answers while the shown value is prompt weighted; panel sizing uses McNemar on paired runs | Decision D-2: label the interim test; keep the two models apart in the copy |
-| 9 | Versions tab has no restore; doc 11 rule 3 says a restore re-points `current_version_id` and writes no row, doc 04 and migration 0018 restrict `change_kind` to `initial, wording, typo, context`, doc 19 lists `restore` | Fix the docs before B11 |
+| 9 | Versions tab has no restore; doc 11 rule 3 says a restore re-points `current_version_id` and writes no row, doc 04 and migration 0018 restrict `change_kind` to `initial, wording, typo, context`, doc 19 lists `restore` | Decided 2026-11-12: a restore is not a `change_kind`; doc 19 is corrected (a restore re-points `current_version_id` and writes an audit entry) |
 | 10 | Lint treats a brand name in a core prompt and a 5 word minimum as errors | The API warns on own aliases only (`contains_brand_alias`) and refuses over 2,000 characters; `is_branded` names the OWN brand (doc 16 rule 4). Keep the backend definition (D-7) |
 | 11 | Add dialog without country, language or run estimate | The real dialog is right: the API requires a country every enabled engine has. Do not remove fields to match |
 | 12 | Dead links: "Open page", "Edit prompt", "Open statistics", "Link a keyword", "Import", "Generate from keywords" are `data-preview-note` stubs | T3 `/ai/prompts/[promptId]` is not in slice 1 (a prompt opens in the inspector only). Do not render a link without a target |

@@ -28,7 +28,7 @@ A prompt is a measurement instrument. If the instrument changes silently, the tr
 
 1. **Text is immutable per version.** Any change to `text` or `context_preamble` creates a new `ai.prompt_versions` row. `prompts.current_version_id` points to the version that will be scheduled next.
 2. **Observations reference the version**, not just the prompt. Metrics for a prompt over a window use all its versions, and the response carries version boundaries for charts ([17-statistical-methodology.md](17-statistical-methodology.md) section 9).
-3. **Change kinds** (`change_kind`): `wording` (meaning may change), `typo` (no intended change in meaning), `context` (persona preamble changed), and restore (back to an earlier text), which creates no new row: the unique `text_hash` constraint prevents a duplicate version, so restore re-points `current_version_id` to the earlier version and writes an audit log entry.
+3. **Change kinds** (`change_kind`): `wording` (meaning may change), `typo` (no intended change in meaning), `context` (persona preamble changed). A restore (back to an earlier text) is not a change kind (decided 2026-11-12): it creates no new row, because the unique `text_hash` constraint prevents a duplicate version, so a restore re-points `current_version_id` to the earlier version and writes an audit log entry.
 4. **Core panel protection.** Prompts in a locked core panel can only get a new version from an `admin` with a written reason; the UI warns that the series will show a break. `typo` changes are allowed for `editor` but still create a version.
 5. **Metadata changes are not versions.** Changing tags, topic, intent or importance does not create a version; these are descriptive. They are audit-logged.
 
@@ -159,17 +159,17 @@ Keyword-level AI visibility does not require prompts: AI Overview observations a
 
 ## 8. Scheduling
 
-Defaults ([07-dataforseo-ai-integration.md](07-dataforseo-ai-integration.md) section 4.2 and [21-scheduler-workers.md](21-scheduler-workers.md) section 2):
+Defaults ([07-dataforseo-ai-integration.md](07-dataforseo-ai-integration.md) section 4.2 and [21-scheduler-workers.md](21-scheduler-workers.md) section 2). Decided 2026-11-12: every prompt is collected twice a week (Monday and Thursday), as slice 1 runs it. A weekly cadence may become a per panel option later.
 
 | Panel | Engines | Replicates | Cadence |
 |---|---|---|---|
-| Core, importance 1 (priority subset, max 100 prompts by default) | ChatGPT, Gemini, AI Mode | 3, 3, 1 | weekly |
-| Core, other | ChatGPT, Gemini, AI Mode | 1 | weekly |
-| Discovery | ChatGPT, AI Mode | 1 | monthly |
-| Experiment | as configured | 3 | weekly or daily during the experiment |
-| Benchmarks (optional) | official APIs | 1 | weekly on 100 core prompts |
+| Core, importance 1 (priority subset, max 100 prompts by default) | ChatGPT, Gemini, AI Mode | 3, 3, 1 | twice a week (Monday and Thursday) |
+| Core, other | ChatGPT, Gemini, AI Mode | 1 | twice a week (Monday and Thursday) |
+| Discovery | ChatGPT, AI Mode | 1 | twice a week (Monday and Thursday) |
+| Experiment | as configured | 3 | twice a week, or daily during the experiment |
+| Benchmarks (optional) | official APIs | 1 | twice a week on 100 core prompts |
 
-Future options (configuration only, no redesign): daily for importance 1 prompts, weekly for standard, monthly for discovery.
+Future options (configuration only, no redesign): a per panel cadence, for example daily for importance 1 prompts, weekly for standard prompts, monthly for discovery.
 
 Budget: the planner estimates each AI run and checks `ops.budgets` for `ai_prompt`. A blocked run is visible with its estimate and the budget that blocked it.
 

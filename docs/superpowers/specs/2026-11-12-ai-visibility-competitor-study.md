@@ -1,6 +1,6 @@
 # AI visibility: competitor study (what to drop, keep, build and borrow)
 
-Status: written 2026-11-12 for the product owner, awaiting review. A study, not a build commitment: it fixes stable IDs so plans can cite a data point or a verdict, and it states what each item needs from the backend.
+Status: written 2026-11-12 for the product owner; the owner answered Q3 and Q4 on 2026-11-12 (section 8). A study, not a build commitment: it fixes stable IDs so plans can cite a data point or a verdict, and it states what each item needs from the backend.
 Roadmap: sequencing is in [2026-11-12-ai-visibility-roadmap.md](../plans/2026-11-12-ai-visibility-roadmap.md). The page-level gaps against our own approved preview are in [2026-11-12-topics-prompts-preview-parity.md](2026-11-12-topics-prompts-preview-parity.md).
 Specs this study reads against: [AI prompt tracking slice 1](2026-11-11-ai-prompt-tracking-slice-1-design.md), [11](../../11-ai-prompt-system.md), [14](../../14-citation-intelligence.md), [15](../../15-seo-ai-correlation.md), [16](../../16-metrics-methodology.md), [19](../../19-api-specification.md) section 3.7, [20](../../20-frontend-specification.md), [24](../../24-security.md), and the design system ([24-page-templates](../../design-system/24-page-templates.md), [23-application-patterns](../../design-system/23-application-patterns.md), [15-data-visualization](../../design-system/15-data-visualization.md)).
 
@@ -440,17 +440,21 @@ Our design system is the rule (`DESIGN_SYSTEM.md`, `AI_DEVELOPMENT_UI_RULES.md`)
 | U-25 | Prompt picker on analysis pages | Persistent combobox at the top | Prompt chosen from the table, J and K, `FilterChip` | KEEP OURS | No second control |
 | U-26 | Table toolbar | Search, Run all, Download in one row | `DataTableToolbar` with search, columns, density, export | KEEP OURS | Equal |
 
-## 8. Open questions
+## 8. Open questions and the owner's answers
 
-| # | Question | Default used in the plans | If undecided |
-|---|---|---|---|
-| Q1 | Does the provider payload carry a quote text for each cited source (CI-11)? Only normalised columns were read | Assume no; W7 ships without a quote section | The quote stays NEW and U-24 waits |
-| Q2 | Are fan-out queries in `provider_extras` complete? The column is bounded at 16 KB (`octet_length(provider_extras::text) <= 16384`, migration 0018) | B19 reports a `truncated` flag per answer when the bound could have cut a list | A route could show short lists as complete |
-| Q3 | Weekly or twice a week cadence (three sources, two answers) | Twice a week as built; settle before Panels | AP-10 and the Panels tab stay blocked |
-| Q4 | Which slice owns B5 and the citations aggregate B6 | D1 Task 5 builds B5 now; B6 is the next backend item | The competitor and Citations views wait |
-| Q5 | Is page-level AI readiness (W15) in scope, and who fetches pages safely? | Out of scope until the owner decides | Stays NEW |
-| Q6 | The visual state of the mobile tables and of the topic drawer was not inspected in this pass (code and docs only) | none | Treat G14 as open |
-| Q7 | The studied tool data come from one workspace and one tracked day on the Dashboard | Drop verdicts rest on definitions | none |
+The owner decided Q3 and Q4 on 2026-11-12 through the question dialog. Q1, Q2, Q5, Q6 and Q7 are checks or scope notes, not decisions of that round.
+
+| # | Question | Status | Answer or default used in the plans | If it fails |
+|---|---|---|---|---|
+| Q1 | Does the provider payload carry a quote text for each cited source (CI-11)? Only normalised columns were read | To check (not a decision) | Assume no; W7 ships without a quote section | The quote stays NEW and U-24 waits |
+| Q2 | Are fan-out queries in `provider_extras` complete? The column is bounded at 16 KB (`octet_length(provider_extras::text) <= 16384`, migration 0018) | To check (not a decision) | B19 reports a `truncated` flag per answer when the bound could have cut a list | A route could show short lists as complete |
+| Q3 | Weekly or twice a week cadence (three sources, two answers) | **Decided 2026-11-12** | Twice a week (Monday and Thursday) for every prompt; weekly may become a per panel option later. Doc 11 section 8 is corrected | none: AP-10 and the Panels tab are unblocked on cadence |
+| Q4 | Which slice owns B5 and the citations aggregate B6 | **Decided 2026-11-12** | Slice 2 pre-work, built now: D1 Task 5 builds B5; B6 is the next backend item | none: the competitor and Citations views proceed |
+| Q5 | Is page-level AI readiness (W15) in scope, and who fetches pages safely? | Not part of the 2026-11-12 round | Out of scope until the owner decides | Stays NEW |
+| Q6 | The visual state of the mobile tables and of the topic drawer was not inspected in this pass (code and docs only) | To check (not a decision) | none | Treat G14 as open |
+| Q7 | The studied tool data come from one workspace and one tracked day on the Dashboard | Scope note | Drop verdicts rest on definitions | none |
+
+Other decisions of 2026-11-12 that the plans rely on: a version restore is not a `change_kind`; `prompt_type` is a server rule plus a person override; the weekly series is `include=series` on the summary first; gzip is on now; the Topics tab is an indented tree.
 
 ## 9. Evidence and not verified
 

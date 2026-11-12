@@ -10,6 +10,7 @@ Sources: [parity spec](../specs/2026-11-12-topics-prompts-preview-parity.md) (ga
 
 | Item | Purpose | Status | Plan |
 |---|---|---|---|
+| B0 gzip for the API | response size of `include=series,entities` (about 1.5 MB at full capacity) | not built; **step 0 of the start order** (decision 6) | own small backend task |
 | B1 `last_observed_at`, `last_valid_at` on summary rows | header meta, Updated column, stale badge | **BUILT** on `origin/develop` (`6d681a5`); the web needs `pnpm gen:api` | D1 Task 1 |
 | B2 scope params `filter[country_iso]`, `filter[term]`, `branded_only` | country and Branded Only on Topics and the strip | not built | **D1 Task 2** |
 | B3 weekly series (`include=series`) | sparklines and topic trend | not built | **D1 Task 4** |
@@ -20,13 +21,13 @@ Sources: [parity spec](../specs/2026-11-12-topics-prompts-preview-parity.md) (ga
 | B19 fan-out exposure | fan-out view | not built | D2 (below) |
 | B8, B9 split, B10 to B18 | see sections 3 and 4 | not built | later plans |
 
-D1 opt-in parameters the web can mock now: `include=series,entities` and `compare=previous_period` (blocks are absent unless asked), `filter[country_iso]` (`^[A-Z]{2}$`), `filter[term]` (term or below), `branded_only`. Weeks start Monday in the project timezone. D1's "Decisions" and "Open points" sections stay the contract; this handoff does not restate them.
+D1 opt-in parameters the web can mock now: `include=series,entities` and `compare=previous_period` (blocks are absent unless asked), `filter[country_iso]` (`^[A-Z]{2}$`), `filter[term]` (term or below), `branded_only`. Weeks start Monday in the project timezone. The owner decided on 2026-11-12 every question that was open here (section 5). D1's "Decisions" and "Open points" sections stay the contract; this handoff does not restate them.
 
 ## 2. Rules every backend plan follows
 
 1. **Checks** (AGENTS.md): `colima status || colima start --cpu 10 --memory 16`, the Docker variables exported, then `cd backend && uv sync --frozen && ./check.sh` (ruff, ruff format, mypy, import contracts, pytest on 4 workers). A partial test run takes `--no-cov`. Never restart Colima or stop `idraft-dev-*` containers.
 2. **OpenAPI.** Every task that changes the API regenerates `backend/openapi/v1.json` in its own commit (`BT/api/test_openapi.py` fails on a stale file).
-3. **Web client.** AGENTS.md says the web client (`pnpm gen:api` in `apps/web`) is regenerated in the same change; D1 deliberately leaves `apps/web` to the web session so two sessions do not edit `schema.ts`. Keep that split: the web task that consumes an item runs `pnpm gen:api` as its first step and commits the generated diff. If the owner wants AGENTS.md read literally, the backend commit includes the generated client instead. Ask once; the default here is D1's.
+3. **Web client.** (Decided 2026-11-12, decision 7.) A backend commit that changes the API updates `backend/openapi/v1.json` only. The web session runs `pnpm gen:api` in `apps/web` in its own commit right after, and the CI-free checks stay green on both sides. Two sessions never edit `apps/web/src/lib/api/schema.ts` at once. This matches AGENTS.md as amended.
 4. **Cross-tenant tests** for every new route and table: add them to `BT/security/test_cross_tenant.py` (the new route is scanned with every option); row-level security and grants on every new table (`workspace_id`).
 5. **Opt-in blocks.** New expensive parts are opt-in (`include=`, a parameter) and absent from the JSON unless asked, as D1 does, so a caller that does not ask pays nothing.
 6. **No N+1.** Aggregate in one grouped query; assert the statement count in a test as D1 does.
@@ -102,13 +103,13 @@ Unblocks W16. Do B9b last of the near term items.
 
 | Item | Purpose and web task | Contract in one line | Data and dependency | Size |
 |---|---|---|---|---|
-| B10 Panels | G60 to G66, G09, G81; W14 | tables `ai.prompt_panels`, `ai.panel_memberships` (doc 04 lines 1056, 1069), a locked core panel per project seeded with every active prompt from its creation date; routes `{P}/panels`, `.../memberships`, `.../memberships/remove` (reason required on locked, `panels:core:modify`, `meta.churn_90d`, `churn_warning` above 10%), `.../sizing`, `.../promotion-candidates`; `filter[panel]` on prompts | slice 4; needs owner decision D-6 (cadence) | L |
-| B11 Versions and restore | G67 to G70; W14 | `GET/POST {P}/prompts/{id}/versions` (`If-Match`, `change_kind`, `change_reason`), `POST .../versions/{vid}/restore`, `GET .../timeline` (doc 19 3.7.1); `prompt_versions` already has `change_reason`, `created_by` | slice 4; needs owner decision on `restore` | L |
+| B10 Panels | G60 to G66, G09, G81; W14 | tables `ai.prompt_panels`, `ai.panel_memberships` (doc 04 lines 1056, 1069), a locked core panel per project seeded with every active prompt from its creation date; routes `{P}/panels`, `.../memberships`, `.../memberships/remove` (reason required on locked, `panels:core:modify`, `meta.churn_90d`, `churn_warning` above 10%), `.../sizing`, `.../promotion-candidates`; `filter[panel]` on prompts | slice 4; **unblocked** (decision 1: twice a week, Monday and Thursday, for every prompt; weekly may become a per panel option later; the core panel seed keeps the existing two schedules) | L |
+| B11 Versions and restore | G67 to G70; W14 | `GET/POST {P}/prompts/{id}/versions` (`If-Match`, `change_kind`, `change_reason`), `POST .../versions/{vid}/restore`, `GET .../timeline` (doc 19 3.7.1); `prompt_versions` already has `change_reason`, `created_by` | slice 4; **unblocked** (decision 2: a restore is not a `change_kind`; it re-points `current_version_id` and writes an audit entry; `change_kind` is `initial`, `wording`, `typo`, `context`) | L |
 | B12 Project wide version feed | G67 | `GET {P}/prompt-versions?filter[change_kind_in]&from&to`, cursor, newest first: `{prompt_id, prompt_text, version_no, change_kind, change_reason, created_by, created_at}` (new route; doc 19 has per prompt versions only) | after B11 | S to M |
 | B13 AI Overview | G120; W13 later | engine seed `google_ai_overview` (not in code), `core.keyword_prompt_links` (not created), summary cell fed from rank checks with `source_state` of `no_linked_keyword`, `not_tracked`, `no_surface`, `ok` and `checks` beside `n` (ADR-DS-022 consequences); rank data is the data DataForSEO has issues with | slice 2; depends on keyword links | L |
 | B14 Recommendation, prominence, sentiment | G42, G121, DB-09, M-07 | fill `own_recommended`, `own_prominence`, `own_structured_rank`, `own_sentiment` in `ai.observation_facts`; expose a `recommended` cell and `outcomes` in the summary | slice 2; extractor work (doc 13) | L |
 | B15 Intervals, flip rate, replicates | G48, G65, M-01 | `ci` on `MetricCell`, `GET {P}/ai/stats/volatility`, `ai.flip_rate`, paired verdict (`is_detectable`) on `compare` | slice 3 | L |
-| B16 Prompt type | G10 | decide the source (decision 3 below); `GET {P}/prompts` gains `filter[prompt_type_in]`; `PATCH` already takes `prompt_type` | needs owner decision | S to M |
+| B16 Prompt type | G10 | the source is decided (decision 3 below): a server rule at create plus a person override in the Add dialog and `PATCH`, no LLM; `GET {P}/prompts` gains `filter[prompt_type_in]`; `PATCH` already takes `prompt_type` | **unblocked** | S to M |
 | B17 Lint rules | G83 | extend `POST {P}/prompts/lint` with `word_count` (5 to 60), `multiple_questions`, `leading_wording`, `language_mismatch`, `contains_competitor_alias` (doc 11 section 4, doc 19 `LintWarning.rule`); today only `contains_brand_alias` and `engine_limit` | natural home slice 4 | M |
 | B18 Generate from keywords, candidates inbox | G03, W12 | `POST {P}/prompts/from-keywords/preview`, `{P}/prompt-candidates` routes, `ai.prompt_candidates` (doc 11 5.2, doc 19 3.7.1, 3.7.3, doc 20 5.13) | slice 4, Ph 11 | L |
 
@@ -118,28 +119,33 @@ Once the owner says go. D1 tasks keep their own numbering; this is the order of 
 
 | Step | Item | Plan | Why here | Unblocks |
 |---|---|---|---|---|
+| 0 | **B0** gzip for the API | own small task (decision 6) | Must land before the series and entities blocks ship, because `include=series,entities` is about 1.5 MB at full capacity. `GZipMiddleware` in `B/api/main.py` with a minimum size; check first that the nginx in `infra/vps/nginx` does not already compress; a test asserts `Content-Encoding: gzip` on a large response and none on a small one; no OpenAPI change | W11 and W8 response size |
 | 1 | **B2** scope params (and the `gen:api` for the built B1) | D1 Task 2 | Small. Every later aggregate reuses its `filter[term]` and scope helpers. Unblocks the header meta, stale badge, country and Branded Only on Topics | W6 |
-| 2 | **B6** citations aggregate | D2 | Highest value, no new table, no migration; the Citations tab is the single biggest hole in the inspector (G97) and the page the SEO team asked for first | W7, W13 partly |
-| 3 | **B5** per entity cells | D1 Task 5 | Largest item and the one that unblocks the competitor views the SEO team wants most (share of voice against named competitors, top competitor, drawer Competitors tab). Assign it to slice 2 (decision 4). Doing it right after B6 lets W7 and W8 run in parallel on the web side | W8, W11 entity lines |
+| 2 | **B6** citations aggregate (slice 2 pre-work, decision 4) | D2 | Highest value, no new table, no migration; the Citations tab is the single biggest hole in the inspector (G97) and the page the SEO team asked for first | W7, W13 partly |
+| 3 | **B5** per entity cells | D1 Task 5 | Largest item and the one that unblocks the competitor views the SEO team wants most (share of voice against named competitors, top competitor, drawer Competitors tab). Slice 2 pre-work, built now (decision 4). Doing it right after B6 lets W7 and W8 run in parallel on the web side | W8, W11 entity lines |
 | 4 | **B19** fan-out exposure | D2 | The data is already stored; it is the cheapest route that shows an advantage over the studied tool's best page (N2). Check the 16 KB bound as part of it | W9 |
 | 5 | **B7** bulk run and bulk archive | D2 | Small and self contained; lifts the browser side 20 a day cap. Placed after B5 and B19 because the web already ships a capped version in W5 | W10 |
-| 6 | **B4** previous period, then **B3** weekly series | D1 Tasks 3 and 4 | The web works today with two reads (W3) and a client side window (W11 can start from a second read), so these are optimisations and shape fixes, not blockers | W3 switch to one read, W11 |
+| 6 | **B4** previous period, then **B3** weekly series (`include=series` on the summary, decision 5; after B0) | D1 Tasks 3 and 4 | The web works today with two reads (W3) and a client side window (W11 can start from a second read), so these are optimisations and shape fixes, not blockers | W3 switch to one read, W11 |
 | 7 | **B9b** SEO visibility per topic | later plan | Counts and Top 10 are web only; only the volume weighted visibility needs the route | W16 |
 | Later | B8, B10 to B18 | one plan each | Slice 4 and slice 2 and 3 work; none blocks a slice 1 web task | W12, W14 |
 
-Order check: B2 before B5 because both change `summary_repository.py` and B5 reuses B2's `summary_prompts`; B6 before B5 because B6 touches different modules (no summary conflicts) and ships sooner; each step is one commit series with its own openapi regeneration.
+Order check: B0 before any task that ships `include=series` or `include=entities` (B5 and B3) so those responses are compressed from the first release; B2 before B5 because both change `summary_repository.py` and B5 reuses B2's `summary_prompts`; B6 before B5 because B6 touches different modules (no summary conflicts) and ships sooner; each step is one commit series with its own `backend/openapi/v1.json` update (the web session regenerates the client in its own commit, decision 7).
 
-## 5. Owner decisions that block backend work
+## 5. Owner decisions (decided 2026-11-12)
 
-| # | Decision | Recommended answer | If undecided |
+The owner decided all seven on 2026-11-12 through the question dialog. Nothing in this list is open.
+
+| # | Decision | What was decided | What it unblocks |
 |---|---|---|---|
-| 1 | Panel cadence: weekly or twice a week (the preview says Core weekly, Discovery monthly; doc 11 section 8 says weekly core; the base plan, the schedules and Settings > Engines say twice a week) | Twice a week for every prompt in slice 1 as built, because it is what is paid for and what the intervals will be sized on; panels in slice 4 choose a per panel cadence from there. Correct doc 11 section 8 and the preview text | B10 cannot be planned; the core panel seed keeps the existing two schedules; the web keeps "twice a week" copy |
-| 2 | Restore: a `restore` value of `change_kind` or not (doc 11 rule 3: a restore re-points `current_version_id` and writes no row; doc 04 and migration 0018 restrict `change_kind` to `initial`, `wording`, `typo`, `context`; doc 19 lists `restore`) | No `restore` kind: a restore writes an audit entry and re-points the version; remove `restore` from doc 19 | B11 is blocked; the web draws no Restore button |
-| 3 | Where `prompt_type` comes from (empty today: the Add dialog sets `question` on every prompt) | A server rule at create and a person override in the Add dialog and `PATCH` (no LLM cost): " vs " or "versus" gives comparison, "how to" gives how_to, a leading interrogative gives question | The web hides the Type filter and badge (D-8); B16 is not started |
-| 4 | Which slice owns B5 (per entity cells) and the citations aggregate B6 (no slice assigned in the spec) | B5 slice 2, built now as D1 Task 5; B6 slice 2 pre-work | D1 Task 5 can be dropped without touching Tasks 1 to 4 and 6; the competitor and Citations views wait |
-| 5 | Weekly series path: `include=series` on the summary (D1 Task 4) or doc 19's `GET {P}/ai/metrics/{metric}/series` and `.../breakdown?dimension=topic` | `include=series` now (D1), the generic metrics routes when the Overview page (W13) needs breakdowns; amend doc 19 in D1 Task 6 | D1 Task 4 proceeds as written; doc 19 stays inconsistent until then |
-| 6 | (From D1) gzip for the API and the series span (D1 open points 1 and 3) | Decide gzip separately; the web asks for `include` only with `filter[term]` or a small page | `include=series,entities` at full capacity is about 1.5 MB |
-| 7 | Read `AGENTS.md` literally (backend commit regenerates the web client) or keep D1's split | Keep D1's split | Both sessions may touch `schema.ts`; expect rebase conflicts |
+| 1 | Panel cadence | Twice a week (Monday and Thursday) for every prompt. Weekly may become a per panel option later. Doc 11 section 8 is corrected to say twice a week | B10 Panels can be planned; the core panel seed keeps the existing two schedules; the web keeps "twice a week" copy; W14 no longer waits on a decision |
+| 2 | Restore | A restore is not a `change_kind`. It re-points `current_version_id` and writes an audit entry. `restore` is removed from the `PromptVersion.change_kind` union in doc 19 | B11 (and B12 after it) can be planned; the web Restore button is allowed once the routes exist |
+| 3 | Where `prompt_type` comes from | A server rule at create plus a person override in the Add dialog and `PATCH`, no LLM. Rule: " vs " or "versus" gives `comparison`, "how to" gives `how_to`, a leading interrogative gives `question`. `GET {P}/prompts` gains `filter[prompt_type_in]` | B16 starts; the web Type filter and badge (D-8) follow it |
+| 4 | Slice owners | B5 (per entity cells, D1 Task 5) and B6 (citations aggregate) are slice 2 pre-work, built now | D1 Task 5 stays in D1; the competitor and Citations views (W7, W8) proceed |
+| 5 | Weekly series path | `include=series` on the summary (D1 Task 4). The generic metrics routes (`{P}/ai/metrics/{metric}/series`, `.../breakdown`) come later, when the Overview page (W13) needs them. Doc 19 carries the note | D1 Task 4 proceeds as written; W11 builds to it |
+| 6 | gzip for the API | Turn it on now, as its own small backend task (B0, step 0 of the start order) before the series and entities blocks ship | `include=series,entities` at full capacity (about 1.5 MB) is compressed from its first release |
+| 7 | Web client regeneration | Keep the split. Backend commits update `backend/openapi/v1.json` only; the web session runs `pnpm gen:api` in its own commit right after. AGENTS.md is amended to say so | No shared edits of `schema.ts`; rule 3 of section 2 |
+
+One further decision belongs to the web side and is recorded in the parity spec section 4 (D-3): the Topics tab shows an indented tree.
 
 ## 6. Test expectations common to B6, B7 and B19
 

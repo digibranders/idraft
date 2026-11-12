@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Close the web gaps of [the parity spec](../specs/2026-11-12-topics-prompts-preview-parity.md) that slice 1 data allows (tasks W1 to W5), then wire the pages that wait for backend items (W6 to W13), and list the tasks that wait for slice 4 or for a product decision (W14 to W16). Each task is independent and is committed on its own.
+**Goal:** Close the web gaps of [the parity spec](../specs/2026-11-12-topics-prompts-preview-parity.md) that slice 1 data allows (tasks W1 to W5), then wire the pages that wait for backend items (W6 to W13), and list the tasks that wait for slice 4, for a backend item or for a product decision (W14 to W17; W14 and W17 no longer wait on a decision). Each task is independent and is committed on its own.
 
 **Architecture:** Everything stays in `apps/web/src/features/prompts` (queries, pure models, screens). Pure logic goes in model files with tests first; screens only render. Shared pieces used by more than one feature go in `apps/web/src/components/app`. Data comes from the generated client through `apiQuery`; for every route the backend has not built, the mocks in `apps/web/src/mocks` are the contract until it lands, and the mock is written to the proposed contract of [the backend handoff](2026-11-12-ai-prompts-d-backend-handoff.md) or [D1](2026-11-12-ai-prompts-d1-summary-additions.md).
 
@@ -23,7 +23,7 @@ pnpm format:check    # "All matched files use Prettier code style!"
 pnpm build           # tasks that add a route or navigation entry, and the last task of a stage
 ```
 
-If the API changed, `pnpm gen:api` in the same commit. Other sessions' files may be uncommitted in a shared tree: every commit names its files with `git add <paths>`. Never push `main`; work lands in `develop` (AGENTS.md).
+If the API changed, `pnpm gen:api` runs in a web commit of its own, right after the backend commit (backend commits update only `backend/openapi/v1.json`; decided 2026-11-12), and the CI-free checks stay green on both sides. Other sessions' files may be uncommitted in a shared tree: every commit names its files with `git add <paths>`. Never push `main`; work lands in `develop` (AGENTS.md).
 
 ---
 
@@ -122,9 +122,9 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 
 **Commit:** `Topics & Prompts: metric strip, percent beside counts and the insufficient data pill`
 
-### Task W2: Rate columns, sorting, subtitle and footer counts (G20 to G25, G33, G40, G41, G45, G113)
+### Task W2: Rate columns, sorting, subtitle, indented topic tree and footer counts (G20 to G25, G32, G33, G40, G41, G45, G113)
 
-**Needs from the backend:** none. **Mocks first:** existing.
+**Needs from the backend:** none. **Mocks first:** existing. The owner decided on 2026-11-12 that the Topics tab is an indented tree (parent row rolls up its children, children indent under it, a note says rows do not add up to the parent): D-3 is decided and nothing in W2 waits on a decision.
 
 **Read first:** `topics-table.tsx`, `prompt-columns.tsx`, `prompts-screen.tsx` (`DEFAULT_SORT`), `DataTable` sort props and tree rows (`components/app/data-table`), `useVocabularies`, the topic tree helpers in `prompt-model.ts`, parity spec sections 5.2 and 5.3.
 
@@ -136,6 +136,12 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 - `sort-model.test.ts`: `sortTopics` by Mention rate descending puts the highest average first and rows with no rate last; ties break by name; `sortPrompts` default is Mention rate descending; Top engine column value is the engine with the highest mention rate (ties by engine order); SOV sorts by value.
 - `prompts.test.tsx`: Topics tab shows "Mention rate" with "avg of 3" note and counts in the tooltip, "Citation rate", "Top engine" (logo and name); default order is Mention desc; the header sorts on click and the sort is in the URL; "Expand all" and "Collapse all" toggle every topic; each topic row shows "Category, N prompts" (parent name, or "Topic" when top level) and a footer "13 topics, 250 prompts" using the formatted counts; Prompts tab has the metric switcher (Mention, Citation, Share of voice) and a path badge with the full path in the tooltip.
 - `topic-drawer.test.tsx`: the By engine section shows a bar, percent and "k of n" per engine.
+- **Sub-task W2-T, the indented topic tree (G32, D-3).** `topic-tree.test.ts` (pure model, no DOM) and `prompts.test.tsx`:
+  - **Indent:** a child topic row is drawn one level under its parent in tree order (parent, then its children, then the next parent); the identity cell is indented by depth with token spacing (no arbitrary values) and carries `aria-level`; a topic with no children is an ordinary row without a disclosure button.
+  - **Rollup:** a parent row's counts and rates equal the roll up of its children and its own prompts, each prompt counted once in the parent (the API already returns a row for every topic and every ancestor with counts rolled up: read the parent row as given, never add the children in the web); a prompt in a child counts in the child row and again in each ancestor row, and a test pins that.
+  - **Rollup note:** a note under the table header, from `messages/en.json`, says rows do not add up to the parent ("A parent row counts every prompt under it, so rows do not add up to the parent."); it is shown only when at least one parent row is visible; the drawer and the footer counts count each topic and prompt once (footer "13 topics, 250 prompts" is never a sum of the rows).
+  - **Expand and collapse:** a disclosure button on every parent row, with the whole accessible name ("Expand Security group, 4 topics") from `RowTree.label`; click toggles one parent; "Expand all" and "Collapse all" toggle every parent; the expanded set is in the URL (`nuqs`, `history: 'replace'`) so a shared link restores it; collapsed children are not rendered; sorting reorders the siblings under each parent, never moves a child out of its parent; a filter that matches only a child keeps its ancestors visible and expanded.
+  - **Keyboard:** Right Arrow on a collapsed parent row expands it and Left Arrow on an expanded parent collapses it (the `DataTable` treegrid keys); Left Arrow on a child row moves focus to its parent row; Enter and Space toggle a parent row from its first cell; focus stays on the row that was toggled; the tab stop is single (roving) as in the rest of the table; the screen reader hears level, position and set size and the expanded state.
 
 **Steps:**
 - [ ] Add `sort-model.ts`; wire `DataTable` sort for both tables (replace `NO_SORT`), default Mention rate descending, keep URL state keys of the existing filters.
@@ -143,9 +149,10 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 - [ ] Top engine column with the engine logo (ADR-DS-020) and all rates in the tooltip.
 - [ ] Prompts tab: grouped two row header with the metric switcher (Mention, Citation, Share of voice; Recommendation appears in S2).
 - [ ] Topic subtitle and path badge from the topic tree; footer counts.
+- [ ] W2-T: add `topic-tree.ts` and `topic-tree.test.ts` (order the rows parent first with children after, depth, parent lookup, ancestors of a match) from the API rows and `useVocabularies`; render the Topics tab through the `DataTable` treegrid (`rowTree`, `onToggleGroup`). `RowTree.level` is `1 | 2` today: if the taxonomy is deeper than two levels, extend `RowTree` and `DataTable` to a numeric level with an indent and `aria-level` in `components/app/data-table` first (its own test in `data-table.test.tsx`), in this commit or a commit before it. Add the rollup note and the expanded set in the URL.
 - [ ] Gate.
 
-**Commit:** `Topics & Prompts: rate columns, sorting, topic subtitle and path, expand all`
+**Commit:** `Topics & Prompts: rate columns, sorting, topic subtitle and path, indented topic tree, expand all`
 
 ### Task W3: Previous period compare and deltas (G05, G06, G111, G115; PR-41, DB-02)
 
@@ -289,7 +296,7 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 
 ### Task W11: Weekly trend sparklines and the topic visibility trend (G29, G44, G112; DB-01)
 
-**Needs from the backend:** B3 (D1 Task 4: `include=series`, weeks start Monday in the project timezone, at most 14 points, empty weeks as zero counts with `value` null). Entity lines in the drawer also need B5. **Mocks first:** to D1 Decision 9.
+**Needs from the backend:** B3 (D1 Task 4: `include=series`, weeks start Monday in the project timezone, at most 14 points, empty weeks as zero counts with `value` null). Entity lines in the drawer also need B5, and the API gzip task B0 should be on develop first (decided 2026-11-12; `include=series,entities` is about 1.5 MB at full capacity). **Mocks first:** to D1 Decision 9.
 
 **Files:** Modify `topics-table.tsx`, `prompt-columns.tsx` (Trend column on `SparklineCell`), `topic-inspector.tsx` (trend chart on `ChartFrame`), `prompt-queries.ts` (a second read with `from` 55 days back when an 8 week sparkline sits beside a 28 day table, D1 open point 1), mocks.
 
@@ -317,7 +324,7 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 
 ### Task W14: Panels and Versions tabs (G09, G60 to G70, G81, G99, G102)
 
-**Needs:** slice 4 (B10, B11, B12). Blocked; tabs stay hidden (D-4). Cadence decision D-6 first. Do not start before the backend routes exist; build the mocks to the doc 19 contracts then. Never ship the preview's constants (flip rates, authors, reasons).
+**Needs:** slice 4 (B10, B11, B12). Blocked on the backend routes only; tabs stay hidden (D-4). The cadence (twice a week, Monday and Thursday, decided 2026-11-12) and the restore rule (a restore is not a `change_kind`, decided 2026-11-12) no longer wait on a decision; set the mocks back to twice a week. Do not start before the backend routes exist; build the mocks to the doc 19 contracts then. Never ship the preview's constants (flip rates, authors, reasons).
 
 ### Task W15: Page-level AI readiness checks (NEW; GA-01, GD-15, GD-16, M-09, M-10)
 
@@ -327,6 +334,14 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 
 **Needs:** B9 split: counts and Top 10 are web only from `GET {P}/tracked-keywords` (`filter[term]`, `filter[rank_lte]=10`, `page.total`); volume weighted visibility needs `seo/metrics/breakdown?dimension=term`. Verify first that keyword topics and prompt topics use one vocabulary. Mobile rows below 768 px follow DS 19 section 6.7.
 
+### Task W17: Prompt type on create and the Type filter (G10; D-8; needs B16)
+
+**Needs from the backend:** B16: the server rule at create (" vs " or "versus" gives comparison, "how to" gives how_to, a leading interrogative gives question; no LLM) and `filter[prompt_type_in]` on `GET {P}/prompts`. Decided 2026-11-12, so nothing waits on a decision. **Mocks first:** the same rule in the create mock and the filter in the list mock, with their tests.
+
+**Failing tests first:** the Add dialog shows the type the rule would pick and lets the person change it before saving, and sends the person's choice in `prompt_type`; the Prompts tab has a Type `FilterChip` (`filter[prompt_type_in]`, in the URL) and a Type badge on the row and in the inspector header; the filter and badge stay hidden until B16 is on develop; `PATCH` changes the type from Edit details.
+
+**Commit:** `Topics & Prompts: prompt type on create, Type filter and badge`
+
 ---
 
 ## Each task: what it needs and what it can be built against
@@ -334,7 +349,7 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 | Task | Backend need | Build against mocks first | Can start now |
 |---|---|---|---|
 | W1 | none | not needed | yes |
-| W2 | none | not needed | yes |
+| W2 | none (D-3 decided: indented tree) | not needed | yes |
 | W3 | none; later D1 Task 3 (B4) replaces the second read | yes, two windows | yes |
 | W4 | none (Citations tab empty until W7) | yes, 90 days of answers | yes |
 | W5 | none; B7 later lifts the 20 a day cap | existing mocks | yes |
@@ -346,9 +361,10 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 | W11 | B3 (D1 Task 4); entity lines B5 | yes, to D1 | yes (mock first) |
 | W12 | S4 candidates | yes | no (wait for slice 4 contract) |
 | W13 | Ph 9 overview or B6 plus B5 | partly | after W7, W8 |
-| W14 | S4 B10 to B12; decision D-6 | no | no |
+| W14 | S4 B10 to B12 (decisions made 2026-11-12) | no | no |
 | W15 | product decision, fetch service | no | no |
 | W16 | B9 visibility only | partly | counts and Top 10 yes |
+| W17 | B16 (decided 2026-11-12) | yes | after the mock |
 
 ## Self-review checklist
 
