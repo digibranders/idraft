@@ -3774,6 +3774,32 @@
       "rawExpired": "The raw answer is past its retention and is no longer kept.",
       "rawUnavailable": "The raw answer is not available now. Try again later.",
       "rawFailed": "The raw answer could not be downloaded. Try again in a moment."
-    }
-  }
+    },
+    "import": {},
+    "edit": {},
+    "archive": {},
+    "generate": {},
+    "versions": {},
+    "panels": {},
+    "compare": {},
+    "citationsTab": {},
+    "fanout": {},
+    "facets": {},
+    "limits": {},
+    "evidence": {}
+  },
+  "aiOverview": {},
+  "citations": {},
+  "competitors": {},
+  "discover": {},
+  "layouts": {},
+  "alerts": {},
+  "reports": {},
+  "promptDetail": {},
+  "sources": {},
+  "notes": {},
+  "exports": {},
+  "savedViews": {},
+  "commandPalette": {},
+  "matrix": {}
 }
