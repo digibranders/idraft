@@ -14,7 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.ai import summary_repository as repository
-from idraft.api.ai.summary_repository import Counts
+from idraft.api.ai.summary_repository import Counts, SummaryPrompt
 from idraft.api.problems import NotFoundError, WindowTooLargeError
 from idraft.api.ranks.repository import project_zone
 from idraft.api.ranks.service import instants
@@ -142,6 +142,59 @@ def _topic_engines(
     ]
 
 
+def _last_answers(
+    prompt_ids: Collection[UUID],
+    engine_codes: Sequence[str],
+    by_prompt: Mapping[tuple[UUID, str], Counts],
+) -> tuple[datetime | None, datetime | None]:
+    """When the newest counted answer of these prompts on these engines came, and the newest
+    valid one; None when the window has none."""
+    counted = [
+        by_prompt[(prompt, code)]
+        for prompt in prompt_ids
+        for code in engine_codes
+        if (prompt, code) in by_prompt
+    ]
+    observed = [c.last_observed_at for c in counted if c.last_observed_at is not None]
+    valid = [c.last_valid_at for c in counted if c.last_valid_at is not None]
+    return max(observed, default=None), max(valid, default=None)
+
+
+def _prompt_row(
+    prompt: SummaryPrompt,
+    engine_codes: Sequence[str],
+    by_prompt: Mapping[tuple[UUID, str], Counts],
+) -> PromptSummaryRow:
+    last_observed, last_valid = _last_answers([prompt.id], engine_codes, by_prompt)
+    return PromptSummaryRow(
+        prompt_id=prompt.id,
+        text=prompt.text,
+        is_branded=prompt.is_branded,
+        topic_term_ids=list(prompt.topic_term_ids),
+        last_observed_at=last_observed,
+        last_valid_at=last_valid,
+        engines=[_engine(code, by_prompt.get((prompt.id, code), _NONE)) for code in engine_codes],
+    )
+
+
+def _topic_row(
+    term_id: UUID | None,
+    name: str | None,
+    members: Collection[UUID],
+    engine_codes: Sequence[str],
+    by_prompt: Mapping[tuple[UUID, str], Counts],
+) -> TopicSummaryRow:
+    last_observed, last_valid = _last_answers(members, engine_codes, by_prompt)
+    return TopicSummaryRow(
+        term_id=term_id,
+        name=name,
+        prompt_count=len(members),
+        last_observed_at=last_observed,
+        last_valid_at=last_valid,
+        engines=_topic_engines(engine_codes, members, by_prompt),
+    )
+
+
 def _context() -> SummaryMetricContext:
     per_prompt = "Counts of valid answers to one prompt, so each answer weighs the same."
     topic = (
@@ -222,37 +275,16 @@ class SummaryService:
         shown = sorted(
             code for code in set(enabled) | seen if engine_codes is None or code in engine_codes
         )
-        prompt_rows = [
-            PromptSummaryRow(
-                prompt_id=prompt.id,
-                text=prompt.text,
-                is_branded=prompt.is_branded,
-                topic_term_ids=list(prompt.topic_term_ids),
-                engines=[_engine(code, by_prompt.get((prompt.id, code), _NONE)) for code in shown],
-            )
-            for prompt in prompts
-        ]
+        prompt_rows = [_prompt_row(prompt, shown, by_prompt) for prompt in prompts]
         # Topic rows are sums of the prompts' counts. Each topic row holds the prompts given the
         # term or a term below it, each once; the last row holds the prompts given no topic.
         topic_rows = [
-            TopicSummaryRow(
-                term_id=term_id,
-                name=names.get(term_id),
-                prompt_count=len(held[term_id]),
-                engines=_topic_engines(shown, held[term_id], by_prompt),
-            )
+            _topic_row(term_id, names.get(term_id), held[term_id], shown, by_prompt)
             for term_id in sorted(held, key=lambda term: (names.get(term, ""), str(term)))
         ]
         untopiced = [prompt.id for prompt in prompts if not prompt.topic_term_ids]
         if untopiced:
-            topic_rows.append(
-                TopicSummaryRow(
-                    term_id=None,
-                    name=None,
-                    prompt_count=len(untopiced),
-                    engines=_topic_engines(shown, untopiced, by_prompt),
-                )
-            )
+            topic_rows.append(_topic_row(None, None, untopiced, shown, by_prompt))
         return PromptsSummary(
             window=MetricWindow(
                 from_=first.isoformat(), to=last.isoformat(), timezone=zone_row.timezone

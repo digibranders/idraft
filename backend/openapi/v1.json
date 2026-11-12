@@ -8805,6 +8805,32 @@
             "title": "Is Branded",
             "type": "boolean"
           },
+          "last_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest answer counted in the window (current, not superseded), of any status, on the engines shown; null when there is none.",
+            "title": "Last Observed At"
+          },
+          "last_valid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest valid answer counted in the window, on the engines shown; null if none.",
+            "title": "Last Valid At"
+          },
           "prompt_id": {
             "format": "uuid",
             "title": "Prompt Id",
@@ -8828,6 +8854,8 @@
           "text",
           "is_branded",
           "topic_term_ids",
+          "last_observed_at",
+          "last_valid_at",
           "engines"
         ],
         "title": "PromptSummaryRow",
@@ -12541,6 +12569,32 @@
             "title": "Engines",
             "type": "array"
           },
+          "last_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest answer counted in the window (current, not superseded), of any status, on the engines shown; null when there is none.",
+            "title": "Last Observed At"
+          },
+          "last_valid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest valid answer counted in the window, on the engines shown; null if none.",
+            "title": "Last Valid At"
+          },
           "name": {
             "anyOf": [
               {
@@ -12573,6 +12627,8 @@
           "term_id",
           "name",
           "prompt_count",
+          "last_observed_at",
+          "last_valid_at",
           "engines"
         ],
         "title": "TopicSummaryRow",

@@ -50,6 +50,9 @@ class Counts:
     # Valid answers that name at least one tracked entity, and the own brands' shares of them.
     sov_answers: int = 0
     sov_share: float = 0.0
+    # The newest counted answer of the group, of any status, and the newest valid one.
+    last_observed_at: datetime | None = None
+    last_valid_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +100,8 @@ def _counts_columns() -> list[Any]:
             ).filter(and_(valid, _F.tracked_entities_mentioned >= 1)),
             0.0,
         ).label("sov_share"),
+        func.max(_F.observed_at).label("last_observed_at"),
+        func.max(_F.observed_at).filter(valid).label("last_valid_at"),
     ]
 
 
@@ -112,6 +117,8 @@ def _counts(row: Any) -> Counts:
         neither=row.neither,
         sov_answers=row.sov_answers,
         sov_share=float(row.sov_share),
+        last_observed_at=row.last_observed_at,
+        last_valid_at=row.last_valid_at,
     )
 
 

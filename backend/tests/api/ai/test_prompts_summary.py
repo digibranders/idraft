@@ -18,7 +18,7 @@ from sqlalchemy import event
 
 from idraft.api.resources import Resources
 from idraft.collectors.ai_prompt_ingest import ingest
-from tests.api.auth.support import Workspace, execute, fetchrow, make_workspace
+from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import ensure_locations, project_url
 from tests.api.keywords.test_tracked_keyword_ranks import Ledger, worker_db
@@ -918,3 +918,103 @@ async def test_half_of_the_answers_superseded_are_all_left_out(
         assert _cell(engine["mentioned"]) == (150, 150, 600)
         assert _cell(engine["share_of_voice"]) == (600, 600, 600)
     assert len(seen) <= 20, seen
+
+
+def _when(value: str) -> datetime:
+    return datetime.fromisoformat(value)
+
+
+async def _answer_times(migrated: PostgresServer, prompt: Prompt) -> list[datetime]:
+    """When each answer to the prompt was given, newest first."""
+    rows = await fetch(
+        migrated,
+        "SELECT observed_at FROM ai.observations WHERE prompt_id = $1 ORDER BY observed_at DESC",
+        prompt.id,
+    )
+    return [row["observed_at"] for row in rows]
+
+
+async def test_rows_say_when_the_last_answer_and_the_last_valid_answer_came(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+) -> None:
+    """Prompt A: an answer today that is superseded, a refusal a day ago and a valid answer three
+    days ago. Prompt B: a refusal two days ago. Prompt C: nothing. Topic T holds A and B; C has
+    no topic."""
+    world = await _world(resources, migrated)
+    prompts = await _prompts(migrated, world, ["a", "b", "c"])
+    world = replace(world, prompts=prompts)
+    topic = await _topic(migrated, world.project, "Managed SOC")
+    for name in ("a", "b"):
+        await _assign(migrated, world, name, topic)
+    await _ingested(
+        world,
+        migrated,
+        worker_db,
+        import_store,
+        [
+            Answer("a", OWN_ONLY, (), 0),
+            Answer("a", REFUSAL, (), 1),
+            Answer("a", OWN_ONLY, (), 3),
+            Answer("b", REFUSAL, (), 2),
+        ],
+    )
+    newest, refused, valid = await _answer_times(migrated, prompts["a"])
+    await execute(
+        migrated,
+        "UPDATE ai.observations SET superseded_by = id WHERE prompt_id = $1 AND observed_at = $2",
+        prompts["a"].id,
+        newest,
+    )
+    (b_refused,) = await _answer_times(migrated, prompts["b"])
+
+    response = await _summary(world, api)
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    rows = _by(data["prompts"], "prompt_id")
+    a, b, c = (rows[str(prompts[name].id)] for name in ("a", "b", "c"))
+    # The superseded answer is not counted, so it is not the last one either.
+    assert (_when(a["last_observed_at"]), _when(a["last_valid_at"])) == (refused, valid)
+    assert (_when(b["last_observed_at"]), b["last_valid_at"]) == (b_refused, None)
+    assert (c["last_observed_at"], c["last_valid_at"]) == (None, None)
+    topic_row, untopiced = data["topics"]
+    assert (_when(topic_row["last_observed_at"]), _when(topic_row["last_valid_at"])) == (
+        refused,
+        valid,
+    )
+    assert (untopiced["last_observed_at"], untopiced["last_valid_at"]) == (None, None)
+
+
+async def test_the_last_answer_is_of_the_engines_shown(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    """`providers` was last answered on ChatGPT a day ago (answer 1) and on Gemini two days ago."""
+    providers = summary.prompts["providers"]
+    latest: dict[str, datetime] = {}
+    for engine in (CHATGPT, GEMINI):
+        record = await fetchrow(
+            migrated,
+            "SELECT max(observed_at) AS at FROM ai.observations "
+            "WHERE prompt_id = $1 AND engine_code = $2::text",
+            providers.id,
+            engine,
+        )
+        latest[engine] = record["at"]
+
+    every = await _summary(summary, api)
+    gemini = await _summary(summary, api, **{"filter[engine_code_in]": GEMINI})
+
+    row = _by(every.json()["data"]["prompts"], "prompt_id")[str(providers.id)]
+    assert (_when(row["last_observed_at"]), _when(row["last_valid_at"])) == (
+        latest[CHATGPT],
+        latest[CHATGPT],
+    )
+    row = _by(gemini.json()["data"]["prompts"], "prompt_id")[str(providers.id)]
+    assert (_when(row["last_observed_at"]), _when(row["last_valid_at"])) == (
+        latest[GEMINI],
+        latest[GEMINI],
+    )

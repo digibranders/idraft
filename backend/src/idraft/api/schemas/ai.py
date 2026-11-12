@@ -484,11 +484,20 @@ class EngineSummary(BaseModel):
     share_of_voice: MetricCell
 
 
+_LAST_OBSERVED = (
+    "The newest answer counted in the window (current, not superseded), of any status, on the "
+    "engines shown; null when there is none."
+)
+_LAST_VALID = "The newest valid answer counted in the window, on the engines shown; null if none."
+
+
 class PromptSummaryRow(BaseModel):
     prompt_id: UUID
     text: str
     is_branded: bool
     topic_term_ids: list[UUID]
+    last_observed_at: datetime | None = Field(description=_LAST_OBSERVED)
+    last_valid_at: datetime | None = Field(description=_LAST_VALID)
     engines: list[EngineSummary]
 
 
@@ -497,6 +506,8 @@ class TopicSummaryRow(BaseModel):
     term_id: UUID | None
     name: str | None
     prompt_count: int
+    last_observed_at: datetime | None = Field(description=_LAST_OBSERVED)
+    last_valid_at: datetime | None = Field(description=_LAST_VALID)
     engines: list[EngineSummary]
 
 
