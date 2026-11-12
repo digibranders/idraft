@@ -161,14 +161,35 @@ export const promptQuery = (scope: PromptScope, promptId: string): ApiQueryOptio
   return apiQuery(PROMPT, { params: { path: { ...pathOf(scope), prompt_id: promptId } } });
 };
 
+/** What narrows a summary to part of the prompts. A scope that is not given is not sent and not in the key. */
+export interface SummaryScope {
+  /** The prompts of one market, two capital letters. */
+  country?: string;
+  /** The prompts given this term or a term below it, and the topic rows of that term and those below it. */
+  term?: string;
+  /** The branded prompts alone; the API lets it win over `includeBranded`. */
+  brandedOnly?: boolean;
+}
+
 /** `GET {P}/ai/prompts-summary`: Mentioned, Cited and the rest per prompt, topic and engine over the window. */
 export const summaryQuery = (
   scope: PromptScope,
   range: DateRange,
   includeBranded: boolean,
+  { country, term, brandedOnly }: SummaryScope = {},
 ): ApiQueryOptions<typeof SUMMARY> =>
   apiQuery(SUMMARY, {
-    params: { path: pathOf(scope), query: { from: range.from, to: range.to, include_branded: includeBranded } },
+    params: {
+      path: pathOf(scope),
+      query: {
+        from: range.from,
+        to: range.to,
+        include_branded: includeBranded,
+        ...(country === undefined ? {} : { 'filter[country_iso]': country }),
+        ...(term === undefined ? {} : { 'filter[term]': term }),
+        ...(brandedOnly === true ? { branded_only: true } : {}),
+      },
+    },
   });
 
 /** `GET {P}/ai/observations` for one prompt over the window, newest first. */

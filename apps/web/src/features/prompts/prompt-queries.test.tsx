@@ -32,6 +32,7 @@ import { projectKey } from '@/lib/api/keys';
 import { ApiProblem } from '@/lib/api/problem';
 import { makeQueryClient } from '@/lib/api/query-client';
 import type { EngineCode } from '@/lib/api/types';
+import { MOCK_TERM_IDS } from '@/mocks/entity-fixtures';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { FIXTURE_PROMPTS } from '@/mocks/prompt-fixtures';
 import { AI_ANSWER_QUOTA, promptsOf, setProviderPaused } from '@/mocks/prompts-state';
@@ -97,6 +98,17 @@ describe('the keys of the AI prompt queries', () => {
     expect(observationQuery(scope, '1234567').queryKey).not.toEqual(
       observationQuery(scope, '1234567', '2026-11-09T02:00:00Z').queryKey,
     );
+  });
+
+  it('keep the key of a summary without a scope as it was, and tell each scope apart', () => {
+    const plain = summaryQuery(scope, RANGE, false).queryKey;
+    expect(plain.at(-1)).toEqual({ from: RANGE.from, to: RANGE.to, include_branded: false });
+    expect(summaryQuery(scope, RANGE, false, {}).queryKey).toEqual(plain);
+    expect(summaryQuery(scope, RANGE, false, { brandedOnly: false }).queryKey).toEqual(plain);
+    const scoped = [{ country: 'DE' }, { country: 'IN' }, { term: 'seo' }, { brandedOnly: true }].map(
+      (filters) => summaryQuery(scope, RANGE, false, filters).queryKey,
+    );
+    expect(new Set([plain, ...scoped].map((key) => JSON.stringify(key))).size).toBe(5);
   });
 
   it('keep the entities of the project out of the prefixes a prompt change refreshes', () => {
@@ -328,6 +340,26 @@ describe('the summary', () => {
     const withBranded = await client.fetchQuery(summaryQuery(scope, range, true));
     expect(withBranded.data.include_branded).toBe(true);
     expect(withBranded.data.prompts.length).toBeGreaterThan(without.data.prompts.length);
+  });
+
+  it('sends the country, the term and the branded prompts alone, and reads the rows they leave', async () => {
+    const range = lastMonth();
+    const india = await client.fetchQuery(summaryQuery(scope, range, false, { country: 'IN' }));
+    expect(india.data.prompts).toHaveLength(1);
+    const technical = await client.fetchQuery(summaryQuery(scope, range, false, { term: MOCK_TERM_IDS.technicalSeo }));
+    expect(technical.data.topics.map((topic) => topic.term_id)).toEqual([MOCK_TERM_IDS.technicalSeo]);
+    const brandedOnly = await client.fetchQuery(summaryQuery(scope, range, false, { brandedOnly: true }));
+    expect(brandedOnly.data).toMatchObject({ include_branded: true, branded_only: true });
+    expect(brandedOnly.data.prompts.map((row) => row.is_branded)).toEqual([true]);
+  });
+
+  it('gives each prompt and topic the times of its newest answer and its newest valid answer', async () => {
+    const summary = await client.fetchQuery(summaryQuery(scope, lastMonth(), false));
+    expect(summary.data.branded_only).toBe(false);
+    for (const row of [...summary.data.prompts, ...summary.data.topics]) {
+      expect(typeof row.last_observed_at).toBe('string');
+      expect(typeof row.last_valid_at).toBe('string');
+    }
   });
 
   it('weighs a topic by its prompts and keeps the counts of one prompt', async () => {

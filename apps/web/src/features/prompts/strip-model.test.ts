@@ -159,6 +159,8 @@ describe('topicsSpanned', () => {
     term_id,
     name,
     prompt_count: 1,
+    last_observed_at: null,
+    last_valid_at: null,
     engines: [],
   });
   const topics = [topic('seo', 'SEO'), topic('technical', 'Technical SEO'), topic('paid', 'Paid'), topic(null, null)];

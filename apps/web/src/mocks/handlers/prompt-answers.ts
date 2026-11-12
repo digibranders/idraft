@@ -52,6 +52,8 @@ const MAX_ENGINE_FILTER = 10;
 const ANSWER_STATUSES = ['complete', 'partial', 'empty', 'refused', 'error'] as const;
 const OUTCOMES = ['mentioned_and_cited', 'mentioned_only', 'cited_only', 'neither'] as const;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** A market of the summary's `filter[country_iso]`: two capital letters. */
+const COUNTRY = /^[A-Z]{2}$/;
 /** An instant with its zone: `Z` or an offset (Pydantic's `AwareDatetime`). */
 const AWARE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i;
 /** A date and time with no zone: a datetime, but not an instant. */
@@ -257,6 +259,16 @@ function findAnswer(projectId: string, id: bigint, hint: number | null, now: num
   return detailOf(prompt, parsed.index, engine, at);
 }
 
+/** An answer that counts in the summary: its fact row and when it was observed. */
+interface Counted {
+  facts: NonNullable<ObservationDetail['facts']>;
+  at: string;
+}
+
+/** The later of two instants, either of which may be missing. */
+const later = (current: string | null, at: string): string =>
+  current === null || Date.parse(at) > Date.parse(current) ? at : current;
+
 /** The strings of a plain term path as Python compares them (by code point): the order the API sorts topics in. */
 const byText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -457,7 +469,15 @@ export const promptAnswerHandlers: HttpHandler[] = [
   mock('get', `${P}/ai/prompts-summary`, ({ request, cookies, params }) => {
     const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
       permission: 'data:read',
-      query: ['from', 'to', 'filter[engine_code_in]', 'include_branded'],
+      query: [
+        'from',
+        'to',
+        'filter[engine_code_in]',
+        'include_branded',
+        'branded_only',
+        'filter[country_iso]',
+        'filter[term]',
+      ],
     });
     if (caller instanceof Response) return caller;
     const { url } = caller;
@@ -478,38 +498,81 @@ export const promptAnswerHandlers: HttpHandler[] = [
     }
     const asked = listOf(url, 'filter[engine_code_in]', null, MAX_ENGINE_FILTER);
     const branded = booleanQuery(url, 'include_branded', false);
-    if (hasCode(asked) || typeof branded !== 'boolean') {
-      return invalid(request, [asked, branded].filter(hasCode));
+    const brandedOnly = booleanQuery(url, 'branded_only', false);
+    const country = url.searchParams.get('filter[country_iso]');
+    const termFilter = url.searchParams.get('filter[term]');
+    const scopeErrors = [
+      ...(country === null || COUNTRY.test(country)
+        ? []
+        : [queryError('filter[country_iso]', 'string_pattern_mismatch', "String should match pattern '^[A-Z]{2}$'")]),
+      ...(termFilter === null
+        ? []
+        : uuidError(termFilter, 'filter[term]').map((item) => queryError(item.path, item.code, item.message))),
+    ];
+    if (hasCode(asked) || typeof branded !== 'boolean' || typeof brandedOnly !== 'boolean' || scopeErrors.length > 0) {
+      return invalid(request, [asked, branded, brandedOnly, ...scopeErrors].filter(hasCode));
     }
     const { firstDate, lastDate } = window.range;
-    // Branded prompts are left out unless asked for; the oldest prompt first
+    // The term and every term below it, in the workspace's vocabularies: none for a term it does not have
+    const { terms, vocabularies } = caller.world;
+    const subtree = new Set<string>();
+    if (termFilter !== null && terms.some((term) => term.term_id === termFilter)) {
+      subtree.add(termFilter);
+      for (let grown = true; grown;) {
+        const before = subtree.size;
+        for (const term of terms) if (term.parent_id != null && subtree.has(term.parent_id)) subtree.add(term.term_id);
+        grown = subtree.size > before;
+      }
+    }
+    // Branded prompts are left out unless asked for, or kept alone with `branded_only`; of one country; given the
+    // term or a term below it; the oldest prompt first
     const prompts = promptsOf(projectId)
-      .prompts.filter((prompt) => prompt.is_active && (branded || !prompt.is_branded))
+      .prompts.filter(
+        (prompt) =>
+          prompt.is_active &&
+          (brandedOnly ? prompt.is_branded : branded || !prompt.is_branded) &&
+          (country === null || prompt.country_iso === country) &&
+          (termFilter === null || prompt.term_ids.some((id) => subtree.has(id))),
+      )
       .sort((a, b) => byText(a.created_at, b.created_at) || byText(a.prompt_id, b.prompt_id));
     const included = new Set(prompts.map((prompt) => prompt.prompt_id));
     // The answers of the window's project days that count: the fixtures' have a fact row each
-    const byPrompt = new Map<string, Map<string, NonNullable<ObservationDetail['facts']>[]>>();
+    const byPrompt = new Map<string, Map<string, Counted[]>>();
     for (const answer of answersOf(projectId, now)) {
       const day = formatIsoDate(answer.observed_at, zone);
       const prompt = answer.subject.prompt_id;
       if (day < firstDate || day > lastDate || !included.has(prompt) || answer.facts === null) continue;
       if (asked.length > 0 && !asked.includes(answer.engine_code)) continue;
-      const engines = byPrompt.get(prompt) ?? new Map<string, NonNullable<ObservationDetail['facts']>[]>();
-      engines.set(answer.engine_code, [...(engines.get(answer.engine_code) ?? []), answer.facts]);
+      const engines = byPrompt.get(prompt) ?? new Map<string, Counted[]>();
+      engines.set(answer.engine_code, [
+        ...(engines.get(answer.engine_code) ?? []),
+        { facts: answer.facts, at: answer.observed_at },
+      ]);
       byPrompt.set(prompt, engines);
     }
     const counts = (promptId: string, code: string): Counts => {
-      const facts = byPrompt.get(promptId)?.get(code);
-      return facts === undefined ? NO_COUNTS : countsOf(facts);
+      const counted = byPrompt.get(promptId)?.get(code);
+      return counted === undefined ? NO_COUNTS : countsOf(counted.map((answer) => answer.facts));
     };
     // The engines that are on or have answers in the window, by code
     const seen = new Set([...byPrompt.values()].flatMap((engines) => [...engines.keys()]));
     const shown = [...new Set([...enabledEngines(projectId).map((engine) => engine.engine_code), ...seen])]
       .filter((code) => asked.length === 0 || asked.includes(code))
       .sort(byText);
+    /** When the newest counted answer of these prompts came, and the newest valid one; null when there is none. */
+    const lastOf = (ids: Iterable<string>): { last_observed_at: string | null; last_valid_at: string | null } => {
+      let observed: string | null = null;
+      let valid: string | null = null;
+      for (const id of ids) {
+        for (const answer of shown.flatMap((code) => byPrompt.get(id)?.get(code) ?? [])) {
+          observed = later(observed, answer.at);
+          if (answer.facts.is_valid) valid = later(valid, answer.at);
+        }
+      }
+      return { last_observed_at: observed, last_valid_at: valid };
+    };
 
     // A prompt's topics: the terms of a topic vocabulary it was given, which the workspace still has
-    const { terms, vocabularies } = caller.world;
     const topicKinds = new Set(
       vocabularies.filter((vocabulary) => vocabulary.kind === 'topic').map((vocabulary) => vocabulary.vocabulary_id),
     );
@@ -534,6 +597,7 @@ export const promptAnswerHandlers: HttpHandler[] = [
       term_id: termId,
       name: termId === null ? null : (topicTerms.get(termId)?.name ?? null),
       prompt_count: members.size,
+      ...lastOf(members),
       engines: shown.map((code) =>
         topicCells(
           code,
@@ -546,17 +610,21 @@ export const promptAnswerHandlers: HttpHandler[] = [
       text: prompt.text,
       is_branded: prompt.is_branded,
       topic_term_ids: topicsOf(prompt.term_ids),
+      ...lastOf([prompt.prompt_id]),
       engines: shown.map((code) => promptCells(code, counts(prompt.prompt_id, code))),
     }));
     const untopiced = new Set(rows.filter((row) => row.topic_term_ids.length === 0).map((row) => row.prompt_id));
+    // Under a term filter the topic rows are the term's and those below it, and no row holds the untopiced prompts
     const topics = [...held]
+      .filter(([termId]) => termFilter === null || subtree.has(termId))
       .sort(([a], [b]) => byText(topicTerms.get(a)?.name ?? '', topicTerms.get(b)?.name ?? '') || byText(a, b))
       .map(([termId, members]) => topicRow(termId, members));
-    if (untopiced.size > 0) topics.push(topicRow(null, untopiced));
+    if (untopiced.size > 0 && termFilter === null) topics.push(topicRow(null, untopiced));
     const counted = [...byPrompt.values()].some((engines) => engines.size > 0);
     const summary: PromptsSummary = {
       window: { from: firstDate, to: lastDate, timezone: zone },
-      include_branded: branded,
+      include_branded: branded || brandedOnly,
+      branded_only: brandedOnly,
       engine_codes: shown,
       metric_context: metricContext(),
       entities: entitiesOf(caller),

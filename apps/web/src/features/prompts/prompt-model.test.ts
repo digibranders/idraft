@@ -239,6 +239,8 @@ describe('the topic rows of the summary', () => {
     text: prompt_id,
     is_branded: false,
     topic_term_ids,
+    last_observed_at: null,
+    last_valid_at: null,
     engines: [],
   });
   const ids = (rows: readonly PromptSummaryRow[] | null): string[] | null =>
@@ -337,13 +339,22 @@ describe('whether a window has answers', () => {
     return {
       window: { from: '2026-10-16', to: '2026-11-12', timezone: 'UTC' },
       include_branded: false,
+      branded_only: false,
       engine_codes: ['chatgpt_web'],
       entities: [],
       entity_config_versions: [],
       metric_context: {} as PromptsSummary['metric_context'],
       topics: [],
       prompts: [
-        { prompt_id: 'p1', text: 'Which agency?', is_branded: false, topic_term_ids: [], engines: [engineRow] },
+        {
+          prompt_id: 'p1',
+          text: 'Which agency?',
+          is_branded: false,
+          topic_term_ids: [],
+          last_observed_at: null,
+          last_valid_at: null,
+          engines: [engineRow],
+        },
       ],
     };
   };
@@ -507,6 +518,8 @@ describe('the topic drawer', () => {
     text: prompt_id,
     is_branded: false,
     topic_term_ids: topics,
+    last_observed_at: null,
+    last_valid_at: null,
     engines: [engineRow('chatgpt_web', mentioned), engineRow('gemini_web', 0.9)],
   });
   const tree = topicDescendants(

@@ -112,6 +112,7 @@ const CONTEXT = z.object({
 const SUMMARY = z.object({
   window: z.object({ from: z.string(), to: z.string(), timezone: z.string() }),
   include_branded: z.boolean(),
+  branded_only: z.boolean(),
   engine_codes: z.array(z.string()),
   metric_context: z.object({
     mentioned: CONTEXT,
@@ -127,6 +128,8 @@ const SUMMARY = z.object({
       text: z.string(),
       is_branded: z.boolean(),
       topic_term_ids: z.array(z.string()),
+      last_observed_at: z.string().nullable(),
+      last_valid_at: z.string().nullable(),
       engines: z.array(ENGINE_SUMMARY),
     }),
   ),
@@ -135,6 +138,8 @@ const SUMMARY = z.object({
       term_id: z.string().nullable(),
       name: z.string().nullable(),
       prompt_count: z.number(),
+      last_observed_at: z.string().nullable(),
+      last_valid_at: z.string().nullable(),
       engines: z.array(ENGINE_SUMMARY),
     }),
   ),
@@ -490,6 +495,12 @@ describe('the raw answer', () => {
 
 const summaryOf = async (who: MockBrowser, query = '', project = FYNIX): Promise<Summary> =>
   dataOf(await who.call('GET', `${project}/ai/prompts-summary${query}`), SUMMARY);
+/** The newest `observed_at` of the answers, `null` when there are none. */
+const newest = (rows: readonly Observation[]): string | null =>
+  rows.reduce<string | null>(
+    (best, row) => (best === null || Date.parse(row.observed_at) > Date.parse(best) ? row.observed_at : best),
+    null,
+  );
 const PARENT_OF = new Map(MOCK_TERMS.map((term) => [term.term_id, term.parent_id ?? null]));
 /** The term and every term above it, as the API's path prefixes give them. */
 function withAncestors(termId: string): string[] {
@@ -810,6 +821,7 @@ describe('prompts summary', () => {
     const added = summary.prompts.at(-1);
     expect(added?.text).toBe('Which agency audits shop sites in Munich?');
     expect(added?.topic_term_ids).toEqual([]);
+    expect([added?.last_observed_at, added?.last_valid_at]).toEqual([null, null]);
     expect(added?.engines.map((engine) => engine.mentioned)).toEqual([
       { value: null, numerator: 0, denominator: 0, n_observations: 0, pooled: null },
       { value: null, numerator: 0, denominator: 0, n_observations: 0, pooled: null },
@@ -836,6 +848,8 @@ describe('prompts summary', () => {
         term_id: null,
         name: null,
         prompt_count: 1,
+        last_observed_at: null,
+        last_valid_at: null,
         engines: [
           expect.objectContaining({
             mentioned: { ...empty, pooled: { successes: 0, trials: 0 } },
@@ -843,6 +857,143 @@ describe('prompts summary', () => {
           }),
         ],
       },
+    ]);
+  });
+
+  it('says when the newest answer and the newest valid answer of each prompt and topic came', async () => {
+    const viewer = mockBrowser('viewer');
+    const summary = await summaryOf(viewer);
+    const rows = await listAll(viewer, '&from=2026-10-16&to=2026-11-12');
+    const lastOf = (mine: readonly Observation[]): [string | null, string | null] => [
+      newest(mine),
+      newest(mine.filter((row) => row.facts?.is_valid === true)),
+    ];
+    for (const prompt of summary.prompts) {
+      const mine = rows.filter((row) => row.subject.prompt_id === prompt.prompt_id);
+      expect([prompt.last_observed_at, prompt.last_valid_at]).toEqual(lastOf(mine));
+    }
+    for (const topic of summary.topics) {
+      const members = summary.prompts.filter((row) =>
+        topic.term_id === null
+          ? row.topic_term_ids.length === 0
+          : row.topic_term_ids.some((given) => withAncestors(given).includes(topic.term_id ?? '')),
+      );
+      const ids = new Set(members.map((row) => row.prompt_id));
+      const mine = rows.filter((row) => ids.has(row.subject.prompt_id));
+      expect([topic.last_observed_at, topic.last_valid_at]).toEqual(lastOf(mine));
+    }
+    // The newest run of the window is the Thursday 12 November run at 02:00 UTC
+    expect(summary.prompts[0]?.last_observed_at).toBe('2026-11-12T02:00:00.000Z');
+    expect(summary.topics.every((topic) => topic.last_observed_at !== null)).toBe(true);
+  });
+
+  it('leaves the last valid time empty for a prompt whose only answer in the window failed', async () => {
+    const viewer = mockBrowser('viewer');
+    const failed: string[] = [];
+    for (const day of ['2026-11-12', '2026-11-09', '2026-11-05', '2026-11-02', '2026-10-29', '2026-10-26']) {
+      const summary = await summaryOf(viewer, `?from=${day}&to=${day}&filter[engine_code_in]=chatgpt_web`);
+      const rows = await listAll(viewer, `&from=${day}&to=${day}&filter[engine_code_in]=chatgpt_web`);
+      for (const prompt of summary.prompts) {
+        const answer = rows.find((row) => row.subject.prompt_id === prompt.prompt_id);
+        expect(prompt.last_observed_at).toBe(answer?.observed_at);
+        expect(prompt.last_valid_at).toBe(answer?.facts?.is_valid === true ? answer.observed_at : null);
+        if (prompt.last_valid_at === null) failed.push(prompt.prompt_id);
+      }
+    }
+    expect(failed.length).toBeGreaterThan(0);
+  });
+
+  it('reads the newest answers on the engines asked for, and gives null where the window has none', async () => {
+    const viewer = mockBrowser('viewer');
+    const rows = await listAll(viewer, '&from=2026-10-16&to=2026-11-12&filter[engine_code_in]=gemini_web');
+    const only = await summaryOf(viewer, '?filter[engine_code_in]=gemini_web');
+    const first = only.prompts[0];
+    const mine = rows.filter((row) => row.subject.prompt_id === first?.prompt_id);
+    expect(first?.last_observed_at).toBe(newest(mine));
+    expect(first?.last_valid_at).toBe(newest(mine.filter((row) => row.facts?.is_valid === true)));
+    const quiet = await summaryOf(viewer, '?from=2026-11-10&to=2026-11-11');
+    for (const row of [...quiet.prompts, ...quiet.topics]) {
+      expect([row.last_observed_at, row.last_valid_at]).toEqual([null, null]);
+    }
+    const monday = await summaryOf(viewer, '?from=2026-11-09&to=2026-11-09');
+    expect(monday.prompts.every((row) => row.last_observed_at === '2026-11-09T02:00:00.000Z')).toBe(true);
+  });
+
+  it('keeps the branded prompts alone for branded_only, which wins over include_branded', async () => {
+    const viewer = mockBrowser('viewer');
+    const branded = PROMPTS.filter((prompt) => prompt.is_branded);
+    for (const query of ['?branded_only=true', '?branded_only=true&include_branded=false']) {
+      const summary = await summaryOf(viewer, query);
+      expect(summary).toMatchObject({ include_branded: true, branded_only: true });
+      expect(summary.prompts.map((row) => row.prompt_id)).toEqual(branded.map((prompt) => prompt.prompt_id));
+      expect(summary.topics.map((topic) => [topic.term_id, topic.prompt_count])).toEqual([[MOCK_TERM_IDS.seo, 1]]);
+    }
+    expect(await summaryOf(viewer)).toMatchObject({ include_branded: false, branded_only: false });
+    expect(await summaryOf(viewer, '?include_branded=true')).toMatchObject({
+      include_branded: true,
+      branded_only: false,
+    });
+    expect((await summaryOf(viewer, '?branded_only=false')).prompts).toHaveLength(23);
+  });
+
+  it('keeps the prompts of one country, and the topics that hold them', async () => {
+    const viewer = mockBrowser('viewer');
+    const india = await summaryOf(viewer, '?filter[country_iso]=IN');
+    expect(india.prompts.map((row) => row.prompt_id)).toEqual([PROMPTS[5]?.prompt_id]);
+    // No row for prompts without a topic: this one has a topic
+    expect(india.topics.map((topic) => [topic.term_id, topic.prompt_count])).toEqual([[MOCK_TERM_IDS.seo, 1]]);
+    expect(india.topics[0]?.last_observed_at).toBe(india.prompts[0]?.last_observed_at);
+    const germany = await summaryOf(viewer, '?filter[country_iso]=DE');
+    expect(germany.prompts).toHaveLength(22);
+    expect(germany.topics.at(-1)).toMatchObject({ term_id: null, prompt_count: 2 });
+    // Branded prompts stay out until asked for, whatever the country
+    expect((await summaryOf(viewer, '?filter[country_iso]=DE&include_branded=true')).prompts).toHaveLength(23);
+    expect((await summaryOf(viewer, '?filter[country_iso]=FR')).prompts).toEqual([]);
+    expect((await summaryOf(viewer, '?filter[country_iso]=FR')).topics).toEqual([]);
+  });
+
+  it('keeps the prompts given a term or one below it, and the topics of that term and those below it', async () => {
+    const viewer = mockBrowser('viewer');
+    const under = [MOCK_TERM_IDS.seo, MOCK_TERM_IDS.technicalSeo, MOCK_TERM_IDS.localSeo];
+    const seo = await summaryOf(viewer, `?filter[term]=${MOCK_TERM_IDS.seo}`);
+    const given = PROMPTS.filter((prompt) => !prompt.is_branded && prompt.term_ids.some((id) => under.includes(id)));
+    expect(seo.prompts.map((row) => row.prompt_id)).toEqual(given.map((prompt) => prompt.prompt_id));
+    expect(seo.topics.map((topic) => topic.term_id).sort()).toEqual([...under].sort());
+    expect(seo.topics.find((topic) => topic.term_id === MOCK_TERM_IDS.seo)?.prompt_count).toBe(given.length);
+    // A leaf: its own row and nothing else, and no row for prompts without a topic
+    const leaf = await summaryOf(viewer, `?filter[term]=${MOCK_TERM_IDS.technicalSeo}`);
+    expect(leaf.topics.map((topic) => topic.term_id)).toEqual([MOCK_TERM_IDS.technicalSeo]);
+    expect(leaf.prompts.every((row) => row.topic_term_ids.includes(MOCK_TERM_IDS.technicalSeo))).toBe(true);
+    // A term no prompt was given, and a term that is none of the workspace's, hold nothing
+    for (const id of [SERVICE_TERM, mockId('term', 999)]) {
+      const none = await summaryOf(viewer, `?filter[term]=${id}`);
+      expect([none.prompts, none.topics]).toEqual([[], []]);
+    }
+  });
+
+  it('combines the three scopes with each other and with the engines and the window', async () => {
+    const viewer = mockBrowser('viewer');
+    const scoped = await summaryOf(
+      viewer,
+      `?branded_only=true&filter[country_iso]=DE&filter[term]=${MOCK_TERM_IDS.seo}&filter[engine_code_in]=gemini_web&from=2026-11-09&to=2026-11-12`,
+    );
+    expect(scoped.prompts.map((row) => row.text)).toEqual([PROMPTS[7]?.text]);
+    expect(scoped.engine_codes).toEqual(['gemini_web']);
+    expect(scoped.prompts[0]?.last_observed_at).toBe('2026-11-12T02:00:00.000Z');
+    expect((await summaryOf(viewer, '?branded_only=true&filter[country_iso]=IN')).prompts).toEqual([]);
+  });
+
+  it('refuses a country that is not two capital letters, a term that is not an id and a flag that is no boolean', async () => {
+    const viewer = mockBrowser('viewer');
+    const codes = async (query: string): Promise<string[]> =>
+      fieldCodes(await viewer.call('GET', `${FYNIX}/ai/prompts-summary${query}`));
+    expect(await codes('?filter[country_iso]=de')).toEqual(['filter[country_iso]:string_pattern_mismatch']);
+    expect(await codes('?filter[country_iso]=DEU')).toEqual(['filter[country_iso]:string_pattern_mismatch']);
+    expect(await codes('?filter[term]=seo')).toEqual(['filter[term]:uuid_parsing']);
+    expect(await codes('?branded_only=maybe')).toEqual(['branded_only:bool_parsing']);
+    expect(await codes('?branded_only=maybe&filter[term]=x')).toEqual([
+      'branded_only:bool_parsing',
+      'filter[term]:uuid_parsing',
     ]);
   });
 

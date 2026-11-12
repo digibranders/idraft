@@ -1001,7 +1001,7 @@ export interface paths {
         };
         /**
          * Mentioned, Cited, outcomes and Share of voice per prompt, engine and topic
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came.
          */
         get: operations["prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get"];
         put?: never;
@@ -5502,6 +5502,16 @@ export interface components {
             /** Is Branded */
             is_branded: boolean;
             /**
+             * Last Observed At
+             * @description The newest answer counted in the window (current, not superseded), of any status, on the engines shown; null when there is none.
+             */
+            last_observed_at: string | null;
+            /**
+             * Last Valid At
+             * @description The newest valid answer counted in the window, on the engines shown; null if none.
+             */
+            last_valid_at: string | null;
+            /**
              * Prompt Id
              * Format: uuid
              */
@@ -5557,6 +5567,11 @@ export interface components {
         };
         /** PromptsSummary */
         PromptsSummary: {
+            /**
+             * Branded Only
+             * @description Only branded prompts are counted.
+             */
+            branded_only: boolean;
             /** Engine Codes */
             engine_codes: string[];
             /**
@@ -5569,7 +5584,10 @@ export interface components {
              * @description The entity configuration versions of the answers counted. More than one means the entity set changed inside the window and older answers keep their set.
              */
             entity_config_versions: number[];
-            /** Include Branded */
+            /**
+             * Include Branded
+             * @description Branded prompts are counted: `include_branded` or `branded_only` was set.
+             */
             include_branded: boolean;
             metric_context: components["schemas"]["SummaryMetricContext"];
             /** Prompts */
@@ -6830,6 +6848,16 @@ export interface components {
         TopicSummaryRow: {
             /** Engines */
             engines: components["schemas"]["EngineSummary"][];
+            /**
+             * Last Observed At
+             * @description The newest answer counted in the window (current, not superseded), of any status, on the engines shown; null when there is none.
+             */
+            last_observed_at: string | null;
+            /**
+             * Last Valid At
+             * @description The newest valid answer counted in the window, on the engines shown; null if none.
+             */
+            last_valid_at: string | null;
             /** Name */
             name: string | null;
             /** Prompt Count */
@@ -9856,6 +9884,12 @@ export interface operations {
                 to?: string | null;
                 "filter[engine_code_in]"?: string[] | null;
                 include_branded?: boolean;
+                /** @description Only the branded prompts; wins over `include_branded`. */
+                branded_only?: boolean;
+                /** @description The prompts of one market, ISO 3166-1 alpha-2. */
+                "filter[country_iso]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
             };
             header?: never;
             path: {
