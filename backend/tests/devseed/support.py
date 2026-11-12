@@ -69,6 +69,40 @@ async def written(pg: PostgresServer, workspace: Workspace) -> tuple[int, ...]:
     return tuple(int(value) for value in row)
 
 
+_COUNTS: Final = {
+    "projects": "SELECT count(*) AS n FROM core.projects WHERE workspace_id = $1",
+    "entities": "SELECT count(*) AS n FROM core.entities WHERE workspace_id = $1",
+    "aliases": "SELECT count(*) AS n FROM core.entity_aliases WHERE workspace_id = $1",
+    "entity_domains": "SELECT count(*) AS n FROM core.entity_domains WHERE workspace_id = $1",
+    "roles": "SELECT count(*) AS n FROM core.project_entities WHERE workspace_id = $1",
+    "terms": "SELECT count(*) AS n FROM core.taxonomy_terms WHERE workspace_id = $1",
+    "engines": (
+        "SELECT count(*) AS n FROM ai.project_engines WHERE workspace_id = $1 AND is_enabled"
+    ),
+    "schedules": (
+        "SELECT count(*) AS n FROM ops.schedules WHERE workspace_id = $1 "
+        "AND workload = 'ai_prompt' AND deleted_at IS NULL"
+    ),
+    "active_schedules": (
+        "SELECT count(*) AS n FROM ops.schedules WHERE workspace_id = $1 "
+        "AND workload = 'ai_prompt' AND deleted_at IS NULL AND is_active"
+    ),
+    "prompts": "SELECT count(*) AS n FROM ai.prompts WHERE workspace_id = $1 AND is_active",
+    "versions": "SELECT count(*) AS n FROM ai.prompt_versions WHERE workspace_id = $1",
+    "observations": "SELECT count(*) AS n FROM ai.observations WHERE workspace_id = $1",
+    "runs": "SELECT count(*) AS n FROM ops.collection_runs WHERE workspace_id = $1",
+    "audit": "SELECT count(*) AS n FROM ops.audit_logs WHERE workspace_id = $1",
+}
+
+
+async def world_counts(pg: PostgresServer, workspace: Workspace) -> dict[str, int]:
+    """How many rows of each kind the workspace has: equal before and after a second run."""
+    return {
+        name: int((await fetchrow(pg, statement, workspace.id))["n"])
+        for name, statement in _COUNTS.items()
+    }
+
+
 async def seeded_project(
     pg: PostgresServer, sessions: Sessions
 ) -> tuple[WorkspaceAccess, Workspace, uuid.UUID]:

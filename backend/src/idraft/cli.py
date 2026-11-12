@@ -3,6 +3,10 @@
 `create-operator` makes the first account. Registration is by invitation, and an invitation needs
 someone to send it, so the first person comes in this way. It connects as `migrator`: the API's
 own database role cannot make anyone a platform operator (docs/04-data-model.md section 13.1).
+
+`seed-eventus` makes the Eventus Security AI prompt tracking project in a development database
+from `fixtures/ai-prompts/eventus-security.json`, as the API's role and a workspace owner. It
+refuses to run anywhere but a developer's machine (docs/ops/dev-eventus-seed.md).
 """
 
 from __future__ import annotations
@@ -13,9 +17,11 @@ import getpass
 import sys
 from collections.abc import Sequence
 from enum import StrEnum
+from pathlib import Path
 
 import asyncpg
 from pydantic import TypeAdapter, ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 
 from idraft.api.auth.passwords import (
     PASSWORD_MAX,
@@ -26,7 +32,8 @@ from idraft.api.auth.passwords import (
     hash_password,
 )
 from idraft.api.schemas.common import Email, Name
-from idraft.config.settings import load_migrator_settings
+from idraft.config.settings import load_migrator_settings, load_settings
+from idraft.devseed.guard import NotDevelopmentError, check_development
 
 CONNECT_TIMEOUT_SECONDS = 5.0
 OWNER_ROLE = "migrator"
@@ -156,6 +163,34 @@ def _create_operator(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _seed_eventus(arguments: argparse.Namespace) -> int:
+    # Order matters: the guard runs before the fixture is read or any connection is opened.
+    settings = load_settings()
+    try:
+        check_development(settings)
+    except NotDevelopmentError as error:
+        return _fail(f"Refused: {error} Nothing was written.")
+    # Imported here: the seed pulls in the API's services, and the other commands stay light
+    # (tests/test_cli.py keeps fastapi out of `import idraft.cli`).
+    from idraft.devseed.context import SeedError
+    from idraft.devseed.fixture import DEFAULT_FIXTURE, FixtureError, load_fixture
+    from idraft.devseed.run import run_seed
+
+    try:
+        fixture = load_fixture(arguments.fixture or DEFAULT_FIXTURE)
+    except FixtureError as error:
+        return _fail(str(error))
+    try:
+        report = asyncio.run(run_seed(settings, fixture, arguments.workspace))
+    except SeedError as error:
+        return _fail(str(error))
+    except (OSError, TimeoutError, SQLAlchemyError, asyncpg.PostgresError) as error:
+        # The type only: a driver's message can quote the connection string.
+        return _fail(f"The database could not be used ({type(error).__name__}).")
+    sys.stdout.write("\n".join(report.lines()) + "\n")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m idraft.cli", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -166,6 +201,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     operator.add_argument("--email", required=True)
     operator.add_argument("--name", required=True)
     operator.set_defaults(run=_create_operator)
+    seed = commands.add_parser(
+        "seed-eventus",
+        help="development only: seed the Eventus Security AI prompt tracking project",
+    )
+    seed.add_argument("--workspace", default="digibranders", help="the workspace slug")
+    seed.add_argument(
+        "--fixture",
+        type=Path,
+        help="the fixture JSON to read (default: fixtures/ai-prompts/eventus-security.json)",
+    )
+    seed.set_defaults(run=_seed_eventus)
     arguments = parser.parse_args(argv)
     code: int = arguments.run(arguments)
     return code
