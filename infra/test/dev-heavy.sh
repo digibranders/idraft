@@ -236,8 +236,10 @@ start_heavy_int() {
   last_pid=$!
 }
 
-# no_watchdog_left MAX: no watchdog sleep for MAX seconds is running (MAX is a number nothing else uses).
-no_watchdog_left() { ! pgrep -f "sleep $1\$" >/dev/null; }
+# watchdog_procs MAX: how many processes run with "--max MAX " in their command line (MAX is a number nothing
+# else uses). The wrapper counts one, and its watchdog subshell, a copy of the wrapper, counts another.
+watchdog_procs() { pgrep -f -- "--max $1 " | wc -l | tr -d ' '; }
+no_watchdog_left() { [ "$(watchdog_procs "$1")" -eq 0 ]; }
 
 t_term_cancels_watchdog() {
   local h
@@ -251,10 +253,17 @@ t_term_cancels_watchdog() {
   eq "$rc" 143 "wrapper exit on TERM"
   sleep 2.5
   [ -z "$(find "$IDRAFT_LOCK_ROOT/heavy" -maxdepth 1 -name '.timeout-*')" ] || fail "a stale .timeout marker was written"
-  start_heavy h --max 4177 -- sleep 30; h=$last_pid
+  # A command that ignores TERM keeps the wrapper in its grace period. While the wrapper lives, the watchdog
+  # does not end by itself, so only the wrapper's own kill can make it go: two processes is a left-over.
+  IDRAFT_HEAVY_GRACE=2 start_heavy h --max 4177 -- sh -c 'trap "" TERM; while :; do sleep 0.1; done'; h=$last_pid
   wait_for 5 owner_ready heavy 1
+  eq "$(watchdog_procs 4177)" 2 "wrapper and watchdog while running"
   kill -TERM "$h"
-  wait "$h" || true
+  sleep 0.4
+  eq "$(watchdog_procs 4177)" 1 "only the wrapper is left in its grace period"
+  rc=0
+  wait "$h" || rc=$?
+  eq "$rc" 143 "wrapper exit on TERM"
   wait_for 3 no_watchdog_left 4177
 }
 
@@ -327,6 +336,241 @@ t_status_basic() {
   wait "$n" "$h" || true
 }
 
+# ---- tests: heavy, recovery, pause and full status ----
+
+# owner_field LANE N KEY: a value from the owner file of a slot.
+owner_field() { grep "^$3=" "$IDRAFT_LOCK_ROOT/$1/slot-$2/owner" | cut -d= -f2-; }
+
+# dead_pid: the pid of a process that has exited and been reaped.
+dead_pid() {
+  sh -c 'exit 0' &
+  local p=$!
+  wait "$p"
+  printf '%s\n' "$p"
+}
+
+# own_lstart: the start time of the test script, normalised the way heavy records it.
+own_lstart() { ps -o lstart= -p "$$" | awk '{ $1 = $1; print }'; }
+
+# fake_owner PID LSTART: slot-1 of the heavy lane held by PID (no process group), with a given start time.
+fake_owner() {
+  mkdir -p "$IDRAFT_LOCK_ROOT/heavy/slot-1" "$IDRAFT_LOCK_ROOT/heavy/tickets"
+  printf 'pid=%s\npgid=\nlabel=old\nworktree=x\ncmd=old\nstart=%s\nlstart=%s\n' "$1" "$(date +%s)" "$2" \
+    >"$IDRAFT_LOCK_ROOT/heavy/slot-1/owner"
+}
+
+# fake_ticket PID [LANE]: a ticket older than any real one.
+fake_ticket() {
+  mkdir -p "$IDRAFT_LOCK_ROOT/${2:-heavy}/tickets"
+  printf 'label=ghost\nworktree=x\n' >"$IDRAFT_LOCK_ROOT/${2:-heavy}/tickets/0000000000000000001-$1"
+}
+
+t_killed_holder_recovered() {
+  local h w pg
+  start_heavy h --max 4181 -- sleep 30; h=$last_pid
+  wait_for 5 owner_ready heavy 1
+  pg="$(owner_field heavy 1 pgid)"
+  start_heavy w --wait 10 -- touch ran; w=$last_pid
+  wait_for 5 tickets_are heavy 1
+  kill -9 "$h"
+  kill -9 -- "-$pg"
+  { wait "$h"; } 2>/dev/null || true # the shell reports "Killed: 9" for a job killed this way
+  wait_for 2 test -e "$work/ran"
+  rc=0
+  wait "$w" || rc=$?
+  eq "$rc" 0 "waiter rc"
+  wait_for 3 no_watchdog_left 4181
+}
+
+t_killed_wrapper_watchdog_exits() {
+  local h pg
+  # kill -9 gives the wrapper no chance to stop its watchdog: the watchdog must notice and end by itself.
+  start_heavy h --max 4183 -- sleep 30; h=$last_pid
+  wait_for 5 owner_ready heavy 1
+  pg="$(owner_field heavy 1 pgid)"
+  kill -9 "$h"
+  { wait "$h"; } 2>/dev/null || true
+  eq "$(watchdog_procs 4183)" 1 "the watchdog outlives the wrapper while the command's group runs"
+  kill -9 -- "-$pg"
+  wait_for 3 no_watchdog_left 4183
+}
+
+t_killed_wrapper_group_alive() {
+  local h w pg
+  start_heavy h --max 4182 -- sleep 30; h=$last_pid
+  wait_for 5 owner_ready heavy 1
+  pg="$(owner_field heavy 1 pgid)"
+  start_heavy w --wait 10 -- touch ran; w=$last_pid
+  wait_for 5 tickets_are heavy 1
+  kill -9 "$h"
+  { wait "$h"; } 2>/dev/null || true
+  sleep 1.5
+  gone "$work/ran" || fail "the waiter started while the command's group still ran"
+  run_heavy --status
+  has_text "$work/out/run.out" 'slot-1 pid [0-9][0-9]* label sleep ' || fail "no holder line: $(cat "$work/out/run.out")"
+  ! has_text "$work/out/run.out" 'dead' || fail "a live group is shown as dead: $(cat "$work/out/run.out")"
+  kill -9 -- "-$pg"
+  wait_for 2 test -e "$work/ran"
+  rc=0
+  wait "$w" || rc=$?
+  eq "$rc" 0 "waiter rc"
+  wait_for 3 no_watchdog_left 4182
+}
+
+t_dead_ticket_skipped() {
+  local t0 t1 p
+  p="$(dead_pid)"
+  fake_ticket "$p"
+  t0=$(now_ms)
+  run_heavy -- true
+  t1=$(now_ms)
+  eq "$rc" 0 "job rc"
+  [ $((t1 - t0)) -lt 2000 ] || fail "waited $((t1 - t0)) ms behind a dead ticket"
+  gone "$IDRAFT_LOCK_ROOT/heavy/tickets/0000000000000000001-$p" || fail "the dead ticket is left"
+}
+
+t_older_live_ticket_blocks() {
+  local s w
+  # A free lane is not enough: a live ticket older than ours has the right of way.
+  sleep 30 &
+  s=$!
+  fake_ticket "$s"
+  start_heavy w --wait 10 -- touch ran; w=$last_pid
+  sleep 1
+  gone "$work/ran" || fail "a newer waiter took the free slot past an older live ticket"
+  kill "$s"
+  { wait "$s"; } 2>/dev/null || true
+  wait_for 2 test -e "$work/ran"
+  rc=0
+  wait "$w" || rc=$?
+  eq "$rc" 0 "waiter rc"
+}
+
+t_older_live_tickets_block_medium() {
+  local s1 s2 w
+  sleep 30 &
+  s1=$!
+  sleep 30 &
+  s2=$!
+  fake_ticket "$s1" medium
+  fake_ticket "$s2" medium
+  start_heavy w --lane medium --wait 10 -- touch ran; w=$last_pid
+  sleep 1
+  gone "$work/ran" || fail "a newer waiter took a free slot past two older live tickets"
+  kill "$s1"
+  { wait "$s1"; } 2>/dev/null || true
+  wait_for 2 test -e "$work/ran"
+  rc=0
+  wait "$w" || rc=$?
+  eq "$rc" 0 "waiter rc with one older ticket left and two slots"
+  kill "$s2"
+  { wait "$s2"; } 2>/dev/null || true
+}
+
+t_ownerless_slot() {
+  local t0 t1 w
+  mkdir -p "$IDRAFT_LOCK_ROOT/heavy/slot-1" "$IDRAFT_LOCK_ROOT/heavy/tickets"
+  perl -e 'utime time - 60, time - 60, $ARGV[0]' "$IDRAFT_LOCK_ROOT/heavy/slot-1"
+  t0=$(now_ms)
+  run_heavy -- true
+  t1=$(now_ms)
+  eq "$rc" 0 "job rc behind an old ownerless slot"
+  [ $((t1 - t0)) -lt 2000 ] || fail "waited $((t1 - t0)) ms behind an old ownerless slot"
+  mkdir "$IDRAFT_LOCK_ROOT/heavy/slot-1"
+  start_heavy w --wait 10 -- touch ran; w=$last_pid
+  sleep 1
+  [ -d "$IDRAFT_LOCK_ROOT/heavy/slot-1" ] || fail "a fresh ownerless slot was reaped"
+  gone "$work/ran" || fail "the job started in a fresh ownerless slot"
+  kill -TERM "$w"
+  wait "$w" || true
+}
+
+t_pid_reuse_guard() {
+  # The test script is alive, so only the start time tells that it is not the wrapper that took the slot.
+  fake_owner "$$" "$(own_lstart)"
+  run_heavy --wait 1 -- true
+  eq "$rc" 75 "a live owner with its own start time keeps the slot"
+  fake_owner "$$" "Thu Jan  1 00:00:00 1970"
+  run_heavy --wait 5 -- true
+  eq "$rc" 0 "a reused pid does not hold the slot"
+  assert_idle heavy
+}
+
+t_pause_blocks_then_releases() {
+  local w
+  mkdir -p "$IDRAFT_HEALTH_DIR"
+  printf 'level=CRIT\nreasons=disk free 3 GB;\n' >"$IDRAFT_HEALTH_DIR/state"
+  : >"$IDRAFT_HEALTH_DIR/pause"
+  start_heavy w --wait 10 -- touch ran; w=$last_pid
+  sleep 1.5
+  gone "$work/ran" || fail "the job started while paused"
+  has_text "$work/out/w.err" 'paused by infra/dev/health-watch.sh (.*/pause)' || fail "stderr: $(cat "$work/out/w.err")"
+  has_text "$work/out/w.err" 'level=CRIT' || fail "the state file is not printed: $(cat "$work/out/w.err")"
+  rm -f "$IDRAFT_HEALTH_DIR/pause"
+  wait_for 2 test -e "$work/ran"
+  rc=0
+  wait "$w" || rc=$?
+  eq "$rc" 0 "job rc after the pause"
+}
+
+t_pause_wait_timeout() {
+  mkdir -p "$IDRAFT_HEALTH_DIR"
+  : >"$IDRAFT_HEALTH_DIR/pause"
+  run_heavy --wait 1 -- touch ran
+  eq "$rc" 75 "gave up while paused"
+  has_text "$work/out/run.err" 'gave up after 1m, machine paused' || fail "stderr: $(cat "$work/out/run.err")"
+  has_text "$work/out/run.err" 'no state file' || fail "no state note: $(cat "$work/out/run.err")"
+  gone "$work/ran" || fail "the job ran while paused"
+  tickets_are heavy 0 || fail "the waiter's ticket is left"
+}
+
+t_pause_keeps_running_job() {
+  local h
+  mkdir -p "$IDRAFT_HEALTH_DIR"
+  start_heavy h -- sh -c 'sleep 1; exit 5'; h=$last_pid
+  wait_for 5 owner_ready heavy 1
+  : >"$IDRAFT_HEALTH_DIR/pause"
+  rc=0
+  wait "$h" || rc=$?
+  eq "$rc" 5 "a running job ends with its own code when the pause starts"
+}
+
+t_pause_keeps_order() {
+  local b c
+  mkdir -p "$IDRAFT_HEALTH_DIR"
+  : >"$IDRAFT_HEALTH_DIR/pause"
+  start_heavy b -- sh record.sh B 0.3; b=$last_pid
+  wait_for 5 tickets_are heavy 1
+  start_heavy c -- sh record.sh C 0.3; c=$last_pid
+  wait_for 5 tickets_are heavy 2
+  sleep 0.6
+  gone "$work/order.log" || fail "a job started while paused"
+  rm -f "$IDRAFT_HEALTH_DIR/pause"
+  wait "$b" "$c"
+  eq "$(tr '\n' ' ' <"$work/order.log")" "start:B end:B start:C end:C " "order after the pause"
+}
+
+t_status_full() {
+  local p tk
+  mkdir -p "$IDRAFT_HEALTH_DIR"
+  printf 'level=CRIT\nreasons=swap\n' >"$IDRAFT_HEALTH_DIR/state"
+  : >"$IDRAFT_HEALTH_DIR/pause"
+  p="$(dead_pid)"
+  fake_ticket "$p"
+  fake_owner "$p" "$(own_lstart)"
+  tk="$IDRAFT_LOCK_ROOT/heavy/tickets/0000000000000000001-$p"
+  run_heavy --status
+  eq "$rc" 0 "status rc"
+  has_text "$work/out/run.out" '^pause: on (.*/pause) level=CRIT$' || fail "pause line: $(cat "$work/out/run.out")"
+  has_text "$work/out/run.out" 'slot-1 pid .* (dead, removed at next poll)$' || fail "dead holder: $(cat "$work/out/run.out")"
+  has_text "$work/out/run.out" 'queue .*label ghost .* (dead, removed at next poll)$' || fail "dead ticket: $(cat "$work/out/run.out")"
+  [ -f "$tk" ] || fail "--status removed the dead ticket"
+  [ -d "$IDRAFT_LOCK_ROOT/heavy/slot-1" ] || fail "--status removed the dead slot"
+  rm -f "$IDRAFT_HEALTH_DIR/pause"
+  run_heavy --status
+  has_text "$work/out/run.out" '^pause: off$' || fail "pause off line: $(cat "$work/out/run.out")"
+}
+
 # ---- runner ----
 
 # Leftover wrappers of a failed test get TERM, which makes them stop their command and free their slot.
@@ -368,7 +612,10 @@ run_section() { # run_section TEST...
 }
 
 heavy_tests="t_usage t_exit_code t_args_quoting t_fifo_order t_heavy_one_slot t_medium_two_slots
-t_lanes_independent t_wait_timeout t_progress_line t_run_timeout t_term_wrapper t_term_cancels_watchdog t_hup_wrapper t_int_wrapper t_lock_root_used t_status_basic"
+t_lanes_independent t_wait_timeout t_progress_line t_run_timeout t_term_wrapper t_term_cancels_watchdog t_hup_wrapper t_int_wrapper t_lock_root_used t_status_basic
+t_killed_holder_recovered t_killed_wrapper_group_alive t_killed_wrapper_watchdog_exits t_dead_ticket_skipped
+t_older_live_ticket_blocks t_older_live_tickets_block_medium t_ownerless_slot t_pid_reuse_guard
+t_pause_blocks_then_releases t_pause_wait_timeout t_pause_keeps_running_job t_pause_keeps_order t_status_full"
 
 passed=0
 failed=0
