@@ -1,5 +1,5 @@
 import { FIRST_MINTED } from './mock-ids';
-import { FIXTURE_ENGINES, FIXTURE_PROMPTS, type StoredEngine, type StoredPrompt } from './prompt-fixtures';
+import { fixtureEngines, fixturePrompts, type StoredEngine, type StoredPrompt } from './prompt-fixtures';
 import { onMockReset } from './state';
 import type { ObservationDetail } from '@/lib/api/types';
 
@@ -34,11 +34,8 @@ export function promptsOf(projectId: string): ProjectPrompts {
   const found = STATE.get(projectId);
   if (found !== undefined) return found;
   const fresh: ProjectPrompts = {
-    engines: (FIXTURE_ENGINES.get(projectId) ?? []).map((engine) => ({
-      ...engine,
-      location_ids: [...engine.location_ids],
-    })),
-    prompts: (FIXTURE_PROMPTS.get(projectId) ?? []).map((prompt) => ({ ...prompt, term_ids: [...prompt.term_ids] })),
+    engines: fixtureEngines(projectId).map((engine) => ({ ...engine, location_ids: [...engine.location_ids] })),
+    prompts: fixturePrompts(projectId).map((prompt) => ({ ...prompt, term_ids: [...prompt.term_ids] })),
     asked: new Map(),
     observations: [],
     answersAsked: new Map(),

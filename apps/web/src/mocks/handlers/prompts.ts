@@ -15,9 +15,18 @@ import {
   pageRequest,
   uuidError,
 } from './rules';
+import { EVENTUS_WORLD } from '../ai-prompt-world';
+import { isAiSeeded } from '../ai-seed';
 import { matchAliases, TooManyMatchesError, type MatcherEntity } from '../alias-matcher';
-import { MOCK_LOCATIONS, MOCK_TERMS, MOCK_VOCABULARIES } from '../entity-fixtures';
-import { isActiveRole, type EntityWorld, type StoredEntity, type StoredRole } from '../entities-state';
+import { mockLocations, MOCK_TERMS, MOCK_VOCABULARIES } from '../entity-fixtures';
+import {
+  isActiveRole,
+  type EntityWorld,
+  type StoredEntity,
+  type StoredRole,
+  type StoredTerm,
+  type StoredVocabulary,
+} from '../entities-state';
 import { entityRefView, termPath } from '../factories/entity';
 import { nextOccurrence } from '../factories/operations';
 import { stateTime } from '../entities-codec';
@@ -114,7 +123,7 @@ export const isoOf = (instant: number): string => new Date(instant).toISOString(
 
 /** The country of an active country location, or `null` for any other location. */
 export const countryOf = (locationId: number): string | null =>
-  MOCK_LOCATIONS.find((location) => location.location_id === locationId && location.location_type === 'Country')
+  mockLocations().find((location) => location.location_id === locationId && location.location_type === 'Country')
     ?.country_iso ?? null;
 
 const countriesOf = (engine: StoredEngine): Set<string> =>
@@ -139,16 +148,21 @@ function hashOf(text: string): string {
   return out;
 }
 
-const VOCABULARY_KINDS = new Map(MOCK_VOCABULARIES.map((vocabulary) => [vocabulary.vocabulary_id, vocabulary.kind]));
+/** The terms and vocabularies the prompts can use: the older fixtures', and a definition file's while its data is on. */
+const termsOfWorld = (): readonly StoredTerm[] => (isAiSeeded() ? [...MOCK_TERMS, ...EVENTUS_WORLD.terms] : MOCK_TERMS);
+const vocabulariesOfWorld = (): readonly StoredVocabulary[] =>
+  isAiSeeded() ? [...MOCK_VOCABULARIES, EVENTUS_WORLD.vocabulary] : MOCK_VOCABULARIES;
 
 function termOf(termId: string): Prompt['terms'][number] | null {
-  const term = MOCK_TERMS.find((candidate) => candidate.term_id === termId);
+  const terms = termsOfWorld();
+  const term = terms.find((candidate) => candidate.term_id === termId);
   if (term === undefined) return null;
+  const kind = vocabulariesOfWorld().find((vocabulary) => vocabulary.vocabulary_id === term.vocabulary_id)?.kind;
   return {
     term_id: term.term_id,
-    vocabulary_kind: VOCABULARY_KINDS.get(term.vocabulary_id) ?? 'custom',
+    vocabulary_kind: kind ?? 'custom',
     name: term.name,
-    path: termPath({ terms: MOCK_TERMS }, term),
+    path: termPath({ terms }, term),
   };
 }
 

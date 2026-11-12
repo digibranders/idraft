@@ -1,3 +1,4 @@
+import { isAiSeeded } from './ai-seed';
 import { MOCK_CREATED_AT, MOCK_PROJECTS } from './fixtures';
 import { mockId } from './mock-ids';
 import type {
@@ -246,6 +247,19 @@ export const MOCK_LOCATIONS: readonly Location[] = [
   city(1007785, 'Mumbai,Maharashtra,India', 'IN', 2356),
   city(1006094, 'Paris,Ile-de-France,France', 'FR', 2250),
 ];
+
+/** The Gulf markets of the Eventus Security prompts (./ai-prompt-world.ts). */
+export const GULF_LOCATIONS: readonly Location[] = [
+  country(2784, 'United Arab Emirates', 'AE'),
+  country(2682, 'Saudi Arabia', 'SA'),
+];
+
+/**
+ * The locations the mocks know: the fixtures', and the Gulf countries while the Eventus Security data is on
+ * (./ai-seed.ts), so the location registry a test reads, and every count that rests on it, stays as it was.
+ */
+export const mockLocations = (): readonly Location[] =>
+  isAiSeeded() ? [...MOCK_LOCATIONS, ...GULF_LOCATIONS] : MOCK_LOCATIONS;
 
 /** The categories of 14-citation-intelligence.md section 4, with the labels the backend seeds. */
 export const MOCK_DOMAIN_CATEGORIES: readonly DomainCategory[] = [

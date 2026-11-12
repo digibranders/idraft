@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+import { aiScheduleRuns, EVENTUS_AI_SCHEDULES } from './ai-runs';
+import { EVENTUS_WORLD } from './ai-prompt-world';
+import { isAiSeeded } from './ai-seed';
 import { jsonCookie, readJsonCookie } from './cookie-json';
 import { minutesOf, timeOf } from './entities-codec';
 import { MOCK_CREATED_AT } from './fixtures';
@@ -112,11 +115,17 @@ export interface OperationWorld {
 }
 
 export function operationWorld(changes: OperationChanges): OperationWorld {
+  // The AI schedules and runs of a project with a definition file, while its data is on (./ai-seed.ts)
+  const seeded = isAiSeeded();
+  const base = [...MOCK_SCHEDULES, ...(seeded ? EVENTUS_AI_SCHEDULES : [])];
   const edited = new Map((changes.schedules ?? []).map((row) => [row.schedule_id, row]));
-  const fixtures = MOCK_SCHEDULES.map((row) => edited.get(row.schedule_id) ?? row);
-  const fixtureIds = new Set(MOCK_SCHEDULES.map((row) => row.schedule_id));
+  const fixtures = base.map((row) => edited.get(row.schedule_id) ?? row);
+  const fixtureIds = new Set(base.map((row) => row.schedule_id));
   const created = (changes.schedules ?? []).filter((row) => !fixtureIds.has(row.schedule_id));
-  return { schedules: [...fixtures, ...created], runs: [...MOCK_RUNS, ...(changes.runs ?? [])] };
+  return {
+    schedules: [...fixtures, ...created],
+    runs: [...MOCK_RUNS, ...(seeded ? aiScheduleRuns(EVENTUS_WORLD, Date.now()) : []), ...(changes.runs ?? [])],
+  };
 }
 
 export const withSchedule = (changes: OperationChanges, row: StoredSchedule): OperationChanges => ({

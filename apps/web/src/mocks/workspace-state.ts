@@ -1,3 +1,5 @@
+import { EVENTUS_WORLD } from './ai-prompt-world';
+import { isAiSeeded } from './ai-seed';
 import { jsonCookie, readJsonCookie } from './cookie-json';
 import { domainRefFactory } from './factories/domain';
 import { locationRefFactory } from './factories/location';
@@ -348,7 +350,10 @@ export function projectList(changes: WorkspaceChanges, workspaceId: string = MOC
         },
       ),
     );
-  return [...fixtures, ...created].sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+  const byName = [...fixtures, ...created].sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+  // The development server opens the Eventus Security data set first (./ai-seed.ts); a test keeps the order by name
+  const first = isAiSeeded() ? byName.find((project) => project.project_id === EVENTUS_WORLD.projectId) : undefined;
+  return first === undefined ? byName : [first, ...byName.filter((project) => project !== first)];
 }
 
 /** The fixture invitation of the invited person counts as accepted once they joined. */

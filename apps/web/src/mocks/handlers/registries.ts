@@ -2,9 +2,9 @@ import { HttpResponse, type HttpHandler } from 'msw';
 
 import { signedIn } from './access';
 import { cursorPage, pageRequest, queryError, unknownQuery } from './rules';
-import { MOCK_DOMAIN_CATEGORIES, MOCK_LOCATIONS } from '../entity-fixtures';
+import { MOCK_DOMAIN_CATEGORIES, mockLocations } from '../entity-fixtures';
 import { invalid, mock, problem } from '../respond';
-import type { ValidationItem } from '@/lib/api/types';
+import type { Location, ValidationItem } from '@/lib/api/types';
 
 /**
  * The registries every signed-in user may read (19 section 3.2.5): the locations collection can target, from
@@ -24,7 +24,8 @@ const LOCATION_QUERY = [
 ];
 
 /** Locations by name, as the API sorts them, so `filter[location_type]=Country` alone lists the countries. */
-const BY_NAME = [...MOCK_LOCATIONS].sort((a, b) => a.name.localeCompare(b.name) || a.location_id - b.location_id);
+const byName = (): Location[] =>
+  [...mockLocations()].sort((a, b) => a.name.localeCompare(b.name) || a.location_id - b.location_id);
 
 /** The errors of a text filter given with fewer than 1 or more than `max` characters. */
 function lengthErrors(name: string, value: string | null, max: number): ValidationItem[] {
@@ -57,7 +58,7 @@ export const registryHandlers: HttpHandler[] = [
     ];
     if (errors.length > 0 || Array.isArray(paging)) return invalid(request, errors);
     const needle = text?.toLowerCase() ?? '';
-    const rows = BY_NAME.filter(
+    const rows = byName().filter(
       (location) =>
         (needle === '' || location.name.toLowerCase().includes(needle)) &&
         (country === null || location.country_iso === country.toUpperCase()) &&

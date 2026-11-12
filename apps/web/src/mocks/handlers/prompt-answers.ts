@@ -10,8 +10,8 @@ import {
   DAY_MS,
   ENGINE_CODES,
   ENGINE_FACTS,
-  FIXTURE_ENGINES,
-  FIXTURE_PROMPTS,
+  fixtureEngines,
+  fixturePrompts,
   observationIdOf,
   parseObservationId,
   RUN_OFFSET_MS,
@@ -151,7 +151,8 @@ function detailFrom(
 function detailOf(prompt: StoredPrompt, index: number, engine: StoredEngine, at: number): ObservationDetail {
   const day = Math.floor(at / DAY_MS);
   const id = observationIdOf(day, index, ENGINE_CODES.indexOf(engine.engine_code));
-  return detailFrom(prompt, engine, at, id, null, answerOf(index, prompt.language_code, engine.engine_code, day));
+  const answer = answerOf(index, prompt.language_code, engine.engine_code, day, prompt.project_id);
+  return detailFrom(prompt, engine, at, id, null, answer);
 }
 
 /**
@@ -166,7 +167,8 @@ export function deliveredOf(
   observationId: string,
   runId: string,
 ): ObservationDetail {
-  const answer = validAnswerOf(index, prompt.language_code, engine.engine_code, Math.floor(at / DAY_MS));
+  const day = Math.floor(at / DAY_MS);
+  const answer = validAnswerOf(index, prompt.language_code, engine.engine_code, day, prompt.project_id);
   return detailFrom(prompt, engine, at, observationId, runId, answer);
 }
 
@@ -175,8 +177,8 @@ export function deliveredOf(
  * history has no prompt added here nor an engine turned on here, and an engine turned off keeps what it answered.
  */
 function answersOf(projectId: string, now: number): ObservationDetail[] {
-  const prompts = FIXTURE_PROMPTS.get(projectId) ?? [];
-  const engines = FIXTURE_ENGINES.get(projectId) ?? [];
+  const prompts = fixturePrompts(projectId);
+  const engines = fixtureEngines(projectId);
   return [
     ...runInstants(now).flatMap((at) =>
       prompts.flatMap((prompt) =>
@@ -249,10 +251,8 @@ function findAnswer(projectId: string, id: bigint, hint: number | null, now: num
   }
   const parsed = parseObservationId(id.toString());
   if (parsed === null) return null;
-  const prompt = (FIXTURE_PROMPTS.get(projectId) ?? []).find((candidate) => candidate.index === parsed.index);
-  const engine = (FIXTURE_ENGINES.get(projectId) ?? []).find(
-    (candidate) => candidate.engine_code === ENGINE_CODES[parsed.engine],
-  );
+  const prompt = fixturePrompts(projectId).find((candidate) => candidate.index === parsed.index);
+  const engine = fixtureEngines(projectId).find((candidate) => candidate.engine_code === ENGINE_CODES[parsed.engine]);
   const at = parsed.day * DAY_MS + RUN_OFFSET_MS;
   if (prompt === undefined || engine === undefined || !runInstants(now).includes(at)) return null;
   if (hint !== null && Math.abs(at - hint) > HINT_SLACK_MS) return null;

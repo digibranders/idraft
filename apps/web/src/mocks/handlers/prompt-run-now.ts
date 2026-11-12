@@ -9,8 +9,8 @@ import { operationIdMinter, runTime, withRun, type StoredRun } from '../operatio
 import {
   ENGINE_CODES,
   ENGINE_FACTS,
-  FIXTURE_ENGINES,
-  FIXTURE_PROMPTS,
+  fixtureEngines,
+  fixturePrompts,
   runInstants,
   type StoredPrompt,
 } from '../prompt-fixtures';
@@ -77,10 +77,7 @@ const locationsFor = (engine: { location_ids: readonly number[] }, prompt: Store
 /** The answers the fixtures' schedules asked of the workspace's projects in the month of `now`. */
 function scheduledAnswers(projectIds: readonly string[], now: number): number {
   const runs = runInstants(now).filter((at) => month(at) === month(now)).length;
-  return projectIds.reduce(
-    (sum, id) => sum + runs * (FIXTURE_PROMPTS.get(id)?.length ?? 0) * (FIXTURE_ENGINES.get(id)?.length ?? 0),
-    0,
-  );
+  return projectIds.reduce((sum, id) => sum + runs * fixturePrompts(id).length * fixtureEngines(id).length, 0);
 }
 
 /** The run an answer of Run now is, as the API answers it: planned, asked of nobody yet, to be planned within a minute. */

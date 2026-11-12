@@ -1,0 +1,411 @@
+{
+  "schema_version": 1,
+  "note": "Illustrative test data. Every company, domain, page and claim below is invented, apart from public bodies that are named only as generic sources. Nothing here describes a real company.",
+  "project": {
+    "name": "Eventus Security",
+    "slug": "eventus-security",
+    "host": "eventussecurity.com",
+    "language_code": "en",
+    "default_country": "IN",
+    "timezone": "Asia/Kolkata"
+  },
+  "brand": {
+    "key": "eventus",
+    "name": "Eventus Security",
+    "aliases": ["Eventus Security", "Eventus", "Eventus Security Solutions"],
+    "domains": ["eventussecurity.com"]
+  },
+  "competitors": [
+    {"key": "sentinelgate", "name": "Sentinelgate Cyber", "aliases": ["Sentinelgate Cyber", "Sentinelgate"], "domains": ["sentinelgate-cyber.com"]},
+    {"key": "aegisline", "name": "Aegisline Security", "aliases": ["Aegisline Security", "Aegisline"], "domains": ["aegisline-sec.com"]},
+    {"key": "vigilhawk", "name": "Vigilhawk MDR", "aliases": ["Vigilhawk MDR", "Vigilhawk"], "domains": ["vigilhawk-mdr.com"]},
+    {"key": "nexaguard", "name": "Nexaguard", "aliases": ["Nexaguard", "Nexaguard Managed Security"], "domains": ["nexaguard-mdr.com"]},
+    {"key": "cipherbridge", "name": "Cipherbridge Labs", "aliases": ["Cipherbridge Labs", "Cipherbridge"], "domains": ["cipherbridge-labs.com"]},
+    {"key": "ironfort", "name": "Ironfort Cyber", "aliases": ["Ironfort Cyber", "Ironfort"], "domains": ["ironfort-cyber.in"]},
+    {"key": "darkwatch", "name": "Darkwatch SOC", "aliases": ["Darkwatch SOC", "Darkwatch"], "domains": ["darkwatch-soc.com"], "ambiguous": true, "disambiguation_hints": ["soc", "security", "mdr"]},
+    {"key": "gulfshield", "name": "Gulfshield Security", "aliases": ["Gulfshield Security", "Gulfshield"], "domains": ["gulfshield-security.ae"]}
+  ],
+  "engines": [
+    {"engine_code": "chatgpt_web", "countries": ["IN", "AE", "SA"], "model": "gpt-6"},
+    {"engine_code": "gemini_web", "countries": ["IN", "AE", "SA"], "model": "3.5 Flash-Lite"}
+  ],
+  "model_change": {"engine_code": "chatgpt_web", "model": "gpt-6.1", "effective_date": "2026-10-06", "mention_delta": -0.1},
+  "topics": [
+    {"slug": "managed-soc-mdr", "name": "Managed SOC and MDR", "children": [
+      {"slug": "soc-monitoring", "name": "24x7 SOC monitoring"},
+      {"slug": "mdr-vs-mssp", "name": "MDR and MSSP"},
+      {"slug": "soc-for-banks", "name": "SOC for banks"},
+      {"slug": "threat-hunting", "name": "Threat hunting and XDR"}
+    ]},
+    {"slug": "incident-response", "name": "Incident response", "children": [
+      {"slug": "ransomware-response", "name": "Ransomware response"},
+      {"slug": "ir-retainers", "name": "DFIR retainers"},
+      {"slug": "breach-notification", "name": "Breach notification"}
+    ]},
+    {"slug": "red-teaming", "name": "Red teaming and testing", "children": [
+      {"slug": "red-team-exercises", "name": "Red team exercises"},
+      {"slug": "penetration-testing", "name": "Penetration testing"},
+      {"slug": "vulnerability-management", "name": "Attack surface and vulnerabilities"}
+    ]},
+    {"slug": "siem-detection", "name": "SIEM and detection tooling", "children": [
+      {"slug": "siem-selection", "name": "SIEM selection"},
+      {"slug": "detection-engineering", "name": "Detection engineering"},
+      {"slug": "soar-automation", "name": "SOAR and automation"}
+    ]},
+    {"slug": "compliance-bfsi", "name": "Compliance and BFSI", "children": [
+      {"slug": "rbi-framework", "name": "RBI cyber framework"},
+      {"slug": "gulf-regulation", "name": "Gulf regulation"},
+      {"slug": "pci-iso", "name": "PCI DSS and ISO 27001"}
+    ]},
+    {"slug": "cloud-ot", "name": "Cloud and OT security", "children": [
+      {"slug": "cloud-posture", "name": "Cloud security posture"},
+      {"slug": "ot-security", "name": "OT and ICS security"},
+      {"slug": "zero-trust", "name": "Identity and zero trust"}
+    ]},
+    {"slug": "pricing-buying", "name": "Pricing and buying", "children": [
+      {"slug": "soc-pricing", "name": "SOC pricing"},
+      {"slug": "vendor-selection", "name": "Vendor selection"},
+      {"slug": "build-vs-buy", "name": "Build or outsource"}
+    ]}
+  ],
+  "sources": [
+    {"key": "own", "host": "eventussecurity.com", "name": "Eventus Security", "role": "own", "category": "own", "pages": [
+      {"path": "/services/managed-soc", "title": "Managed SOC services for banks | Eventus Security", "topic": "managed-soc-mdr"},
+      {"path": "/services/managed-detection-and-response", "title": "Managed detection and response | Eventus Security", "topic": "managed-soc-mdr"},
+      {"path": "/blog/mdr-vs-mssp", "title": "MDR or MSSP: how to choose | Eventus Security", "topic": "managed-soc-mdr"},
+      {"path": "/services/incident-response", "title": "Incident response and DFIR retainers | Eventus Security", "topic": "incident-response"},
+      {"path": "/blog/ransomware-first-hour", "title": "The first hour of a ransomware attack | Eventus Security", "topic": "incident-response"},
+      {"path": "/services/red-teaming", "title": "Red team and penetration testing | Eventus Security", "topic": "red-teaming"},
+      {"path": "/blog/red-team-vs-pen-test", "title": "Red team or penetration test | Eventus Security", "topic": "red-teaming"},
+      {"path": "/services/siem-engineering", "title": "SIEM engineering and detection content | Eventus Security", "topic": "siem-detection"},
+      {"path": "/blog/detection-engineering-basics", "title": "Detection engineering basics | Eventus Security", "topic": "siem-detection"},
+      {"path": "/compliance/rbi-cyber-resilience", "title": "RBI cyber resilience and the SOC | Eventus Security", "topic": "compliance-bfsi"},
+      {"path": "/compliance/gulf-regulation", "title": "Cyber regulation in the Gulf | Eventus Security", "topic": "compliance-bfsi"},
+      {"path": "/compliance/pci-dss-iso-27001", "title": "PCI DSS and ISO 27001 support | Eventus Security", "topic": "compliance-bfsi"},
+      {"path": "/services/cloud-security", "title": "Cloud security monitoring | Eventus Security", "topic": "cloud-ot"},
+      {"path": "/resources/ot-security-checklist", "title": "OT security checklist | Eventus Security", "topic": "cloud-ot"},
+      {"path": "/blog/soc-pricing-guide", "title": "What a managed SOC costs | Eventus Security", "topic": "pricing-buying"},
+      {"path": "/resources/mdr-rfp-checklist", "title": "MDR RFP checklist | Eventus Security", "topic": "pricing-buying"},
+      {"path": "/about", "title": "About Eventus Security", "topic": null}
+    ]},
+    {"key": "analystweekly", "host": "cyberanalystweekly.com", "name": "Cyber Analyst Weekly", "role": "third_party", "category": "analyst", "pages": [
+      {"path": "/reports/managed-detection-response-landscape", "title": "The managed detection and response landscape"},
+      {"path": "/insights/bfsi-security-operations", "title": "Security operations in financial services"}
+    ]},
+    {"key": "secopsjournal", "host": "secopsjournal.com", "name": "SecOps Journal", "role": "third_party", "category": "analyst", "pages": [
+      {"path": "/guides/choosing-a-managed-soc", "title": "Choosing a managed SOC"},
+      {"path": "/articles/mdr-and-mssp-compared", "title": "MDR and MSSP compared"}
+    ]},
+    {"key": "gulfdigest", "host": "gulfsecuritydigest.com", "name": "Gulf Security Digest", "role": "third_party", "category": "news", "pages": [
+      {"path": "/news/gulf-banks-security-operations", "title": "How Gulf banks run security operations"},
+      {"path": "/features/cyber-regulation-gulf", "title": "Cyber regulation across the Gulf"}
+    ]},
+    {"key": "indiatechsec", "host": "indiatechsecurity.in", "name": "India Tech Security", "role": "third_party", "category": "news", "pages": [
+      {"path": "/bfsi/soc-adoption-india", "title": "SOC adoption among Indian banks"},
+      {"path": "/news/ransomware-incidents-india", "title": "Ransomware incidents in India"}
+    ]},
+    {"key": "peerreviews", "host": "peersecurityreviews.com", "name": "Peer Security Reviews", "role": "third_party", "category": "review", "pages": [
+      {"path": "/categories/managed-detection-and-response", "title": "Managed detection and response reviews"},
+      {"path": "/categories/managed-soc", "title": "Managed SOC provider reviews"}
+    ]},
+    {"key": "softcompare", "host": "softwarecompareindia.com", "name": "SoftwareCompare India", "role": "third_party", "category": "review", "pages": [
+      {"path": "/security/mdr-providers", "title": "MDR providers compared"},
+      {"path": "/security/siem-tools", "title": "SIEM tools compared"}
+    ]},
+    {"key": "reddit", "host": "www.reddit.com", "name": "Reddit", "role": "third_party", "category": "forum", "pages": [
+      {"path": "/r/cybersecurity/comments/choosing_a_managed_soc/", "title": "Discussion: choosing a managed SOC provider"},
+      {"path": "/r/netsec/comments/red_team_vs_pentest/", "title": "Discussion: red team or pen test"}
+    ]},
+    {"key": "secstack", "host": "security.stackexchange.com", "name": "Security Stack Exchange", "role": "third_party", "category": "forum", "pages": [
+      {"path": "/questions/mdr-vs-mssp", "title": "Question: MDR versus MSSP"},
+      {"path": "/questions/ransomware-first-steps", "title": "Question: first steps after ransomware"}
+    ]},
+    {"key": "certin", "host": "www.cert-in.org.in", "name": "CERT-In", "role": "third_party", "category": "government", "pages": [
+      {"path": "/guidelines/incident-reporting", "title": "Incident reporting guidance"},
+      {"path": "/advisories", "title": "Advisories"}
+    ]},
+    {"key": "rbi", "host": "www.rbi.org.in", "name": "Reserve Bank of India", "role": "third_party", "category": "government", "pages": [
+      {"path": "/cyber-security-framework", "title": "Cyber security framework for banks"},
+      {"path": "/it-governance-directions", "title": "IT governance directions"}
+    ]},
+    {"key": "nist", "host": "csrc.nist.gov", "name": "NIST", "role": "third_party", "category": "standards", "pages": [
+      {"path": "/pubs/sp/800-61", "title": "Incident handling guide"},
+      {"path": "/projects/cybersecurity-framework", "title": "Cybersecurity framework"}
+    ]},
+    {"key": "mitre", "host": "attack.mitre.org", "name": "MITRE ATT&CK", "role": "third_party", "category": "standards", "pages": [
+      {"path": "/matrices/enterprise/", "title": "Enterprise matrix"},
+      {"path": "/datasources/", "title": "Data sources"}
+    ]},
+    {"key": "sama", "host": "www.sama.gov.sa", "name": "Saudi Central Bank", "role": "third_party", "category": "government", "pages": [
+      {"path": "/cyber-security-framework", "title": "Cyber security framework"}
+    ]},
+    {"key": "uaecsc", "host": "csc.gov.ae", "name": "UAE Cyber Security Council", "role": "third_party", "category": "government", "pages": [
+      {"path": "/guidelines", "title": "Cyber security guidelines"}
+    ]},
+    {"key": "iso", "host": "www.iso.org", "name": "ISO", "role": "third_party", "category": "standards", "pages": [
+      {"path": "/standard/iso-iec-27001", "title": "Information security management systems"}
+    ]},
+    {"key": "pcissc", "host": "www.pcisecuritystandards.org", "name": "PCI Security Standards Council", "role": "third_party", "category": "standards", "pages": [
+      {"path": "/document_library/", "title": "Document library"}
+    ]},
+    {"key": "wikipedia", "host": "en.wikipedia.org", "name": "Wikipedia", "role": "third_party", "category": "reference", "pages": [
+      {"path": "/wiki/Security_operations_center", "title": "Security operations center"},
+      {"path": "/wiki/Managed_security_service", "title": "Managed security service"}
+    ]},
+    {"key": "csa", "host": "cloudsecurityalliance.org", "name": "Cloud Security Alliance", "role": "third_party", "category": "standards", "pages": [
+      {"path": "/research/guidance/", "title": "Security guidance for cloud computing"}
+    ]}
+  ],
+  "competitor_pages": [
+    {"path": "/services/managed-detection-and-response", "title": "Managed detection and response | {name}"},
+    {"path": "/blog/soc-buyers-guide", "title": "A buyer's guide to the SOC | {name}"}
+  ],
+  "phrases": {
+    "intro": {
+      "question": "Here is a short answer to this question.",
+      "definition": "Here is a plain definition and what it means in practice.",
+      "comparison": "Here is how the options compare for this question.",
+      "recommendation": "These are the providers that come up most often for this need.",
+      "how_to": "Here is a practical way to approach this.",
+      "other": "Here is what buyers usually find."
+    },
+    "outro": {
+      "tofu": "Check the sources above before you rely on any single view.",
+      "mofu": "Ask each provider for references from regulated customers before you shortlist.",
+      "bofu": "Compare scope, response times and contract terms in writing before you decide.",
+      "unknown": "Compare the options against your own requirements."
+    },
+    "own": [
+      "{name} runs a managed SOC and managed detection and response service for banks and financial institutions in India and the Middle East.",
+      "For regulated buyers, {name} is often shortlisted for round the clock monitoring and incident response under one contract.",
+      "{name} combines SOC monitoring, red teaming and compliance support for financial institutions."
+    ],
+    "competitor": [
+      "{name} is a frequent mention for managed detection and response.",
+      "{name} offers managed security services and is named by several buyers.",
+      "Another option is {name}, which focuses on monitoring for mid sized enterprises.",
+      "{name} is also worth a look for regional coverage."
+    ],
+    "repeat_own": "{name} is listed first by several reviewers.",
+    "inline": "See {url} for the details.",
+    "cut_off": "The comparison goes on to cover pricing and..."
+  },
+  "prompts": [
+    {"key": "p01", "text": "What is a managed SOC and how does 24x7 monitoring work for a bank?", "country": "IN", "intent": "informational", "funnel_stage": "tofu", "prompt_type": "definition", "importance": 3, "branded": false, "topics": ["soc-monitoring"], "profile": {
+      "chatgpt_web": {"mention": 0.45, "cite": 0.3, "order": 2, "competitors": [["sentinelgate", 0.7], ["aegisline", 0.5]], "sources": [["secopsjournal", 0.7], ["wikipedia", 0.5], ["peerreviews", 0.3]]},
+      "gemini_web": {"mention": 0.35, "cite": 0.2, "order": 3, "competitors": [["sentinelgate", 0.6], ["vigilhawk", 0.4]], "sources": [["wikipedia", 0.7], ["secopsjournal", 0.5], ["indiatechsec", 0.3]]}}},
+    {"key": "p02", "text": "What should a 24x7 SOC monitoring SLA include?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "question", "importance": 3, "branded": false, "topics": ["soc-monitoring"], "profile": {
+      "chatgpt_web": {"mention": 0.5, "cite": 0.35, "order": 2, "competitors": [["aegisline", 0.6], ["nexaguard", 0.5]], "sources": [["secopsjournal", 0.6], ["peerreviews", 0.4]]},
+      "gemini_web": {"mention": 0.4, "cite": 0.25, "order": 3, "competitors": [["aegisline", 0.5], ["sentinelgate", 0.5]], "sources": [["secopsjournal", 0.5], ["wikipedia", 0.4]]}}},
+    {"key": "p03", "text": "How do I evaluate response times in a managed SOC contract?", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "how_to", "importance": 3, "branded": false, "topics": ["soc-monitoring", "vendor-selection"], "profile": {
+      "chatgpt_web": {"mention": 0.4, "cite": 0.3, "order": 3, "competitors": [["sentinelgate", 0.5], ["vigilhawk", 0.4]], "sources": [["secopsjournal", 0.6], ["reddit", 0.4]]},
+      "gemini_web": {"mention": 0.35, "cite": 0.2, "order": 3, "competitors": [["vigilhawk", 0.5], ["nexaguard", 0.4]], "sources": [["secopsjournal", 0.5], ["analystweekly", 0.4]]}}},
+    {"key": "p04", "text": "What is the difference between MDR and MSSP?", "country": "IN", "intent": "informational", "funnel_stage": "tofu", "prompt_type": "question", "importance": 4, "branded": false, "topics": ["mdr-vs-mssp"], "profile": {
+      "chatgpt_web": {"mention": 0.3, "cite": 0.2, "order": 3, "competitors": [["sentinelgate", 0.7], ["vigilhawk", 0.6]], "sources": [["secopsjournal", 0.7], ["reddit", 0.5], ["wikipedia", 0.4]]},
+      "gemini_web": {"mention": 0.25, "cite": 0.15, "order": 3, "competitors": [["sentinelgate", 0.6], ["vigilhawk", 0.5]], "sources": [["secopsjournal", 0.6], ["wikipedia", 0.6]]}}},
+    {"key": "p05", "text": "Is MDR better than a traditional MSSP for a regulated bank?", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "comparison", "importance": 4, "branded": false, "topics": ["mdr-vs-mssp", "soc-for-banks"], "profile": {
+      "chatgpt_web": {"mention": 0.55, "cite": 0.4, "order": 2, "competitors": [["aegisline", 0.6], ["sentinelgate", 0.6], ["vigilhawk", 0.4]], "sources": [["secopsjournal", 0.6], ["analystweekly", 0.5], ["peerreviews", 0.4]]},
+      "gemini_web": {"mention": 0.5, "cite": 0.35, "order": 2, "competitors": [["aegisline", 0.5], ["sentinelgate", 0.5]], "sources": [["analystweekly", 0.6], ["secopsjournal", 0.5]]}}},
+    {"key": "p06", "text": "MDR vs managed SOC: which should a UAE bank choose?", "country": "AE", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "comparison", "importance": 3, "branded": false, "topics": ["mdr-vs-mssp"], "profile": {
+      "chatgpt_web": {"mention": 0.4, "cite": 0.25, "order": 3, "competitors": [["gulfshield", 0.7], ["nexaguard", 0.6]], "sources": [["gulfdigest", 0.6], ["secopsjournal", 0.5]]},
+      "gemini_web": {"mention": 0.35, "cite": 0.2, "order": 3, "competitors": [["gulfshield", 0.6], ["nexaguard", 0.5]], "sources": [["gulfdigest", 0.5], ["wikipedia", 0.4]]}}},
+    {"key": "p07", "text": "Best managed SOC providers for banks in India", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "recommendation", "importance": 5, "branded": false, "topics": ["soc-for-banks"], "profile": {
+      "chatgpt_web": {"mention": 0.88, "cite": 0.62, "order": 1, "competitors": [["sentinelgate", 0.8], ["aegisline", 0.6], ["vigilhawk", 0.5]], "sources": [["analystweekly", 0.7], ["peerreviews", 0.6], ["indiatechsec", 0.5]]},
+      "gemini_web": {"mention": 0.85, "cite": 0.6, "order": 1, "competitors": [["sentinelgate", 0.75], ["aegisline", 0.55], ["vigilhawk", 0.4]], "sources": [["analystweekly", 0.7], ["indiatechsec", 0.6], ["peerreviews", 0.4]]}}},
+    {"key": "p08", "text": "Which managed security service providers serve Indian cooperative banks?", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "recommendation", "importance": 4, "branded": false, "topics": ["soc-for-banks"], "profile": {
+      "chatgpt_web": {"mention": 0.6, "cite": 0.4, "order": 2, "competitors": [["aegisline", 0.7], ["ironfort", 0.4]], "sources": [["indiatechsec", 0.6], ["rbi", 0.5]]},
+      "gemini_web": {"mention": 0.55, "cite": 0.35, "order": 2, "competitors": [["aegisline", 0.6], ["ironfort", 0.4], ["sentinelgate", 0.3]], "sources": [["rbi", 0.6], ["indiatechsec", 0.5]]}}},
+    {"key": "p09", "text": "Top managed SOC providers for financial institutions in Saudi Arabia", "country": "SA", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "recommendation", "importance": 4, "branded": false, "topics": ["soc-for-banks"], "profile": {
+      "chatgpt_web": {"mention": 0.25, "cite": 0.1, "order": 3, "competitors": [["gulfshield", 0.8], ["nexaguard", 0.6], ["sentinelgate", 0.4]], "sources": [["gulfdigest", 0.6], ["sama", 0.5]]},
+      "gemini_web": {"mention": 0.2, "cite": 0.08, "order": 4, "competitors": [["gulfshield", 0.8], ["nexaguard", 0.5]], "sources": [["sama", 0.6], ["gulfdigest", 0.5]]}}},
+    {"key": "p10", "text": "Which MDR providers have a SOC in the Middle East and India?", "country": "AE", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "comparison", "importance": 4, "branded": false, "topics": ["soc-for-banks", "mdr-vs-mssp"], "profile": {
+      "chatgpt_web": {"mention": 0.2, "cite": 0.1, "order": 3, "competitors": [["nexaguard", 0.7], ["gulfshield", 0.6], ["sentinelgate", 0.5]], "sources": [["peerreviews", 0.5], ["gulfdigest", 0.4]]},
+      "gemini_web": {"mention": 0.85, "cite": 0.6, "order": 1, "competitors": [["nexaguard", 0.5], ["gulfshield", 0.5]], "sources": [["gulfdigest", 0.6], ["analystweekly", 0.5]]}}},
+    {"key": "p11", "text": "What is proactive threat hunting in an MDR service?", "country": "IN", "intent": "informational", "funnel_stage": "tofu", "prompt_type": "definition", "importance": 2, "branded": false, "topics": ["threat-hunting"], "profile": {
+      "chatgpt_web": {"mention": 0.12, "cite": 0.05, "order": 3, "competitors": [["vigilhawk", 0.7], ["sentinelgate", 0.5]], "sources": [["mitre", 0.6], ["wikipedia", 0.5], ["secopsjournal", 0.4]]},
+      "gemini_web": {"mention": 0.1, "cite": 0.04, "order": 4, "competitors": [["vigilhawk", 0.6], ["nexaguard", 0.5]], "sources": [["mitre", 0.7], ["wikipedia", 0.6]]}}},
+    {"key": "p12", "text": "How do XDR and MDR work together?", "country": "IN", "intent": "informational", "funnel_stage": "tofu", "prompt_type": "question", "importance": 2, "branded": false, "topics": ["threat-hunting"], "profile": {
+      "chatgpt_web": {"mention": 0.08, "cite": 0.03, "order": 3, "competitors": [["vigilhawk", 0.5], ["nexaguard", 0.5]], "sources": [["secopsjournal", 0.6], ["wikipedia", 0.5]]},
+      "gemini_web": {"mention": 0.06, "cite": 0.02, "order": 4, "competitors": [["nexaguard", 0.5]], "sources": [["wikipedia", 0.6], ["secopsjournal", 0.5]]}}},
+    {"key": "p13", "text": "Do managed SOC teams hunt for threats or only respond to alerts?", "country": "IN", "intent": "informational", "funnel_stage": "tofu", "prompt_type": "question", "importance": 3, "branded": false, "topics": ["threat-hunting", "soc-monitoring"], "profile": {
+      "chatgpt_web": {"mention": 0.3, "cite": 0.2, "order": 3, "competitors": [["vigilhawk", 0.6], ["sentinelgate", 0.5]], "sources": [["secopsjournal", 0.6], ["reddit", 0.4]]},
+      "gemini_web": {"mention": 0.25, "cite": 0.15, "order": 3, "competitors": [["vigilhawk", 0.5], ["aegisline", 0.4]], "sources": [["secopsjournal", 0.5], ["wikipedia", 0.5]]}}},
+    {"key": "p14", "text": "What should a bank do in the first hour of a ransomware attack?", "country": "IN", "intent": "informational", "funnel_stage": "tofu", "prompt_type": "how_to", "importance": 5, "branded": false, "topics": ["ransomware-response"], "profile": {
+      "chatgpt_web": {"mention": 0.75, "cite": 0.5, "order": 2, "competitors": [["cipherbridge", 0.6], ["sentinelgate", 0.5]], "sources": [["certin", 0.6], ["nist", 0.4]]},
+      "gemini_web": {"mention": 0.05, "cite": 0.03, "order": 4, "competitors": [["cipherbridge", 0.4]], "sources": [["certin", 0.7], ["nist", 0.6], ["wikipedia", 0.4]]}}},
+    {"key": "p15", "text": "Best incident response firms for ransomware in India", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "recommendation", "importance": 5, "branded": false, "topics": ["ransomware-response"], "profile": {
+      "chatgpt_web": {"mention": 0.7, "cite": 0.45, "order": 2, "competitors": [["cipherbridge", 0.8], ["ironfort", 0.6], ["sentinelgate", 0.4]], "sources": [["indiatechsec", 0.6], ["peerreviews", 0.4]]},
+      "gemini_web": {"mention": 0.6, "cite": 0.4, "order": 2, "competitors": [["cipherbridge", 0.7], ["ironfort", 0.5]], "sources": [["indiatechsec", 0.6], ["certin", 0.4]]}}},
+    {"key": "p16", "text": "Who can help with ransomware recovery for a financial firm in the UAE?", "country": "AE", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "question", "importance": 4, "branded": false, "topics": ["ransomware-response"], "profile": {
+      "chatgpt_web": {"mention": 0.45, "cite": 0.3, "order": 3, "competitors": [["gulfshield", 0.7], ["cipherbridge", 0.5]], "sources": [["gulfdigest", 0.6], ["uaecsc", 0.4]]},
+      "gemini_web": {"mention": 0.4, "cite": 0.25, "order": 3, "competitors": [["gulfshield", 0.7], ["cipherbridge", 0.4]], "sources": [["uaecsc", 0.6], ["gulfdigest", 0.5]]}}},
+    {"key": "p17", "text": "What is an incident response retainer and is it worth it?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "question", "importance": 3, "branded": false, "topics": ["ir-retainers"], "profile": {
+      "chatgpt_web": {"mention": 0.35, "cite": 0.25, "order": 2, "competitors": [["cipherbridge", 0.7], ["ironfort", 0.5]], "sources": [["secopsjournal", 0.6], ["nist", 0.4], ["reddit", 0.3]]},
+      "gemini_web": {"mention": 0.3, "cite": 0.2, "order": 3, "competitors": [["cipherbridge", 0.6], ["ironfort", 0.4]], "sources": [["nist", 0.6], ["secopsjournal", 0.5]]}}},
+    {"key": "p18", "text": "Compare incident response retainer providers in India", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "comparison", "importance": 4, "branded": false, "topics": ["ir-retainers"], "profile": {
+      "chatgpt_web": {"mention": 0.6, "cite": 0.4, "order": 2, "competitors": [["cipherbridge", 0.7], ["ironfort", 0.6], ["sentinelgate", 0.5]], "sources": [["peerreviews", 0.5], ["indiatechsec", 0.5]]},
+      "gemini_web": {"mention": 0.55, "cite": 0.35, "order": 2, "competitors": [["cipherbridge", 0.7], ["ironfort", 0.5]], "sources": [["indiatechsec", 0.5], ["peerreviews", 0.4]]}}},
+    {"key": "p19", "text": "How much does a DFIR retainer cost?", "country": "IN", "intent": "commercial", "funnel_stage": "bofu", "prompt_type": "question", "importance": 3, "branded": false, "topics": ["ir-retainers", "soc-pricing"], "profile": {
+      "chatgpt_web": {"mention": 0.25, "cite": 0.15, "order": 3, "competitors": [["cipherbridge", 0.6], ["ironfort", 0.5]], "sources": [["reddit", 0.4], ["softcompare", 0.4]]},
+      "gemini_web": {"mention": 0.2, "cite": 0.1, "order": 3, "competitors": [["cipherbridge", 0.5], ["ironfort", 0.4]], "sources": [["softcompare", 0.4], ["secopsjournal", 0.3]]}}},
+    {"key": "p20", "text": "What are the breach reporting timelines for banks under CERT-In rules?", "country": "IN", "intent": "informational", "funnel_stage": "tofu", "prompt_type": "question", "importance": 4, "branded": false, "topics": ["breach-notification"], "profile": {
+      "chatgpt_web": {"mention": 0.12, "cite": 0.05, "order": 4, "competitors": [["sentinelgate", 0.3]], "sources": [["certin", 0.9], ["rbi", 0.6], ["indiatechsec", 0.4]]},
+      "gemini_web": {"mention": 0.1, "cite": 0.04, "order": 4, "competitors": [], "sources": [["certin", 0.9], ["rbi", 0.7]]}}},
+    {"key": "p21", "text": "How should a Saudi financial institution notify regulators after a cyber incident?", "country": "SA", "intent": "informational", "funnel_stage": "tofu", "prompt_type": "how_to", "importance": 3, "branded": false, "topics": ["breach-notification"], "profile": {
+      "chatgpt_web": {"mention": 0.08, "cite": 0.03, "order": 4, "competitors": [["gulfshield", 0.3]], "sources": [["sama", 0.8], ["gulfdigest", 0.4]]},
+      "gemini_web": {"mention": 0.06, "cite": 0.02, "order": 4, "competitors": [], "sources": [["sama", 0.9]]}}},
+    {"key": "p22", "text": "Who should lead a data breach investigation in the first 72 hours?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "question", "importance": 3, "branded": false, "topics": ["breach-notification", "ir-retainers"], "profile": {
+      "chatgpt_web": {"mention": 0.2, "cite": 0.1, "order": 3, "competitors": [["cipherbridge", 0.5]], "sources": [["nist", 0.5], ["certin", 0.5], ["secstack", 0.3]]},
+      "gemini_web": {"mention": 0.15, "cite": 0.08, "order": 3, "competitors": [["cipherbridge", 0.4]], "sources": [["certin", 0.6], ["nist", 0.5]]}}},
+    {"key": "p23", "text": "What is a red team exercise and how is it different from a penetration test?", "country": "IN", "intent": "informational", "funnel_stage": "tofu", "prompt_type": "definition", "importance": 3, "branded": false, "topics": ["red-team-exercises", "penetration-testing"], "profile": {
+      "chatgpt_web": {"mention": 0.3, "cite": 0.2, "order": 3, "competitors": [["darkwatch", 0.6], ["ironfort", 0.5]], "sources": [["secopsjournal", 0.5], ["mitre", 0.5], ["wikipedia", 0.5]]},
+      "gemini_web": {"mention": 0.25, "cite": 0.15, "order": 3, "competitors": [["darkwatch", 0.5], ["ironfort", 0.5]], "sources": [["wikipedia", 0.7], ["mitre", 0.5]]}}},
+    {"key": "p24", "text": "Red team service providers for banks in the Middle East", "country": "AE", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "recommendation", "importance": 4, "branded": false, "topics": ["red-team-exercises"], "profile": {
+      "chatgpt_web": {"mention": 0.5, "cite": 0.3, "order": 2, "competitors": [["darkwatch", 0.7], ["gulfshield", 0.5], ["ironfort", 0.4]], "sources": [["gulfdigest", 0.5], ["peerreviews", 0.4]]},
+      "gemini_web": {"mention": 0.45, "cite": 0.25, "order": 2, "competitors": [["darkwatch", 0.6], ["gulfshield", 0.5]], "sources": [["gulfdigest", 0.5], ["uaecsc", 0.3]]}}},
+    {"key": "p25", "text": "How often should a bank run a red team assessment?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "question", "importance": 2, "branded": false, "topics": ["red-team-exercises"], "profile": {
+      "chatgpt_web": {"mention": 0.1, "cite": 0.05, "order": 3, "competitors": [["darkwatch", 0.4]], "sources": [["rbi", 0.4], ["secopsjournal", 0.4]]},
+      "gemini_web": {"mention": 0.08, "cite": 0.03, "order": 4, "competitors": [["darkwatch", 0.3]], "sources": [["rbi", 0.5], ["wikipedia", 0.4]]}}},
+    {"key": "p26", "text": "Best penetration testing companies in India for fintech", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "recommendation", "importance": 4, "branded": false, "topics": ["penetration-testing"], "profile": {
+      "chatgpt_web": {"mention": 0.55, "cite": 0.4, "order": 2, "competitors": [["ironfort", 0.7], ["darkwatch", 0.6], ["cipherbridge", 0.4]], "sources": [["peerreviews", 0.6], ["softcompare", 0.5], ["indiatechsec", 0.4]]},
+      "gemini_web": {"mention": 0.5, "cite": 0.3, "order": 3, "competitors": [["ironfort", 0.7], ["darkwatch", 0.5]], "sources": [["softcompare", 0.6], ["peerreviews", 0.5]]}}},
+    {"key": "p27", "text": "CREST certified penetration testing providers in UAE", "country": "AE", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "recommendation", "importance": 3, "branded": false, "topics": ["penetration-testing"], "profile": {
+      "chatgpt_web": {"mention": 0.15, "cite": 0.05, "order": 4, "competitors": [["darkwatch", 0.6], ["gulfshield", 0.6]], "sources": [["gulfdigest", 0.5], ["peerreviews", 0.3]]},
+      "gemini_web": {"mention": 0.12, "cite": 0.04, "order": 4, "competitors": [["darkwatch", 0.5], ["gulfshield", 0.5]], "sources": [["gulfdigest", 0.5]]}}},
+    {"key": "p28", "text": "How do I choose a pen testing vendor for a core banking application?", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "how_to", "importance": 4, "branded": false, "topics": ["penetration-testing", "vendor-selection"], "profile": {
+      "chatgpt_web": {"mention": 0.45, "cite": 0.3, "order": 2, "competitors": [["ironfort", 0.6], ["darkwatch", 0.5]], "sources": [["secopsjournal", 0.5], ["peerreviews", 0.4], ["reddit", 0.3]]},
+      "gemini_web": {"mention": 0.4, "cite": 0.25, "order": 3, "competitors": [["ironfort", 0.6], ["darkwatch", 0.4]], "sources": [["secopsjournal", 0.5], ["rbi", 0.3]]}}},
+    {"key": "p29", "text": "What is attack surface management and who offers it as a managed service?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "question", "importance": 3, "branded": false, "topics": ["vulnerability-management"], "profile": {
+      "chatgpt_web": {"mention": 0.35, "cite": 0.25, "order": 3, "competitors": [["nexaguard", 0.5], ["darkwatch", 0.5]], "sources": [["wikipedia", 0.5], ["softcompare", 0.4]]},
+      "gemini_web": {"mention": 0.3, "cite": 0.2, "order": 3, "competitors": [["nexaguard", 0.5], ["darkwatch", 0.4]], "sources": [["wikipedia", 0.6], ["softcompare", 0.3]]}}},
+    {"key": "p30", "text": "How do I prioritise vulnerabilities across a bank's branch network?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "how_to", "importance": 2, "branded": false, "topics": ["vulnerability-management"], "profile": {
+      "chatgpt_web": {"mention": 0.1, "cite": 0.05, "order": 4, "competitors": [["nexaguard", 0.3]], "sources": [["nist", 0.5], ["mitre", 0.4], ["secstack", 0.3]]},
+      "gemini_web": {"mention": 0.08, "cite": 0.03, "order": 4, "competitors": [], "sources": [["nist", 0.6], ["secstack", 0.3]]}}},
+    {"key": "p31", "text": "Which SIEM is best for a bank in India?", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "recommendation", "importance": 3, "branded": false, "topics": ["siem-selection"], "profile": {
+      "chatgpt_web": {"mention": 0.15, "cite": 0.08, "order": 3, "competitors": [["nexaguard", 0.5], ["aegisline", 0.4]], "sources": [["softcompare", 0.7], ["peerreviews", 0.5], ["reddit", 0.4]]},
+      "gemini_web": {"mention": 0.1, "cite": 0.05, "order": 4, "competitors": [["nexaguard", 0.4]], "sources": [["softcompare", 0.7], ["peerreviews", 0.6]]}}},
+    {"key": "p32", "text": "Cloud SIEM or on premise SIEM for a financial institution?", "country": "AE", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "comparison", "importance": 2, "branded": false, "topics": ["siem-selection"], "profile": {
+      "chatgpt_web": {"mention": 0.1, "cite": 0.03, "order": 4, "competitors": [["nexaguard", 0.4]], "sources": [["softcompare", 0.5], ["csa", 0.4]]},
+      "gemini_web": {"mention": 0.08, "cite": 0.02, "order": 4, "competitors": [["nexaguard", 0.3]], "sources": [["csa", 0.5], ["softcompare", 0.4]]}}},
+    {"key": "p33", "text": "What does a managed SIEM service include?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "question", "importance": 3, "branded": false, "topics": ["siem-selection", "soc-monitoring"], "profile": {
+      "chatgpt_web": {"mention": 0.5, "cite": 0.35, "order": 2, "competitors": [["nexaguard", 0.6], ["aegisline", 0.5]], "sources": [["secopsjournal", 0.5], ["softcompare", 0.4]]},
+      "gemini_web": {"mention": 0.45, "cite": 0.3, "order": 2, "competitors": [["nexaguard", 0.5], ["aegisline", 0.4]], "sources": [["secopsjournal", 0.5], ["wikipedia", 0.4]]}}},
+    {"key": "p34", "text": "SIEM migration checklist for a regulated bank", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "how_to", "importance": 3, "branded": false, "topics": ["siem-selection"], "profile": {
+      "chatgpt_web": {"mention": 0.2, "cite": 0.1, "order": 3, "competitors": [["nexaguard", 0.4]], "sources": [["secopsjournal", 0.5], ["reddit", 0.3]]},
+      "gemini_web": {"mention": 0.15, "cite": 0.08, "order": 4, "competitors": [["nexaguard", 0.3]], "sources": [["secopsjournal", 0.5]]}}},
+    {"key": "p35", "text": "What is detection engineering and why does it matter for a SOC?", "country": "IN", "intent": "informational", "funnel_stage": "tofu", "prompt_type": "definition", "importance": 3, "branded": false, "topics": ["detection-engineering"], "profile": {
+      "chatgpt_web": {"mention": 0.25, "cite": 0.15, "order": 3, "competitors": [["vigilhawk", 0.6]], "sources": [["mitre", 0.6], ["wikipedia", 0.5]]},
+      "gemini_web": {"mention": 0.2, "cite": 0.1, "order": 3, "competitors": [["vigilhawk", 0.5]], "sources": [["mitre", 0.6], ["wikipedia", 0.5]]}}},
+    {"key": "p36", "text": "How do MITRE ATT&CK mappings improve SOC detection coverage?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "how_to", "importance": 2, "branded": false, "topics": ["detection-engineering"], "profile": {
+      "chatgpt_web": {"mention": 0.1, "cite": 0.05, "order": 4, "competitors": [["vigilhawk", 0.3]], "sources": [["mitre", 0.9], ["secopsjournal", 0.3]]},
+      "gemini_web": {"mention": 0.08, "cite": 0.03, "order": 4, "competitors": [], "sources": [["mitre", 0.9]]}}},
+    {"key": "p37", "text": "Who builds custom detection rules for banking intrusion and fraud?", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "question", "importance": 3, "branded": false, "topics": ["detection-engineering"], "profile": {
+      "chatgpt_web": {"mention": 0.4, "cite": 0.25, "order": 2, "competitors": [["vigilhawk", 0.5], ["nexaguard", 0.5]], "sources": [["secopsjournal", 0.4]]},
+      "gemini_web": {"mention": 0.35, "cite": 0.2, "order": 3, "competitors": [["vigilhawk", 0.5], ["nexaguard", 0.4]], "sources": [["secopsjournal", 0.4], ["indiatechsec", 0.3]]}}},
+    {"key": "p38", "text": "What is SOAR and can a managed SOC run it for me?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "question", "importance": 3, "branded": false, "topics": ["soar-automation"], "profile": {
+      "chatgpt_web": {"mention": 0.3, "cite": 0.2, "order": 3, "competitors": [["nexaguard", 0.6], ["aegisline", 0.4]], "sources": [["wikipedia", 0.5], ["softcompare", 0.4]]},
+      "gemini_web": {"mention": 0.25, "cite": 0.15, "order": 3, "competitors": [["nexaguard", 0.5], ["aegisline", 0.4]], "sources": [["wikipedia", 0.6], ["secopsjournal", 0.4]]}}},
+    {"key": "p39", "text": "How much alert noise can automation remove in a SOC?", "country": "IN", "intent": "informational", "funnel_stage": "tofu", "prompt_type": "question", "importance": 2, "branded": false, "topics": ["soar-automation"], "profile": {
+      "chatgpt_web": {"mention": 0.1, "cite": 0.04, "order": 4, "competitors": [["nexaguard", 0.3]], "sources": [["secopsjournal", 0.5], ["reddit", 0.4]]},
+      "gemini_web": {"mention": 0.08, "cite": 0.03, "order": 4, "competitors": [], "sources": [["secopsjournal", 0.5], ["wikipedia", 0.3]]}}},
+    {"key": "p40", "text": "How can a managed SOC help meet the RBI cyber security framework for banks?", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "question", "importance": 5, "branded": false, "topics": ["rbi-framework"], "profile": {
+      "chatgpt_web": {"mention": 0.9, "cite": 0.65, "order": 1, "competitors": [["aegisline", 0.5], ["sentinelgate", 0.4]], "sources": [["rbi", 0.7], ["indiatechsec", 0.5], ["analystweekly", 0.4]]},
+      "gemini_web": {"mention": 0.88, "cite": 0.6, "order": 1, "competitors": [["aegisline", 0.4], ["sentinelgate", 0.4]], "sources": [["rbi", 0.8], ["indiatechsec", 0.5]]}}},
+    {"key": "p41", "text": "What does RBI require for a bank's 24x7 security operations centre?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "question", "importance": 4, "branded": false, "topics": ["rbi-framework", "soc-monitoring"], "profile": {
+      "chatgpt_web": {"mention": 0.6, "cite": 0.35, "order": 2, "competitors": [["aegisline", 0.5], ["sentinelgate", 0.5]], "sources": [["rbi", 0.8], ["indiatechsec", 0.4]]},
+      "gemini_web": {"mention": 0.55, "cite": 0.3, "order": 2, "competitors": [["aegisline", 0.5], ["sentinelgate", 0.4]], "sources": [["rbi", 0.8], ["wikipedia", 0.3]]}}},
+    {"key": "p42", "text": "Which vendors help urban cooperative banks with RBI cyber resilience guidelines?", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "recommendation", "importance": 5, "branded": false, "topics": ["rbi-framework"], "profile": {
+      "chatgpt_web": {"mention": 0.78, "cite": 0.5, "order": 1, "competitors": [["aegisline", 0.6], ["ironfort", 0.4]], "sources": [["rbi", 0.6], ["indiatechsec", 0.5]]},
+      "gemini_web": {"mention": 0.76, "cite": 0.45, "order": 1, "competitors": [["aegisline", 0.6], ["ironfort", 0.4]], "sources": [["rbi", 0.6], ["indiatechsec", 0.5]]}}},
+    {"key": "p43", "text": "How does a managed SOC help meet SAMA cybersecurity framework requirements?", "country": "SA", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "question", "importance": 4, "branded": false, "topics": ["gulf-regulation"], "profile": {
+      "chatgpt_web": {"mention": 0.35, "cite": 0.2, "order": 3, "competitors": [["gulfshield", 0.7], ["nexaguard", 0.5]], "sources": [["sama", 0.8], ["gulfdigest", 0.5]]},
+      "gemini_web": {"mention": 0.3, "cite": 0.15, "order": 3, "competitors": [["gulfshield", 0.7], ["nexaguard", 0.4]], "sources": [["sama", 0.9], ["gulfdigest", 0.4]]}}},
+    {"key": "p44", "text": "What are the UAE central bank cyber security expectations for banks?", "country": "AE", "intent": "informational", "funnel_stage": "tofu", "prompt_type": "question", "importance": 3, "branded": false, "topics": ["gulf-regulation"], "profile": {
+      "chatgpt_web": {"mention": 0.3, "cite": 0.15, "order": 3, "competitors": [["gulfshield", 0.6]], "sources": [["uaecsc", 0.7], ["gulfdigest", 0.5]]},
+      "gemini_web": {"mention": 0.25, "cite": 0.1, "order": 3, "competitors": [["gulfshield", 0.5]], "sources": [["uaecsc", 0.8], ["gulfdigest", 0.4]]}}},
+    {"key": "p45", "text": "Managed security services for DIFC regulated firms", "country": "AE", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "recommendation", "importance": 3, "branded": false, "topics": ["gulf-regulation", "soc-for-banks"], "profile": {
+      "chatgpt_web": {"mention": 0.45, "cite": 0.3, "order": 2, "competitors": [["gulfshield", 0.7], ["nexaguard", 0.5], ["sentinelgate", 0.4]], "sources": [["gulfdigest", 0.5], ["uaecsc", 0.4]]},
+      "gemini_web": {"mention": 0.4, "cite": 0.25, "order": 2, "competitors": [["gulfshield", 0.7], ["nexaguard", 0.5]], "sources": [["gulfdigest", 0.5], ["uaecsc", 0.4]]}}},
+    {"key": "p46", "text": "Which cybersecurity providers support Saudi data residency requirements?", "country": "SA", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "question", "importance": 3, "branded": false, "topics": ["gulf-regulation"], "profile": {
+      "chatgpt_web": {"mention": 0.3, "cite": 0.15, "order": 3, "competitors": [["gulfshield", 0.8], ["nexaguard", 0.4]], "sources": [["sama", 0.6], ["gulfdigest", 0.5]]},
+      "gemini_web": {"mention": 0.25, "cite": 0.1, "order": 3, "competitors": [["gulfshield", 0.8], ["nexaguard", 0.4]], "sources": [["sama", 0.6], ["gulfdigest", 0.4]]}}},
+    {"key": "p47", "text": "How do I prepare for a PCI DSS audit with a managed SOC?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "how_to", "importance": 3, "branded": false, "topics": ["pci-iso"], "profile": {
+      "chatgpt_web": {"mention": 0.5, "cite": 0.3, "order": 2, "competitors": [["aegisline", 0.5], ["sentinelgate", 0.4]], "sources": [["pcissc", 0.7], ["secopsjournal", 0.4]]},
+      "gemini_web": {"mention": 0.45, "cite": 0.25, "order": 2, "competitors": [["aegisline", 0.5], ["sentinelgate", 0.3]], "sources": [["pcissc", 0.8], ["wikipedia", 0.3]]}}},
+    {"key": "p48", "text": "ISO 27001 certified managed security service providers in India", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "recommendation", "importance": 4, "branded": false, "topics": ["pci-iso"], "profile": {
+      "chatgpt_web": {"mention": 0.65, "cite": 0.45, "order": 1, "competitors": [["aegisline", 0.6], ["sentinelgate", 0.5], ["nexaguard", 0.4]], "sources": [["iso", 0.5], ["peerreviews", 0.5], ["indiatechsec", 0.4]]},
+      "gemini_web": {"mention": 0.6, "cite": 0.4, "order": 2, "competitors": [["aegisline", 0.6], ["sentinelgate", 0.5]], "sources": [["iso", 0.6], ["peerreviews", 0.4]]}}},
+    {"key": "p49", "text": "Do I need a SOC to get ISO 27001 certification?", "country": "IN", "intent": "informational", "funnel_stage": "tofu", "prompt_type": "question", "importance": 3, "branded": false, "topics": ["pci-iso"], "profile": {
+      "chatgpt_web": {"mention": 0.2, "cite": 0.1, "order": 3, "competitors": [["aegisline", 0.4]], "sources": [["iso", 0.7], ["wikipedia", 0.5]]},
+      "gemini_web": {"mention": 0.15, "cite": 0.08, "order": 3, "competitors": [["aegisline", 0.3]], "sources": [["iso", 0.8], ["wikipedia", 0.4]]}}},
+    {"key": "p50", "text": "How do I monitor cloud workloads in a managed SOC?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "how_to", "importance": 3, "branded": false, "topics": ["cloud-posture"], "profile": {
+      "chatgpt_web": {"mention": 0.4, "cite": 0.25, "order": 2, "competitors": [["nexaguard", 0.6], ["darkwatch", 0.4]], "sources": [["csa", 0.5], ["secopsjournal", 0.4]]},
+      "gemini_web": {"mention": 0.35, "cite": 0.2, "order": 3, "competitors": [["nexaguard", 0.6], ["darkwatch", 0.3]], "sources": [["csa", 0.6], ["secopsjournal", 0.3]]}}},
+    {"key": "p51", "text": "Best cloud security posture management services for banks", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "recommendation", "importance": 3, "branded": false, "topics": ["cloud-posture"], "profile": {
+      "chatgpt_web": {"mention": 0.12, "cite": 0.05, "order": 4, "competitors": [["nexaguard", 0.6], ["darkwatch", 0.5]], "sources": [["softcompare", 0.6], ["peerreviews", 0.5]]},
+      "gemini_web": {"mention": 0.1, "cite": 0.04, "order": 4, "competitors": [["nexaguard", 0.5], ["darkwatch", 0.4]], "sources": [["softcompare", 0.6], ["csa", 0.4]]}}},
+    {"key": "p52", "text": "How should a financial firm secure multi cloud in the UAE?", "country": "AE", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "how_to", "importance": 2, "branded": false, "topics": ["cloud-posture", "zero-trust"], "profile": {
+      "chatgpt_web": {"mention": 0.1, "cite": 0.03, "order": 4, "competitors": [["gulfshield", 0.3]], "sources": [["csa", 0.6], ["uaecsc", 0.4]]},
+      "gemini_web": {"mention": 0.08, "cite": 0.02, "order": 4, "competitors": [], "sources": [["csa", 0.7], ["uaecsc", 0.4]]}}},
+    {"key": "p53", "text": "What is OT security and who provides managed monitoring for power and utilities?", "country": "SA", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "question", "importance": 3, "branded": false, "topics": ["ot-security"], "profile": {
+      "chatgpt_web": {"mention": 0.08, "cite": 0.03, "order": 4, "competitors": [["darkwatch", 0.6], ["gulfshield", 0.5]], "sources": [["sama", 0.3], ["wikipedia", 0.5]]},
+      "gemini_web": {"mention": 0.06, "cite": 0.02, "order": 4, "competitors": [["darkwatch", 0.5], ["gulfshield", 0.4]], "sources": [["wikipedia", 0.6], ["nist", 0.4]]}}},
+    {"key": "p54", "text": "How do I monitor industrial control systems for intrusions?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "how_to", "importance": 2, "branded": false, "topics": ["ot-security"], "profile": {
+      "chatgpt_web": {"mention": 0.05, "cite": 0.02, "order": 4, "competitors": [["darkwatch", 0.4]], "sources": [["nist", 0.6], ["mitre", 0.5]]},
+      "gemini_web": {"mention": 0.04, "cite": 0.01, "order": 4, "competitors": [["darkwatch", 0.3]], "sources": [["nist", 0.7], ["mitre", 0.4]]}}},
+    {"key": "p55", "text": "Managed OT security providers in the Gulf", "country": "AE", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "recommendation", "importance": 3, "branded": false, "topics": ["ot-security"], "profile": {
+      "chatgpt_web": {"mention": 0.1, "cite": 0.04, "order": 3, "competitors": [["gulfshield", 0.7], ["darkwatch", 0.6]], "sources": [["gulfdigest", 0.6]]},
+      "gemini_web": {"mention": 0.12, "cite": 0.05, "order": 3, "competitors": [["gulfshield", 0.7], ["darkwatch", 0.5]], "sources": [["gulfdigest", 0.5], ["uaecsc", 0.3]]}}},
+    {"key": "p56", "text": "How does zero trust change SOC monitoring for a bank?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "question", "importance": 3, "branded": false, "topics": ["zero-trust"], "profile": {
+      "chatgpt_web": {"mention": 0.2, "cite": 0.1, "order": 3, "competitors": [["nexaguard", 0.4]], "sources": [["nist", 0.6], ["secopsjournal", 0.4]]},
+      "gemini_web": {"mention": 0.15, "cite": 0.08, "order": 3, "competitors": [["nexaguard", 0.4]], "sources": [["nist", 0.6], ["wikipedia", 0.3]]}}},
+    {"key": "p57", "text": "What is the best way to monitor privileged access in a bank?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "how_to", "importance": 3, "branded": false, "topics": ["zero-trust"], "profile": {
+      "chatgpt_web": {"mention": 0.25, "cite": 0.15, "order": 3, "competitors": [["nexaguard", 0.5], ["vigilhawk", 0.4]], "sources": [["secopsjournal", 0.4], ["rbi", 0.3]]},
+      "gemini_web": {"mention": 0.2, "cite": 0.1, "order": 3, "competitors": [["nexaguard", 0.5], ["vigilhawk", 0.3]], "sources": [["rbi", 0.4], ["secopsjournal", 0.3]]}}},
+    {"key": "p58", "text": "Identity threat detection and response explained", "country": "IN", "intent": "informational", "funnel_stage": "tofu", "prompt_type": "definition", "importance": 2, "branded": false, "topics": ["zero-trust"], "profile": {
+      "chatgpt_web": {"mention": 0.05, "cite": 0.02, "order": 4, "competitors": [["vigilhawk", 0.3]], "sources": [["wikipedia", 0.5], ["mitre", 0.4]]},
+      "gemini_web": {"mention": 0.04, "cite": 0.01, "order": 4, "competitors": [], "sources": [["wikipedia", 0.6], ["mitre", 0.4]]}}},
+    {"key": "p59", "text": "How much does a managed SOC cost per month in India?", "country": "IN", "intent": "commercial", "funnel_stage": "bofu", "prompt_type": "question", "importance": 5, "branded": false, "topics": ["soc-pricing"], "profile": {
+      "chatgpt_web": {"mention": 0.55, "cite": 0.4, "order": 2, "competitors": [["sentinelgate", 0.6], ["vigilhawk", 0.5], ["aegisline", 0.4]], "sources": [["softcompare", 0.6], ["peerreviews", 0.5], ["reddit", 0.4]]},
+      "gemini_web": {"mention": 0.5, "cite": 0.35, "order": 2, "competitors": [["sentinelgate", 0.6], ["vigilhawk", 0.4]], "sources": [["softcompare", 0.6], ["peerreviews", 0.4]]}}},
+    {"key": "p60", "text": "What does a managed detection and response contract cost in the UAE?", "country": "AE", "intent": "commercial", "funnel_stage": "bofu", "prompt_type": "question", "importance": 4, "branded": false, "topics": ["soc-pricing"], "profile": {
+      "chatgpt_web": {"mention": 0.3, "cite": 0.2, "order": 3, "competitors": [["gulfshield", 0.6], ["nexaguard", 0.6]], "sources": [["gulfdigest", 0.5], ["softcompare", 0.4]]},
+      "gemini_web": {"mention": 0.25, "cite": 0.15, "order": 3, "competitors": [["gulfshield", 0.6], ["nexaguard", 0.5]], "sources": [["gulfdigest", 0.5], ["softcompare", 0.3]]}}},
+    {"key": "p61", "text": "Is SOC as a service cheaper than building an in house SOC?", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "comparison", "importance": 4, "branded": false, "topics": ["build-vs-buy", "soc-pricing"], "profile": {
+      "chatgpt_web": {"mention": 0.5, "cite": 0.35, "order": 2, "competitors": [["sentinelgate", 0.5], ["vigilhawk", 0.5]], "sources": [["secopsjournal", 0.6], ["analystweekly", 0.5], ["reddit", 0.4]]},
+      "gemini_web": {"mention": 0.45, "cite": 0.3, "order": 2, "competitors": [["sentinelgate", 0.5], ["vigilhawk", 0.4]], "sources": [["secopsjournal", 0.6], ["analystweekly", 0.5]]}}},
+    {"key": "p62", "text": "What should I ask a managed SOC vendor before signing?", "country": "IN", "intent": "commercial", "funnel_stage": "bofu", "prompt_type": "how_to", "importance": 4, "branded": false, "topics": ["vendor-selection"], "profile": {
+      "chatgpt_web": {"mention": 0.45, "cite": 0.3, "order": 2, "competitors": [["sentinelgate", 0.4], ["aegisline", 0.4]], "sources": [["secopsjournal", 0.6], ["reddit", 0.4], ["peerreviews", 0.4]]},
+      "gemini_web": {"mention": 0.4, "cite": 0.25, "order": 3, "competitors": [["sentinelgate", 0.4], ["aegisline", 0.4]], "sources": [["secopsjournal", 0.6], ["peerreviews", 0.3]]}}},
+    {"key": "p63", "text": "How to shortlist MDR vendors for an RFP", "country": "IN", "intent": "commercial", "funnel_stage": "bofu", "prompt_type": "how_to", "importance": 4, "branded": false, "topics": ["vendor-selection"], "profile": {
+      "chatgpt_web": {"mention": 0.55, "cite": 0.3, "order": 2, "competitors": [["sentinelgate", 0.6], ["vigilhawk", 0.5], ["nexaguard", 0.5]], "sources": [["analystweekly", 0.5], ["softcompare", 0.4]]},
+      "gemini_web": {"mention": 0.5, "cite": 0.3, "order": 2, "competitors": [["sentinelgate", 0.6], ["vigilhawk", 0.5]], "sources": [["analystweekly", 0.5], ["softcompare", 0.4]]}}},
+    {"key": "p64", "text": "Should a regional bank build its own SOC or outsource it?", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "question", "importance": 4, "branded": false, "topics": ["build-vs-buy"], "profile": {
+      "chatgpt_web": {"mention": 0.45, "cite": 0.3, "order": 2, "competitors": [["aegisline", 0.4], ["sentinelgate", 0.4]], "sources": [["analystweekly", 0.6], ["secopsjournal", 0.5]]},
+      "gemini_web": {"mention": 0.4, "cite": 0.25, "order": 2, "competitors": [["aegisline", 0.4], ["sentinelgate", 0.4]], "sources": [["analystweekly", 0.6], ["secopsjournal", 0.4]]}}},
+    {"key": "p65", "text": "How big must a company be before a managed SOC makes sense?", "country": "IN", "intent": "informational", "funnel_stage": "mofu", "prompt_type": "question", "importance": 2, "branded": false, "topics": ["build-vs-buy"], "profile": {
+      "chatgpt_web": {"mention": 0.3, "cite": 0.15, "order": 3, "competitors": [["vigilhawk", 0.4]], "sources": [["reddit", 0.5], ["secopsjournal", 0.4]]},
+      "gemini_web": {"mention": 0.25, "cite": 0.1, "order": 3, "competitors": [["vigilhawk", 0.4]], "sources": [["secopsjournal", 0.5], ["wikipedia", 0.3]]}}},
+    {"key": "p66", "text": "Compare Eventus Security with other managed SOC providers", "country": "IN", "intent": "commercial", "funnel_stage": "mofu", "prompt_type": "comparison", "importance": 4, "branded": true, "topics": ["soc-for-banks", "vendor-selection"], "profile": {
+      "chatgpt_web": {"mention": 0.98, "cite": 0.8, "order": 1, "competitors": [["sentinelgate", 0.8], ["aegisline", 0.7], ["vigilhawk", 0.6]], "sources": [["analystweekly", 0.5], ["peerreviews", 0.5]]},
+      "gemini_web": {"mention": 0.97, "cite": 0.75, "order": 1, "competitors": [["sentinelgate", 0.8], ["aegisline", 0.6], ["vigilhawk", 0.5]], "sources": [["analystweekly", 0.5], ["peerreviews", 0.4]]}}},
+    {"key": "p67", "text": "Is Eventus Security a good managed SOC provider for banks?", "country": "IN", "intent": "commercial", "funnel_stage": "bofu", "prompt_type": "question", "importance": 5, "branded": true, "topics": ["soc-for-banks"], "profile": {
+      "chatgpt_web": {"mention": 0.99, "cite": 0.7, "order": 1, "competitors": [["sentinelgate", 0.3]], "sources": [["peerreviews", 0.6], ["indiatechsec", 0.4]]},
+      "gemini_web": {"mention": 0.98, "cite": 0.65, "order": 1, "competitors": [["sentinelgate", 0.3]], "sources": [["peerreviews", 0.5], ["indiatechsec", 0.4]]}}},
+    {"key": "p68", "text": "What services does Eventus Security offer?", "country": "IN", "intent": "navigational", "funnel_stage": "tofu", "prompt_type": "question", "importance": 4, "branded": true, "topics": ["soc-monitoring", "red-team-exercises"], "profile": {
+      "chatgpt_web": {"mention": 0.99, "cite": 0.85, "order": 1, "competitors": [], "sources": [["wikipedia", 0.2]]},
+      "gemini_web": {"mention": 0.99, "cite": 0.85, "order": 1, "competitors": [], "sources": [["wikipedia", 0.2]]}}},
+    {"key": "p69", "text": "Eventus Security reviews from banking customers", "country": "IN", "intent": "commercial", "funnel_stage": "bofu", "prompt_type": "other", "importance": 4, "branded": true, "topics": ["vendor-selection"], "profile": {
+      "chatgpt_web": {"mention": 0.95, "cite": 0.3, "order": 1, "competitors": [["sentinelgate", 0.2]], "sources": [["peerreviews", 0.8], ["softcompare", 0.7], ["reddit", 0.4]]},
+      "gemini_web": {"mention": 0.92, "cite": 0.25, "order": 1, "competitors": [], "sources": [["peerreviews", 0.8], ["softcompare", 0.6]]}}},
+    {"key": "p70", "text": "Eventus Security vs Sentinelgate Cyber for MDR", "country": "IN", "intent": "commercial", "funnel_stage": "bofu", "prompt_type": "comparison", "importance": 4, "branded": true, "topics": ["mdr-vs-mssp"], "profile": {
+      "chatgpt_web": {"mention": 0.99, "cite": 0.6, "order": 1, "competitors": [["sentinelgate", 0.99]], "sources": [["peerreviews", 0.5], ["secopsjournal", 0.4]]},
+      "gemini_web": {"mention": 0.99, "cite": 0.55, "order": 1, "competitors": [["sentinelgate", 0.98]], "sources": [["peerreviews", 0.5], ["secopsjournal", 0.4]]}}},
+    {"key": "p71", "text": "Does Eventus Security have a SOC in the UAE?", "country": "AE", "intent": "navigational", "funnel_stage": "bofu", "prompt_type": "question", "importance": 3, "branded": true, "topics": ["soc-for-banks"], "profile": {
+      "chatgpt_web": {"mention": 0.9, "cite": 0.7, "order": 1, "competitors": [], "sources": [["gulfdigest", 0.3]]},
+      "gemini_web": {"mention": 0.9, "cite": 0.6, "order": 1, "competitors": [], "sources": [["gulfdigest", 0.3]]}}},
+    {"key": "p72", "text": "Does Eventus Security offer incident response retainers for Indian banks?", "country": "IN", "intent": "commercial", "funnel_stage": "bofu", "prompt_type": "question", "importance": 3, "branded": true, "topics": ["ir-retainers"], "profile": {
+      "chatgpt_web": {"mention": 0.97, "cite": 0.7, "order": 1, "competitors": [["cipherbridge", 0.3]], "sources": [["indiatechsec", 0.3]]},
+      "gemini_web": {"mention": 0.95, "cite": 0.65, "order": 1, "competitors": [["cipherbridge", 0.2]], "sources": [["indiatechsec", 0.3]]}}}
+  ]
+}

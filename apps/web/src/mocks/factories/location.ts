@@ -1,11 +1,11 @@
-import { MOCK_LOCATIONS } from '../entity-fixtures';
+import { mockLocations } from '../entity-fixtures';
 import type { components } from '@/lib/api/schema';
 
 type LocationRef = components['schemas']['LocationRef'];
 
 /** The location of the fixtures with this id, or `undefined`: `GET /api/v1/locations` knows no other. */
-export const mockLocation = (locationId: number): (typeof MOCK_LOCATIONS)[number] | undefined =>
-  MOCK_LOCATIONS.find((location) => location.location_id === locationId);
+export const mockLocation = (locationId: number): ReturnType<typeof mockLocations>[number] | undefined =>
+  mockLocations().find((location) => location.location_id === locationId);
 
 /**
  * The `LocationRef` a project shows for its `default_location_id` (19 section 3.3); `null` for none. The
