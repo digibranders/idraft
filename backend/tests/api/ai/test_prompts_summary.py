@@ -69,14 +69,15 @@ class Summary:
     rival: uuid.UUID
 
 
-async def _topic(pg: PostgresServer, project: Project, name: str) -> uuid.UUID:
+async def _topic(pg: PostgresServer, project: Project, name: str, kind: str = "topic") -> uuid.UUID:
     vocabulary = await fetchrow(
         pg,
         "INSERT INTO core.taxonomy_vocabularies (workspace_id, project_id, kind, name) "
-        "VALUES ($1, $2, 'topic', $3) RETURNING id",
+        "VALUES ($1, $2, $3, $4) RETURNING id",
         project.workspace_id,
         project.id,
-        f"Topics {uuid.uuid4().hex[:6]}",
+        kind,
+        f"Terms {uuid.uuid4().hex[:6]}",
     )
     term = await fetchrow(
         pg,
@@ -1099,9 +1100,11 @@ async def test_a_term_filter_keeps_the_term_and_the_terms_below_it(
     assert (unknown["prompts"], unknown["topics"]) == ([], [])
 
 
-async def test_another_workspaces_term_holds_no_prompt(
+async def test_a_term_id_of_another_workspace_gives_an_empty_page(
     api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
 ) -> None:
+    """Not a tenancy guard on its own: a prompt cannot be tagged with another workspace's term
+    (a foreign key), so this is the unknown-term case with a real term id. It answers 200."""
     other_workspace = await make_workspace(migrated)
     other = Project(other_workspace.id, await make_project(migrated, other_workspace.id))
     term = await _topic(migrated, other, "Managed SOC")
@@ -1135,3 +1138,133 @@ async def test_branded_only_keeps_the_branded_prompts(
     # The branded prompt has no topic, so nothing is under Managed SOC.
     assert (soc["prompts"], soc["topics"]) == ([], [])
     assert (default["branded_only"], default["include_branded"]) == (False, False)
+
+
+async def _tag(
+    migrated: PostgresServer, workspace_id: uuid.UUID, prompt_id: uuid.UUID, term: uuid.UUID
+) -> None:
+    await execute(
+        migrated,
+        "INSERT INTO ai.prompt_terms (prompt_id, term_id, workspace_id) VALUES ($1, $2, $3)",
+        prompt_id,
+        term,
+        workspace_id,
+    )
+
+
+async def test_a_term_of_another_project_holds_only_this_projects_prompts(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    """Terms are the workspace's, and a prompt may be tagged with a term of another project's
+    vocabulary (the database only ties a tag to the workspace). The term filter holds the
+    project's own prompts given the term, and never the other project's."""
+    other = Project(summary.workspace.id, await make_project(migrated, summary.workspace.id))
+    term = await _topic(migrated, other, "Elsewhere")
+    stranger = await add_prompt(migrated, other, "A question of the other project?")
+    misc = summary.prompts["misc"]
+    for prompt_id in (stranger.id, misc.id):
+        await _tag(migrated, summary.workspace.id, prompt_id, term)
+
+    response = await _summary(summary, api, **{"filter[term]": str(term)})
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert [row["prompt_id"] for row in data["prompts"]] == [str(misc.id)]
+    assert [(t["term_id"], t["prompt_count"]) for t in data["topics"]] == [(str(term), 1)]
+
+
+async def test_a_term_and_a_country_filter_apply_together(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    await execute(
+        migrated,
+        "UPDATE ai.prompts SET country_iso = 'IN' WHERE id = $1",
+        summary.prompts["pricing"].id,
+    )
+    soc, compliance = str(summary.topics["soc"]), str(summary.topics["compliance"])
+
+    async def prompts(term: str, country: str) -> set[str]:
+        response = await _summary(
+            summary, api, **{"filter[term]": term, "filter[country_iso]": country}
+        )
+        assert response.status_code == 200, response.text
+        return {row["prompt_id"] for row in response.json()["data"]["prompts"]}
+
+    pricing, providers = str(summary.prompts["pricing"].id), str(summary.prompts["providers"].id)
+    # Managed SOC holds `providers` (US) and `pricing` (IN); each country keeps one of them.
+    assert await prompts(soc, "IN") == {pricing}
+    assert await prompts(soc, "US") == {providers}
+    # Compliance holds `providers` alone, which is not Indian.
+    assert await prompts(compliance, "IN") == set()
+    assert await prompts(compliance, "US") == {providers}
+
+
+async def test_branded_only_and_a_country_filter_apply_together(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    await execute(
+        migrated,
+        "UPDATE ai.prompts SET country_iso = 'IN', is_branded = true WHERE id = $1",
+        summary.prompts["pricing"].id,
+    )
+
+    async def branded(country: str) -> list[str]:
+        response = await _summary(
+            summary, api, branded_only="true", **{"filter[country_iso]": country}
+        )
+        assert response.status_code == 200, response.text
+        return [row["prompt_id"] for row in response.json()["data"]["prompts"]]
+
+    # Branded now: `brand` (US) and `pricing` (IN).
+    assert await branded("IN") == [str(summary.prompts["pricing"].id)]
+    assert await branded("US") == [str(summary.prompts["brand"].id)]
+
+
+async def test_an_archived_and_a_deleted_prompt_stay_out_under_a_filter(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    """Both are given Managed SOC, are of the US and one is branded: no filter lets them in."""
+    soc = summary.topics["soc"]
+    gone = await add_prompt(migrated, summary.project, "A deleted SOC question?", branded=True)
+    await _tag(migrated, summary.workspace.id, gone.id, soc)
+    await execute(migrated, "UPDATE ai.prompts SET deleted_at = now() WHERE id = $1", gone.id)
+    archived = await add_prompt(
+        migrated, summary.project, "An archived branded question?", branded=True, active=False
+    )
+    await _tag(migrated, summary.workspace.id, archived.id, soc)
+    hidden = {str(gone.id), str(archived.id), str(summary.prompts["archived"].id)}
+
+    for params in (
+        {"filter[term]": str(soc), "filter[country_iso]": "US"},
+        {"filter[term]": str(soc), "include_branded": "true"},
+        {"branded_only": "true", "filter[country_iso]": "US"},
+    ):
+        response = await _summary(summary, api, **params)
+
+        assert response.status_code == 200, response.text
+        shown = {row["prompt_id"] for row in response.json()["data"]["prompts"]}
+        assert shown, params
+        assert not shown & hidden, params
+    soc_prompts = await _summary(summary, api, **{"filter[term]": str(soc)})
+    assert {row["prompt_id"] for row in soc_prompts.json()["data"]["prompts"]} == {
+        str(summary.prompts[name].id) for name in ("providers", "pricing")
+    }
+
+
+async def test_a_term_of_a_non_topic_vocabulary_filters_but_makes_no_topic_row(
+    api: httpx.AsyncClient, migrated: PostgresServer, summary: Summary
+) -> None:
+    """The filter takes any term of the workspace, but topic rows are of `topic` vocabularies
+    only. A term of another kind (here a cluster) lists the prompts given it and no topic row at
+    all: not one of the term, and not the row of no topic, which a term filter never shows."""
+    cluster = await _topic(migrated, summary.project, "Cluster one", kind="cluster")
+    misc = summary.prompts["misc"]
+    await _tag(migrated, summary.workspace.id, misc.id, cluster)
+
+    response = await _summary(summary, api, **{"filter[term]": str(cluster)})
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert [row["prompt_id"] for row in data["prompts"]] == [str(misc.id)]
+    assert data["prompts"][0]["topic_term_ids"] == []
+    assert data["topics"] == []
