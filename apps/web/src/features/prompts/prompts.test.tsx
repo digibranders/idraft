@@ -482,12 +482,22 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
         // The first cell holds the row's checkbox, the last its menu
         .slice(1, -1)
         .map((cell) => cell.textContent);
-    expect(rowOf(FIRST_TEXT)).toEqual(['SEO', 'Germany', '63% avg of 2', '33% avg of 2', '50% 3 of 6', '75% 6 of 8']);
+    // The empty text is the Trend cell, a sparkline that says its weeks in its accessible name
+    expect(rowOf(FIRST_TEXT)).toEqual([
+      'SEO',
+      'Germany',
+      '63% avg of 2',
+      '33% avg of 2',
+      '',
+      '50% 3 of 6',
+      '75% 6 of 8',
+    ]);
     expect(rowOf('How do I run a technical SEO audit on a large site?')).toEqual([
       'Technical SEO',
       'Germany',
       '79% avg of 2',
       '25% avg of 2',
+      '',
       '83% 5 of 6',
       '75% 6 of 8',
     ]);
@@ -1964,13 +1974,24 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
         // The first header holds the checkbox that selects every row, the last is the menus' column
         .slice(1, -1)
         .map((header) => header.textContent?.replace(/\d$/, '')),
-    ).toEqual(['Prompt', 'Topic', 'Country', 'Mention rate', 'Citation rate', 'ChatGPT mention', 'Gemini mention']);
-    // The average is over the engines that have a rate, and says how many; the count behind each engine stays
+    ).toEqual([
+      'Prompt',
+      'Topic',
+      'Country',
+      'Mention rate',
+      'Citation rate',
+      'Trend',
+      'ChatGPT mention',
+      'Gemini mention',
+    ]);
+    // The average is over the engines that have a rate, and says how many; the count behind each engine stays.
+    // The empty text is the Trend cell, which has no text of its own (and none at all in these summaries)
     expect(cellsOf(table, 'Question number 1?')).toEqual([
       'SEO',
       'Germany',
       '50% avg of 2',
       '69% avg of 2',
+      '',
       '75% 6 of 8',
       '25% 2 of 8',
     ]);
@@ -1979,6 +2000,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
       'Germany',
       '56% avg of 2',
       '25% avg of 2',
+      '',
       '38% 3 of 8',
       '75% 3 of 4',
     ]);
@@ -1988,6 +2010,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
       'Germany',
       '2 answers',
       '2 answers',
+      '',
       '2 answers',
       'No answers',
     ]);
@@ -2076,6 +2099,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
       'Mention rate',
       'Citation rate',
       'Top engine',
+      'Trend',
       'ChatGPT mentioned',
       'ChatGPT cited',
       'Gemini mentioned',
@@ -2087,6 +2111,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
       '53% avg of 2',
       '47% avg of 2',
       'ChatGPT',
+      '',
       '9 of 16',
       '4 of 16',
       '5 of 12',
@@ -2097,6 +2122,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
       '2 answers',
       '2 answers',
       'n/a',
+      '',
       '1 of 2',
       '0 of 2',
       'No answers',

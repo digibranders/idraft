@@ -321,6 +321,8 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 
 ### Task W11: Weekly trend sparklines and the topic visibility trend (G29, G44, G112; DB-01)
 
+**Status (2026-11-12): the Trend columns are done** (commit "Topics & Prompts: a weekly Trend column"): `trend-model.ts` (`trendPoints`, `trendDirection`), `trend-column.tsx` (`useTrendColumn` on `SparklineCell`), both tables, and the page's one summary read now asks `include=series`. On the Eventus mock data that read is 479 KB for 28 days and 1.03 MB for 90 days, against 178 KB and 188 KB without it, so gzip (B0) should be on first. Not built: the topic drawer's trend chart, entity lines, hollow points for weeks under 4 answers, and the second read from 55 days back (the series follows the window of the page).
+
 **Needs from the backend:** B3 (D1 Task 4: `include=series`, weeks start Monday in the project timezone, at most 14 points, empty weeks as zero counts with `value` null). Entity lines in the drawer also need B5, and the API gzip task B0 should be on develop first (decided 2026-11-12; `include=series,entities` is about 1.5 MB at full capacity). **Mocks first:** to D1 Decision 9.
 
 **Files:** Modify `topics-table.tsx`, `prompt-columns.tsx` (Trend column on `SparklineCell`), `topic-inspector.tsx` (trend chart on `ChartFrame`), `prompt-queries.ts` (a second read with `from` 55 days back when an 8 week sparkline sits beside a 28 day table, D1 open point 1), mocks.

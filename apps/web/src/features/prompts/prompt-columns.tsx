@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { countText, engineSortId, SORT_ID, validAnswers, type RateMetric } from './prompt-model';
 import { ENGINE_COLUMN_WIDTH, useEngineRateColumns, useRateColumns } from './rate-columns';
 import { cellFigure } from './rate-model';
+import { useTrendColumn } from './trend-column';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { Badge } from '@/components/ui/badge';
@@ -111,13 +112,15 @@ const cellsOfPrompt = (row: PromptRow): readonly EngineSummary[] | undefined =>
 
 /**
  * The columns of the Prompts tab (ADR-DS-022 decision 9): Prompt, Topic, Country, Mention rate and Citation
- * rate (the average of the engines shown), then each engine shown with the value of `metric`. The counts of
+ * rate (the average of the engines shown), Trend (the weekly mention rate), then each engine shown with the
+ * value of `metric`. The counts of
  * Mentioned and Cited per engine wait in the column chooser.
  */
 export function usePromptColumns(engines: readonly ProjectEngine[], metric: RateMetric): PromptColumns {
   const t = useTranslations('prompts');
   const locale = useLocale();
   const { mention, citation } = useRateColumns(engines, cellsOfPrompt);
+  const trend = useTrendColumn(engines, cellsOfPrompt);
   const engineRateColumns = useEngineRateColumns(engines, cellsOfPrompt, metric);
   const countColumns = useEngineColumns(engines, cellsOfPrompt, { sortable: true, defaultVisible: false });
   return useMemo(() => {
@@ -166,6 +169,7 @@ export function usePromptColumns(engines: readonly ProjectEngine[], metric: Rate
       }),
       mention,
       citation,
+      trend,
       ...engineRateColumns,
       ...countColumns,
     ];
@@ -175,5 +179,5 @@ export function usePromptColumns(engines: readonly ProjectEngine[], metric: Rate
       searchText: (row) => `${row.prompt.current_version.text} ${row.topics ?? ''}`.toLocaleLowerCase(locale),
       rowName: (row) => row.prompt.current_version.text,
     };
-  }, [t, locale, mention, citation, engineRateColumns, countColumns]);
+  }, [t, locale, mention, citation, trend, engineRateColumns, countColumns]);
 }

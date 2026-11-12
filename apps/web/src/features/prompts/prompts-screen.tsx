@@ -137,6 +137,9 @@ const VIEW_STATE = {
   metric: parseAsString,
 };
 
+/** The weekly series, asked of the summary for the Trend column. Module level, so the query's key stays the same. */
+const SERIES: readonly ['series'] = ['series'];
+
 const promptRowId = (row: PromptRow): string => row.prompt.prompt_id;
 const NO_PROMPTS: ReadonlySet<string> = new Set();
 const nothing = (): void => undefined;
@@ -292,9 +295,11 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     return chosen.length === 0 ? enabled : enabled.filter((engine) => chosen.includes(engine.engine.engine_code));
   }, [enabled, values.engine]);
 
-  // The table stays on the last counts while a new window, or the Branded filter, is read
+  // The table stays on the last counts while a new window, or the Branded filter, is read. The weekly series of the
+  // Trend column comes with them in the one read, which the strip and the drawers use too: a failed series cannot
+  // be told from a failed summary, and a summary without series (an older API) leaves the Trend cells blank
   const summary = useQuery({
-    ...summaryQuery(scope, range, includeBranded, country === null ? {} : { country }),
+    ...summaryQuery(scope, range, includeBranded, { ...(country === null ? {} : { country }), include: SERIES }),
     enabled: enabled.length > 0,
     placeholderData: keepPreviousData,
   });

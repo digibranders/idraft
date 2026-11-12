@@ -21,6 +21,7 @@ import { useRateColumns } from './rate-columns';
 import { sortByKeys } from './rate-model';
 import { applyRowChange, rowSelection, topicsChosen, type RowPrompts } from './selection-model';
 import { buildTopicTree, countTopicRows, sortTopicTree, type TopicBranch } from './topic-tree';
+import { useTrendColumn } from './trend-column';
 import { col } from '@/components/app/data-table/columns';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { DataTableColumn, RowTree, TableStatus } from '@/components/app/data-table/types';
@@ -153,7 +154,7 @@ export type TopicMenuTarget =
 
 /**
  * The Topics tab (ADR-DS-022 decisions 2, 3 and 5, parity spec D-3): a tree of two levels, with each topic's Mention
- * rate and Citation rate (the average of the engines shown), its Top engine, and per engine its Mentioned and
+ * rate and Citation rate (the average of the engines shown), its Top engine, its weekly Trend, and per engine its Mentioned and
  * Cited counts. The rows come highest Mention rate first, a tie by name, and sort by each column that has a sort
  * (`sortText`, the address's `sort`); the table sorts the topics itself, since a tree shows its rows as given, the
  * top level among itself and the topics under a parent among theirs.
@@ -209,6 +210,7 @@ export function TopicsTable({
   // The rates are prompt weighted while the counts shown are answers: the header says so
   const note = t('topics.weighted');
   const rateColumns = useRateColumns(engines, cellsOf, { note });
+  const trendColumn = useTrendColumn(engines, cellsOf);
   const engineColumns = useEngineColumns(engines, cellsOf, { sortable: true, note });
   // The latest handler, so the columns (which the table keys its work by) do not change with every render
   const latestOpenTopic = useRef(onOpenTopic);
@@ -295,9 +297,10 @@ export function TopicsTable({
       blankOnMore(rateColumns.mention),
       blankOnMore(rateColumns.citation),
       blankOnMore(rateColumns.topEngine),
+      blankOnMore(trendColumn),
       ...engineColumns.map(blankOnMore),
     ];
-  }, [t, rowName, openTopic, rateColumns, engineColumns]);
+  }, [t, rowName, openTopic, rateColumns, trendColumn, engineColumns]);
   // Only the columns that sort: `?sort=-topic` of the Prompts tab names a column here that does not
   const sortValues = useMemo(
     () =>
