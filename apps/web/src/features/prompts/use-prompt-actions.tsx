@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Archive, Download, Play } from 'lucide-react';
+import { Archive, Copy, Download, PanelRight, Play } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
@@ -29,6 +29,7 @@ import { projectKey } from '@/lib/api/keys';
 import { isApiProblem } from '@/lib/api/problem';
 import type { ProjectEngine } from '@/lib/api/types';
 import { csvBlob, downloadBlob } from '@/lib/csv/csv-write';
+import { copyText } from '@/lib/dom/clipboard';
 import { useCountries } from '@/lib/locations/countries';
 import { useCan } from '@/lib/permissions';
 
@@ -61,6 +62,12 @@ export interface PromptActionsOptions {
 export interface PromptActions {
   /** The bulk bar's actions on the prompts of `ids`, for the permissions the person has. */
   bar: (ids: readonly string[]) => PromptAction[];
+  /** The row menu of one prompt: `open` shows it in the inspector. */
+  forPrompt: (promptId: string, open: () => void) => PromptAction[];
+  /** Run now on the prompts of `ids` (a topic's): asks first for more than one. The caller checks `runs:trigger`. */
+  run: (ids: readonly string[]) => void;
+  /** Writes the prompts of `ids` as CSV. */
+  exportPrompts: (ids: readonly string[]) => void;
   /** The dialogs the actions open; the screen renders them once. */
   dialogs: ReactNode;
 }
@@ -342,6 +349,53 @@ export function usePromptActions({
     ];
   };
 
+  const copyPrompt = (text: string): void => {
+    void copyText(text).then((copied) =>
+      toast(copied ? { type: 'success', title: t('rowMenu.copied') } : { type: 'error', title: common('copy.failed') }),
+    );
+  };
+  /** The menu of a prompt's row, wherever it is listed: Open, Run now, Copy prompt and Archive, by permission. */
+  const forPrompt = (promptId: string, open: () => void): PromptAction[] => {
+    const row = rowsById.get(promptId);
+    if (row === undefined) return [];
+    const runnable = planRuns([row.prompt], engines, countries.length > 0 ? countries : null).runnable.length > 0;
+    return [
+      { id: 'open', label: t('rowMenu.open'), icon: PanelRight, group: 'open', run: open },
+      ...(canTrigger
+        ? [
+            {
+              id: 'run-now',
+              label: t('bulk.run'),
+              icon: Play,
+              group: 'object' as const,
+              disabledReason: runnable ? null : t('inspector.runNoEngine'),
+              run: () => startRun([promptId]),
+            },
+          ]
+        : []),
+      {
+        id: 'copy',
+        label: t('rowMenu.copyPrompt'),
+        icon: Copy,
+        group: 'copy',
+        run: () => copyPrompt(row.prompt.current_version.text),
+      },
+      ...(canWrite
+        ? [
+            {
+              id: 'archive',
+              label: t('bulk.archive'),
+              icon: Archive,
+              // Last, but neutral: it loses nothing, and its toast has Undo
+              group: 'destructive' as const,
+              tone: 'default' as const,
+              run: () => startArchive([promptId]),
+            },
+          ]
+        : []),
+    ];
+  };
+
   const count = asking?.ids.length ?? 0;
   const dialogs = (
     <ConfirmDialog
@@ -372,5 +426,5 @@ export function usePromptActions({
     />
   );
 
-  return { bar, dialogs };
+  return { bar, forPrompt, run: startRun, exportPrompts, dialogs };
 }

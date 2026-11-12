@@ -479,8 +479,8 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
     const rowOf = (text: string): (string | null)[] =>
       within(within(table).getByText(text).closest('[role="row"]') as HTMLElement)
         .getAllByRole('gridcell')
-        // The first cell holds the row's checkbox
-        .slice(1)
+        // The first cell holds the row's checkbox, the last its menu
+        .slice(1, -1)
         .map((cell) => cell.textContent);
     expect(rowOf(FIRST_TEXT)).toEqual(['SEO', 'Germany', '63% avg of 2', '33% avg of 2', '50% 3 of 6', '75% 6 of 8']);
     expect(rowOf('How do I run a technical SEO audit on a large site?')).toEqual([
@@ -1943,8 +1943,8 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
   const cellsOf = (table: HTMLElement, name: string): (string | null)[] =>
     within(rowOf(table, name))
       .getAllByRole('gridcell')
-      // The first cell holds the row's checkbox
-      .slice(1)
+      // The first cell holds the row's checkbox, the last its menu
+      .slice(1, -1)
       .map((cell) => cell.textContent);
   // A parent's name is its row's label, which its muted count ("2 prompts") follows in the cell
   const order = (table: HTMLElement): string[] =>
@@ -1961,8 +1961,8 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     expect(
       within(table)
         .getAllByRole('columnheader')
-        // The first header holds the checkbox that selects every row
-        .slice(1)
+        // The first header holds the checkbox that selects every row, the last is the menus' column
+        .slice(1, -1)
         .map((header) => header.textContent?.replace(/\d$/, '')),
     ).toEqual(['Prompt', 'Topic', 'Country', 'Mention rate', 'Citation rate', 'ChatGPT mention', 'Gemini mention']);
     // The average is over the engines that have a rate, and says how many; the count behind each engine stays
@@ -2038,7 +2038,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent)
-        .slice(-2),
+        .slice(-3, -1),
     ).toEqual(['ChatGPT citation', 'Gemini citation']);
     expect(cellsOf(table, 'Question number 1?').slice(-2)).toEqual(['50% 4 of 8', '88% 7 of 8']);
     expect(new URLSearchParams(writes.at(-1)).get('metric')).toBe('citation');
@@ -2048,7 +2048,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     expect(cellsOf(table, 'Question number 1?').slice(-2)).toEqual(['50% 6 answers', 'n/a']);
     expect(new URLSearchParams(writes.at(-1)).get('metric')).toBe('sov');
     // Three answers that name a brand are too few for a share, and the tip says so in those words
-    expect(within(rowOf(table, 'Question number 2?')).getAllByRole('gridcell').at(-2)).toHaveAccessibleDescription(
+    expect(within(rowOf(table, 'Question number 2?')).getAllByRole('gridcell').at(-3)).toHaveAccessibleDescription(
       'Too few answers that name a brand for a share: 3 of the 4 it needs.',
     );
     await user.click(screen.getByRole('button', { name: 'Columns' }));
@@ -2067,8 +2067,8 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     expect(
       within(tree)
         .getAllByRole('columnheader')
-        // The first header holds the checkbox that selects every row
-        .slice(1)
+        // The first header holds the checkbox that selects every row, the last is the menus' column
+        .slice(1, -1)
         .map((header) => header.textContent),
     ).toEqual([
       'Topic',

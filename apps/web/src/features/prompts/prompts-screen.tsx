@@ -1,7 +1,18 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Ban, Link2, ListTree, MessageSquare, MoreHorizontal, Plus, Power } from 'lucide-react';
+import {
+  Ban,
+  Download,
+  Link2,
+  ListTree,
+  MessageSquare,
+  MoreHorizontal,
+  PanelRight,
+  Play,
+  Plus,
+  Power,
+} from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { parseAsString, useQueryStates } from 'nuqs';
@@ -47,7 +58,7 @@ import { PromptsStrip } from './prompts-strip';
 import { topicsSpanned, type StripPrompt } from './strip-model';
 import { usePromptActions } from './use-prompt-actions';
 import { TopicInspector } from './topic-inspector';
-import { TopicsTable } from './topics-table';
+import { TopicsTable, type TopicMenuTarget } from './topics-table';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { TableStatus } from '@/components/app/data-table/types';
 import { FilterBar } from '@/components/app/filters/filter-bar';
@@ -473,6 +484,82 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     else inspector.open({ type: 'topic', id: key }, { tab });
   };
 
+  // Add prompts, from the header (no topic) or from a topic's menu (that topic chosen). The form is made once, so a
+  // new topic is a new dialog
+  const [addTopic, setAddTopic] = useState<string | null>(null);
+  const openAdd = (termId: string | null): void => {
+    setAddTopic(termId);
+    setAddOpen(true);
+  };
+  /** The Prompts tab with this topic as its topic filter, the other filters, the window and the country kept. */
+  const showInPrompts = (key: string): void => {
+    void setValues({ ...values, topic: { kind: 'enum', values: [key] } });
+    void setView({ tab: 'prompts' }, { history: 'push' });
+  };
+  const canRun = useCan('runs:trigger');
+  /** The "More" menu of a row of the Topics tab: a topic's, or the prompt listed under a topic's. */
+  const topicMenu = (target: TopicMenuTarget): readonly PromptAction[] => {
+    if (target.kind === 'prompt') {
+      return actions.forPrompt(target.promptId, () => openPromptRow(target.promptId, 'inspector', target.topicKey));
+    }
+    // The prompts without a topic are no topic to filter by or to add a prompt to
+    const real = target.key !== NO_TOPIC;
+    const held = target.promptIds.length > 0;
+    return [
+      {
+        id: 'open',
+        label: t('rowMenu.open'),
+        icon: PanelRight,
+        group: 'open',
+        run: () => openTopicDrawer(target.key, 'overview'),
+      },
+      ...(real
+        ? [
+            {
+              id: 'show-in-prompts',
+              label: t('rowMenu.showInPrompts'),
+              icon: MessageSquare,
+              group: 'open' as const,
+              run: () => showInPrompts(target.key),
+            },
+          ]
+        : []),
+      ...(canRun && held
+        ? [
+            {
+              id: 'run-now',
+              label: t('bulk.run'),
+              icon: Play,
+              group: 'object' as const,
+              run: () => actions.run(target.promptIds),
+            },
+          ]
+        : []),
+      ...(canWrite && real && engines.data !== undefined
+        ? [
+            {
+              id: 'add-prompt',
+              label: t('rowMenu.addPrompt'),
+              icon: Plus,
+              group: 'object' as const,
+              run: () => openAdd(target.key),
+            },
+          ]
+        : []),
+      ...(held
+        ? [
+            {
+              id: 'export',
+              label: t('bulk.export'),
+              icon: Download,
+              group: 'copy' as const,
+              run: () => actions.exportPrompts(target.promptIds),
+            },
+          ]
+        : []),
+    ];
+  };
+
   // The summary is pending only before its first answer: a new window keeps the last counts meanwhile
   // A topic or country that matches nothing so far may still match a page that is on its way
   const waiting =
@@ -512,14 +599,14 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // Not before the engines are known: the dialog takes the enabled ones
   const addButton =
     canWrite && engines.data !== undefined ? (
-      <Button variant="primary" size="sm" icon={Plus} onClick={() => setAddOpen(true)}>
+      <Button variant="primary" size="sm" icon={Plus} onClick={() => openAdd(null)}>
         {t('addPrompts')}
       </Button>
     ) : null;
   // In the header row the label gives way to the icon below 640 px, and stays the button's name
   const headerAdd =
     addButton === null ? null : (
-      <Button variant="primary" size="sm" icon={Plus} onClick={() => setAddOpen(true)}>
+      <Button variant="primary" size="sm" icon={Plus} onClick={() => openAdd(null)}>
         <span className="sr-only sm:not-sr-only">{t('addPrompts')}</span>
       </Button>
     );
@@ -758,6 +845,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               chosen={chosen}
               onChosenChange={setChosen}
               bulkActions={bulkActions}
+              rowMenu={topicMenu}
             />
           </div>
         ) : (
@@ -837,6 +925,11 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                   onAllMatchingChange: nothing,
                 }}
                 bulkActions={asRecordActions<PromptRow>(bulkActions)}
+                rowActions={(row) =>
+                  asRecordActions<PromptRow>(
+                    actions.forPrompt(row.prompt.prompt_id, () => openPromptRow(row.prompt.prompt_id)),
+                  )
+                }
               />
             </div>
           </div>
@@ -965,12 +1058,17 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       {actions.dialogs}
       {canWrite ? (
         <AddPromptsDialog
+          key={addTopic ?? 'no-topic'}
           scope={scope}
           open={addOpen}
           onOpenChange={setAddOpen}
           engines={enabled}
           existing={list.rows}
-          defaults={{ languageCode: project.defaultLanguage, countryIso: project.defaultCountryIso }}
+          defaults={{
+            languageCode: project.defaultLanguage,
+            countryIso: project.defaultCountryIso,
+            termId: addTopic,
+          }}
         />
       ) : null}
     </InspectorLayout>

@@ -3381,6 +3381,13 @@
       "topics": "Topics",
       "prompts": "Prompts"
     },
+    "rowMenu": {
+      "open": "Open",
+      "showInPrompts": "Show in Prompts",
+      "addPrompt": "Add prompt",
+      "copyPrompt": "Copy prompt",
+      "copied": "Prompt copied"
+    },
     "bulk": {
       "topicsSelected": "{topics, plural, one {# topic} other {# topics}} selected, {prompts, plural, one {# prompt} other {# prompts}}",
       "run": "Run now",

@@ -240,6 +240,6 @@ describe('the bulk bar of the Topics tab', () => {
     const dialog = await screen.findByRole('alertdialog', { name: 'Run 12 prompts now?' });
     expect(within(dialog).getByText(/manual runs a day/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
-    expect(screen.queryByRole('alertdialog')).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
   });
 });

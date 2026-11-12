@@ -104,6 +104,13 @@ test.describe('AI prompt tracking', () => {
     await expect(table.getByText(FIRST_PROMPT)).toBeVisible();
     // The table is there, so a missing button is the viewer's, not a page still loading
     await expect(page.getByRole('button', { name: 'Add prompts' })).toHaveCount(0);
+    // A row's checkbox brings up the bulk bar, which gives a viewer Export CSV and no action that changes anything
+    await table.getByRole('checkbox', { name: `Select ${FIRST_PROMPT}` }).check();
+    const bulkBar = page.getByRole('group', { name: /^Bulk actions, 1 selected/ });
+    await expect(bulkBar.getByRole('button', { name: 'Export CSV' })).toBeVisible();
+    await expect(bulkBar.getByRole('button', { name: 'Archive' })).toHaveCount(0);
+    await bulkBar.getByRole('button', { name: 'Clear selection' }).click();
+    await expect(bulkBar).toBeHidden();
     const inspector = await openFirstPrompt(page);
     await expect(inspector.getByRole('table', { name: 'Answers to this prompt' })).toBeVisible();
     // The facts and the counts are in (the country is named once the countries have loaded, which Run now waits

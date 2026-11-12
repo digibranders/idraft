@@ -135,7 +135,21 @@ export interface TopicsTableProps {
   onChosenChange: (ids: ReadonlySet<string>) => void;
   /** The bulk bar's actions, on the chosen prompts. */
   bulkActions: readonly PromptAction[];
+  /** The actions of a row's "More" menu: a topic's, or a prompt listed under a topic's. */
+  rowMenu: (target: TopicMenuTarget) => readonly PromptAction[];
 }
+
+/** What a row's menu is asked for. */
+export type TopicMenuTarget =
+  | {
+      kind: 'topic';
+      /** The term id, or `__none` for the prompts without a topic. */
+      key: string;
+      name: string;
+      /** The prompts the topic holds, a parent's with those of its topics; empty while they cannot be told. */
+      promptIds: readonly string[];
+    }
+  | { kind: 'prompt'; promptId: string; topicKey: string };
 
 /**
  * The Topics tab (ADR-DS-022 decisions 2, 3 and 5, parity spec D-3): a tree of two levels, with each topic's Mention
@@ -184,6 +198,7 @@ export function TopicsTable({
   chosen,
   onChosenChange,
   bulkActions,
+  rowMenu,
 }: TopicsTableProps): ReactElement {
   const t = useTranslations('prompts');
   const locale = useLocale();
@@ -534,6 +549,16 @@ export function TopicsTable({
           headerCoversGroups: true,
         }}
         bulkActions={asRecordActions<TopicRow>(bulkActions)}
+        rowActions={(row) => {
+          if (row.kind === 'more') return [];
+          return asRecordActions<TopicRow>(
+            rowMenu(
+              row.kind === 'prompt'
+                ? { kind: 'prompt', promptId: row.promptId, topicKey: row.topicKey }
+                : { kind: 'topic', key: row.key, name: row.name, promptIds: idsOf(row.members) },
+            ),
+          );
+        }}
         onRowOpen={(row, intent) => {
           // A topic row that opens no group (a topic under its parent, or one whose prompts cannot be told yet) and
           // the "Show all" row open the drawer
