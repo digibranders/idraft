@@ -1179,18 +1179,23 @@ describe('prompts summary with include=entities', () => {
     expect(engineRows(comma).every((engine) => engine.entities?.length === 6)).toBe(true);
   });
 
-  it('refuses a block the API does not build yet, `series` and any unknown value, as the API does', async () => {
+  it('refuses any value but series and entities, as the API does', async () => {
     const viewer = mockBrowser('viewer');
     const codes = async (value: string): Promise<string[]> =>
       fieldCodes(await viewer.call('GET', `${FYNIX}/ai/prompts-summary?include=${value}`));
-    expect(await codes('series')).toEqual(['include.0:literal_error']);
-    expect(await codes('entities,series')).toEqual(['include.1:literal_error']);
-    expect(await codes('bogus,series')).toEqual(['include.0:literal_error', 'include.1:literal_error']);
-    const answer = await viewer.call('GET', `${FYNIX}/ai/prompts-summary?include=series`);
+    expect(await codes('bogus')).toEqual(['include.0:literal_error']);
+    expect(await codes('entities,bogus')).toEqual(['include.1:literal_error']);
+    expect(await codes('bogus,weeks')).toEqual(['include.0:literal_error', 'include.1:literal_error']);
+    const answer = await viewer.call('GET', `${FYNIX}/ai/prompts-summary?include=bogus`);
     expect(answer.status).toBe(422);
     expect(answer.code).toBe('validation_failed');
     expect(answer.body.errors).toEqual([
-      { location: 'query', path: 'include.0', code: 'literal_error', message: "Input should be 'entities'" },
+      {
+        location: 'query',
+        path: 'include.0',
+        code: 'literal_error',
+        message: "Input should be 'series' or 'entities'",
+      },
     ]);
   });
 });

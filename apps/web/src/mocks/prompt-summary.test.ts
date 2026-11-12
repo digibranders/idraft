@@ -6,13 +6,17 @@ import {
   countsOf,
   ENTITY_CELLS_MAX,
   entityCountsOf,
+  mondayOf,
   NO_COUNTS,
   NOT_NAMED,
   promptCells,
   promptEntityCells,
+  summaryWeeks,
   topicEntityCells,
+  weekCells,
   type NamedAnswer,
 } from './prompt-summary';
+import { shiftIsoDate } from './serp-views';
 
 const OWN = 'own-brand';
 const C1 = 'competitor-1';
@@ -151,5 +155,53 @@ describe('the entities that get cells', () => {
     expect(ids).toHaveLength(20);
     expect(ids[0]).toBe('mine');
     expect(ids.slice(1)).toEqual(many.slice(0, 19).map((entity) => entity.entity_id));
+  });
+});
+
+describe('the weeks of a series', () => {
+  it('start on Monday: a Monday is its own week, a Sunday belongs to the Monday six days before', () => {
+    expect(mondayOf('2026-11-09')).toBe('2026-11-09');
+    expect(mondayOf('2026-11-12')).toBe('2026-11-09');
+    expect(mondayOf('2026-11-15')).toBe('2026-11-09');
+    expect(mondayOf('2026-11-16')).toBe('2026-11-16');
+  });
+
+  it('cross a year and a leap day', () => {
+    expect(mondayOf('2027-01-01')).toBe('2026-12-28');
+    expect(mondayOf('2024-03-01')).toBe('2024-02-26');
+    expect(summaryWeeks('2026-12-30', '2027-01-05')).toEqual(['2026-12-28', '2027-01-04']);
+  });
+
+  it('are the Mondays the days touch, the first one before the window when it starts mid week', () => {
+    expect(summaryWeeks('2026-11-12', '2026-11-12')).toEqual(['2026-11-09']);
+    expect(summaryWeeks('2026-11-09', '2026-11-09')).toEqual(['2026-11-09']);
+    expect(summaryWeeks('2026-11-15', '2026-11-15')).toEqual(['2026-11-09']);
+    expect(summaryWeeks('2026-11-15', '2026-11-16')).toEqual(['2026-11-09', '2026-11-16']);
+    expect(summaryWeeks('2026-10-16', '2026-11-12')).toEqual([
+      '2026-10-12',
+      '2026-10-19',
+      '2026-10-26',
+      '2026-11-02',
+      '2026-11-09',
+    ]);
+  });
+
+  it('are at most 14 in 92 days, whatever weekday the window starts on', () => {
+    for (let offset = 0; offset < 7; offset += 1) {
+      const first = shiftIsoDate('2026-01-01', offset);
+      const weeks = summaryWeeks(first, shiftIsoDate(first, 91));
+      expect(weeks).toHaveLength(14);
+      expect(weeks.every((week) => mondayOf(week) === week)).toBe(true);
+    }
+  });
+
+  it('give the weekly cells of an engine row: the week, and its Mentioned, Cited and Share of voice', () => {
+    const cells = promptCells('chatgpt_web', COUNTS);
+    expect(weekCells('2026-11-09', cells)).toEqual({
+      week_start: '2026-11-09',
+      mentioned: cells.mentioned,
+      cited: cells.cited,
+      share_of_voice: cells.share_of_voice,
+    });
   });
 });

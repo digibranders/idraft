@@ -1,4 +1,4 @@
-import type { EngineSummary, EntityCells, MentionOut, MetricCell, ObservationDetail } from '@/lib/api/types';
+import type { EngineSummary, EntityCells, MentionOut, MetricCell, ObservationDetail, WeekCells } from '@/lib/api/types';
 
 /**
  * The arithmetic of the prompts summary, as the API does it (backend `api/ai/summary.py` and
@@ -136,6 +136,35 @@ export function topicCells(engineCode: string, members: readonly Counts[]): Engi
     ),
   };
 }
+
+// The weekly series of `include=series` (backend `summary.py` `summary_weeks` and `_week`): a week starts on Monday
+// in the project's zone, and the days given here are already project days.
+
+const WEEK_DAYS = 7;
+const dayNumber = (isoDate: string): number => Date.parse(`${isoDate}T00:00:00Z`) / 86_400_000;
+const isoOfDay = (day: number): string => new Date(day * 86_400_000).toISOString().slice(0, 10);
+
+/** The Monday of the week a project day is in. */
+export function mondayOf(isoDate: string): string {
+  const day = dayNumber(isoDate);
+  // Day 0 (1970-01-01) was a Thursday, so a Monday is day 4 modulo 7
+  return isoOfDay(day - ((((day - 4) % WEEK_DAYS) + WEEK_DAYS) % WEEK_DAYS));
+}
+
+/** The Mondays of the weeks the days `first` to `last` touch, oldest first: at most 14 in 92 days. */
+export function summaryWeeks(first: string, last: string): string[] {
+  const weeks: string[] = [];
+  for (let week = dayNumber(mondayOf(first)); week <= dayNumber(last); week += WEEK_DAYS) weeks.push(isoOfDay(week));
+  return weeks;
+}
+
+/** One point of a series: the week, and the cells of the engine row over the week's answers. */
+export const weekCells = (weekStart: string, cells: EngineSummary): WeekCells => ({
+  week_start: weekStart,
+  mentioned: cells.mentioned,
+  cited: cells.cited,
+  share_of_voice: cells.share_of_voice,
+});
 
 // The cells per tracked entity of `include=entities` (backend `summary.py` `_entity_cells`, `summary_repository.py`
 // `entity_counts`): an answer's share of voice set is its mentions with a mention order, so an entity is named by a

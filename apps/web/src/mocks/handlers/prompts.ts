@@ -620,6 +620,48 @@ export const promptHandlers: HttpHandler[] = [
     return HttpResponse.json({ data: { created: created.map((prompt) => prompt.prompt_id), skipped, rejected } });
   }),
 
+  // Archives (`archive: true`) or brings back (`false`) up to 1,000 of the project's prompts, as DELETE and
+  // `PATCH is_active: true` do one (backend `bulk_archive_prompts`, plan D2): an id the project does not have is not
+  // matched, and bringing back counts against the workspace's active prompt limit, all or none.
+  mock('post', `${PROMPTS}/bulk-archive`, async ({ request, cookies, params }) => {
+    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'prompts:write',
+    });
+    if (caller instanceof Response) return caller;
+    let body: unknown;
+    try {
+      body = JSON.parse(await request.text());
+    } catch {
+      return invalid(request, [bodyError('', 'json_invalid', 'JSON decode error')]);
+    }
+    if (!isRecord(body)) return invalid(request, [notAnObject()]);
+    const errors = extraMembers(body, ['ids', 'archive']);
+    const given = body.ids;
+    if (given === undefined) errors.push(bodyError('ids', 'missing', 'Field required'));
+    else if (!Array.isArray(given)) errors.push(bodyError('ids', 'list_type', 'Input should be a valid list'));
+    else if (given.length === 0) errors.push(bodyError('ids', 'too_short', 'List should have at least 1 item'));
+    else if (given.length > BULK_MAX)
+      errors.push(bodyError('ids', 'too_long', `List should have at most ${String(BULK_MAX)} items`));
+    else given.forEach((id: unknown, index) => errors.push(...uuidError(id, `ids.${String(index)}`)));
+    if (body.archive === undefined) errors.push(bodyError('archive', 'missing', 'Field required'));
+    else errors.push(...booleanError(body.archive, 'archive'));
+    if (errors.length > 0 || !Array.isArray(given)) return invalid(request, errors);
+    const archive = body.archive === true;
+    const wanted = new Set(given.filter((id): id is string => typeof id === 'string'));
+    const found = promptsOf(caller.project.project_id).prompts.filter((prompt) => wanted.has(prompt.prompt_id));
+    const changing = found.filter((prompt) => prompt.is_active === archive);
+    if (!archive && changing.length > 0) {
+      const used = activePromptCount(workspaceProjects(caller));
+      if (used + changing.length > PROMPT_QUOTA) return quotaProblem(request, used, changing.length);
+    }
+    const now = isoOf(Date.now());
+    for (const prompt of changing) {
+      prompt.is_active = !archive;
+      prompt.updated_at = now;
+    }
+    return HttpResponse.json({ data: { matched: found.length, updated: changing.length } });
+  }),
+
   mock('post', `${PROMPTS}/lint`, async ({ request, cookies, params }) => {
     const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, { permission: 'data:read' });
     if (caller instanceof Response) return caller;

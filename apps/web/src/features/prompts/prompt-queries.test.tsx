@@ -7,7 +7,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   aiKey,
   ARCHIVE_PROMPT,
+  bulkArchive,
   BULK_CREATE_PROMPTS,
+  bulkRun,
   enginesKey,
   enginesQuery,
   MAX_PROMPTS,
@@ -34,8 +36,8 @@ import { makeQueryClient } from '@/lib/api/query-client';
 import type { EngineCode } from '@/lib/api/types';
 import { MOCK_TERM_IDS } from '@/mocks/entity-fixtures';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
-import { FIXTURE_PROMPTS } from '@/mocks/prompt-fixtures';
-import { AI_ANSWER_QUOTA, promptsOf, setProviderPaused } from '@/mocks/prompts-state';
+import { FIXTURE_PROMPTS, PROMPT_QUOTA } from '@/mocks/prompt-fixtures';
+import { activePromptCount, AI_ANSWER_QUOTA, promptsOf, setProviderPaused } from '@/mocks/prompts-state';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { server } from '@/test/msw';
 
@@ -555,5 +557,174 @@ describe('RUN_NOW', () => {
     const problem = await refusal(result.current.mutateAsync(asking(firstPrompt.prompt_id, ['chatgpt_web'])));
     setProviderPaused(false);
     expect([problem.status, problem.code, problem.retryAfterSeconds]).toEqual([503, 'provider_paused', 300]);
+  });
+});
+
+describe('the weekly series of the summary', () => {
+  it('send include=series, alone or with the entity cells, and keep the key of every caller that asks for neither', () => {
+    const plain = summaryQuery(scope, RANGE, false).queryKey;
+    const series = summaryQuery(scope, RANGE, false, { include: ['series'] }).queryKey;
+    const both = summaryQuery(scope, RANGE, false, { include: ['series', 'entities'] }).queryKey;
+    const entities = summaryQuery(scope, RANGE, false, { include: ['entities'] }).queryKey;
+    expect(series.at(-1)).toEqual({ from: RANGE.from, to: RANGE.to, include_branded: false, include: ['series'] });
+    expect(both.at(-1)).toEqual({
+      from: RANGE.from,
+      to: RANGE.to,
+      include_branded: false,
+      include: ['series', 'entities'],
+    });
+    expect(new Set([plain, series, both, entities].map((key) => JSON.stringify(key))).size).toBe(4);
+    expect(summaryQuery(scope, RANGE, false, { include: [] }).queryKey).toEqual(plain);
+  });
+
+  it('read a point for each week on every engine of every prompt and topic, and none unless asked', async () => {
+    const range = lastMonth();
+    const plain = await client.fetchQuery(summaryQuery(scope, range, false));
+    const asked = await client.fetchQuery(summaryQuery(scope, range, false, { include: ['series', 'entities'] }));
+    const rows = (summary: typeof asked): (typeof asked.data.prompts)[number]['engines'] => [
+      ...summary.data.prompts.flatMap((row) => row.engines),
+      ...summary.data.topics.flatMap((row) => row.engines),
+    ];
+    expect(rows(plain).every((engine) => engine.series === undefined)).toBe(true);
+    expect(rows(asked).length).toBeGreaterThan(0);
+    for (const engine of rows(asked)) {
+      expect(engine.series?.length).toBeGreaterThanOrEqual(4);
+      expect(engine.series?.every((point) => /^\d{4}-\d{2}-\d{2}$/.test(point.week_start))).toBe(true);
+      expect(engine.entities).toHaveLength(asked.data.entities.length);
+    }
+  });
+});
+
+describe('bulkRun', () => {
+  const ids = (from: number, to: number): string[] => asked.slice(from, to).map((prompt) => prompt.prompt_id);
+
+  it('asks many prompts as one manual run and answers the run with what it asks and leaves out', async () => {
+    const answer = await bulkRun(scope, ids(0, 3), ['chatgpt_web']);
+    expect(answer.data).toMatchObject({ workload: 'ai_prompt', trigger: 'manual', status: 'planned' });
+    expect(answer.meta).toMatchObject({ prompts: 3, answers: 3, skipped: [], manual_runs_today: { limit: 20 } });
+    expect(answer.meta.manual_runs_today.used).toBeGreaterThanOrEqual(1);
+    expect(answer.meta.estimated_cost_usd).toMatch(/^\d+\.\d{6}$/);
+  });
+
+  it('sends the engines only when they are given, so the project asks the ones it has on', async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.post(`${PROJECT}/ai/runs`, async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json({});
+      }),
+    );
+    await bulkRun(scope, ['a', 'b']);
+    await bulkRun(scope, ['a'], ['gemini_web', 'chatgpt_web']);
+    expect(bodies).toEqual([
+      { prompt_ids: ['a', 'b'] },
+      { prompt_ids: ['a'], engine_codes: ['gemini_web', 'chatgpt_web'] },
+    ]);
+  });
+
+  it('rejects a prompt that is not asked with one error on prompt_ids', async () => {
+    const problem = await refusal(bulkRun(scope, [PAGE_ONE]));
+    expect([problem.status, problem.code]).toEqual([422, 'validation_failed']);
+    expect(problem.errors.map((item) => [item.path, item.code])).toEqual([['prompt_ids', 'prompt_unknown']]);
+  });
+
+  it('rejects when every prompt is on its way, with the prompts and what was left out', async () => {
+    await bulkRun(scope, ids(0, 2));
+    const problem = await refusal(bulkRun(scope, ids(0, 2)));
+    expect([problem.status, problem.code]).toEqual([409, 'check_pending']);
+    expect(problem.body.prompt_ids).toEqual(ids(0, 2).sort());
+    expect(problem.body.skipped).toHaveLength(4);
+  });
+
+  it('rejects an engine that is off with one field error on engine_codes', async () => {
+    const problem = await refusal(bulkRun(scope, ids(0, 2), ['google_ai_mode']));
+    expect([problem.status, problem.code]).toEqual([422, 'validation_failed']);
+    expect(problem.errors.map((item) => [item.path, item.code])).toEqual([['engine_codes', 'engine_not_enabled']]);
+  });
+
+  it('rejects a month of answers that no longer fits with the numbers of the quota', async () => {
+    promptsOf(scope.projectId).answersAsked.set(new Date().toISOString().slice(0, 7), AI_ANSWER_QUOTA);
+    const problem = await refusal(bulkRun(scope, ids(0, 2)));
+    // Two prompts on the two engines the project has on
+    expect([problem.status, problem.code, problem.number('limit'), problem.number('requested')]).toEqual([
+      422,
+      'quota_exceeded',
+      AI_ANSWER_QUOTA,
+      4,
+    ]);
+  });
+
+  it('rejects a request while the provider is paused, with when to try again', async () => {
+    setProviderPaused(true);
+    const problem = await refusal(bulkRun(scope, ids(0, 2)));
+    setProviderPaused(false);
+    expect([problem.status, problem.code, problem.retryAfterSeconds]).toEqual([503, 'provider_paused', 300]);
+  });
+
+  it('rejects the 21st manual run of a day with the limit and nothing else to read', async () => {
+    for (const prompt of asked.slice(0, 20)) await bulkRun(scope, [prompt.prompt_id], ['chatgpt_web']);
+    const problem = await refusal(bulkRun(scope, [asked[20]?.prompt_id ?? ''], ['chatgpt_web']));
+    expect([problem.status, problem.code, problem.number('limit'), problem.number('used')]).toEqual([
+      429,
+      'manual_run_limit',
+      20,
+      null,
+    ]);
+  });
+});
+
+describe('bulkArchive', () => {
+  const two = asked.slice(0, 2).map((prompt) => prompt.prompt_id);
+
+  it('archives and brings back many prompts, saying how many it found and how many it changed', async () => {
+    expect(await bulkArchive(scope, [...two, PAGE_ONE], true)).toEqual({ data: { matched: 2, updated: 2 } });
+    expect(await bulkArchive(scope, two, true)).toEqual({ data: { matched: 2, updated: 0 } });
+    expect(await bulkArchive(scope, two, false)).toEqual({ data: { matched: 2, updated: 2 } });
+  });
+
+  it('sends the ids and the direction as the API takes them', async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.post(`${PROJECT}/prompts/bulk-archive`, async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json({ data: { matched: 0, updated: 0 } });
+      }),
+    );
+    await bulkArchive(scope, ['a', 'b'], false);
+    expect(bodies).toEqual([{ ids: ['a', 'b'], archive: false }]);
+  });
+
+  it('rejects bringing prompts back past the workspace limit with the numbers of the quota, and changes nothing', async () => {
+    await bulkArchive(scope, two, true);
+    // Fill the workspace to one prompt below its limit
+    const free = PROMPT_QUOTA - 1 - activePromptCount(MOCK_PROJECTS.map((project) => project.project_id));
+    const create = renderHook(() => useMutation(BULK_CREATE_PROMPTS), { wrapper });
+    const created = await create.result.current.mutateAsync({
+      params: { path: { workspace_id: scope.workspaceId, project_id: scope.projectId } },
+      body: {
+        items: Array.from({ length: free }, (_, place) => ({
+          text: `Which agency fills slot ${String(place)}?`,
+          language_code: 'en',
+          country_iso: 'DE',
+          intent: 'unknown' as const,
+          funnel_stage: 'unknown' as const,
+          prompt_type: 'question' as const,
+          importance: 3,
+        })),
+        on_duplicate: 'skip',
+      },
+    });
+    expect(created.data.created).toHaveLength(free);
+    const problem = await refusal(bulkArchive(scope, two, false));
+    expect([problem.status, problem.code, problem.number('limit'), problem.number('requested')]).toEqual([
+      422,
+      'quota_exceeded',
+      PROMPT_QUOTA,
+      2,
+    ]);
+    expect(promptsOf(scope.projectId).prompts.filter((prompt) => two.includes(prompt.prompt_id))).toEqual([
+      expect.objectContaining({ is_active: false }),
+      expect.objectContaining({ is_active: false }),
+    ]);
   });
 });

@@ -25,12 +25,15 @@ import {
   cellEntityIds,
   countsOf,
   entityCountsOf,
+  mondayOf,
   NO_COUNTS,
   NOT_NAMED,
   promptCells,
   promptEntityCells,
+  summaryWeeks,
   topicCells,
   topicEntityCells,
+  weekCells,
   type Counts,
   type EntityCounts,
 } from '../prompt-summary';
@@ -46,6 +49,7 @@ import type {
   PromptSummaryRow,
   TopicSummaryRow,
   ValidationItem,
+  WeekCells,
 } from '@/lib/api/types';
 import { formatIsoDate } from '@/lib/format';
 
@@ -85,19 +89,20 @@ const hasCode = (value: unknown): value is ValidationItem =>
   typeof value === 'object' && value !== null && 'code' in value;
 
 /**
- * The summary's `include`: a comma list or repeated parameters. `entities` is the only block built; `series` is a
- * later task of the plan, so it is refused with any other value, one error for each (Pydantic's `literal_error`
- * at the value's place in the list).
+ * The summary's `include`: a comma list or repeated parameters of `series` and `entities`, the blocks built. Any
+ * other value is refused, one error for each (Pydantic's `literal_error` at the value's place in the list).
  */
-function includeOf(url: URL): { entities: boolean } | ValidationItem[] {
+function includeOf(url: URL): { entities: boolean; series: boolean } | ValidationItem[] {
   const values = url.searchParams
     .getAll('include')
     .flatMap((value) => value.split(','))
     .filter((value) => value !== '');
   const errors = values.flatMap((value, place) =>
-    value === 'entities' ? [] : [queryError(`include.${String(place)}`, 'literal_error', "Input should be 'entities'")],
+    value === 'series' || value === 'entities'
+      ? []
+      : [queryError(`include.${String(place)}`, 'literal_error', "Input should be 'series' or 'entities'")],
   );
-  return errors.length > 0 ? errors : { entities: values.length > 0 };
+  return errors.length > 0 ? errors : { entities: values.includes('entities'), series: values.includes('series') };
 }
 
 /** The start of a project day as an instant. */
@@ -289,11 +294,12 @@ function findAnswer(projectId: string, id: bigint, hint: number | null, now: num
   return detailOf(prompt, parsed.index, engine, at);
 }
 
-/** An answer that counts in the summary: its fact row and when it was observed. */
+/** An answer that counts in the summary: its fact row, when it was observed and its project day. */
 interface Counted {
   facts: NonNullable<ObservationDetail['facts']>;
   mentions: ObservationDetail['mentions'];
   at: string;
+  day: string;
 }
 
 /** The later of two instants, either of which may be missing. */
@@ -588,7 +594,7 @@ export const promptAnswerHandlers: HttpHandler[] = [
       const engines = byPrompt.get(prompt) ?? new Map<string, Counted[]>();
       engines.set(answer.engine_code, [
         ...(engines.get(answer.engine_code) ?? []),
-        { facts: answer.facts, mentions: answer.mentions, at: answer.observed_at },
+        { facts: answer.facts, mentions: answer.mentions, at: answer.observed_at, day },
       ]);
       byPrompt.set(prompt, engines);
     }
@@ -641,8 +647,37 @@ export const promptAnswerHandlers: HttpHandler[] = [
       const counted = byPrompt.get(promptId)?.get(code);
       return counted === undefined ? NOT_NAMED : entityCountsOf(entityId, counted);
     };
-    const withEntities = (cells: EngineSummary, entities: EntityCells[] | null): EngineSummary =>
-      entities === null ? cells : { ...cells, entities };
+    // With `include=series`, a point for each week the window touches, from the counts of the week's answers
+    const weeks = include.series ? summaryWeeks(firstDate, lastDate) : null;
+    const weekly = new Map<string, Counts>();
+    if (weeks !== null) {
+      for (const [promptId, engines] of byPrompt) {
+        for (const [code, counted] of engines) {
+          for (const week of weeks) {
+            const inWeek = counted.filter((answer) => mondayOf(answer.day) === week);
+            if (inWeek.length > 0)
+              weekly.set(`${promptId} ${code} ${week}`, countsOf(inWeek.map((answer) => answer.facts)));
+          }
+        }
+      }
+    }
+    /** The series of an engine row: a prompt row's one prompt, or a topic row's prompts of the weeks they have answers in. */
+    const seriesOf = (ids: readonly string[], code: string, topic: boolean): WeekCells[] | null =>
+      weeks === null
+        ? null
+        : weeks.map((week) => {
+            const members = ids.flatMap((id) => weekly.get(`${id} ${code} ${week}`) ?? []);
+            return weekCells(week, topic ? topicCells(code, members) : promptCells(code, members[0] ?? NO_COUNTS));
+          });
+    const withBlocks = (
+      cells: EngineSummary,
+      series: WeekCells[] | null,
+      entities: EntityCells[] | null,
+    ): EngineSummary => ({
+      ...cells,
+      ...(series === null ? {} : { series }),
+      ...(entities === null ? {} : { entities }),
+    });
     const topicRow = (termId: string | null, members: ReadonlySet<string>): TopicSummaryRow => ({
       term_id: termId,
       name: termId === null ? null : (topicTerms.get(termId)?.name ?? null),
@@ -650,11 +685,12 @@ export const promptAnswerHandlers: HttpHandler[] = [
       ...lastOf(members),
       engines: shown.map((code) => {
         const answered = [...members].filter((id) => byPrompt.get(id)?.has(code) === true);
-        return withEntities(
+        return withBlocks(
           topicCells(
             code,
             answered.map((id) => counts(id, code)),
           ),
+          seriesOf([...members], code, true),
           cellIds === null
             ? null
             : cellIds.map((entityId) =>
@@ -673,8 +709,9 @@ export const promptAnswerHandlers: HttpHandler[] = [
       topic_term_ids: topicsOf(prompt.term_ids),
       ...lastOf([prompt.prompt_id]),
       engines: shown.map((code) =>
-        withEntities(
+        withBlocks(
           promptCells(code, counts(prompt.prompt_id, code)),
+          seriesOf([prompt.prompt_id], code, false),
           cellIds === null
             ? null
             : cellIds.map((entityId) =>

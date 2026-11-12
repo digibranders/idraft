@@ -106,6 +106,7 @@ const PROBLEMS = {
   unsupported_media_type: [415, 'Unsupported media type'],
   quota_exceeded: [422, 'Workspace limit reached'],
   too_many_subjects: [422, 'Too many subjects'],
+  nothing_to_run: [422, 'Nothing left to ask'],
   competitor_limit: [422, 'Competitor limit reached'],
   cycle_detected: [422, 'Would make a cycle'],
   too_many_matches: [422, 'Too many matches'],
