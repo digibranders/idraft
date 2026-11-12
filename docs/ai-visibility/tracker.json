@@ -3966,7 +3966,7 @@
    "until": "WP-06 merged"
   },
   {
-   "path": "apps/web/src/app/globals.css",
+   "path": "apps/web/src/styles/globals.css",
    "wp": "SHARED WP-05/WP-06",
    "granted": "2026-11-13T03:13:15+05:30",
    "scope": "additive: bg-seq-1..7 utilities (WP-05 adds first, WP-06 reuses or rebases); no other edits",
