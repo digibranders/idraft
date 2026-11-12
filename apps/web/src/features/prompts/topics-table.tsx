@@ -247,7 +247,14 @@ export function TopicsTable({
       ...engineColumns.map(blankOnMore),
     ];
   }, [t, rowName, openTopic, rateColumns, engineColumns]);
-  const sortValues = useMemo(() => new Map(columns.map((column) => [column.id, column.sortValue])), [columns]);
+  // Only the columns that sort: `?sort=-topic` of the Prompts tab names a column here that does not
+  const sortValues = useMemo(
+    () =>
+      new Map(
+        columns.flatMap((column) => (column.sortValue === undefined ? [] : [[column.id, column.sortValue] as const])),
+      ),
+    [columns],
+  );
   const sort = useMemo((): readonly SortKey[] => {
     const parsed = parseSort(sortText, new Set(sortValues.keys()));
     return parsed.length === 0 ? DEFAULT_TOPIC_SORT : parsed;

@@ -505,7 +505,8 @@ describe('engines', () => {
 });
 
 describe('the topic drawer', () => {
-  const rated = (value: number | null): MetricCell => cell({ value, n_observations: value === null ? 0 : 4 });
+  const rated = (value: number | null, answers = value === null ? 0 : 4): MetricCell =>
+    cell({ value, denominator: answers, n_observations: answers });
   const engineRow = (code: string, mentioned: number | null): PromptSummaryRow['engines'][number] => ({
     engine_code: code,
     mentioned: rated(mentioned),
@@ -579,6 +580,12 @@ describe('the topic drawer', () => {
     expect(acrossEngines([rated(0.5), rated(null), rated(0)])).toEqual({ value: 0.25, engines: 2 });
     expect(acrossEngines([rated(null)])).toBeNull();
     expect(acrossEngines([])).toBeNull();
+  });
+
+  it('leaves out an engine with too few valid answers for a rate, as the table does', () => {
+    // 2 answers is a pill in the engine's own column, so it takes no part in "avg of N"
+    expect(acrossEngines([rated(0.25), rated(1, 2)])).toEqual({ value: 0.25, engines: 1 });
+    expect(acrossEngines([rated(1, 2), rated(0, 3)])).toBeNull();
   });
 });
 

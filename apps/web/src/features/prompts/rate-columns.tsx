@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
-import { CELL_OF_METRIC, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
+import { CELL_OF_METRIC, countText, engineSortId, hasRate, SORT_ID, type RateMetric } from './prompt-model';
 import { averageRate, cellFigure, engineRatesOf, topEngine, type AverageRate } from './rate-model';
 import { InsufficientPill, useRateWords } from './rate-view';
 import type { RateReading } from './strip-model';
@@ -23,7 +23,7 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
  */
 
 /** "Google AI Mode mention" in capitals with its sort arrow needs about 176 px. */
-const ENGINE_COLUMN_WIDTH = 176;
+export const ENGINE_COLUMN_WIDTH = 176;
 
 /** What a cell says in place of a rate, and what its tooltip says about why. */
 interface Gap {
@@ -110,12 +110,26 @@ export function useRateColumns<TRow>(
             return { content: rate('insufficientTip', { count: average.answers, min: MIN_OBSERVATIONS }) };
           }
           if (average.state === 'none') return tipOf(gapOf(row, average));
-          const names = codes.filter((code) => cellOf(row, code)?.[metric].value != null).map(labelOf);
-          const engineNames = formatList(names, locale);
+          // The count of each engine that counts: a pooled count beside an equal weight percent would read as another rate
+          const counting = codes.flatMap((code) => {
+            const cell = cellOf(row, code)?.[metric];
+            return cell !== undefined && hasRate(cell)
+              ? [{ name: labelOf(code), count: countText(cell) ?? EMPTY_VALUE }]
+              : [];
+          });
+          const engineNames = formatList(
+            counting.map(({ name }) => name),
+            locale,
+          );
           return {
-            content: words.basis(average) ?? '',
+            content: formatList(
+              counting.map(({ name, count }) => t('engineCount', { engine: name, count })),
+              locale,
+            ),
             detail:
-              names.length === 1 ? rate('onlyTip', { engines: engineNames }) : rate('avgTip', { engines: engineNames }),
+              counting.length === 1
+                ? rate('onlyTip', { engines: engineNames })
+                : rate('avgTip', { engines: engineNames }),
           };
         },
       };
@@ -221,7 +235,12 @@ export function useEngineRateColumns<TRow>(
           cellTip: (row): CellTip | undefined => {
             const figure = figureOf(row);
             if (figure.state === 'insufficient') {
-              return { content: rate('insufficientTip', { count: figure.answers, min: MIN_OBSERVATIONS }) };
+              return {
+                content: rate(metric === 'sov' ? 'insufficientShareTip' : 'insufficientTip', {
+                  count: figure.answers,
+                  min: MIN_OBSERVATIONS,
+                }),
+              };
             }
             if (figure.state === 'none') return tipOf(gapOf(row));
             if (metric === 'sov') return { content: t('shareBasisTip', { count: figure.answers }) };

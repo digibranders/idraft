@@ -24,17 +24,23 @@ const mentionedOf = (counts: Counts): MetricCell => promptCells('chatgpt_web', c
 
 describe('averageRate: the equal weight average of the engines in scope', () => {
   it('averages the engines rates, each engine once, and says how many took part', () => {
-    // 1 of 2 (50%) and 8 of 8 (100%) average 75%; the 9 of 10 answers pooled would be 90%
-    const average = averageRate([mentionedOf(counted(2, 1)), mentionedOf(counted(8, 8))]);
+    // 1 of 4 (25%) and 8 of 8 (100%) average 62.5%; the 9 of 12 answers pooled would be 75%
+    const average = averageRate([mentionedOf(counted(4, 1)), mentionedOf(counted(8, 8))]);
     expect(average).toEqual({
       state: 'ok',
-      value: 0.75,
+      value: 0.625,
       engines: 2,
-      answers: 10,
+      answers: 12,
       successes: 9,
       reason: null,
-      observations: 10,
+      observations: 12,
     });
+  });
+
+  it('takes only the engines that show a rate of their own: one under the minimum of valid answers is left out', () => {
+    // 1 of 2 answers is a pill in its own column, so it takes no part: "avg of 1", the other engine's rate
+    const average = averageRate([mentionedOf(counted(2, 1)), mentionedOf(counted(8, 2))]);
+    expect(average).toMatchObject({ state: 'ok', value: 0.25, engines: 1, answers: 8, successes: 2 });
   });
 
   it('leaves out an engine without a rate rather than counting it as 0, and counts the ones that took part', () => {
@@ -43,15 +49,20 @@ describe('averageRate: the equal weight average of the engines in scope', () => 
     expect(average.engines).toBe(1);
   });
 
-  it('is insufficient under the minimum of valid answers pooled over the engines, and shows the answers there are', () => {
-    const average = averageRate([mentionedOf(counted(1, 1)), mentionedOf(counted(MIN_OBSERVATIONS - 2, 1))]);
-    expect(average).toMatchObject({ state: 'insufficient', value: null, engines: 2, answers: MIN_OBSERVATIONS - 1 });
+  it('is insufficient when no engine shows a rate, and shows the answers of the engine that has most', () => {
+    const average = averageRate([mentionedOf(counted(1, 1)), mentionedOf(counted(MIN_OBSERVATIONS - 1, 1))]);
+    expect(average).toMatchObject({ state: 'insufficient', value: null, engines: 0, answers: MIN_OBSERVATIONS - 1 });
   });
 
-  it('is a rate once the engines pooled answers reach the minimum, though neither engine has that many', () => {
-    const average = averageRate([mentionedOf(counted(2, 1)), mentionedOf(counted(2, 2))]);
-    expect(average.state).toBe('ok');
-    expect(average.value).toBe(0.75);
+  it('is insufficient for two engines of two valid answers each, though together they reach the minimum', () => {
+    const engines = [counted(2, 1), counted(2, 2)].map((counts) => promptCells('chatgpt_web', counts));
+    expect(engines.map((engine) => cellFigure(engine, 'mentioned').state)).toEqual(['insufficient', 'insufficient']);
+    expect(averageRate(engines.map((engine) => engine.mentioned))).toMatchObject({
+      state: 'insufficient',
+      value: null,
+      engines: 0,
+      answers: 2,
+    });
   });
 
   it('reads a topic cell by the answers behind it (pooled), and its value as the prompt weighted rate', () => {
@@ -147,11 +158,21 @@ describe('topEngine: the engine with the highest mention rate, a pointer and not
     expect(
       topEngine([
         { code: 'a', rate: null },
-        { code: 'b', rate: 0 },
+        { code: 'b', rate: 0.1 },
       ]),
-    ).toEqual({ code: 'b', rate: 0 });
+    ).toEqual({ code: 'b', rate: 0.1 });
     expect(topEngine([{ code: 'a', rate: null }])).toBeNull();
     expect(topEngine([])).toBeNull();
+  });
+
+  it('is null when the best rate is 0: no engine names the brand, so none is the top one', () => {
+    expect(
+      topEngine([
+        { code: 'a', rate: null },
+        { code: 'b', rate: 0 },
+        { code: 'c', rate: 0 },
+      ]),
+    ).toBeNull();
   });
 });
 

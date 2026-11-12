@@ -10,6 +10,7 @@ import type {
 import { formatIsoDate, formatSampleCount } from '@/lib/format';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 import type { Country } from '@/lib/locations/countries';
+import { rateState } from '@/lib/stats';
 import type { SortKey } from '@/lib/tables/table-state';
 
 /**
@@ -65,7 +66,9 @@ export const CELL_OF_METRIC = {
  * - Topics tab: `prompts` (how many prompts the topic holds), `mention`, `citation`, `top_engine` (by the
  *   engine's name, A to Z first), and `<engine_code>_mentioned` and `<engine_code>_cited`. The sort orders the
  *   topics; the prompts under an open topic keep their order, most mentioned first.
- * A tie goes to the name. An id the open tab does not have is ignored, so one `sort` serves both tabs.
+ * A tie goes to the name on the Topics tab, and on the Prompts tab under the default sort (the prompt is its second
+ * key); under a sort the person chose, rows that tie keep the table's order (DataTable breaks a tie by row id).
+ * An id the open tab has no sort for is ignored, so one `sort` serves both tabs.
  */
 export const SORT_ID = {
   prompt: 'prompt',
@@ -245,12 +248,20 @@ export function topicOriginOf(
   return origin.promptId === open.promptId || open.order?.includes(open.promptId) === true ? origin : null;
 }
 
+/** The answers behind a cell: a topic's cell is prompt weighted and counts them in `pooled`, a prompt's in its denominator. */
+export const validAnswers = (cell: MetricCell): number => cell.pooled?.trials ?? cell.denominator;
+
+/** Whether the engine shows a rate of its own: a value over at least `MIN_OBSERVATIONS` valid answers. */
+export const hasRate = (cell: MetricCell): boolean => cell.value !== null && rateState(validAnswers(cell)) === 'ok';
+
 /**
- * The equal-weight average of the engines' rates, and how many engines took part (ADR-DS-022 decision 3): an
- * engine with no valid answer has no rate and is left out, not counted as 0. `null` when no engine has one.
+ * The equal-weight average of the engines' rates, and how many engines took part (ADR-DS-022 decision 3): only
+ * an engine that shows a rate of its own takes part (`hasRate`), so "avg of N" is the number of percents in the
+ * engines' columns. An engine with no valid answer, or too few of them, is left out, not counted as 0. `null` when
+ * no engine has a rate.
  */
 export function acrossEngines(cells: readonly MetricCell[]): { value: number; engines: number } | null {
-  const values = cells.flatMap((cell) => (cell.value === null ? [] : [cell.value]));
+  const values = cells.flatMap((cell) => (hasRate(cell) && cell.value !== null ? [cell.value] : []));
   if (values.length === 0) return null;
   return { value: values.reduce((sum, value) => sum + value, 0) / values.length, engines: values.length };
 }

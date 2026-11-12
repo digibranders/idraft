@@ -1879,6 +1879,11 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     ]);
     const third = rowOf(table, 'Question number 3?');
     expect(within(third).getAllByText('2 answers')[0]).toHaveClass('bg-insufficient');
+    // An equal weight percent gets the count of each engine, not a pooled count that would read as another rate
+    const [, , mention] = within(rowOf(table, 'Question number 1?')).getAllByRole('gridcell');
+    expect(mention).toHaveAccessibleDescription(
+      'ChatGPT 6 of 8 and Gemini 2 of 8 Equal weight average of ChatGPT and Gemini, each engine counting once',
+    );
     expect(order(table)).toEqual(['Question number 2?', 'Question number 1?', 'Question number 3?']);
     expect(within(table).getByRole('columnheader', { name: /^Mention rate/ })).toHaveAttribute(
       'aria-sort',
@@ -1928,6 +1933,10 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     // Share of voice is a share of the answers that name a brand, not a count of answers that do
     expect(cellsOf(table, 'Question number 1?').slice(-2)).toEqual(['50% 6 answers', 'n/a']);
     expect(new URLSearchParams(writes.at(-1)).get('metric')).toBe('sov');
+    // Three answers that name a brand are too few for a share, and the tip says so in those words
+    expect(within(rowOf(table, 'Question number 2?')).getAllByRole('gridcell').at(-2)).toHaveAccessibleDescription(
+      'Too few answers that name a brand for a share: 3 of the 4 it needs.',
+    );
     await user.click(screen.getByRole('button', { name: 'Columns' }));
     expect(await screen.findByRole('checkbox', { name: 'ChatGPT mentioned' })).not.toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Gemini cited' })).not.toBeChecked();
@@ -1986,5 +1995,70 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     await user.click(within(tree).getByRole('button', { name: 'Prompts' }));
     expect(order(tree)).toEqual(['Paid search', 'SEO']);
     expect(new URLSearchParams(writes.at(-1)).get('sort')).toBe('prompts');
+  });
+
+  describe('on three topics of other rates and top engines', () => {
+    /** Alpha: ChatGPT 75%, Gemini 50%. Beta: ChatGPT 25%, Gemini 75%. Gamma: too few answers on either engine. */
+    const serveTopics = (): void => {
+      serveRates();
+      const topicOf = (index: number, name: string, chatgpt: Counts, gemini: Counts): object => ({
+        term_id: idOf(3, index),
+        name,
+        prompt_count: 1,
+        engines: [topicCells('chatgpt_web', [chatgpt]), topicCells('gemini_web', [gemini])],
+      });
+      serveVocabulary(['Alpha', 'Beta', 'Gamma'].map((name, index) => treeNode(idOf(3, index + 1), name, null, [])));
+      server.use(
+        http.get(SUMMARY_PATH, () =>
+          HttpResponse.json({
+            data: {
+              ...EMPTY_SUMMARY.data,
+              engine_codes: ['chatgpt_web', 'gemini_web'],
+              prompts: [],
+              topics: [
+                topicOf(1, 'Alpha', counted(8, 6), counted(8, 4)),
+                topicOf(2, 'Beta', counted(8, 2), counted(8, 6)),
+                topicOf(3, 'Gamma', counted(2, 1), counted(2, 2)),
+              ],
+            },
+          }),
+        ),
+      );
+    };
+    const topicNames = (tree: HTMLElement): string[] => order(tree);
+
+    it('sorts by Top engine A to Z and back, a topic without one last either way', async () => {
+      serveTopics();
+      const { user } = renderWithProviders(promptsAs('viewer'));
+      const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+      await within(tree).findByText('Alpha');
+      await user.click(within(tree).getByRole('button', { name: 'Top engine' }));
+      expect(topicNames(tree)).toEqual(['Alpha', 'Beta', 'Gamma']);
+      await user.click(within(tree).getByRole('button', { name: 'Top engine' }));
+      expect(topicNames(tree)).toEqual(['Beta', 'Alpha', 'Gamma']);
+    });
+
+    it('puts a topic whose rates are too few last on Mention rate in both directions', async () => {
+      serveTopics();
+      const { user } = renderWithProviders(promptsAs('viewer'));
+      const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+      await within(tree).findByText('Alpha');
+      expect(cellsOf(tree, 'Gamma').slice(1, 4)).toEqual(['2 answers', '2 answers', 'n/a']);
+      expect(topicNames(tree)).toEqual(['Alpha', 'Beta', 'Gamma']);
+      await user.click(within(tree).getByRole('button', { name: 'Mention rate' }));
+      expect(topicNames(tree)).toEqual(['Beta', 'Alpha', 'Gamma']);
+    });
+
+    it('ignores a sort id of the Prompts tab, such as the topic column, and opens on the Mention rate order', async () => {
+      serveTopics();
+      renderWithProviders(promptsAs('viewer'), { searchParams: '?sort=-topic' });
+      const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+      await within(tree).findByText('Alpha');
+      expect(within(tree).getByRole('columnheader', { name: /^Mention rate/ })).toHaveAttribute(
+        'aria-sort',
+        'descending',
+      );
+      expect(topicNames(tree)).toEqual(['Alpha', 'Beta', 'Gamma']);
+    });
   });
 });

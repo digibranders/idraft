@@ -3,9 +3,9 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
-import { countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
-import { useEngineRateColumns, useRateColumns } from './rate-columns';
-import { cellFigure, validAnswers } from './rate-model';
+import { countText, engineSortId, SORT_ID, validAnswers, type RateMetric } from './prompt-model';
+import { ENGINE_COLUMN_WIDTH, useEngineRateColumns, useRateColumns } from './rate-columns';
+import { cellFigure } from './rate-model';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { Badge } from '@/components/ui/badge';
@@ -28,9 +28,6 @@ export interface PromptRow {
 
 const METRICS = ['mentioned', 'cited'] as const;
 type EngineMetric = (typeof METRICS)[number];
-/** "Google AI Mode mentioned" in capitals with its sort arrow needs about 176 px. */
-const ENGINE_COLUMN_WIDTH = 176;
-
 /**
  * Two columns per engine, Mentioned and Cited, each a count of valid answers ("4 of 8", spec section 4.5).
  * A prompt without an answer on the engine in the window says so; one whose answers were all invalid shows

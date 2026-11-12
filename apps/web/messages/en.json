@@ -3311,13 +3311,14 @@
       "citationRateTip": "The share of valid answers that cite your domain, averaged over the engines shown",
       "topEngineTip": "The engine with the highest mention rate. A pointer, not a ranking.",
       "topEngineRates": "{engine} {rate}",
+      "engineCount": "{engine} {count}",
       "engineMention": "{engine} mention",
       "engineCitation": "{engine} citation",
       "engineShareOfVoice": "{engine} SOV",
       "shareOfVoiceTip": "Your share of the brands the answers name, of the valid answers that name a brand",
       "shareBasisTip": "{count, plural, one {# answer} other {# answers}} that name a brand",
       "noBrandTip": "No valid answer in this window names a brand",
-      "noTopEngineTip": "No engine has enough valid answers for a rate",
+      "noTopEngineTip": "No engine has a mention rate above 0 on enough valid answers",
       "moreTopics": "+{count, number}"
     },
     "metric": {
@@ -3330,6 +3331,7 @@
     "rate": {
       "insufficient": "{count, plural, one {# answer} other {# answers}}",
       "insufficientInline": "too few answers ({count, number})",
+      "insufficientShareTip": "Too few answers that name a brand for a share: {count, number} of the {min, number} it needs.",
       "insufficientTip": "Too few valid answers for a rate: {count, number} of the {min, number} it needs.",
       "basis": "{successes, number} of {answers, plural, one {# answer} other {# answers}}",
       "basisAnswers": "{answers, plural, one {# answer} other {# answers}}",
