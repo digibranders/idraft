@@ -1,0 +1,44 @@
+{
+  "version": "0.1.20260901",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "0.1000 sec.",
+  "cost": 0,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "11121200-0000-0000-0000-d3e5ee000001",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "time": "0.0500 sec.",
+      "cost": 0,
+      "result_count": 3,
+      "path": ["v3", "serp", "google", "locations"],
+      "data": {"api": "serp", "function": "locations", "se": "google"},
+      "result": [
+        {
+          "location_code": 2356,
+          "location_name": "India",
+          "location_code_parent": null,
+          "country_iso_code": "IN",
+          "location_type": "Country"
+        },
+        {
+          "location_code": 2784,
+          "location_name": "United Arab Emirates",
+          "location_code_parent": null,
+          "country_iso_code": "AE",
+          "location_type": "Country"
+        },
+        {
+          "location_code": 2682,
+          "location_name": "Saudi Arabia",
+          "location_code_parent": null,
+          "country_iso_code": "SA",
+          "location_type": "Country"
+        }
+      ]
+    }
+  ]
+}

@@ -104,3 +104,8 @@ Facts for a seed command:
   profiles, so the dev database starts with no answers until a run happens.
 - The two engines are `chatgpt_web` and `gemini_web` in countries IN, AE and SA; prompts outside those countries
   would be refused by the Add prompts rules.
+
+The backend's seed is `cd backend && uv run --env-file .env python -m idraft.cli seed-eventus`, for a
+development database only; its runbook is `docs/ops/dev-eventus-seed.md`. It reads this file strictly
+(`backend/src/idraft/devseed/fixture.py`): a key it does not know fails the seed, so a change of shape
+here needs a change there.
