@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T03:00:24+05:30",
+ "updated": "2026-11-13T03:08:01+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -160,7 +160,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-03-contract-pack.md; estimate 6 tasks; decisions D-01, D-09, D-10 | steps 1/7; lease on test_cross_tenant.py granted"
+   "notes": "file work-packages/WP-03-contract-pack.md; estimate 6 tasks; decisions D-01, D-09, D-10 | steps 6/7; T0-T6 reviewed; contract additive (14 stub routes, 9 ops extended, 54 components); full checks then whole-diff review then push"
   },
   {
    "id": "WP-04",
@@ -196,7 +196,7 @@
    "title": "Chart parts: BarList, StackedShareBar, StepBars, IntervalBar",
    "wave": "W1",
    "kind": "web",
-   "status": "building",
+   "status": "planning",
    "dependsOn": [
     "WP-02"
    ],
@@ -225,7 +225,7 @@
    "title": "Chart parts: HeatmapGrid with tree rows, SmallMultiples, connected crosshair",
    "wave": "W1",
    "kind": "web",
-   "status": "building",
+   "status": "planning",
    "dependsOn": [
     "WP-02"
    ],
