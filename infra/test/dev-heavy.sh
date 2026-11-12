@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
-# Self-test for infra/dev/heavy (and, in later sections, wp-status and wp-start).
+# Self-test for infra/dev/heavy, infra/dev/wp-status and infra/dev/wp-start.
 #
-# Usage: infra/test/dev-heavy.sh [all|heavy]
+# Usage: infra/test/dev-heavy.sh [all|heavy|wp-status|wp-start]
 #        TEST_BASH=/bin/bash /bin/bash infra/test/dev-heavy.sh
 #        TEST_BASH=/opt/homebrew/bin/bash /opt/homebrew/bin/bash infra/test/dev-heavy.sh
 #
 # Every test runs in a fresh temp dir with its own lock root and health dir, so it never touches the real
-# lock state under the git common dir. TEST_BASH is the bash that runs the scripts under test.
+# lock state under the git common dir. The wp-status and wp-start tests also build their own git repositories
+# (a bare origin and two clones) in that dir and never touch this one or its worktrees.
+# TEST_BASH is the bash that runs the scripts under test.
 # No bash 4 features and no large heredocs: this has to run under the bash 3.2 that macOS ships.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 heavy="$here/../dev/heavy"
+wpstatus="$here/../dev/wp-status"
+wpstart="$here/../dev/wp-start"
 bash_bin="${TEST_BASH:-bash}"
 
 say() { printf '%s\n' "$*"; }
@@ -571,6 +575,256 @@ t_status_full() {
   has_text "$work/out/run.out" '^pause: off$' || fail "pause off line: $(cat "$work/out/run.out")"
 }
 
+# ---- helpers: wp-status and wp-start ----
+
+# g ARGS...: git with no user config or hooks leaking in (the scripts under test get the same through the
+# environment set by fixture).
+g() { git -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"; }
+
+must() { "$@" || fail "failed: $*"; }
+
+# fixture: origin.git (bare), main (a clone on develop with one commit, pushed) and other (a second clone).
+# Sets fx to the physical path of the temp dir, so paths compare equal to what git prints.
+fixture() {
+  fx="$(cd -P "$work" && pwd -P)"
+  unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR WP_ROWS WP_TASKS WP_BLOCKERS WP_NEXT
+  export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+  must g init -q --bare -b develop "$fx/origin.git"
+  must g init -q -b develop "$fx/main"
+  must g -C "$fx/main" remote add origin "$fx/origin.git"
+  printf 'one\n' >"$fx/main/README"
+  must g -C "$fx/main" add README
+  must g -C "$fx/main" commit -q -m one
+  must g -C "$fx/main" push -q origin develop
+  must g clone -q "$fx/origin.git" "$fx/other"
+}
+
+# other_commit: a new commit on develop, pushed from the second clone; prints its sha.
+other_commit() {
+  printf 'two\n' >"$fx/other/two"
+  must g -C "$fx/other" add two
+  must g -C "$fx/other" commit -q -m two
+  must g -C "$fx/other" push -q origin develop
+  g -C "$fx/other" rev-parse HEAD
+}
+
+# run_in DIR SCRIPT ARGS...: synchronous; sets rc, stdout in out/run.out, stderr in out/run.err.
+run_in() {
+  local dir="$1" script="$2"
+  shift 2
+  rc=0
+  (cd "$dir" && "$bash_bin" "$script" "$@") >"$work/out/run.out" 2>"$work/out/run.err" || rc=$?
+}
+
+status_dir() { printf '%s/ai-visibility/status\n' "$(g -C "$fx/main" rev-parse --path-format=absolute --git-common-dir)"; }
+no_status_files() { [ -z "$(find "$(status_dir)" -type f 2>/dev/null)" ]; }
+worktree_count() { g -C "$fx/main" worktree list --porcelain | grep -c '^worktree '; }
+branches_like() { g -C "$fx/main" for-each-ref --format='%(refname:short)' "refs/heads/$1"; }
+
+# ---- tests: wp-status ----
+
+t_status_line() {
+  local sha file line
+  fixture
+  must g -C "$fx/main" checkout -q -b ai/wp-07-demo
+  sha="$(g -C "$fx/main" rev-parse --short HEAD)"
+  run_in "$fx/main" "$wpstatus" WP-07 building "first push"
+  eq "$rc" 0 "rc"
+  line="WP-07 building | branch ai/wp-07-demo @ $sha | rows done ?/? | tasks ?/? | blockers: none | next: first push"
+  eq "$(cat "$work/out/run.out")" "$line" "stdout line"
+  file="$(status_dir)/WP-07.txt"
+  eq "$(sed -n 1p "$file")" "$line" "file line 1"
+  eq "$(sed -n 2p "$file")" "note=first push" "file line 2"
+  sed -n 3p "$file" | grep -q '^at=[0-9]\{4\}-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9][+-][0-9]\{4\}$' ||
+    fail "line 3 is not at=<timestamp>: $(sed -n 3p "$file")"
+  eq "$(wc -l <"$file" | tr -d ' ')" 3 "file has three lines"
+  eq "$(g -C "$fx/main" status --porcelain)" "" "the work tree stays clean"
+}
+
+t_status_flags_and_env() {
+  fixture
+  run_in "$fx/main" "$wpstatus" WP-07 review "n" --rows 3/10 --tasks 2/5 --blockers "WP-03" --next "wire it"
+  eq "$rc" 0 "rc"
+  has_text "$work/out/run.out" '| rows done 3/10 | tasks 2/5 | blockers: WP-03 | next: wire it$' || fail "line: $(cat "$work/out/run.out")"
+  WP_ROWS=1/2 WP_TASKS=4/6 WP_BLOCKERS=none-yet WP_NEXT=later run_in "$fx/main" "$wpstatus" WP-07 review "n"
+  eq "$rc" 0 "rc with env"
+  has_text "$work/out/run.out" '| rows done 1/2 | tasks 4/6 | blockers: none-yet | next: later$' || fail "env line: $(cat "$work/out/run.out")"
+  WP_ROWS=1/2 run_in "$fx/main" "$wpstatus" WP-07 review "n" --rows 5/9
+  has_text "$work/out/run.out" '| rows done 5/9 |' || fail "flag does not beat env: $(cat "$work/out/run.out")"
+  # Flags may come before the positional words too.
+  run_in "$fx/main" "$wpstatus" --rows 7/8 WP-07 review "n"
+  has_text "$work/out/run.out" '| rows done 7/8 |' || fail "leading flag: $(cat "$work/out/run.out")"
+}
+
+t_status_bad_id() {
+  local id
+  fixture
+  for id in WP-7 wp-07 WP-123 WP-0a WP-07x ""; do
+    run_in "$fx/main" "$wpstatus" "$id" building "x"
+    eq "$rc" 64 "id '$id'"
+    has_text "$work/out/run.err" 'usage: infra/dev/wp-status' || fail "no usage line for '$id': $(cat "$work/out/run.err")"
+  done
+  no_status_files || fail "a status file was written for a bad id"
+}
+
+t_status_bad_word() {
+  local w
+  fixture
+  for w in "done" Merged "" "planning building" planning-; do
+    run_in "$fx/main" "$wpstatus" WP-07 "$w" "x"
+    eq "$rc" 64 "status '$w'"
+  done
+  run_in "$fx/main" "$wpstatus" WP-07 building ""; eq "$rc" 64 "empty note"
+  run_in "$fx/main" "$wpstatus" WP-07 building "  "; eq "$rc" 64 "blank note"
+  run_in "$fx/main" "$wpstatus" WP-07 building; eq "$rc" 64 "no note"
+  run_in "$fx/main" "$wpstatus"; eq "$rc" 64 "no arguments"
+  run_in "$fx/main" "$wpstatus" WP-07 building x y; eq "$rc" 64 "extra word"
+  run_in "$fx/main" "$wpstatus" WP-07 building x --bogus 1; eq "$rc" 64 "unknown option"
+  no_status_files || fail "a status file was written for bad input"
+  for w in planning building review blocked merged idle; do
+    run_in "$fx/main" "$wpstatus" WP-07 "$w" "x"
+    eq "$rc" 0 "status $w is accepted"
+  done
+}
+
+t_status_bad_counts() {
+  fixture
+  run_in "$fx/main" "$wpstatus" WP-07 building x --rows 3; eq "$rc" 64 "--rows 3"
+  run_in "$fx/main" "$wpstatus" WP-07 building x --tasks a/b; eq "$rc" 64 "--tasks a/b"
+  run_in "$fx/main" "$wpstatus" WP-07 building x --rows 3/; eq "$rc" 64 "--rows 3/"
+  run_in "$fx/main" "$wpstatus" WP-07 building x --tasks 1/2/3; eq "$rc" 64 "--tasks 1/2/3"
+  run_in "$fx/main" "$wpstatus" WP-07 building x --rows; eq "$rc" 64 "--rows without value"
+  WP_TASKS=x run_in "$fx/main" "$wpstatus" WP-07 building x; eq "$rc" 64 "bad WP_TASKS"
+  no_status_files || fail "a status file was written for bad counts"
+}
+
+t_status_sanitized() {
+  local file
+  fixture
+  run_in "$fx/main" "$wpstatus" WP-07 building $'a|b\nc' --blockers $'x|y\nz' --next $'n|1\r\nn2'
+  eq "$rc" 0 "rc"
+  eq "$(wc -l <"$work/out/run.out" | tr -d ' ')" 1 "one line on stdout"
+  has_text "$work/out/run.out" '| blockers: x/y z | next: n/1  n2$' || fail "line: $(cat "$work/out/run.out")"
+  file="$(status_dir)/WP-07.txt"
+  eq "$(wc -l <"$file" | tr -d ' ')" 3 "three lines in the file"
+  eq "$(sed -n 2p "$file")" "note=a/b c" "note"
+}
+
+t_status_from_worktree() {
+  local common
+  fixture
+  must g -C "$fx/main" worktree add -q -b ai/wp-08-wt "$fx/wt" develop
+  run_in "$fx/wt" "$wpstatus" WP-08 building "in a worktree"
+  eq "$rc" 0 "rc"
+  common="$(g -C "$fx/main" rev-parse --path-format=absolute --git-common-dir)"
+  [ -f "$common/ai-visibility/status/WP-08.txt" ] || fail "the file is not in the common dir of main"
+  has_text "$work/out/run.out" '| branch ai/wp-08-wt @ ' || fail "branch: $(cat "$work/out/run.out")"
+  eq "$(find "$fx" -name 'WP-08.txt' | wc -l | tr -d ' ')" 1 "exactly one copy of the file"
+}
+
+t_status_overwrite() {
+  local file
+  fixture
+  run_in "$fx/main" "$wpstatus" WP-07 building "first"
+  run_in "$fx/main" "$wpstatus" WP-07 review "second"
+  eq "$rc" 0 "rc"
+  file="$(status_dir)/WP-07.txt"
+  eq "$(wc -l <"$file" | tr -d ' ')" 3 "three lines"
+  has_text "$file" '^WP-07 review |' || fail "line 1: $(cat "$file")"
+  ! has_text "$file" 'first' || fail "the first call is still in the file: $(cat "$file")"
+  eq "$(sed -n 2p "$file")" "note=second" "note"
+  eq "$(find "$(status_dir)" -type f | wc -l | tr -d ' ')" 1 "no temp file is left"
+}
+
+# ---- tests: wp-start ----
+
+t_start_creates() {
+  local sha head
+  fixture
+  head="$(g -C "$fx/main" rev-parse HEAD)"
+  sha="$(other_commit)"
+  [ "$sha" != "$head" ] || fail "other did not make a new commit"
+  run_in "$fx/main" "$wpstart" WP-07 my-slug
+  eq "$rc" 0 "rc: $(cat "$work/out/run.err")"
+  [ -d "$fx/main/.claude/worktrees/wp-07" ] || fail "no worktree at main/.claude/worktrees/wp-07"
+  eq "$(g -C "$fx/main/.claude/worktrees/wp-07" rev-parse --abbrev-ref HEAD)" ai/wp-07-my-slug "branch"
+  eq "$(g -C "$fx/main/.claude/worktrees/wp-07" rev-parse HEAD)" "$sha" "at the new origin develop"
+  has_text "$work/out/run.out" "$fx/main/.claude/worktrees/wp-07" || fail "path not printed: $(cat "$work/out/run.out")"
+  has_text "$work/out/run.out" 'ai/wp-07-my-slug' || fail "branch not printed: $(cat "$work/out/run.out")"
+  has_text "$work/out/run.out" "$(g -C "$fx/main" rev-parse --short "$sha")" || fail "base sha not printed: $(cat "$work/out/run.out")"
+  has_text "$work/out/run.out" 'infra/dev/wp-status WP-07 planning' || fail "next command not printed: $(cat "$work/out/run.out")"
+  eq "$(g -C "$fx/main" rev-parse HEAD)" "$head" "main HEAD is untouched"
+  eq "$(g -C "$fx/main" rev-parse --abbrev-ref HEAD)" develop "main stays on develop"
+}
+
+t_start_no_upstream() {
+  fixture
+  run_in "$fx/main" "$wpstart" WP-07 my-slug
+  eq "$rc" 0 "rc: $(cat "$work/out/run.err")"
+  if g -C "$fx/main" rev-parse --abbrev-ref "ai/wp-07-my-slug@{u}" >/dev/null 2>&1; then
+    fail "the new branch has an upstream"
+  fi
+}
+
+t_start_from_worktree() {
+  fixture
+  run_in "$fx/main" "$wpstart" WP-07 first
+  eq "$rc" 0 "first rc: $(cat "$work/out/run.err")"
+  run_in "$fx/main/.claude/worktrees/wp-07" "$wpstart" WP-08 next
+  eq "$rc" 0 "second rc: $(cat "$work/out/run.err")"
+  [ -d "$fx/main/.claude/worktrees/wp-08" ] || fail "no worktree at main/.claude/worktrees/wp-08"
+  [ ! -e "$fx/main/.claude/worktrees/wp-07/.claude/worktrees/wp-08" ] || fail "a nested worktree was made"
+  eq "$(g -C "$fx/main/.claude/worktrees/wp-08" rev-parse --abbrev-ref HEAD)" ai/wp-08-next "branch"
+}
+
+t_start_refuses_branch() {
+  fixture
+  must g -C "$fx/main" branch --no-track ai/wp-09-x origin/develop
+  run_in "$fx/main" "$wpstart" WP-09 x; eq "$rc" 1 "same branch"
+  has_text "$work/out/run.err" 'ai/wp-09-x' || fail "the message does not name the branch: $(cat "$work/out/run.err")"
+  run_in "$fx/main" "$wpstart" WP-09 y; eq "$rc" 1 "another slug of the same package"
+  [ ! -e "$fx/main/.claude/worktrees/wp-09" ] || fail "a worktree was created"
+  eq "$(worktree_count)" 1 "only the main worktree exists"
+  eq "$(branches_like 'ai/wp-09-*')" "ai/wp-09-x" "no second branch"
+}
+
+t_start_refuses_path() {
+  fixture
+  mkdir -p "$fx/main/.claude/worktrees/wp-10"
+  run_in "$fx/main" "$wpstart" WP-10 z; eq "$rc" 1 "existing directory"
+  eq "$(branches_like 'ai/wp-10-*')" "" "no branch for the refused path"
+  # A path git still lists although its directory is gone.
+  must g -C "$fx/main" worktree add -q -b scratch "$fx/main/.claude/worktrees/wp-11" origin/develop
+  rm -rf "$fx/main/.claude/worktrees/wp-11"
+  run_in "$fx/main" "$wpstart" WP-11 z; eq "$rc" 1 "path listed by git worktree list"
+  eq "$(branches_like 'ai/wp-11-*')" "" "no branch for the listed path"
+}
+
+t_start_fetch_fails() {
+  fixture
+  must g -C "$fx/main" remote set-url origin "$fx/no-such-origin.git"
+  run_in "$fx/main" "$wpstart" WP-07 my-slug; eq "$rc" 1 "fetch failure"
+  [ ! -e "$fx/main/.claude/worktrees/wp-07" ] || fail "a worktree was created without a fetch"
+  eq "$(branches_like 'ai/wp-07-*')" "" "no branch without a fetch"
+}
+
+t_start_bad_args() {
+  local s
+  fixture
+  for s in Bad under_score trail- -lead a--b ""; do
+    run_in "$fx/main" "$wpstart" WP-07 "$s"
+    eq "$rc" 64 "slug '$s'"
+    has_text "$work/out/run.err" 'usage: infra/dev/wp-start' || fail "no usage line for '$s': $(cat "$work/out/run.err")"
+  done
+  run_in "$fx/main" "$wpstart" WP-1 ok; eq "$rc" 64 "id WP-1"
+  run_in "$fx/main" "$wpstart" wp-07 ok; eq "$rc" 64 "id wp-07"
+  run_in "$fx/main" "$wpstart" WP-07; eq "$rc" 64 "no slug"
+  run_in "$fx/main" "$wpstart"; eq "$rc" 64 "no arguments"
+  run_in "$fx/main" "$wpstart" WP-07 ok extra; eq "$rc" 64 "extra argument"
+  eq "$(worktree_count)" 1 "only the main worktree exists"
+  eq "$(branches_like 'ai/*')" "" "no branch was created"
+}
+
 # ---- runner ----
 
 # Leftover wrappers of a failed test get TERM, which makes them stop their command and free their slot.
@@ -617,14 +871,32 @@ t_killed_holder_recovered t_killed_wrapper_group_alive t_killed_wrapper_watchdog
 t_older_live_ticket_blocks t_older_live_tickets_block_medium t_ownerless_slot t_pid_reuse_guard
 t_pause_blocks_then_releases t_pause_wait_timeout t_pause_keeps_running_job t_pause_keeps_order t_status_full"
 
+wp_status_tests="t_status_line t_status_flags_and_env t_status_bad_id t_status_bad_word t_status_bad_counts
+t_status_sanitized t_status_from_worktree t_status_overwrite"
+
+wp_start_tests="t_start_creates t_start_no_upstream t_start_from_worktree t_start_refuses_branch
+t_start_refuses_path t_start_fetch_fails t_start_bad_args"
+
 passed=0
 failed=0
 case "${1:-all}" in
-  all | heavy)
-    # shellcheck disable=SC2086  # a word list on purpose
+  all)
+    # shellcheck disable=SC2086  # word lists on purpose
+    run_section $heavy_tests $wp_status_tests $wp_start_tests
+    ;;
+  heavy)
+    # shellcheck disable=SC2086
     run_section $heavy_tests
     ;;
-  *) die "usage: infra/test/dev-heavy.sh [all|heavy]" ;;
+  wp-status)
+    # shellcheck disable=SC2086
+    run_section $wp_status_tests
+    ;;
+  wp-start)
+    # shellcheck disable=SC2086
+    run_section $wp_start_tests
+    ;;
+  *) die "usage: infra/test/dev-heavy.sh [all|heavy|wp-status|wp-start]" ;;
 esac
 
 say "$passed passed, $failed failed"
