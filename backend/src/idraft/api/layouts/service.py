@@ -135,7 +135,19 @@ class LayoutService:
                     await repository.update_layout(
                         db, access.workspace_id, layout_id, document, access.user_id
                     )
-                # T4 adds the audit entry here for `team`.
+                if team:
+                    await repository.record_team_change(
+                        db,
+                        workspace_id=access.workspace_id,
+                        actor_id=access.user_id,
+                        action="layout.default.set",
+                        layout_id=layout_id,
+                        info=info,
+                        before=None
+                        if target is None
+                        else {"screen": screen, "document": target.document},
+                        after={"screen": screen, "document": document},
+                    )
                 personal, team_row = await repository.stored_layouts(
                     db, access.workspace_id, access.user_id, screen
                 )
@@ -147,7 +159,18 @@ class LayoutService:
         known(screen)
         async with self._transaction(access) as db:
             await repository.lock_screen(db, access.workspace_id, screen)
-            await repository.delete_layout(
+            removed = await repository.delete_layout(
                 db, access.workspace_id, None if team else access.user_id, screen
             )
-            # T4 adds the audit entry here for `team`.
+            if team and removed is not None:
+                layout_id, document = removed
+                await repository.record_team_change(
+                    db,
+                    workspace_id=access.workspace_id,
+                    actor_id=access.user_id,
+                    action="layout.default.remove",
+                    layout_id=layout_id,
+                    info=info,
+                    before={"screen": screen, "document": document},
+                    after=None,
+                )

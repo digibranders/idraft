@@ -14,7 +14,6 @@ from idraft.api.permissions import Permission
 from idraft.api.request_info import Info
 from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai_layouts import LayoutDocument, ResolvedLayoutResponse
-from idraft.api.stubs import not_built, not_built_yet
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import MemberAccess, require_permission
 
@@ -39,7 +38,6 @@ IfMatch = Annotated[
         "precondition_failed` when it changed.",
     ),
 ]
-_NOT_BUILT = " Not built yet: `501 not_implemented`."
 
 
 def get_layout_service(
@@ -107,22 +105,31 @@ async def delete_personal_layout(
 @router.put(
     "/layouts/{screen}/default",
     summary="Save the team default of a screen",
-    description="As the personal layout; audited as `layout.default.set` with the documents "
-    "before and after." + _NOT_BUILT,
+    description="As the personal layout, for the team default (owner and admin only); audited "
+    "as `layout.default.set` with the documents before and after.",
 )
-@not_built
 async def put_team_layout(
-    screen: Screen, body: LayoutDocument, access: ManageLayouts, if_match: IfMatch = None
+    screen: Screen,
+    body: LayoutDocument,
+    access: ManageLayouts,
+    layouts: Layouts,
+    info: Info,
+    response: Response,
+    if_match: IfMatch = None,
 ) -> ResolvedLayoutResponse:
-    raise not_built_yet()
+    found = await layouts.save(access, screen, body, if_match, team=True, info=info)
+    return answer(found, response)
 
 
 @router.delete(
     "/layouts/{screen}/default",
     status_code=204,
     summary="Remove the team default of a screen",
-    description="Audited as `layout.default.remove`." + _NOT_BUILT,
+    description="Audited as `layout.default.remove` with the document removed; `204` also when "
+    "there was none.",
 )
-@not_built
-async def delete_team_layout(screen: Screen, access: ManageLayouts) -> Response:
-    raise not_built_yet()
+async def delete_team_layout(
+    screen: Screen, access: ManageLayouts, layouts: Layouts, info: Info
+) -> Response:
+    await layouts.remove(access, screen, team=True, info=info)
+    return Response(status_code=204)

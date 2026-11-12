@@ -9,13 +9,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy import delete, func, insert, literal, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from idraft.db.tables import layouts, users
+from idraft.api.request_info import RequestInfo
+from idraft.db.tables import audit_logs, layouts, users
+
+TeamChange = Literal["layout.default.set", "layout.default.remove"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,3 +135,34 @@ async def delete_layout(
         )
     ).one_or_none()
     return None if row is None else (row.id, row.document)
+
+
+async def record_team_change(
+    db: AsyncSession,
+    *,
+    workspace_id: UUID,
+    actor_id: UUID,
+    action: TeamChange,
+    layout_id: UUID,
+    info: RequestInfo,
+    before: dict[str, object] | None,
+    after: dict[str, object] | None,
+) -> None:
+    """An entry of `ops.audit_logs` in the columns `idraft.api.audit.record` writes; the documents
+    are nested, which `audit.Snapshot` does not hold (plan decision L10). Run it in the
+    transaction of the change, so the entry exists exactly when the change does."""
+    await db.execute(
+        insert(audit_logs).values(
+            workspace_id=workspace_id,
+            actor_type="user",
+            actor_id=str(actor_id),
+            action=action,
+            target_type="layout",
+            target_id=str(layout_id),
+            before=before,
+            after=after,
+            ip=info.ip,
+            user_agent=info.user_agent,
+            request_id=info.request_id,
+        )
+    )
