@@ -90,3 +90,17 @@ cut off but still count, and a few mentions are uncertain matches. Offsets in th
 A consumer that wants only the static parts needs `project`, `brand`, `competitors`, `engines`, `topics` and
 `prompts[].{text, country, intent, funnel_stage, prompt_type, importance, topics}`. The profiles, `sources`,
 `phrases` and `model_change` exist only to make answers for the mocks.
+
+Facts for a seed command:
+
+- Quota: the file holds 72 prompts (7 of them branded), against the base plan of 150 active prompts. The mocks
+  count 24 other prompts of another project in the same workspace, so 96 of 150 in the mock workspace; a real
+  dev database that holds no other prompts uses 72 of 150 and leaves 78.
+- The project is identified by `project.slug` (`eventus-security`) in the workspace `digibranders`. A seed must
+  look it up by slug and update it, never create a second one. Whether the dev database already has it is not
+  known here: the mocks always create it, and the live server has a different project of the same name that was
+  seeded for keywords, which a dev only command must never touch.
+- Seed only the static parts. Answers come from the real collection pipeline or the fake provider, never from the
+  profiles, so the dev database starts with no answers until a run happens.
+- The two engines are `chatgpt_web` and `gemini_web` in countries IN, AE and SA; prompts outside those countries
+  would be refused by the Add prompts rules.
