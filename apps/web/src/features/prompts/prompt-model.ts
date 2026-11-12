@@ -173,6 +173,28 @@ export const TOPIC_TABS = ['overview', 'prompts'] as const;
 export type TopicTab = (typeof TOPIC_TABS)[number];
 export const parseTopicTab = (value: string): TopicTab => (value === 'prompts' ? 'prompts' : 'overview');
 
+/** The topic a prompt was opened from (ADR-DS-022 decision 8), and what it was opened for. */
+export interface TopicOrigin {
+  key: string;
+  /** The topic drawer's tab the person left, which the badge returns to. */
+  tab: TopicTab;
+  promptId: string;
+  projectId: string;
+}
+
+/**
+ * The origin while it still stands for the open prompt: the prompt is the one it was opened for or one the topic
+ * holds (`order`, the topic's prompts, `null` while they are not known), in the same project. A prompt that arrives
+ * another way (Forward, a link, an answer's Back to another one) has no topic.
+ */
+export function topicOriginOf(
+  origin: TopicOrigin | null,
+  open: { promptId: string | null; projectId: string; order: readonly string[] | null },
+): TopicOrigin | null {
+  if (origin === null || open.promptId === null || origin.projectId !== open.projectId) return null;
+  return origin.promptId === open.promptId || open.order?.includes(open.promptId) === true ? origin : null;
+}
+
 /**
  * The equal-weight average of the engines' rates, and how many engines took part (ADR-DS-022 decision 3): an
  * engine with no valid answer has no rate and is left out, not counted as 0. `null` when no engine has one.

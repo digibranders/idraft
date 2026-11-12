@@ -247,4 +247,68 @@ describe('the topic drawer: a prompt opened from a topic', () => {
     });
     expect(within(prompt).queryByRole('button', { name: /^Open the topic/ })).toBeNull();
   });
+
+  it('keeps the topic for a prompt opened from an expanded topic row: the whole topic is its list, and the badge leads back', async () => {
+    const { user } = renderOn('viewer', '');
+    const tree = await treegrid();
+    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 12 prompts' }));
+    // Eight prompts show, but the topic holds twelve
+    await waitFor(() => expect(tree.querySelectorAll('[role="row"][aria-level="2"]')).toHaveLength(9));
+    const row = tree.querySelector('[role="row"][aria-level="2"]');
+    const title = row?.querySelector('[role="rowheader"]')?.textContent ?? '';
+    await user.click(within(tree).getByText(title));
+    const prompt = await screen.findByRole('complementary', { name: title });
+    expect(within(prompt).getByText(/^\d+ of 12$/)).toBeInTheDocument();
+    await user.click(within(prompt).getByRole('button', { name: 'Open the topic SEO' }));
+    const back = await drawer('SEO');
+    expect(within(back).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('gives no topic badge to a prompt that arrives another way after one opened from a topic', async () => {
+    const { user } = renderOn('viewer', inspect(`topic:${seo}`, 'prompts'));
+    const panel = await drawer('SEO');
+    const [item] = await within(panel).findAllByRole('listitem');
+    await user.click(within(item ?? panel).getByRole('button'));
+    const opened = await screen.findByRole('complementary');
+    expect(within(opened).getByRole('button', { name: 'Open the topic SEO' })).toBeInTheDocument();
+    // A row of the Prompts tab is a flat list: no topic, and the prompts of all the project step
+    await user.click(screen.getByRole('tab', { name: 'Prompts' }));
+    const table = await screen.findByRole('grid', { name: 'Prompts' });
+    const outside = 'What is the best way to manage paid search on a small budget?';
+    await user.click(await within(table).findByText(outside));
+    const next = await screen.findByRole('complementary', { name: outside });
+    expect(within(next).queryByRole('button', { name: /^Open the topic/ })).toBeNull();
+    expect(within(next).queryByText(/ of 12$/)).toBeNull();
+  });
+
+  it('leaves the topic drawer tab out of the address of a prompt opened from a table row', async () => {
+    const writes: string[] = [];
+    const { user } = renderWithProviders(promptsAs('viewer'), {
+      searchParams: inspect(`topic:${seo}`, 'prompts'),
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    const tree = await treegrid();
+    await user.click(await within(tree).findByRole('button', { name: 'Expand Paid Search, 2 prompts' }));
+    await user.click(await within(tree).findByText('What is the best way to manage paid search on a small budget?'));
+    await screen.findByRole('complementary', { name: 'What is the best way to manage paid search on a small budget?' });
+    const last = new URLSearchParams(writes.at(-1));
+    expect(last.get('inspect')).toMatch(/^prompt:/);
+    expect(last.has('itab')).toBe(false);
+  });
+});
+
+describe('the topic drawer: a modified click', () => {
+  it('opens the topic in a new tab, as a prompt row does, and a plain click opens the drawer here', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const { user } = renderWithProviders(promptsAs('viewer'));
+    const tree = await treegrid();
+    await user.keyboard('{Control>}');
+    await user.click(await within(tree).findByRole('button', { name: 'Open the topic Paid Search' }));
+    await user.keyboard('{/Control}');
+    expect(open).toHaveBeenCalledTimes(1);
+    const [url] = open.mock.calls[0] ?? [];
+    expect(new URL(String(url)).searchParams.get('inspect')).toBe(`topic:${MOCK_TERM_IDS.paidSearch}`);
+    expect(screen.queryByRole('complementary')).toBeNull();
+    open.mockRestore();
+  });
 });

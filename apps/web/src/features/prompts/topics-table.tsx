@@ -41,6 +41,8 @@ type TopicRow =
       kind: 'prompt';
       /** Topic and prompt: a prompt of two topics is a row under each. */
       id: string;
+      /** The topic the row is listed under. */
+      topicKey: string;
       promptId: string;
       name: string;
       branded: boolean;
@@ -95,9 +97,10 @@ export interface TopicsTableProps {
   activePromptId: string | null;
   /** The topic whose drawer is open, or the one the open prompt was opened from; its row is marked when no prompt row is. */
   activeTopicKey: string | null;
-  onOpenPrompt: (promptId: string, intent: 'inspector' | 'new-tab') => void;
+  /** `topicKey` is the topic the row is listed under: its prompts are the list the inspector steps through. */
+  onOpenPrompt: (promptId: string, intent: 'inspector' | 'new-tab', topicKey: string) => void;
   /** Opens the topic's drawer: on Overview from its name, on Prompts from "Show all". */
-  onOpenTopic: (key: string, tab: TopicTab) => void;
+  onOpenTopic: (key: string, tab: TopicTab, intent: 'inspector' | 'new-tab') => void;
   /** The prompts the open topics list, in the order of the rows, each once: what the inspector steps through. */
   onPromptOrderChange: (promptIds: readonly string[]) => void;
 }
@@ -144,7 +147,10 @@ export function TopicsTable({
   useEffect(() => {
     latestOpenTopic.current = onOpenTopic;
   }, [onOpenTopic]);
-  const openTopic = useCallback((key: string, tab: TopicTab) => latestOpenTopic.current(key, tab), []);
+  const openTopic = useCallback(
+    (key: string, tab: TopicTab, intent: 'inspector' | 'new-tab') => latestOpenTopic.current(key, tab, intent),
+    [],
+  );
   const rowName = useCallback(
     (row: TopicRow): string =>
       row.kind === 'more' ? t('topics.showAllFor', { count: row.total, name: row.name }) : row.name,
@@ -171,7 +177,13 @@ export function TopicsTable({
               size="sm"
               aria-label={showAll ? rowName(row) : t('topics.openTopic', { name: row.name })}
               className="max-w-full min-w-0 justify-start"
-              onClick={() => openTopic(row.key, showAll ? 'prompts' : 'overview')}
+              onClick={(event) =>
+                openTopic(
+                  row.key,
+                  showAll ? 'prompts' : 'overview',
+                  event.metaKey || event.ctrlKey ? 'new-tab' : 'inspector',
+                )
+              }
             >
               <span className="truncate">{showAll ? t('topics.showAll', { count: row.total }) : row.name}</span>
             </Button>
@@ -230,6 +242,7 @@ export function TopicsTable({
         ...listed.map((member, at): TopicRow => ({
           kind: 'prompt',
           id: `${key}:${member.prompt_id}`,
+          topicKey: key,
           promptId: member.prompt_id,
           name: member.text,
           branded: member.is_branded,
@@ -320,11 +333,11 @@ export function TopicsTable({
       onRowOpen={(row, intent) => {
         // A topic row that opens no group (its prompts cannot be told yet) and the "Show all" row open the drawer
         if (row.kind !== 'prompt') {
-          openTopic(row.key, row.kind === 'more' ? 'prompts' : 'overview');
+          openTopic(row.key, row.kind === 'more' ? 'prompts' : 'overview', intent);
           return;
         }
         setClicked(row.id);
-        onOpenPrompt(row.promptId, intent);
+        onOpenPrompt(row.promptId, intent, row.topicKey);
       }}
       activeRowId={activeRowId}
       status={shownStatus}

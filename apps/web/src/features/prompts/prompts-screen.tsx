@@ -24,12 +24,14 @@ import {
   topicChoices,
   topicDescendants,
   topicPrompts,
+  topicOriginOf,
   topicsBelow,
   topicSummaryRow,
   topicTermsOf,
   WINDOW_DAYS,
   windowRange,
   type PromptsTab,
+  type TopicOrigin,
   type TopicTab,
 } from './prompt-model';
 import { enginesQuery, observationQuery, summaryQuery, usePromptList, type PromptScope } from './prompt-queries';
@@ -314,17 +316,22 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // through and its badge leads back to the tab it left (ADR-DS-022 decision 8). A link has none, like any list it lacks
   const openTopic = inspector.target?.type === 'topic' ? inspector.target.id : null;
   const topicTab = parseTopicTab(inspector.tab);
-  const [promptFrom, setPromptFrom] = useState<{ key: string; tab: TopicTab } | null>(null);
-  const fromTopic = openPrompt === null ? null : (promptFrom?.key ?? null);
+  const [promptFrom, setPromptFrom] = useState<TopicOrigin | null>(null);
   const firstShown = shown[0]?.engine.engine_code;
-  const topicOrder = useMemo(
+  const originKey = promptFrom?.key ?? null;
+  const originOrder = useMemo(
     () =>
-      fromTopic === null
+      originKey === null
         ? null
-        : (topicPrompts(summary.data?.data, fromTopic, descendants, firstShown)?.map((prompt) => prompt.prompt_id) ??
+        : (topicPrompts(summary.data?.data, originKey, descendants, firstShown)?.map((prompt) => prompt.prompt_id) ??
           null),
-    [fromTopic, summary.data, descendants, firstShown],
+    [originKey, summary.data, descendants, firstShown],
   );
+  // Only while the open prompt is still the one it was opened for or one the topic holds, in this project: a prompt
+  // that arrives another way (Forward, an answer's Back) has no topic, so no badge and the table's own order
+  const origin = topicOriginOf(promptFrom, { promptId: openPrompt, projectId: project.id, order: originOrder });
+  const fromTopic = origin?.key ?? null;
+  const topicOrder = origin === null ? null : originOrder;
   const topicName = (key: string): string | null =>
     key === NO_TOPIC
       ? t('columns.noTopic')
@@ -336,27 +343,38 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     if (at === null || (direction === 'next' ? at.index === at.count - 1 : at.index === 0)) return;
     inspector.step(direction, stepOrder);
   };
-  const openPromptRow = (promptId: string, intent: 'inspector' | 'new-tab' = 'inspector'): void => {
-    const target = { type: 'prompt' as const, id: promptId };
+  /** A new browser tab on `?inspect=<target>`, without the tab of another drawer. */
+  const openInNewTab = (target: { type: 'prompt' | 'topic'; id: string }, tab?: TopicTab): void => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('inspect', formatInspectTarget(target));
+    if (tab === undefined || tab === DEFAULT_INSPECTOR_TAB) url.searchParams.delete('itab');
+    else url.searchParams.set('itab', tab);
+    window.open(url, '_blank', 'noopener');
+  };
+  /**
+   * A prompt opened from a row: of the Prompts tab (flat, no `topicKey`) or under a topic of the Topics tab, whose
+   * prompts are then the list J and K step through, as when it is opened from the drawer (decision 8).
+   */
+  const openPromptRow = (promptId: string, intent: 'inspector' | 'new-tab' = 'inspector', topicKey?: string): void => {
     if (intent === 'new-tab') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('inspect', formatInspectTarget(target));
-      url.searchParams.delete('itab');
-      window.open(url, '_blank', 'noopener');
+      openInNewTab({ type: 'prompt', id: promptId });
       return;
     }
-    if (promptId === openPrompt) return;
-    // A row of a table is not a topic's list: the prompts of the open topics (or all of them) are what J and K step through
-    setPromptFrom(null);
-    inspector.open(target);
+    setPromptFrom(
+      topicKey === undefined ? null : { key: topicKey, tab: DEFAULT_INSPECTOR_TAB, promptId, projectId: project.id },
+    );
+    // A prompt has no tabs: the tab of a topic drawer that was open is not carried over
+    if (promptId !== openPrompt) inspector.open({ type: 'prompt', id: promptId }, { tab: DEFAULT_INSPECTOR_TAB });
   };
   const openPromptFromTopic = (promptId: string): void => {
     if (openTopic === null) return;
-    setPromptFrom({ key: openTopic, tab: topicTab });
-    // A prompt has no tabs: the topic's tab is not carried over
+    setPromptFrom({ key: openTopic, tab: topicTab, promptId, projectId: project.id });
     inspector.open({ type: 'prompt', id: promptId }, { tab: DEFAULT_INSPECTOR_TAB });
   };
-  const openTopicDrawer = (key: string, tab: TopicTab): void => inspector.open({ type: 'topic', id: key }, { tab });
+  const openTopicDrawer = (key: string, tab: TopicTab, intent: 'inspector' | 'new-tab' = 'inspector'): void => {
+    if (intent === 'new-tab') openInNewTab({ type: 'topic', id: key }, tab);
+    else inspector.open({ type: 'topic', id: key }, { tab });
+  };
 
   // The summary is pending only before its first answer: a new window keeps the last counts meanwhile
   // A topic or country that matches nothing so far may still match a page that is on its way
@@ -649,11 +667,11 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         }
         onStep={at === null ? undefined : step}
         topic={
-          promptFrom === null || fromTopic === null || topicName(fromTopic) === null
+          origin === null || topicName(origin.key) === null
             ? null
             : {
-                name: topicName(fromTopic) ?? '',
-                onOpen: () => inspector.open({ type: 'topic', id: promptFrom.key }, { tab: promptFrom.tab }),
+                name: topicName(origin.key) ?? '',
+                onOpen: () => inspector.open({ type: 'topic', id: origin.key }, { tab: origin.tab }),
               }
         }
         onClose={() => inspector.close()}

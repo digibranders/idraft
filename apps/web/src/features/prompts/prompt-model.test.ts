@@ -24,6 +24,7 @@ import {
   topicPrompts,
   topicRowKept,
   topicsBelow,
+  topicOriginOf,
   topicSummaryRow,
   topicTermsOf,
   WINDOW_DAYS,
@@ -560,5 +561,27 @@ describe('the topic drawer', () => {
     expect(acrossEngines([rated(0.5), rated(null), rated(0)])).toEqual({ value: 0.25, engines: 2 });
     expect(acrossEngines([rated(null)])).toBeNull();
     expect(acrossEngines([])).toBeNull();
+  });
+});
+
+describe('the topic a prompt was opened from', () => {
+  const origin = { key: 'seo', tab: 'prompts' as const, promptId: 'a', projectId: 'fynix' };
+  const open = { promptId: 'a', projectId: 'fynix', order: ['a', 'b', 'c'] as readonly string[] | null };
+
+  it('stands while the open prompt is the one it was opened for, or one the topic holds', () => {
+    expect(topicOriginOf(origin, open)).toBe(origin);
+    // J and K step to the topic's other prompts
+    expect(topicOriginOf(origin, { ...open, promptId: 'c' })).toBe(origin);
+    // The topic's prompts are not known yet (the summary is on its way): the prompt it was opened for stands
+    expect(topicOriginOf(origin, { ...open, order: null })).toBe(origin);
+  });
+
+  it('is nothing for a prompt the topic does not hold, another project, no open prompt or no origin', () => {
+    // A link, Forward or another way in that opens a prompt outside the topic
+    expect(topicOriginOf(origin, { ...open, promptId: 'z' })).toBeNull();
+    expect(topicOriginOf(origin, { ...open, promptId: 'z', order: null })).toBeNull();
+    expect(topicOriginOf(origin, { ...open, projectId: 'other' })).toBeNull();
+    expect(topicOriginOf(origin, { ...open, promptId: null })).toBeNull();
+    expect(topicOriginOf(null, open)).toBeNull();
   });
 });

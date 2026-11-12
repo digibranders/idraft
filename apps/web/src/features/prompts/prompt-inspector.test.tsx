@@ -212,7 +212,9 @@ describe('the prompt inspector: opening and stepping', () => {
     await user.click(await within(tree).findByRole('button', { name: 'Expand Paid Search, 2 prompts' }));
     await user.click(await within(tree).findByText('What is the best way to manage paid search on a small budget?'));
     const inspector = await panel('What is the best way to manage paid search on a small budget?');
-    expect(await within(inspector).findByText('Paid Search')).toBeInTheDocument();
+    // The topic is a fact of the prompt, and a badge that leads back to it, since the prompt was opened from the topic
+    expect(await within(inspector).findAllByText('Paid Search')).toHaveLength(2);
+    expect(within(inspector).getByRole('button', { name: 'Open the topic Paid Search' })).toBeInTheDocument();
     // A topic's name opens the topic's drawer, in the place of the prompt's
     await user.click(within(tree).getByRole('button', { name: 'Open the topic Content Marketing' }));
     expect(await panel('Content Marketing')).toBeInTheDocument();

@@ -3351,7 +3351,6 @@
       "acrossEngines": "{count, plural, one {1 engine} other {avg of #}}",
       "noRate": "No valid answers",
       "byEngine": "By engine",
-      "engine": "Engine",
       "noneValid": "None valid",
       "noBrandNamed": "No answer names a tracked brand",
       "answerCount": "{count, plural, one {# answer} other {# answers}}",
