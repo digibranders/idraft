@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T01:25:04+05:30",
+ "updated": "2026-11-13T01:28:45+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -321,7 +321,7 @@
    "title": "DataTable extensions: column groups, third tree level, right pin, context menu",
    "wave": "W1",
    "kind": "web",
-   "status": "planning",
+   "status": "building",
    "dependsOn": [
     "WP-02"
    ],
@@ -344,7 +344,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-09-table-extensions.md; estimate 6 tasks; decisions D-40"
+   "notes": "file work-packages/WP-09-table-extensions.md; estimate 6 tasks; decisions D-40 | steps 1/7; plan committed; 10,000 bulk cap not enforced, needs owner call"
   },
   {
    "id": "WP-10",
@@ -3887,6 +3887,20 @@
    "granted": "2026-11-13T01:23:09+05:30",
    "scope": "additive: NOT_BUILT mark rule for stub routes, WORDS, CHILD_ROUTES word-only paths; WP-11 reuses the same rule",
    "until": "WP-03 merged"
+  },
+  {
+   "path": "apps/web/src/components/design-system/tables-section.tsx",
+   "wp": "WP-09",
+   "granted": "2026-11-13T01:28:45+05:30",
+   "scope": "additive demo tables (groups, 3 levels, right pin); last task only",
+   "until": "WP-09 merged"
+  },
+  {
+   "path": "apps/web/e2e/flows/table-extensions.spec.ts",
+   "wp": "WP-09",
+   "granted": "2026-11-13T01:28:45+05:30",
+   "scope": "new file",
+   "until": "WP-09 merged"
   }
  ]
 }
