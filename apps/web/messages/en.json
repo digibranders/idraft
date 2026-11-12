@@ -3788,11 +3788,20 @@
     "limits": {},
     "evidence": {}
   },
-  "aiOverview": {},
-  "citations": {},
+  "aiOverview": {
+    "engines": {},
+    "competitors": {},
+    "topics": {},
+    "sources": {}
+  },
+  "citations": {
+    "inspectors": {}
+  },
   "competitors": {},
   "discover": {},
-  "layouts": {},
+  "layouts": {
+    "customize": {}
+  },
   "alerts": {},
   "reports": {},
   "promptDetail": {},
