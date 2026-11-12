@@ -512,7 +512,8 @@ describe('the prompt inspector: Run now', () => {
       aiKey(SCOPE),
       enginesKey(SCOPE),
     ]) {
-      expect(invalidate).toHaveBeenCalledWith({ queryKey });
+      // The refresh follows the toast by a tick, which a busy machine stretches: wait for it
+      await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey }));
     }
     await user.click(within(inspector).getByRole('button', { name: 'Run now' }));
     await said('An answer is already on its way on ChatGPT and Gemini. Try again once it has arrived.');
