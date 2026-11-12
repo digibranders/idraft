@@ -47,6 +47,24 @@ ChangeKind = Literal["initial", "wording", "typo", "context"]
 CreationMethod = Literal["human", "template", "llm_generated", "imported"]
 LintRule = Literal["contains_brand_alias", "engine_limit"]
 LintSeverity = Literal["info", "warning", "error"]
+PromptSort = Literal[
+    "text",
+    "-text",
+    "importance",
+    "-importance",
+    "created_at",
+    "-created_at",
+    "updated_at",
+    "-updated_at",
+]
+# What a caller may say a prompt came from when it adds one (prompt-dialogs N07). The column
+# holds more values (migration 0018), which only the server sets.
+PromptSource = Literal["manual", "csv_import", "seo_keyword", "paa", "gsc_query"]
+CreateMethod = Literal["human", "template", "imported"]
+# The templates of `POST {P}/prompts/from-keywords/preview` (docs/19 section 3.7.1).
+GeneratedTemplate = Literal["recommendation", "comparison", "how_to", "procurement"]
+_NOT_BUILT = "Not built yet: `501 not_implemented`."
+_NOT_RETURNED = "Not returned yet: absent from every response until it is built."
 
 BULK_CREATE_MAX: Final = 1000
 LINT_MAX: Final = 1000
@@ -56,6 +74,11 @@ IMMUTABLE_FIELDS: Final = ("text", "language_code", "country_iso")
 # A character decomposes into at most four, so a text up to four times the limit may still
 # compose under it; anything longer cannot, and is not composed at all.
 _RAW_TEXT_MAX: Final = 4 * PROMPT_TEXT_MAX
+
+
+def _absent(value: object) -> bool:
+    """A block nobody asked for is left out of the answer, not sent as null."""
+    return value is None
 
 
 def _prompt_text(value: object) -> object:
@@ -106,6 +129,11 @@ Importance = Annotated[int, Field(ge=1, le=5)]
 TermIds = Annotated[list[UUID], Field(max_length=TERMS_MAX)]
 
 
+class GeneratedFrom(Body):
+    tracked_keyword_id: UUID
+    template: GeneratedTemplate
+
+
 class PromptCreate(Body):
     """One prompt. Its text is fixed once saved: to change it, archive the prompt and add a new
     one."""
@@ -122,6 +150,20 @@ class PromptCreate(Body):
     importance: Importance = 3
     term_ids: TermIds = Field(
         default_factory=list, description="Topics and other terms the project may use."
+    )
+    is_branded: bool | None = Field(
+        default=None,
+        description="Overrides the branded flag computed from the own aliases. " + _NOT_BUILT,
+    )
+    source: PromptSource | None = Field(
+        default=None, description="Where the prompt came from; left out: `manual`. " + _NOT_BUILT
+    )
+    creation_method: CreateMethod | None = Field(
+        default=None, description="How it was written; left out: `human`. " + _NOT_BUILT
+    )
+    generated_from: GeneratedFrom | None = Field(
+        default=None,
+        description="The tracked keyword and template it was generated from. " + _NOT_BUILT,
     )
 
 
@@ -196,10 +238,16 @@ class Prompt(BaseModel):
     intent: Intent
     funnel_stage: FunnelStage
     prompt_type: PromptType
+    prompt_type_source: Literal["rule", "person"] | None = Field(
+        default=None, exclude_if=_absent, description=_NOT_RETURNED
+    )
     importance: int
     is_branded: bool = Field(
         description="Names an own brand: computed from the project's own aliases when the "
         "prompt is saved; a change may set it."
+    )
+    is_branded_source: Literal["computed", "override"] | None = Field(
+        default=None, exclude_if=_absent, description=_NOT_RETURNED
     )
     source: str
     creation_method: CreationMethod
@@ -470,11 +518,6 @@ class MetricCell(BaseModel):
 
 
 SummaryInclude = Literal["series", "entities"]
-
-
-def _absent(value: object) -> bool:
-    """A block nobody asked for is left out of the answer, not sent as null."""
-    return value is None
 
 
 class OutcomeCells(BaseModel):

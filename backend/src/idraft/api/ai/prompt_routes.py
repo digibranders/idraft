@@ -7,10 +7,10 @@ dependency has already refused a project outside the caller's scope.
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Header, Query, Response
 
 from idraft.api.ai.prompt_repository import PromptFilter, PromptRecord
 from idraft.api.ai.prompt_service import LintedPrompt, PromptService
@@ -21,6 +21,7 @@ from idraft.api.request_info import Info
 from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai import (
     CountryIso,
+    Importance,
     LintSpan,
     LintWarning,
     MatchedAlias,
@@ -38,13 +39,21 @@ from idraft.api.schemas.ai import (
     PromptRejected,
     PromptResponse,
     PromptSkipped,
+    PromptSort,
+    PromptType,
     RunNow,
 )
 from idraft.api.schemas.ai_bulk import PromptBulkArchive
 from idraft.api.schemas.common import LanguageCode, QueryText
 from idraft.api.schemas.entities import EntityRef
-from idraft.api.schemas.keywords import BulkArchiveResponse, BulkArchiveResult, Intent
+from idraft.api.schemas.keywords import (
+    BulkArchiveResponse,
+    BulkArchiveResult,
+    FunnelStage,
+    Intent,
+)
 from idraft.api.schemas.operations import RunResponse
+from idraft.api.stubs import not_built_yet, refuse_unbuilt
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 
@@ -61,6 +70,28 @@ def get_prompt_service(resources: Annotated[Resources, Depends(get_resources)]) 
 
 
 Prompts = Annotated[PromptService, Depends(get_prompt_service)]
+
+_NOT_BUILT = "Not built yet: `501 not_implemented`."
+
+IfMatch = Annotated[
+    str | None,
+    Header(
+        alias="If-Match",
+        max_length=128,
+        description="The `ETag` of the prompt as read; a changed prompt is `412 "
+        "precondition_failed`. " + _NOT_BUILT,
+    ),
+]
+
+
+def _unbuilt_members(item: PromptCreate) -> dict[str, bool]:
+    """The members of a create whose behaviour is not built yet (contract C1)."""
+    return {
+        "is_branded": item.is_branded is not None,
+        "source": item.source is not None,
+        "creation_method": item.creation_method is not None,
+        "generated_from": item.generated_from is not None,
+    }
 
 
 def prompt_view(record: PromptRecord) -> Prompt:
@@ -114,7 +145,9 @@ def prompt_view(record: PromptRecord) -> Prompt:
     description="Newest first. `filter[is_active]` is true when left out; archived prompts are "
     "listed with false. `filter[term]` takes the term or one under it, `filter[q]` matches the "
     "text as a substring without case, and `filter[intent_in]` takes a comma list. A cursor is "
-    "bound to its filters (`400 invalid_cursor` otherwise).",
+    "bound to its filters (`400 invalid_cursor` otherwise). The type, funnel stage, importance "
+    "and branded filters, `sort` and `filter[is_active]=any` are published and not built yet "
+    "(`501`).",
 )
 async def list_prompts(
     project_id: UUID,
@@ -126,8 +159,49 @@ async def list_prompts(
     intent_in: Annotated[list[Intent] | None, Commas, Query(alias="filter[intent_in]")] = None,
     country_iso: Annotated[CountryIso | None, Query(alias="filter[country_iso]")] = None,
     language_code: Annotated[LanguageCode | None, Query(alias="filter[language_code]")] = None,
-    is_active: Annotated[bool, Query(alias="filter[is_active]")] = True,
+    is_active: Annotated[
+        bool | Literal["any"],
+        Query(
+            alias="filter[is_active]",
+            description="`true` (default) or `false`; `any` lists both. `any`: " + _NOT_BUILT,
+        ),
+    ] = True,
+    prompt_type_in: Annotated[
+        list[PromptType] | None,
+        Commas,
+        Query(alias="filter[prompt_type_in]", description=_NOT_BUILT),
+    ] = None,
+    funnel_stage_in: Annotated[
+        list[FunnelStage] | None,
+        Commas,
+        Query(alias="filter[funnel_stage_in]", description=_NOT_BUILT),
+    ] = None,
+    importance_in: Annotated[
+        list[Importance] | None,
+        Commas,
+        Query(alias="filter[importance_in]", description=_NOT_BUILT),
+    ] = None,
+    is_branded: Annotated[
+        bool | None, Query(alias="filter[is_branded]", description=_NOT_BUILT)
+    ] = None,
+    sort: Annotated[
+        PromptSort | None,
+        Query(
+            description="A field, `-` first for descending; left out: newest first. " + _NOT_BUILT
+        ),
+    ] = None,
 ) -> PromptPage:
+    if isinstance(is_active, str):
+        raise not_built_yet("Not built yet: filter[is_active]=any.")
+    refuse_unbuilt(
+        {
+            "filter[prompt_type_in]": bool(prompt_type_in),
+            "filter[funnel_stage_in]": bool(funnel_stage_in),
+            "filter[importance_in]": bool(importance_in),
+            "filter[is_branded]": is_branded is not None,
+            "sort": sort is not None,
+        }
+    )
     given = PromptFilter(
         q=q,
         term=term,
@@ -162,6 +236,7 @@ async def list_prompts(
 async def create_prompt(
     project_id: UUID, body: PromptCreate, access: WritePrompts, prompts: Prompts, info: Info
 ) -> PromptResponse:
+    refuse_unbuilt(_unbuilt_members(body))
     return PromptResponse(data=prompt_view(await prompts.create(access, project_id, body, info)))
 
 
@@ -210,6 +285,8 @@ def _lint_view(item: LintedPrompt) -> PromptLint:
 async def bulk_create_prompts(
     project_id: UUID, body: PromptBulkCreate, access: WritePrompts, prompts: Prompts, info: Info
 ) -> PromptBulkResponse:
+    for item in body.items:
+        refuse_unbuilt(_unbuilt_members(item))
     outcome = await prompts.bulk_create(access, project_id, body, info)
     return PromptBulkResponse(
         data=PromptBulkResult(
@@ -282,7 +359,9 @@ async def update_prompt(
     access: WritePrompts,
     prompts: Prompts,
     info: Info,
+    if_match: IfMatch = None,
 ) -> PromptResponse:
+    refuse_unbuilt({"If-Match": if_match is not None})
     record = await prompts.update(access, project_id, prompt_id, body, info)
     return PromptResponse(data=prompt_view(record))
 
