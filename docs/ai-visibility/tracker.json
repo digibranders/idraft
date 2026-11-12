@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T04:51:06+05:30",
+ "updated": "2026-11-13T04:51:48+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -3999,6 +3999,20 @@
    "granted": "2026-11-13T04:47:37+05:30",
    "scope": "additive new models only; hot file: rebase before every push, keep both sides, never reorder",
    "until": "lane merged"
+  },
+  {
+   "path": "backend/tests/api/ai/test_prompts_summary.py",
+   "wp": "WP-12",
+   "granted": "2026-11-13T04:51:48+05:30",
+   "scope": "series tests only (prompt points always pool, so weeks no longer add up to the window cell)",
+   "until": "WP-12 merged"
+  },
+  {
+   "path": "backend/src/idraft/domain/ai_metrics.py",
+   "wp": "WP-12",
+   "granted": "2026-11-13T04:51:48+05:30",
+   "scope": "new file, owner WP-12 (POOL_BELOW_PROMPTS, POOL_WEEKS, pools(), pool_window()); other lanes import, never edit",
+   "until": "WP-12 merged"
   }
  ],
  "followups": [
