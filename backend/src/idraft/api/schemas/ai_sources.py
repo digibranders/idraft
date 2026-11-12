@@ -10,7 +10,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from idraft.api.pagination import OffsetPageInfo
+from idraft.api.pagination import CursorPageInfo, OffsetPageInfo
 from idraft.api.schemas.ai import MetricCell
 from idraft.api.schemas.metrics import MetricWindow
 from idraft.domain.ai_engines import EngineCode
@@ -77,3 +77,49 @@ class SourceDomainPage(BaseModel):
     data: list[SourceDomainRow]
     page: OffsetPageInfo
     meta: SourcesMeta
+
+
+class SourcePageRow(BaseModel):
+    url_id: int
+    url: str = Field(description="The canonical URL: the link to follow.")
+    host: str
+    registrable_domain: str
+    title: str | None = Field(description="A title an answer gave the page; null if none did.")
+    domain_role: DomainRole
+    role_entity_id: UUID | None
+    citation_units: int = Field(description=_UNITS)
+    observations: int = Field(description="Answers that cite it.")
+    prompts: int = Field(description="Prompts whose answers cite it.")
+    engines: list[EngineUnits]
+    source_share: MetricCell
+    first_seen_at: datetime
+    last_seen_at: datetime
+
+
+class SourcePagePage(BaseModel):
+    data: list[SourcePageRow]
+    page: OffsetPageInfo
+    meta: SourcesMeta
+
+
+class CitationRow(BaseModel):
+    observation_id: str = Field(description="A 64-bit id, as a string.")
+    observed_at: datetime
+    prompt_id: UUID
+    engine_code: EngineCode
+    citation_index: int = Field(description="Its place in the answer's source list, from 1.")
+    url_id: int
+    url: str = Field(description="The canonical URL: the link to follow.")
+    raw_url: str = Field(description="As the provider gave it: evidence, not a link.")
+    host: str
+    registrable_domain: str
+    title: str | None
+    citation_kind: str
+    domain_role: DomainRole
+    role_entity_id: UUID | None
+    occurrences: int
+
+
+class CitationPage(BaseModel):
+    data: list[CitationRow]
+    page: CursorPageInfo

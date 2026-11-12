@@ -17,19 +17,31 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.ai import source_repository as repository
-from idraft.api.ai.source_repository import Counted, SourceScope, Totals
+from idraft.api.ai.source_repository import CitationFilter, Counted, SourceScope, Totals
 from idraft.api.ai.summary import summary_dates
-from idraft.api.pagination import OffsetPageInfo, OffsetParams
+from idraft.api.pagination import (
+    CursorPageInfo,
+    CursorParams,
+    OffsetPageInfo,
+    OffsetParams,
+    decode_cursor,
+    encode_cursor,
+    invalid_cursor,
+)
 from idraft.api.problems import NotFoundError
 from idraft.api.ranks.repository import project_zone
 from idraft.api.ranks.service import instants
 from idraft.api.schemas.ai import MetricCell
 from idraft.api.schemas.ai_sources import (
+    CitationPage,
+    CitationRow,
     DomainRole,
     EngineUnits,
     RoleUnits,
     SourceDomainPage,
     SourceDomainRow,
+    SourcePagePage,
+    SourcePageRow,
     SourcesMeta,
     SourceSort,
 )
@@ -156,6 +168,48 @@ def sources_meta(
     )
 
 
+def _cursor_scope(
+    project_id: UUID,
+    query: SourceQuery,
+    engines: Sequence[str],
+    registrable_domain: str | None,
+    url_id: int | None,
+) -> dict[str, object]:
+    """What a citation cursor is bound to: the project and every filter."""
+    return {
+        "project_id": str(project_id),
+        "from": query.start,
+        "to": query.end,
+        "engines": list(engines),
+        "prompt": query.prompt_id,
+        "term": query.term_id,
+        "branded": query.include_branded,
+        "roles": sorted(query.roles or []),
+        "domain": registrable_domain,
+        "url": url_id,
+    }
+
+
+def _after(cursor: str, bound: dict[str, object]) -> tuple[datetime, int, int]:
+    key = decode_cursor(cursor, scope=bound)
+    if len(key) != 3:
+        raise invalid_cursor()
+    at_text, observation_id, index = key
+    if (
+        not isinstance(at_text, str)
+        or not isinstance(observation_id, int)
+        or not isinstance(index, int)
+    ):
+        raise invalid_cursor()
+    try:
+        at = datetime.fromisoformat(at_text)
+    except ValueError:
+        raise invalid_cursor() from None
+    if at.tzinfo is None:
+        raise invalid_cursor()
+    return at, observation_id, index
+
+
 class SourceService:
     def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
@@ -212,4 +266,106 @@ class SourceService:
             ],
             page=OffsetPageInfo(offset=page.offset, limit=page.limit, total=total),
             meta=sources_meta(now, query, engines, whole),
+        )
+
+    async def pages(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        query: SourceQuery,
+        *,
+        registrable_domain: str | None,
+        sort: SourceSort,
+        page: OffsetParams,
+    ) -> SourcePagePage:
+        engines = shown_engines(query.engine_codes)
+        async with self._transaction(access) as db:
+            now = await scoped(db, access, project_id, query, engines)
+            rows, total = await repository.page_counts(
+                db,
+                now.scope,
+                roles=query.roles,
+                registrable_domain=registrable_domain,
+                sort=sort,
+                offset=page.offset,
+                limit=page.limit,
+            )
+            whole = await repository.totals(db, now.scope)
+        return SourcePagePage(
+            data=[
+                SourcePageRow(
+                    url_id=row.url_id,
+                    url=row.url,
+                    host=row.host,
+                    registrable_domain=row.registrable_domain,
+                    title=row.title,
+                    domain_role=cast(DomainRole, row.domain_role),
+                    role_entity_id=row.role_entity_id,
+                    citation_units=row.counted.citation_units,
+                    observations=row.counted.observations,
+                    prompts=row.counted.prompts,
+                    engines=engine_units(row.counted, engines),
+                    source_share=share(row.counted.citation_units, whole),
+                    first_seen_at=row.counted.first_seen_at,
+                    last_seen_at=row.counted.last_seen_at,
+                )
+                for row in rows
+            ],
+            page=OffsetPageInfo(offset=page.offset, limit=page.limit, total=total),
+            meta=sources_meta(now, query, engines, whole),
+        )
+
+    async def citations(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        query: SourceQuery,
+        *,
+        registrable_domain: str | None,
+        url_id: int | None,
+        page: CursorParams,
+    ) -> CitationPage:
+        engines = shown_engines(query.engine_codes)
+        bound = _cursor_scope(project_id, query, engines, registrable_domain, url_id)
+        after = None if page.cursor is None else _after(page.cursor, bound)
+        given = CitationFilter(
+            roles=query.roles, registrable_domain=registrable_domain, url_id=url_id
+        )
+        async with self._transaction(access) as db:
+            now = await scoped(db, access, project_id, query, engines)
+            rows = await repository.citation_rows(
+                db, now.scope, given, after=after, limit=page.limit + 1
+            )
+        shown = rows[: page.limit]
+        next_cursor = None
+        if len(rows) > page.limit:
+            last = shown[-1]
+            next_cursor = encode_cursor(
+                [last.observed_at.isoformat(), last.observation_id, last.citation_index],
+                scope=bound,
+            )
+        return CitationPage(
+            data=[
+                CitationRow(
+                    observation_id=str(row.observation_id),
+                    observed_at=row.observed_at,
+                    prompt_id=row.prompt_id,
+                    engine_code=EngineCode(row.engine_code),
+                    citation_index=row.citation_index,
+                    url_id=row.url_id,
+                    url=row.canonical_url,
+                    raw_url=row.raw_url,
+                    host=row.host,
+                    registrable_domain=row.registrable_domain,
+                    title=row.title,
+                    citation_kind=row.citation_kind,
+                    domain_role=cast(DomainRole, row.domain_role),
+                    role_entity_id=row.role_entity_id,
+                    occurrences=row.occurrences,
+                )
+                for row in shown
+            ],
+            page=CursorPageInfo(
+                limit=page.limit, next_cursor=next_cursor, has_more=next_cursor is not None
+            ),
         )

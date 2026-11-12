@@ -23,7 +23,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any, Final
 from uuid import UUID
 
-from sqlalchemy import Select, and_, desc, func, literal_column, select, tuple_
+from sqlalchemy import Select, and_, desc, func, literal_column, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.db.tables import (
@@ -33,6 +33,7 @@ from idraft.db.tables import (
     ai_prompt_terms,
     ai_prompts,
     domains,
+    urls,
 )
 from idraft.keywords.trees import descendants
 
@@ -287,6 +288,139 @@ async def domain_counts(
         )
         for row in rows
     ], total
+
+
+@dataclass(frozen=True, slots=True)
+class PageCount:
+    url_id: int
+    url: str
+    host: str
+    registrable_domain: str
+    title: str | None
+    domain_role: str
+    role_entity_id: UUID | None
+    counted: Counted
+
+
+@dataclass(frozen=True, slots=True)
+class CitationFilter:
+    roles: Sequence[str] | None = None
+    registrable_domain: str | None = None
+    url_id: int | None = None
+
+
+async def page_counts(
+    db: AsyncSession,
+    scope: SourceScope,
+    *,
+    roles: Sequence[str] | None,
+    registrable_domain: str | None,
+    sort: str,
+    offset: int,
+    limit: int,
+) -> tuple[list[PageCount], int]:
+    """A page of sources by (page, role, entity), and how many there are. The title is the
+    greatest one an answer gave the page (any one, the same on every read)."""
+    answers, source = _cited(scope)
+    u = urls.c
+    keys = (
+        _C.url_id,
+        u.canonical_url,
+        _D.host,
+        _D.registrable_domain,
+        _C.domain_role,
+        _C.role_entity_id,
+    )
+    grouped = (
+        select(*keys, func.max(_C.title).label("title"), *_measures(answers, scope))
+        .select_from(source.join(urls, u.id == _C.url_id))
+        .where(*citation_bounds(scope))
+        .group_by(*keys)
+    )
+    if roles:
+        grouped = grouped.where(_C.domain_role.in_(list(roles)))
+    if registrable_domain is not None:
+        grouped = grouped.where(_D.registrable_domain == registrable_domain)
+    rows, total = await page_of(
+        db,
+        grouped,
+        order_by(
+            sort, u.canonical_url, _C.url_id, _C.domain_role, _C.role_entity_id.asc().nulls_first()
+        ),
+        offset=offset,
+        limit=limit,
+    )
+    return [
+        PageCount(
+            url_id=row.url_id,
+            url=row.canonical_url,
+            host=row.host,
+            registrable_domain=row.registrable_domain,
+            title=row.title,
+            domain_role=row.domain_role,
+            role_entity_id=row.role_entity_id,
+            counted=_counted(row, scope),
+        )
+        for row in rows
+    ], total
+
+
+async def citation_rows(
+    db: AsyncSession,
+    scope: SourceScope,
+    given: CitationFilter,
+    *,
+    after: tuple[datetime, int, int] | None,
+    limit: int,
+) -> list[Any]:
+    """The citations of the counted answers, the newest answer first, each answer's in its
+    order: keyset `(observed_at DESC, observation_id DESC, citation_index)`."""
+    answers, source = _cited(scope)
+    u = urls.c
+    statement = (
+        select(
+            _C.observation_id,
+            _C.observed_at,
+            answers.c.prompt_id,
+            _C.engine_code,
+            _C.citation_index,
+            _C.url_id,
+            u.canonical_url,
+            _C.raw_url,
+            _D.host,
+            _D.registrable_domain,
+            _C.title,
+            _C.citation_kind,
+            _C.domain_role,
+            _C.role_entity_id,
+            _C.occurrences,
+        )
+        .select_from(source.join(urls, u.id == _C.url_id))
+        .where(*citation_bounds(scope))
+    )
+    if given.roles:
+        statement = statement.where(_C.domain_role.in_(list(given.roles)))
+    if given.registrable_domain is not None:
+        statement = statement.where(_D.registrable_domain == given.registrable_domain)
+    if given.url_id is not None:
+        statement = statement.where(_C.url_id == given.url_id)
+    if after is not None:
+        at, observation_id, index = after
+        statement = statement.where(
+            or_(
+                _C.observed_at < at,
+                and_(_C.observed_at == at, _C.observation_id < observation_id),
+                and_(
+                    _C.observed_at == at,
+                    _C.observation_id == observation_id,
+                    _C.citation_index > index,
+                ),
+            )
+        )
+    statement = statement.order_by(
+        _C.observed_at.desc(), _C.observation_id.desc(), _C.citation_index
+    ).limit(limit)
+    return list(await db.execute(statement))
 
 
 async def answer_count(db: AsyncSession, scope: SourceScope) -> int:

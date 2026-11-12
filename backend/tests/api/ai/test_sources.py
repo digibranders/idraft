@@ -4,6 +4,7 @@ prompts summary counts. The expected numbers are worked out by hand from the ans
 
 from __future__ import annotations
 
+import time
 import uuid
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -16,7 +17,9 @@ from idraft.api.resources import Resources
 from tests.api.ai.sources_support import (
     GUIDE,
     GUIDE_TOP,
+    OWN,
     OWN_BLOG,
+    RIVAL,
     WIKI,
     Cite,
     World,
@@ -24,6 +27,7 @@ from tests.api.ai.sources_support import (
     derivation_of,
     full_project,
     make_world,
+    page_ids,
     statements,
     tag,
     topic_of,
@@ -406,3 +410,194 @@ async def test_a_full_project_reads_as_many_statements_as_a_small_one(
     assert (body["meta"]["answers"], body["meta"]["citation_units"]) == (3600, 36000)
     assert body["page"]["total"] == 20
     assert len(large) == len(small), large
+
+
+def _page(row: dict[str, Any]) -> tuple[Any, ...]:
+    return row["url"], row["citation_units"], row["observations"], row["prompts"]
+
+
+async def test_each_page_has_its_units_and_a_title_an_answer_gave_it(
+    api: httpx.AsyncClient, scene: Scene
+) -> None:
+    """Ties on units sort by canonical URL: the rival's page before the own page."""
+    response = await _get(scene.world, api, "sources", "pages")
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert [_page(row) for row in data] == [
+        (RIVAL, 3, 3, 2),
+        (OWN, 3, 3, 2),
+        (WIKI, 2, 2, 2),
+        (GUIDE, 2, 2, 1),
+        (PRICING, 1, 1, 1),
+        (OWN_BLOG, 1, 1, 1),
+        (GUIDE_TOP, 1, 1, 1),
+    ]
+    own = data[1]
+    assert (own["host"], own["registrable_domain"], own["domain_role"]) == (
+        OWN_HOST,
+        OWN_HOST,
+        "own",
+    )
+    assert (own["role_entity_id"], own["title"]) == (str(scene.world.own), "Managed SOC by Eventus")
+    assert [engine["citation_units"] for engine in own["engines"]] == [2, 0, 1]
+    blog = data[5]
+    assert (blog["host"], blog["registrable_domain"]) == (f"www.{OWN_HOST}", OWN_HOST)
+    assert data[0]["title"] is None
+    assert response.json()["page"]["total"] == 7
+    assert response.json()["meta"]["citation_units"] == 13
+
+
+async def test_a_domains_pages_add_up_to_its_units(api: httpx.AsyncClient, scene: Scene) -> None:
+    """a3 cites the own domain's pricing page as a third party: the domain has a row for each role
+    (4 and 1 units, Task 1), and its pages split the same way."""
+    pages = await _get(
+        scene.world, api, "sources", "pages", **{"filter[registrable_domain]": OWN_HOST}
+    )
+    own_pages = await _get(
+        scene.world,
+        api,
+        "sources",
+        "pages",
+        **{"filter[registrable_domain]": OWN_HOST, "filter[domain_role_in]": "own"},
+    )
+
+    rows = [_page(row) for row in pages.json()["data"]]
+    assert rows == [(OWN, 3, 3, 2), (PRICING, 1, 1, 1), (OWN_BLOG, 1, 1, 1)]
+    assert sum(row[1] for row in rows) == 5
+    own_rows = [_page(row) for row in own_pages.json()["data"]]
+    assert own_rows == [(OWN, 3, 3, 2), (OWN_BLOG, 1, 1, 1)]
+    assert sum(row[1] for row in own_rows) == 4
+
+
+async def test_pages_page_by_offset(api: httpx.AsyncClient, scene: Scene) -> None:
+    second = await _get(scene.world, api, "sources", "pages", offset=2, limit=2)
+    beyond = await _get(scene.world, api, "sources", "pages", offset=10, limit=2)
+
+    assert [row["url"] for row in second.json()["data"]] == [WIKI, GUIDE]
+    assert beyond.json()["data"] == []
+    assert beyond.json()["page"] == {"offset": 10, "limit": 2, "total": 7}
+
+
+async def test_the_citations_are_listed_newest_answer_first(
+    api: httpx.AsyncClient, migrated: PostgresServer, scene: Scene
+) -> None:
+    counted = [scene.answers[name] for name in ("a1", "a2", "a3", "b1", "b2")]
+    expected = await fetch(
+        migrated,
+        "SELECT observation_id, citation_index FROM ai.citations WHERE observation_id = ANY($1) "
+        "ORDER BY observed_at DESC, observation_id DESC, citation_index",
+        counted,
+    )
+
+    response = await _get(scene.world, api, "citations", limit=200)
+
+    assert response.status_code == 200, response.text
+    rows = response.json()["data"]
+    assert [(int(row["observation_id"]), row["citation_index"]) for row in rows] == [
+        (row["observation_id"], row["citation_index"]) for row in expected
+    ]
+    assert len(rows) == 14
+    first = rows[0]
+    assert (first["prompt_id"], first["engine_code"], first["url"], first["domain_role"]) == (
+        str(scene.prompts["a"].id),
+        "chatgpt_web",
+        OWN,
+        "own",
+    )
+    assert response.json()["page"]["has_more"] is False
+
+
+async def test_cursor_pages_hold_every_citation_once(api: httpx.AsyncClient, scene: Scene) -> None:
+    whole = (await _get(scene.world, api, "citations", limit=200)).json()["data"]
+    seen: list[dict[str, Any]] = []
+    cursor: str | None = None
+    while True:
+        params: dict[str, Any] = {"limit": 5} if cursor is None else {"limit": 5, "cursor": cursor}
+        body = (await _get(scene.world, api, "citations", **params)).json()
+        seen.extend(body["data"])
+        cursor = body["page"]["next_cursor"]
+        if cursor is None:
+            break
+
+    assert seen == whole
+    assert len(seen) == 14
+
+
+async def test_a_cursor_is_bound_to_its_filters(api: httpx.AsyncClient, scene: Scene) -> None:
+    first = (
+        await _get(scene.world, api, "citations", limit=1, **{"filter[domain_role_in]": "own"})
+    ).json()
+
+    other = await _get(scene.world, api, "citations", limit=1, cursor=first["page"]["next_cursor"])
+
+    assert problem(other) == (400, "invalid_cursor")
+
+
+async def test_a_page_or_a_domain_lists_the_citations_behind_its_units(
+    api: httpx.AsyncClient, migrated: PostgresServer, scene: Scene
+) -> None:
+    own_url, _ = await page_ids(migrated, OWN)
+
+    by_page = await _get(scene.world, api, "citations", limit=200, **{"filter[url_id]": own_url})
+    by_domain = await _get(
+        scene.world, api, "citations", limit=200, **{"filter[registrable_domain]": RIVAL_HOST}
+    )
+
+    # a1 lists the own page twice: four citations in three answers, the page's three units.
+    page_rows = by_page.json()["data"]
+    assert len(page_rows) == 4
+    assert len({row["observation_id"] for row in page_rows}) == 3
+    domain_rows = by_domain.json()["data"]
+    assert sorted(row["prompt_id"] for row in domain_rows) == sorted(
+        str(scene.prompts[name].id) for name in ("a", "a", "b")
+    )
+
+
+async def test_an_unknown_project_has_no_pages_or_citations(
+    api: httpx.AsyncClient, scene: Scene
+) -> None:
+    world = scene.world
+    for parts in (("sources", "pages"), ("citations",)):
+        url = world.url("ai", *parts).replace(str(world.project.id), str(uuid.uuid4()))
+        response = await api.get(url, headers=world.owner.headers)
+        assert problem(response) == (404, "not_found")
+
+
+async def test_pages_and_citations_of_a_full_project_are_fast_without_statistics(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, scene: Scene
+) -> None:
+    """The first read of a freshly loaded project (no ANALYZE: the planner has no statistics)
+    must not nest its loops over 36,000 citations: 15 s is the hard limit, a second is the aim.
+    Then, as for the domains, a full project reads as many statements as a small one."""
+    full = await full_project(resources, migrated)
+    cold: dict[str, float] = {}
+    for name, parts in (("pages", ("sources", "pages")), ("citations", ("citations",))):
+        started = time.perf_counter()
+        response = await _get(full, api, *parts, limit=200)
+        cold[name] = time.perf_counter() - started
+        assert response.status_code == 200, response.text
+    assert max(cold.values()) < 15, cold
+    pages = (await _get(full, api, "sources", "pages", limit=200)).json()
+    assert (pages["page"]["total"], pages["meta"]["citation_units"]) == (50, 36000)
+    assert sum(row["citation_units"] for row in pages["data"]) == 36000
+    first = (await _get(full, api, "citations", limit=50)).json()
+    assert len(first["data"]) == 50
+    assert first["page"]["has_more"] is True
+    started = time.perf_counter()
+    second = await _get(full, api, "citations", limit=50, cursor=first["page"]["next_cursor"])
+    assert time.perf_counter() - started < 15
+    keys = {
+        (row["observation_id"], row["citation_index"])
+        for row in first["data"] + second.json()["data"]
+    }
+    assert len(keys) == 100
+
+    await _get(scene.world, api, "sources", "pages")
+    await _get(scene.world, api, "citations")
+    for parts in (("sources", "pages"), ("citations",)):
+        with statements(resources) as small:
+            await _get(scene.world, api, *parts)
+        with statements(resources) as large:
+            await _get(full, api, *parts)
+        assert len(large) == len(small), large
