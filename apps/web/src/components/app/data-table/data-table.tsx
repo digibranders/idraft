@@ -17,10 +17,11 @@ import {
   type ReactNode,
 } from 'react';
 
-import { toneOf } from './action-tone';
 import { BulkActionBar } from './bulk-action-bar';
 import { ColumnChooser } from './column-chooser';
 import { planHeader } from './column-groups';
+import { LONG_PRESS, ownsContextMenu } from './context-menu';
+import { RowContextMenu, rowMenuItems, type MenuPoint } from './row-menu';
 import { TableFooter } from './table-footer';
 import { DataTableToolbar } from './toolbar';
 import { ancestorIndexes, treeKey, type TreeRowFacts } from './tree-rows';
@@ -52,12 +53,6 @@ const IDENTITY_RESIZE = { min: 120, leaveRoom: 160, menuStep: 40 } as const;
 const PIN_LEAVES_ROOM = 360;
 const SKELETON_ROWS = 12;
 const EMPTY_IDS: ReadonlySet<string> = new Set();
-const GROUP_ORDER: Readonly<Record<RecordAction<unknown>['group'], number>> = {
-  open: 0,
-  object: 1,
-  copy: 2,
-  destructive: 3,
-};
 
 /** The actions of one row's menu. */
 const actionsOf = <TRow,>(rowActions: RowActions<TRow> | undefined, row: TRow): readonly RecordAction<TRow>[] =>
@@ -105,16 +100,6 @@ const ALIGN: Readonly<Record<'left' | 'right' | 'center', string>> = {
   right: 'text-right',
   center: 'text-center',
 };
-
-/** A record action as a menu item; destructive ones are listed last by the menu. */
-const toMenuItem = <TRow,>(action: RecordAction<TRow>, rows: readonly TRow[], scope: ActionScope): MenuItemDef => ({
-  id: action.id,
-  label: action.label,
-  icon: action.icon,
-  tone: toneOf(action),
-  disabledReason: action.disabledReason ?? undefined,
-  onSelect: () => action.onSelect(rows, scope),
-});
 
 /**
  * Whether a click landed on the row itself rather than on a control in it. Clicks in a menu or tooltip
@@ -178,6 +163,7 @@ export function DataTable<TRow extends RowData>({
   pinActions = false,
   bulkActions,
   rowActions,
+  rowContextMenu = true,
   rowName,
   onRowOpen,
   activeRowId,
@@ -579,6 +565,104 @@ export function DataTable<TRow extends RowData>({
   const menuOpen = (kind: 'column' | 'row', id: string): boolean => menu?.kind === kind && menu.id === id;
   const onMenuChange = (kind: 'column' | 'row', id: string) => (open: boolean) => setMenu(open ? { kind, id } : null);
 
+  // The row menu at the pointer: a right click, or a touch long press. One row's menu is open at a time, and
+  // it is the More menu's, so it acts on that one row.
+  const [contextMenu, setContextMenu] = useState<{
+    rowId: string;
+    point: MenuPoint;
+    column: number;
+    /** Which opening it is, so a menu that a newer one replaced leaves focus where the newer one put it. */
+    seq: number;
+  } | null>(null);
+  const openings = useRef(0);
+  const contextIndex = contextMenu === null ? undefined : indexOfId.get(contextMenu.rowId);
+  const contextRow = contextIndex === undefined ? undefined : rows[contextIndex];
+  const contextActions = contextRow === undefined ? [] : actionsOf(rowActions, contextRow);
+  // The row whose menu is on show, which a long press that began earlier reads when its timer ends
+  const contextOpenId = contextMenu !== null && contextActions.length > 0 ? contextMenu.rowId : null;
+  const openContextId = useRef<string | null>(null);
+  useEffect(() => {
+    openContextId.current = contextOpenId;
+  }, [contextOpenId]);
+  // Set for the moment after Shift+F10 or the Menu key opened the More menu: the browser's own contextmenu event
+  // for that key press is then not a right click
+  const keyOpened = useRef(false);
+  const press = useRef<{ x: number; y: number; timer: ReturnType<typeof setTimeout> } | null>(null);
+  // The click that ends a long press is not a tap on the row, so the inspector does not open
+  const swallowClick = useRef(false);
+  useEffect(
+    () => () => {
+      if (press.current !== null) clearTimeout(press.current.timer);
+    },
+    [],
+  );
+  const cancelPress = (): void => {
+    if (press.current === null) return;
+    clearTimeout(press.current.timer);
+    press.current = null;
+  };
+  // The column of the cell an event landed in; beside every cell, the identity column
+  const columnOf = (target: EventTarget): number => {
+    const key = target instanceof Element ? target.closest<HTMLElement>('[data-cell]')?.dataset.cell : undefined;
+    const column = Number(key?.split(':')[1]);
+    return Number.isInteger(column) ? column : Math.max(identityIndex, 0);
+  };
+  // Right click also focuses the cell that was clicked, and the arrow keys move on from it
+  const openContextMenu = (index: number, id: string, column: number, point: MenuPoint): void => {
+    setMenu(null);
+    openings.current += 1;
+    setContextMenu({ rowId: id, point, column, seq: openings.current });
+    setFocus(cellAt(index, column));
+    cellElement(index, column)?.focus({ preventScroll: true });
+  };
+  const startPress = (
+    event: PointerEvent<HTMLTableRowElement>,
+    index: number,
+    id: string,
+    hasActions: boolean,
+  ): void => {
+    swallowClick.current = false;
+    cancelPress();
+    const facts = { shiftKey: false, target: event.target, fromKeyboard: false };
+    if (!rowContextMenu || event.pointerType !== 'touch' || !ownsContextMenu(facts, hasActions)) return;
+    const point = { x: event.clientX, y: event.clientY };
+    const column = columnOf(event.target);
+    press.current = {
+      ...point,
+      timer: setTimeout(() => {
+        press.current = null;
+        swallowClick.current = true;
+        // Android raises contextmenu for its own long press, which may have opened this row's menu already
+        if (openContextId.current !== id) openContextMenu(index, id, column, point);
+      }, LONG_PRESS.delayMs),
+    };
+  };
+  const movePress = (event: PointerEvent<HTMLTableRowElement>): void => {
+    const start = press.current;
+    if (start !== null && Math.hypot(event.clientX - start.x, event.clientY - start.y) > LONG_PRESS.slopPx) {
+      cancelPress();
+    }
+  };
+  // What a row listens to for the menu: a right click, and a touch held down
+  const contextHandlers = (index: number, id: string, hasActions: boolean) => ({
+    onContextMenu: (event: MouseEvent<HTMLTableRowElement>): void => {
+      // A menu portaled out of the row reaches it through React: only its own elements count
+      if (!rowContextMenu || !(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
+      const facts = { shiftKey: event.shiftKey, target: event.target, fromKeyboard: keyOpened.current };
+      if (!ownsContextMenu(facts, hasActions)) {
+        // The key that opened the More menu would show the browser's over it
+        if (facts.fromKeyboard) event.preventDefault();
+        return;
+      }
+      event.preventDefault();
+      openContextMenu(index, id, columnOf(event.target), { x: event.clientX, y: event.clientY });
+    },
+    onPointerDown: (event: PointerEvent<HTMLTableRowElement>): void => startPress(event, index, id, hasActions),
+    onPointerMove: movePress,
+    onPointerUp: cancelPress,
+    onPointerCancel: cancelPress,
+  });
+
   const labelOf = (id: string): string => byId.get(id)?.header ?? id;
   const keyText = (key: SortKey): string => t(key.desc ? 'descending' : 'ascending', { column: labelOf(key.id) });
   const sortText = (keys: readonly SortKey[]): string | null => {
@@ -709,6 +793,12 @@ export function DataTable<TRow extends RowData>({
     if ((event.shiftKey && event.key === 'F10') || event.key === 'ContextMenu') {
       if (row !== undefined && actionsOf(rowActions, row).length > 0) {
         event.preventDefault();
+        // The browser may raise contextmenu for this same key press: this menu is its answer
+        keyOpened.current = true;
+        setTimeout(() => {
+          keyOpened.current = false;
+        }, 0);
+        setContextMenu(null);
         setMenu({ kind: 'row', id: getRowId(row) });
       }
       return;
@@ -1099,6 +1189,8 @@ export function DataTable<TRow extends RowData>({
         onScroll={(event) => {
           setScrollTop(Math.floor(event.currentTarget.scrollTop / SCROLL_STEP) * SCROLL_STEP);
           if (pinActions) setAtEnd(scrolledToEnd(event.currentTarget));
+          // A finger that scrolls is not pressing
+          cancelPress();
         }}
       >
         {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Both roles are interactive; the rule reads only a literal role */}
@@ -1208,6 +1300,7 @@ export function DataTable<TRow extends RowData>({
                         const isSelected = selectable && (allMatching || selected.has(id));
                         const isActive = activeRowId === id;
                         const name = rowName(row);
+                        const actions = actionsOf(rowActions, row);
                         return (
                           <tr
                             key={id}
@@ -1225,6 +1318,10 @@ export function DataTable<TRow extends RowData>({
                             data-group-row={groupTree === undefined ? undefined : ''}
                             className={cn('group cursor-default', density === 'compact' ? 'h-row-compact' : 'h-row')}
                             onClick={(event: MouseEvent<HTMLTableRowElement>) => {
+                              if (swallowClick.current) {
+                                swallowClick.current = false;
+                                return;
+                              }
                               if (!isRowClick(event)) return;
                               if (groupTree === undefined) openRow(row, event);
                               else onToggleGroup?.(row);
@@ -1234,6 +1331,7 @@ export function DataTable<TRow extends RowData>({
                                 openRow(row, event);
                               }
                             }}
+                            {...contextHandlers(index, id, actions.length > 0)}
                           >
                             {grid.map((column, columnIndex) => {
                               const left = stickyLeft(column);
@@ -1305,7 +1403,7 @@ export function DataTable<TRow extends RowData>({
                                       />
                                     ) : null
                                   ) : column.kind === 'actions' ? (
-                                    actionsOf(rowActions, row).length === 0 ? null : (
+                                    actions.length === 0 ? null : (
                                       <Menu
                                         align="end"
                                         open={menuOpen('row', id)}
@@ -1321,11 +1419,7 @@ export function DataTable<TRow extends RowData>({
                                             label={t('rowActions', { name })}
                                           />
                                         }
-                                        items={[...actionsOf(rowActions, row)]
-                                          .sort((a, b) => GROUP_ORDER[a.group] - GROUP_ORDER[b.group])
-                                          .map((action) =>
-                                            toMenuItem(action, [row], { ids: new Set([id]), allMatching: false }),
-                                          )}
+                                        items={rowMenuItems(actions, row, id)}
                                       />
                                     )
                                   ) : identity && groupTree !== undefined ? (
@@ -1378,6 +1472,16 @@ export function DataTable<TRow extends RowData>({
           </tbody>
         </table>
       </div>
+      <RowContextMenu
+        point={contextOpenId === null ? null : (contextMenu?.point ?? null)}
+        items={contextRow === undefined ? [] : rowMenuItems(contextActions, contextRow, contextMenu?.rowId ?? '')}
+        name={t('rowActions', { name: contextRow === undefined ? '' : rowName(contextRow) })}
+        onClose={() => setContextMenu(null)}
+        finalFocus={() => {
+          if (contextMenu === null || contextMenu.seq !== openings.current) return false;
+          return (contextIndex === undefined ? null : cellElement(contextIndex, contextMenu.column)) ?? true;
+        }}
+      />
       <div hidden>
         {descriptions.map((description) => (
           <span key={description.id} id={description.id}>

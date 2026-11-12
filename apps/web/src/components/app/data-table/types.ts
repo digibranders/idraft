@@ -234,6 +234,11 @@ export interface DataTableProps<TRow> {
    * every row has (a run that has ended cannot be cancelled). A row with no action shows no menu.
    */
   rowActions?: RowActions<TRow> | undefined;
+  /**
+   * Right click and a touch long press open the row's menu at the pointer (Shift plus right click, a link and a
+   * field keep the browser's menu). Default true; it needs `rowActions`. `false` leaves the browser's menu on rows.
+   */
+  rowContextMenu?: boolean;
   /** The name a row's checkbox and menu carry ("Select crm pricing", "Actions for crm pricing"). */
   rowName: (row: TRow) => string;
   onRowOpen?: ((row: TRow, intent: 'inspector' | 'new-tab') => void) | undefined;

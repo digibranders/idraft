@@ -2684,3 +2684,468 @@ describe('DataTable server paging and Select all N matching', () => {
     expect(offerOf()).toHaveTextContent('Select all 4,812 matching');
   });
 });
+
+describe('DataTable row context menu', () => {
+  /** A note field in a cell: the browser's own menu belongs to it. */
+  const NOTE = col.url<Row>('note', () => null, {
+    header: 'Note',
+    sortable: false,
+    cell: () => <input aria-label="Note" />,
+  });
+  const NO_ACTIONS_FOR_K1 = (row: Row): readonly RecordAction<Row>[] => (row.id === 'k1' ? [] : ACTIONS);
+  const TREE: Readonly<Record<string, RowTree>> = {
+    k0: { level: 1, expanded: true, setSize: 1, posInSet: 1 },
+    k1: { level: 2, setSize: 2, posInSet: 1 },
+    k2: { level: 2, setSize: 2, posInSet: 2 },
+  };
+  const toggle = vi.fn<(row: Row) => void>();
+
+  /** The columns are: 0 selection, 1 keyword, 2 volume, 3 KD, 4 actions (the note column, when given, is 4). */
+  function ContextHarness({
+    rows,
+    rowActions = ACTIONS,
+    rowContextMenu = true,
+    columns = COLUMNS,
+    tree = false,
+  }: {
+    rows: Row[];
+    /** `null`: the table has no `rowActions` at all. */
+    rowActions?: RowActions<Row> | null;
+    rowContextMenu?: boolean;
+    columns?: readonly DataTableColumn<Row>[];
+    tree?: boolean;
+  }): ReactElement {
+    const [density, setDensity] = useState<Density>(parseDensity(null));
+    const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+    const [allMatching, setAllMatching] = useState(false);
+    return (
+      <div className="flex h-200 flex-col">
+        <DataTable<Row>
+          caption="Keywords"
+          itemNoun={{ one: 'keyword', other: 'keywords' }}
+          columns={columns}
+          getRowId={rowId}
+          rows={rows}
+          total={rows.length}
+          sort={[]}
+          onSortChange={vi.fn()}
+          defaultSort={DEFAULT_SORT}
+          density={density}
+          onDensityChange={setDensity}
+          columnState={{ visible: null, onChange: vi.fn() }}
+          search=""
+          onSearchChange={vi.fn()}
+          searchPlaceholder="Search keywords"
+          selection={{
+            selectedIds: selected,
+            onChange: setSelected,
+            matchingTotal: null,
+            allMatching,
+            onAllMatchingChange: setAllMatching,
+          }}
+          rowActions={rowActions ?? undefined}
+          rowContextMenu={rowContextMenu}
+          rowTree={tree ? (row) => TREE[row.id] : undefined}
+          onToggleGroup={toggle}
+          rowName={keywordOf}
+          onRowOpen={onOpen}
+          status="ready"
+          errorState={<p>The keywords did not load.</p>}
+          emptyState={<p>No keywords yet.</p>}
+          filteredEmptyState={<p>No keywords match.</p>}
+        />
+      </div>
+    );
+  }
+
+  // Looked up in the DOM and not by role: an open menu hides the page behind it from the accessibility tree
+  const bodyRows = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>('tbody tr[role="row"]')];
+  const bodyRow = (name: string): HTMLElement => {
+    const row = bodyRows().find((candidate) => candidate.querySelector('[role="rowheader"]')?.textContent === name);
+    if (row === undefined) throw new Error(`No row ${name}`);
+    return row;
+  };
+  /** A cell of a row by its column, as the grid numbers them. */
+  const cellOf = (name: string, column: number): HTMLElement => {
+    const cell = bodyRow(name).querySelector<HTMLElement>(`[data-cell$=":${String(column)}"]`);
+    if (cell === null) throw new Error(`No cell ${String(column)} in ${name}`);
+    return cell;
+  };
+  const anchor = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-slot="row-context-anchor"]');
+  const menuLabels = (): (string | null)[] =>
+    within(screen.getByRole('menu'))
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent);
+  /** Whether the event was left to the browser's own menu: not prevented. */
+  const leftToBrowser = (element: Element, init: MouseEventInit = {}): boolean =>
+    fireEvent.contextMenu(element, { clientX: 40, clientY: 30, ...init });
+  const markup = (html: string): string => html.replace(/(?:_r_|:r)[0-9a-z]+[_:]/g, 'ID');
+  const selectedKeywords = (): (string | null | undefined)[] =>
+    bodyRows()
+      .filter((row) => row.getAttribute('aria-selected') === 'true')
+      .map((row) => row.querySelector('[role="rowheader"]')?.textContent);
+
+  beforeEach(() => {
+    toggle.mockReset();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("opens the row menu on right click with the More menu's items, and the browser menu is prevented", async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    expect(anchor()).toBeNull();
+    const handled = !leftToBrowser(cellOf('keyword 001', 1));
+    expect(handled).toBe(true);
+    expect(await screen.findByRole('menu', { name: 'Actions for keyword 001' })).toBeInTheDocument();
+    const fromContextMenu = menuLabels();
+    expect(fromContextMenu).toEqual(['Open', 'Archive']);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    await user.click(within(bodyRow('keyword 001')).getByRole('button', { name: 'Actions for keyword 001' }));
+    await screen.findByRole('menu');
+    expect(menuLabels()).toEqual(fromContextMenu);
+  });
+
+  it('puts the anchor at the pointer coordinates', async () => {
+    renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    leftToBrowser(cellOf('keyword 001', 2), { clientX: 233, clientY: 147 });
+    await screen.findByRole('menu');
+    expect(anchor()).toHaveStyle({ left: '233px', top: '147px' });
+    expect(anchor()).toHaveAccessibleName('Actions for keyword 001');
+  });
+
+  it('focuses the clicked cell and leaves selection, the active row and the inspector alone', async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 000' }));
+    onOpen.mockClear();
+    const cell = cellOf('keyword 002', 2);
+    leftToBrowser(cell);
+    await screen.findByRole('menu');
+    // The tab stop is on the cell that was clicked
+    expect(cell).toHaveAttribute('tabindex', '0');
+    expect(document.querySelectorAll('table [tabindex="0"]')).toHaveLength(1);
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(toggle).not.toHaveBeenCalled();
+    expect(selectedKeywords()).toEqual(['keyword 000']);
+    expect(bodyRows().some((row) => row.hasAttribute('aria-current'))).toBe(false);
+  });
+
+  it('runs an action on that row only, with the same arguments as the More menu, also while another row is selected', async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 000' }));
+    leftToBrowser(cellOf('keyword 002', 1));
+    await user.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    expect(archive).toHaveBeenCalledTimes(1);
+    expect(archive).toHaveBeenLastCalledWith([expect.objectContaining({ id: 'k2' })], {
+      ids: new Set(['k2']),
+      allMatching: false,
+    });
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    // The same call from the More menu
+    await user.click(within(bodyRow('keyword 002')).getByRole('button', { name: 'Actions for keyword 002' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    expect(archive).toHaveBeenCalledTimes(2);
+    expect(archive.mock.calls[1]).toEqual(archive.mock.calls[0]);
+    // Neither opened the row, and the earlier selection is as it was
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(selectedKeywords()).toEqual(['keyword 000']);
+  });
+
+  it('closes on Escape, returns focus to the clicked cell, and the arrows move on from it', async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    const cell = cellOf('keyword 001', 2);
+    leftToBrowser(cell);
+    await screen.findByRole('menu');
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(cell));
+    expect(anchor()).toBeNull();
+    await user.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(cellOf('keyword 002', 2));
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('closes on a press outside the menu and leaves the tab stop on the clicked cell', async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    const cell = cellOf('keyword 001', 2);
+    leftToBrowser(cell);
+    await screen.findByRole('menu');
+    await user.click(document.body);
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    expect(anchor()).toBeNull();
+    expect(cell).toHaveAttribute('tabindex', '0');
+    expect(selectedKeywords()).toEqual([]);
+  });
+
+  it('moves the menu to another row on a second right click, never two menus', async () => {
+    renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    leftToBrowser(cellOf('keyword 000', 1), { clientX: 10, clientY: 10 });
+    await screen.findByRole('menu', { name: 'Actions for keyword 000' });
+    leftToBrowser(cellOf('keyword 002', 3), { clientX: 300, clientY: 200 });
+    expect(await screen.findByRole('menu', { name: 'Actions for keyword 002' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByRole('menu')).toHaveLength(1));
+    expect(document.querySelectorAll('[data-slot="row-context-anchor"]')).toHaveLength(1);
+    expect(anchor()).toHaveStyle({ left: '300px', top: '200px' });
+    // The old menu's close must not pull the tab stop back to the cell it was opened from
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    expect(cellOf('keyword 002', 3)).toHaveAttribute('tabindex', '0');
+    expect(document.querySelectorAll('table [tabindex="0"]')).toHaveLength(1);
+  });
+
+  it('closes the More menu that is open when the context menu opens', async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    await user.click(within(bodyRow('keyword 000')).getByRole('button', { name: 'Actions for keyword 000' }));
+    await screen.findByRole('menu', { name: 'Actions for keyword 000' });
+    leftToBrowser(cellOf('keyword 001', 1));
+    await waitFor(() => expect(screen.getAllByRole('menu')).toHaveLength(1));
+    expect(screen.getByRole('menu', { name: 'Actions for keyword 001' })).toBeInTheDocument();
+  });
+
+  it('leaves Shift plus right click, a link in a cell and an input to the browser', async () => {
+    const { rerender, user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    expect(leftToBrowser(cellOf('keyword 001', 1), { shiftKey: true })).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(anchor()).toBeNull();
+    rerender(<ContextHarness rows={rowsOf(3)} columns={CONTROLLED} />);
+    const link = within(bodyRow('keyword 001')).getByRole('link');
+    expect(leftToBrowser(link)).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+    // The cell around the link is the table's
+    expect(leftToBrowser(link.closest('td') ?? link)).toBe(false);
+    await screen.findByRole('menu');
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    rerender(<ContextHarness rows={rowsOf(3)} columns={[...COLUMNS, NOTE]} />);
+    expect(leftToBrowser(within(bodyRow('keyword 001')).getByRole('textbox', { name: 'Note' }))).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('opens nothing for a row the actions function gives no actions, or without rowActions', async () => {
+    const { rerender, user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} rowActions={NO_ACTIONS_FOR_K1} />);
+    expect(leftToBrowser(cellOf('keyword 001', 1))).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(leftToBrowser(cellOf('keyword 002', 1))).toBe(false);
+    expect(await screen.findByRole('menu', { name: 'Actions for keyword 002' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    rerender(<ContextHarness rows={rowsOf(3)} rowActions={null} />);
+    expect(leftToBrowser(cellOf('keyword 002', 1))).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('ignores a right click inside the More menu, which reaches the row through React', async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    await user.click(within(bodyRow('keyword 001')).getByRole('button', { name: 'Actions for keyword 001' }));
+    const item = await screen.findByRole('menuitem', { name: 'Archive' });
+    expect(leftToBrowser(item)).toBe(true);
+    expect(anchor()).toBeNull();
+    expect(screen.getAllByRole('menu')).toHaveLength(1);
+  });
+
+  describe('from the keyboard', () => {
+    const focus = (cell: HTMLElement): void => {
+      act(() => cell.focus());
+    };
+
+    it('keeps Shift+F10 and the Menu key opening the More menu on the focused row, and one menu when the browser also raises contextmenu for that key press', async () => {
+      const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      const cell = cellOf('keyword 001', 1);
+      focus(cell);
+      fireEvent.keyDown(cell, { key: 'F10', shiftKey: true });
+      // The browser's own contextmenu for the same key press: prevented, and no second menu
+      expect(leftToBrowser(cell)).toBe(false);
+      await screen.findByRole('menu', { name: 'Actions for keyword 001' });
+      expect(screen.getAllByRole('menu')).toHaveLength(1);
+      expect(anchor()).toBeNull();
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+      // The More menu returns focus to the actions cell of its row, as it always has
+      await waitFor(() => expect(document.activeElement).toBe(cellOf('keyword 001', 4)));
+      fireEvent.keyDown(cellOf('keyword 001', 4), { key: 'ContextMenu' });
+      expect(leftToBrowser(cell)).toBe(false);
+      await screen.findByRole('menu', { name: 'Actions for keyword 001' });
+      expect(screen.getAllByRole('menu')).toHaveLength(1);
+      expect(anchor()).toBeNull();
+    });
+
+    it('does not hold the keyboard flag past that key press: a right click after it opens the context menu', async () => {
+      const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      const cell = cellOf('keyword 001', 1);
+      focus(cell);
+      fireEvent.keyDown(cell, { key: 'F10', shiftKey: true });
+      await screen.findByRole('menu');
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+      expect(leftToBrowser(cellOf('keyword 002', 1), { clientX: 90, clientY: 70 })).toBe(false);
+      await screen.findByRole('menu', { name: 'Actions for keyword 002' });
+      expect(anchor()).toHaveStyle({ left: '90px', top: '70px' });
+    });
+
+    it('leaves a contextmenu of the browser alone when the key opened no menu (a row without actions)', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} rowActions={NO_ACTIONS_FOR_K1} />);
+      const cell = cellOf('keyword 001', 1);
+      focus(cell);
+      fireEvent.keyDown(cell, { key: 'F10', shiftKey: true });
+      expect(leftToBrowser(cell)).toBe(true);
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+  });
+
+  describe('touch long press', () => {
+    const REGION = (): HTMLElement => {
+      const element = grid().parentElement;
+      if (element === null) throw new Error('The grid has no scroll region');
+      return element;
+    };
+    const touch = (init: PointerEventInit = {}): PointerEventInit => ({
+      pointerType: 'touch',
+      pointerId: 7,
+      clientX: 60,
+      clientY: 90,
+      ...init,
+    });
+    /** Time passes, with React rendering what the timers changed. */
+    const wait = (ms: number): void => {
+      act(() => {
+        vi.advanceTimersByTime(ms);
+      });
+    };
+    const target = (): HTMLElement => cellOf('keyword 001', 2);
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    });
+
+    it('opens on a long press of 500 ms at the touch point, and the click after it does not open the row', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      fireEvent.pointerDown(target(), touch());
+      wait(499);
+      expect(screen.queryByRole('menu')).toBeNull();
+      wait(1);
+      expect(screen.getByRole('menu', { name: 'Actions for keyword 001' })).toBeInTheDocument();
+      expect(anchor()).toHaveStyle({ left: '60px', top: '90px' });
+      expect(target()).toHaveAttribute('tabindex', '0');
+      fireEvent.pointerUp(target(), touch());
+      fireEvent.click(target());
+      expect(onOpen).not.toHaveBeenCalled();
+      expect(selectedKeywords()).toEqual([]);
+    });
+
+    it('stays within a slop of 10 px, and a move beyond it cancels', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      fireEvent.pointerDown(target(), touch());
+      fireEvent.pointerMove(target(), touch({ clientX: 66, clientY: 98 }));
+      wait(500);
+      expect(screen.getByRole('menu')).toBeInTheDocument();
+      expect(anchor()).toHaveStyle({ left: '60px', top: '90px' });
+    });
+
+    it.each([
+      ['a move over 10 px', () => fireEvent.pointerMove(target(), touch({ clientX: 60, clientY: 101 }))],
+      ['a lift', () => fireEvent.pointerUp(target(), touch())],
+      ['a cancel', () => fireEvent.pointerCancel(target(), touch())],
+      ['a scroll of the table', () => fireEvent.scroll(REGION())],
+    ])('does not open after %s before 500 ms', (_name, interrupt) => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      fireEvent.pointerDown(target(), touch());
+      wait(300);
+      interrupt();
+      wait(600);
+      expect(screen.queryByRole('menu')).toBeNull();
+      expect(anchor()).toBeNull();
+      // Nothing was held back from the click that follows a plain tap
+      fireEvent.click(target());
+      expect(onOpen).toHaveBeenCalledTimes(1);
+    });
+
+    it('is for touch only, not for the mouse or a pen', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      fireEvent.pointerDown(target(), touch({ pointerType: 'mouse' }));
+      wait(600);
+      fireEvent.pointerDown(target(), touch({ pointerType: 'pen' }));
+      wait(600);
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('leaves a link and a row without actions alone, and respects rowContextMenu false', () => {
+      const { rerender } = renderWithProviders(<ContextHarness rows={rowsOf(3)} columns={CONTROLLED} />);
+      fireEvent.pointerDown(within(bodyRow('keyword 001')).getByRole('link'), touch());
+      wait(600);
+      expect(screen.queryByRole('menu')).toBeNull();
+      rerender(<ContextHarness rows={rowsOf(3)} rowActions={NO_ACTIONS_FOR_K1} />);
+      fireEvent.pointerDown(target(), touch());
+      wait(600);
+      expect(screen.queryByRole('menu')).toBeNull();
+      rerender(<ContextHarness rows={rowsOf(3)} rowContextMenu={false} />);
+      fireEvent.pointerDown(target(), touch());
+      wait(600);
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('does not open a second time for a press on the row whose menu is already open', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      // Android raises contextmenu on the long press as well
+      fireEvent.pointerDown(target(), touch());
+      leftToBrowser(target(), { clientX: 60, clientY: 90 });
+      wait(500);
+      expect(screen.getAllByRole('menu')).toHaveLength(1);
+      expect(document.querySelectorAll('[data-slot="row-context-anchor"]')).toHaveLength(1);
+    });
+
+    it('lets the next tap open a row even when no click followed the long press', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      fireEvent.pointerDown(target(), touch());
+      wait(500);
+      fireEvent.pointerUp(target(), touch());
+      // No click came; a new press starts afresh
+      fireEvent.pointerDown(cellOf('keyword 002', 2), touch());
+      fireEvent.pointerUp(cellOf('keyword 002', 2), touch());
+      fireEvent.click(cellOf('keyword 002', 2));
+      expect(onOpen).toHaveBeenCalledTimes(1);
+      expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 'k2' }), 'inspector');
+    });
+  });
+
+  it('right click on a tree group row opens its menu and does not toggle the group', async () => {
+    renderWithProviders(<ContextHarness rows={rowsOf(3)} tree />);
+    expect(screen.getByRole('treegrid', { name: 'Keywords' })).toBeInTheDocument();
+    const group = within(screen.getByRole('treegrid')).getByRole('rowheader', { name: 'keyword 000' }).closest('tr');
+    if (group === null) throw new Error('no group row');
+    expect(group).toHaveAttribute('aria-expanded', 'true');
+    const cell = group.querySelector<HTMLElement>('[data-cell$=":2"]');
+    if (cell === null) throw new Error('no cell');
+    expect(leftToBrowser(cell)).toBe(false);
+    expect(await screen.findByRole('menu', { name: 'Actions for keyword 000' })).toBeInTheDocument();
+    expect(toggle).not.toHaveBeenCalled();
+    expect(group).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('rowContextMenu false leaves the browser menu in place', () => {
+    renderWithProviders(<ContextHarness rows={rowsOf(3)} rowContextMenu={false} />);
+    expect(leftToBrowser(cellOf('keyword 001', 1))).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(anchor()).toBeNull();
+  });
+
+  it('adds nothing to the markup before it is used', () => {
+    const on = renderWithProviders(<ContextHarness rows={rowsOf(5)} rowContextMenu />);
+    const withMenu = markup(on.container.innerHTML);
+    on.unmount();
+    const off = renderWithProviders(<ContextHarness rows={rowsOf(5)} rowContextMenu={false} />);
+    expect(markup(off.container.innerHTML)).toBe(withMenu);
+    expect(document.querySelector('[data-slot="row-context-anchor"]')).toBeNull();
+  });
+
+  it('passes the accessibility check with the context menu open', async () => {
+    renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    leftToBrowser(cellOf('keyword 001', 1));
+    await screen.findByRole('menu');
+    expect(await axe(document.body)).toHaveNoViolations();
+  });
+});
