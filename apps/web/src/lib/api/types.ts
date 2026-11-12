@@ -150,6 +150,7 @@ export type CitationOut = Schemas['CitationOut'];
 export type MentionOut = Schemas['MentionOut'];
 export type MetricCell = Schemas['MetricCell'];
 export type EngineSummary = Schemas['EngineSummary'];
+export type EntityCells = Schemas['EntityCells'];
 export type PromptSummaryRow = Schemas['PromptSummaryRow'];
 export type TopicSummaryRow = Schemas['TopicSummaryRow'];
 export type PromptsSummary = Schemas['PromptsSummary'];

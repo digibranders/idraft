@@ -1,4 +1,4 @@
-import type { EngineSummary, MetricCell, ObservationDetail } from '@/lib/api/types';
+import type { EngineSummary, EntityCells, MentionOut, MetricCell, ObservationDetail } from '@/lib/api/types';
 
 /**
  * The arithmetic of the prompts summary, as the API does it (backend `api/ai/summary.py` and
@@ -92,20 +92,29 @@ export function promptCells(engineCode: string, counts: Counts): EngineSummary {
  * is the sum of those rates (not a count of answers), the denominator the number of such prompts, and `pooled`
  * the answers behind them.
  */
-function weighted(members: readonly Counts[], pick: (counts: Counts) => number): MetricCell {
-  const rated = members.filter((counts) => counts.n_valid > 0);
-  const numerator = rated.reduce((sum, counts) => sum + pick(counts) / counts.n_valid, 0);
+function promptWeighted(
+  parts: readonly (readonly [successes: number, valid: number])[],
+  observations: number,
+): MetricCell {
+  const rated = parts.filter(([, valid]) => valid > 0);
+  const numerator = rated.reduce((sum, [successes, valid]) => sum + successes / valid, 0);
   return {
-    ...cell(
-      numerator,
-      rated.length,
-      members.reduce((sum, counts) => sum + counts.n_observations, 0),
-    ),
+    ...cell(numerator, rated.length, observations),
     pooled: {
-      successes: rated.reduce((sum, counts) => sum + pick(counts), 0),
-      trials: rated.reduce((sum, counts) => sum + counts.n_valid, 0),
+      successes: rated.reduce((sum, [successes]) => sum + successes, 0),
+      trials: rated.reduce((sum, [, valid]) => sum + valid, 0),
     },
   };
+}
+
+const observationsOf = (members: readonly Counts[]): number =>
+  members.reduce((sum, counts) => sum + counts.n_observations, 0);
+
+function weighted(members: readonly Counts[], pick: (counts: Counts) => number): MetricCell {
+  return promptWeighted(
+    members.map((counts) => [pick(counts), counts.n_valid] as const),
+    observationsOf(members),
+  );
 }
 
 /** The cells of a topic on one engine from the counts of its prompts. Share of voice stays one answer one weight. */
@@ -123,7 +132,78 @@ export function topicCells(engineCode: string, members: readonly Counts[]): Engi
     share_of_voice: cell(
       members.reduce((sum, counts) => sum + counts.sov_share, 0),
       members.reduce((sum, counts) => sum + counts.sov_answers, 0),
-      members.reduce((sum, counts) => sum + counts.n_observations, 0),
+      observationsOf(members),
     ),
   };
+}
+
+// The cells per tracked entity of `include=entities` (backend `summary.py` `_entity_cells`, `summary_repository.py`
+// `entity_counts`): an answer's share of voice set is its mentions with a mention order, so an entity is named by a
+// valid answer that has such a mention of it, and takes 1 / the entities the answer names.
+
+/** Entity cells are given for at most this many tracked entities, the own ones first. */
+export const ENTITY_CELLS_MAX = 20;
+
+/** A valid answer's fact row and its mentions: what says which tracked entities it names. */
+export interface NamedAnswer {
+  facts: Facts;
+  mentions: readonly Pick<MentionOut, 'entity_id' | 'mention_order'>[];
+}
+
+/** The valid answers of a prompt on an engine that name an entity, and the entity's shares of them. */
+export interface EntityCounts {
+  mentioned: number;
+  sov_share: number;
+}
+
+export const NOT_NAMED: EntityCounts = { mentioned: 0, sov_share: 0 };
+
+export function entityCountsOf(entityId: string, answers: readonly NamedAnswer[]): EntityCounts {
+  const naming = answers.filter(
+    ({ facts, mentions }) =>
+      facts.is_valid &&
+      facts.tracked_entities_mentioned >= 1 &&
+      mentions.some((mention) => mention.entity_id === entityId && mention.mention_order !== null),
+  );
+  return {
+    mentioned: naming.length,
+    sov_share: naming.reduce((sum, { facts }) => sum + 1 / facts.tracked_entities_mentioned, 0),
+  };
+}
+
+/** The cells of one entity on one prompt and engine: plain counts of the prompt's valid answers. */
+export function promptEntityCells(entityId: string, counts: Counts, named: EntityCounts): EntityCells {
+  return {
+    entity_id: entityId,
+    mentioned: cell(named.mentioned, counts.n_valid, counts.n_observations),
+    share_of_voice: cell(named.sov_share, counts.sov_answers, counts.n_observations),
+  };
+}
+
+/** The cells of one entity on a topic and engine from its prompts: Mentioned prompt weighted, Share of voice by answer. */
+export function topicEntityCells(
+  entityId: string,
+  parts: readonly { counts: Counts; named: EntityCounts }[],
+): EntityCells {
+  const observations = observationsOf(parts.map(({ counts }) => counts));
+  return {
+    entity_id: entityId,
+    mentioned: promptWeighted(
+      parts.map(({ counts, named }) => [named.mentioned, counts.n_valid] as const),
+      observations,
+    ),
+    share_of_voice: cell(
+      parts.reduce((sum, { named }) => sum + named.sov_share, 0),
+      parts.reduce((sum, { counts }) => sum + counts.sov_answers, 0),
+      observations,
+    ),
+  };
+}
+
+/** The entities that get cells from the tracked ones: the own brands first, then the others as given, at most 20. */
+export function cellEntityIds(tracked: readonly { entity_id: string; role: 'own' | 'competitor' }[]): string[] {
+  return [...tracked]
+    .sort((a, b) => Number(a.role !== 'own') - Number(b.role !== 'own'))
+    .slice(0, ENTITY_CELLS_MAX)
+    .map((entity) => entity.entity_id);
 }

@@ -6,7 +6,7 @@ import { EVENTUS_WORLD } from '../ai-prompt-world';
 import { setAiSeeded } from '../ai-seed';
 import { MOCK_PROJECTS, MOCK_WORKSPACE } from '../fixtures';
 import { FIXTURE_PROMPTS } from '../prompt-fixtures';
-import { dataOf, mockBrowser, pageOf, type MockBrowser } from '@/test/mock-api';
+import { dataOf, fieldCodes, mockBrowser, pageOf, type MockBrowser } from '@/test/mock-api';
 
 const W = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}`;
 const eventus = MOCK_PROJECTS.find((project) => project.slug === 'eventus-security');
@@ -98,6 +98,18 @@ const SUMMARY = z.object({
       engines: z.array(SUMMARY_ENGINE),
     }),
   ),
+});
+const ENTITY_CELLS = z.object({ entity_id: z.string(), mentioned: CELL, share_of_voice: CELL });
+const ENTITY_ENGINE = z.object({
+  engine_code: z.string(),
+  mentioned: CELL,
+  share_of_voice: CELL,
+  entities: z.array(ENTITY_CELLS).optional(),
+});
+const WITH_ENTITIES = z.object({
+  entities: z.array(z.object({ entity_id: z.string(), name: z.string(), role: z.string() })),
+  prompts: z.array(z.object({ engines: z.array(ENTITY_ENGINE) })),
+  topics: z.array(z.object({ engines: z.array(ENTITY_ENGINE) })),
 });
 const SCHEDULE = z.object({
   workload: z.string(),
@@ -256,6 +268,42 @@ describe('Eventus Security summary', () => {
       );
     }
     for (const row of summary.topics) expect(row.term_id).not.toBeNull();
+  });
+
+  it('gives each engine of each prompt and topic a cell per entity on request: the brand first, shares adding up to 1', async () => {
+    const viewer = mockBrowser('viewer');
+    const plain = await viewer.call('GET', `${EVENTUS}/ai/prompts-summary`);
+    const asked = await viewer.call('GET', `${EVENTUS}/ai/prompts-summary?include=entities`);
+    expect(asked.status).toBe(200);
+    for (const engine of dataOf(plain, WITH_ENTITIES).prompts.flatMap((prompt) => prompt.engines)) {
+      expect(engine).not.toHaveProperty('entities');
+    }
+    const summary = dataOf(asked, WITH_ENTITIES);
+    const own = summary.entities.find((entity) => entity.role === 'own');
+    const competitors = summary.entities
+      .filter((entity) => entity.role === 'competitor')
+      .map((entity) => entity.entity_id);
+    expect(competitors).toHaveLength(8);
+    const engines = [...summary.prompts, ...summary.topics].flatMap((row) => row.engines);
+    let named = 0;
+    for (const engine of engines) {
+      const cells = engine.entities ?? [];
+      expect(cells.map((one) => one.entity_id)).toEqual([own?.entity_id, ...competitors]);
+      // The brand's cells are the engine's, and the shares of what each answer names add up to 1
+      expect(cells[0]?.mentioned).toEqual(engine.mentioned);
+      expect(cells[0]?.share_of_voice.numerator).toBeCloseTo(engine.share_of_voice.numerator, 10);
+      const total = cells.reduce((sum, one) => sum + one.share_of_voice.numerator, 0);
+      expect(total).toBeCloseTo(engine.share_of_voice.denominator, 10);
+      named += cells.slice(1).reduce((sum, one) => sum + one.mentioned.numerator, 0);
+    }
+    expect(named).toBeGreaterThan(0);
+    // The weekly answers of the plain summary are not touched
+    expect(summary.prompts.map((prompt) => prompt.engines.map((engine) => engine.mentioned))).toEqual(
+      dataOf(plain, WITH_ENTITIES).prompts.map((prompt) => prompt.engines.map((engine) => engine.mentioned)),
+    );
+    expect(fieldCodes(await viewer.call('GET', `${EVENTUS}/ai/prompts-summary?include=series`))).toEqual([
+      'include.0:literal_error',
+    ]);
   });
 
   it('leaves the summary of Fynix exactly as it was', async () => {

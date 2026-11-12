@@ -111,6 +111,16 @@ describe('the keys of the AI prompt queries', () => {
     expect(new Set([plain, ...scoped].map((key) => JSON.stringify(key))).size).toBe(5);
   });
 
+  it('send include=entities when a summary asks for the entity cells, and keep the key of one that does not', () => {
+    const plain = summaryQuery(scope, RANGE, false).queryKey;
+    const asked = summaryQuery(scope, RANGE, false, { include: ['entities'] }).queryKey;
+    expect(asked.slice(0, 5)).toEqual(aiKey(scope));
+    expect(asked.at(-1)).toEqual({ from: RANGE.from, to: RANGE.to, include_branded: false, include: ['entities'] });
+    expect(asked).not.toEqual(plain);
+    // Nothing asked for is nothing sent, so the key of an existing caller is the same
+    expect(summaryQuery(scope, RANGE, false, { include: [] }).queryKey).toEqual(plain);
+  });
+
   it('keep the entities of the project out of the prefixes a prompt change refreshes', () => {
     const key = projectEntitiesQuery(scope).queryKey;
     for (const prefix of [promptsKey(scope), aiKey(scope), enginesKey(scope)]) {
@@ -351,6 +361,19 @@ describe('the summary', () => {
     const brandedOnly = await client.fetchQuery(summaryQuery(scope, range, false, { brandedOnly: true }));
     expect(brandedOnly.data).toMatchObject({ include_branded: true, branded_only: true });
     expect(brandedOnly.data.prompts.map((row) => row.is_branded)).toEqual([true]);
+  });
+
+  it('reads a cell per tracked entity on every engine when include=entities is asked, and none otherwise', async () => {
+    const range = lastMonth();
+    const plain = await client.fetchQuery(summaryQuery(scope, range, false));
+    const asked = await client.fetchQuery(summaryQuery(scope, range, false, { include: ['entities'] }));
+    const engines = (rows: typeof asked.data.prompts): (typeof asked.data.prompts)[number]['engines'] =>
+      rows.flatMap((row) => row.engines);
+    expect(engines(plain.data.prompts).every((engine) => engine.entities === undefined)).toBe(true);
+    expect(asked.data.entities.length).toBeGreaterThan(1);
+    for (const engine of [...engines(asked.data.prompts), ...asked.data.topics.flatMap((row) => row.engines)]) {
+      expect(engine.entities).toHaveLength(asked.data.entities.length);
+    }
   });
 
   it('gives each prompt and topic the times of its newest answer and its newest valid answer', async () => {

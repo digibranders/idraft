@@ -1002,3 +1002,195 @@ describe('prompts summary', () => {
     expect((await mockBrowser('viewer').call('GET', `${CLEANSTART}/ai/prompts-summary`)).status).toBe(200);
   });
 });
+
+// The prompts summary with `include=entities`
+
+const ENTITY_CELLS = z.object({ entity_id: z.string(), mentioned: CELL, share_of_voice: CELL });
+const ENGINE_WITH_ENTITIES = ENGINE_SUMMARY.extend({ entities: z.array(ENTITY_CELLS).optional() });
+const WITH_ENTITIES = z.object({
+  entities: z.array(z.object({ entity_id: z.string(), name: z.string(), role: z.enum(['own', 'competitor']) })),
+  prompts: z.array(
+    z.object({ prompt_id: z.string(), topic_term_ids: z.array(z.string()), engines: z.array(ENGINE_WITH_ENTITIES) }),
+  ),
+  topics: z.array(z.object({ term_id: z.string().nullable(), engines: z.array(ENGINE_WITH_ENTITIES) })),
+});
+type WithEntities = z.infer<typeof WITH_ENTITIES>;
+type EntityEngine = z.infer<typeof ENGINE_WITH_ENTITIES>;
+
+const entitiesOf = async (who: MockBrowser, query: string): Promise<WithEntities> =>
+  dataOf(await who.call('GET', `${FYNIX}/ai/prompts-summary${query}`), WITH_ENTITIES);
+/** The engine cells of every prompt row and topic row. */
+const engineRows = (summary: WithEntities): EntityEngine[] => [
+  ...summary.prompts.flatMap((row) => row.engines),
+  ...summary.topics.flatMap((row) => row.engines),
+];
+const entityCellsOf = (engine: EntityEngine): NonNullable<EntityEngine['entities']> => {
+  if (engine.entities === undefined) throw new Error(`No entity cells on ${engine.engine_code}`);
+  return engine.entities;
+};
+const ENTITY_QUERY = '?include=entities';
+
+describe('prompts summary with include=entities', () => {
+  it('leaves the entity cells out of every engine unless they are asked for', async () => {
+    const viewer = mockBrowser('viewer');
+    for (const query of ['', '?include=']) {
+      const plain = await entitiesOf(viewer, query);
+      for (const engine of engineRows(plain)) expect(engine).not.toHaveProperty('entities');
+    }
+  });
+
+  it('gives every engine of every prompt and topic a cell per tracked entity, the own brand first, and changes nothing else', async () => {
+    const viewer = mockBrowser('viewer');
+    const plain = await entitiesOf(viewer, '');
+    const asked = await entitiesOf(viewer, ENTITY_QUERY);
+    // The API sorts competitor before own in `entities`; the cells put the own brand first, then competitors by name
+    const expected = [
+      ...asked.entities.filter((entity) => entity.role === 'own'),
+      ...asked.entities.filter((entity) => entity.role === 'competitor'),
+    ].map((entity) => entity.entity_id);
+    expect(expected).toHaveLength(6);
+    expect(expected[0]).toBe(asked.entities.find((entity) => entity.name === 'Fynix')?.entity_id);
+    expect(engineRows(asked)).toHaveLength(engineRows(plain).length);
+    for (const engine of engineRows(asked)) {
+      expect(entityCellsOf(engine).map((cells) => cells.entity_id)).toEqual(expected);
+    }
+    // The other cells of an engine, whatever else it holds
+    const bare = (engine: EntityEngine): Omit<EntityEngine, 'entities'> => ({
+      engine_code: engine.engine_code,
+      mentioned: engine.mentioned,
+      cited: engine.cited,
+      outcomes: engine.outcomes,
+      share_of_voice: engine.share_of_voice,
+    });
+    expect(asked.prompts.map((row) => row.engines.map(bare))).toEqual(
+      plain.prompts.map((row) => row.engines.map(bare)),
+    );
+    expect(asked.topics.map((row) => row.engines.map(bare))).toEqual(plain.topics.map((row) => row.engines.map(bare)));
+  });
+
+  it('gives the own brand the cells of the engine, on a prompt row and on a topic row', async () => {
+    const asked = await entitiesOf(mockBrowser('viewer'), ENTITY_QUERY);
+    const ownId = asked.entities.find((entity) => entity.role === 'own')?.entity_id;
+    let named = false;
+    for (const engine of engineRows(asked)) {
+      const own = entityCellsOf(engine)[0];
+      expect(own?.entity_id).toBe(ownId);
+      expect(own?.mentioned).toEqual(engine.mentioned);
+      expect(own?.share_of_voice.numerator).toBeCloseTo(engine.share_of_voice.numerator, 10);
+      expect(own?.share_of_voice.denominator).toBe(engine.share_of_voice.denominator);
+      expect(own?.share_of_voice.n_observations).toBe(engine.share_of_voice.n_observations);
+      expect(own?.share_of_voice.pooled).toBeNull();
+      if (engine.mentioned.numerator > 0) named = true;
+    }
+    expect(named).toBe(true);
+  });
+
+  it('adds the shares of an answer up to 1 over the entities it names', async () => {
+    const asked = await entitiesOf(mockBrowser('viewer'), ENTITY_QUERY);
+    for (const engine of engineRows(asked)) {
+      const cells = entityCellsOf(engine);
+      const shares = cells.reduce((sum, one) => sum + one.share_of_voice.numerator, 0);
+      expect(shares).toBeCloseTo(engine.share_of_voice.denominator, 10);
+      for (const one of cells) {
+        expect(one.share_of_voice.denominator).toBe(engine.share_of_voice.denominator);
+        expect(one.share_of_voice.n_observations).toBe(engine.mentioned.n_observations);
+      }
+    }
+  });
+
+  it('counts a competitor as the answers name it, valid answers only', async () => {
+    const viewer = mockBrowser('viewer');
+    const asked = await entitiesOf(viewer, ENTITY_QUERY);
+    const rows = await listAll(viewer, '&from=2026-10-16&to=2026-11-12');
+    let counted = 0;
+    for (const prompt of asked.prompts) {
+      for (const engine of prompt.engines) {
+        const valid = rows.filter(
+          (row) =>
+            row.subject.prompt_id === prompt.prompt_id && row.engine_code === engine.engine_code && row.facts?.is_valid,
+        );
+        for (const cells of entityCellsOf(engine)) {
+          if (cells.entity_id === asked.entities.find((entity) => entity.role === 'own')?.entity_id) continue;
+          const naming = valid.filter((row) => row.facts?.competitor_mentions.includes(cells.entity_id));
+          expect(cells.mentioned).toEqual({
+            value: valid.length === 0 ? null : naming.length / valid.length,
+            numerator: naming.length,
+            denominator: valid.length,
+            n_observations: engine.mentioned.n_observations,
+            pooled: null,
+          });
+          const share = naming.reduce((sum, row) => sum + 1 / (row.facts?.tracked_entities_mentioned ?? 1), 0);
+          expect(cells.share_of_voice.numerator).toBeCloseTo(share, 10);
+          counted += naming.length;
+        }
+      }
+    }
+    expect(counted).toBeGreaterThan(0);
+  });
+
+  it('weighs Mentioned of a topic by prompt for each entity, with pooled, and Share of voice by answer', async () => {
+    const asked = await entitiesOf(mockBrowser('viewer'), ENTITY_QUERY);
+    let fractional = false;
+    for (const topic of asked.topics) {
+      const members = asked.prompts.filter((prompt) =>
+        topic.term_id === null
+          ? prompt.topic_term_ids.length === 0
+          : prompt.topic_term_ids.some((term) => withAncestors(term).includes(topic.term_id ?? '')),
+      );
+      for (const engine of topic.engines) {
+        for (const cells of entityCellsOf(engine)) {
+          const mine = members.flatMap((prompt) =>
+            prompt.engines
+              .filter((one) => one.engine_code === engine.engine_code)
+              .flatMap((one) => entityCellsOf(one).filter((candidate) => candidate.entity_id === cells.entity_id)),
+          );
+          const rated = mine.filter((one) => one.mentioned.denominator > 0);
+          const numerator = rated.reduce((sum, one) => sum + (one.mentioned.value ?? 0), 0);
+          expect(cells.mentioned.numerator).toBeCloseTo(numerator, 10);
+          expect(cells.mentioned.denominator).toBe(rated.length);
+          expect(cells.mentioned.pooled).toEqual({
+            successes: rated.reduce((sum, one) => sum + one.mentioned.numerator, 0),
+            trials: rated.reduce((sum, one) => sum + one.mentioned.denominator, 0),
+          });
+          expect(cells.share_of_voice.numerator).toBeCloseTo(
+            mine.reduce((sum, one) => sum + one.share_of_voice.numerator, 0),
+            10,
+          );
+          expect(cells.share_of_voice.denominator).toBe(
+            mine.reduce((sum, one) => sum + one.share_of_voice.denominator, 0),
+          );
+          expect(cells.share_of_voice.pooled).toBeNull();
+          if (!Number.isInteger(cells.mentioned.numerator)) fractional = true;
+        }
+      }
+    }
+    expect(fractional).toBe(true);
+  });
+
+  it('gives cells for the engines the filter names only, and with the other filters of the summary', async () => {
+    const viewer = mockBrowser('viewer');
+    const only = await entitiesOf(viewer, `${ENTITY_QUERY}&filter[engine_code_in]=gemini_web&include_branded=true`);
+    expect(only.prompts).toHaveLength(24);
+    for (const engine of engineRows(only)) {
+      expect(engine.engine_code).toBe('gemini_web');
+      expect(entityCellsOf(engine)).toHaveLength(6);
+    }
+    const comma = await entitiesOf(viewer, '?include=entities,entities');
+    expect(engineRows(comma).every((engine) => engine.entities?.length === 6)).toBe(true);
+  });
+
+  it('refuses a block the API does not build yet, `series` and any unknown value, as the API does', async () => {
+    const viewer = mockBrowser('viewer');
+    const codes = async (value: string): Promise<string[]> =>
+      fieldCodes(await viewer.call('GET', `${FYNIX}/ai/prompts-summary?include=${value}`));
+    expect(await codes('series')).toEqual(['include.0:literal_error']);
+    expect(await codes('entities,series')).toEqual(['include.1:literal_error']);
+    expect(await codes('bogus,series')).toEqual(['include.0:literal_error', 'include.1:literal_error']);
+    const answer = await viewer.call('GET', `${FYNIX}/ai/prompts-summary?include=series`);
+    expect(answer.status).toBe(422);
+    expect(answer.code).toBe('validation_failed');
+    expect(answer.body.errors).toEqual([
+      { location: 'query', path: 'include.0', code: 'literal_error', message: "Input should be 'entities'" },
+    ]);
+  });
+});

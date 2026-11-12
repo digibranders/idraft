@@ -169,6 +169,8 @@ export interface SummaryScope {
   term?: string;
   /** The branded prompts alone; the API lets it win over `includeBranded`. */
   brandedOnly?: boolean;
+  /** Blocks to add; `entities` gives each engine a Mentioned and a Share of voice cell per tracked entity. */
+  include?: readonly 'entities'[];
 }
 
 /** `GET {P}/ai/prompts-summary`: Mentioned, Cited and the rest per prompt, topic and engine over the window. */
@@ -176,7 +178,7 @@ export const summaryQuery = (
   scope: PromptScope,
   range: DateRange,
   includeBranded: boolean,
-  { country, term, brandedOnly }: SummaryScope = {},
+  { country, term, brandedOnly, include }: SummaryScope = {},
 ): ApiQueryOptions<typeof SUMMARY> =>
   apiQuery(SUMMARY, {
     params: {
@@ -188,6 +190,7 @@ export const summaryQuery = (
         ...(country === undefined ? {} : { 'filter[country_iso]': country }),
         ...(term === undefined ? {} : { 'filter[term]': term }),
         ...(brandedOnly === true ? { branded_only: true } : {}),
+        ...(include === undefined || include.length === 0 ? {} : { include: [...include] }),
       },
     },
   });

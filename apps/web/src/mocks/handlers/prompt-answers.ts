@@ -21,11 +21,25 @@ import {
   type StoredEngine,
   type StoredPrompt,
 } from '../prompt-fixtures';
-import { countsOf, NO_COUNTS, promptCells, topicCells, type Counts } from '../prompt-summary';
+import {
+  cellEntityIds,
+  countsOf,
+  entityCountsOf,
+  NO_COUNTS,
+  NOT_NAMED,
+  promptCells,
+  promptEntityCells,
+  topicCells,
+  topicEntityCells,
+  type Counts,
+  type EntityCounts,
+} from '../prompt-summary';
 import { promptsOf } from '../prompts-state';
 import { invalid, mock, problem } from '../respond';
 import { shiftIsoDate, validateDateWindow } from '../serp-views';
 import type {
+  EngineSummary,
+  EntityCells,
   ObservationDetail,
   ObservationSummary,
   PromptsSummary,
@@ -69,6 +83,22 @@ type Bound = { date: string } | { at: number } | null;
 
 const hasCode = (value: unknown): value is ValidationItem =>
   typeof value === 'object' && value !== null && 'code' in value;
+
+/**
+ * The summary's `include`: a comma list or repeated parameters. `entities` is the only block built; `series` is a
+ * later task of the plan, so it is refused with any other value, one error for each (Pydantic's `literal_error`
+ * at the value's place in the list).
+ */
+function includeOf(url: URL): { entities: boolean } | ValidationItem[] {
+  const values = url.searchParams
+    .getAll('include')
+    .flatMap((value) => value.split(','))
+    .filter((value) => value !== '');
+  const errors = values.flatMap((value, place) =>
+    value === 'entities' ? [] : [queryError(`include.${String(place)}`, 'literal_error', "Input should be 'entities'")],
+  );
+  return errors.length > 0 ? errors : { entities: values.length > 0 };
+}
 
 /** The start of a project day as an instant. */
 const dayStart = (date: string, timeZone: string): number => {
@@ -262,6 +292,7 @@ function findAnswer(projectId: string, id: bigint, hint: number | null, now: num
 /** An answer that counts in the summary: its fact row and when it was observed. */
 interface Counted {
   facts: NonNullable<ObservationDetail['facts']>;
+  mentions: ObservationDetail['mentions'];
   at: string;
 }
 
@@ -477,6 +508,7 @@ export const promptAnswerHandlers: HttpHandler[] = [
         'branded_only',
         'filter[country_iso]',
         'filter[term]',
+        'include',
       ],
     });
     if (caller instanceof Response) return caller;
@@ -509,8 +541,18 @@ export const promptAnswerHandlers: HttpHandler[] = [
         ? []
         : uuidError(termFilter, 'filter[term]').map((item) => queryError(item.path, item.code, item.message))),
     ];
-    if (hasCode(asked) || typeof branded !== 'boolean' || typeof brandedOnly !== 'boolean' || scopeErrors.length > 0) {
-      return invalid(request, [asked, branded, brandedOnly, ...scopeErrors].filter(hasCode));
+    const include = includeOf(url);
+    if (
+      hasCode(asked) ||
+      typeof branded !== 'boolean' ||
+      typeof brandedOnly !== 'boolean' ||
+      scopeErrors.length > 0 ||
+      Array.isArray(include)
+    ) {
+      return invalid(request, [
+        ...[asked, branded, brandedOnly, ...scopeErrors].filter(hasCode),
+        ...(Array.isArray(include) ? include : []),
+      ]);
     }
     const { firstDate, lastDate } = window.range;
     // The term and every term below it, in the workspace's vocabularies: none for a term it does not have
@@ -546,7 +588,7 @@ export const promptAnswerHandlers: HttpHandler[] = [
       const engines = byPrompt.get(prompt) ?? new Map<string, Counted[]>();
       engines.set(answer.engine_code, [
         ...(engines.get(answer.engine_code) ?? []),
-        { facts: answer.facts, at: answer.observed_at },
+        { facts: answer.facts, mentions: answer.mentions, at: answer.observed_at },
       ]);
       byPrompt.set(prompt, engines);
     }
@@ -593,17 +635,36 @@ export const promptAnswerHandlers: HttpHandler[] = [
         }
       }
     }
+    // With `include=entities`, a cell for each tracked entity on every engine of a prompt row and of a topic row
+    const cellIds = include.entities ? cellEntityIds(entitiesOf(caller)) : null;
+    const named = (promptId: string, code: string, entityId: string): EntityCounts => {
+      const counted = byPrompt.get(promptId)?.get(code);
+      return counted === undefined ? NOT_NAMED : entityCountsOf(entityId, counted);
+    };
+    const withEntities = (cells: EngineSummary, entities: EntityCells[] | null): EngineSummary =>
+      entities === null ? cells : { ...cells, entities };
     const topicRow = (termId: string | null, members: ReadonlySet<string>): TopicSummaryRow => ({
       term_id: termId,
       name: termId === null ? null : (topicTerms.get(termId)?.name ?? null),
       prompt_count: members.size,
       ...lastOf(members),
-      engines: shown.map((code) =>
-        topicCells(
-          code,
-          [...members].flatMap((id) => (byPrompt.get(id)?.has(code) === true ? [counts(id, code)] : [])),
-        ),
-      ),
+      engines: shown.map((code) => {
+        const answered = [...members].filter((id) => byPrompt.get(id)?.has(code) === true);
+        return withEntities(
+          topicCells(
+            code,
+            answered.map((id) => counts(id, code)),
+          ),
+          cellIds === null
+            ? null
+            : cellIds.map((entityId) =>
+                topicEntityCells(
+                  entityId,
+                  answered.map((id) => ({ counts: counts(id, code), named: named(id, code, entityId) })),
+                ),
+              ),
+        );
+      }),
     });
     const rows: PromptSummaryRow[] = prompts.map((prompt) => ({
       prompt_id: prompt.prompt_id,
@@ -611,7 +672,16 @@ export const promptAnswerHandlers: HttpHandler[] = [
       is_branded: prompt.is_branded,
       topic_term_ids: topicsOf(prompt.term_ids),
       ...lastOf([prompt.prompt_id]),
-      engines: shown.map((code) => promptCells(code, counts(prompt.prompt_id, code))),
+      engines: shown.map((code) =>
+        withEntities(
+          promptCells(code, counts(prompt.prompt_id, code)),
+          cellIds === null
+            ? null
+            : cellIds.map((entityId) =>
+                promptEntityCells(entityId, counts(prompt.prompt_id, code), named(prompt.prompt_id, code, entityId)),
+              ),
+        ),
+      ),
     }));
     const untopiced = new Set(rows.filter((row) => row.topic_term_ids.length === 0).map((row) => row.prompt_id));
     // Under a term filter the topic rows are the term's and those below it, and no row holds the untopiced prompts
