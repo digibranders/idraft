@@ -4,6 +4,7 @@ rows and citations, so every expected count can be worked out by hand."""
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import uuid
@@ -39,6 +40,30 @@ RIVAL = f"https://{RIVAL_HOST}/soc"
 GUIDE = "https://guide.example.org/soc"
 GUIDE_TOP = "https://www.example.org/top"
 WIKI = "https://en.wikipedia.org/wiki/SOC"
+
+
+AT = "2026-01-01T00:00:00+00:00"
+
+
+def _payload(cursor: str) -> dict[str, Any]:
+    payload: dict[str, Any] = json.loads(
+        base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4))
+    )
+    return payload
+
+
+def cursor_key(cursor: str) -> list[Any]:
+    key: list[Any] = _payload(cursor)["k"]
+    return key
+
+
+def forged_cursor(cursor: str, key: Any) -> str:
+    """A cursor with a real cursor's scope hash and any key: the hash is not a signature, so a
+    client can make one."""
+    payload = _payload(cursor)
+    payload["k"] = key
+    text = json.dumps(payload, separators=(",", ":"))
+    return base64.urlsafe_b64encode(text.encode()).decode().rstrip("=")
 
 
 @dataclass(frozen=True)

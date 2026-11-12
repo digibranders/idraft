@@ -13,6 +13,7 @@ import pytest
 
 from idraft.api.resources import Resources
 from idraft.collectors.ai_prompt_ingest import ingest
+from tests.api.ai.sources_support import AT, forged_cursor
 from tests.api.auth.support import Workspace, execute, fetchrow, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import ensure_locations, errors, project_url
@@ -193,6 +194,45 @@ async def test_the_list_pages_with_a_cursor_bound_to_its_filters(
     assert [row["observation_id"] for row in second.json()["data"]] == [str(ids["refused"])]
     assert second.json()["page"]["has_more"] is False
     assert problem(other_filter) == (400, "invalid_cursor")
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        [AT],
+        [AT, 5, 1],
+        [AT, "5"],
+        [AT, -1],
+        [5, 5],
+        ["2026-01-01T00:00:00", 5],
+        ["yesterday", 5],
+        ["0001-01-01T00:00:00+01:00", 5],
+        ["9999-12-31T23:59:59-01:00", 5],
+    ],
+    ids=[
+        "one value",
+        "three values",
+        "a string id",
+        "a negative id",
+        "a number for the time",
+        "a time with no offset",
+        "a time that is no time",
+        "year 1 that overflows in UTC",
+        "year 9999 that overflows in UTC",
+    ],
+)
+async def test_a_forged_cursor_is_refused_before_the_query(
+    api: httpx.AsyncClient, answers: Answers, key: list[Any]
+) -> None:
+    workspace, world, owner, _, _, _ = answers
+    first = await _get(api, workspace, world.project, owner, limit=1)
+    cursor = first.json()["page"]["next_cursor"]
+
+    forged = await _get(
+        api, workspace, world.project, owner, limit=1, cursor=forged_cursor(cursor, key)
+    )
+
+    assert problem(forged) == (400, "invalid_cursor")
 
 
 async def test_a_window_over_92_days_is_refused(api: httpx.AsyncClient, answers: Answers) -> None:

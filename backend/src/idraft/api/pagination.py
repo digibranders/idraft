@@ -10,6 +10,7 @@ import json
 import unicodedata
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Depends, Query, Request
@@ -94,6 +95,21 @@ def decode_cursor(cursor: str, *, scope: Mapping[str, object]) -> list[KeyValue]
     if not isinstance(key, list) or not all(_key_value(value) for value in key):
         raise invalid_cursor()
     return key
+
+
+def cursor_instant(value: object) -> datetime:
+    """An instant a cursor key holds, in UTC. Anything the database could not take (text that is
+    not a timestamp, no offset, a year that overflows once moved to UTC) is `400 invalid_cursor`,
+    never a 500: the cursor hash is not a signature, so a client can make its own."""
+    if not isinstance(value, str):
+        raise invalid_cursor()
+    try:
+        at = datetime.fromisoformat(value)
+        if at.tzinfo is None:
+            raise ValueError(value)
+        return at.astimezone(UTC)
+    except (ValueError, OverflowError):
+        raise invalid_cursor() from None
 
 
 def _key_value(value: object) -> bool:

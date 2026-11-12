@@ -8,7 +8,8 @@ import time
 import uuid
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
+from itertools import pairwise
 from typing import Any
 
 import httpx
@@ -23,6 +24,7 @@ from idraft.api.resources import Resources
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import create_session_factory, workspace_transaction
 from tests.api.ai.sources_support import (
+    AT,
     FULL_ANSWERS,
     GUIDE,
     GUIDE_TOP,
@@ -33,7 +35,9 @@ from tests.api.ai.sources_support import (
     Cite,
     World,
     answer,
+    cursor_key,
     derivation_of,
+    forged_cursor,
     full_project,
     make_world,
     page_ids,
@@ -605,6 +609,242 @@ async def test_a_page_or_a_domain_lists_the_citations_behind_its_units(
     assert sorted(row["prompt_id"] for row in domain_rows) == sorted(
         str(scene.prompts[name].id) for name in ("a", "a", "b")
     )
+
+
+FORGED_KEYS = {
+    "two values": [AT, 5],
+    "four values": [AT, 5, 1, 1],
+    "a key that is no list": 5,
+    "a string index": [AT, 5, "1"],
+    "a string id": [AT, "5", 1],
+    "a number for the time": [5, 5, 1],
+    "a time with no offset": ["2026-01-01T00:00:00", 5, 1],
+    "a time that is no time": ["yesterday", 5, 1],
+    "index 0": [AT, 5, 0],
+    "a negative index": [AT, 5, -1],
+    "an index past a smallint": [AT, 5, 40000],
+    "the largest index": [AT, 5, 2**63 - 1],
+    "a negative id": [AT, -1, 1],
+    "year 1 that overflows in UTC": ["0001-01-01T00:00:00+01:00", 5, 1],
+    "year 9999 that overflows in UTC": ["9999-12-31T23:59:59-01:00", 5, 1],
+}
+
+
+@pytest.mark.parametrize("name", FORGED_KEYS)
+async def test_a_forged_citation_cursor_is_refused_before_the_query(
+    api: httpx.AsyncClient, scene: Scene, name: str
+) -> None:
+    """A cursor holds three plain values the database must take: a forged one with the right
+    hash is a 400, never a 500 from the driver."""
+    real = (await _get(scene.world, api, "citations", limit=1)).json()["page"]["next_cursor"]
+
+    forged = await _get(
+        scene.world, api, "citations", limit=1, cursor=forged_cursor(real, FORGED_KEYS[name])
+    )
+
+    assert problem(forged) == (400, "invalid_cursor")
+
+
+async def test_a_cursor_with_the_right_hash_and_a_good_key_is_taken(
+    api: httpx.AsyncClient, scene: Scene
+) -> None:
+    """The forged cases above fail on their key, not on the way they are made."""
+    page = (await _get(scene.world, api, "citations", limit=1)).json()
+    cursor = page["page"]["next_cursor"]
+    key = cursor_key(cursor)
+    local = datetime.fromisoformat(key[0]).astimezone(timezone(timedelta(hours=-5)))
+
+    again = await _get(scene.world, api, "citations", limit=1, cursor=forged_cursor(cursor, key))
+    other_zone = await _get(
+        scene.world,
+        api,
+        "citations",
+        limit=1,
+        cursor=forged_cursor(cursor, [local.isoformat(), *key[1:]]),
+    )
+
+    real = await _get(scene.world, api, "citations", limit=1, cursor=cursor)
+    assert again.json() == other_zone.json() == real.json()
+    assert again.json()["data"][0]["citation_index"] == 2
+
+
+@pytest.mark.parametrize("cursor", ["!!!", "e30", "bm90IGpzb24", "W10", "eyJrIjpbXX0"])
+async def test_a_cursor_that_is_no_cursor_is_refused(
+    api: httpx.AsyncClient, scene: Scene, cursor: str
+) -> None:
+    """Not base64 or not JSON, a payload that is no object, one with no hash, one with no key."""
+    response = await _get(scene.world, api, "citations", cursor=cursor)
+
+    assert problem(response) == (400, "invalid_cursor")
+
+
+async def test_the_last_page_has_no_cursor_and_one_row_fewer_leaves_one_row(
+    api: httpx.AsyncClient, scene: Scene
+) -> None:
+    """The scene has 14 citations: a limit of 14 is the last page, 13 leaves one."""
+    exact = (await _get(scene.world, api, "citations", limit=14)).json()
+    short = (await _get(scene.world, api, "citations", limit=13)).json()
+    last = (
+        await _get(scene.world, api, "citations", limit=13, cursor=short["page"]["next_cursor"])
+    ).json()
+
+    assert len(exact["data"]) == 14
+    assert exact["page"] == {"limit": 14, "next_cursor": None, "has_more": False}
+    assert len(short["data"]) == 13
+    assert short["page"]["has_more"] is True
+    assert short["page"]["next_cursor"] is not None
+    assert last["data"] == exact["data"][13:]
+    assert last["page"] == {"limit": 13, "next_cursor": None, "has_more": False}
+
+
+@pytest.mark.parametrize("limit", [1, 2, 3, 5])
+async def test_a_page_boundary_inside_one_answer_loses_and_repeats_no_citation(
+    api: httpx.AsyncClient, scene: Scene, limit: int
+) -> None:
+    """a1 lists four sources and a2 three: with these limits a page ends between two citations of
+    one answer, and the next starts with the same answer's next one."""
+    whole = (await _get(scene.world, api, "citations", limit=200)).json()["data"]
+    pages: list[list[dict[str, Any]]] = []
+    cursor: str | None = None
+    for _ in range(20):  # 14 rows at one a page is the most; a cursor that never ends fails
+        params: dict[str, Any] = {"limit": limit}
+        if cursor is not None:
+            params["cursor"] = cursor
+        body = (await _get(scene.world, api, "citations", **params)).json()
+        pages.append(body["data"])
+        cursor = body["page"]["next_cursor"]
+        if cursor is None:
+            break
+
+    assert cursor is None
+    seen = [row for page in pages for row in page]
+    assert seen == whole
+    assert len({(row["observation_id"], row["citation_index"]) for row in seen}) == 14
+    assert any(
+        before[-1]["observation_id"] == after[0]["observation_id"]
+        for before, after in pairwise(pages)
+    )
+
+
+async def test_role_and_domain_filters_narrow_the_pages_not_the_share_or_the_meta(
+    api: httpx.AsyncClient, scene: Scene
+) -> None:
+    whole = (await _get(scene.world, api, "sources", "pages")).json()
+    cases = [
+        ({"filter[domain_role_in]": "own"}, [OWN, OWN_BLOG]),
+        ({"filter[registrable_domain]": CYBERNX}, [RIVAL]),
+        (
+            {
+                "filter[domain_role_in]": "competitor,third_party",
+                "filter[registrable_domain]": EVENTUS,
+            },
+            [PRICING],
+        ),
+    ]
+
+    for params, urls in cases:
+        response = await _get(scene.world, api, "sources", "pages", **params)
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert [row["url"] for row in body["data"]] == urls
+        assert body["page"]["total"] == len(urls)
+        assert {row["source_share"]["denominator"] for row in body["data"]} == {13}
+        assert body["meta"] == whole["meta"]
+
+
+async def test_an_engine_filter_narrows_the_pages_with_their_scope(
+    api: httpx.AsyncClient, scene: Scene
+) -> None:
+    """Unlike a role or a domain, an engine is part of the scope: its answers are all there is,
+    so the meta and the share's denominator are that engine's (a3: four citations)."""
+    response = await _get(
+        scene.world, api, "sources", "pages", **{"filter[engine_code_in]": "gemini_web"}
+    )
+
+    body = response.json()
+    assert sorted(row["url"] for row in body["data"]) == sorted([GUIDE, GUIDE_TOP, RIVAL, PRICING])
+    assert {row["source_share"]["denominator"] for row in body["data"]} == {4}
+    assert body["page"]["total"] == 4
+    meta = body["meta"]
+    assert (meta["engine_codes"], meta["answers"], meta["citation_units"]) == (
+        ["gemini_web"],
+        1,
+        4,
+    )
+
+
+async def test_the_citation_filters_keep_only_the_rows_that_match(
+    api: httpx.AsyncClient, scene: Scene
+) -> None:
+    b = str(scene.prompts["b"].id)
+    cases: list[tuple[dict[str, str], str, str, int]] = [
+        ({"filter[domain_role_in]": "own"}, "domain_role", "own", 5),
+        ({"filter[domain_role_in]": "competitor"}, "domain_role", "competitor", 3),
+        ({"filter[engine_code_in]": "gemini_web"}, "engine_code", "gemini_web", 4),
+        ({"filter[prompt_id]": b}, "prompt_id", b, 3),
+        ({"filter[term]": str(scene.topic)}, "prompt_id", b, 3),
+    ]
+
+    for params, field, value, count in cases:
+        response = await _get(scene.world, api, "citations", limit=200, **params)
+
+        assert response.status_code == 200, response.text
+        rows = response.json()["data"]
+        assert len(rows) == count, params
+        assert {row[field] for row in rows} == {value}, params
+
+
+async def test_a_cursor_does_not_cross_to_another_project_of_the_workspace(
+    api: httpx.AsyncClient, migrated: PostgresServer, scene: Scene
+) -> None:
+    world = scene.world
+    other = Project(world.workspace.id, await make_project(migrated, world.workspace.id))
+    elsewhere = replace(world, project=other, derivation_id=await derivation_of(migrated, other))
+    theirs = await add_prompt(migrated, other, "Best managed SOC providers?")
+    await answer(migrated, elsewhere, theirs, days_ago=1, cites=[Cite(GUIDE), Cite(WIKI)])
+    cursor = (await _get(world, api, "citations", limit=1)).json()["page"]["next_cursor"]
+
+    crossed = await api.get(
+        elsewhere.url("ai", "citations"),
+        params={"limit": 1, "cursor": cursor},
+        headers=world.owner.headers,
+    )
+
+    assert problem(crossed) == (400, "invalid_cursor")
+
+
+async def test_provider_text_is_cut_to_a_bound_whatever_its_length(
+    api: httpx.AsyncClient, migrated: PostgresServer, scene: Scene
+) -> None:
+    """A 5,000 character title and raw URL come back cut, ending in `...`, on both routes: the
+    row is still served, not a 500. Ordinary titles are not touched (a2's, above)."""
+    world = scene.world
+    observation = await answer(
+        migrated,
+        world,
+        scene.prompts["a"],
+        days_ago=0.5,
+        cites=[Cite(GUIDE, title="T" * 5000)],
+    )
+    await execute(
+        migrated,
+        "UPDATE ai.citations SET raw_url = $2 WHERE observation_id = $1",
+        observation,
+        "https://guide.example.org/" + "p" * 5000,
+    )
+
+    citation = (await _get(world, api, "citations", limit=1)).json()["data"][0]
+    pages = (
+        await _get(world, api, "sources", "pages", **{"filter[registrable_domain]": EXAMPLE})
+    ).json()["data"]
+
+    assert int(citation["observation_id"]) == observation
+    assert citation["title"] == "T" * 297 + "..."
+    assert citation["raw_url"] == "https://guide.example.org/" + "p" * 971 + "..."
+    assert len(citation["raw_url"]) == 1000
+    guide = next(row for row in pages if row["url"] == GUIDE)
+    assert guide["title"] == "T" * 297 + "..."
 
 
 async def test_an_unknown_project_has_no_pages_or_citations(

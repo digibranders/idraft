@@ -5,10 +5,10 @@ page, the citations behind them, and the queries ChatGPT issued while answering.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
 
 from idraft.api.pagination import CursorPageInfo, OffsetPageInfo
 from idraft.api.schemas.ai import MetricCell
@@ -18,6 +18,27 @@ from idraft.domain.ai_engines import EngineCode
 DomainRole = Literal["own", "competitor", "third_party"]
 SourceSort = Literal["-citation_units", "-observations", "-prompts"]
 SourceCompare = Literal["none", "previous_period"]
+
+TITLE_MAX = 300
+RAW_URL_MAX = 1000
+
+
+def _bounded(limit: int) -> BeforeValidator:
+    """Cut text a provider sent to `limit` characters, ending in `...`. Cutting, not rejecting:
+    a response model that refused a long title would turn a stored answer into a 500."""
+
+    def cut(value: object) -> object:
+        if isinstance(value, str) and len(value) > limit:
+            return value[: limit - 3] + "..."
+        return value
+
+    return BeforeValidator(cut)
+
+
+_TITLE = (
+    f"Provider text (untrusted: show it as text, never as markup); cut to {TITLE_MAX} characters "
+    "with a trailing `...`."
+)
 
 
 def _absent(value: object) -> bool:
@@ -113,7 +134,9 @@ class SourcePageRow(BaseModel):
     url: str = Field(description="The canonical URL: the link to follow.")
     host: str
     registrable_domain: str
-    title: str | None = Field(description="A title an answer gave the page; null if none did.")
+    title: Annotated[str | None, _bounded(TITLE_MAX)] = Field(
+        description="A title an answer gave the page; null if none did. " + _TITLE
+    )
     domain_role: DomainRole
     role_entity_id: UUID | None
     citation_units: int = Field(description=_UNITS)
@@ -140,10 +163,15 @@ class CitationRow(BaseModel):
     citation_index: int = Field(description="Its place in the answer's source list, from 1.")
     url_id: int
     url: str = Field(description="The canonical URL: the link to follow.")
-    raw_url: str = Field(description="As the provider gave it: evidence, not a link.")
+    raw_url: Annotated[str, _bounded(RAW_URL_MAX)] = Field(
+        description="As the provider gave it: evidence, not a link (untrusted: never follow or "
+        f"render it as one); cut to {RAW_URL_MAX} characters with a trailing `...`."
+    )
     host: str
     registrable_domain: str
-    title: str | None
+    title: Annotated[str | None, _bounded(TITLE_MAX)] = Field(
+        description="The title the answer gave this citation; null if none. " + _TITLE
+    )
     citation_kind: str
     domain_role: DomainRole
     role_entity_id: UUID | None

@@ -24,6 +24,7 @@ from idraft.api.pagination import (
     CursorParams,
     OffsetPageInfo,
     OffsetParams,
+    cursor_instant,
     decode_cursor,
     encode_cursor,
     invalid_cursor,
@@ -226,24 +227,24 @@ def _cursor_scope(
     }
 
 
+_SMALLINT_MAX = 2**15 - 1
+
+
 def _after(cursor: str, bound: dict[str, object]) -> tuple[datetime, int, int]:
     key = decode_cursor(cursor, scope=bound)
     if len(key) != 3:
         raise invalid_cursor()
     at_text, observation_id, index = key
+    # `citations.citation_index` is a smallint counted from 1 and ids a bigint from 1: a key
+    # outside them could only come from a forged cursor, and would fail in the database.
     if (
-        not isinstance(at_text, str)
-        or not isinstance(observation_id, int)
+        not isinstance(observation_id, int)
         or not isinstance(index, int)
+        or observation_id < 0
+        or not 1 <= index <= _SMALLINT_MAX
     ):
         raise invalid_cursor()
-    try:
-        at = datetime.fromisoformat(at_text)
-    except ValueError:
-        raise invalid_cursor() from None
-    if at.tzinfo is None:
-        raise invalid_cursor()
-    return at, observation_id, index
+    return cursor_instant(at_text), observation_id, index
 
 
 class SourceService:

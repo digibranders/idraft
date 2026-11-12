@@ -1385,7 +1385,7 @@
             "type": "string"
           },
           "raw_url": {
-            "description": "As the provider gave it: evidence, not a link.",
+            "description": "As the provider gave it: evidence, not a link (untrusted: never follow or render it as one); cut to 1000 characters with a trailing `...`.",
             "title": "Raw Url",
             "type": "string"
           },
@@ -1414,6 +1414,7 @@
                 "type": "null"
               }
             ],
+            "description": "The title the answer gave this citation; null if none. Provider text (untrusted: show it as text, never as markup); cut to 300 characters with a trailing `...`.",
             "title": "Title"
           },
           "url": {
@@ -12427,7 +12428,7 @@
                 "type": "null"
               }
             ],
-            "description": "A title an answer gave the page; null if none did.",
+            "description": "A title an answer gave the page; null if none did. Provider text (untrusted: show it as text, never as markup); cut to 300 characters with a trailing `...`.",
             "title": "Title"
           },
           "url": {
