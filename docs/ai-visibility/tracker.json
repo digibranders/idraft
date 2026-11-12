@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T01:31:02+05:30",
+ "updated": "2026-11-13T01:37:54+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -167,7 +167,7 @@
    "title": "Chart platform: ChartFrame html mode, legend, tooltips, sample markers, boundaries",
    "wave": "W1",
    "kind": "web",
-   "status": "planning",
+   "status": "building",
    "dependsOn": [
     "WP-02"
    ],
@@ -189,7 +189,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-04-chart-frame.md; estimate 6 tasks; decisions D-05"
+   "notes": "file work-packages/WP-04-chart-frame.md; estimate 6 tasks; decisions D-05 | steps 0/6; plan on develop"
   },
   {
    "id": "WP-05",
@@ -3901,6 +3901,41 @@
    "granted": "2026-11-13T01:28:45+05:30",
    "scope": "new file",
    "until": "WP-09 merged"
+  },
+  {
+   "path": "apps/web/src/lib/design/read-tokens.ts",
+   "wp": "WP-04",
+   "granted": "2026-11-13T01:37:54+05:30",
+   "scope": "additive: foregroundMuted in ChartTokens (and its test)",
+   "until": "WP-04 merged"
+  },
+  {
+   "path": "apps/web/src/features/rankings/rank-history/use-rank-history-chart.test.tsx",
+   "wp": "WP-04",
+   "granted": "2026-11-13T01:37:54+05:30",
+   "scope": "additive: foregroundMuted in ChartTokens (and its test)",
+   "until": "WP-04 merged"
+  },
+  {
+   "path": "apps/web/src/components/design-system/registry.ts",
+   "wp": "SHARED WP-04/05/07/08/09/10",
+   "granted": "2026-11-13T01:37:54+05:30",
+   "scope": "one-line additions per package; on rebase keep both sides",
+   "until": "all of those merged"
+  },
+  {
+   "path": "apps/web/src/components/design-system/section-slugs.ts",
+   "wp": "SHARED WP-04/05/07/08/09/10",
+   "granted": "2026-11-13T01:37:54+05:30",
+   "scope": "one-line additions per package; on rebase keep both sides",
+   "until": "all of those merged"
+  },
+  {
+   "path": "apps/web/src/components/design-system/registry.test.tsx",
+   "wp": "SHARED WP-04/05/07/08/09/10",
+   "granted": "2026-11-13T01:37:54+05:30",
+   "scope": "one-line additions per package; on rebase keep both sides",
+   "until": "all of those merged"
   }
  ]
 }
