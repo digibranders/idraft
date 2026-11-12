@@ -264,6 +264,13 @@ The product owner's rule: build what makes the product show data first, and move
 | Tests | Statistical reference values; metric regression dataset; SOV invariants |
 | Acceptance criteria | Every AI metric returns `MetricValue` with n and interval; SOV query over 12 weeks under 200 ms; period comparison flags only interval-excluding-zero changes |
 
+**As built (AI visibility WP-01, 2026-11-13): backend scaffolding.** The 22 routers and 13 schema
+modules of docs/ai-visibility/MASTER-PLAN.md section 3.3 exist empty and are registered; permission
+keys `layouts:manage` and `notes:write`; problem codes `precondition_failed`, `panel_locked`,
+`reason_required`, `core_panel_exists`, `template_language_unsupported`, `not_implemented`; one anchor
+line per package in the route access and cross-tenant tests. No route, table or OpenAPI change
+(plan `docs/superpowers/plans/2026-11-13-ai-wp-01-backend-scaffold.md`).
+
 ### Phase 10: SEO and AI integration
 
 **10a (MVP):** keyword-prompt links with suggestions (cluster, semantic, fan-out), AI Overview vs organic rank (same-check), AIO citation rate by rank bucket, SEO/AI matrix (keyword level) with thresholds, page intelligence (SEO + AI citations), `core.xch_keyword_weekly`.

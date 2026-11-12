@@ -337,6 +337,13 @@ The table lists cross-cutting codes. Route-specific codes (for example `invalid_
 
 A run blocked by budget is not an error: the run is created with status `budget_blocked` and returned with 202 (section 2.10), because doc 24 section 8 requires the blocked run and its estimate to be visible.
 
+**As built (AI visibility WP-01, 2026-11-13): problem codes.** `precondition_failed` (412),
+`panel_locked`, `reason_required`, `core_panel_exists`, `template_language_unsupported` (422) and
+`not_implemented` (501: a route whose contract is published and whose body is not built yet, answered
+after the permission check) are `ProblemError` subclasses in `backend/src/idraft/api/problems.py`.
+`code` is a string in OpenAPI, so the document did not change. A later package's code is a subclass
+in its own module; `tests/api/test_problems.py` fails when two classes share a code.
+
 ### 2.8 Idempotency
 
 **Status: deferred** ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). In V1 the API neither requires nor processes the `Idempotency-Key` header: it is ignored when sent, and the idempotency error codes are never returned. Catalog rows that say "Idempotency-Key required" describe the planned behavior, so the header can ship later without changing any route. In V1, duplicate submissions are contained by the database guarantees of doc 21 (unique run and task keys; `ops.collection_tasks` rows exist before any queue job), so a double click cannot double-submit provider work, and the web app disables a trigger until its request settles.
@@ -462,6 +469,15 @@ Pseudo-permissions used in the catalog:
 | `platform_operator` | Installation operator: `auth.users.is_platform_operator = true` (doc 24 section 3.1, doc 04 section 4) |
 
 Suffix **fresh** means the route also requires a fresh session (section 2.1 rule 5). API key scopes use the same keys (doc 24 section 2.2).
+
+**As built (AI visibility WP-01, 2026-11-13): permissions and routers.** `layouts:manage` (owner,
+admin; owner decision D-11) and `notes:write` (owner, admin, editor; D-18) are in `Permission` and
+in the doc 24 section 3.2 matrix. The enum is not emitted in OpenAPI: a membership's `permissions`
+is a list of strings, so the web app keeps the keys in `apps/web/src/lib/permissions/permissions.ts`
+and `src/mocks/factories/permissions.test.ts` compares its role table with `permissions.py`. Every
+router of docs/ai-visibility/MASTER-PLAN.md section 3.3 is included in `api/main.py`, empty, after
+the auth routes and before the older ones; `tests/api/test_route_access.py` fails when a route is
+hidden by an earlier one (a parameter matches any word).
 
 ## 3. Endpoint catalog
 
