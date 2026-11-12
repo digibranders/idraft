@@ -1,9 +1,10 @@
 """The fixture's topics as the project's topic vocabulary, through `TaxonomyService`.
 
-Terms are matched by path (`parent-slug` or `parent-slug/child-slug`). Parents are added by name
-with their fixture slug, then children under them, so every slug is the fixture's (a `path`
-input would make the parent's slug from its name). A term the fixture does not name is left
-alone, and so is the name of one it does.
+Terms are matched by path (`parent-slug` or `parent-slug/child-slug`), else by name without case
+among the siblings under the same parent, so a term a person renamed or re-slugged is reused.
+Parents are added by name with their fixture slug, then children under them, so every slug is the
+fixture's (a `path` input would make the parent's slug from its name). A term the fixture does
+not name is left alone, and so is the name of one it does.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from uuid import UUID
 
 from idraft.api.schemas.taxonomy import TermInput
 from idraft.api.taxonomy import repository as taxonomy_rows
+from idraft.api.taxonomy.repository import TermRecord
 from idraft.api.taxonomy.service import TaxonomyService
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
@@ -61,12 +63,51 @@ async def _vocabulary(
     return created.id
 
 
-async def _paths(
+async def _terms(
     sessions: Sessions, access: WorkspaceAccess, vocabulary_id: UUID
-) -> dict[str, UUID]:
+) -> list[TermRecord]:
     async with workspace_transaction(sessions, access.workspace_id, user_id=access.user_id) as db:
-        terms = await taxonomy_rows.terms_of(db, access.workspace_id, vocabulary_id)
-    return {term.path: term.id for term in terms}
+        return await taxonomy_rows.terms_of(db, access.workspace_id, vocabulary_id)
+
+
+def _existing(terms: Sequence[TermRecord], path: str, item: TermInput) -> UUID | None:
+    """The term at this path, else the sibling of the same name without case: a term a person
+    renamed or re-slugged is still the fixture's, and keeps what they called it."""
+    for term in terms:
+        if term.path == path:
+            return term.id
+    name = str(item.name).casefold()
+    for term in terms:
+        if term.parent_id == item.parent_id and term.name.casefold() == name:
+            return term.id
+    return None
+
+
+async def _ensure_level(
+    sessions: Sessions,
+    service: TaxonomyService,
+    access: WorkspaceAccess,
+    vocabulary_id: UUID,
+    wanted: Sequence[tuple[str, TermInput]],
+    ids: dict[str, UUID],
+) -> int:
+    """Each wanted `(path, term)` found or made, its id put in `ids` by path. Returns how many
+    were made."""
+    terms = await _terms(sessions, access, vocabulary_id)
+    missing: list[tuple[str, TermInput]] = []
+    for path, item in wanted:
+        found = _existing(terms, path, item)
+        if found is None:
+            missing.append((path, item))
+        else:
+            ids[path] = found
+    if missing:
+        await service.add_terms(
+            access, vocabulary_id, [item for _, item in missing], batch=True, info=SEED_INFO
+        )
+        by_path = {term.path: term.id for term in await _terms(sessions, access, vocabulary_id)}
+        ids.update({path: by_path[path] for path, _ in missing})
+    return len(missing)
 
 
 async def ensure_topics(
@@ -78,27 +119,28 @@ async def ensure_topics(
     """Each fixture topic's slug and term id, and how many terms were made now."""
     service = TaxonomyService(sessions=sessions)
     vocabulary_id = await _vocabulary(sessions, service, access, project_id)
-    existing = await _paths(sessions, access, vocabulary_id)
-    made = 0
-    parents = [
-        TermInput(name=parent.name, slug=parent.slug)
-        for parent in topics
-        if parent.slug not in existing
-    ]
-    if parents:
-        made += len(
-            await service.add_terms(access, vocabulary_id, parents, batch=True, info=SEED_INFO)
-        )
-        existing = await _paths(sessions, access, vocabulary_id)
-    children = [
-        TermInput(name=child.name, slug=child.slug, parent_id=existing[parent.slug])
-        for parent in topics
-        for child in parent.children
-        if f"{parent.slug}/{child.slug}" not in existing
-    ]
-    if children:
-        made += len(
-            await service.add_terms(access, vocabulary_id, children, batch=True, info=SEED_INFO)
-        )
-        existing = await _paths(sessions, access, vocabulary_id)
-    return {slug: existing[path] for slug, path in topic_paths(topics).items()}, made
+    ids: dict[str, UUID] = {}
+    made = await _ensure_level(
+        sessions,
+        service,
+        access,
+        vocabulary_id,
+        [(parent.slug, TermInput(name=parent.name, slug=parent.slug)) for parent in topics],
+        ids,
+    )
+    made += await _ensure_level(
+        sessions,
+        service,
+        access,
+        vocabulary_id,
+        [
+            (
+                f"{parent.slug}/{child.slug}",
+                TermInput(name=child.name, slug=child.slug, parent_id=ids[parent.slug]),
+            )
+            for parent in topics
+            for child in parent.children
+        ],
+        ids,
+    )
+    return {slug: ids[path] for slug, path in topic_paths(topics).items()}, made

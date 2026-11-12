@@ -53,6 +53,22 @@ async def audit_count(pg: PostgresServer, workspace: Workspace) -> int:
     return int(row["n"])
 
 
+async def written(pg: PostgresServer, workspace: Workspace) -> tuple[int, ...]:
+    """What a seed run adds to: audit entries, entities, aliases, domain claims, project roles
+    and taxonomy terms of the workspace. Equal before and after means nothing was written."""
+    row = await fetchrow(
+        pg,
+        "SELECT (SELECT count(*) FROM ops.audit_logs WHERE workspace_id = $1), "
+        "(SELECT count(*) FROM core.entities WHERE workspace_id = $1), "
+        "(SELECT count(*) FROM core.entity_aliases WHERE workspace_id = $1), "
+        "(SELECT count(*) FROM core.entity_domains WHERE workspace_id = $1), "
+        "(SELECT count(*) FROM core.project_entities WHERE workspace_id = $1), "
+        "(SELECT count(*) FROM core.taxonomy_terms WHERE workspace_id = $1)",
+        workspace.id,
+    )
+    return tuple(int(value) for value in row)
+
+
 async def seeded_project(
     pg: PostgresServer, sessions: Sessions
 ) -> tuple[WorkspaceAccess, Workspace, uuid.UUID]:
