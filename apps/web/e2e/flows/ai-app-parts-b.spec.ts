@@ -23,6 +23,8 @@ const LONG_HOST_REGISTRABLE = 'example-registrable.co.uk';
 const LONG_URL_TAIL = 'how-to-choose-a-crm-for-startups-and-small-teams';
 const STEPPING_GROUP = 'In a table, Default and Compact';
 const STEPPING_COUNT = 6;
+const PAGE_URL = 'https://www.hubspot.com/products/crm';
+const POLITE_REGION = '#live-region-polite';
 
 // No request leaves the machine, and the placeholder square is what every icon slot shows
 test.beforeEach(async ({ page }) => {
@@ -109,7 +111,7 @@ test.describe('the cell links at 1280 px', () => {
     await expectFocusRing(links.nth(1));
   });
 
-  test('of the URL cell reach Open by Tab, and Copy by focus, each with a ring', async ({ page }) => {
+  test('of the URL cell reach Open and Copy by focus, each with a ring', async ({ page }) => {
     const row = rowOf(group(page, 'URLCell'), 'Inspector link');
     const path = row.getByRole('link').first();
     const copy = row.getByRole('button', { name: /^Copy /i });
@@ -117,7 +119,6 @@ test.describe('the cell links at 1280 px', () => {
     await path.focus();
     await expect(path).toBeFocused();
     await expectFocusRing(path);
-    // Copy is a cell control: out of the tab order, reached with F2 in a grid and by focus here
     await copy.focus();
     await expect(copy).toBeFocused();
     await expectFocusRing(copy);
@@ -126,6 +127,26 @@ test.describe('the cell links at 1280 px', () => {
     await expectFocusRing(openTab);
     await expect(openTab).toHaveAttribute('target', '_blank');
     await expect(openTab).toHaveAttribute('rel', 'noopener noreferrer nofollow');
+  });
+
+  test('in a list: Tab goes path, Copy, Open; Enter on Copy copies and says so', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    const row = rowOf(group(page, 'URLCell'), 'Inspector link');
+    const path = row.getByRole('link').first();
+    const copy = row.getByRole('button', { name: 'Copy cited page', exact: true });
+    const openTab = row.getByRole('link', { name: /^Open .+ in a new tab$/ });
+    await expect(copy).not.toHaveAttribute('tabindex', '-1');
+    await expect(copy).not.toHaveAttribute('data-cell-control');
+    await path.focus();
+    await page.keyboard.press('Tab');
+    await expect(copy).toBeFocused();
+    await expectFocusRing(copy);
+    await page.keyboard.press('Enter');
+    await expect(page.locator(POLITE_REGION)).toHaveText('cited page copied');
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(PAGE_URL);
+    await page.keyboard.press('Tab');
+    await expect(openTab).toBeFocused();
+    await expectFocusRing(openTab);
   });
 
   test('of a URL without an inspector link: the path is the outbound link, and Tab leaves the cell after it', async ({
@@ -138,6 +159,22 @@ test.describe('the cell links at 1280 px', () => {
     await expectFocusRing(link);
     await expect(link).toHaveAttribute('target', '_blank');
   });
+});
+
+test('in a table grid the Copy button is a cell control, out of the Tab order', async ({ page }) => {
+  await open(page, 'light', 1280);
+  const copies = group(page, STEPPING_GROUP)
+    .locator('tbody')
+    .first()
+    .getByRole('button', { name: /^Copy /i });
+  expect(await copies.count()).toBeGreaterThan(0);
+  const controls = await copies.evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      tabindex: node.getAttribute('tabindex'),
+      cellControl: node.hasAttribute('data-cell-control'),
+    })),
+  );
+  for (const control of controls) expect(control).toEqual({ tabindex: '-1', cellControl: true });
 });
 
 test.describe('the count popover', () => {
