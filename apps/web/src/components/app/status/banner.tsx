@@ -4,12 +4,16 @@ import type { ReactElement, ReactNode } from 'react';
 import { Icon } from '@/components/ui/icon';
 import { cn } from '@/lib/utils';
 
-export type BannerTone = 'info' | 'warning' | 'negative';
+/** `neutral` states a fact with no judgement in it: "Not cited in any of the 8 answers". */
+export type BannerTone = 'info' | 'warning' | 'negative' | 'neutral';
 
 export interface BannerProps {
   tone: BannerTone;
-  /** `page`: full width under the page header, no radius. `region`: inside a section, dialog or panel. */
-  placement: 'page' | 'region';
+  /**
+   * `page`: full width under the page header, no radius. `region`: inside a section, dialog or panel.
+   * `inspector`: full width under an inspector header, no radius, on the inspector body gutter.
+   */
+  placement: 'page' | 'region' | 'inspector';
   /** An optional lead phrase in the strong weight: "Read only:". */
   lead?: string | undefined;
   /** One or two sentences. */
@@ -28,17 +32,25 @@ const TONE_CLASS: Readonly<Record<BannerTone, string>> = {
   info: cn('border-info-border bg-info-subtle'),
   warning: cn('border-warning-border bg-warning-subtle'),
   negative: cn('border-negative-border bg-negative-subtle'),
+  neutral: cn('border-border-subtle bg-surface-subtle'),
 };
 const ICON_CLASS: Readonly<Record<BannerTone, string>> = {
   info: cn('text-info-text'),
   warning: cn('text-warning-text'),
   negative: cn('text-negative-text'),
+  neutral: cn('text-foreground-tertiary'),
 };
 // Banners describe conditions, not events, so `negative` is a cross (18-notifications-alerts.md section 4)
-const ICON: Readonly<Record<BannerTone, LucideIcon>> = { info: Info, warning: TriangleAlert, negative: CircleX };
+const ICON: Readonly<Record<BannerTone, LucideIcon>> = {
+  info: Info,
+  warning: TriangleAlert,
+  negative: CircleX,
+  neutral: Info,
+};
 const PLACEMENT_CLASS = {
   page: cn('border-b px-5 py-2'),
   region: cn('rounded-md border px-3 py-2'),
+  inspector: cn('border-b px-4 py-2'),
 } as const;
 
 /**
