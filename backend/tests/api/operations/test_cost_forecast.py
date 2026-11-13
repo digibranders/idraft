@@ -129,7 +129,8 @@ async def test_forecast_only_lists_projects_with_ai_schedules(
     await _weekly(migrated, deleted, MONDAY)
     await execute(
         migrated,
-        "UPDATE ops.schedules SET deleted_at = now(), is_active = false WHERE project_id = $1",
+        # Only `deleted_at`: the schedule stays active, so the deletion alone must leave it out.
+        "UPDATE ops.schedules SET deleted_at = now() WHERE project_id = $1",
         deleted.project.id,
     )
     await _weekly(migrated, paused, MONDAY, is_active=False)

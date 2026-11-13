@@ -4,11 +4,13 @@ as for an id that names nothing."""
 
 from __future__ import annotations
 
+import re
 import uuid
 
 import httpx
 
 from idraft.api.resources import Resources
+from tests.api.ai.sources_support import statements
 from tests.api.auth.support import make_workspace
 from tests.api.entities.support import member, problem
 from tests.api.keywords.support import keyword_project
@@ -40,6 +42,30 @@ async def test_another_workspaces_budget_is_not_found_for_patch_and_delete(
     assert await stored(migrated, theirs) == before
     # The list of one workspace shows nothing of the other.
     assert (await api.get(url(mine, "budgets"), headers=owner.headers)).json()["data"] == []
+
+
+async def test_every_budget_statement_names_the_workspace_as_well_as_row_level_security(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    data = await created(api, workspace, owner.headers, limit_usd="42.00")
+    one = url(workspace, "budgets", data["budget_id"])
+
+    with statements(resources) as seen:
+        added = await post_budget(api, workspace, owner.headers, workload="seo_rank")
+        changed = await api.patch(one, json={"limit_usd": "1.00"}, headers=owner.headers)
+        removed = await api.delete(one, headers=owner.headers)
+
+    assert (added.status_code, changed.status_code, removed.status_code) == (201, 200, 204)
+    on_budgets = [sql for sql in seen if "ops.budgets" in sql]
+    # The insert, then the locked read and the update, then the locked read and the delete.
+    assert len(on_budgets) == 5
+    for sql in on_budgets:
+        if sql.lstrip().upper().startswith("INSERT"):
+            assert "workspace_id" in sql.split("VALUES")[0], sql
+        else:
+            assert re.search(r"\bworkspace_id = \$\d+", sql), sql
 
 
 async def test_a_member_limited_to_a_project_manages_only_its_budgets(

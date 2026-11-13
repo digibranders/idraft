@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Select, delete, exists, func, insert, literal, select, true, update
+from sqlalchemy import Row, Select, delete, exists, func, insert, literal, select, true, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,7 +22,7 @@ from idraft.db.tables import budgets, projects
 _UNIQUE = "budgets_workspace_id_project_id_workload_period_key"
 
 
-def _record(row: Any) -> BudgetRecord:
+def _record(row: Row[Any]) -> BudgetRecord:
     return BudgetRecord(
         id=row.id,
         project_id=row.project_id,

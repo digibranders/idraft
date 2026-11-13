@@ -13,7 +13,13 @@ from idraft.api.resources import Resources
 from tests.api.ai.sources_support import statements
 from tests.api.ai.support import seed_prompts
 from tests.api.entities.support import member
-from tests.api.operations.collection_support import ENGINES, Scene, make_scene, new_prompt
+from tests.api.operations.collection_support import (
+    ENGINES,
+    Scene,
+    another_project,
+    make_scene,
+    new_prompt,
+)
 from tests.api.operations.cost_support import costed_answer, created, daily_cost, this_month, url
 from tests.collectors.support import make_schedule
 from tests.conftest import PostgresServer
@@ -80,6 +86,9 @@ async def test_unit_cost_statements_do_not_grow_with_answers_or_prompts(
                 migrated, scene, first, "0.001", engine=ENGINES[index % len(ENGINES)]
             )
         await daily_cost(migrated, scene.project, "ai_prompt", "0.10")
+    # More projects add rows, not reads: the large workspace has three, the small one has one.
+    await another_project(migrated, large)
+    await another_project(migrated, large)
     # A first read of each caller warms its session cache, so each counted read starts alike.
     await _read(api, resources, small, "costs/unit-costs")
     await _read(api, resources, large, "costs/unit-costs")

@@ -68,6 +68,23 @@ async def test_cost_per_answer_is_the_sum_of_costs_over_the_answers_with_a_cost_
     assert row["per_ai_observation"] == "0.001300"
 
 
+async def test_a_figure_halfway_between_two_micro_dollars_is_rounded_as_decimal_does(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    scene = await _scene(resources, migrated)
+    prompt = await new_prompt(migrated, scene, "Which SOC provider is best?")
+    for cost in ("0.000002", "0.000003"):
+        await costed_answer(migrated, scene, prompt, cost)
+
+    row = await _row(api, scene)
+
+    # 0.000005 over 2 answers is exactly 0.0000025: Decimal rounds the tie to the even micro,
+    # 0.000002. A quotient taken in floating point is 2.5000000000000002e-06 and would round up
+    # to 0.000003, so this fails on any float in the division.
+    assert row["per_engine"]["chatgpt_web"] == "0.000002"
+    assert row["per_ai_observation"] == "0.000002"
+
+
 async def test_an_engine_with_no_answers_has_null_not_zero(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
