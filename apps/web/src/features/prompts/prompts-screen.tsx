@@ -20,6 +20,16 @@ import { Fragment, useCallback, useMemo, useRef, useState, type ReactNode } from
 
 import { AddPromptsDialog } from './add-prompts-dialog';
 import { AnswerInspector } from './answer-inspector';
+import {
+  CompareSelect,
+  comparedRowCount,
+  DetectableEmpty,
+  detectableField,
+  isDetectableOnly,
+  keepPromptRows,
+  narrowSummary,
+  useCompare,
+} from './compare';
 import { asRecordActions, type PromptAction } from './prompt-action';
 import { usePromptColumns, type PromptRow } from './prompt-columns';
 import { PromptInspector, type PromptCounts } from './prompt-inspector';
@@ -94,6 +104,7 @@ import { enumValuesOf } from '@/lib/filters/filter-values';
 import { formatBusinessDate, formatInteger, formatList, formatRelative } from '@/lib/format';
 import { formatInspectTarget } from '@/lib/inspector/placement';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
+import { comparedWindow, isCompared } from '@/lib/compare/compare-model';
 import { useCountries } from '@/lib/locations/countries';
 import { useCan, useMembership } from '@/lib/permissions';
 import type { StripPrompt } from '@/lib/rates/strip-model';
@@ -189,6 +200,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const tab = parseTab(view.tab);
   // The market of the top bar: every country unless the address names one
   const country = parseCountry(view.country);
+  // The period before: on unless the address says `cmp=off` (D-03). Scope like the country, so Clear filters leaves it
+  const { compare, setCompare } = useCompare();
   // The range of every query of the page, from the picker's keys (`win`, `from`, `to`; `window` of older links).
   // `today` is a day of the project's zone, the one place the clock is read; it turns at that zone's midnight
   const today = useZoneDay(project.timeZone);
@@ -254,6 +267,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         multi: false,
         options: [{ value: 'include', label: t('filters.brandedInclude') }],
       },
+      detectableField({ field: t('compare.detectable.field'), option: t('compare.detectable.option') }),
     ];
   }, [t, optionsPending, topicsUnknown, topicTree, topicTerms, enabled, engines.data]);
   // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
@@ -292,8 +306,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     (): FilterValues => (country === null ? values : { ...values, country: { kind: 'enum', values: [country] } }),
     [values, country],
   );
-  // The topic and country narrow the rows; the engine only picks columns, and Branded adds rows
-  const narrowed = values.topic !== undefined || country !== null;
+  // The topic, country and Detectable changes only narrow the rows; the engine only picks columns, and Branded adds rows
+  const detectableOnly = isDetectableOnly(values);
+  const narrowed = values.topic !== undefined || country !== null || detectableOnly;
   const clearFilters = useCallback(() => {
     setValues({});
     void setView({ country: null });
@@ -309,10 +324,26 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // Trend column comes with them in the one read, which the strip and the drawers use too: a failed series cannot
   // be told from a failed summary, and a summary without series (an older API) leaves the Trend cells blank
   const summary = useQuery({
-    ...summaryQuery(scope, range, includeBranded, { ...(country === null ? {} : { country }), include: SERIES }),
+    ...summaryQuery(scope, range, includeBranded, {
+      ...(country === null ? {} : { country }),
+      include: SERIES,
+      compare,
+    }),
     enabled: enabled.length > 0,
     placeholderData: keepPreviousData,
   });
+  const summaryData = summary.data?.data;
+  const codes = useMemo(() => shown.map((engine) => engine.engine.engine_code), [shown]);
+  // Counts held from a read made without the comparison carry no `previous`: while the new read is on its way the chip
+  // waits for it, so it does not empty the table for a moment
+  const detectableHeld = detectableOnly && compare && !isCompared(summaryData) && summary.isFetching;
+  const detectableIds = useMemo(
+    (): ReadonlySet<string> | null =>
+      detectableOnly && !detectableHeld
+        ? new Set(keepPromptRows(summaryData?.prompts ?? [], codes, compare).map((row) => row.prompt_id))
+        : null,
+    [detectableOnly, detectableHeld, summaryData, codes, compare],
+  );
   const summaryById = useMemo(
     () => new Map((summary.data?.data.prompts ?? []).map((row) => [row.prompt_id, row])),
     [summary.data],
@@ -333,7 +364,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         (prompt) =>
           (includeBranded || !prompt.is_branded) &&
           (topicIds.length === 0 || matchesTopics(prompt, kept)) &&
-          (country === null || prompt.country_iso === country),
+          (country === null || prompt.country_iso === country) &&
+          (detectableIds === null || detectableIds.has(prompt.prompt_id)),
       )
       .map((prompt) => {
         // Where a topic sits comes from the tree; until it is read the name is all there is
@@ -356,7 +388,25 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           country: prompt.country_iso === null ? null : (countryName.get(prompt.country_iso) ?? prompt.country_iso),
         };
       });
-  }, [list.rows, includeBranded, topicIds, kept, country, summaryById, countsLoaded, countryName, topicPaths, locale]);
+  }, [
+    list.rows,
+    includeBranded,
+    topicIds,
+    kept,
+    country,
+    detectableIds,
+    summaryById,
+    countsLoaded,
+    countryName,
+    topicPaths,
+    locale,
+  ]);
+  // The Topics views read the topic rows that changed by more than normal variation; the prompt rows stay whole
+  const topicsSummary = useMemo(
+    () =>
+      summaryData === undefined || detectableIds === null ? summaryData : narrowSummary(summaryData, codes, compare),
+    [summaryData, detectableIds, codes, compare],
+  );
 
   // The prompts chosen, by id: kept through sorting, searching and opening topics, and dropped for good when the rows
   // asked for change (the project, the tab, the topic filter, the country, the Branded filter), as Rankings drops its
@@ -743,23 +793,33 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       live
     />
   );
-  const filteredEmpty = (
-    <EmptyState
-      title={t('emptyFiltered')}
-      reason={t('emptyFilteredReason')}
-      headingLevel={2}
-      details={
-        filtered || country !== null ? <ReadOnlyFilterChips fields={emptyFields} values={emptyValues} /> : undefined
-      }
-      primaryAction={
-        filtered || country !== null ? (
-          <Button variant="secondary" onClick={clearFilters}>
-            {t('clearFilters')}
-          </Button>
-        ) : undefined
-      }
-    />
-  );
+  const filteredEmpty =
+    // A search that finds nothing is the generic state; otherwise the chip says why no row is left
+    detectableOnly && view.q === '' ? (
+      <DetectableEmpty
+        compare={compare}
+        compared={comparedRowCount(summaryData, tab, topicIds.length > 0 ? kept : null, codes)}
+        details={<ReadOnlyFilterChips fields={emptyFields} values={emptyValues} />}
+        onTurnOn={() => setCompare(true)}
+        onClear={clearFilters}
+      />
+    ) : (
+      <EmptyState
+        title={t('emptyFiltered')}
+        reason={t('emptyFilteredReason')}
+        headingLevel={2}
+        details={
+          filtered || country !== null ? <ReadOnlyFilterChips fields={emptyFields} values={emptyValues} /> : undefined
+        }
+        primaryAction={
+          filtered || country !== null ? (
+            <Button variant="secondary" onClick={clearFilters}>
+              {t('clearFilters')}
+            </Button>
+          ) : undefined
+        }
+      />
+    );
   const noPrompts = (
     <EmptyState
       icon={MessageSquare}
@@ -825,6 +885,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           <FilterBar fields={fields} values={values} onChange={setValues} />
         </div>
         <div className="ml-auto flex h-control shrink-0 items-center gap-3">
+          <CompareSelect window={comparedWindow(summaryData)} />
           {updatedText === null ? null : (
             // Shown while the header's container is at least 64rem wide (about a 1280 px window with the sidebar open); a narrower one has it in the More actions menu
             <Tooltip content={windowCaption} purpose="label" side="bottom">
@@ -878,13 +939,15 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               range={range}
               includeBranded={includeBranded}
               country={country}
-              summary={summary.data?.data}
+              summary={topicsSummary}
               engines={shown}
               descendants={descendants}
               tree={topicTree}
               kept={kept}
               filtering={topicIds.length > 0}
-              countryChosen={country !== null}
+              // shortcut: the prop means "a scope narrowed the rows that is not a topic filter", so the chip rides on it
+              // (an empty table is then filtered-empty, not empty); rename it when a third such narrowing appears
+              countryChosen={country !== null || detectableOnly}
               status={topicsStatus}
               errorState={summaryFailed ? summaryError : listError}
               emptyState={noPrompts}

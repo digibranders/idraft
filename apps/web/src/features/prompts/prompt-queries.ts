@@ -17,6 +17,7 @@ import { projectKey, queryKey, type QueryKey } from '@/lib/api/keys';
 import { ApiProblem } from '@/lib/api/problem';
 import { apiMutation, apiQuery, type ApiQueryOptions, type ApiResponse } from '@/lib/api/query';
 import type { EngineCode, Prompt } from '@/lib/api/types';
+import { compareParams } from '@/lib/compare/compare-model';
 
 /**
  * A project's AI prompts and engines (19 section 3.7, cut to slice 1 by plan A). Every key starts with the
@@ -174,6 +175,8 @@ export interface SummaryScope {
    * project's zone, at most 14); `entities` gives each engine a Mentioned and a Share of voice cell per tracked entity.
    */
   include?: readonly ('series' | 'entities')[];
+  /** Ask for the previous period (`compare=previous_period`): each engine of each row then carries `previous`. */
+  compare?: boolean;
 }
 
 /** `GET {P}/ai/prompts-summary`: Mentioned, Cited and the rest per prompt, topic and engine over the window. */
@@ -181,7 +184,7 @@ export const summaryQuery = (
   scope: PromptScope,
   range: DateRange,
   includeBranded: boolean,
-  { country, term, brandedOnly, include }: SummaryScope = {},
+  { country, term, brandedOnly, include, compare }: SummaryScope = {},
 ): ApiQueryOptions<typeof SUMMARY> =>
   apiQuery(SUMMARY, {
     params: {
@@ -194,6 +197,7 @@ export const summaryQuery = (
         ...(term === undefined ? {} : { 'filter[term]': term }),
         ...(brandedOnly === true ? { branded_only: true } : {}),
         ...(include === undefined || include.length === 0 ? {} : { include: [...include] }),
+        ...compareParams(compare === true),
       },
     },
   });
