@@ -5,6 +5,7 @@ import { InspectorStats } from './inspector-stats';
 import type { PromptCounts } from './inspector-reads';
 import type { EngineSummary, MetricCell, ProjectEngine, PromptSummaryRow } from '@/lib/api/types';
 import { ENGINE_FACTS } from '@/mocks/prompt-fixtures';
+import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
 const engine = (code: 'chatgpt_web' | 'gemini_web'): ProjectEngine => ({
@@ -45,8 +46,12 @@ const sectionOf = (label: string): HTMLElement => {
   return section;
 };
 
-function renderStats(engines: ProjectEngine[], rows: EngineSummary[]): void {
-  renderWithProviders(<InspectorStats engines={engines} counts={countsOf(rows)} noCountsReason="No counts" />);
+const RANGE = { from: '2026-09-01', to: '2026-09-28' };
+
+function renderStats(engines: ProjectEngine[], rows: EngineSummary[]): ReturnType<typeof renderWithProviders> {
+  return renderWithProviders(
+    <InspectorStats engines={engines} counts={countsOf(rows)} noCountsReason="No counts" range={RANGE} />,
+  );
 }
 
 describe('the sample of each rate in the Stats tab', () => {
@@ -89,5 +94,60 @@ describe('the aggregation of each engine in the Stats tab', () => {
       expect(within(section).getAllByText(line)).toHaveLength(1);
     }
     expect(screen.getAllByText(/rates count valid answers, each of this prompt counted once/)).toHaveLength(2);
+  });
+});
+
+describe('the statistics of a rate, opened from the Stats tab', () => {
+  const both = (): ReturnType<typeof renderStats> =>
+    renderStats(
+      [engine('chatgpt_web'), engine('gemini_web')],
+      [summary('chatgpt_web', cell(3, 6), cell(4, 6)), summary('gemini_web', cell(5, 8), cell(1, 2))],
+    );
+
+  it('opens the statistics of a rate and comes back', async () => {
+    const { user, container } = both();
+    const open = screen.getByRole('button', { name: 'Open statistics for Mention on Gemini' });
+    expect(open).toHaveTextContent('Open statistics');
+    await user.click(open);
+    const panel = container.querySelector<HTMLElement>('[data-slot="statistics-panel"]');
+    if (panel === null) throw new Error('The statistics panel is not shown');
+    expect(panel).toHaveAttribute('data-placement', 'inspector-tab');
+    expect(panel).toHaveTextContent('Mention rate');
+    expect(panel).toHaveTextContent('Gemini');
+    expect(panel).toHaveTextContent('Sep 1 to Sep 28, 2026');
+    expect(panel).toHaveTextContent('5 of 8 answers');
+    // One engine per panel: the list, and the other engine, are not on screen
+    expect(screen.queryByRole('list', { name: /Rates of/ })).toBeNull();
+    expect(panel).not.toHaveTextContent('ChatGPT');
+    const back = screen.getByRole('button', { name: 'Back to Stats' });
+    expect(back).toHaveFocus();
+    expect(await axe(container)).toHaveNoViolations();
+    await user.click(back);
+    expect(container.querySelector('[data-slot="statistics-panel"]')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Open statistics for Mention on Gemini' })).toHaveFocus();
+  });
+
+  it('opens the Citation rate of the engine it was pressed on, and no other', async () => {
+    const { user, container } = both();
+    await user.click(screen.getByRole('button', { name: 'Open statistics for Citation on ChatGPT' }));
+    const panel = container.querySelector<HTMLElement>('[data-slot="statistics-panel"]');
+    expect(panel).toHaveTextContent('Citation rate');
+    expect(panel).toHaveTextContent('ChatGPT');
+    expect(panel).toHaveTextContent('4 of 6 answers');
+    expect(panel).not.toHaveTextContent('Gemini');
+  });
+
+  it('says insufficient in the panel for a rate below the minimum, with no percent', async () => {
+    const { user, container } = both();
+    await user.click(screen.getByRole('button', { name: 'Open statistics for Citation on Gemini' }));
+    const panel = container.querySelector<HTMLElement>('[data-slot="statistics-panel"]');
+    expect(panel).toHaveTextContent('Insufficient data');
+    expect(panel).not.toHaveTextContent('%');
+  });
+
+  it('has no button on a line with no valid answer', () => {
+    renderStats([engine('chatgpt_web')], [summary('chatgpt_web', cell(0, 0), cell(3, 6))]);
+    expect(screen.queryByRole('button', { name: 'Open statistics for Mention on ChatGPT' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Open statistics for Citation on ChatGPT' })).toBeInTheDocument();
   });
 });

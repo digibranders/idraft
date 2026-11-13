@@ -415,6 +415,32 @@ describe('the prompt inspector: opening and stepping', () => {
     expect(screen.getByRole('complementary').contains(document.activeElement)).toBe(false);
   });
 
+  it('starts the Stats tab on its list for the next prompt', async () => {
+    const { user } = renderOn('viewer', openedOn('stats'));
+    const table = await grid();
+    const inspector = await panel();
+    const [open] = await within(inspector).findAllByRole(
+      'button',
+      { name: /^Open statistics for / },
+      { timeout: LOAD_WAIT },
+    );
+    if (open === undefined) throw new Error('The Stats tab has no rate to open');
+    await user.click(open);
+    expect(inspector.querySelector('[data-slot="statistics-panel"]')).not.toBeNull();
+    const title = within(inspector).getByRole('heading', { level: 2 }).textContent;
+    const cell = (await within(table).findByText(first.text)).closest<HTMLElement>('[data-cell]');
+    if (cell === null) throw new Error('The row has no cell');
+    cell.focus();
+    await user.keyboard('j');
+    await waitFor(() =>
+      expect(within(screen.getByRole('complementary')).getByRole('heading', { level: 2 }).textContent).not.toBe(title),
+    );
+    const next = screen.getByRole('complementary');
+    expect(next.querySelector('[data-slot="statistics-panel"]')).toBeNull();
+    const lists = await within(next).findAllByRole('list', { name: /^Rates of / }, { timeout: LOAD_WAIT });
+    expect(lists).not.toHaveLength(0);
+  });
+
   it('does not carry a Run now still on its way to the prompt it steps to', async () => {
     server.use(
       http.post(RUN_NOW, async () => {

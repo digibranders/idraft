@@ -3931,7 +3931,14 @@
         "intervalLabel": "95% interval {range}",
         "tooFew": "Too few answers for a reliable rate",
         "none": "No valid answers",
-        "method": "The interval is the 95 percent Wilson interval over the valid answers of this window."
+        "method": "The interval is the 95 percent Wilson interval over the valid answers of this window.",
+        "openStatistics": "Open statistics",
+        "openStatisticsLabel": "Open statistics for {metric} on {engine}",
+        "metricMention": "Mention rate",
+        "metricCitation": "Citation rate",
+        "definitionMention": "The share of valid answers of this prompt on this engine that name your brand.",
+        "definitionCitation": "The share of valid answers of this prompt on this engine that cite one of your pages.",
+        "intervalMethod": "The 95 percent Wilson interval over the valid answers of this window, for this engine only."
       }
     },
     "answer": {

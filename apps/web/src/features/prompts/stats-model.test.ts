@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { statsRow } from './stats-model';
+import { statisticsContent, statsRow } from './stats-model';
 import type { MetricCell } from '@/lib/api/types';
 import { MIN_OBSERVATIONS, wilsonInterval } from '@/lib/stats';
 
@@ -43,5 +43,53 @@ describe('the statistics of one rate of one engine', () => {
   it('is there, and says so, for an engine with no cell at all or counts that cannot be real', () => {
     expect(statsRow(undefined).state).toBe('none');
     expect(statsRow(cell(9, 5)).state).toBe('none');
+  });
+});
+
+describe('the content of the statistics panel for one rate of one engine', () => {
+  const words = {
+    metricName: 'Mention rate',
+    engine: { code: 'gemini_web', name: 'Gemini' },
+    scopeText: 'Sep 1 to Sep 28, 2026',
+    definition: 'The share of valid answers that name your brand.',
+    methodText: 'The interval is the 95 percent Wilson interval over the valid answers of this window.',
+  };
+
+  it('builds the statistics panel content of one rate of one engine', () => {
+    const content = statisticsContent(statsRow(cell(5, 8)), words);
+    const interval = wilsonInterval(5, 8);
+    expect(content).toEqual({
+      metricName: 'Mention rate',
+      engine: { code: 'gemini_web', name: 'Gemini' },
+      scopeText: 'Sep 1 to Sep 28, 2026',
+      definition: words.definition,
+      estimate: {
+        value: 5 / 8,
+        numerator: 5,
+        denominator: 8,
+        noun: 'answers',
+        prompts: 1,
+        observationWeighted: null,
+        insufficient: null,
+      },
+      interval: { low: interval?.low, high: interval?.high, methodText: words.methodText },
+      comparison: null,
+      boundaries: [],
+    });
+  });
+
+  it('says insufficient, with the valid answers and the minimum, and has no interval below the minimum', () => {
+    const content = statisticsContent(statsRow(cell(2, MIN_OBSERVATIONS - 1)), words);
+    expect(content.estimate.insufficient).toEqual({ valid: MIN_OBSERVATIONS - 1, required: MIN_OBSERVATIONS });
+    expect(content.estimate.value).toBeNull();
+    expect(content.estimate.numerator).toBe(2);
+    expect(content.estimate.denominator).toBe(MIN_OBSERVATIONS - 1);
+    expect(content.interval).toBeNull();
+  });
+
+  it('never says 0 of 0 for a rate with no valid answer', () => {
+    const { estimate, interval } = statisticsContent(statsRow(undefined), words);
+    expect(estimate).toMatchObject({ value: null, numerator: null, denominator: null, insufficient: null });
+    expect(interval).toBeNull();
   });
 });

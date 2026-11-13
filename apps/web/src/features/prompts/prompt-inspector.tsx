@@ -359,7 +359,9 @@ export function PromptInspector({
     {
       id: 'stats',
       label: (translate) => translate('prompts.inspector.tabStats'),
-      render: () => <InspectorStats engines={engines} counts={counts} noCountsReason={countsReason} />,
+      render: () => (
+        <InspectorStats key={promptId} engines={engines} counts={counts} noCountsReason={countsReason} range={range} />
+      ),
     },
   ];
   const tabs = promptTabs(builtInTabs, PROMPT_TAB_ENTRIES, context);
