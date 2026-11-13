@@ -19,7 +19,7 @@ const finished = (over: Partial<Extract<LineDescription, { kind: 'finished' }>> 
 describe('CollectionLineView', () => {
   it('reads each line in its own words, with a thousands separator and the noun in the singular for one', () => {
     const cases: readonly [LineDescription, string][] = [
-      [finished(), 'Last run 06:12, 141 of 150 answers'],
+      [finished(), 'Last run 06:12, 141 of 150 answers stored'],
       [
         finished({ when: 'Nov 12', counts: { done: 998, total: 1200, noun: 'checks' } }),
         'Last run Nov 12, 998 of 1,200 checks',
@@ -47,7 +47,7 @@ describe('CollectionLineView', () => {
 
   it('shows the words and no tooltip outside the rail', async () => {
     const { user, container } = renderWithProviders(<CollectionLineView line={finished()} />);
-    const words = screen.getByText('Last run 06:12, 141 of 150 answers');
+    const words = screen.getByText('Last run 06:12, 141 of 150 answers stored');
     await user.hover(words);
     expect(popup()).toBeNull();
     expect(screen.queryByRole('region', { name: /Last run/ })).toBeNull();
@@ -56,12 +56,12 @@ describe('CollectionLineView', () => {
 
   it('shows only the icon in the rail, named by the words, with the words in a tooltip on focus', async () => {
     const { user, container } = renderWithProviders(<CollectionLineView line={finished()} rail />);
-    const region = screen.getByRole('region', { name: 'Last run 06:12, 141 of 150 answers' });
-    expect(screen.queryByText('Last run 06:12, 141 of 150 answers')).toBeNull();
+    const region = screen.getByRole('region', { name: 'Last run 06:12, 141 of 150 answers stored' });
+    expect(screen.queryByText('Last run 06:12, 141 of 150 answers stored')).toBeNull();
     await user.tab();
     expect(region).toHaveFocus();
     expect(
-      await screen.findByText('Last run 06:12, 141 of 150 answers', { selector: '[data-slot="tooltip"] *' }),
+      await screen.findByText('Last run 06:12, 141 of 150 answers stored', { selector: '[data-slot="tooltip"] *' }),
     ).toBeVisible();
     expect(await axe(container)).toHaveNoViolations();
   });

@@ -14,7 +14,7 @@ import { renderWithProviders } from '@/test/render';
 
 /** Saturday 14 November 2026, 10:00 UTC. */
 const NOW = new Date('2026-11-14T10:00:00Z');
-const ANSWERS = 'Last run 06:12, 141 of 150 answers';
+const ANSWERS = 'Last run 06:12, 141 of 150 answers stored';
 const LINE = '[data-slot="collection-line"]';
 const ICON = `${LINE} [data-slot="icon"]`;
 const popup = (): Element | null => document.querySelector('[data-slot="tooltip"]');

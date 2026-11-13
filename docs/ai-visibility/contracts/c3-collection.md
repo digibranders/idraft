@@ -171,17 +171,24 @@ Each row can be tightened by WP-30 through the change log.
 | Q16 | Unit of `budget_blocked` | Runs of that day blocked by a budget | The field sits beside `runs`; answers of a blocked run are never asked. |
 | D7 | Bounds | `by_engine`, `meta.engine_codes` at most 3; `data` at most 276; `missing` and `runs` left unbounded | Response lists sized by the run's tasks and the day's runs; a bound would cut real data. |
 
-## How the owner package fills it
+## How it was filled
 
-1. In `api/operations/collection_routes.py` drop `@not_built` and `raise not_built_yet()` from
-   `ai_coverage` and `collection_daily` (`idraft.api.stubs`); check the window and the run in the
-   service (`window_too_large`, `range_invalid`, `not_an_ai_run` as a new `ProblemError` in WP-30's own
-   module).
-2. Replace `tests/api/operations/test_contract_collection.py` with real tests.
-3. A foreign or nonexistent project, and a run outside the project, answer `404` through the service;
-   the stubs answered `501`.
-4. Remove the `Not built yet` sentence from both route descriptions, regenerate
-   `backend/openapi/v1.json`, then `pnpm gen:api`.
+WP-30 built both routes; neither answers `501` any more.
+
+1. `api/operations/collection_routes.py` builds `AiCoverageService` and `CollectionDailyService`
+   through dependencies (`get_coverage_service`, `get_daily_service`) and the two route functions call
+   them. The services live in `ai_coverage.py` and `collection_daily.py`, and their statements in
+   `ai_coverage_repository.py` and `collection_daily_repository.py`.
+2. The services check the window and the run: `window_too_large` and `range_invalid` for the daily
+   read, and `not_an_ai_run` (`NotAnAiRunError`, a `ProblemError` in `collection_errors.py`) for a run
+   of another workload.
+3. A foreign or nonexistent project, and a run outside the project, answer `404` through the service.
+4. `tests/api/operations/test_contract_collection.py` no longer expects `501`: it checks the order of
+   the access answers and that the API document carries both routes. The data is covered by
+   `test_ai_coverage.py` and `test_collection_daily.py`, and the statement counts by
+   `test_collection_statements.py`.
+5. The `Not built yet` sentence is gone from both route descriptions, and `backend/openapi/v1.json` and
+   `apps/web/src/lib/api/schema.ts` were regenerated (`pnpm gen:api`).
 
 ## Change log
 

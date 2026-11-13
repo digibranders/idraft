@@ -76,6 +76,7 @@ function statusRow(
     state?: BudgetStatus['state'];
     blocked?: number;
     id?: string;
+    action?: BudgetStatus['budget']['action_on_hard'];
   } = {},
 ): BudgetStatus {
   return {
@@ -86,7 +87,7 @@ function statusRow(
       period: 'month',
       limit_usd: over.limit ?? '250.00',
       soft_limit_pct: 80,
-      action_on_hard: 'pause',
+      action_on_hard: over.action ?? 'pause',
       created_at: '2026-09-01T00:00:00Z',
     },
     spent_usd: over.spent ?? '0.000000',
@@ -204,7 +205,7 @@ describe('Budgets and usage', () => {
     expect(within(workspaceRow).getByText('64.2%')).toBeInTheDocument();
     expect(within(workspaceRow).getByRole('meter', { name: '64.2% of $250.00' })).toBeInTheDocument();
     expect(within(workspaceRow).getByText('Within budget')).toBeInTheDocument();
-    const projectRow = await rowOf('Fynix', 'AI answers');
+    const projectRow = await rowOf('Fynix', 'AI prompts');
     expect(within(projectRow).getByText('$40.50 of $40.00')).toBeInTheDocument();
     expect(within(projectRow).getByText('101.3%')).toBeInTheDocument();
     expect(within(projectRow).getByText('Budget blocked')).toBeInTheDocument();
@@ -214,6 +215,37 @@ describe('Budgets and usage', () => {
       .map((header) => header.textContent);
     expect(columns).toEqual(['Scope and group', 'Spent and limit', 'Used', 'State', 'Actions']);
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('a budget over its limit says whether runs are blocked, and every row states its action at the limit', async () => {
+    serveStatus([
+      statusRow('ai_prompt', {
+        id: '0192d1a8-0000-7000-8000-000000000a02',
+        projectId: fynix?.project_id ?? null,
+        pct: 101.3,
+        state: 'hard_exceeded',
+        action: 'pause',
+      }),
+      statusRow('seo_rank', {
+        id: '0192d1a8-0000-7000-8000-000000000a03',
+        projectId: fynix?.project_id ?? null,
+        pct: 120,
+        state: 'hard_exceeded',
+        action: 'alert_only',
+      }),
+      statusRow('all', { action: 'alert_only' }),
+    ]);
+    renderWithProviders(pageAs('admin'));
+    const paused = await rowOf('Fynix', 'AI prompts');
+    expect(within(paused).getByText('Budget blocked')).toBeInTheDocument();
+    expect(within(paused).getByText('Pauses runs at the limit')).toBeInTheDocument();
+    const alertOnly = await rowOf('Fynix', 'SEO rank');
+    expect(within(alertOnly).getByText('Over the limit, runs continue')).toBeInTheDocument();
+    expect(within(alertOnly).queryByText('Budget blocked')).toBeNull();
+    expect(within(alertOnly).getByText('Alerts only at the limit')).toBeInTheDocument();
+    const within80 = await rowOf('Workspace', 'All workloads');
+    expect(within(within80).getByText('Within budget')).toBeInTheDocument();
+    expect(within(within80).getByText('Alerts only at the limit')).toBeInTheDocument();
   });
 
   it('the two quota meters read used of limit and are never red', async () => {
@@ -295,7 +327,7 @@ describe('Budgets and usage', () => {
     const { user } = renderWithProviders(pageAs('admin'));
     await user.click(await screen.findByRole('button', { name: 'Add AI budget' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add budget' });
-    expect(within(dialog).getByRole('combobox', { name: 'Group' })).toHaveTextContent('AI answers');
+    expect(within(dialog).getByRole('combobox', { name: 'Group' })).toHaveTextContent('AI prompts');
     expect(within(dialog).getByRole('combobox', { name: 'Scope' })).toHaveTextContent('Workspace');
     expect(within(dialog).getByRole('textbox', { name: /^Soft limit/ })).toHaveValue('80');
     expect(within(dialog).getByRole('radio', { name: /^Pause/ })).toBeChecked();
@@ -311,10 +343,10 @@ describe('Budgets and usage', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Add budget' }));
     // The toast that says so is a dialog too: the question is whether this one is gone
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add budget' })).toBeNull());
-    expect(await screen.findByRole('heading', { name: 'AI answers budget' })).toBeInTheDocument();
-    const card = screen.getByRole('region', { name: 'AI answers budget' });
+    expect(await screen.findByRole('heading', { name: 'AI prompts budget' })).toBeInTheDocument();
+    const card = screen.getByRole('region', { name: 'AI prompts budget' });
     expect(within(card).getByRole('meter', { name: /of \$300\.00$/ })).toBeInTheDocument();
-    const row = await rowOf('Workspace', 'AI answers');
+    const row = await rowOf('Workspace', 'AI prompts');
     expect(within(row).getByText('$0.00 of $300.00')).toBeInTheDocument();
     // No scope member: the budget covers the whole workspace
     expect(bodies).toEqual([
@@ -386,14 +418,14 @@ describe('Budgets and usage', () => {
     serveStatus([statusRow('seo_rank', { projectId: fynix?.project_id ?? null })]);
     const { user } = renderWithProviders(pageAs('admin', { projectIds: [fynix?.project_id ?? ''] }));
     await rowOf('Fynix', 'SEO rank');
-    expect(screen.queryByRole('region', { name: 'AI answers budget' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'AI prompts budget' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'No AI budget' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Add AI budget' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Add budget' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add budget' });
     // No workspace scope to choose: the first project they can open is the scope
     expect(within(dialog).getByRole('combobox', { name: 'Scope' })).toHaveTextContent('Fynix');
-    await choose(user, dialog, 'Group', 'AI answers');
+    await choose(user, dialog, 'Group', 'AI prompts');
     await user.type(within(dialog).getByRole('textbox', { name: /^Limit/ }), '20');
     await user.click(within(dialog).getByRole('button', { name: 'Add budget' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add budget' })).toBeNull());
@@ -502,7 +534,7 @@ describe('Budgets and usage', () => {
     ]);
     const first = renderWithProviders(pageAs('admin'));
     expect(await screen.findByText('About $2.25 this month (estimate from the price book)')).toBeInTheDocument();
-    const card = screen.getByRole('region', { name: 'AI answers budget' });
+    const card = screen.getByRole('region', { name: 'AI prompts budget' });
     expect(within(card).getByRole('meter', { name: '5.0% of $250.00' })).toBeInTheDocument();
     expect(within(card).getByText('$12.40 spent of $250.00')).toBeInTheDocument();
     first.unmount();
@@ -510,7 +542,7 @@ describe('Budgets and usage', () => {
     serveForecast([]);
     const asked = recordRequests('/costs/forecast');
     renderWithProviders(pageAs('admin'));
-    const empty = await screen.findByRole('region', { name: 'AI answers budget' });
+    const empty = await screen.findByRole('region', { name: 'AI prompts budget' });
     // The forecast line is a skeleton until its read ends: wait for the answer before saying it is absent
     await waitFor(() => expect(asked).toHaveLength(1));
     await waitFor(() => expect(empty.querySelector('[data-slot="skeleton"]')).toBeNull());

@@ -106,11 +106,13 @@ export function progressOf(run: ProgressRun): { processed: number; failed: numbe
 
 /**
  * An engine's valid rate as the notice and the run inspector print it: a whole percent. A rate below
- * `DEGRADED_BELOW` is never printed as the line itself ("90%" beside "Below 90%"): when the whole percent would
- * reach it, the rate is floored (never rounded up) to one decimal, so 0.8996 reads "89.9%".
+ * `DEGRADED_BELOW` is never printed as the line itself ("90%" beside "Below 90%"), and a rate below 1 is never
+ * printed as "100%" while answers are missing: when the whole percent would reach such a line, the rate is
+ * floored (never rounded up) to one decimal, so 0.8996 reads "89.9%" and 0.997 reads "99.7%".
  */
 export function formatCoverageRate(rate: number): string {
-  if (rate >= DEGRADED_BELOW || Math.round(rate * 100) / 100 < DEGRADED_BELOW) {
+  const whole = Math.round(rate * 100) / 100;
+  if (![DEGRADED_BELOW, 1].some((line) => rate < line && whole >= line)) {
     return formatPercent(rate, { decimals: 0 });
   }
   // The small addend keeps a rate like 0.896 (895.9999999999999 thousandths in floating point) from losing a place
@@ -138,6 +140,7 @@ export type NewestRunRead = { state: 'failed' } | { state: 'ready'; run: LineRun
 /** What the counts of a run are counted in: the `noun` of the message `runs.line.lastRun`. */
 export type RunNoun = 'answers' | 'checks' | 'keywords' | 'tasks';
 
+/** `answers` prints as "answers stored": the tasks that stored an answer of any status, valid or not. */
 const NOUNS: Readonly<Partial<Record<Run['workload'], RunNoun>>> = {
   ai_prompt: 'answers',
   ai_mode_keyword: 'answers',

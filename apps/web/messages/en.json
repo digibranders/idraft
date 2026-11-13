@@ -1884,7 +1884,7 @@
       "openPrompts": "Open Topics & Prompts"
     },
     "ai": {
-      "title": "AI answers budget",
+      "title": "AI prompts budget",
       "spent": "{spent} spent of {limit}",
       "forecast": "About {amount} this month (estimate from the price book)",
       "forecastFailed": "The forecast could not be loaded.",
@@ -1904,6 +1904,8 @@
       "spentOfLimit": "{spent} of {limit}",
       "used": "Used",
       "state": "State",
+      "actionPause": "Pauses runs at the limit",
+      "actionAlertOnly": "Alerts only at the limit",
       "actions": "Actions",
       "actionsFor": "Actions for {scope}, {group}",
       "edit": "Edit",
@@ -1913,12 +1915,15 @@
     },
     "groups": {
       "seoRank": "SEO rank",
-      "aiAnswers": "AI answers",
+      "aiPrompts": "AI prompts",
       "keywordResearch": "Keyword research",
       "aiBenchmark": "AI benchmark",
       "extractionLlm": "Extraction LLM",
       "firstParty": "First-party data",
       "all": "All workloads"
+    },
+    "states": {
+      "hardExceededContinues": "Over the limit, runs continue"
     },
     "dialog": {
       "createTitle": "Add budget",
@@ -2152,7 +2157,7 @@
     "metaWithManual": "{project}, {month}. {manual}. Times in {timeZone}.",
     "rowName": "{workload}, started {started}",
     "line": {
-      "lastRun": "Last run {when}, {done, number} of {total, number} {noun, select, answers {{total, plural, one {answer} other {answers}}} checks {{total, plural, one {check} other {checks}}} keywords {{total, plural, one {keyword} other {keywords}}} other {{total, plural, one {task} other {tasks}}}}",
+      "lastRun": "Last run {when}, {done, number} of {total, number} {noun, select, answers {{total, plural, one {answer stored} other {answers stored}}} checks {{total, plural, one {check} other {checks}}} keywords {{total, plural, one {keyword} other {keywords}}} other {{total, plural, one {task} other {tasks}}}}",
       "lastRunBare": "Last run {when}",
       "running": "Running now",
       "none": "No runs yet",

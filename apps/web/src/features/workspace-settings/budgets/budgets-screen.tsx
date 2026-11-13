@@ -187,7 +187,18 @@ function BudgetsContent({ workspaceId, workspaceSlug, projects, limitsProjectId 
         </span>
       ),
     },
-    { id: 'state', header: t('table.state'), cell: (row) => <BudgetStateBadge state={row.state} /> },
+    {
+      id: 'state',
+      header: t('table.state'),
+      cell: (row) => (
+        <span className="flex flex-col items-start gap-1 py-1">
+          <BudgetStateBadge state={row.state} action={row.budget.action_on_hard} />
+          <span className="type-meta">
+            {t(row.budget.action_on_hard === 'pause' ? 'table.actionPause' : 'table.actionAlertOnly')}
+          </span>
+        </span>
+      ),
+    },
     ...(canManage
       ? [
           {
@@ -354,7 +365,7 @@ interface ForecastReading {
 }
 
 /**
- * The AI answers budget of the workspace: what it has spent of its limit, the forecast of the month from the
+ * The AI prompts budget of the workspace: what it has spent of its limit, the forecast of the month from the
  * price book (an estimate, said so), and the runs it blocked. The forecast is left out when it is unknown.
  */
 function AiBudgetCard({ status, forecast }: { status: BudgetStatus; forecast: ForecastReading }): ReactElement {
@@ -366,7 +377,7 @@ function AiBudgetCard({ status, forecast }: { status: BudgetStatus; forecast: Fo
     <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="type-subsection-title">{t('title')}</h3>
-        <BudgetStateBadge state={status.state} />
+        <BudgetStateBadge state={status.state} action={status.budget.action_on_hard} />
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <BudgetMeter

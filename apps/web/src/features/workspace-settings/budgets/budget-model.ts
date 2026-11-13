@@ -9,10 +9,10 @@ export type BudgetGroup = Budget['workload'];
 /** The groups the Group select offers, in the API's order. */
 export const BUDGET_GROUPS: readonly BudgetGroup[] = budgetCreateWorkloadValues;
 
-/** The catalog key of a group under `budgets.groups`: the AI group is named for what it counts, AI answers. */
+/** The catalog key of a group under `budgets.groups`: the AI group is named AI prompts, as on the Costs page. */
 export const GROUP_KEYS = {
   seo_rank: 'seoRank',
-  ai_prompt: 'aiAnswers',
+  ai_prompt: 'aiPrompts',
   keyword_research: 'keywordResearch',
   ai_benchmark: 'aiBenchmark',
   extraction_llm: 'extractionLlm',
@@ -76,7 +76,7 @@ export function softLimitIssue(text: string): SoftLimitIssue | null {
   return percent < SOFT_MIN || percent > SOFT_MAX ? 'range' : null;
 }
 
-/** The AI answers budget of the whole workspace: the one the page's AI card is about. */
+/** The AI prompts budget of the whole workspace: the one the page's AI card is about. */
 export function aiBudgetOf(rows: readonly BudgetStatus[]): BudgetStatus | null {
   return rows.find((row) => row.budget.project_id === null && row.budget.workload === 'ai_prompt') ?? null;
 }

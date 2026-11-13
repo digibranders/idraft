@@ -50,8 +50,28 @@ export interface StartedRun {
   runId: string;
 }
 
+/** Where the mock layer registers its service worker (`src/mocks/browser.ts`); a real API server has none. */
+const MOCK_WORKER_PATH = '/mockServiceWorker.js';
+
+/**
+ * Throws unless the page is controlled by the mock layer's service worker. `startAiRun` writes (it turns an engine
+ * on and starts a run), which is safe only against the mocks: `E2E_BASE_URL` can point a flow at any server.
+ */
+export async function assertMockLayer(page: Page): Promise<void> {
+  const worker = await page.evaluate(() =>
+    'serviceWorker' in navigator ? (navigator.serviceWorker.controller?.scriptURL ?? null) : null,
+  );
+  if (worker === null || new URL(worker).pathname !== MOCK_WORKER_PATH) {
+    throw new Error(
+      `Refusing to write: ${page.url()} is not served by the mock layer (no ${MOCK_WORKER_PATH} controls the page). ` +
+        'Run the flow with NEXT_PUBLIC_API_MOCKING=all, as playwright.config.ts does.',
+    );
+  }
+}
+
 /** Starts a bulk AI run of every active prompt of Fynix, as the page does; the clock stands at `TODAY`. */
 export async function startAiRun(page: Page): Promise<StartedRun> {
+  await assertMockLayer(page);
   const result = await page.evaluate(
     async ({ workspaceId, projectId, locationId }) => {
       const base = `/api/v1/workspaces/${workspaceId}/projects/${projectId}`;
@@ -147,7 +167,7 @@ export const budgetsHeading = (page: Page): Locator =>
   page.getByRole('heading', { level: 2, name: 'Budgets and usage', exact: true });
 export const budgetsTable = (page: Page): Locator => page.getByRole('table', { name: 'Budgets' });
 export const budgetDialog = (page: Page): Locator => page.getByRole('dialog', { name: /^(Add|Edit) budget$/ });
-export const aiBudgetCard = (page: Page): Locator => page.getByRole('region', { name: 'AI answers budget' });
+export const aiBudgetCard = (page: Page): Locator => page.getByRole('region', { name: 'AI prompts budget' });
 export const addAiBudgetButton = (page: Page): Locator => page.getByRole('button', { name: 'Add AI budget' });
 export const addBudgetButton = (page: Page): Locator => page.getByRole('button', { name: 'Add budget', exact: true });
 

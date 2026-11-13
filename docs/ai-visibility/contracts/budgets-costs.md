@@ -196,13 +196,21 @@ Each row can be tightened by WP-30 through the change log.
 | Q5 | `ai_answers_by_engine` | Added to `UnitCostRow` | Honest numbers: an average shows how many answers it is of. |
 | Q6 | Default of `month` | The current UTC month | As `budgets/status`. |
 
-## How the owner package fills it
+## How it was filled
 
-1. In `api/operations/cost_routes.py` drop `@not_built` and `raise not_built_yet()` from the six routes and
-   call the services (`api/operations/budgets.py`, `costs_forecast.py`, `costs_unit.py`); remove the `Not
-   built yet` sentence from each description.
-2. Replace `tests/api/operations/test_contract_budgets.py` with real tests.
-3. Regenerate `backend/openapi/v1.json`, then `pnpm gen:api`.
+WP-30 built the six routes; none answers `501` any more.
+
+1. `api/operations/cost_routes.py` builds `BudgetService`, `ForecastService` and `UnitCostService`
+   through dependencies (`get_budget_service`, `get_forecast_service`, `get_unit_cost_service`) and the
+   route functions call them. The services live in `budgets.py` (statements in
+   `budgets_repository.py`), `costs_forecast.py` and `costs_unit.py` (both reading through
+   `costs_repository.py`).
+2. `tests/api/operations/test_contract_budgets.py` no longer expects `501`: it checks the order of the
+   access answers, then the validation of the path, query and body. The behaviour is covered by
+   `test_budgets.py`, `test_budgets_tenant.py`, `test_cost_forecast.py` and `test_unit_costs.py`, and
+   the statement counts by `test_budget_statements.py`.
+3. The `Not built yet` sentence is gone from each route description, and `backend/openapi/v1.json` and
+   `apps/web/src/lib/api/schema.ts` were regenerated (`pnpm gen:api`).
 
 ## Change log
 

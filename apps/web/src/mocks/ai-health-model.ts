@@ -51,12 +51,15 @@ interface EngineCounts extends Profile {
 
 const observedOf = (counts: Profile): number => counts.valid + counts.empty + counts.refused + counts.error;
 
-/** `valid` of `planned`: a cell with numerator and denominator, and no value (never 0) when nothing was planned. */
-export const validRate = (valid: number, planned: number): Schemas['MetricCell'] => ({
+/**
+ * `valid` of `planned`: a cell with numerator and denominator, and no value (never 0) when nothing was planned.
+ * `n_observations` is the answers observed, as the contract sets it.
+ */
+export const validRate = (valid: number, planned: number, observed: number): Schemas['MetricCell'] => ({
   value: planned === 0 ? null : valid / planned,
   numerator: valid,
   denominator: planned,
-  n_observations: planned,
+  n_observations: observed,
   pooled: null,
 });
 
@@ -138,7 +141,7 @@ export function aiCoverage(runs: readonly StoredRun[], run: StoredRun, now: numb
       valid: row.valid,
       partial: row.partial,
       invalid_by_status: { empty: row.empty, refused: row.refused, error: row.error },
-      valid_rate: validRate(row.valid, row.planned),
+      valid_rate: validRate(row.valid, row.planned, observedOf(row)),
     })),
     missing,
   };

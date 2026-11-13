@@ -148,12 +148,12 @@ test.describe('runs, costs and budgets', () => {
     // No AI budget yet: the empty state offers one
     await expect(page.getByRole('heading', { name: 'No AI budget' })).toBeVisible();
     await addAiBudget(page, '100');
-    await expect(toastsOf(page).getByText('Budget added for AI answers in Workspace')).toBeVisible();
+    await expect(toastsOf(page).getByText('Budget added for AI prompts in Workspace')).toBeVisible();
     const card = aiBudgetCard(page);
     await expect(card.getByText(/^\$[\d,.]+ spent of \$100\.00$/)).toBeVisible();
     await expect(card.getByRole('meter')).toBeVisible();
     await expect(card.getByText(/^About \$[\d,.]+ this month \(estimate from the price book\)$/)).toBeVisible();
-    const row = budgetsTable(page).getByRole('row', { name: /Workspace.*AI answers/ });
+    const row = budgetsTable(page).getByRole('row', { name: /Workspace.*AI prompts/ });
     await expect(row).toContainText('$100.00');
 
     // The same scope and group again: the field says so, and the dialog stays open
@@ -161,35 +161,35 @@ test.describe('runs, costs and budgets', () => {
     const dialog = budgetDialog(page);
     await expect(dialog).toBeVisible();
     await dialog.getByRole('combobox', { name: 'Group' }).click();
-    await page.getByRole('option', { name: 'AI answers' }).click();
+    await page.getByRole('option', { name: 'AI prompts' }).click();
     await submitBudget(page, '50', 'Add budget');
     await expect(dialog.getByText('A budget for this scope and group already exists. Edit it instead.')).toBeVisible();
     await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Discard' }).click();
     await expect(dialog).toBeHidden();
-    await expect(budgetsTable(page).getByRole('row', { name: /Workspace.*AI answers/ })).toHaveCount(1);
+    await expect(budgetsTable(page).getByRole('row', { name: /Workspace.*AI prompts/ })).toHaveCount(1);
 
     // Edit: the scope and the group are fixed, the limit changes
-    await budgetsTable(page).getByRole('button', { name: 'Actions for Workspace, AI answers' }).click();
+    await budgetsTable(page).getByRole('button', { name: 'Actions for Workspace, AI prompts' }).click();
     await page.getByRole('menuitem', { name: 'Edit' }).click();
     const edit = page.getByRole('dialog', { name: 'Edit budget' });
     await expect(edit.getByText('The scope and the group cannot change.')).toBeVisible();
     await submitBudget(page, '150', 'Save');
     await expect(edit).toBeHidden();
-    await expect(toastsOf(page).getByText('Budget saved for AI answers in Workspace')).toBeVisible();
+    await expect(toastsOf(page).getByText('Budget saved for AI prompts in Workspace')).toBeVisible();
     await expect(card.getByText(/^\$[\d,.]+ spent of \$150\.00$/)).toBeVisible();
-    await expect(budgetsTable(page).getByRole('row', { name: /Workspace.*AI answers/ })).toContainText('$150.00');
+    await expect(budgetsTable(page).getByRole('row', { name: /Workspace.*AI prompts/ })).toContainText('$150.00');
 
     // Delete: asked first, then the card is the empty state again
-    await budgetsTable(page).getByRole('button', { name: 'Actions for Workspace, AI answers' }).click();
+    await budgetsTable(page).getByRole('button', { name: 'Actions for Workspace, AI prompts' }).click();
     await page.getByRole('menuitem', { name: 'Delete' }).click();
     const confirm = page.getByRole('alertdialog', { name: 'Delete this budget?' });
     await expect(confirm.getByText(/will no longer be capped/)).toBeVisible();
     await confirm.getByRole('button', { name: 'Delete budget' }).click();
-    await expect(toastsOf(page).getByText('Budget deleted for AI answers in Workspace')).toBeVisible();
+    await expect(toastsOf(page).getByText('Budget deleted for AI prompts in Workspace')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'No AI budget' })).toBeVisible();
-    await expect(budgetsTable(page).getByRole('row', { name: /Workspace.*AI answers/ })).toHaveCount(0);
+    await expect(budgetsTable(page).getByRole('row', { name: /Workspace.*AI prompts/ })).toHaveCount(0);
   });
 
   test('a member who may not manage budgets reads them with a banner and no button', async ({ page }) => {

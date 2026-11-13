@@ -275,6 +275,16 @@ describe('formatCoverageRate', () => {
     expect(formatCoverageRate(0.8999999)).toBe('89.9%');
   });
 
+  it('never prints a rate below 1 as 100%: it floors to one decimal', () => {
+    expect(formatCoverageRate(0.997)).toBe('99.7%');
+    expect(formatCoverageRate(0.995)).toBe('99.5%');
+    expect(formatCoverageRate(0.9999)).toBe('99.9%');
+    expect(formatCoverageRate(1)).toBe('100%');
+    // Below the rounding point a whole percent stays
+    expect(formatCoverageRate(0.994)).toBe('99%');
+    expect(formatCoverageRate(0.98)).toBe('98%');
+  });
+
   it('keeps a whole percent for a rate that rounds to 89 or less', () => {
     expect(formatCoverageRate(0.8933)).toBe('89%');
     expect(formatCoverageRate(0.8949)).toBe('89%');

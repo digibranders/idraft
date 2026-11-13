@@ -77,6 +77,8 @@ describe('coverage of an AI run', () => {
       expect(row.partial).toBeLessThanOrEqual(row.valid);
       expect(row.valid_rate.numerator).toBe(row.valid);
       expect(row.valid_rate.denominator).toBe(row.planned);
+      // The cell counts the answers observed, as the contract does, not the tasks planned
+      expect(row.valid_rate.n_observations).toBe(row.valid + empty + refused + error);
     }
   });
 
@@ -113,8 +115,13 @@ describe('coverage of an AI run', () => {
   });
 
   it('gives a valid rate of null, never 0, when nothing was planned', () => {
-    expect(validRate(0, 0)).toEqual({ value: null, numerator: 0, denominator: 0, n_observations: 0, pooled: null });
-    expect(validRate(141, 150)).toMatchObject({ value: 0.94, numerator: 141, denominator: 150 });
+    expect(validRate(0, 0, 0)).toEqual({ value: null, numerator: 0, denominator: 0, n_observations: 0, pooled: null });
+    expect(validRate(141, 150, 147)).toMatchObject({
+      value: 0.94,
+      numerator: 141,
+      denominator: 150,
+      n_observations: 147,
+    });
   });
 });
 

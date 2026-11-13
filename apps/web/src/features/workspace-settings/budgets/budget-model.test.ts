@@ -67,9 +67,10 @@ describe('budget form model', () => {
     expect(softLimitIssue('eighty')).toBe('invalid');
   });
 
-  it('the AI group is named as AI answers', () => {
-    expect(GROUP_KEYS.ai_prompt).toBe('aiAnswers');
-    expect(messages.budgets.groups[GROUP_KEYS.ai_prompt]).toBe('AI answers');
+  it('the AI group is named as AI prompts, as on the Costs page', () => {
+    expect(GROUP_KEYS.ai_prompt).toBe('aiPrompts');
+    expect(messages.budgets.groups[GROUP_KEYS.ai_prompt]).toBe('AI prompts');
+    expect(messages.budgets.groups[GROUP_KEYS.ai_prompt]).toBe(messages.workloads.aiPrompt);
     // Every group of the API has a name in the catalog
     for (const key of Object.values(GROUP_KEYS)) expect(messages.budgets.groups[key]).toBeTruthy();
   });
