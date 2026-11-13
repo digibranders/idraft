@@ -5,6 +5,7 @@
 import { SCREENS } from './catalog';
 import { isLayoutDocument, sanitizeLayout } from './sanitize';
 import type { LayoutDocument, LayoutSource, ScreenKey } from './types';
+import { upgradeDocument } from './upgrade';
 
 export interface StoredLayouts {
   /** The person's own layout for this screen; null or undefined when they have not customized. */
@@ -23,9 +24,10 @@ export interface ResolvedLayout {
  * next source is used. A broken personal layout must not hide the team default behind the built-in one.
  */
 export function resolveLayout(stored: StoredLayouts, screen: ScreenKey): ResolvedLayout {
-  if (isLayoutDocument(stored.personal))
-    return { source: 'personal', document: sanitizeLayout(stored.personal, screen).document };
-  if (isLayoutDocument(stored.team)) return { source: 'team', document: sanitizeLayout(stored.team, screen).document };
+  const personal = upgradeDocument(stored.personal);
+  if (isLayoutDocument(personal)) return { source: 'personal', document: sanitizeLayout(personal, screen).document };
+  const team = upgradeDocument(stored.team);
+  if (isLayoutDocument(team)) return { source: 'team', document: sanitizeLayout(team, screen).document };
   return { source: 'builtin', document: structuredClone(SCREENS[screen].builtin) };
 }
 

@@ -4,6 +4,7 @@
  * (spec section 7.4). Adding a card type here does not add it to anyone's layout (spec section 6.4).
  */
 import type {
+  CardItem,
   CardTypeDefinition,
   Channel,
   EngineCode,
@@ -16,11 +17,11 @@ import type {
 
 export const LIMITS = { cards: 12, numbers: 6 } as const;
 
+/** Only engines the API accepts (Q8 of WP-11): a layout naming another is refused. Add AI Overview in slice 2. */
 export const ENGINES: ReadonlyArray<{ code: EngineCode; label: string }> = [
   { code: 'chatgpt_web', label: 'ChatGPT' },
   { code: 'gemini_web', label: 'Gemini' },
   { code: 'google_ai_mode', label: 'AI Mode' },
-  { code: 'google_ai_overview', label: 'AI Overview' },
 ];
 
 const ROWS_5_10: OptionDefinition = {
@@ -165,7 +166,8 @@ export const CARD_TYPES: ReadonlyArray<CardTypeDefinition> = [
     AI,
     {
       addedOn: RELEASE,
-      maxInstances: 4,
+      // One instance per engine: another would repeat an engine.
+      maxInstances: ENGINES.length,
       options: { engine: ENGINE_OPTION },
     },
   ),
@@ -325,6 +327,19 @@ export const NUMBER_TYPES: ReadonlyArray<NumberDefinition> = [
   aiNumber('ai.share_of_voice', 'Share of voice'),
 ];
 
+const NUMBERS_ZONE = { numbers: true, cards: false, widths: false } as const;
+const DRAWER_ZONE = { numbers: false, cards: true, widths: false } as const;
+
+/** A screen with a numbers strip only (a list page). Its numbers are added by its page package. */
+function numbersScreen(key: ScreenKey, title: string): ScreenDefinition {
+  return { key, title, zones: { ...NUMBERS_ZONE }, builtin: { schema: 1, numbers: [] } };
+}
+
+/** A drawer screen with cards and no widths. Its cards are added by its page package. */
+function drawerScreen(key: ScreenKey, title: string): ScreenDefinition {
+  return { key, title, zones: { ...DRAWER_ZONE }, builtin: { schema: 1, cards: [] } };
+}
+
 export const SCREENS: Readonly<Record<ScreenKey, ScreenDefinition>> = {
   overview: {
     key: 'overview',
@@ -352,6 +367,17 @@ export const SCREENS: Readonly<Record<ScreenKey, ScreenDefinition>> = {
       ],
     },
   },
+  ai_overview: {
+    key: 'ai_overview',
+    title: 'AI visibility',
+    zones: { numbers: true, cards: true, widths: true },
+    builtin: { schema: 1, numbers: [], cards: [] },
+  },
+  rankings: numbersScreen('rankings', 'Rankings'),
+  prompts: numbersScreen('prompts', 'Topics and prompts'),
+  citations: numbersScreen('citations', 'Citations'),
+  sources: numbersScreen('sources', 'Sources'),
+  pages: numbersScreen('pages', 'Pages'),
   'inspector.keyword': {
     key: 'inspector.keyword',
     title: 'Keyword',
@@ -366,6 +392,10 @@ export const SCREENS: Readonly<Record<ScreenKey, ScreenDefinition>> = {
       ],
     },
   },
+  'inspector.prompt': drawerScreen('inspector.prompt', 'Prompt'),
+  'inspector.page': drawerScreen('inspector.page', 'Page'),
+  'inspector.citation': drawerScreen('inspector.citation', 'Citation'),
+  'inspector.topic': drawerScreen('inspector.topic', 'Topic'),
 };
 
 const CARD_TYPE_BY_KEY = new Map(CARD_TYPES.map((type) => [type.key, type]));
@@ -382,6 +412,22 @@ export function numberType(metric: string): NumberDefinition | undefined {
 
 export function isEngineCode(value: unknown): value is EngineCode {
   return typeof value === 'string' && ENGINE_CODES.has(value);
+}
+
+/** The ENGINES label of a code, else the code itself. */
+export function engineLabel(code: string): string {
+  return ENGINES.find((engine) => engine.code === code)?.label ?? code;
+}
+
+/**
+ * What a card is called in announcements and labels: its title, plus the engine for a card that has an engine
+ * option ("Mention rate trend: Gemini"). A type the catalog does not know is called by its key.
+ */
+export function cardName(item: CardItem): string {
+  const type = cardType(item.type);
+  if (!type) return item.type;
+  const engine = type.options.engine !== undefined ? item.options?.engine : undefined;
+  return engine === undefined ? type.title : `${type.title}: ${engineLabel(engine)}`;
 }
 
 /**

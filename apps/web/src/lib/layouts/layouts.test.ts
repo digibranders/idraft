@@ -426,7 +426,10 @@ describe('draft edits', () => {
     expect(addCard(doc, 'seo.rank_distribution', 'dup')).toBe(doc);
     expect(canAddCard(doc, 'inspector.rank_history', 'overview')).toBe(false);
     let full = overview();
-    for (let i = 0; i < 4; i += 1) full = addCard(full, 'ai.mention_trend', `t${i}`);
+    for (let i = 0; i < ENGINES.length; i += 1) full = addCard(full, 'ai.mention_trend', `t${i}`);
+    expect(canAddCard(full, 'ai.mention_trend', 'overview')).toBe(false);
+    expect(full.cards).toHaveLength(8 + ENGINES.length);
+    full = addCard(full, 'seo.serp_features', 'filler');
     expect(full.cards).toHaveLength(LIMITS.cards);
     expect(canAddCard(full, 'seo.top_movers', 'overview')).toBe(false);
   });
@@ -499,7 +502,8 @@ describe('draft edits', () => {
     expect(canAddNumber(fewer, 'seo.top10_count')).toBe(false);
     expect(canAddNumber(fewer, 'ai.mention_rate')).toBe(false);
     expect(canAddNumber(fewer, 'ai.mention_rate', 'chatgpt_web')).toBe(false);
-    expect(canAddNumber(fewer, 'ai.mention_rate', 'google_ai_overview')).toBe(true);
+    const withoutAiMode = removeNumber(fewer, 'mention-ai-mode');
+    expect(canAddNumber(withoutAiMode, 'ai.mention_rate', 'google_ai_mode')).toBe(true);
     // An SEO number never takes an engine, whatever string is passed
     expect(canAddNumber(fewer, 'seo.top3_count', 'chatgpt_web')).toBe(false);
     expect(canAddNumber(fewer, 'seo.top3_count', 'not-an-engine' as EngineCode)).toBe(false);

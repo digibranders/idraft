@@ -118,10 +118,10 @@ def test_an_unknown_metric_is_refused() -> None:
 
 
 def test_a_screen_the_catalog_does_not_list_takes_only_an_empty_document() -> None:
-    assert errors("ai_overview", {"schema": 1}) == []
-    assert errors("ai_overview", {"schema": 1, "cards": [], "numbers": []}) == []
+    assert errors("citations", {"schema": 1}) == []
+    assert errors("citations", {"schema": 1, "cards": [], "numbers": []}) == []
     one_card = {"schema": 1, "cards": [{"id": "c1", "type": "ai.by_engine"}]}
-    assert errors("ai_overview", one_card) == [("cards", "not_on_screen")]
+    assert errors("citations", one_card) == [("cards", "not_on_screen")]
 
 
 def test_every_error_is_reported_in_order() -> None:
