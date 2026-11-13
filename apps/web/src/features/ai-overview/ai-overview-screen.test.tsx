@@ -277,9 +277,12 @@ describe('the numbers strip of the AI visibility page', () => {
       ),
     );
     renderWithProviders(overviewAs('admin'));
-    expect(await screen.findByText('The AI numbers could not be read')).toBeInTheDocument();
-    expect(screen.getByText('Error ID req-7')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+    const title = await screen.findByText('The AI numbers could not be read');
+    // A built card shows the request id of its own failed read too, so the strip's id is looked up in the strip's panel.
+    const panel = title.closest<HTMLElement>('.min-h-metric-strip');
+    expect(panel).not.toBeNull();
+    expect(within(panel as HTMLElement).getByText('Error ID req-7')).toBeInTheDocument();
+    expect(within(panel as HTMLElement).getByRole('button', { name: 'Try again' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: STRIP })).not.toBeInTheDocument();
     await waitFor(() => {
       expect(within(cardsRegion()).getAllByRole('heading', { level: 2 })).toHaveLength(9);
