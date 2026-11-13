@@ -3888,9 +3888,9 @@
       },
       "history": {
         "chartTitle": "Mention rate by engine",
-        "chartFootnote": "Each point is the share of valid answers that name your brand over the 4 weeks to its date, so one week of scheduled runs is not read on its own. The shaded band is the 95 percent Wilson interval over those valid answers. A hollow point has fewer than {min, number} valid answers and no band.",
-        "chartSummary": "Mention rate of this prompt on {engines}, each point over the 4 weeks to its date, from {from} to {to}. Every point with its counts and interval is in the Table view.",
-        "weekColumn": "4 weeks to",
+        "chartFootnote": "Each point is the share of valid answers that name your brand {weeks, plural, one {in its own week} other {over its week and the weeks before it, # weeks in all at most (fewer where the date range opens), so one week of scheduled runs is not read on its own}}. The shaded band is the 95 percent Wilson interval over those valid answers. A hollow point has fewer than {min, number} valid answers and no band.",
+        "chartSummary": "Mention rate of this prompt on {engines}, {weeks, plural, one {each point over its own week} other {each point pooled over its week and the weeks before it, at most # weeks}}, from {from} to {to}. Every point with its counts and interval is in the Table view.",
+        "weekColumn": "Weeks pooled to",
         "pointTitle": "{weeks, plural, one {# week} other {# weeks}} to {date}",
         "cell": "{value}, {basis}, 95% interval {interval}",
         "cellPlain": "{value}, {basis}",

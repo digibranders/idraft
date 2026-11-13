@@ -183,6 +183,67 @@ const boundaryLines = (): { at: string; label: string }[] => {
 };
 const gridTop = (): unknown => (lastOption().grid as { top?: unknown } | undefined)?.top;
 
+/** The series of `seriesOf` with each point pooled over `weeks` weeks, as the API pools a prompt row. */
+const pooledOf = (code: string, weeks: number): EngineSummary => {
+  const base = seriesOf(code);
+  return {
+    ...base,
+    series: (base.series ?? []).map((point) => ({
+      ...point,
+      is_pooled: true,
+      pool: {
+        weeks,
+        window: { from: '2026-10-05', to: point.week_start, timezone: 'UTC' },
+        reason: 'prompt_point',
+        below_prompts: 10,
+      },
+    })),
+  } as unknown as EngineSummary;
+};
+const pooledCounts = (weeks: number): PromptCounts => ({
+  ...noCounts,
+  row: { engines: [pooledOf('chatgpt_web', weeks), pooledOf('gemini_web', weeks)] } as unknown as PromptSummaryRow,
+});
+
+describe('the words of the chart follow the pool', () => {
+  const chartSummary = (): string =>
+    screen.getByRole('img', { name: 'Mention rate by engine' }).getAttribute('aria-describedby') ?? '';
+
+  it('says the most weeks the points pool, in the footnote, the summary and the table header', async () => {
+    const { user } = renderHistory({ counts: pooledCounts(4) });
+    await screen.findByTestId('echart-canvas');
+    expect(
+      screen.getByText(
+        /over its week and the weeks before it, 4 weeks in all at most \(fewer where the date range opens\)/,
+      ),
+    ).toBeInTheDocument();
+    expect(document.getElementById(chartSummary())).toHaveTextContent(
+      'Mention rate of this prompt on ChatGPT, Gemini, each point pooled over its week and the weeks before it, at most 4 weeks, from Oct 19 to Oct 26.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Table' }));
+    const headers = within(screen.getByRole('table', { name: 'Mention rate by engine' })).getAllByRole('columnheader');
+    expect(headers.map((cell) => cell.textContent)).toEqual(['Weeks pooled to', 'ChatGPT', 'Gemini']);
+  });
+
+  it('says the real number when the date range opens with fewer weeks', async () => {
+    renderHistory({ counts: pooledCounts(2) });
+    await screen.findByTestId('echart-canvas');
+    expect(screen.getByText(/the weeks before it, 2 weeks in all at most/)).toBeInTheDocument();
+    expect(document.getElementById(chartSummary())).toHaveTextContent('at most 2 weeks');
+    expect(screen.queryByText(/4 weeks/)).toBeNull();
+  });
+
+  it('claims no pooling when no point is pooled', async () => {
+    renderHistory({ counts: withSeries });
+    await screen.findByTestId('echart-canvas');
+    expect(screen.getByText(/name your brand in its own week\. The shaded band/)).toBeInTheDocument();
+    expect(screen.queryByText(/weeks before it/)).toBeNull();
+    expect(document.getElementById(chartSummary())).toHaveTextContent(
+      'each point over its own week, from Oct 19 to Oct 26.',
+    );
+  });
+});
+
 describe('the model change marker on the chart', () => {
   const CHANGE = [
     modelAnswer('m1', 'chatgpt_web', '2026-10-22T02:00:00Z', 'gpt-4o'),

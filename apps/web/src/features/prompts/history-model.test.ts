@@ -4,6 +4,7 @@ import {
   engineRole,
   historyEvents,
   modelBoundaries,
+  pooledWeeks,
   rateCeiling,
   STALE_AFTER_DAYS,
   staleEvents,
@@ -53,6 +54,25 @@ const W2 = '2026-10-19';
 const W3 = '2026-10-26';
 const CHATGPT = 'chatgpt_web';
 const GEMINI = 'gemini_web';
+
+describe('the weeks a history pools', () => {
+  it('is 1 when nothing is pooled or there is no history', () => {
+    expect(pooledWeeks(null)).toBe(1);
+    expect(pooledWeeks(weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 3, 6), week(W2, 2, 5)])]))).toBe(1);
+  });
+
+  it('skips a gap and an engine without a point for the week', () => {
+    const history = weeklyHistory(
+      [CHATGPT, GEMINI],
+      [engine(CHATGPT, [week(W1, 3, 6)]), engine(GEMINI, [week(W2, 1, 2)])],
+    );
+    expect(history?.engines.map((entry) => entry.points)).toEqual([
+      [expect.anything(), null],
+      [null, expect.anything()],
+    ]);
+    expect(pooledWeeks(history)).toBe(1);
+  });
+});
 
 describe('the weekly history of a prompt', () => {
   it('is not there while the summary has no series: not loaded, an older API or a read without it', () => {
@@ -125,6 +145,37 @@ describe('the weekly history of a prompt', () => {
       const point = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 3, 6)])])?.engines[0]?.points[0];
       expect(point).toMatchObject({ k: 3, n: 6, span: 1 });
       expect(point?.window).toBeUndefined();
+    });
+
+    it('carries the reason the API gave for the pool, and none for a point that is not pooled', () => {
+      expect(points()?.map((point) => point?.reason)).toEqual(Array<string>(5).fill('prompt_point'));
+      const plain = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 3, 6)])])?.engines[0]?.points[0];
+      expect(plain?.reason).toBeUndefined();
+    });
+
+    it('names the most weeks any shown point pools', () => {
+      expect(
+        pooledWeeks(
+          weeklyHistory(
+            [CHATGPT],
+            [
+              engine(
+                CHATGPT,
+                POOLS.map(([k, n, w], at) => pooledWeek(MONDAYS[at] ?? '', k, n, w)),
+              ),
+            ],
+          ),
+        ),
+      ).toBe(4);
+      // Only the opening points of the range: fewer than 4 weeks are pooled
+      expect(
+        pooledWeeks(
+          weeklyHistory(
+            [CHATGPT],
+            [engine(CHATGPT, [pooledWeek(MONDAYS[0], 1, 2, 1), pooledWeek(MONDAYS[1], 1, 4, 2)])],
+          ),
+        ),
+      ).toBe(2);
     });
 
     it('is thin until a point holds the minimum of valid answers, with no band', () => {

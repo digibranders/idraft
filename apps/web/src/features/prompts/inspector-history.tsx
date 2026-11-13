@@ -8,6 +8,7 @@ import {
   engineRole,
   historyEvents,
   modelBoundaries,
+  pooledWeeks,
   rateCeiling,
   staleEvents,
   staleWindow,
@@ -138,6 +139,7 @@ export function InspectorHistory({
     }
     return bySeries;
   }, [model, weekText]);
+  const weeks = pooledWeeks(model);
   const ceiling = rateCeiling(model);
   // A list that is not read (loading, failed) says nothing of silence: no answers there would read as all engines stale
   const events = useMemo(
@@ -230,7 +232,7 @@ export function InspectorHistory({
           meta={formatDateRange(range.from, range.to)}
           footnote={
             <>
-              <p>{history('chartFootnote', { min: MIN_OBSERVATIONS })}</p>
+              <p>{history('chartFootnote', { min: MIN_OBSERVATIONS, weeks })}</p>
               {changes.length === 0 ? null : (
                 <ul className="mt-1">
                   {changes.map((change) => (
@@ -260,6 +262,7 @@ export function InspectorHistory({
           formatValue={formatRate}
           height={180}
           summary={history('chartSummary', {
+            weeks,
             engines: model.engines.map((engine) => labelOf(engine.engineCode)).join(', '),
             from: formatChartDate(model.weeks[0] ?? range.from),
             to: formatChartDate(model.weeks.at(-1) ?? range.to),

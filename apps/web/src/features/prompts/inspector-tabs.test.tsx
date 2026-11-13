@@ -536,13 +536,15 @@ describe('the History tab', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((cell) => cell.textContent),
-    ).toEqual(['4 weeks to', 'ChatGPT', 'Gemini']);
+    ).toEqual(['Weeks pooled to', 'ChatGPT', 'Gemini']);
     // A point over enough valid answers says its rate, its counts and its interval
     expect(within(table).getAllByText(/^\d+%, \d+ of \d+ answers, 95% interval \d+% to \d+%$/).length).toBeGreaterThan(
       0,
     );
     expect(
-      within(inspector).getByText(/Each point is the share of valid answers that name your brand/),
+      within(inspector).getByText(
+        /Each point is the share of valid answers that name your brand over its week and the weeks before it, \d weeks in all at most/,
+      ),
     ).toBeInTheDocument();
     expect(within(inspector).queryByText(/computed in the browser/i)).toBeNull();
     const events = within(inspector).getByRole('list', { name: 'Events of this prompt' });

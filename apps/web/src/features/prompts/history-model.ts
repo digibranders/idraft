@@ -22,6 +22,8 @@ export interface WeekPoint {
   span: number;
   /** The days the pool covers, inside the window; undefined when the point is not pooled. */
   window?: PointPool['window'];
+  /** Why the API pooled the point (a prompt row always does); undefined when it is not pooled. */
+  reason?: PointPool['reason'];
   k: number;
   n: number;
   /** `k / n`; `null` with no valid answer in the point (a gap, never a 0). */
@@ -73,7 +75,7 @@ export function weeklyHistory(
         return {
           weekStart,
           span: entry.pool?.weeks ?? 1,
-          ...(entry.pool == null ? {} : { window: entry.pool.window }),
+          ...(entry.pool == null ? {} : { window: entry.pool.window, reason: entry.pool.reason }),
           k,
           n,
           value: n > 0 ? k / n : null,
@@ -83,6 +85,11 @@ export function weeklyHistory(
       }),
     })),
   };
+}
+
+/** The most weeks any shown point pools; 1 when nothing is pooled or there is no history. */
+export function pooledWeeks(history: History | null): number {
+  return Math.max(1, ...(history?.engines ?? []).flatMap((engine) => engine.points.map((point) => point?.span ?? 1)));
 }
 
 /** The fixed order of the engines in a chart (14-badges-status.md section 4): ChatGPT `chart-1`, Gemini `chart-2`, AI Mode `chart-3`. */
