@@ -15,6 +15,11 @@ import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
+// jsdom has no canvas: the trend's chart is drawn as a stand-in
+vi.mock('@/components/app/chart/echart', () => ({
+  EChart: () => <div data-testid="echart-canvas" />,
+}));
+
 /** Thursday 12 November 2026, noon UTC. */
 const NOW = new Date('2026-11-12T12:00:00Z');
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
@@ -22,6 +27,7 @@ const DETAIL = mswPath(`${P}/ai/sources/domains/{registrable_domain}`);
 const SOURCE: SourceScope = { workspaceId: MOCK_WORKSPACE.workspace_id, projectId: 'p-fynix' };
 const FILTERS = { from: '2026-10-16', to: '2026-11-12' };
 const PAGES_HREF = '/digibranders/fynix/ai/citations?tab=pages&domain=equals%3Ag2.com' as Route;
+const RANKINGS_HREF = '/digibranders/fynix/seo/keywords' as Route;
 const ENGINES: readonly { code: EngineCode; label: string }[] = [
   { code: 'chatgpt_web', label: 'ChatGPT' },
   { code: 'gemini_web', label: 'Gemini' },
@@ -104,6 +110,7 @@ function Harness(props: Partial<DomainInspectorProps> = {}): ReactElement {
           timeZone="UTC"
           engines={ENGINES}
           pagesHref={PAGES_HREF}
+          rankingsHref={RANKINGS_HREF}
           positionText="3 of 12"
           navigation={{
             onPrevious: () => onStep('previous'),
@@ -498,5 +505,43 @@ describe('the domain inspector states', () => {
     expect(await screen.findByRole('heading', { level: 2, name: 'hubspot.com' })).toBeInTheDocument();
     expect(within(await strip()).queryByText('1,912')).toBeNull();
     held.open();
+  });
+});
+
+describe('the Overview tab', () => {
+  it('lists the trend, the engine table, the entities named and the search share, in that order', async () => {
+    serve(detailOf({ cited_with: [{ entity_id: '0b0e3d6a-0000-4000-8000-000000000001', observations: 120 }] }));
+    renderWithProviders(<Harness />);
+    const inspector = await panel();
+    await within(inspector).findByTestId('echart-canvas');
+    const titles = within(inspector)
+      .getAllByRole('heading', { level: 3 })
+      .map((heading) => heading.textContent);
+    expect(within(inspector).getByRole('link', { name: 'Open Rankings' })).toHaveAttribute('href', RANKINGS_HREF);
+    // The last card is a card heading and the reason it is empty
+    expect(titles).toEqual([
+      'Share of citations by engine',
+      'By engine',
+      'Named when cited',
+      'Search share of voice',
+      'Not available yet',
+    ]);
+  });
+
+  it('keeps the other cards when the entities cannot be read', async () => {
+    serve(detailOf({ cited_with: [{ entity_id: '0b0e3d6a-0000-4000-8000-000000000001', observations: 120 }] }));
+    server.use(http.get(mswPath(`${P}/entities`), ({ request }) => problem(request, 'internal_error')));
+    renderWithProviders(<Harness />);
+    const inspector = await panel();
+    expect(await within(inspector).findByText('Name n/a')).toBeInTheDocument();
+    expect(await engineTable()).toBeInTheDocument();
+    expect(within(inspector).getByRole('img', { name: 'Share of citations by engine' })).toBeInTheDocument();
+  });
+
+  it('has no accessibility violations', async () => {
+    const { container } = renderWithProviders(<Harness />);
+    const inspector = await panel();
+    await within(inspector).findByText('Not available yet');
+    expect(await axe(container)).toHaveNoViolations();
   });
 });

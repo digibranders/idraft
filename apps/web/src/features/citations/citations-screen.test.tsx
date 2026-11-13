@@ -48,6 +48,11 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+// jsdom has no canvas: the domain inspector's trend chart is drawn as a stand-in
+vi.mock('@/components/app/chart/echart', () => ({
+  EChart: () => <div data-testid="echart-canvas" />,
+}));
+
 /** Thursday 12 November 2026, noon UTC: the 02:00 run has answered. */
 const NOW = new Date('2026-11-12T12:00:00Z');
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';

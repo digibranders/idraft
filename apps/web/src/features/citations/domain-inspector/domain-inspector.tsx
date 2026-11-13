@@ -5,11 +5,14 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement, type ReactNode } from 'react';
 
+import { CitedWithSection } from './cited-with';
 import { DomainBadges, LastCited } from './domain-header';
-import { domainFigures } from './domain-model';
+import { domainFigures, type DomainFigures } from './domain-model';
 import { useDomainDetail, type DomainDetailRead } from './domain-reads';
+import { DomainSeoShare } from './domain-seo-share';
 import { DomainStrip } from './domain-strip';
 import { EngineTable } from './engine-table';
+import { ShareTrend } from './share-trend';
 import { Inspector } from '@/components/app/inspector/inspector';
 import type { InspectorNavigation } from '@/components/app/inspector/inspector-header';
 import { InspectorBody, InspectorPanel, InspectorTabs } from '@/components/app/inspector/inspector-tabs';
@@ -30,11 +33,15 @@ export interface DomainTabContext {
   filters: SourceFilters;
   registrable: string;
   timeZone: string;
+  /** The Rankings of the project, which the search share of voice card points to. */
+  rankingsHref: Route;
   /** The engines in scope with their names, in the order the project lists them. */
   engines: readonly { code: EngineCode; label: string }[];
   /** The domain's read; `null` data while it has nothing yet. */
   read: DomainDetailRead;
   data: SourceDomainDetailData | null;
+  /** The strip's figures; `null` while there are none. */
+  figures: DomainFigures | null;
   /** A read is on its way while figures are on screen. */
   refetching: boolean;
 }
@@ -45,12 +52,30 @@ export interface DomainTab {
   render: (context: DomainTabContext) => ReactNode;
 }
 
-/** The tabs, in order: Overview first (the address leaves it out). The Pages and Prompts tabs are added here. */
+/**
+ * The tabs, in order: Overview first (the address leaves it out). The Pages and Prompts tabs are added here. The
+ * Overview is the trend by engine, the breakdown by engine, the entities named when the domain is cited, and the
+ * search share of voice.
+ */
 const DOMAIN_TABS: readonly DomainTab[] = [
   {
     id: 'overview',
     label: (t) => t('tabOverview'),
-    render: ({ data, engines, refetching }) => <EngineTable data={data} engines={engines} refetching={refetching} />,
+    render: ({ source, filters, registrable, rankingsHref, read, data, figures, engines, refetching }) => (
+      <>
+        <ShareTrend
+          domain={registrable}
+          data={data}
+          range={{ from: filters.from, to: filters.to }}
+          engines={engines}
+          read={read}
+          refetching={refetching}
+        />
+        <EngineTable data={data} engines={engines} refetching={refetching} />
+        <CitedWithSection source={source} data={data} answers={figures?.answers ?? null} />
+        <DomainSeoShare rankingsHref={rankingsHref} />
+      </>
+    ),
   },
 ];
 
@@ -69,6 +94,8 @@ export interface DomainInspectorProps {
   engines: readonly { code: EngineCode; label: string }[];
   /** The Pages tab of the page filtered to this domain: a real link, so a middle click opens a new tab. */
   pagesHref: Route;
+  /** The project's Rankings page, for the search share of voice card. */
+  rankingsHref: Route;
   /** "3 of 12"; `null` when the domain is not in the list on screen. */
   positionText: string | null;
   navigation: InspectorNavigation | null;
@@ -94,6 +121,7 @@ export function DomainInspector({
   timeZone,
   engines,
   pagesHref,
+  rankingsHref,
   positionText,
   navigation,
   onStep,
@@ -123,9 +151,11 @@ export function DomainInspector({
     filters,
     registrable,
     timeZone,
+    rankingsHref,
     engines,
     read,
     data,
+    figures,
     refetching,
   };
   const current = chosenTab(DOMAIN_TABS, tab);

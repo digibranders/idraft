@@ -170,6 +170,28 @@ describe('Inspector', () => {
     expect(onStep).toHaveBeenCalledTimes(2);
   });
 
+  it('J and K still step from a row of a plain grid', async () => {
+    const { user } = renderWithProviders(
+      <Harness
+        list={
+          <div role="grid" aria-label="Keywords">
+            <div role="row">
+              <div role="gridcell" tabIndex={0}>
+                crm
+              </div>
+            </div>
+          </div>
+        }
+      />,
+    );
+    act(() => screen.getByRole('gridcell', { name: 'crm' }).focus());
+    await user.keyboard('j');
+    expect(onStep).toHaveBeenLastCalledWith('next');
+    await user.keyboard('k');
+    expect(onStep).toHaveBeenLastCalledWith('previous');
+    expect(onStep).toHaveBeenCalledTimes(2);
+  });
+
   it('previews a drag over the list and commits the width on release', () => {
     Object.defineProperty(Element.prototype, 'setPointerCapture', { configurable: true, value: () => undefined });
     renderWithProviders(<Harness />);

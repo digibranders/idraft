@@ -11,7 +11,7 @@ import type { SourceFilters } from '@/lib/citations/source-queries';
 import type { EngineCode, SourceScope } from '@/lib/citations/types';
 import { formatText } from '@/lib/filters/filter-values';
 import type { InspectorTarget } from '@/lib/inspector/placement';
-import { projectPath, withQuery } from '@/lib/routes/paths';
+import { projectPath, rankingsPath, withQuery } from '@/lib/routes/paths';
 
 /** The keys of the inspector and of a tab's own columns, which a link to another tab does not carry. */
 const DROPPED_KEYS = ['inspect', 'itab', 'cols'] as const;
@@ -83,6 +83,7 @@ export function CitationInspectorHost({
       timeZone={timeZone}
       engines={engines}
       pagesHref={pagesHref}
+      rankingsHref={rankingsPath(workspaceSlug, projectSlug)}
       positionText={position === null ? null : t('position', { index: position.index + 1, count: position.count })}
       navigation={navigation}
       onStep={position === null ? undefined : onStep}
