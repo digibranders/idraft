@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T05:57:38+05:30",
+ "updated": "2026-11-13T06:24:23+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -384,7 +384,7 @@
    "title": "Layouts API: core.layouts, five routes, catalog validation, audit",
    "wave": "W1",
    "kind": "backend",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-01",
     "WP-03"
@@ -418,10 +418,10 @@
    },
    "counts": {
     "total": 14,
-    "done": 2
+    "done": 14
    },
    "owner": "",
-   "notes": "file work-packages/WP-11-layouts-api.md; estimate 8 tasks; decisions D-01, D-09, D-10, D-11, D-12 | steps 1/8; plan: migration 0021_layouts, RLS owner policy, ETag, advisory lock; dev DB needs alembic upgrade head after merge"
+   "notes": "file work-packages/WP-11-layouts-api.md; estimate 8 tasks; decisions D-01, D-09, D-10, D-11, D-12 | merged c72a7a4e; web 5810 passed; backend 5200 passed, 2 failed (1 pre-existing on develop, 1 load flake); dev DB needs alembic upgrade head"
   },
   {
    "id": "WP-12",
@@ -543,12 +543,12 @@
    "title": "Sources and fan-out reads: series, country, min_support, lost, cited with, ads",
    "wave": "W1",
    "kind": "backend",
-   "status": "not_started",
+   "status": "building",
    "dependsOn": [
     "WP-03"
    ],
-   "session": null,
-   "branch": null,
+   "session": "wp-01-be-scaffold",
+   "branch": "ai/wp-14-sources-lane",
    "rows": {
     "BE": [
      "BE-SOURCES-01",
@@ -3882,13 +3882,6 @@
  ],
  "leases": [
   {
-   "path": "backend/tests/security/test_cross_tenant.py",
-   "wp": "WP-11",
-   "granted": "2026-11-13T03:30:45+05:30",
-   "scope": "additive: add GET layouts/{screen} to COUNT_ROUTES; reuse the generic NOT_BUILT rule",
-   "until": "WP-11 merged"
-  },
-  {
    "path": "apps/web/src/components/design-system/registry.ts",
    "wp": "SHARED WP-04/05/07/08/09/10",
    "granted": "2026-11-13T01:37:54+05:30",
@@ -3915,48 +3908,6 @@
    "granted": "2026-11-13T03:12:21+05:30",
    "scope": "additive: new sub-objects chart.heatmap and chart.multiples only",
    "until": "WP-06 merged"
-  },
-  {
-   "path": "backend/src/idraft/db/tables.py",
-   "wp": "WP-11",
-   "granted": "2026-11-13T03:53:49+05:30",
-   "scope": "add the layouts Table only; migration 0021_layouts",
-   "until": "WP-11 merged"
-  },
-  {
-   "path": "backend/tests/db/test_tables.py",
-   "wp": "WP-11",
-   "granted": "2026-11-13T03:53:49+05:30",
-   "scope": "DECLARED entry for layouts",
-   "until": "WP-11 merged"
-  },
-  {
-   "path": "backend/tests/db/test_grants.py",
-   "wp": "WP-11",
-   "granted": "2026-11-13T03:53:49+05:30",
-   "scope": "one row for layouts",
-   "until": "WP-11 merged"
-  },
-  {
-   "path": "backend/tests/db/support.py",
-   "wp": "WP-11",
-   "granted": "2026-11-13T03:53:49+05:30",
-   "scope": "TENANT_TABLES entry and a seeded team row",
-   "until": "WP-11 merged"
-  },
-  {
-   "path": "apps/web/package.json",
-   "wp": "WP-11",
-   "granted": "2026-11-13T03:53:49+05:30",
-   "scope": "scripts entry gen:layout-catalog only (task T5b)",
-   "until": "WP-11 merged"
-  },
-  {
-   "path": "apps/web/src/lib/layouts/catalog-json.test.ts",
-   "wp": "WP-11",
-   "granted": "2026-11-13T03:53:49+05:30",
-   "scope": "new web freshness test (task T5b); WP-15 owns the rest of lib/layouts",
-   "until": "WP-11 merged"
   },
   {
    "path": "backend/tests/security/test_cross_tenant.py",
@@ -4145,19 +4096,39 @@
    "owner": "web; small fix, schedule early in Wave 3 or the quality sweep",
    "severity": "user-visible defect",
    "status": "open"
+  },
+  {
+   "id": "F-07",
+   "found": "2026-11-13T06:24:23+05:30",
+   "by": "WP-11",
+   "title": "Backend test failing on develop: test_rank_end_to_end::test_a_due_daily_schedule_checks_each_keyword_once_even_when_the_provider_relists_them (6 sent, expected 3)",
+   "detail": "Reproduced alone on a clean develop checkout inside the Colima mount; it passed in the WP-03 full run about 3 hours earlier, so it is probably clock or schedule-window dependent. The release check (ship.sh runs the whole backend suite) will hit it. Also test_five_thousand_keywords_from_a_csv_get_their_metrics_and_a_cost (cancelled under load, passes alone; see F-05).",
+   "owner": "WP-11 session as a small side task before WP-14",
+   "severity": "blocks a release",
+   "status": "assigned"
+  },
+  {
+   "id": "F-08",
+   "found": "2026-11-13T06:24:23+05:30",
+   "by": "WP-11",
+   "title": "GET layouts/{screen} returns per-user content with an ETag but no Cache-Control",
+   "detail": "Other per-user routes send private, no-store. About 3 lines plus a test in api/layouts.",
+   "owner": "WP-11 session",
+   "severity": "hardening",
+   "status": "assigned"
   }
  ],
  "migrations": [
-  {
-   "wp": "WP-11",
-   "name": "0021_layouts",
-   "status": "queued"
-  },
   {
    "wp": "WP-13",
    "name": "ai_prompt_value_sources",
    "status": "queued",
    "note": "takes the next free number at push time; down_revision = the head on origin/develop then"
+  },
+  {
+   "wp": "WP-11",
+   "name": "0021_layouts",
+   "status": "merged; dev DB NOT upgraded yet (needs alembic upgrade head)"
   }
  ]
 }
