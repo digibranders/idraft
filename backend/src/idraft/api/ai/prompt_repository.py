@@ -92,9 +92,17 @@ class PromptFilter:
     term: UUID | None = None
     intents: frozenset[str] = frozenset()
     prompt_types: frozenset[str] = frozenset()
+    funnel_stages: frozenset[str] = frozenset()
+    importances: frozenset[int] = frozenset()
+    is_branded: bool | None = None
     country_iso: str | None = None
     language_code: str | None = None
+    # `None` lists archived and active prompts together.
     is_active: bool | None = True
+
+
+# The value a keyset page continues after: text, importance or an instant, with the prompt's id.
+type SortValue = str | int | datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,6 +266,12 @@ def _conditions(workspace_id: UUID, given: PromptFilter) -> list[ColumnElement[b
         found.append(p.intent.in_(sorted(given.intents)))
     if given.prompt_types:
         found.append(p.prompt_type.in_(sorted(given.prompt_types)))
+    if given.funnel_stages:
+        found.append(p.funnel_stage.in_(sorted(given.funnel_stages)))
+    if given.importances:
+        found.append(p.importance.in_(sorted(given.importances)))
+    if given.is_branded is not None:
+        found.append(p.is_branded == given.is_branded)
     if given.country_iso is not None:
         found.append(p.country_iso == given.country_iso)
     if given.language_code is not None:
@@ -267,21 +281,48 @@ def _conditions(workspace_id: UUID, given: PromptFilter) -> list[ColumnElement[b
     return found
 
 
+def _sort_column(field: str) -> ColumnElement[Any]:
+    p, v = ai_prompts.c, ai_prompt_versions.c
+    columns: dict[str, ColumnElement[Any]] = {
+        "text": v.text,
+        "importance": p.importance,
+        "created_at": p.created_at,
+        "updated_at": p.updated_at,
+    }
+    return columns[field]
+
+
 async def list_prompts(
     db: AsyncSession,
     workspace_id: UUID,
     project_id: UUID,
     given: PromptFilter,
     *,
-    after: UUID | None,
+    sort: str | None,
+    after: tuple[SortValue | None, UUID] | None,
     limit: int,
 ) -> list[PromptRecord]:
-    """Newest first: prompt ids are time-ordered (`uuidv7()`)."""
+    """Newest first (prompt ids are time-ordered, `uuidv7()`), or by `sort`: a field, `-` first
+    for descending, the id breaking ties. `after` is the last row's sort value (`None` without
+    `sort`) and id; the page continues past it."""
     p = ai_prompts.c
     statement = _prompts(workspace_id, project_id).where(*_conditions(workspace_id, given))
-    if after is not None:
-        statement = statement.where(p.id < after)
-    rows = (await db.execute(statement.order_by(p.id.desc()).limit(limit))).all()
+    if sort is None:
+        if after is not None:
+            statement = statement.where(p.id < after[1])
+        statement = statement.order_by(p.id.desc())
+    else:
+        column = _sort_column(sort.removeprefix("-"))
+        descending = sort.startswith("-")
+        if after is not None:
+            key = tuple_(column, p.id)
+            statement = statement.where(
+                key < tuple_(*after) if descending else key > tuple_(*after)
+            )
+        statement = statement.order_by(
+            *((column.desc(), p.id.desc()) if descending else (column, p.id))
+        )
+    rows = (await db.execute(statement.limit(limit))).all()
     return await _with_terms(db, workspace_id, rows)
 
 

@@ -143,12 +143,13 @@ def prompt_view(record: PromptRecord) -> Prompt:
 @router.get(
     "",
     summary="The project's prompts",
-    description="Newest first. `filter[is_active]` is true when left out; archived prompts are "
-    "listed with false. `filter[term]` takes the term or one under it, `filter[q]` matches the "
-    "text as a substring without case, and `filter[intent_in]` and `filter[prompt_type_in]` take "
-    "a comma list. A cursor is bound to its filters (`400 invalid_cursor` otherwise). The "
-    "funnel stage, importance and branded filters, `sort` and `filter[is_active]=any` are "
-    "published and not built yet (`501`).",
+    description="Newest first, or by `sort`. `filter[is_active]` is true when left out; archived "
+    "prompts are listed with false, and both with `any`. `filter[term]` takes the term or one "
+    "under it, `filter[q]` matches the text as a substring without case, and "
+    "`filter[intent_in]`, `filter[prompt_type_in]`, `filter[funnel_stage_in]` and "
+    "`filter[importance_in]` take a comma list. `filter[is_branded]` lists branded or unbranded "
+    "prompts; left out, both are listed (a list is not a rate). A cursor is bound to its filters "
+    "and its sort (`400 invalid_cursor` otherwise).",
 )
 async def list_prompts(
     project_id: UUID,
@@ -164,7 +165,8 @@ async def list_prompts(
         bool | Literal["any"],
         Query(
             alias="filter[is_active]",
-            description="`true` (default) or `false`; `any` lists both. `any`: " + _NOT_BUILT,
+            description="`true` (default) or `false`; `any` lists archived and active prompts "
+            "together.",
         ),
     ] = True,
     prompt_type_in: Annotated[
@@ -178,43 +180,46 @@ async def list_prompts(
     funnel_stage_in: Annotated[
         list[FunnelStage] | None,
         Commas,
-        Query(alias="filter[funnel_stage_in]", description=_NOT_BUILT),
+        Query(
+            alias="filter[funnel_stage_in]",
+            description="A comma list of funnel stages; prompts at any of them.",
+        ),
     ] = None,
     importance_in: Annotated[
         list[Importance] | None,
         Commas,
-        Query(alias="filter[importance_in]", description=_NOT_BUILT),
+        Query(
+            alias="filter[importance_in]",
+            description="A comma list of importances, 1 to 5; prompts with any of them.",
+        ),
     ] = None,
     is_branded: Annotated[
-        bool | None, Query(alias="filter[is_branded]", description=_NOT_BUILT)
+        bool | None,
+        Query(
+            alias="filter[is_branded]",
+            description="`true` lists branded prompts, `false` the others; left out, both.",
+        ),
     ] = None,
     sort: Annotated[
         PromptSort | None,
-        Query(
-            description="A field, `-` first for descending; left out: newest first. " + _NOT_BUILT
-        ),
+        Query(description="A field, `-` first for descending; left out: newest first."),
     ] = None,
 ) -> PromptPage:
-    if isinstance(is_active, str):
-        raise not_built_yet("Not built yet: filter[is_active]=any.")
-    refuse_unbuilt(
-        {
-            "filter[funnel_stage_in]": bool(funnel_stage_in),
-            "filter[importance_in]": bool(importance_in),
-            "filter[is_branded]": is_branded is not None,
-            "sort": sort is not None,
-        }
-    )
     given = PromptFilter(
         q=q,
         term=term,
         intents=frozenset(intent_in or ()),
         prompt_types=frozenset(prompt_type_in or ()),
+        funnel_stages=frozenset(funnel_stage_in or ()),
+        importances=frozenset(importance_in or ()),
+        is_branded=is_branded,
         country_iso=country_iso,
         language_code=language_code,
-        is_active=is_active,
+        is_active=None if isinstance(is_active, str) else is_active,
     )
-    result = await prompts.page(access, project_id, given, cursor=page.cursor, limit=page.limit)
+    result = await prompts.page(
+        access, project_id, given, sort=sort, cursor=page.cursor, limit=page.limit
+    )
     return PromptPage(
         data=[prompt_view(record) for record in result.prompts],
         page=CursorPageInfo(

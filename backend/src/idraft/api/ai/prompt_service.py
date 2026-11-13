@@ -42,13 +42,20 @@ from idraft.api.ai.prompt_repository import (
     PromptFilter,
     PromptKey,
     PromptRecord,
+    SortValue,
 )
 from idraft.api.entities.project_repository import MatcherEntity
 from idraft.api.entities.project_service import MatcherRules, matcher_rules, to_utf16
 from idraft.api.keywords import repository as keywords
 from idraft.api.operations import runs_repository as runs
 from idraft.api.operations.runs import MANUAL_RUNS_PER_DAY
-from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
+from idraft.api.pagination import (
+    KeyValue,
+    cursor_instant,
+    decode_cursor,
+    encode_cursor,
+    invalid_cursor,
+)
 from idraft.api.problems import (
     DuplicateError,
     FieldError,
@@ -545,9 +552,9 @@ async def write(
     return records
 
 
-def _scope(project_id: UUID, given: PromptFilter) -> dict[str, object]:
-    """What a cursor is bound to: the project and the filters. A filter joins the scope only
-    when it is used, so a cursor issued before the filter existed still decodes."""
+def _scope(project_id: UUID, given: PromptFilter, sort: str | None) -> dict[str, object]:
+    """What a cursor is bound to: the project, the filters and the sort. A filter or the sort
+    joins the scope only when it is used, so a cursor issued before it existed still decodes."""
     scope: dict[str, object] = {
         "project_id": str(project_id),
         "q": given.q,
@@ -559,17 +566,67 @@ def _scope(project_id: UUID, given: PromptFilter) -> dict[str, object]:
     }
     if given.prompt_types:
         scope["prompt_types"] = sorted(given.prompt_types)
+    if given.funnel_stages:
+        scope["funnel_stages"] = sorted(given.funnel_stages)
+    if given.importances:
+        scope["importances"] = sorted(given.importances)
+    if given.is_branded is not None:
+        scope["is_branded"] = given.is_branded
+    if sort is not None:
+        scope["sort"] = sort
     return scope
 
 
-def _after(cursor: str, scope: dict[str, object]) -> UUID:
-    key = decode_cursor(cursor, scope=scope)
-    if len(key) != 1 or not isinstance(key[0], str):
+def _uuid(value: object) -> UUID:
+    if not isinstance(value, str):
         raise invalid_cursor()
     try:
-        return UUID(key[0])
+        return UUID(value)
     except ValueError:
         raise invalid_cursor() from None
+
+
+def _after(
+    cursor: str, scope: dict[str, object], sort: str | None
+) -> tuple[SortValue | None, UUID]:
+    """Where a page continues: the key a cursor holds, checked against the sort it was made for.
+    The hash of a cursor is no signature, so a key a client made up is `400 invalid_cursor`, never
+    a value the database cannot take."""
+    key = decode_cursor(cursor, scope=scope)
+    if sort is None:
+        if len(key) != 1:
+            raise invalid_cursor()
+        return None, _uuid(key[0])
+    if len(key) != 2:
+        raise invalid_cursor()
+    value, prompt_id = key
+    match sort.removeprefix("-"):
+        case "importance":
+            # 1 to 5, as the column allows: a larger number would fail in the database.
+            if not isinstance(value, int) or value not in range(1, 6):
+                raise invalid_cursor()
+            return value, _uuid(prompt_id)
+        case "text":
+            if not isinstance(value, str):
+                raise invalid_cursor()
+            return value, _uuid(prompt_id)
+        case _:
+            return cursor_instant(value), _uuid(prompt_id)
+
+
+def _key(record: PromptRecord, sort: str | None) -> list[KeyValue]:
+    """The key of the last prompt of a page, as `_after` reads it."""
+    match None if sort is None else sort.removeprefix("-"):
+        case None:
+            return [str(record.id)]
+        case "text":
+            return [record.current_version.text, str(record.id)]
+        case "importance":
+            return [record.importance, str(record.id)]
+        case "created_at":
+            return [record.created_at.isoformat(), str(record.id)]
+        case _:
+            return [record.updated_at.isoformat(), str(record.id)]
 
 
 class PromptService:
@@ -585,19 +642,26 @@ class PromptService:
         project_id: UUID,
         given: PromptFilter,
         *,
+        sort: str | None,
         cursor: str | None,
         limit: int,
     ) -> PromptPageResult:
-        scope = _scope(project_id, given)
-        after = None if cursor is None else _after(cursor, scope)
+        scope = _scope(project_id, given, sort)
+        after = None if cursor is None else _after(cursor, scope, sort)
         async with self._transaction(access) as db:
             await live_project(db, access, project_id)
             found = await prompts.list_prompts(
-                db, access.workspace_id, project_id, given, after=after, limit=limit + 1
+                db,
+                access.workspace_id,
+                project_id,
+                given,
+                sort=sort,
+                after=after,
+                limit=limit + 1,
             )
         shown = found[:limit]
         next_cursor = (
-            encode_cursor([str(shown[-1].id)], scope=scope) if len(found) > limit else None
+            encode_cursor(_key(shown[-1], sort), scope=scope) if len(found) > limit else None
         )
         return PromptPageResult(prompts=shown, next_cursor=next_cursor)
 

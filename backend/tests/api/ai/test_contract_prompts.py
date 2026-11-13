@@ -27,34 +27,7 @@ INVALID = (422, "validation_failed")
 PROMPTS_PATH = "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"
 
 
-@pytest.mark.parametrize(
-    "params",
-    [
-        {"filter[funnel_stage_in]": "tofu,mofu"},
-        {"filter[importance_in]": "1,2"},
-        {"filter[is_branded]": "true"},
-        {"filter[is_active]": "any"},
-        {"sort": "-importance"},
-    ],
-)
-async def test_a_list_filter_that_is_not_built_answers_501(
-    api: httpx.AsyncClient,
-    resources: Resources,
-    migrated: PostgresServer,
-    params: dict[str, str],
-) -> None:
-    workspace = await make_workspace(migrated)
-    viewer = await member(resources, migrated, workspace, "viewer")
-    project = await ai_project(migrated, workspace)
-
-    response = await api.get(
-        project_url(workspace, project, "prompts"), params=params, headers=viewer.headers
-    )
-
-    assert problem(response) == NOT_BUILT
-
-
-async def test_the_list_checks_access_before_it_says_not_built(
+async def test_the_list_checks_access_before_it_reads_the_new_members(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
     workspace = await make_workspace(migrated)
@@ -71,7 +44,7 @@ async def test_the_list_checks_access_before_it_says_not_built(
 
 
 @pytest.mark.parametrize("params", [{"filter[importance_in]": "6"}, {"sort": "volume"}])
-async def test_a_list_value_out_of_bounds_is_refused_before_501(
+async def test_a_list_value_out_of_bounds_is_refused(
     api: httpx.AsyncClient,
     resources: Resources,
     migrated: PostgresServer,
