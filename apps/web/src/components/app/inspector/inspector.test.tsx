@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { FileText } from 'lucide-react';
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Inspector } from './inspector';
@@ -30,9 +30,12 @@ const onStep = vi.fn();
 function Harness({
   atFirst = false,
   title = 'best crm for startups',
+  list = <button type="button">A row of the list</button>,
 }: {
   atFirst?: boolean;
   title?: string;
+  /** What the list beside the inspector holds. */
+  list?: ReactNode;
 }): ReactElement {
   return (
     <InspectorLayout
@@ -71,7 +74,7 @@ function Harness({
         </Inspector>
       }
     >
-      <button type="button">A row of the list</button>
+      {list}
     </InspectorLayout>
   );
 }
@@ -143,6 +146,28 @@ describe('Inspector', () => {
     await user.keyboard('{Escape}j');
     expect(onClose).not.toHaveBeenCalled();
     expect(onStep).not.toHaveBeenCalled();
+  });
+
+  it('J and K step from a row of a treegrid, as from a row of a grid', async () => {
+    const { user } = renderWithProviders(
+      <Harness
+        list={
+          <div role="treegrid" aria-label="Cited domains">
+            <div role="row">
+              <div role="gridcell" tabIndex={0}>
+                g2.com
+              </div>
+            </div>
+          </div>
+        }
+      />,
+    );
+    act(() => screen.getByRole('gridcell', { name: 'g2.com' }).focus());
+    await user.keyboard('j');
+    expect(onStep).toHaveBeenLastCalledWith('next');
+    await user.keyboard('k');
+    expect(onStep).toHaveBeenLastCalledWith('previous');
+    expect(onStep).toHaveBeenCalledTimes(2);
   });
 
   it('previews a drag over the list and commits the width on release', () => {

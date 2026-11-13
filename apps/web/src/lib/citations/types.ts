@@ -18,6 +18,11 @@ export type DomainRole = Schemas['SourceDomainRow']['domain_role'];
 
 export type SourceDomainPage = Schemas['SourceDomainPage'];
 export type SourceDomainRow = Schemas['SourceDomainRow'];
+export type SourceDomainDetail = Schemas['SourceDomainDetail'];
+export type SourceDomainDetailData = Schemas['SourceDomainDetailData'];
+export type DomainEngineSeries = Schemas['DomainEngineSeries'];
+export type DomainEngineWeek = Schemas['DomainEngineWeek'];
+export type DomainPrompt = Schemas['DomainPrompt'];
 export type SourcePagePage = Schemas['SourcePagePage'];
 export type SourcePageRow = Schemas['SourcePageRow'];
 export type SourcesMeta = Schemas['SourcesMeta'];

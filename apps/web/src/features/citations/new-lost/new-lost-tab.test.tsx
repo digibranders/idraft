@@ -1,8 +1,9 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { createTranslator } from 'next-intl';
 import { getResponse, http, HttpResponse } from 'msw';
+import type { Route } from 'next';
 import { useMemo, type ReactElement } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { NewLostTab } from './new-lost-tab';
 import { usePreviousMeta, useScopeMeta } from '../citation-reads';
@@ -61,10 +62,12 @@ interface HarnessProps {
   values?: FilterValues;
   onClear?: () => void;
   registerExport?: CitationTabContext['registerExport'];
+  /** What the page hands the tab to open its records in the inspector. */
+  inspect?: CitationTabContext['inspect'];
 }
 
 /** The tab as the page gives it its context: the real scope from the address and the real scope reads. */
-function Harness({ values = {}, onClear = () => undefined, registerExport }: HarnessProps): ReactElement {
+function Harness({ values = {}, onClear = () => undefined, registerExport, inspect }: HarnessProps): ReactElement {
   const { scope, range, setSearch } = useCitationScope('UTC', ENABLED);
   const filters = useMemo(() => toFilters(scope, range), [scope, range]);
   const scopeMeta = useScopeMeta(SOURCE, filters);
@@ -83,6 +86,7 @@ function Harness({ values = {}, onClear = () => undefined, registerExport }: Har
     previousMeta,
     setSearch,
     registerExport,
+    inspect,
     filterBar: { fields: FIELDS, values, onClear },
   };
   return (
@@ -413,6 +417,49 @@ describe('NewLostTab', () => {
     await user.clear(search);
     await user.type(search, 'radar');
     await waitFor(() => expect(names(screen.getByRole('grid', { name: 'New sources' }))).toHaveLength(1));
+  });
+
+  describe('and the domain inspector', () => {
+    type Inspect = NonNullable<CitationTabContext['inspect']>;
+    function inspecting(target: Inspect['target'] = null): { inspect: Inspect; open: Mock; setOrder: Mock } {
+      const open = vi.fn();
+      const setOrder = vi.fn();
+      return {
+        open,
+        setOrder,
+        inspect: {
+          target,
+          open,
+          setOrder,
+          hrefOf: (next) => `/digibranders/fynix/ai/citations?inspect=${next.type}:${next.id}` as Route,
+        },
+      };
+    }
+
+    it('opens the domain of a row in the inspector', async () => {
+      const { inspect, open } = inspecting();
+      const { user } = renderTab('', {}, { inspect });
+      const table = await loaded();
+      await user.click(within(rowOf(table, NEWCOMER)).getByRole('rowheader'));
+      expect(open).toHaveBeenCalledWith({ type: 'domain', id: NEWCOMER }, 'inspector');
+    });
+
+    it('reports the domains of the list on screen, New first and then Lost', async () => {
+      const { inspect, setOrder } = inspecting();
+      const { user } = renderTab('', {}, { inspect });
+      await loaded();
+      await waitFor(() => expect(setOrder).toHaveBeenLastCalledWith('domain', [NEWCOMER]));
+      await user.click(screen.getByRole('radio', { name: /^Lost/ }));
+      await loaded(lostTable());
+      await waitFor(() => expect(setOrder).toHaveBeenLastCalledWith('domain', [FADED]));
+    });
+
+    it('marks the open domain as the current row', async () => {
+      const { inspect } = inspecting({ type: 'domain', id: NEWCOMER });
+      renderTab('', {}, { inspect });
+      const table = await loaded();
+      expect(rowOf(table, NEWCOMER)).toHaveAttribute('aria-current', 'true');
+    });
   });
 
   it('hands the page no rows to export', async () => {

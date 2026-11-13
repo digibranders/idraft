@@ -896,3 +896,148 @@ describe('Citations page: the country scope', () => {
     }
   });
 });
+
+describe('Citations page: the domain inspector', () => {
+  const OPEN = 'fynix.digital';
+  const DETAIL = '/ai/sources/domains/';
+  const inspected = (name: string): Promise<HTMLElement> => screen.findByRole('complementary', { name });
+  /** The address a write left: the last one `onUrlUpdate` saw. */
+  const lastWrite = (writes: readonly string[]): URLSearchParams => new URLSearchParams(writes.at(-1));
+  /** The domains the table links to, in its order: each link is the address of that domain's inspector. */
+  async function listedDomains(): Promise<string[]> {
+    const table = await screen.findByRole('treegrid', { name: 'Cited domains' });
+    await waitFor(() => expect(within(table).queryAllByRole('rowheader').length).toBeGreaterThan(0));
+    return within(table)
+      .getAllByRole('link')
+      .flatMap((link) => {
+        const id = new URL(link.getAttribute('href') ?? '', 'https://app.test').searchParams.get('inspect');
+        return id?.startsWith('domain:') === true ? [id.slice('domain:'.length)] : [];
+      });
+  }
+
+  beforeEach(() => {
+    registry.real = true;
+  });
+
+  it('makes the domain name of a row a link to its inspector', async () => {
+    render();
+    const domains = await listedDomains();
+    expect(domains).toContain(OPEN);
+    expect(new Set(domains).size).toBe(domains.length);
+  });
+
+  it('opens from a shared link, with the domain read in the page scope', async () => {
+    const reads = watch();
+    const { container } = render(`?inspect=domain:${OPEN}&engine=gemini_web&win=7d&role=own`);
+    const inspector = await inspected(OPEN);
+    expect(await within(inspector).findByRole('group', { name: 'Domain summary' })).toBeInTheDocument();
+    await waitFor(() => expect(to(reads, `${DETAIL}${OPEN}`).length).toBeGreaterThan(0));
+    const read = to(reads, `${DETAIL}${OPEN}`)[0];
+    expect(read?.searchParams.get('filter[engine_code_in]')).toBe('gemini_web');
+    expect(read?.searchParams.has('from')).toBe(true);
+    // The detail is of the whole domain: the role filter narrows the table, not this
+    expect(read?.searchParams.has('filter[domain_role_in]')).toBe(false);
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('opens a domain that is not in the table, which has no position', async () => {
+    render('?inspect=domain:nobody.example');
+    const inspector = await inspected('nobody.example');
+    expect(await within(inspector).findByText('Not cited in this window')).toBeInTheDocument();
+    expect(within(inspector).queryByText(/^\d+ of \d+$/)).toBeNull();
+    expect(within(inspector).queryByRole('button', { name: /^(Next|Previous) domain$/ })).toBeNull();
+  });
+
+  /** The domains the table lists for the page's scope, in its order: what the steps of the inspector go through. */
+  async function tableOrder(): Promise<string[]> {
+    const view = render();
+    const domains = await listedDomains();
+    view.unmount();
+    expect(domains.length).toBeGreaterThan(2);
+    return domains;
+  }
+
+  it('Previous and Next step through the listed domains in the order of the table and stop at the ends', async () => {
+    const domains = await tableOrder();
+    const [first, second] = domains;
+    const last = domains.at(-1);
+    if (first === undefined || second === undefined || last === undefined) throw new Error('The table has no domains');
+    const writes: string[] = [];
+    // From the first domain: there is none before it
+    const view = render(`?inspect=domain:${first}`, { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
+    const inspector = await inspected(first);
+    expect(await within(inspector).findByText(`1 of ${String(domains.length)}`)).toBeInTheDocument();
+    expect(within(inspector).getByRole('button', { name: 'First domain in this list' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    await view.user.click(within(inspector).getByRole('button', { name: 'Next domain' }));
+    await waitFor(() => expect(lastWrite(writes).get('inspect')).toBe(`domain:${second}`));
+    view.unmount();
+    // From the last domain: there is none after it
+    render(`?inspect=domain:${last}`);
+    const end = await inspected(last);
+    expect(await within(end).findByText(`${String(domains.length)} of ${String(domains.length)}`)).toBeInTheDocument();
+    expect(within(end).getByRole('button', { name: 'Last domain in this list' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+  });
+
+  it('steps with J and K from a row of the table, and keeps the tab of the inspector', async () => {
+    const [first, second] = await tableOrder();
+    if (first === undefined || second === undefined) throw new Error('The table has no domains');
+    const writes: string[] = [];
+    const { user } = render(`?inspect=domain:${first}&itab=pages`, {
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    await inspected(first);
+    const table = await screen.findByRole('treegrid', { name: 'Cited domains' });
+    await waitFor(() => expect(within(table).queryAllByRole('rowheader').length).toBeGreaterThan(0));
+    const [row] = within(table).getAllByRole('rowheader');
+    if (row === undefined) throw new Error('The table has no row');
+    act(() => row.focus());
+    await user.keyboard('j');
+    await waitFor(() => expect(lastWrite(writes).get('inspect')).toBe(`domain:${second}`));
+    // Stepping changes the domain and nothing else of the inspector: the tab it was on stays in the address
+    expect(lastWrite(writes).get('itab')).toBe('pages');
+  });
+
+  it('closes on Escape and takes the inspector out of the address', async () => {
+    const writes: string[] = [];
+    const { user } = render(`?inspect=domain:${OPEN}&itab=pages&engine=gemini_web`, {
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    const inspector = await inspected(OPEN);
+    await within(inspector).findByRole('group', { name: 'Domain summary' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(lastWrite(writes).has('inspect')).toBe(false));
+    expect(lastWrite(writes).has('itab')).toBe(false);
+    // The page's own scope stays
+    expect(lastWrite(writes).get('engine')).toBe('gemini_web');
+    await waitFor(() => expect(screen.queryByRole('complementary', { name: OPEN })).toBeNull());
+    // Focus goes back to the table, to the row the inspector was open on
+    const table = screen.getByRole('treegrid', { name: 'Cited domains' });
+    const row = within(table).getByRole('rowheader', { name: OPEN });
+    await waitFor(() => expect(row).toHaveFocus());
+  });
+
+  it('marks the open domain as the current row of the table', async () => {
+    render(`?inspect=domain:${OPEN}`);
+    const table = await screen.findByRole('treegrid', { name: 'Cited domains' });
+    await waitFor(() =>
+      expect(
+        within(table)
+          .getAllByRole('row')
+          .filter((row) => row.getAttribute('aria-current') === 'true'),
+      ).toHaveLength(1),
+    );
+  });
+
+  it('is axe clean on a narrow phone, where the inspector is a sheet', async () => {
+    vi.stubGlobal('innerWidth', 390);
+    const { container } = render(`?inspect=domain:${OPEN}`);
+    expect(await screen.findByRole('dialog', { name: OPEN })).toBeInTheDocument();
+    expect(await axe(container)).toHaveNoViolations();
+  });
+});

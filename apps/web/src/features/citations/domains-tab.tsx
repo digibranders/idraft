@@ -4,7 +4,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useLocale, useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import type { Route } from 'next';
-import { useCallback, useMemo, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 
 import { DEFAULT_MIN_SUPPORT, DEFAULT_SORT } from './citation-scope';
 import {
@@ -23,7 +23,7 @@ import { MinSupportSelect } from './min-support-select';
 import { SortSelect } from './sort-select';
 import { useExpandedPages } from './use-expanded-pages';
 import { DataTable } from '@/components/app/data-table/data-table';
-import type { RowTree } from '@/components/app/data-table/types';
+import type { RecordAction, RowTree } from '@/components/app/data-table/types';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { entitiesQuery } from '@/lib/citations/entities-query';
 import { sourceDomainsQuery, type DomainInclude } from '@/lib/citations/source-queries';
@@ -54,13 +54,16 @@ const ownRow = (row: CitationTableRow): 'own' | undefined => {
  * The Domains tab (DS 9.7, WB-CIT-06 to 09): the cited domains of the scope as a tree. A domain opens onto its top
  * 10 pages, read only while it is open, and "View all N pages" goes to the Pages tab filtered to it. The server
  * sorts (one select) and leaves out the rows below the minimum; shares are always of the whole scope. A row click
- * opens or closes the row: the domain inspector is WP-22's, so no row opens one.
+ * opens or closes the row (a group row never opens an inspector, plan F6): the domain's name is the link to its
+ * inspector, and the row menu has "Open domain" for the keyboard. The tab reports its domains in the order it lists
+ * them, which Previous, Next, J and K step through.
  */
 export function DomainsTab({ context }: DomainsTabProps): ReactElement {
   const { source, workspaceSlug, projectSlug, scope, filters, enabledEngines, labelOf, previousMeta, setSearch } =
     context;
-  const { filterBar } = context;
+  const { filterBar, inspect } = context;
   const tt = useTranslations('citations.table');
+  const inspectorWords = useTranslations('citations.inspectors.domain');
   const locale = useLocale();
   // The tab asks nothing while another one is shown, or before the engines are known: with none listed the scope
   // drops the link's `engine`, and the read would be of every engine
@@ -122,6 +125,12 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
     },
     [address, workspaceSlug, projectSlug],
   );
+  const hrefOf = inspect?.hrefOf;
+  const domainHref = useMemo(
+    () =>
+      hrefOf === undefined ? undefined : (registrable: string): Route => hrefOf({ type: 'domain', id: registrable }),
+    [hrefOf],
+  );
   const columns = useDomainColumns({
     engines,
     meta,
@@ -131,6 +140,7 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
     t: tt,
     locale,
     moreHref,
+    domainHref,
     onRetryPages: pages.retry,
   });
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
@@ -157,6 +167,39 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
       return next;
     });
   }, []);
+
+  // The domains in the order the table lists them (a domain read in several roles is one step; a page is none)
+  const setOrder = inspect?.setOrder;
+  useEffect(() => {
+    if (setOrder === undefined || !active) return;
+    setOrder('domain', [
+      ...new Set(rows.flatMap((row) => (row.kind === 'domain' ? [row.domain.registrable_domain] : []))),
+    ]);
+  }, [setOrder, active, rows]);
+  const openInInspector = inspect?.open;
+  const rowActions = useCallback(
+    (row: CitationTableRow): readonly RecordAction<CitationTableRow>[] =>
+      openInInspector === undefined || row.kind !== 'domain'
+        ? []
+        : [
+            {
+              id: 'open-domain',
+              label: inspectorWords('openDomain'),
+              group: 'open',
+              onSelect: () => openInInspector({ type: 'domain', id: row.domain.registrable_domain }),
+            },
+          ],
+    [openInInspector, inspectorWords],
+  );
+  // The open domain's first row: a domain read in several roles is several rows, and one is current
+  const openDomain = inspect?.target?.type === 'domain' ? inspect.target.id.toLowerCase() : null;
+  const activeRowId = useMemo(
+    () =>
+      openDomain === null
+        ? null
+        : (rows.find((row) => row.kind === 'domain' && row.domain.registrable_domain === openDomain)?.id ?? null),
+    [rows, openDomain],
+  );
 
   const filtering = Object.keys(filterBar.values).length > 0 || query !== '';
   // A minimum other than the default can be what left no row: Clear filters puts it back
@@ -241,6 +284,8 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
           rowName={rowName}
           rowTree={rowTree}
           onToggleGroup={toggle}
+          rowActions={rowActions}
+          activeRowId={activeRowId}
           rowTone={ownRow}
           status={status}
           errorState={errorState}

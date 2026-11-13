@@ -9,6 +9,7 @@ import {
   filterParams,
   sourceChangesQuery,
   sourceDiversityQuery,
+  sourceDomainDetailQuery,
   sourceDomainsQuery,
   sourcePagesQuery,
   sourcePromptsQuery,
@@ -246,6 +247,38 @@ describe('the builders', () => {
     expect(queryOf(sourcePromptsQuery(scope, FILTERS).queryKey)).not.toHaveProperty('filter[own_cited]');
   });
 
+  it('sourceDomainDetailQuery names the domain in lower case in the key, under the project and ai', () => {
+    const query = sourceDomainDetailQuery(scope, 'G2.com', FILTERS);
+    expect(query.queryKey.slice(0, PREFIX.length)).toEqual(PREFIX);
+    expect(query.queryKey.slice(PREFIX.length, -1)).toEqual(['sources', 'domains', 'g2.com']);
+    expect(query.queryKey).toEqual(sourceDomainDetailQuery(scope, 'g2.com', FILTERS).queryKey);
+    expect(query.queryKey).not.toEqual(sourceDomainDetailQuery(scope, 'g2.org', FILTERS).queryKey);
+    expect(query.queryKey).not.toEqual(sourceDomainDetailQuery(other, 'g2.com', FILTERS).queryKey);
+  });
+
+  it('sourceDomainDetailQuery sends the scope, the country and the flags, and no role, sort or page', () => {
+    const asked = {
+      ...FILTERS,
+      engines: ['gemini_web'],
+      roles: ['own'],
+      country: 'DE',
+      includeUnresolvedRedirects: true,
+      includeEngineInternal: true,
+    } satisfies SourceFilters;
+    expect(queryOf(sourceDomainDetailQuery(scope, 'g2.com', asked).queryKey)).toEqual({
+      from: FILTERS.from,
+      to: FILTERS.to,
+      'filter[engine_code_in]': ['gemini_web'],
+      'filter[country_iso]': 'DE',
+      include_unresolved_redirects: true,
+      include_engine_internal: true,
+    });
+    expect(queryOf(sourceDomainDetailQuery(scope, 'g2.com', FILTERS).queryKey)).toEqual({
+      from: FILTERS.from,
+      to: FILTERS.to,
+    });
+  });
+
   it('share one cache key for the same scope, and one prefix under the project and ai', () => {
     const build = (target: SourceScope): (readonly unknown[])[] => [
       sourceDomainsQuery(target, FILTERS, { limit: 1 }).queryKey,
@@ -293,6 +326,17 @@ describe('a read answers the typed page through the mock', () => {
     expect(page?.meta.citation_units).toBeGreaterThan(0);
     expect(page?.meta.by_role_by_engine).toHaveLength(3);
     expect(page?.data[0]?.source_share.denominator).toBe(page?.meta.citation_units);
+  });
+
+  it('sourceDomainDetailQuery', async () => {
+    const { result } = renderHook(() => useQuery(sourceDomainDetailQuery(scope, 'Fynix.Digital', FILTERS)), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const detail = result.current.data;
+    expect(detail?.data.registrable_domain).toBe('fynix.digital');
+    expect(detail?.data.rows.length).toBeGreaterThan(0);
+    expect(detail?.data.engines.length).toBe(detail?.meta.engine_codes.length);
   });
 
   it('sourcePagesQuery', async () => {

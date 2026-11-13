@@ -55,7 +55,7 @@ const KINDS: readonly ('new' | 'lost')[] = ['new', 'lost'];
 const MAX_INTEGER = Number.MAX_SAFE_INTEGER;
 
 /** The query parameters of the shared scope, and the ones some routes add. */
-const SCOPE = [
+export const SCOPE = [
   'from',
   'to',
   'filter[engine_code_in]',
@@ -65,7 +65,7 @@ const SCOPE = [
   'filter[country_iso]',
 ];
 const ROLE_FILTER = ['filter[domain_role_in]'];
-const FLAGS = ['include_unresolved_redirects', 'include_engine_internal'];
+export const FLAGS = ['include_unresolved_redirects', 'include_engine_internal'];
 const OFFSET_PAGE = ['offset', 'limit'];
 const CURSOR_PAGE = ['cursor', 'limit'];
 
@@ -137,7 +137,7 @@ function cursorScope(url: URL): string {
 }
 
 /** What a route reads from a request that passed every check, with the route's own parameters. */
-interface Read<T> {
+export interface Read<T> {
   scope: SourceScope;
   answers: readonly CitedAnswer[];
   url: URL;
@@ -150,7 +150,7 @@ interface Read<T> {
  * `own`, the route's own parameters), `window_too_large`. The caller's allowed names are given to `projectCaller` as
  * the ones the request has, so that its own `422` for an unknown name does not come before the `404` and `403`.
  */
-function readOf<T>(
+export function readOf<T>(
   request: Request,
   cookies: Readonly<Record<string, string>>,
   params: PathParams,

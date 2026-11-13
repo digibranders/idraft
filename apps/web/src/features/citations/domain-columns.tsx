@@ -50,6 +50,8 @@ export interface DomainColumnOptions {
   locale: string;
   /** Where "View all N pages" goes: the Pages tab filtered to the domain, with the page's other keys kept. */
   moreHref: (registrable: string) => Route;
+  /** Where a domain's name leads: its inspector. Without it the name is text (a page with no inspector). */
+  domainHref?: ((registrable: string) => Route) | undefined;
   /** Retry on the row that says a domain's pages could not be loaded; `parentId` is the domain's row id. */
   onRetryPages?: ((parentId: string) => void) | undefined;
 }
@@ -133,7 +135,7 @@ function TrendCell({
   );
 }
 
-/** The columns of the Domains table. The caller keeps `moreHref` and `onRetryPages` stable between renders. */
+/** The columns of the Domains table. The caller keeps `moreHref`, `domainHref` and `onRetryPages` stable between renders. */
 export function useDomainColumns({
   engines,
   meta,
@@ -143,6 +145,7 @@ export function useDomainColumns({
   t,
   locale,
   moreHref,
+  domainHref,
   onRetryPages,
 }: DomainColumnOptions): readonly DataTableColumn<CitationTableRow>[] {
   return useMemo(() => {
@@ -179,6 +182,7 @@ export function useDomainColumns({
                 host={row.domain.registrable_domain}
                 registrable={row.domain.registrable_domain}
                 favicon={FAVICON}
+                href={domainHref?.(row.domain.registrable_domain)}
               />
             );
           case 'page':
@@ -411,5 +415,5 @@ export function useDomainColumns({
     );
 
     return [domain, role, category, units, share, change, ...engineColumns, answers, prompts, citedWith, status, trend];
-  }, [engines, meta, previousMeta, entities, density, t, locale, moreHref, onRetryPages]);
+  }, [engines, meta, previousMeta, entities, density, t, locale, moreHref, domainHref, onRetryPages]);
 }

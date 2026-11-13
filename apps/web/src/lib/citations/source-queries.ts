@@ -11,6 +11,7 @@ import type { DomainRole, EngineCode, SourceScope } from './types';
 
 const AI = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai';
 const DOMAINS = `${AI}/sources/domains` as const;
+const DOMAIN = `${AI}/sources/domains/{registrable_domain}` as const;
 const PAGES = `${AI}/sources/pages` as const;
 const CITATIONS = `${AI}/citations` as const;
 const CHANGES = `${AI}/sources/changes` as const;
@@ -130,6 +131,23 @@ export const sourceDomainsQuery = (
         ...listParams(list),
         ...(include.length === 0 ? {} : { include: [...include] }),
       },
+    },
+  });
+
+/**
+ * `GET {P}/ai/sources/domains/{registrable_domain}`: one cited domain with its rows, its weekly units per engine,
+ * its pages, prompts and the entities named with it. The name is read in lower case, as the API reads it. The
+ * route takes the shared scope and the two flags, no role filter, sort or page.
+ */
+export const sourceDomainDetailQuery = (
+  scope: SourceScope,
+  registrableDomain: string,
+  filters: SourceFilters,
+): ApiQueryOptions<typeof DOMAIN> =>
+  apiQuery(DOMAIN, {
+    params: {
+      path: { ...pathOf(scope), registrable_domain: registrableDomain.toLowerCase() },
+      query: { ...filterParams({ ...filters, roles: [] }), ...flagParams(filters) },
     },
   });
 

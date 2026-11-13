@@ -1,7 +1,7 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 
 import {
   changeRowId,
@@ -110,6 +110,19 @@ export function NewLostTab({ context }: NewLostTabProps): ReactElement {
   // Nothing to export: the page hides its button here, and a source left by the last tab is taken back
   useRegisterExport(context.registerExport, null);
 
+  // The inspector: a row opens its domain, and the domains of the list on screen are the steps of Previous and Next
+  const { inspect } = context;
+  const setOrder = inspect?.setOrder;
+  useEffect(() => {
+    if (setOrder === undefined || !active) return;
+    setOrder('domain', [...new Set(listed.map((row) => row.registrable_domain))]);
+  }, [setOrder, active, listed]);
+  const openDomain = inspect?.target?.type === 'domain' ? inspect.target.id.toLowerCase() : null;
+  const activeRowId = useMemo(() => {
+    const open = openDomain === null ? undefined : listed.find((row) => row.registrable_domain === openDomain);
+    return open === undefined ? null : changeRowId(open);
+  }, [listed, openDomain]);
+
   const cut = noPrevious ? null : truncatedOf(read.data);
   const sample =
     kind === 'new' && scopeMeta !== undefined
@@ -188,6 +201,12 @@ export function NewLostTab({ context }: NewLostTabProps): ReactElement {
           onSearchChange={setQuery}
           searchPlaceholder={tt('search')}
           rowName={rowName}
+          onRowOpen={
+            inspect === undefined
+              ? undefined
+              : (row, intent) => inspect.open({ type: 'domain', id: row.registrable_domain }, intent)
+          }
+          activeRowId={activeRowId}
           rowTone={ownRow}
           status={status}
           errorState={<ChangeFailed kind={kind} errorId={read.errorId} onRetry={read.retry} retrying={read.retrying} />}

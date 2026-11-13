@@ -3,18 +3,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { Ban, Link2, MoreHorizontal } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 
 import { useCitationCountries } from './citation-country';
 import { CompareSelect } from './compare-select';
 import { useChangeCounts, useDiversity, useLatestCitation, usePreviousMeta, useScopeMeta } from './citation-reads';
 import { useCitationScope, toFilters } from './citation-scope';
-import { activeCitationTab, CITATION_TABS, type CitationTabContext } from './citation-tabs';
+import { activeCitationTab, CITATION_TABS, type CitationInspect, type CitationTabContext } from './citation-tabs';
 import { CITATION_VIEW_KEYS, citationViews } from './citation-views';
 import type { ExportSource } from './citations-export';
 import { citationFilterFields } from './citations-filters';
 import { LoadFailed, NoEngine } from './citations-states';
 import { CitationsStrip } from './citations-strip';
+import { CitationInspectorHost } from './domain-inspector';
 import { ExportButton } from './export-button';
 import type { StripReads } from './strip-model';
 import { DateRangePicker } from '@/components/app/date-range/date-range-picker';
@@ -22,6 +24,7 @@ import { droppedMessageKey } from '@/components/app/date-range/range-model';
 import { FilterBar } from '@/components/app/filters/filter-bar';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
+import { useInspector } from '@/components/app/inspector/use-inspector';
 import { CountryScopeControl, type CountryScopeLabels } from '@/components/app/scope/country-scope-control';
 import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
 import { TopBarPortal } from '@/components/app/shell/top-bar-slot';
@@ -48,7 +51,9 @@ import {
   formatTableDateTime,
 } from '@/lib/format';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
+import { formatInspectTarget, type InspectorTarget } from '@/lib/inspector/placement';
 import { useCan } from '@/lib/permissions';
+import { projectPath, withQuery } from '@/lib/routes/paths';
 
 export interface CitationsProject {
   id: string;
@@ -214,6 +219,39 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
     [scope.engines, enabledEngines, labelOf],
   );
 
+  // The inspector (`?inspect=<type>:<id>`): a record opened from a tab, stepped through in the order of that tab's
+  // list, which the tab reports. A link to one keeps the rest of the address, and a real link opens a new browser tab
+  const inspector = useInspector();
+  const [orders, setOrders] = useState<Record<'domain' | 'source', readonly string[]>>({ domain: [], source: [] });
+  const setOrder = useCallback<CitationInspect['setOrder']>((type, ids) => {
+    setOrders((current) =>
+      current[type].length === ids.length && current[type].every((id, place) => id === ids[place])
+        ? current
+        : { ...current, [type]: ids },
+    );
+  }, []);
+  const address = useSearchParams().toString();
+  const hrefOf = useCallback(
+    (target: InspectorTarget) => {
+      const next = new URLSearchParams(address);
+      next.set('inspect', formatInspectTarget(target));
+      // The tab of another record's inspector is not this one's
+      next.delete('itab');
+      return withQuery(projectPath(workspaceSlug, project.slug, '/ai/citations'), next.toString());
+    },
+    [address, workspaceSlug, project.slug],
+  );
+  const openRecord: CitationInspect['open'] = (target, intent = 'inspector') => {
+    if (intent === 'new-tab') window.open(hrefOf(target), '_blank', 'noopener');
+    else inspector.open(target);
+  };
+  const inspectorOrder = inspector.target?.type === 'domain' ? orders.domain : orders.source;
+  const at = inspector.position(inspectorOrder);
+  const step = (direction: 'next' | 'previous'): void => {
+    if (at === null || (direction === 'next' ? at.index === at.count - 1 : at.index === 0)) return;
+    inspector.step(direction, inspectorOrder);
+  };
+
   // The saved view menu and the header
   const views = useMemo(() => citationViews((key) => t(`views.${key}`)), [t]);
   const savedView = useSavedView({ views, viewKeys: CITATION_VIEW_KEYS });
@@ -302,6 +340,7 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
       previousMeta,
       setSearch,
       registerExport: setExportSource,
+      inspect: { target: inspector.target, open: openRecord, setOrder, hrefOf },
       filterBar: { fields, values, onClear: () => setValues({}) },
     };
     // The scope read failing leaves nothing to show a panel against; any other read fails alone, and the strip says so.
@@ -367,8 +406,30 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
     );
   }
 
+  // Not before the engines are known, for the same reason the reads of the page wait for them: with none listed the
+  // inspector would read every engine
+  const inspectorHost =
+    inspector.target === null || !enginesReady ? null : (
+      <CitationInspectorHost
+        // Another project's domain is another inspector; stepping inside one project keeps this one and its focus
+        key={project.id}
+        target={inspector.target}
+        source={source}
+        filters={filters}
+        timeZone={project.timeZone}
+        workspaceSlug={workspaceSlug}
+        projectSlug={project.slug}
+        engines={exportEngines}
+        position={at}
+        onStep={step}
+        tab={inspector.tab}
+        onTabChange={inspector.setTab}
+        onClose={inspector.close}
+      />
+    );
+
   return (
-    <InspectorLayout inspector={null}>
+    <InspectorLayout inspector={inspectorHost}>
       <TopBarPortal>
         <DateRangePicker
           value={picked.value}

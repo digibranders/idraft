@@ -135,7 +135,8 @@ export function Inspector({
   const stepFromHere = (direction: 'next' | 'previous'): void => {
     const active = document.activeElement;
     const here =
-      active !== null && (aside.current?.contains(active) === true || active.closest('[role="grid"]') !== null);
+      active !== null &&
+      (aside.current?.contains(active) === true || active.closest('[role="grid"], [role="treegrid"]') !== null);
     if (here) onStep?.(direction);
   };
   useShortcut('j', () => stepFromHere('next'), { kind: 'single-key', enabled: onStep !== undefined });

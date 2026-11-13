@@ -1,8 +1,9 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { createTranslator } from 'next-intl';
 import { http, HttpResponse } from 'msw';
+import type { Route } from 'next';
 import { useMemo, type ReactElement } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { toFilters, useCitationScope } from './citation-scope';
 import type { CitationRead } from './citation-reads';
@@ -212,6 +213,8 @@ interface HarnessProps {
   engines?: readonly EngineCode[];
   /** What the page's Export button is handed. */
   registerExport?: CitationTabContext['registerExport'];
+  /** What the page hands the tab to open its records in the inspector. */
+  inspect?: CitationTabContext['inspect'];
 }
 
 /** The tab as the page gives it its context: the real scope from the address, and the strip's reads. */
@@ -220,6 +223,7 @@ function Harness({
   onClear = () => undefined,
   engines = ENABLED,
   registerExport,
+  inspect,
 }: HarnessProps): ReactElement {
   const { scope, range, setSearch } = useCitationScope('UTC', engines);
   const filters = useMemo(() => toFilters(scope, range), [scope, range]);
@@ -239,6 +243,7 @@ function Harness({
     previousMeta: previous,
     setSearch,
     registerExport,
+    inspect,
     filterBar: { fields: FIELDS, values, onClear },
   };
   return (
@@ -816,5 +821,99 @@ describe('DomainsTab', () => {
     await loaded();
     expect(await axe(container)).toHaveNoViolations();
     document.documentElement.removeAttribute('data-theme');
+  });
+});
+
+describe('DomainsTab and the domain inspector', () => {
+  type Inspect = NonNullable<CitationTabContext['inspect']>;
+  /** What the page hands the tab: the open record, the way to open one, to report the order and to link. */
+  function inspecting(target: Inspect['target'] = null): { inspect: Inspect; open: Mock; setOrder: Mock } {
+    const open = vi.fn();
+    const setOrder = vi.fn();
+    return {
+      open,
+      setOrder,
+      inspect: {
+        target,
+        open,
+        setOrder,
+        hrefOf: (next) => `/digibranders/fynix/ai/citations?inspect=${next.type}:${next.id}` as Route,
+      },
+    };
+  }
+
+  it('makes the domain name a link to its inspector, which a middle click opens in a new tab', async () => {
+    const { inspect } = inspecting();
+    renderTab('', {}, { inspect });
+    const table = await loaded();
+    expect(within(table).getByRole('link', { name: 'g2.com' })).toHaveAttribute(
+      'href',
+      '/digibranders/fynix/ai/citations?inspect=domain:g2.com',
+    );
+    // A second domain is a link of its own: opening it replaces the first
+    expect(within(table).getByRole('link', { name: 'hubspot.com' })).toHaveAttribute(
+      'href',
+      '/digibranders/fynix/ai/citations?inspect=domain:hubspot.com',
+    );
+  });
+
+  it('leaves the domain as text when the page offers no inspector', async () => {
+    renderTab();
+    const table = await loaded();
+    expect(within(table).queryByRole('link', { name: 'g2.com' })).toBeNull();
+  });
+
+  it('keeps a click on the row for its pages: it opens them and not the inspector', async () => {
+    const { inspect, open } = inspecting();
+    const { user } = renderTab('', {}, { inspect });
+    const table = await loaded();
+    await user.click(within(table).getByRole('rowheader', { name: 'g2.com' }));
+    await within(table).findByRole('link', { name: 'Open g2.com/products/p1 in a new tab' });
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('offers Open domain in the row menu, so the keyboard reaches the inspector too', async () => {
+    const { inspect, open } = inspecting();
+    const { user } = renderTab('', {}, { inspect });
+    const table = await loaded();
+    await user.click(within(table).getByRole('button', { name: 'Actions for hubspot.com' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Open domain' }));
+    expect(open).toHaveBeenCalledWith({ type: 'domain', id: 'hubspot.com' });
+  });
+
+  it('marks the open domain as the current row', async () => {
+    const { inspect } = inspecting({ type: 'domain', id: 'hubspot.com' });
+    renderTab('', {}, { inspect });
+    const table = await loaded();
+    expect(rowOf(table, 'hubspot.com')).toHaveAttribute('aria-current', 'true');
+    expect(rowOf(table, 'g2.com')).not.toHaveAttribute('aria-current');
+  });
+
+  it('reports the domains in the order of the table and no page row as a step', async () => {
+    const { inspect, setOrder } = inspecting();
+    const { user } = renderTab('', {}, { inspect });
+    const table = await loaded();
+    await waitFor(() => expect(setOrder).toHaveBeenLastCalledWith('domain', ['g2.com', 'hubspot.com']));
+    // A domain that is open adds its pages to the rows, and no step to the order
+    await user.click(within(table).getByRole('rowheader', { name: 'g2.com' }));
+    await within(table).findByRole('link', { name: 'Open g2.com/products/p1 in a new tab' });
+    expect(setOrder).toHaveBeenLastCalledWith('domain', ['g2.com', 'hubspot.com']);
+    expect(setOrder.mock.calls.every(([type]) => type === 'domain')).toBe(true);
+  });
+
+  it('reports a domain read in several roles once', async () => {
+    serveDomains([G2, domainOf({ domain_role: 'competitor', role_entity_id: 'ent-rival' }), HUBSPOT]);
+    const { inspect, setOrder } = inspecting();
+    renderTab('', {}, { inspect });
+    await loaded();
+    await waitFor(() => expect(setOrder).toHaveBeenLastCalledWith('domain', ['g2.com', 'hubspot.com']));
+  });
+
+  it('reports the order the search leaves: only the listed domains are steps', async () => {
+    const { inspect, setOrder } = inspecting();
+    const { user } = renderTab('', {}, { inspect });
+    await loaded();
+    await user.type(screen.getByRole('searchbox', { name: 'Search in table' }), 'hub');
+    await waitFor(() => expect(setOrder).toHaveBeenLastCalledWith('domain', ['hubspot.com']));
   });
 });
