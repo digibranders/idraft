@@ -1,7 +1,7 @@
-"""Contract C1, lint, bulk update, bulk archive by filter and the limits read
-(docs/ai-visibility/contracts/c1-prompts.md): each addition answers 501 once the caller may use
-the route and the body is valid; left out, nothing changes. WP-13 deletes this file when it
-writes the real tests."""
+"""Contract C1, the lint body shapes, bulk update, bulk archive by filter and the limits read
+(docs/ai-visibility/contracts/c1-prompts.md): each addition not built yet answers 501 once the
+caller may use the route and the body is valid; left out, nothing changes. WP-13 deletes this
+file when it writes the real tests."""
 
 from __future__ import annotations
 
@@ -106,7 +106,7 @@ async def test_lint_language_code_answers_501(
     assert problem(response) == NOT_BUILT
 
 
-async def test_lint_checks_access_before_it_says_not_built(
+async def test_lint_checks_access_before_the_body_is_used(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
     workspace = await make_workspace(migrated)

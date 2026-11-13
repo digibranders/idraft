@@ -5,8 +5,10 @@ from __future__ import annotations
 import uuid
 
 import httpx
+import pytest
 
 from idraft.api.resources import Resources
+from idraft.domain.ai_engines import PROMPT_TEXT_MAX
 from tests.api.ai.sources_support import statements
 from tests.api.ai.support import ai_project, set_prompt_quota
 from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
@@ -226,6 +228,63 @@ async def test_would_create_leaves_out_tracked_repeated_and_unsavable(
     assert response.status_code == 200, response.text
     assert response.json()["quota"]["would_create"] == 2
     assert len(response.json()["data"]) == 5
+
+
+@pytest.mark.parametrize(("length", "counted"), [(PROMPT_TEXT_MAX, 1), (PROMPT_TEXT_MAX + 1, 0)])
+async def test_would_create_stops_counting_just_past_the_longest_savable_text(
+    length: int,
+    counted: int,
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+
+    response = await _lint(api, workspace, project, viewer.headers, [_item("x" * length)])
+
+    assert response.status_code == 200, response.text
+    assert response.json()["quota"]["would_create"] == counted
+
+
+@pytest.mark.parametrize(
+    ("tracked", "written", "language_code", "country_iso"),
+    [
+        # The sharp s folds to "ss" under casefold; lower() would leave it alone.
+        ("Strasse?", "Straße?", "de", "DE"),
+        # An all caps Cyrillic text folds to the lowercase one.
+        ("вопрос?", "ВОПРОС?", "ru", "RU"),
+    ],
+)
+async def test_lint_items_folds_case_the_way_unicode_does(
+    tracked: str,
+    written: str,
+    language_code: str,
+    country_iso: str,
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+    prompt_id = await _seed(
+        migrated, workspace, project, tracked, country_iso=country_iso, language_code=language_code
+    )
+
+    response = await _lint(
+        api,
+        workspace,
+        project,
+        viewer.headers,
+        [_item(written, country_iso=country_iso, language_code=language_code)],
+    )
+
+    assert response.status_code == 200, response.text
+    (item,) = response.json()["data"]
+    assert item["near_duplicate_of"] == {"prompt_id": str(prompt_id), "text": tracked}
+    assert "tracked" not in item
 
 
 async def test_lint_texts_answers_as_before(
