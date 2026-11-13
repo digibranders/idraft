@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T20:49:30+05:30",
+ "updated": "2026-11-13T21:07:25+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1818,7 +1818,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20 | from WP-16: build on @/features/layouts only; parts: CustomizableScreen, CustomizeButton, CustomizingBadge (PageHeader titleAddon), NumberStrip, CustomizableGrid, definePresets in useMemo, capabilities wait, registry from defineCards; tests need @/test/next-navigation and @/test/customize-harness; contract in docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5; As built at the end of section 10 of docs/superpowers/specs/2026-09-30-layout-customization-design.md"
+   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20 | plan committed (13 tasks, milestone M1 at T6 so WP-34 to 37 can start); rows 0/7; reads the summary twice and aggregates on the client until WP-32"
   },
   {
    "id": "WP-34",
@@ -1861,7 +1861,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-34-overview-cards-engines.md; estimate 8 tasks; decisions D-04 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11"
+   "notes": "file work-packages/WP-34-overview-cards-engines.md; estimate 8 tasks; decisions D-04 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6)"
   },
   {
    "id": "WP-35",
@@ -1900,7 +1900,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-35-overview-cards-competitors.md; estimate 6 tasks; decisions none | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11"
+   "notes": "file work-packages/WP-35-overview-cards-competitors.md; estimate 6 tasks; decisions none | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6)"
   },
   {
    "id": "WP-36",
@@ -1944,7 +1944,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-36-overview-cards-topics.md; estimate 7 tasks; decisions D-04, D-05 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11"
+   "notes": "file work-packages/WP-36-overview-cards-topics.md; estimate 7 tasks; decisions D-04, D-05 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6)"
   },
   {
    "id": "WP-37",
@@ -1990,7 +1990,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-37-overview-cards-sources.md; estimate 6 tasks; decisions none | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current"
+   "notes": "file work-packages/WP-37-overview-cards-sources.md; estimate 6 tasks; decisions none | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6)"
   },
   {
    "id": "WP-38",
@@ -4216,6 +4216,83 @@
    "granted": "2026-11-13T18:36:09+05:30",
    "scope": "WP-20: raise SECTION_TIMEOUT_MS for the tables section only (load flake, 37 s under load vs 30 s limit)",
    "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/eslint.config.mjs",
+   "wp": "WP-33 (L1, T5)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "ONE boundaries policy entry allowing feature -> features/layouts (layouts is a platform, like providers); no other lint rule changes; document it in the As built",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "apps/web/src/lib/layouts/catalog.ts",
+   "wp": "WP-33 (L2, T2)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "add the ai_overview screen's 38 card types, numbers and built-in layout in ONE commit before milestone M1, plus the pinned tests and the regenerated backend/src/idraft/api/layouts/catalog.json (hash/content only, web freshness test green)",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "apps/web/src/lib/layouts/catalog.test.ts",
+   "wp": "WP-33 (L2)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "pinned tests for the ai_overview additions",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "backend/src/idraft/api/layouts/catalog.json",
+   "wp": "WP-33 (L2)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "regenerated with pnpm gen:layout-catalog in the same commit",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "apps/web/src/lib/navigation/registry.test.ts",
+   "wp": "WP-33 (L3, T12)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "smallest edit when the Overview entry flips to live",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "apps/web/src/lib/navigation/planned-routes.test.ts",
+   "wp": "WP-33 (L4)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "one row",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/status/refetch-bar.tsx",
+   "wp": "WP-33 (L6, new file)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "owner WP-33",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/status/freshness-indicator.tsx",
+   "wp": "WP-33 (L6, new file)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "owner WP-33",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "docs/design-system/16-drawers-dialogs-popovers.md",
+   "wp": "WP-33 (L7)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "section 2.1: two rows for D-17 (coordinate with WP-32)",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "docs/design-system/24-page-templates.md",
+   "wp": "WP-33 (L8)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "section 9.2a (D-20), append-only",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "apps/web/src/features/ai-overview/cards/*/index.ts",
+   "wp": "WP-33 (L9)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "five empty registry slot files for the WP-34 to 37 card folders; card packages fill them in",
+   "until": "WP-33 merged"
   }
  ],
  "followups": [
@@ -4488,6 +4565,14 @@
    "date": "2026-11-13T14:46:05+05:30",
    "title": "Nine owner choices taken with defaults in WP-20 plan section 7",
    "effect": "default view stays the List; leader per engine = highest share of voice among tracked competitors; spread unsigned 1 decimal; engine comparison by the interim unpaired Newcombe test; pooled points marked in words; Add prompt and Run now in the drawer header; In search from tracked keywords by filter[term]; heat map ignores ?q; interim 7 day stale rule",
+   "status": "accepted by coordinator, owner to confirm"
+  },
+  {
+   "id": "WP-33-plan",
+   "by": "coordinator",
+   "date": "2026-11-13T21:07:25+05:30",
+   "title": "WP-33 plan choices accepted",
+   "effect": "page order header, notice, strip, filter bar, grid (preview and DS 24, not the spec's filter bar first); URL keys country/engine/topic/branded plus cmp as the Prompts page reads them; the shell reads the summary twice (current and previous window) and aggregates on the client until WP-32 lands (seam useOverviewPeriods + buildAggregates); no-engine state is a body empty state; the Competitive preset differs from spec 9.5 (adds ai.sample_coverage, widens ai.co_mentions) so no half row remains at 1280 px; owner to confirm",
    "status": "accepted by coordinator, owner to confirm"
   }
  ],
