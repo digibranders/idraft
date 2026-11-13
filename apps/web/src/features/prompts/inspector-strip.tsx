@@ -3,12 +3,15 @@
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
+import { ChangeInline, useChangeWords, useComparedWindow, useCompare } from './compare';
 import type { PromptCounts } from './inspector-reads';
 import { useRateWords } from './rate-view';
 import { MetricStrip, type MetricStripGroup, type MetricStripItem } from '@/components/app/metric/metric-strip';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import type { ProjectEngine } from '@/lib/api/types';
+import { engineChangeOf } from '@/lib/compare/change-model';
+import { formatDateRange } from '@/lib/format';
 import { averageRate, cellFigure } from '@/lib/rates/rate-model';
 
 export interface InspectorStripProps {
@@ -22,7 +25,9 @@ export interface InspectorStripProps {
 /**
  * The strip above the prompt inspector's tabs (parity spec G92): the Mention rate of each enabled engine with the
  * valid answers behind it, and one Citation rate, the equal weight average of the engines that show a rate. A rate
- * over fewer than `MIN_OBSERVATIONS` valid answers shows the answers there are instead (decision D-1).
+ * over fewer than `MIN_OBSERVATIONS` valid answers shows the answers there are instead (decision D-1). While
+ * comparison is on, each engine's item shows how its rate moved since the previous period (WB-PI-11), with the previous
+ * value, the window and the verdict in its tooltip; the Citation average has no change (WP-19 decision D14).
  */
 export function InspectorStrip({ engines, counts, noCountsReason }: InspectorStripProps): ReactElement {
   const t = useTranslations('prompts.inspector');
@@ -30,6 +35,10 @@ export function InspectorStrip({ engines, counts, noCountsReason }: InspectorStr
   const rate = useTranslations('prompts.rate');
   const common = useTranslations('common');
   const words = useRateWords();
+  const changeWords = useChangeWords();
+  const { compare } = useCompare();
+  const compared = useComparedWindow();
+  const range = compared === null ? null : formatDateRange(compared.from, compared.to);
 
   if (counts.status === 'failed') {
     return (
@@ -53,6 +62,8 @@ export function InspectorStrip({ engines, counts, noCountsReason }: InspectorStr
       row?.engines.find((cell) => cell.engine_code === code),
       'mentioned',
     );
+    // While the counts are read again the cells are the held ones: no change is drawn until this window has answered
+    const change = compare && counts.status === 'ready' ? engineChangeOf(row?.engines, code, 'mentioned') : null;
     return {
       id: code,
       label: columns('engineMention', { engine: engine.engine.label }),
@@ -60,6 +71,9 @@ export function InspectorStrip({ engines, counts, noCountsReason }: InspectorStr
       unknown:
         figure.state === 'ok' ? null : { kind: figure.state === 'insufficient' ? 'insufficient' : 'not-applicable' },
       context: words.basis(figure) ?? words.reason(figure),
+      delta: change === null ? undefined : <ChangeInline change={change} />,
+      // The item with a tip is the tab stop that holds it: the previous value with its answers, the window, the verdict
+      tip: change === null ? undefined : changeWords.tip(change, { kind: 'engine', range }),
     };
   });
   const citation = averageRate(
