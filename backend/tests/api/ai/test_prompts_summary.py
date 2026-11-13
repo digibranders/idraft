@@ -958,10 +958,21 @@ async def test_every_option_at_full_capacity_is_one_query_each(
     )
     for engine in data["topics"][0]["engines"]:
         assert [point["week_start"] for point in engine["series"]] == weeks
+        # A topic point pools exactly when fewer than 10 of its 150 prompts answered that week.
+        assert [point["is_pooled"] for point in engine["series"]] == [
+            point["prompts"] < 10 for point in engine["series"]
+        ]
+        assert max(point["prompts"] for point in engine["series"]) == 150
     for row in data["prompts"]:
         for engine in row["engines"]:
-            # Each prompt's 8 answers are in its weeks, each once.
-            assert sum(point["mentioned"]["numerator"] for point in engine["series"]) == 8
+            # A prompt's points are always pooled; its 8 answers are in the window, so the last
+            # point (the trailing four weeks) holds at least the answers of its last three weeks
+            # and never more than the 8, each answer once.
+            assert {point["is_pooled"] for point in engine["series"]} == {True}
+            assert {point["pool"]["reason"] for point in engine["series"]} == {"prompt_point"}
+            last = engine["series"][-1]["mentioned"]
+            assert 0 < last["numerator"] <= 8
+            assert last["numerator"] == last["denominator"] == last["n_observations"]
 
 
 async def test_a_full_project_is_a_handful_of_statements(
@@ -1637,31 +1648,35 @@ async def test_a_series_has_a_point_for_each_week_of_the_window(
     a = rows[str(prompts["a"].id)]["engines"][0]
     b = rows[str(prompts["b"].id)]["engines"][0]
     assert [point["week_start"] for point in a["series"]] == weeks
-    assert _cell(_points(a)[one]["mentioned"]) == (1, 2, 2)
-    assert _cell(_points(a)[one]["cited"]) == (0, 2, 2)
-    assert _cell(_points(a)[one]["share_of_voice"]) == (1, 1, 2)
+    # A point of a prompt row holds the week and the three before it (a prompt row always
+    # pools, so the points no longer add up to the window cell). A: 1 of 2 and 0 cited a week
+    # ago, 1 of 1 two weeks ago, nothing three weeks ago.
+    assert _cell(_points(a)[one]["mentioned"]) == (2, 3, 3)
+    assert _cell(_points(a)[one]["cited"]) == (0, 3, 3)
+    assert _cell(_points(a)[one]["share_of_voice"]) == (2, 2, 3)
     assert _cell(_points(a)[two]["mentioned"]) == (1, 1, 1)
-    assert _cell(_points(b)[two]["mentioned"]) == (1, 1, 1)
-    # A refusal: an answer of the week, and no valid one.
+    assert _points(a)[one]["prompts"] == 1
+    assert _points(a)[one]["pool"]["reason"] == "prompt_point"
+    # B: the refusal of three weeks ago is an answer of the pool, and no valid one.
+    assert _cell(_points(b)[two]["mentioned"]) == (1, 1, 2)
     assert _cell(_points(b)[three]["mentioned"]) == (0, 0, 1)
     assert _points(b)[three]["mentioned"]["value"] is None
-    for week in set(weeks) - {one, two}:
+    for week in weeks[: weeks.index(two)]:
         assert _cell(_points(a)[week]["mentioned"]) == (0, 0, 0)
-    # A prompt's weeks add up to its window.
-    assert (
-        sum(point["mentioned"]["numerator"] for point in a["series"]) == a["mentioned"]["numerator"]
-    )
-    assert (
-        sum(point["mentioned"]["denominator"] for point in a["series"])
-        == a["mentioned"]["denominator"]
-    )
-    # The topic's weeks are prompt weighted as its window is: a week ago A alone (1 of 2), two
-    # weeks ago A and B (1 of 1 each), three weeks ago B's refusal only.
+    # The current week, three weeks after A's first answers, still holds them all: the pool is
+    # the trailing four weeks.
+    last = a["series"][-1]
+    assert _cell(last["mentioned"]) == _cell(a["mentioned"])
+    # The topic has two prompts, fewer than 10: its points pool too. Prompt weighted as its
+    # window is: two weeks ago A and B (1 of 1 each; B's refusal makes 3 answers), a week ago A
+    # (2 of 3) and B (1 of 1), three weeks ago B's refusal only.
     t = data["topics"][0]["engines"][0]
-    assert _cell(_points(t)[one]["mentioned"]) == (0.5, 1, 2)
-    assert _pooled(_points(t)[one]["mentioned"]) == (1, 2)
-    assert _cell(_points(t)[two]["mentioned"]) == (2, 2, 2)
+    assert _cell(_points(t)[one]["mentioned"]) == (pytest.approx(5 / 3), 2, 5)
+    assert _pooled(_points(t)[one]["mentioned"]) == (3, 4)
+    assert _cell(_points(t)[two]["mentioned"]) == (2, 2, 3)
     assert _cell(_points(t)[three]["mentioned"]) == (0, 0, 1)
+    assert [_points(t)[week]["prompts"] for week in (three, two, one)] == [0, 2, 1]
+    assert _points(t)[two]["pool"]["reason"] == "few_prompts"
     plain = (await _summary(world, api)).json()["data"]
     assert "series" not in plain["prompts"][0]["engines"][0]
     assert "series" not in plain["topics"][0]["engines"][0]
@@ -1713,10 +1728,10 @@ async def test_a_series_follows_the_scope_and_the_engine_filter(
     api: httpx.AsyncClient, summary: Summary
 ) -> None:
     """Only the valid, current, not superseded answers of the prompts and engines in scope are in
-    a week, so the weeks of a row add up to the row's window whatever the options. On a topic
-    row the weekly Mentioned and Cited numerators and denominators are sums of per-week prompt
-    rates and prompt counts, so they do NOT add up to the window cell: only `pooled`, Share of
-    voice and n_observations do."""
+    a point, whatever the options. The seeded answers are all in the last 11 days, so the last
+    point (the trailing four weeks, which every row here pools: a prompt row always, a topic of
+    fewer than 10 prompts too) holds all of them, and equals the row's window cell. The points
+    no longer add up to the window cell: each pools the weeks before it."""
     for params in ({}, {"filter[engine_code_in]": GEMINI}, {"include_branded": "true"}):
         data = (await _summary(summary, api, include="series", **params)).json()["data"]
         engine_codes = {
@@ -1727,26 +1742,15 @@ async def test_a_series_follows_the_scope_and_the_engine_filter(
         )
         for row in [*data["prompts"], *data["topics"]]:
             for engine in row["engines"]:
+                assert {point["is_pooled"] for point in engine["series"]} == {True}
                 for name in ("mentioned", "cited", "share_of_voice"):
-                    points = [point[name] for point in engine["series"]]
-                    assert (
-                        sum(p["n_observations"] for p in points) == engine[name]["n_observations"]
+                    last, window = engine["series"][-1][name], engine[name]
+                    assert last["numerator"] == pytest.approx(window["numerator"])
+                    assert (last["denominator"], last["n_observations"], last["pooled"]) == (
+                        window["denominator"],
+                        window["n_observations"],
+                        window["pooled"],
                     )
-                    is_prompt = bool(row.get("prompt_id"))
-                    if is_prompt or name == "share_of_voice":
-                        assert sum(p["denominator"] for p in points) == engine[name]["denominator"]
-                        assert sum(p["numerator"] for p in points) == pytest.approx(
-                            engine[name]["numerator"]
-                        )
-                    else:
-                        assert (
-                            sum(p["pooled"]["successes"] for p in points)
-                            == engine[name]["pooled"]["successes"]
-                        )
-                        assert (
-                            sum(p["pooled"]["trials"] for p in points)
-                            == engine[name]["pooled"]["trials"]
-                        )
 
 
 async def test_the_weekly_counts_follow_the_engine_filter(
@@ -1777,11 +1781,15 @@ async def test_the_weekly_counts_follow_the_engine_filter(
 
 async def test_the_series_is_cut_at_the_window(api: httpx.AsyncClient, summary: Summary) -> None:
     """A week the window cuts counts only its days in the window: answer 9 (28 days old) is
-    outside the default window and in no point."""
+    outside the default window and in no point, and no pool reads before the window: the last
+    point, which holds the trailing four weeks, has the window's 6 answers and not 7."""
     data = (await _summary(summary, api, include="series")).json()["data"]
     providers = _by(data["prompts"], "prompt_id")[str(summary.prompts["providers"].id)]
     chatgpt = providers["engines"][0]
-    assert sum(p["mentioned"]["n_observations"] for p in chatgpt["series"]) == 6
+    assert chatgpt["series"][-1]["mentioned"]["n_observations"] == 6
+    assert all(
+        point["pool"]["window"]["from"] >= data["window"]["from"] for point in chatgpt["series"]
+    )
 
 
 async def test_the_longest_window_has_a_point_for_each_week_it_touches(

@@ -343,6 +343,8 @@ def test_a_summary_without_the_additions_is_a_valid_summary() -> None:
     }
     week = {
         "week_start": "2026-01-05",
+        "prompts": 0,
+        "is_pooled": False,
         "mentioned": _cell(),
         "cited": _cell(),
         "share_of_voice": _cell(),
@@ -354,7 +356,9 @@ def test_a_summary_without_the_additions_is_a_valid_summary() -> None:
     }
 
     assert "previous" not in EngineSummary.model_validate(engine).model_dump(mode="json")
-    assert "entities" not in WeekCells.model_validate(week).model_dump(mode="json")
+    point = WeekCells.model_validate(week).model_dump(mode="json")
+    assert "entities" not in point
+    assert "pool" not in point
     assert "previous" not in EntityCells.model_validate(entity).model_dump(mode="json")
 
 
@@ -406,13 +410,18 @@ def test_the_api_document_has_the_summary_additions() -> None:
         "CoMentionPair",
         "EngineCoMentions",
         "CountrySummary",
+        "PointPool",
     ):
         assert name in schemas, name
+    # The point fields that are always there (C-10) are required; `pool` is not.
+    assert {"prompts", "is_pooled"} <= set(schemas["WeekCells"]["required"])
+    assert set(schemas["PointPool"]["required"]) == {"weeks", "window", "reason", "below_prompts"}
+    assert schemas["PointPool"]["properties"]["reason"]["enum"] == ["prompt_point", "few_prompts"]
 
     optional = {
         "EngineSummary": {"previous"},
         "EntityCells": {"previous"},
-        "WeekCells": {"entities"},
+        "WeekCells": {"entities", "pool"},
         "PromptsSummary": {
             "compare_window",
             "previous_answers",

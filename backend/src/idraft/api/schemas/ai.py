@@ -695,15 +695,48 @@ class EntityCells(BaseModel):
     )
 
 
+class PointPool(BaseModel):
+    """What a pooled point holds: the answers of its own week and of the weeks before it, inside
+    the window (contract C2, change log C-11)."""
+
+    weeks: int = Field(
+        description="The weeks pooled, 1 to 4: fewer than 4 when the window opens inside the "
+        "four weeks before the point."
+    )
+    window: MetricWindow = Field(
+        description="The first and last day the pool covers, never outside the response's `window`."
+    )
+    reason: Literal["prompt_point", "few_prompts"] = Field(
+        description="`prompt_point`: the point is of a prompt row, which always pools. "
+        "`few_prompts`: the point is of a topic, total or country row and fewer than "
+        "`below_prompts` of its prompts answered that week."
+    )
+    below_prompts: int = Field(
+        description="The number of prompts under which a topic, total or country point pools."
+    )
+
+
 class WeekCells(BaseModel):
-    """One week of a series: the week's answers inside the window, weighted as the window's. The
-    first and last weeks may be partial (cut at the window bounds), so the first `week_start` can
-    precede `window.from`. On a prompt row the weeks add up to the window cell. On a topic row
-    the weekly `mentioned` and `cited` are prompt weighted per week, so their numerators and
-    denominators do not add up to the window cell, while `pooled`, share of voice and
-    `n_observations` do."""
+    """One point of a series, for the week starting `week_start`. It holds the answers of that
+    week alone when `is_pooled` is false (a topic, total or country row with enough prompts
+    answering). Otherwise it holds the trailing four weeks to that week, inside the window, and
+    `pool` says which days (a prompt row always pools: one prompt answers once or twice a week).
+    A pooled prompt cell is answers over answers. A pooled topic, total or country cell sums
+    each prompt's counts over the pooled weeks first and is then prompt weighted, as the window
+    cell is. The points of a prompt row therefore do not add up to its window cell. Weeks before
+    the window are never read, so the first points of a window pool fewer weeks."""
 
     week_start: date = Field(description="The Monday the week starts on, in the project's zone.")
+    prompts: int = Field(
+        description="The prompts of the row with a valid answer on the engine in that week "
+        "alone, whether the point is pooled or not."
+    )
+    is_pooled: bool = Field(description="Whether the cells hold more than the week's own answers.")
+    pool: PointPool | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="Present exactly when `is_pooled`: the weeks and days the cells hold, and why.",
+    )
     mentioned: MetricCell
     cited: MetricCell
     share_of_voice: MetricCell
@@ -734,10 +767,11 @@ class EngineSummary(BaseModel):
         default=None,
         exclude_if=_absent,
         description="With `include=series`: a point for each week the window touches, oldest "
-        "first, at most 14; a week without answers has counts of 0. The first and last points "
-        "may be partial weeks (cut at the window bounds). On a prompt row the weeks add up to "
-        "the window cell; on a topic row only `pooled`, share of voice and `n_observations` do, "
-        "as `mentioned` and `cited` are prompt weighted per week. Left out otherwise.",
+        "first, at most 14; a week without answers has counts of 0. The first and last weeks "
+        "may be partial (cut at the window bounds). The points of a prompt row are always "
+        "pooled over the trailing four weeks; those of a topic, total or country row are when "
+        "fewer than 10 of its prompts answered that week (`is_pooled`, `pool`). A pool stays "
+        "inside the window. Left out otherwise.",
     )
     entities: list[EntityCells] | None = Field(
         default=None,

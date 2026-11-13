@@ -20,6 +20,7 @@ from tests.api.ai.test_prompts_summary import (
     Answer,
     Summary,
 )
+from tests.api.ai.test_prompts_summary import _assign as assign_topic
 from tests.api.ai.test_prompts_summary import _by as by
 from tests.api.ai.test_prompts_summary import _cell as cell
 from tests.api.ai.test_prompts_summary import _entity_cell as entity_cell
@@ -27,8 +28,11 @@ from tests.api.ai.test_prompts_summary import _full_project as full_project
 from tests.api.ai.test_prompts_summary import _ingested as ingested
 from tests.api.ai.test_prompts_summary import _mention_every_answer as mention_every_answer
 from tests.api.ai.test_prompts_summary import _pooled as pooled
+from tests.api.ai.test_prompts_summary import _prompts as new_prompts
 from tests.api.ai.test_prompts_summary import _statements as statements
 from tests.api.ai.test_prompts_summary import _summary as get_summary
+from tests.api.ai.test_prompts_summary import _topic as new_topic
+from tests.api.ai.test_prompts_summary import _world as new_world
 from tests.api.keywords.test_tracked_keyword_ranks import Ledger
 from tests.api.workspaces.support import make_project
 from tests.collectors.ai_support import add_prompt, chatgpt_answer, enable_engine, fetched_ai_task
@@ -46,6 +50,7 @@ __all__ = [
     "Answer",
     "Summary",
     "answer_in_another_project",
+    "assign_topic",
     "by",
     "cell",
     "day",
@@ -54,6 +59,9 @@ __all__ = [
     "get_summary",
     "ingested",
     "mention_every_answer",
+    "new_prompts",
+    "new_topic",
+    "new_world",
     "pooled",
     "prompt_row",
     "seeded",
