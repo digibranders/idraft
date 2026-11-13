@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T17:15:31+05:30",
+ "updated": "2026-11-13T17:30:16+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1078,7 +1078,7 @@
     "done": 14
    },
    "owner": "",
-   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | steps 3/8, rows 14/31 built locally (T1 mocks, T2 prompt Citations tab, banner, seam; browser-checked); z-order fix F-19 then push P1; T3 page shell next"
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | P1 PUSHED (3c33fce1): prompt Citations tab (5 tabs, 4 plus More at 390), mocks, shared reads, banner, F-19 included; full vitest 7343 passed + 1 flake; rows 14/31; T3 page shell next"
   },
   {
    "id": "WP-22",
@@ -4195,6 +4195,13 @@
    "granted": "2026-11-13T17:15:31+05:30",
    "scope": "line 187 correction (done)",
    "until": "WP-21 merged"
+  },
+  {
+   "path": "apps/web/e2e/flows/ai-prompts.spec.ts",
+   "wp": "WP-20 (F-22)",
+   "granted": "2026-11-13T17:30:16+05:30",
+   "scope": "the test at ~line 213 (390 px a11y and no sideways scroll): the Topics treegrid no longer exists at 390 px because the phone list rows replace it; adapt line ~220 and the checks after it; WP-21 holds a lease for other lines of the same file (tab loop): both rebase",
+   "until": "WP-20 merged"
   }
  ],
  "followups": [
@@ -4407,6 +4414,16 @@
    "owner": "shared parts quality sweep",
    "severity": "low",
    "status": "open"
+  },
+  {
+   "id": "F-22",
+   "found": "2026-11-13T17:30:16+05:30",
+   "by": "WP-21",
+   "title": "ai-prompts.spec.ts:213 (Topics & Prompts 390 px a11y) fails on develop",
+   "detail": "Fails at line 220 getByRole('treegrid', {name:'Topics'}): at 390 px the page renders mobile list rows (DataTableList / WP-20 topics-mobile-list) so no treegrid exists. Reproduced on a clean checkout of origin/develop (2 failed, light and dark). The spec passed at WP-10 merge, so the change came with the Topics phone list (WP-20 Task 3, WB-TPE-17). Owner: WP-20 (assigned). The release e2e gate is red until fixed.",
+   "owner": "WP-20 session",
+   "severity": "develop e2e red",
+   "status": "assigned"
   }
  ],
  "migrations": [
