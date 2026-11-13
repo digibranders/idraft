@@ -61,7 +61,7 @@ CreationMethod = Literal["human", "template", "llm_generated", "imported"]
 LintRule = Literal[
     "contains_brand_alias",
     "engine_limit",
-    # Contract C1 (prompt-dialogs section 16): not returned yet.
+    # Contract C1 (prompt-dialogs section 16).
     "word_count",
     "multiple_questions",
     "leading_wording",
@@ -317,7 +317,8 @@ class PromptLintRequest(Body):
     )
     language_code: LanguageCode | None = Field(
         default=None,
-        description="The language the texts should be in, for `language_mismatch`. " + _NOT_BUILT,
+        description="The language the texts should be in, for `language_mismatch`. Left out: "
+        "that rule is not checked.",
     )
 
 

@@ -34,7 +34,6 @@ from idraft.api.schemas.ai import (
     PromptCreate,
     PromptLint,
     PromptLintBody,
-    PromptLintItems,
     PromptLintResponse,
     PromptPage,
     PromptPatch,
@@ -327,14 +326,19 @@ async def bulk_create_prompts(
     "(text, language and country) each result also says which prompt of the project it is "
     "(`tracked`, archived ones too) or, when none, the one that differs only in case and "
     "spacing (`near_duplicate_of`), and `quota.would_create` counts the items saving would "
-    "create: not tracked, not a repeat of an earlier item, not too long to save. `language_code` "
-    "is published and not built yet (`501`).",
+    "create: not tracked, not a repeat of an earlier item, not too long to save. Five rules read "
+    "the text, after `contains_brand_alias` and before `engine_limit`: `contains_competitor_alias` "
+    "(a warning, a note when the text compares with `vs` or `versus`; it never makes the prompt "
+    "branded), `leading_wording` (a superlative within 3 words of an own or competitor name, or "
+    '"why is X the best"), `multiple_questions`, `word_count` (5 to 60 words; scripts written '
+    "without spaces count half their characters) and `language_mismatch` (the text reads as "
+    "another script, or for en, de, fr, es, it, pt and nl another language, than the item's "
+    "`language_code`, or the body's for `texts`; texts under 4 words and unknown languages are "
+    "not checked). The competitor and leading rules carry a span; the others carry none.",
 )
 async def lint_prompts(
     project_id: UUID, body: PromptLintBody, access: ReadData, prompts: Prompts
 ) -> PromptLintResponse:
-    if not isinstance(body, PromptLintItems):
-        refuse_unbuilt({"language_code": body.language_code is not None})
     outcome = await prompts.lint(access, project_id, body)
     return PromptLintResponse(
         data=[_lint_view(item) for item in outcome.prompts],

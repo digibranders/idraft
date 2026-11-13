@@ -90,22 +90,6 @@ def test_a_lint_items_body_is_refused_with_its_code(body: dict[str, Any], code: 
     assert code in _codes(TypeAdapter(PromptLintBody), body)
 
 
-async def test_lint_language_code_answers_501(
-    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    viewer = await member(resources, migrated, workspace, "viewer")
-    project = await ai_project(migrated, workspace)
-
-    response = await api.post(
-        project_url(workspace, project, "prompts", "lint"),
-        json={"texts": ["Is Acme good?"], "language_code": "en"},
-        headers=viewer.headers,
-    )
-
-    assert problem(response) == NOT_BUILT
-
-
 async def test_lint_checks_access_before_the_body_is_used(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

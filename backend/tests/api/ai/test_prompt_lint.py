@@ -24,6 +24,11 @@ SMILE = chr(0x1F642)
 TEXTS_STATEMENTS = 8
 
 
+def _prompt(length: int) -> str:
+    """A text of this many characters in words of 49 letters: long, but not a word count lint."""
+    return (("a" * 49 + " ") * (length // 50 + 1))[:length]
+
+
 def _item(text: str, country_iso: str = "US", language_code: str = "en") -> dict[str, str]:
     return {"text": text, "language_code": language_code, "country_iso": country_iso}
 
@@ -88,7 +93,7 @@ async def test_the_lint_finds_own_brand_names_and_counts_against_the_quota(
 
     response = await api.post(
         project_url(workspace, project, "prompts", "lint"),
-        json={"texts": [f"{SMILE} Is Acme good?", "  Is Rival good?  "]},
+        json={"texts": [f"{SMILE} Is Acme good for agencies?", "  Is Rival good for agencies?  "]},
         headers=viewer.headers,
     )
 
@@ -103,7 +108,11 @@ async def test_the_lint_finds_own_brand_names_and_counts_against_the_quota(
     assert [(w["rule"], w["severity"], w["engine_code"], w["span"]) for w in warnings] == [
         ("contains_brand_alias", "warning", None, {"start": 6, "end": 10})
     ]
-    assert (plain["text"], plain["is_branded"], plain["warnings"]) == ("Is Rival good?", False, [])
+    assert (plain["text"], plain["is_branded"], plain["warnings"]) == (
+        "Is Rival good for agencies?",
+        False,
+        [],
+    )
     assert response.json()["quota"] == {"limit": 40, "used": 0}
     assert await fetch(migrated, "SELECT id FROM ai.prompts WHERE project_id = $1", project) == []
 
@@ -116,9 +125,11 @@ async def test_the_lint_warns_of_each_engine_a_prompt_is_too_long_for(
     project = await ai_project(migrated, workspace)
     url = project_url(workspace, project, "prompts", "lint")
 
-    every = await api.post(url, json={"texts": ["x" * 701, "x" * 2001]}, headers=editor.headers)
+    every = await api.post(
+        url, json={"texts": [_prompt(701), _prompt(2001)]}, headers=editor.headers
+    )
     chatgpt = await api.post(
-        url, json={"texts": ["x" * 701], "engine_codes": ["chatgpt_web"]}, headers=editor.headers
+        url, json={"texts": [_prompt(701)], "engine_codes": ["chatgpt_web"]}, headers=editor.headers
     )
 
     assert every.status_code == 200, every.text
@@ -252,9 +263,14 @@ async def test_would_create_stops_counting_just_past_the_longest_savable_text(
     ("tracked", "written", "language_code", "country_iso"),
     [
         # The sharp s folds to "ss" under casefold; lower() would leave it alone.
-        ("Strasse?", "Straße?", "de", "DE"),
+        ("Strasse?", "Stra\U000000dfe?", "de", "DE"),
         # An all caps Cyrillic text folds to the lowercase one.
-        ("вопрос?", "ВОПРОС?", "ru", "RU"),
+        (
+            "\U00000432\U0000043e\U0000043f\U00000440\U0000043e\U00000441?",
+            "\U00000412\U0000041e\U0000041f\U00000420\U0000041e\U00000421?",
+            "ru",
+            "RU",
+        ),
     ],
 )
 async def test_lint_items_folds_case_the_way_unicode_does(
@@ -306,6 +322,98 @@ async def test_lint_texts_answers_as_before(
     assert set(body["quota"]) == {"limit", "used"}
     assert {"tracked", "near_duplicate_of", "suggested_prompt_type"}.isdisjoint(body["data"][0])
     assert len(sent) == TEXTS_STATEMENTS, sent
+
+
+FRENCH = "Quelle est la meilleure solution de facturation ?"
+
+
+async def _name(
+    pg: PostgresServer, workspace: Workspace, project: uuid.UUID, name: str, role: str
+) -> None:
+    """A brand the project knows by `name`, in `role`."""
+    entity = await fetchrow(
+        pg,
+        "INSERT INTO core.entities (workspace_id, entity_type, canonical_name) "
+        "VALUES ($1, 'brand', $2) RETURNING id",
+        workspace.id,
+        name,
+    )
+    await execute(
+        pg,
+        "INSERT INTO core.entity_aliases (workspace_id, entity_id, alias) VALUES ($1, $2, $3)",
+        workspace.id,
+        entity["id"],
+        name,
+    )
+    await attach(pg, workspace, project, entity["id"], role)
+
+
+async def test_lint_takes_a_language_code_for_texts(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "prompts", "lint")
+
+    english = await api.post(
+        url, json={"texts": [FRENCH], "language_code": "en"}, headers=viewer.headers
+    )
+    french = await api.post(
+        url, json={"texts": [FRENCH], "language_code": "fr"}, headers=viewer.headers
+    )
+    unsaid = await api.post(url, json={"texts": [FRENCH]}, headers=viewer.headers)
+
+    assert english.status_code == french.status_code == unsaid.status_code == 200, english.text
+    (mismatch,) = english.json()["data"][0]["warnings"]
+    assert (mismatch["rule"], mismatch["severity"], mismatch["span"]) == (
+        "language_mismatch",
+        "warning",
+        None,
+    )
+    assert french.json()["data"][0]["warnings"] == []
+    assert unsaid.json()["data"][0]["warnings"] == []
+
+
+async def test_lint_rules_run_on_items(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+    await _name(migrated, workspace, project, "Acme", "own")
+    await _name(migrated, workspace, project, "HubSpot", "competitor")
+
+    response = await _lint(
+        api,
+        workspace,
+        project,
+        viewer.headers,
+        [
+            _item("Is HubSpot the best CRM for startups?"),
+            _item("HubSpot vs Acme for a small agency"),
+            _item(FRENCH),
+            _item(FRENCH, language_code="fr"),
+            _item("x" * 701),
+        ],
+    )
+
+    assert response.status_code == 200, response.text
+    competitor, comparison, english, french, long = response.json()["data"]
+    assert [(w["rule"], w["severity"], w["span"]) for w in competitor["warnings"]] == [
+        ("contains_competitor_alias", "warning", {"start": 3, "end": 10}),
+        ("leading_wording", "warning", {"start": 15, "end": 19}),
+    ]
+    # A competitor never makes a prompt branded; an own name does.
+    assert competitor["is_branded"] is False
+    assert comparison["is_branded"] is True
+    assert [(w["rule"], w["severity"]) for w in comparison["warnings"]] == [
+        ("contains_brand_alias", "warning"),
+        ("contains_competitor_alias", "info"),
+    ]
+    assert [w["rule"] for w in english["warnings"]] == ["language_mismatch"]
+    assert french["warnings"] == []
+    assert [w["rule"] for w in long["warnings"]] == ["word_count", "engine_limit"]
 
 
 async def test_lint_stores_nothing(

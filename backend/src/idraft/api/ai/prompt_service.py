@@ -30,6 +30,7 @@ from idraft.api import audit
 from idraft.api.ai import engine_repository as engines
 from idraft.api.ai import prompt_repository as prompts
 from idraft.api.ai.engine_service import live_project
+from idraft.api.ai.prompt_lint import Named, check
 from idraft.api.ai.prompt_repository import (
     LintRow,
     NewPrompt,
@@ -255,15 +256,35 @@ async def matched(rules: MatcherRules, texts: Sequence[str]) -> list[MatchResult
         ) from None
 
 
+def _named(result: MatchResult, entities: Mapping[UUID, MatcherEntity]) -> list[Named]:
+    """The own and competitor names found, with the places the matcher accepted."""
+    found: list[Named] = []
+    for mention in result.mentions:
+        entity = entities[mention.entity_id]
+        if mention.status != "accepted" or entity.role not in ("own", "competitor"):
+            continue
+        spans = tuple((span.start, span.end) for span in mention.spans if span.status == "accepted")
+        if spans:
+            found.append(
+                Named(
+                    name=entity.canonical_name,
+                    is_competitor=entity.role == "competitor",
+                    spans=spans,
+                )
+            )
+    return found
+
+
 def _lint(
     text: str,
+    language_code: str | None,
     result: MatchResult,
     entities: Mapping[UUID, MatcherEntity],
     own: set[UUID],
     codes: Sequence[EngineCode],
 ) -> LintedPrompt:
-    """Own brand names found (each once, with the first place it is named, in UTF-16 units) and
-    the engines the text is too long for."""
+    """Own brand names found (each once, with the first place it is named, in UTF-16 units), the
+    rules that read the text (`prompt_lint`) and the engines the text is too long for."""
     shown = to_utf16(result, text)
     aliases: list[LintedAlias] = []
     notes: list[LintNote] = []
@@ -288,6 +309,16 @@ def _lint(
                 span=(first.start, first.end),
             )
         )
+    notes.extend(
+        LintNote(
+            rule=found.rule,
+            severity=found.severity,
+            message=found.message,
+            engine_code=None,
+            span=found.span,
+        )
+        for found in check(text, _named(result, entities), language_code)
+    )
     for code in codes:
         engine = ENGINES[code]
         if engine.fits(text):
@@ -505,14 +536,18 @@ class PromptService:
         self, access: WorkspaceAccess, project_id: UUID, body: PromptLintRequest | PromptLintItems
     ) -> LintOutcome:
         """What saving these texts would meet, with nothing stored: own brand names (the
-        prompt would be branded) and engine limits, and the workspace's prompt quota. With
-        `items`, also which of them the project tracks already, which nearly, and how many
-        saving them would create."""
+        prompt would be branded), the rules that read the text (`prompt_lint`, with the
+        language of the item or of the body) and engine limits, and the workspace's prompt
+        quota. With `items`, also which of them the project tracks already, which nearly, and
+        how many saving them would create."""
         items: list[PromptLintItem] | None = None
-        texts = body.texts if isinstance(body, PromptLintRequest) else []
         if isinstance(body, PromptLintItems):
             items = body.items
             texts = [item.text for item in items]
+            languages: list[str | None] = [item.language_code for item in items]
+        else:
+            texts = body.texts
+            languages = [body.language_code] * len(texts)
         async with self._transaction(access) as db:
             await live_project(db, access, project_id)
             rules = await matcher_rules(db, access.workspace_id, project_id)
@@ -532,8 +567,8 @@ class PromptService:
         codes = body.engine_codes or list(EngineCode)
         results = await matched(rules, texts)
         linted = [
-            _lint(text, result, entities, own, codes)
-            for text, result in zip(texts, results, strict=True)
+            _lint(text, language_code, result, entities, own, codes)
+            for text, language_code, result in zip(texts, languages, results, strict=True)
         ]
         if items is None:
             return LintOutcome(prompts=linted, limit=limit, used=used)
