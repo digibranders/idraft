@@ -110,6 +110,53 @@ async def test_the_engines_are_seeded_as_the_code_knows_them(migrated: PostgresS
     }
 
 
+async def test_project_engines_hold_one_to_fifty_locations_and_a_replicate_count(
+    migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
+) -> None:
+    alpha, _ = tenants
+    insert = (
+        "INSERT INTO ai.project_engines (project_id, engine_code, workspace_id, location_ids, "
+        "replicates, provider_code) VALUES ($1, $2, $3, $4, $5, 'dataforseo')"
+    )
+
+    async def put(db: Db, engine_code: str, location_ids: list[int], replicates: int) -> None:
+        await db.execute(
+            insert, alpha.project_id, engine_code, alpha.workspace_id, location_ids, replicates
+        )
+
+    async with scoped(migrated, "superuser") as db:
+        # The edges are allowed: one and fifty locations, one and twenty replicates.
+        await put(db, "gemini_web", [1], 1)
+        await put(db, "google_ai_mode", list(range(1, 51)), 20)
+        defaults = await db.fetchrow(
+            "SELECT provider_params::text AS params, is_enabled FROM ai.project_engines "
+            "WHERE project_id = $1 AND engine_code = 'gemini_web'",
+            alpha.project_id,
+        )
+        await db.execute(
+            "DELETE FROM ai.project_engines WHERE project_id = $1 "
+            "AND engine_code = 'google_ai_mode'",
+            alpha.project_id,
+        )
+
+        async with refused(db, asyncpg.CheckViolationError):
+            await put(db, "google_ai_mode", [], 1)
+        async with refused(db, asyncpg.CheckViolationError):
+            await put(db, "google_ai_mode", list(range(1, 52)), 1)
+        async with refused(db, asyncpg.CheckViolationError):
+            await put(db, "google_ai_mode", [1], 0)
+        async with refused(db, asyncpg.CheckViolationError):
+            await put(db, "google_ai_mode", [1], 21)
+        # The primary key is (project_id, engine_code): the engine is there once per project.
+        async with refused(db, asyncpg.UniqueViolationError):
+            await put(db, "gemini_web", [1], 1)
+        async with refused(db, asyncpg.ForeignKeyViolationError):
+            await put(db, "no_such_engine", [1], 1)
+
+    assert defaults is not None
+    assert (defaults["params"], defaults["is_enabled"]) == ("{}", True)
+
+
 async def test_each_engine_has_a_task_price_on_both_queues(migrated: PostgresServer) -> None:
     endpoints = [engine.endpoint for engine in ENGINES.values()]
     async with connection(migrated) as db:
