@@ -28,6 +28,8 @@ from idraft.api.ai.metrics import (
     Frame,
     cell_value,
     citation_share_value,
+    entity_changes,
+    meta_of,
     suppressed_value,
 )
 from idraft.api.ai.source_repository import SourceScope
@@ -48,9 +50,7 @@ from idraft.api.schemas.ai_metrics import (
     AiCompetitor,
     AiCompetitorEngine,
     AiCompetitorsResponse,
-    AiEntityConfigChange,
     AiFilters,
-    AiMetricMeta,
     AiMetricValue,
     CompetitorSource,
     LostPrompt,
@@ -473,7 +473,9 @@ class CompetitorService:
             for entity_id in rows.shown
             if entity_id in reads.refs
         ]
-        return AiCompetitorsResponse(data=found, meta=_meta(data, reads.starts))
+        return AiCompetitorsResponse(
+            data=found, meta=meta_of(data, entity_changes(data, reads.starts))
+        )
 
     async def overview(
         self, access: WorkspaceAccess, project_id: UUID, query: SummaryQuery
@@ -523,7 +525,8 @@ class CompetitorService:
             if entity_id in reads.refs
         ]
         return OverviewCompetitorsResponse(
-            data=OverviewCompetitors(rows=found), meta=_meta(data, reads.starts)
+            data=OverviewCompetitors(rows=found),
+            meta=meta_of(data, entity_changes(data, reads.starts)),
         )
 
     async def _reads(
@@ -584,30 +587,3 @@ class CompetitorService:
                 db, access.workspace_id, project_id, data.entity_config_versions
             )
         return Reads(refs, units, lost, sources, starts)
-
-
-def _meta(data: PromptsSummary, starts: Mapping[int, datetime]) -> AiMetricMeta:
-    """What the body says about its scope: the summary's, and when each entity configuration took
-    effect when the window holds more than one."""
-    zone = ZoneInfo(data.window.timezone)
-    changes = (
-        [
-            AiEntityConfigChange(version=version, from_=starts[version].astimezone(zone).date())
-            for version in data.entity_config_versions
-            if version in starts
-        ]
-        if len(data.entity_config_versions) > 1
-        else []
-    )
-    return AiMetricMeta(
-        window=data.window,
-        compare_window=data.compare_window,
-        previous_answers=data.previous_answers,
-        include_branded=data.include_branded,
-        branded_only=data.branded_only,
-        engine_codes=data.engine_codes,
-        entities=data.entities,
-        entity_config_versions=data.entity_config_versions,
-        entity_config_changes=changes or None,
-        notes=[],
-    )

@@ -21,6 +21,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from fastapi.exceptions import RequestValidationError
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.ai import metrics_repository as repository
@@ -1150,6 +1151,10 @@ class MetricsService:
         async with workspace_transaction(
             self._sessions, access.workspace_id, user_id=access.user_id
         ) as db:
+            # The citation read joins answers to citations on a key; a planner without table
+            # statistics (a new month's partition, a backfill) nests loops there and is 30 to 100
+            # times slower. Local to this transaction, as in the sources and competitors reads.
+            await db.execute(text("SET LOCAL enable_nestloop = off"))
             by_role = await source_repository.role_engine_totals(db, scope)
             starts = await repository.version_starts(
                 db, access.workspace_id, project_id, data.entity_config_versions

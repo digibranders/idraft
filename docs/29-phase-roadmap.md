@@ -391,7 +391,7 @@ Overview reads are built: `GET {P}/ai/metrics/overview` and `GET {P}/overview/ai
 competitor per engine; opt-in lost prompts and top sources) and `GET {P}/overview/competitors`. They are thin
 adapters over the prompts summary, so every figure equals the Topics & Prompts number; only the citation units, the
 prompt attributes, the lost counts and the top domains are new reads, each one grouped statement with a fixed count
-(overview +3, value and series +2, breakdown +2 or +3, competitors +5 with a planner guard, overview competitors +3).
+(overview +4 with a planner guard, value and series +2 (`ai.citation_share` +4, with the guard), breakdown +2 or +3, competitors +5 with a planner guard, overview competitors +3).
 No table, no migration. Built rows: CF-16, BE-METRICS-08 to 11, BE-METRICS-24 (the card read map, tested row by row),
 BE-REPORTS-01, BE-REPORTS-03, BE-COMPETITORS-03 and 05; confirmed, not rebuilt: BE-COMPETITORS-01 and 02. Not built:
 the SEO half of the Overview competitor table (SEO share of voice needs the CTR model of doc 09 section 7; decision

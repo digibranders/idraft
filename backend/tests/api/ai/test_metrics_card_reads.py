@@ -345,8 +345,9 @@ async def _activity_cards(read: Reader, world: Summary) -> None:
     runs = await read.get("{P}/runs")
     assert isinstance(runs["data"], list)
     assert "manual_runs_today" in runs["meta"]
-    # WP-30 builds the daily collection read: until then it is a `501` stub, and the card has
-    # the run list. When it is built, the days it returns carry what the calendar draws.
+    # WP-30 built the daily collection read on develop (commit f0192fb9). This branch has not
+    # merged it and still has the `501` stub, so the card has the run list; where the route is
+    # built, the days it returns carry what the calendar draws.
     daily = await read.maybe("{P}/ai/collection/daily")
     if daily is not None:
         assert daily["meta"]["engine_codes"] == [CHATGPT, GEMINI]

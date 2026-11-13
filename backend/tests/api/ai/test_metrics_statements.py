@@ -26,9 +26,10 @@ from tests.conftest import PostgresServer
 seeded = summary_support.seeded
 
 # The Overview reads, in a second transaction after its summary request: the scope of the
-# transaction, the citation units by engine and role (citation share) and the day each entity
-# configuration took effect.
-OVERVIEW_EXTRA = 3
+# transaction, the setting that turns nested loops off for the citation join, the citation units
+# by engine and role (citation share) and the day each entity configuration first derived an
+# answer.
+OVERVIEW_EXTRA = 4
 # What the summary request of the Overview asks for.
 OVERVIEW_SUMMARY = {"include": "total,cells"}
 
@@ -84,10 +85,11 @@ async def test_the_overview_adds_a_fixed_number_of_statements_to_its_summary_req
 
 
 # A value or a series reads, in a second transaction after its summary request, the scope of the
-# transaction and the day each entity configuration took effect (the meta names them, C-21); the
-# citation share of a value also reads the citation units by engine and role.
+# transaction and the day each entity configuration first derived an answer (the meta names them,
+# C-21 and C-25); the citation share of a value also turns nested loops off and reads the
+# citation units by engine and role.
 METRIC_EXTRA = 2
-CITATION_SHARE_EXTRA = 3
+CITATION_SHARE_EXTRA = 4
 # (key, route tail, what its summary request asks for, what the route is asked besides, extra reads)
 ENTITIES = {"entity_ids": "{own},{rival}"}
 CASES = [
@@ -202,6 +204,68 @@ async def test_a_value_or_a_series_of_no_prompt_reads_nothing_of_its_own(
         extra = await _metric_extra(seeded, api, resources, case, **{"filter[country_iso]": "FR"})
 
         assert extra == 0, case[:2]
+
+
+def _nestloop(log: list[str]) -> list[int]:
+    return [at for at, sql in enumerate(log) if "enable_nestloop" in sql]
+
+
+async def _citation_log(
+    world: Summary, api: httpx.AsyncClient, resources: Resources, get: Any, **params: Any
+) -> list[str]:
+    await get(world, api, **params)
+    with statements(resources) as seen:
+        response = await get(world, api, **params)
+    assert response.status_code == 200, response.text
+    return list(seen)
+
+
+async def test_the_citation_reads_run_with_nested_loops_off_before_they_start(
+    api: httpx.AsyncClient, resources: Resources, seeded: Summary
+) -> None:
+    """Without table statistics (a new month's partition, a backfill) the planner nests loops over
+    the citation join and the read is 30 to 100 times slower: the Overview and the citation share
+    set it local to their second transaction, right after its scope statement and before the
+    citation read. A route that reads no citation, and a request with no prompt in scope, do not."""
+
+    async def overview(world: Summary, client: httpx.AsyncClient, **params: Any) -> Any:
+        return await get_overview(world, client, OVERVIEW, **params)
+
+    async def overview_ai(world: Summary, client: httpx.AsyncClient, **params: Any) -> Any:
+        return await get_overview(world, client, OVERVIEW_AI, **params)
+
+    async def share(world: Summary, client: httpx.AsyncClient, **params: Any) -> Any:
+        return await get_metric(world, client, "ai.citation_share", **params)
+
+    for get in (overview, overview_ai, share):
+        log = await _citation_log(seeded, api, resources, get)
+
+        (at,) = _nestloop(log)
+        assert log[at].strip().upper() == "SET LOCAL ENABLE_NESTLOOP = OFF", get.__name__
+        assert "set_config" in log[at - 1], get.__name__
+        reads = [n for n, sql in enumerate(log) if "ai.citations" in sql or "ai_citations" in sql]
+        assert reads, get.__name__
+        assert at < min(reads), get.__name__
+        # No prompt in scope reads no citation: the request is as it was.
+        empty = await _citation_log(seeded, api, resources, get, **{"filter[country_iso]": "FR"})
+        assert _nestloop(empty) == [], get.__name__
+
+    async def mention(world: Summary, client: httpx.AsyncClient, **params: Any) -> Any:
+        return await get_metric(world, client, "ai.mention_rate", **params)
+
+    async def series(world: Summary, client: httpx.AsyncClient, **params: Any) -> Any:
+        return await get_metric(world, client, "ai.mention_rate", "series", **params)
+
+    async def breakdown(world: Summary, client: httpx.AsyncClient, **params: Any) -> Any:
+        return await get_metric(
+            world, client, "ai.mention_rate", "breakdown", dimension="topic", **params
+        )
+
+    async def prompts(world: Summary, client: httpx.AsyncClient, **params: Any) -> Any:
+        return await get_metric(world, client, "ai.prompts_in_scope", **params)
+
+    for get in (mention, series, breakdown, prompts):
+        assert _nestloop(await _citation_log(seeded, api, resources, get)) == [], get.__name__
 
 
 async def test_an_overview_of_no_prompt_reads_nothing_of_its_own(
