@@ -2,7 +2,8 @@ import type { Read } from '../../data/read-state';
 
 /**
  * What state a card of the engines family is in, from its reads (WP-34 plan section 3.4). Pure: the card's
- * `ChartFrame` takes `phase` as its `status`, and a change between two windows is drawn only when `phase` is `ready`.
+ * `ChartFrame` takes `phase` as its `status`. A card that is `refetching` keeps its values on screen, a change between
+ * two windows of one scope too (`useCardData` drops the previous window only while the reads are of two scopes).
  */
 
 /** Whether a card reads the window before: not at all, as an extra it can do without, or as what it is made of. */
@@ -18,7 +19,7 @@ export interface PhaseInput {
   /** `null` when the comparison is off or its window cannot be asked: it is not read, by design. */
   previous: ReadFacts | null;
   need: PreviousNeed;
-  /** No read of the page's summary is under way (`OverviewPeriods.settled`). */
+  /** No read of the page's summary is loading or holds the last scope's data (`OverviewPeriods.settled`). */
   settled: boolean;
   /** The reads answered with something this card can draw. */
   hasContent: boolean;
@@ -44,7 +45,8 @@ export function cardPhase({ current, previous, need, settled, hasContent }: Phas
   if (required.some((read) => read.status === 'loading')) return result('loading');
   // A card made of a comparison has nothing to show where the comparison is off
   if (need === 'required' && previous === null) return result('empty');
-  // Data is on screen while a read runs; the data may be of the last scope, so it is not judged empty yet
+  // Data is on screen while a read runs; the data may be of the last scope (`!settled`), so it is not judged empty
+  // yet. A paused read (idle, or ready from its cache) is not under way, so it is judged like any other
   if (!settled || required.some((read) => read.status === 'refetching')) return result('refetching');
   return result(hasContent ? 'ready' : 'empty');
 }

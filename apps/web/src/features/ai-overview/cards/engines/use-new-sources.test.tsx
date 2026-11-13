@@ -29,6 +29,8 @@ interface Probe {
 
 /** The query string the wrapper renders; a test changes it and rerenders to change the scope. */
 const url = { search: WINDOW };
+/** What the hook is given; a test changes it and rerenders to pause or resume the read. */
+const options = { subscribed: true };
 
 function hookOf(search: string = WINDOW): ReturnType<typeof renderHook<Probe, unknown>> {
   url.search = search;
@@ -48,7 +50,7 @@ function hookOf(search: string = WINDOW): ReturnType<typeof renderHook<Probe, un
       </NuqsTestingAdapter>
     </QueryClientProvider>
   );
-  return renderHook((): Probe => ({ read: useNewSources(), enabled: useOverview().enabledEngines.length }), {
+  return renderHook((): Probe => ({ read: useNewSources(options), enabled: useOverview().enabledEngines.length }), {
     wrapper,
   });
 }
@@ -80,6 +82,7 @@ function recordChanges(): URL[] {
 }
 
 beforeEach(() => {
+  options.subscribed = true;
   vi.setSystemTime(new Date('2026-11-12T12:00:00Z'));
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('admin').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
 });
@@ -154,6 +157,35 @@ describe('useNewSources', () => {
     const { result } = hookOf(`${WINDOW}&cmp=off`);
     await settled(result);
     expect(result.current.read.status).toBe('idle');
+    expect(seen).toHaveLength(0);
+  });
+
+  it('asks nothing while it is not subscribed and is idle, then asks once it is', async () => {
+    const seen = recordChanges();
+    options.subscribed = false;
+    const { result, rerender } = hookOf();
+    await settled(result);
+    expect(result.current.read.status).toBe('idle');
+    expect(seen).toHaveLength(0);
+
+    options.subscribed = true;
+    rerender();
+    await waitFor(() => {
+      expect(result.current.read.status).toBe('ready');
+    });
+    expect(seen).toHaveLength(1);
+  });
+
+  it('keeps the count it has while it is paused, and asks nothing more', async () => {
+    const { result, rerender } = hookOf();
+    await waitFor(() => {
+      expect(result.current.read.data).toEqual({ total: 1, minSupport: 2 });
+    });
+    const seen = recordChanges();
+    options.subscribed = false;
+    rerender();
+    await settled(result);
+    expect(result.current.read).toMatchObject({ status: 'ready', data: { total: 1, minSupport: 2 } });
     expect(seen).toHaveLength(0);
   });
 

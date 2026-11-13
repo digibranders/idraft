@@ -190,16 +190,22 @@ const EXPORT_HEADER = [
  * sits under the rows and names the engines it averages. There is no Recommendation column: nothing classifies a
  * recommendation yet (plan D2).
  */
-export default function ByEngineCard({ item }: CardProps): ReactElement {
+export default function ByEngineCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.engines.byEngine');
   const common = useTranslations('aiOverview.engines.common');
   const meta = useCardMeta();
   const drill = useCardDrill();
-  const data = useCardData({ previous: 'optional', sources: true });
+  const data = useCardData({ previous: 'optional', sources: true, subscribed: live });
   const { scope, aggregates } = data;
 
+  // The sources of the last scope are not read for this one: the citation column says "not read" until they arrive
+  const sourcesRead = data.sources;
   const sources: SourcesState =
-    scope.branded === 'only' ? 'brandedOnly' : data.sources?.data === undefined ? 'notRead' : 'read';
+    scope.branded === 'only'
+      ? 'brandedOnly'
+      : sourcesRead?.data === undefined || sourcesRead.placeholder
+        ? 'notRead'
+        : 'read';
   const model = useMemo(
     () => (aggregates === null ? null : buildByEngine({ aggregates, sources })),
     [aggregates, sources],

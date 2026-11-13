@@ -82,13 +82,13 @@ const cellsOf = (mover: Mover, t: Translate): string[] => [
  * is coloured only when the change is larger than normal variation; a prompt with fewer than 4 valid answers in either
  * window is left out and counted in the footnote, and a prompt asked in one window only is not a mover.
  */
-export default function PromptMoversCard({ item, options }: CardProps): ReactElement {
+export default function PromptMoversCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.engines.movers');
   const common = useTranslations('aiOverview.engines.common');
   const metaOf = useCardMeta();
   const density = useCardDensity();
   const drill = useCardDrill();
-  const data = useCardData({ previous: 'required' });
+  const data = useCardData({ previous: 'required', subscribed: live });
   const { scope, asked, aggregates } = data;
   const engine = engineOption(options.engine);
   const direction = directionOf(options.direction);

@@ -51,13 +51,13 @@ interface FactRow {
  * fact and its numbers in the Table view. The words are fixed templates (`fact-sentences.tsx`); nothing here is
  * written by a model, and no sentence names a cause. With no previous data one sentence says so.
  */
-export default function ChangeSummaryCard({ item, options }: CardProps): ReactElement {
+export default function ChangeSummaryCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.engines.changeSummary');
   const loading = useTranslations('common');
   const metaOf = useCardMeta();
   const text = useFactText();
-  const data = useCardData({ previous: 'optional' });
-  const newSources = useNewSources();
+  const data = useCardData({ previous: 'optional', subscribed: live });
+  const newSources = useNewSources({ subscribed: live });
   const { scope, aggregates, asked } = data;
   const currentRows = data.current.data?.prompts;
   const previousRows = data.previous?.data?.prompts;

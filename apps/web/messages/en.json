@@ -4838,7 +4838,7 @@
         "metricMention": "Mention rate",
         "metricCitation": "Citation rate",
         "metricShareOfVoice": "Share of voice",
-        "footnote": "Previous period: {period}. Each rate is the mean of the rates of each prompt, with the valid answers it rests on. The interval is of the change in the pooled answers of the two windows, and the test is unpaired. Share of voice has no interval yet.",
+        "footnote": "Previous period: {period}. Each rate is the mean of the rates of each prompt, with the valid answers it rests on. The interval is of the change in the pooled answers of the two windows, and the test is unpaired. The dot is the change of the prompt weighted rates, so it can sit outside the interval of the pooled answers. Share of voice has no interval yet.",
         "summaryIntro": "{metric} of {engines} against the previous period: {parts}.",
         "summaryCompare": "{engine} {before} to {now} ({change})",
         "summaryThin": "{engine} has too few answers to compare",

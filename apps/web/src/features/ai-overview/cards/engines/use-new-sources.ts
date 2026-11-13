@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import type { NewSourcesCount } from './facts-model';
 import { askedEngines, brandedAskable, comparisonWindow } from '../../data/overview-queries';
 import { mapRead, useRead, type Read } from '../../data/read-state';
+import type { ReadOptions } from '../../data/use-overview-reads';
 import { useOverview } from '../../overview-context';
 import { apiQuery } from '@/lib/api/query';
 import type { Schemas } from '@/lib/api/types';
@@ -24,11 +25,12 @@ const countOf = (page: Schemas['SourceChangePage']): NewSourcesCount => ({
  *
  * It does not run for "branded only" (the route takes `include_branded` and cannot keep branded prompts alone) and
  * not with the comparison off (new means none in the window before, which the page is not showing). It keeps no data
- * across a scope change, so a figure of another scope is never written next to the new one.
+ * across a scope change, so a figure of another scope is never written next to the new one. While `subscribed` is
+ * `false` it asks nothing.
  * shortcut: `total` counts rows, one per domain and role, so a domain listed under two roles counts twice, until the
  * route answers a count of domains.
  */
-export function useNewSources(): Read<NewSourcesCount> {
+export function useNewSources({ subscribed = true }: ReadOptions = {}): Read<NewSourcesCount> {
   const { workspaceId, project, scope, enabledEngines } = useOverview();
   const asked = askedEngines({ scope, enabledEngines });
   const runs = asked.length > 0 && brandedAskable(scope) && comparisonWindow(scope) !== null;
@@ -49,8 +51,9 @@ export function useNewSources(): Read<NewSourcesCount> {
         },
       },
     }),
-    enabled: runs,
+    enabled: runs && subscribed,
   });
-  const read = useRead(query, runs ? 'run' : 'idle');
+  // Paused (customize mode): the count it already has for this scope stays, otherwise nothing, and never a request
+  const read = useRead(query, !runs ? 'idle' : subscribed ? 'run' : 'paused');
   return useMemo(() => mapRead(read, countOf), [read]);
 }

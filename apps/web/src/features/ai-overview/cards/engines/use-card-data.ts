@@ -25,6 +25,11 @@ export interface CardDataOptions {
   include?: SummaryOptions['include'];
   /** Read the citation units by role, which the own citation share of each engine is made from. */
   sources?: boolean;
+  /**
+   * The card passes the `live` of its `CardProps`. While `false` (customize mode) no read of the card asks anything:
+   * it shows what it already has for the scope, and a card with nothing yet stays `loading`, as it is not "no engine".
+   */
+  subscribed?: boolean;
 }
 
 export interface CardData {
@@ -40,8 +45,13 @@ export interface CardData {
    * comparison is off, not read, not paired yet, or failed (`partialPrevious` says that).
    */
   previous: Read<PromptsSummary> | null;
-  /** A change between the windows may be drawn: the two reads are of one scope. */
+  /**
+   * A change between the windows may be drawn: the two reads are of one scope. It stays true while the same scope is
+   * read again in the background (the values stay on screen), and is false on a scope change until both answer.
+   */
   comparing: boolean;
+  /** The card reads (`subscribed` of the options): the reads that extend this card's own (a trend's schedule) follow it. */
+  subscribed: boolean;
   /** The figures of the strip, from the same prompt rows; `null` until the summary and the engines are read. */
   aggregates: OverviewAggregates | null;
   /** The sources read, when the card asked for it. */
@@ -64,7 +74,12 @@ export interface CardData {
  * file and the models. A card that needs no previous window reads one summary; the previous window is a second
  * request that is dropped, with its change, while the two reads are not of the same scope.
  */
-export function useCardData({ previous: need, include, sources = false }: CardDataOptions): CardData {
+export function useCardData({
+  previous: need,
+  include,
+  sources = false,
+  subscribed = true,
+}: CardDataOptions): CardData {
   const { workspaceId, workspaceSlug, project, scope, enabledEngines, engines, canManageEngines, canViewRuns } =
     useOverview();
   const ref = useMemo(() => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
@@ -72,17 +87,20 @@ export function useCardData({ previous: need, include, sources = false }: CardDa
   const periodScope = useMemo(() => (need === 'none' ? { ...scope, compare: false } : scope), [need, scope]);
   const periods = readPeriods(
     { project: ref, scope: periodScope, enabledEngines },
-    include === undefined ? {} : { include },
+    include === undefined ? { subscribed } : { include, subscribed },
   );
   // With no engine named the sources read does not run: a card that did not ask for it costs no request
   const sourcesInput: OverviewReadInput = { project: ref, scope, enabledEngines: sources ? enabledEngines : [] };
-  const sourcesRead = readSources(sourcesInput);
+  const sourcesRead = readSources(sourcesInput, { subscribed });
 
   const asked = useMemo(() => inCatalogOrder(askedEngines({ scope, enabledEngines })), [scope, enabledEngines]);
+  // `paired` is true for a read of the same scope again, so the change between the windows stays drawn then; a scope
+  // change (a read that holds the last scope's data) is not paired, so no change is built from two scopes
   const comparing = periods.paired && periods.previous !== null;
   const currentData = periods.current.data;
   const previousData = comparing ? (periods.previous?.data ?? null) : null;
-  const sourcesData = sources ? (sourcesRead.data ?? null) : null;
+  // The sources of the last scope are not the figures of this one: they are left out until this scope's arrive
+  const sourcesData = sources && !sourcesRead.placeholder ? (sourcesRead.data ?? null) : null;
   const aggregates = useMemo(
     () =>
       currentData === undefined || engines.data === undefined
@@ -107,9 +125,11 @@ export function useCardData({ previous: need, include, sources = false }: CardDa
     hasContent,
   });
   // The engines come first: until they are known no read runs, which is waiting and not an empty card; when they
-  // cannot be read every read is idle, which is a failure of the card and not "no engine is on"
+  // cannot be read every read is idle, which is a failure of the card and not "no engine is on". A paused card with
+  // nothing read yet has an idle read too, though an engine is asked: it is waiting for its turn, not empty.
+  const pausedWithNothing = !subscribed && asked.length > 0 && periods.current.status === 'idle';
   const phase: CardPhase =
-    engines.status === 'loading' ? 'loading' : engines.status === 'error' ? 'error' : state.phase;
+    engines.status === 'loading' || pausedWithNothing ? 'loading' : engines.status === 'error' ? 'error' : state.phase;
 
   const currentRefetch = periods.current.refetch;
   const previousFailed = periods.previous?.status === 'error';
@@ -135,6 +155,7 @@ export function useCardData({ previous: need, include, sources = false }: CardDa
     current: periods.current,
     previous: comparing ? periods.previous : null,
     comparing,
+    subscribed,
     aggregates,
     sources: sources ? sourcesRead : null,
     phase,

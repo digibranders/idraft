@@ -79,12 +79,12 @@ const largestText = (bar: WaterfallBar, t: Translate): string | null =>
  * prompt set, as bars that add up exactly (`waterfall-model.ts`). The ends are the strip's own rates; the contribution
  * bars take a colour only when the total change is larger than normal variation.
  */
-export default function ChangeWaterfallCard({ item, options }: CardProps): ReactElement {
+export default function ChangeWaterfallCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.engines.waterfall');
   const common = useTranslations('aiOverview.engines.common');
   const metaOf = useCardMeta();
   const density = useCardDensity();
-  const data = useCardData({ previous: 'required' });
+  const data = useCardData({ previous: 'required', subscribed: live });
   const { scope, asked, aggregates } = data;
   const engine = engineOption(options.engine);
   const metric = metricOf(options.metric);

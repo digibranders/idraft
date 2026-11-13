@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -213,6 +213,67 @@ describe('the prompt movers card', () => {
     expect(within(list).getAllByRole('listitem')).toHaveLength(5);
     expect(within(list).queryByText('Prompt f')).not.toBeInTheDocument();
     expect(within(list).queryByText('CRM pricing compared')).not.toBeInTheDocument();
+  });
+
+  it('shows 8 rows with the Rows option 8, where 5 shows 5', async () => {
+    const letters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'];
+    const now = letters.map((id): Prompt => ({ id, text: `Prompt ${id}`, chatgpt: [6, 8] }));
+    const before = letters.map((id): Prompt => ({ id, text: `Prompt ${id}`, chatgpt: [2, 8] }));
+    serve(now, before);
+    renderCard({ rows: '8' });
+    const list = await rowsList();
+    expect(within(list).getAllByRole('listitem')).toHaveLength(8);
+  });
+
+  it('is plain text, with the same words, where the drill gives no link', async () => {
+    serve([UP], [UP_BEFORE]);
+    // The Prompts page cannot show "branded prompts only": the drill answers null
+    renderCard({}, `${WINDOW}&branded=only`);
+    const list = await rowsList();
+    expect(within(list).queryByRole('link')).toBeNull();
+    expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent('Best CRM for startups: +50.0 pts');
+  });
+
+  it('asks for no summary while it is not live (customize mode)', async () => {
+    const seen: URL[] = [];
+    server.use(
+      http.get(SUMMARY, ({ request }) => {
+        seen.push(new URL(request.url));
+        return undefined;
+      }),
+    );
+    function Paused(props: CardProps): ReactElement {
+      return <PromptMoversCard {...props} options={{}} live={false} />;
+    }
+    renderCard({}, WINDOW, Paused);
+    await frameOf();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    expect(seen).toHaveLength(0);
+  });
+
+  it('keeps its height while loading', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get(SUMMARY, async () => {
+        await gate;
+        return undefined;
+      }),
+    );
+    renderCard();
+    const frame = await frameOf();
+    expect(frame).toHaveAttribute('aria-busy', 'true');
+    expect(frame.querySelector('div[style*="height: 240px"]')).not.toBeNull();
+    act(() => {
+      release();
+    });
+    await waitFor(() => {
+      expect(frame).not.toHaveAttribute('aria-busy', 'true');
+    });
   });
 
   it('has a Table view with the counts of both windows and a CSV with the same words', async () => {

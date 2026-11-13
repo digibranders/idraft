@@ -1,8 +1,10 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { http } from 'msw';
+import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import RateTrendCard from './rate-trend-card';
+import type { CardProps } from '@/features/layouts';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import { cardInOverview } from '@/test/ai-overview-harness';
 import { stubViewport } from '@/test/customize-harness';
@@ -129,6 +131,39 @@ describe('the trend frame, through the rate trend card', () => {
       expect(built.options.has('chatgpt_web')).toBe(true);
     });
     expect(seriesIds('chatgpt_web')).not.toContain('chatgpt_web:previous');
+  });
+
+  it('reads the schedule while the card is live and asks for neither it nor the summary while it is not', async () => {
+    const seen: string[] = [];
+    const record = (): void => {
+      server.use(
+        http.get('*/api/v1/workspaces/:w/projects/:p/schedules', ({ request }) => {
+          seen.push(new URL(request.url).pathname);
+          return undefined;
+        }),
+        http.get('*/api/v1/workspaces/:w/projects/:p/ai/prompts-summary', ({ request }) => {
+          seen.push(new URL(request.url).pathname);
+          return undefined;
+        }),
+      );
+    };
+    record();
+    const live = render();
+    await screen.findAllByRole('img', { name: 'ChatGPT' });
+    await waitFor(() => {
+      expect(seen.some((path) => path.endsWith('/schedules'))).toBe(true);
+    });
+    live.unmount();
+
+    seen.length = 0;
+    function Paused(props: CardProps): ReactElement {
+      return <RateTrendCard {...props} live={false} />;
+    }
+    renderWithProviders(cardInOverview({ type: TYPE, Card: Paused, width: 'two_thirds' }), { searchParams: WINDOW });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    expect(seen).toEqual([]);
   });
 
   it('refetching keeps the panels and shows the refetch bar', async () => {

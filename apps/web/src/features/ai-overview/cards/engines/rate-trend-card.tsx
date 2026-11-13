@@ -17,8 +17,8 @@ const metricOf = (value: string | undefined): TrendMetric =>
  * Rates by engine over time (CH-01, WB-OV-05): one small chart per asked engine on one scale, with a Series menu
  * for the metric. The card's saved Metric option is where the menu starts; the viewer's choice is not saved.
  */
-export default function RateTrendCard({ item, options }: CardProps): ReactElement {
-  const data = useCardData({ previous: 'optional', include: ['series'] });
+export default function RateTrendCard({ item, options, live }: CardProps): ReactElement {
+  const data = useCardData({ previous: 'optional', include: ['series'], subscribed: live });
   const saved = metricOf(options.metric);
   return (
     <TrendFrame

@@ -40,11 +40,11 @@ const EXPORT_HEADER = ['measure', 'engines_naming', 'of_engines', 'prompts', 'of
 const SAMPLE = { min: MIN_OBSERVATIONS } as const;
 
 /** Engine agreement (CH-18): how many of the asked engines name the brand on the same prompt. */
-export default function EngineAgreementCard({ item }: CardProps): ReactElement {
+export default function EngineAgreementCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.engines.agreement');
   const common = useTranslations('aiOverview.engines.common');
   const density = useCardDensity();
-  const data = useCardData({ previous: 'none' });
+  const data = useCardData({ previous: 'none', subscribed: live });
   const metaOf = useCardMeta();
   const { scope, asked, workspaceSlug, project } = data;
   const title = t('title');

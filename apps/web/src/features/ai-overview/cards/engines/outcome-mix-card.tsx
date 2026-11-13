@@ -46,13 +46,13 @@ const FILE_NAME = 'named-and-cited-by-engine';
 const EXPORT_HEADER = ['engine', 'outcome', 'share_percent', 'k', 'n', 'prompts', 'status'] as const;
 
 /** CH-03: how the answers of each engine split between named and cited, named only, cited only and neither. */
-export default function OutcomeMixCard({ item }: CardProps): ReactElement {
+export default function OutcomeMixCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.engines.outcomeMix');
   const common = useTranslations('aiOverview.engines.common');
   const insufficient = useTranslations('common.insufficient');
   const density = useCardDensity();
   const drill = useCardDrill();
-  const data = useCardData({ previous: 'none' });
+  const data = useCardData({ previous: 'none', subscribed: live });
   const metaOf = useCardMeta();
   const title = t('title');
   const frame = useAnswersFrame(data, title, (key, values) => t(key, values));

@@ -7,6 +7,7 @@ import type { CountryRead } from './country-model';
 import { askedEngines, overviewSummaryQuery } from '../../data/overview-queries';
 import type { ReadStatus } from '../../data/read-state';
 import { useOverview } from '../../overview-context';
+import type { ReadOptions } from '../../data/use-overview-reads';
 import { usePromptCountries, type PromptCountries } from '../../scope/prompt-countries';
 import { isApiProblem } from '@/lib/api/problem';
 import type { PromptSummaryRow, Schemas } from '@/lib/api/types';
@@ -64,7 +65,7 @@ const rawOf = (result: UseQueryResult<Schemas['PromptsSummaryResponse']>): Raw =
  * gives country codes and no counts to pick the top 8 from; replaced by one `by_country` summary read once the mock
  * and the card seam serve it (plan Q4 and F1).
  */
-export function useCountryReads(): CountryReads {
+export function useCountryReads({ subscribed = true }: ReadOptions = {}): CountryReads {
   const { workspaceId, project, scope, enabledEngines } = useOverview();
   // Not the page's country: this card ignores that filter, and a country no prompt has must not become a group
   const countries = usePromptCountries({ workspaceId, projectId: project.id }, null);
@@ -77,7 +78,8 @@ export function useCountryReads(): CountryReads {
   const raw = useQueries({
     queries: list.map((country) => ({
       ...overviewSummaryQuery({ workspaceId, projectId: project.id }, { scope: { ...scope, country }, enabledEngines }),
-      enabled: runs,
+      // Paused (customize mode): a country with data in the cache keeps it; no other asks anything
+      enabled: runs && subscribed,
     })),
     combine,
   });
@@ -141,8 +143,8 @@ export function useCountryReads(): CountryReads {
             },
           ];
         }
-        // A read under way for a new scope shows the country's last figures
-        const last = kept.get(country);
+        // A read under way for a new scope shows the country's last figures; a paused one shows only its own scope's
+        const last = subscribed ? kept.get(country) : undefined;
         return [
           {
             ...common,
@@ -153,7 +155,7 @@ export function useCountryReads(): CountryReads {
           },
         ];
       }),
-    [list, raw, kept, failures],
+    [list, raw, kept, failures, subscribed],
   );
   return useMemo(() => ({ countries, reads }), [countries, reads]);
 }

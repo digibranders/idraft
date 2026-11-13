@@ -405,6 +405,19 @@ describe('SampleCoverageCard', () => {
     expect(block?.rows[7]).toEqual(['All engines', 'Branded prompts left out', null, null, 'unknown']);
   });
 
+  it('asks for neither of its two summary reads while it is not live (customize mode)', async () => {
+    const seen = serve();
+    function Paused(props: CardProps): ReactElement {
+      return <SampleCoverageCard {...props} live={false} />;
+    }
+    renderWithProviders(cardInOverview({ type: TYPE, Card: Paused }), { searchParams: WINDOW });
+    await section();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    expect(seen).toHaveLength(0);
+  });
+
   it('axe finds no violation', async () => {
     serve();
     const { container } = renderCard();

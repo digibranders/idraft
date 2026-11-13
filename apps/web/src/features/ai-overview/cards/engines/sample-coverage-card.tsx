@@ -59,12 +59,12 @@ const FILE_NAME = 'answers-behind-the-numbers';
 const EXPORT_HEADER = ['group', 'measure', 'prompts', 'of', 'status'] as const;
 
 /** "Answers behind the numbers": how many prompts have enough valid answers on each engine to read a rate. */
-export default function SampleCoverageCard({ item }: CardProps): ReactElement {
+export default function SampleCoverageCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.engines.coverage');
   const common = useTranslations('aiOverview.engines.common');
   const density = useCardDensity();
   const { workspaceId, enabledEngines } = useOverview();
-  const data = useCardData({ previous: 'none' });
+  const data = useCardData({ previous: 'none', subscribed: live });
   const metaOf = useCardMeta();
   const title = t('title');
   const frame = useAnswersFrame(data, title, (key, values) => t(key, values));
@@ -77,7 +77,7 @@ export default function SampleCoverageCard({ item }: CardProps): ReactElement {
       { workspaceId, projectId: project.id },
       { scope: { ...scope, branded: 'included' }, enabledEngines },
     ),
-    enabled: scope.branded === 'excluded' && asked.length > 0,
+    enabled: live && scope.branded === 'excluded' && asked.length > 0,
     placeholderData: keepPreviousData,
   });
   // A number of another scope never shows: while the second read is the last scope's (kept data) or the page's own

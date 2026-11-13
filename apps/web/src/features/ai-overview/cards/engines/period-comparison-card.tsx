@@ -78,12 +78,12 @@ const sideText = (side: Compared['now'], t: Translate): string =>
  * of successes), so its rows are words with the numbers. A change is coloured only when it is larger than normal
  * variation; an engine with fewer than 4 valid answers in a window says so and shows no rate.
  */
-export default function PeriodComparisonCard({ item, options }: CardProps): ReactElement {
+export default function PeriodComparisonCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.engines.comparison');
   const chart = useTranslations('chart');
   const metaOf = useCardMeta();
   const density = useCardDensity();
-  const data = useCardData({ previous: 'required' });
+  const data = useCardData({ previous: 'required', subscribed: live });
   const { scope, aggregates } = data;
   const metric = metricOf(options.metric);
 

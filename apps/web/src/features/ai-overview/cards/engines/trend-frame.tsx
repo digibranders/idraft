@@ -131,7 +131,7 @@ export function TrendFrame({
   const common = useTranslations('aiOverview.engines.common');
   const tipWords = useRateTipWords();
   const meta = useCardMeta();
-  const schedule = useOverviewSchedule();
+  const schedule = useOverviewSchedule({ subscribed: data.subscribed });
   const [choice, setChoice] = useState<TrendMetric | null>(null);
   const metric = switchable ? (choice ?? saved) : saved;
   const { scope, project } = data;

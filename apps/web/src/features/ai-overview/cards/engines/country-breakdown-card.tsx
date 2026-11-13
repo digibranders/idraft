@@ -166,7 +166,7 @@ function lineOf(
  * in, on one scale. Each country is read on its own with the other filters of the page, and the page's own country
  * filter is ignored on purpose, which the meta line says. One country that fails to read leaves the others.
  */
-export default function CountryBreakdownCard({ item, options }: CardProps): ReactElement {
+export default function CountryBreakdownCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.engines.country');
   const common = useTranslations('aiOverview.engines.common');
   const status = useTranslations('status.error');
@@ -175,8 +175,8 @@ export default function CountryBreakdownCard({ item, options }: CardProps): Reac
   const nameOf = useCountryName();
   const metaOf = useCardMeta();
   const metric = options.metric !== undefined && isCountryMetric(options.metric) ? options.metric : 'mention';
-  const data = useCardData({ previous: 'none' });
-  const { countries, reads } = useCountryReads();
+  const data = useCardData({ previous: 'none', subscribed: live });
+  const { countries, reads } = useCountryReads({ subscribed: live });
   const { scope, asked } = data;
   const title = t('title');
   const metricLabel = t(METRIC_KEY[metric]);

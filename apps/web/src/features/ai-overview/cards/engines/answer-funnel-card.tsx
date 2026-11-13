@@ -38,13 +38,13 @@ const FILE_NAME = 'answer-funnel-by-engine';
 const EXPORT_HEADER = ['engine', 'step', 'count', 'of', 'share_percent', 'status'] as const;
 
 /** CH-36: where the answers of each engine drop out between collection and a citation of the site. */
-export default function AnswerFunnelCard({ item }: CardProps): ReactElement {
+export default function AnswerFunnelCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.engines.funnel');
   const common = useTranslations('aiOverview.engines.common');
   const chart = useTranslations('chart');
   const insufficient = useTranslations('common.insufficient');
   const density = useCardDensity();
-  const data = useCardData({ previous: 'none' });
+  const data = useCardData({ previous: 'none', subscribed: live });
   const metaOf = useCardMeta();
   const title = t('title');
   const frame = useAnswersFrame(data, title, (key, values) => t(key, values));

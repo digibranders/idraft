@@ -30,27 +30,32 @@ const failing = (requestId: string): ReturnType<typeof HttpResponse.json> =>
   );
 
 const listeners: ((info: { request: Request }) => void)[] = [];
-/** The summary requests the server sees from now until the test ends. */
-function recordSummaryRequests(): URL[] {
+/** The requests whose path ends with `suffix` the server sees from now until the test ends. */
+function recordRequests(suffix: string): URL[] {
   const seen: URL[] = [];
   const listener = ({ request }: { request: Request }): void => {
     const url = new URL(request.url);
-    if (url.pathname.endsWith('/ai/prompts-summary')) seen.push(url);
+    if (url.pathname.endsWith(suffix)) seen.push(url);
   };
   listeners.push(listener);
   server.events.on('request:start', listener);
   return seen;
 }
+const recordSummaryRequests = (): URL[] => recordRequests('/ai/prompts-summary');
+
+/** The query string the wrapper renders; a test changes it and rerenders to change the scope. */
+const url = { search: WINDOW };
 
 function hookOf(
   options: CardDataOptions,
   search: string = WINDOW,
   world: OverviewWorld = 'fynix',
 ): ReturnType<typeof renderHook<CardData, unknown>> {
+  url.search = search;
   const client = makeQueryClient({ retry: false });
   const wrapper = ({ children }: { children: ReactNode }): ReactNode => (
     <QueryClientProvider client={client}>
-      <NuqsTestingAdapter searchParams={search} hasMemory>
+      <NuqsTestingAdapter searchParams={url.search} hasMemory>
         <PermissionProvider membership={membershipFactory('admin')}>
           <OverviewProvider
             workspaceId={MOCK_WORKSPACE.workspace_id}
@@ -161,6 +166,148 @@ describe('useCardData', () => {
     expect(result.current.previous?.status).toBe('ready');
     expect(result.current.aggregates?.previousAnswers).not.toBeNull();
     expect(result.current.phase).toBe('ready');
+  });
+
+  it('a background read of the same scope keeps the change between the windows drawn', async () => {
+    const { result } = hookOf({ previous: 'optional' });
+    await waitFor(() => {
+      expect(result.current.comparing).toBe(true);
+    });
+    await ready(result);
+
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get(SUMMARY, async () => {
+        await gate;
+        return undefined;
+      }),
+    );
+    act(() => {
+      result.current.retry();
+    });
+    await waitFor(() => {
+      expect(result.current.phase).toBe('refetching');
+    });
+    // The values stay, and the change is still of two windows of one scope
+    expect(result.current.current.placeholder).toBe(false);
+    expect(result.current.comparing).toBe(true);
+    expect(result.current.aggregates?.previousAnswers).not.toBeNull();
+
+    release();
+    await ready(result);
+    expect(result.current.comparing).toBe(true);
+  });
+
+  it('a scope change draws no change from two scopes and no sources of the last one until this scope answers', async () => {
+    const { result, rerender } = hookOf({ previous: 'optional', sources: true });
+    await waitFor(() => {
+      expect(result.current.comparing).toBe(true);
+      expect(result.current.sources?.status).toBe('ready');
+    });
+    await ready(result);
+    expect(result.current.aggregates?.engines[0]?.citationShare).not.toBeNull();
+
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    // Of the new scope, only the window before and the sources are slow: the current window answers first
+    server.use(
+      http.get(SUMMARY, async ({ request }) => {
+        const search = new URL(request.url).searchParams;
+        if (search.get('filter[country_iso]') === 'DE' && search.get('to') === PREVIOUS_TO) await gate;
+        return undefined;
+      }),
+      http.get(`${PROJECT_PATH}/ai/sources/domains`, async ({ request }) => {
+        if (new URL(request.url).searchParams.get('filter[country_iso]') === 'DE') await gate;
+        return undefined;
+      }),
+    );
+    url.search = `${WINDOW}&country=DE`;
+    rerender();
+    await waitFor(() => {
+      expect(result.current.current.placeholder).toBe(false);
+      expect(result.current.current.status).toBe('ready');
+    });
+    expect(result.current.previous).toBeNull();
+    expect(result.current.comparing).toBe(false);
+    expect(result.current.aggregates?.previousAnswers).toBeNull();
+    expect(result.current.sources?.placeholder).toBe(true);
+    expect(result.current.aggregates?.engines[0]?.citationShare).toBeNull();
+    expect(result.current.phase).toBe('refetching');
+
+    release();
+    await waitFor(() => {
+      expect(result.current.comparing).toBe(true);
+      expect(result.current.sources?.placeholder).toBe(false);
+    });
+    expect(result.current.aggregates?.previousAnswers).not.toBeNull();
+    expect(result.current.aggregates?.engines[0]?.citationShare).not.toBeNull();
+    await ready(result);
+  });
+
+  describe('subscribed', () => {
+    /** Waits until the engines are known, then lets any request the card would send go out. */
+    const quiet = async (result: { current: CardData }): Promise<void> => {
+      await waitFor(() => {
+        expect(result.current.engines.status).toBe('ready');
+      });
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+    };
+
+    it('a card that is not subscribed asks for no summary and no sources, and waits rather than being empty', async () => {
+      const summaries = recordSummaryRequests();
+      const sources = recordRequests('/ai/sources/domains');
+      const { result } = hookOf({ previous: 'optional', sources: true, subscribed: false });
+      await quiet(result);
+      expect(summaries).toHaveLength(0);
+      expect(sources).toHaveLength(0);
+      expect(result.current.current.status).toBe('idle');
+      expect(result.current.subscribed).toBe(false);
+      // An engine is asked, so this is a card waiting for its turn and not "no engine is on"
+      expect(result.current.asked).toHaveLength(2);
+      expect(result.current.phase).toBe('loading');
+    });
+
+    it('the same card asks for both windows once it is subscribed', async () => {
+      const summaries = recordSummaryRequests();
+      const options: CardDataOptions = { previous: 'optional', subscribed: false };
+      const { result, rerender } = hookOf(options);
+      await quiet(result);
+      expect(summaries).toHaveLength(0);
+
+      options.subscribed = true;
+      rerender();
+      await waitFor(() => {
+        expect(result.current.comparing).toBe(true);
+      });
+      expect(summaries.map((seen) => seen.searchParams.get('to')).sort()).toEqual(['2026-10-15', '2026-11-12']);
+      expect(result.current.phase).toBe('ready');
+    });
+
+    it('a card that is paused after it read keeps drawing what it has, asks for nothing, and keeps the change', async () => {
+      const options: CardDataOptions = { previous: 'optional', subscribed: true };
+      const { result, rerender } = hookOf(options);
+      await waitFor(() => {
+        expect(result.current.comparing).toBe(true);
+      });
+      await ready(result);
+      const before = result.current.aggregates;
+
+      const summaries = recordSummaryRequests();
+      options.subscribed = false;
+      rerender();
+      await quiet(result);
+      expect(result.current.phase).toBe('ready');
+      expect(result.current.comparing).toBe(true);
+      expect(result.current.aggregates).toEqual(before);
+      expect(summaries).toHaveLength(0);
+    });
   });
 
   it('aggregates equal the strip figures for the same scope (R12 parity against engineRates on the same prompts)', async () => {

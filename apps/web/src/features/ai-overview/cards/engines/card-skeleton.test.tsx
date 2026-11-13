@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { skeletonOf } from './card-skeleton';
+import { ENGINE_CARDS } from './index';
 import { ChartFrame, type ChartHeight } from '@/components/app/chart/chart-frame';
 import { renderWithProviders } from '@/test/render';
 
@@ -39,6 +40,18 @@ describe('skeletonOf', () => {
     const frameBlock = frame.container.querySelector<HTMLElement>('section > div[style]');
     expect(frameBlock?.style.height).toBe(`${String(height)}px`);
     expect(standIn).toBe(height);
+  });
+
+  // The height each change card gives its frame, so the page does not jump when the card replaces its skeleton
+  it.each([
+    ['ai.prompt_movers', 240],
+    ['ai.period_comparison', 180],
+    ['ai.change_waterfall', 240],
+  ] as const)('the registered skeleton of %s is %i px, as its frame is', (key, height) => {
+    const Skeleton = ENGINE_CARDS[key]?.skeleton;
+    if (Skeleton === undefined) throw new Error(`${key} has no registered skeleton`);
+    const { container } = renderWithProviders(<Skeleton />);
+    expect(blockHeight(container)).toBe(height);
   });
 
   it('is hidden from assistive technology, as the registry skeletons are', () => {

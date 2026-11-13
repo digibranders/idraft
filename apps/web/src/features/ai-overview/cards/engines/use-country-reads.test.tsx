@@ -29,6 +29,9 @@ interface Hook {
   overview: OverviewContextValue;
 }
 
+/** What the hook is given; a test changes it and rerenders to pause or resume the reads. */
+const options = { subscribed: true };
+
 function hookOf(search: string = WINDOW): ReturnType<typeof renderHook<Hook, unknown>> {
   const client = makeQueryClient({ retry: false });
   const wrapper = ({ children }: { children: ReactNode }): ReactNode => (
@@ -46,7 +49,7 @@ function hookOf(search: string = WINDOW): ReturnType<typeof renderHook<Hook, unk
       </NuqsTestingAdapter>
     </QueryClientProvider>
   );
-  return renderHook((): Hook => ({ reads: useCountryReads(), overview: useOverview() }), { wrapper });
+  return renderHook((): Hook => ({ reads: useCountryReads(options), overview: useOverview() }), { wrapper });
 }
 
 const answered = async (result: { current: Hook }): Promise<void> => {
@@ -69,6 +72,7 @@ function recordSummaryRequests(): URL[] {
 }
 
 beforeEach(() => {
+  options.subscribed = true;
   vi.setSystemTime(new Date('2026-11-12T12:00:00Z'));
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('admin').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
 });
@@ -178,6 +182,54 @@ describe('useCountryReads', () => {
     await answered(result);
     expect(result.current.reads.countries.data).toEqual(['DE', 'IN']);
     expect(result.current.reads.reads.map((read) => read.country)).toEqual(['DE', 'IN']);
+  });
+
+  it('asks for no country while it is not subscribed, and for every country once it is', async () => {
+    const seen = recordSummaryRequests();
+    options.subscribed = false;
+    const { result, rerender } = hookOf();
+    await waitFor(() => {
+      expect(result.current.reads.reads).toHaveLength(2);
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(seen).toHaveLength(0);
+    // Nothing to show yet: the groups wait, they are not failed and not empty
+    expect(result.current.reads.reads.map((read) => [read.status, read.prompts, read.failed])).toEqual([
+      ['loading', null, false],
+      ['loading', null, false],
+    ]);
+
+    options.subscribed = true;
+    rerender();
+    await answered(result);
+    expect(seen.map((url) => url.searchParams.get('filter[country_iso]')).sort()).toEqual(['DE', 'IN']);
+  });
+
+  it('keeps the groups it has while it is paused, asks nothing more, and shows no group of another scope', async () => {
+    const { result, rerender } = hookOf();
+    await answered(result);
+    const seen = recordSummaryRequests();
+    options.subscribed = false;
+    rerender();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(result.current.reads.reads.map((read) => [read.status, read.prompts?.length])).toEqual([
+      ['ready', 22],
+      ['ready', 1],
+    ]);
+
+    // A scope with no data in the cache: the last scope's groups are not shown in its place
+    act(() => {
+      result.current.overview.setScope({ branded: 'included' });
+    });
+    await waitFor(() => {
+      expect(result.current.reads.reads.map((read) => read.status)).toEqual(['loading', 'loading']);
+    });
+    expect(result.current.reads.reads.map((read) => read.prompts)).toEqual([null, null]);
+    expect(seen).toHaveLength(0);
   });
 
   it('keeps every group on screen while a new scope is read', async () => {

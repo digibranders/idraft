@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -329,6 +329,48 @@ describe('the what moved the rate card', () => {
     renderCard();
     await rowsList();
     expect(await frameOf()).toHaveTextContent('The bars add up to the change');
+  });
+
+  it('asks for no summary while it is not live (customize mode)', async () => {
+    const seen: URL[] = [];
+    server.use(
+      http.get(SUMMARY, ({ request }) => {
+        seen.push(new URL(request.url));
+        return undefined;
+      }),
+    );
+    function Paused(props: CardProps): ReactElement {
+      return <ChangeWaterfallCard {...props} options={{}} live={false} />;
+    }
+    renderCard({}, WINDOW, Paused);
+    await frameOf();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    expect(seen).toHaveLength(0);
+  });
+
+  it('keeps its height while loading', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get(SUMMARY, async () => {
+        await gate;
+        return undefined;
+      }),
+    );
+    renderCard();
+    const frame = await frameOf();
+    expect(frame).toHaveAttribute('aria-busy', 'true');
+    expect(frame.querySelector('div[style*="height: 240px"]')).not.toBeNull();
+    act(() => {
+      release();
+    });
+    await waitFor(() => {
+      expect(frame).not.toHaveAttribute('aria-busy', 'true');
+    });
   });
 
   it('axe finds no violation, in either view', async () => {

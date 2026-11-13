@@ -24,11 +24,11 @@ const engineOf = (value: string | undefined): (typeof ENGINES)[number]['code'] =
  * Mention rate trend (WB-OV-05): the mention rate of one engine, week by week, in one chart. An engine that is off
  * in the project, or outside the page's engine filter, says so instead of drawing nothing.
  */
-export default function MentionTrendCard({ item, options }: CardProps): ReactElement {
+export default function MentionTrendCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.engines.trend');
   const common = useTranslations('aiOverview.engines.common');
   const code = engineOf(options.engine);
-  const data = useCardData({ previous: 'optional', include: ['series'] });
+  const data = useCardData({ previous: 'optional', include: ['series'], subscribed: live });
   const { canManageEngines, workspaceSlug, project, scope } = data;
   const projects = data.engines.data;
   const state = projects === undefined ? 'asked' : engineGate(code, projects, scope.engines);
