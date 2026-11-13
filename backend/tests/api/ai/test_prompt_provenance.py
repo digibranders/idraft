@@ -26,9 +26,11 @@ def _from(tracked_keyword_id: str, template: str = "comparison") -> dict[str, st
     return {"tracked_keyword_id": tracked_keyword_id, "template": template}
 
 
-async def _own_brand(pg: PostgresServer, workspace: Workspace, project: uuid.UUID) -> None:
-    """The project owns Acme and competes with Rival."""
-    for name, role in (("Acme", "own"), ("Rival", "competitor")):
+async def _own_brand(
+    pg: PostgresServer, workspace: Workspace, project: uuid.UUID, own: str = "Acme"
+) -> None:
+    """The project owns `own` (Acme) and competes with Rival."""
+    for name, role in ((own, "own"), ("Rival", "competitor")):
         entity = await fetchrow(
             pg,
             "INSERT INTO core.entities (workspace_id, entity_type, canonical_name) "
@@ -120,6 +122,39 @@ async def test_without_override_branded_is_computed(
         (r.json()["data"]["is_branded"], r.json()["data"]["is_branded_source"])
         for r in (own, rival, plain)
     ] == [(True, "computed"), (False, "computed"), (False, "computed")]
+
+
+async def test_another_projects_own_alias_does_not_make_a_prompt_branded(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    sibling = await ai_project(migrated, workspace)
+    elsewhere = await make_workspace(migrated)
+    stranger = await ai_project(migrated, elsewhere)
+    await _own_brand(migrated, workspace, sibling, "Zeta")
+    await _own_brand(migrated, elsewhere, stranger, "Zeta")
+
+    single = await add_prompt(api, workspace, project, editor, "Is Zeta good?")
+    many = await api.post(
+        project_url(workspace, project, "prompts", "bulk-create"),
+        json={"items": [prompt_body("Is Zeta cheap?")]},
+        headers=editor.headers,
+    )
+
+    assert single.status_code == 201, single.text
+    assert many.status_code == 200, many.text
+    data = single.json()["data"]
+    assert (data["is_branded"], data["is_branded_source"]) == (False, "computed")
+    rows = await fetch(
+        migrated,
+        "SELECT p.is_branded, p.is_branded_source FROM ai.prompts p WHERE p.project_id = $1",
+        project,
+    )
+    assert [(row["is_branded"], row["is_branded_source"]) for row in rows] == [
+        (False, "computed")
+    ] * 2
 
 
 async def test_patch_is_branded_marks_override(
@@ -335,6 +370,26 @@ async def test_generated_from_names_a_tracked_keyword_of_the_project(
         migrated, "SELECT count(*) AS n FROM ai.prompts WHERE project_id = $1", project
     )
     assert written["n"] == 1
+
+
+async def test_a_paused_tracked_keyword_is_accepted_as_generated_from(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    paused = await tracked_id(api, workspace, project, editor, "crm software")
+    await execute(
+        migrated,
+        "UPDATE seo.tracked_keywords SET is_active = false WHERE id = $1",
+        uuid.UUID(paused),
+    )
+
+    response = await add_prompt(
+        api, workspace, project, editor, "Which CRM suits a startup?", generated_from=_from(paused)
+    )
+
+    assert response.status_code == 201, response.text
 
 
 async def test_generated_from_is_in_the_audit_entry(
