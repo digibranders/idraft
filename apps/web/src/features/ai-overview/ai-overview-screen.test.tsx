@@ -74,7 +74,7 @@ describe('the AI visibility page without access', () => {
 });
 
 describe('the AI visibility page of a project with engines on', () => {
-  it('has the title, the meta line from the answers, Customize and More actions in the header', async () => {
+  it('has the title, the meta line from the answers, Customize, Export and More actions in the header', async () => {
     renderWithProviders(overviewAs('admin'));
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1, name: 'AI visibility' })).toBeInTheDocument();
@@ -85,7 +85,7 @@ describe('the AI visibility page of a project with engines on', () => {
     });
     expect(customize()).toHaveClass('hidden', 'md:inline-flex');
     expect(screen.getByRole('button', { name: 'More actions' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument();
     expect(screen.queryByText('Customizing')).not.toBeInTheDocument();
   });
 

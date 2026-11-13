@@ -7,6 +7,7 @@ import { useState, type ReactElement, type ReactNode } from 'react';
 import { useThemeChange } from './use-theme-change';
 import { HelpMenu } from '@/components/app/shell/help-menu';
 import { KeyboardShortcutsDialog, type ShortcutEntry } from '@/components/app/shell/keyboard-shortcuts-dialog';
+import { usePageShortcutEntries } from '@/components/app/shell/page-shortcuts';
 import { ThemeSwitch } from '@/components/app/shell/theme-switch';
 import { UserMenu } from '@/components/app/shell/user-menu';
 import { toast } from '@/components/ui/toast';
@@ -39,6 +40,7 @@ export function TopBarControls({ accountSettings, shortcuts }: TopBarControlsPro
   const wide = useMediaQuery(MEDIA['2xl']);
   const { signOut } = useSignOut();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const pageShortcuts = usePageShortcutEntries();
   useShortcut('?', () => setShortcutsOpen(true), { kind: 'single-key' });
 
   // From the account menu the new theme grows from the account button, once the menu has closed (21 section 5.1)
@@ -89,7 +91,11 @@ export function TopBarControls({ accountSettings, shortcuts }: TopBarControlsPro
         title={t('shortcuts.title')}
         description={t('shortcuts.description')}
         closeLabel={common('close')}
-        shortcuts={[...shortcuts, { id: SHORTCUTS_SHORTCUT, label: t('shortcuts.open'), keys: ['?'] }]}
+        shortcuts={[
+          ...shortcuts,
+          ...pageShortcuts,
+          { id: SHORTCUTS_SHORTCUT, label: t('shortcuts.open'), keys: ['?'] },
+        ]}
       />
     </>
   );

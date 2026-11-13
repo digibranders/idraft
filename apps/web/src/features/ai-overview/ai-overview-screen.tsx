@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement, type ReactNode } from 'react';
 
 import { AI_OVERVIEW_CARDS } from './cards/registry';
+import { ExportProvider } from './export/export-registry';
 import { OverviewHeader } from './header/overview-header';
 import { OverviewNotices } from './notices/overview-notices';
 import { useOverviewNotice } from './notices/use-overview-notice';
@@ -167,7 +168,9 @@ export function AiOverviewScreen({ presets, setupSlot, ...props }: AiOverviewScr
   }
   return (
     <OverviewProvider {...props}>
-      <CustomizableOverview presets={presets} setupSlot={setupSlot} />
+      <ExportProvider>
+        <CustomizableOverview presets={presets} setupSlot={setupSlot} />
+      </ExportProvider>
     </OverviewProvider>
   );
 }

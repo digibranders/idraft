@@ -10,6 +10,7 @@ import { TopBarControls } from './top-bar-controls';
 import { useSidebar } from './use-sidebar';
 import { Breadcrumb } from '@/components/app/shell/breadcrumb';
 import { ProjectSwitcher, type SwitcherProject } from '@/components/app/shell/project-switcher';
+import { PageShortcutsProvider } from '@/components/app/shell/page-shortcuts';
 import { SidebarNav, type SidebarSectionProps } from '@/components/app/shell/sidebar';
 import { SkipLink } from '@/components/app/shell/skip-link';
 import { TopBar } from '@/components/app/shell/top-bar';
@@ -160,63 +161,65 @@ export function ProjectShell({
 
   return (
     <TopBarSlotProvider>
-      <SkipLink label={t('skipToMain')} targetId={MAIN_ID} />
-      <div className="flex min-h-dvh">
-        {/* Expanded at 1280 px and up, the 56 px rail at 1024 to 1279 px (expanded over the page on request),
+      <PageShortcutsProvider>
+        <SkipLink label={t('skipToMain')} targetId={MAIN_ID} />
+        <div className="flex min-h-dvh">
+          {/* Expanded at 1280 px and up, the 56 px rail at 1024 to 1279 px (expanded over the page on request),
             and the drawer below 1024 px. Fixed, so the rail's overlay never moves the page. */}
-        <nav
-          ref={sidebarRef}
-          id={SIDEBAR_ID}
-          aria-label={t('primary')}
-          className="hidden w-sidebar flex-col border-r border-border-subtle bg-sidebar lg:fixed lg:inset-y-0 lg:left-0 lg:z-(--z-sidebar) lg:flex rail:w-14 peek:shadow-dialog"
-        >
-          {sidebar('page')}
-        </nav>
-        {/* Holds the sidebar's width in the layout: 208 px expanded, 56 px for the rail */}
-        <div aria-hidden="true" className="hidden w-sidebar shrink-0 lg:block narrow:w-14" />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar
-            navigation={{ label: t('openNavigation'), open: drawerOpen, onOpen: () => setDrawerOpen(true) }}
-            breadcrumb={
-              <Breadcrumb
-                label={t('breadcrumb')}
-                projectRoot={{ href: projectPath(workspace.slug, project.slug), label: t('projectOverview') }}
-                workspace={{ href: workspacePath(workspace.slug), label: workspace.name }}
-                project={
-                  <ProjectSwitcher
-                    current={project}
-                    projects={projects}
-                    onSelect={switchTo}
-                    presentation="topbar"
-                    allProjects={allProjects}
-                    createProject={createProject}
-                  />
-                }
-                page={pageLabel}
-              />
-            }
-            controls={
-              <TopBarControls
-                accountSettings={<Link href={projectPath(workspace.slug, project.slug, '/settings/profile')} />}
-                shortcuts={[{ id: SIDEBAR_SHORTCUT, label: t('shortcuts.toggleSidebar'), keys: ['['] }]}
-              />
-            }
-          />
-          <main id={MAIN_ID} tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
-            {children}
-          </main>
+          <nav
+            ref={sidebarRef}
+            id={SIDEBAR_ID}
+            aria-label={t('primary')}
+            className="hidden w-sidebar flex-col border-r border-border-subtle bg-sidebar lg:fixed lg:inset-y-0 lg:left-0 lg:z-(--z-sidebar) lg:flex rail:w-14 peek:shadow-dialog"
+          >
+            {sidebar('page')}
+          </nav>
+          {/* Holds the sidebar's width in the layout: 208 px expanded, 56 px for the rail */}
+          <div aria-hidden="true" className="hidden w-sidebar shrink-0 lg:block narrow:w-14" />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <TopBar
+              navigation={{ label: t('openNavigation'), open: drawerOpen, onOpen: () => setDrawerOpen(true) }}
+              breadcrumb={
+                <Breadcrumb
+                  label={t('breadcrumb')}
+                  projectRoot={{ href: projectPath(workspace.slug, project.slug), label: t('projectOverview') }}
+                  workspace={{ href: workspacePath(workspace.slug), label: workspace.name }}
+                  project={
+                    <ProjectSwitcher
+                      current={project}
+                      projects={projects}
+                      onSelect={switchTo}
+                      presentation="topbar"
+                      allProjects={allProjects}
+                      createProject={createProject}
+                    />
+                  }
+                  page={pageLabel}
+                />
+              }
+              controls={
+                <TopBarControls
+                  accountSettings={<Link href={projectPath(workspace.slug, project.slug, '/settings/profile')} />}
+                  shortcuts={[{ id: SIDEBAR_SHORTCUT, label: t('shortcuts.toggleSidebar'), keys: ['['] }]}
+                />
+              }
+            />
+            <main id={MAIN_ID} tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
+              {children}
+            </main>
+          </div>
         </div>
-      </div>
-      <Drawer
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-        title={t('navigation')}
-        className="border-border-subtle bg-sidebar"
-      >
-        <nav aria-label={t('primary')} className="flex min-h-full flex-col">
-          {sidebar('drawer')}
-        </nav>
-      </Drawer>
+        <Drawer
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          title={t('navigation')}
+          className="border-border-subtle bg-sidebar"
+        >
+          <nav aria-label={t('primary')} className="flex min-h-full flex-col">
+            {sidebar('drawer')}
+          </nav>
+        </Drawer>
+      </PageShortcutsProvider>
     </TopBarSlotProvider>
   );
 }

@@ -2,6 +2,7 @@ import { Suspense, type ComponentType, type ReactElement, type ReactNode } from 
 
 import { TopBarSlotProvider, TopBarSlotTarget } from '@/components/app/shell/top-bar-slot';
 import { AiOverviewScreen, OverviewProvider, type OverviewProject } from '@/features/ai-overview';
+import { ExportProvider } from '@/features/ai-overview/export/export-registry';
 import {
   CustomizableGrid,
   CustomizableScreen,
@@ -146,7 +147,9 @@ export function cardInOverview({
           workspaceSlug={MOCK_WORKSPACE.slug}
           project={project}
         >
-          <ScreenWithCard type={type} Card={Card} workspaceId={MOCK_WORKSPACE.workspace_id} projectId={project.id} />
+          <ExportProvider>
+            <ScreenWithCard type={type} Card={Card} workspaceId={MOCK_WORKSPACE.workspace_id} projectId={project.id} />
+          </ExportProvider>
         </OverviewProvider>
       </Suspense>
     </PermissionProvider>

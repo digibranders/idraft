@@ -6,9 +6,11 @@ import type { ReactElement, ReactNode } from 'react';
 
 import { askedEngines } from '../data/overview-queries';
 import { useCurrentAggregates } from '../data/use-current-aggregates';
+import { ExportMenu } from '../export/export-menu';
 import { staleDaysOf } from '../notices/notice-model';
 import { useNow } from '../notices/use-now';
 import { useOverview, useOverviewFreshness } from '../overview-context';
+import { CustomizeShortcut } from './customize-shortcut';
 import { metaLine } from './meta-line';
 import { PageHeader } from '@/components/app/shell/page-header';
 import { FreshnessIndicator } from '@/components/app/status/freshness-indicator';
@@ -70,8 +72,7 @@ function useMeta(): ReactNode {
 
 /**
  * The title block of the page (24 section 9.2, the approved preview): the title with the Customizing badge beside
- * it, the meta line under it, and Customize and More actions at the end. The Export menu joins them with the
- * export (T11). While the engines load there is no Customize: the layout counts AI cards as unavailable until they
+ * it, the meta line under it, and Customize, Export and More actions at the end. While the engines load there is no Customize: the layout counts AI cards as unavailable until they
  * are read, so entering the mode then would show every AI card as a placeholder.
  */
 export function OverviewHeader(): ReactElement {
@@ -100,6 +101,8 @@ export function OverviewHeader(): ReactElement {
           ) : (
             <CustomizeButton />
           )}
+          <CustomizeShortcut />
+          <ExportMenu />
           <Menu
             align="end"
             trigger={<IconButton icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}

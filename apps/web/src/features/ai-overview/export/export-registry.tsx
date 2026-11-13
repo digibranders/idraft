@@ -70,10 +70,15 @@ const readNothing = (): ExportRead => ({ blocks: [], loading: 0 });
 
 const ExportContext = createContext<Registry | null>(null);
 
-/** Holds the cards' blocks for the Export menu; sits inside `OverviewProvider`. */
+/**
+ * Holds the cards' blocks for the Export menu; sits inside `OverviewProvider`. Under another provider it adds no
+ * registry of its own: the outer one is the one the cards and the menu share, so the page can mount its own while
+ * a test (or a preview) holds the registry above it.
+ */
 export function ExportProvider({ children }: { children: ReactNode }): ReactElement {
+  const parent = use(ExportContext);
   const [registry] = useState(createRegistry);
-  return <ExportContext.Provider value={registry}>{children}</ExportContext.Provider>;
+  return <ExportContext.Provider value={parent ?? registry}>{children}</ExportContext.Provider>;
 }
 
 /**

@@ -4670,6 +4670,24 @@
       "title": "This card is not built yet",
       "reason": "This card is being built. You can keep it in your layout."
     },
+    "export": {
+      "menu": "Export",
+      "numbers": "Numbers (CSV)",
+      "exported": "{count, plural, one {# row exported} other {# rows exported}}",
+      "exportFailed": "The file could not be made. Try again.",
+      "waiting": "Available once the numbers have loaded",
+      "unavailable": "The numbers could not be read",
+      "noEngine": "No AI engine is on",
+      "partial": "{count, plural, one {# card was} other {# cards were}} still loading and left out.",
+      "notes": {
+        "unknownIsEmpty": "An empty value means unknown, never zero. The status column says why a value is empty.",
+        "pooledCounts": "For prompt weighted rates the value is the mean of each prompt’s rate; numerator and denominator are the pooled answer counts."
+      }
+    },
+    "shortcuts": {
+      "customize": "Turn Customize on or off",
+      "export": "Open the Export menu"
+    },
     "presets": {
       "executive": "Executive summary",
       "seoAnalyst": "SEO analyst",

@@ -110,6 +110,23 @@ describe('the export registry', () => {
     expect(held.read?.().blocks).toEqual([block('ai.a', 2)]);
   });
 
+  it('shares the outer registry when a provider sits inside another, so the outer reader sees the inner cards', () => {
+    const held: { read: (() => ExportRead) | null } = { read: null };
+    render(
+      <ExportProvider>
+        <ExportProvider>
+          <Card id="ai.a" getBlock={() => block('ai.a')} />
+        </ExportProvider>
+        <Menu
+          onReader={(read) => {
+            held.read = read;
+          }}
+        />
+      </ExportProvider>,
+    );
+    expect(held.read?.().blocks).toEqual([block('ai.a')]);
+  });
+
   it('is a no-op outside an ExportProvider, so a card renders alone and the reader is empty', () => {
     const getBlock = vi.fn(() => block('ai.a'));
     const held: { read: (() => ExportRead) | null } = { read: null };
