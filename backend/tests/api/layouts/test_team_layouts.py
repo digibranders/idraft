@@ -38,6 +38,10 @@ from tests.api.layouts.test_personal_layouts import (
 )
 from tests.conftest import PostgresServer
 
+AGENT = "layouts-audit-test/1.0"
+# The address httpx's ASGI transport gives every request.
+TEST_CLIENT_IP = "127.0.0.1"
+
 
 def team_url(workspace_id: object, screen: str = "overview") -> str:
     return layout_url(workspace_id, "layouts", screen, "default")
@@ -63,7 +67,8 @@ async def team_id(pg: PostgresServer, workspace_id: uuid.UUID) -> str:
 async def audit_rows(pg: PostgresServer, workspace_id: uuid.UUID) -> list[Any]:
     return await fetch(
         pg,
-        "SELECT action, actor_id, target_type, target_id, before, after FROM ops.audit_logs "
+        "SELECT action, actor_id, target_type, target_id, before, after, ip, user_agent, "
+        "request_id FROM ops.audit_logs "
         "WHERE workspace_id = $1 AND action LIKE 'layout.%' ORDER BY id",
         workspace_id,
     )
@@ -71,6 +76,15 @@ async def audit_rows(pg: PostgresServer, workspace_id: uuid.UUID) -> list[Any]:
 
 def stored(value: str | None) -> Any:
     return None if value is None else json.loads(value)
+
+
+def assert_request_context(entry: Any, response: httpx.Response) -> None:
+    """The entry names the request it came from: the client address and user agent the server
+    saw, and the id the API answered with."""
+    assert str(entry["ip"]) == TEST_CLIENT_IP
+    assert entry["user_agent"] == AGENT
+    assert response.headers["x-request-id"].startswith("req_")
+    assert entry["request_id"] == response.headers["x-request-id"]
 
 
 @pytest.mark.parametrize("role", ["viewer", "billing", "analyst", "editor"])
@@ -144,22 +158,23 @@ async def test_setting_the_team_default_is_audited_with_before_and_after(
 ) -> None:
     workspace = await make_workspace(migrated)
     admin = await member(resources, migrated, workspace, "admin")
+    headers = {**admin.headers, "User-Agent": AGENT}
 
-    await api.put(team_url(workspace.id), json=DOCUMENT, headers=admin.headers)
-    read = await api.get(read_url(workspace.id), headers=admin.headers)
-    await api.put(
-        team_url(workspace.id),
-        json=OTHER,
-        headers={**admin.headers, "If-Match": read.headers["etag"]},
+    saved = await api.put(team_url(workspace.id), json=DOCUMENT, headers=headers)
+    read = await api.get(read_url(workspace.id), headers=headers)
+    changed = await api.put(
+        team_url(workspace.id), json=OTHER, headers={**headers, "If-Match": read.headers["etag"]}
     )
 
     layout_id = await team_id(migrated, workspace.id)
     first, second = await audit_rows(migrated, workspace.id)
-    for entry in (first, second):
+    for entry, response in ((first, saved), (second, changed)):
         assert entry["action"] == "layout.default.set"
         assert entry["actor_id"] == str(admin.user_id)
         assert entry["target_type"] == "layout"
         assert entry["target_id"] == layout_id
+        assert_request_context(entry, response)
+    assert first["request_id"] != second["request_id"]
     assert stored(first["before"]) is None
     assert stored(first["after"]) == {"screen": "overview", "document": STORED}
     assert stored(second["before"]) == {"screen": "overview", "document": STORED}
@@ -192,11 +207,12 @@ async def test_removing_the_team_default_is_audited(
 ) -> None:
     workspace = await make_workspace(migrated)
     admin = await member(resources, migrated, workspace, "admin")
-    await api.put(team_url(workspace.id), json=DOCUMENT, headers=admin.headers)
+    headers = {**admin.headers, "User-Agent": AGENT}
+    await api.put(team_url(workspace.id), json=DOCUMENT, headers=headers)
     layout_id = await team_id(migrated, workspace.id)
 
-    first = await api.delete(team_url(workspace.id), headers=admin.headers)
-    second = await api.delete(team_url(workspace.id), headers=admin.headers)
+    first = await api.delete(team_url(workspace.id), headers=headers)
+    second = await api.delete(team_url(workspace.id), headers=headers)
 
     assert (first.status_code, second.status_code) == (204, 204)
     assert await team_rows(migrated, workspace.id) == []
@@ -206,6 +222,7 @@ async def test_removing_the_team_default_is_audited(
     assert entry["actor_id"] == str(admin.user_id)
     assert entry["target_type"] == "layout"
     assert entry["target_id"] == layout_id
+    assert_request_context(entry, first)
     assert stored(entry["before"]) == {"screen": "overview", "document": STORED}
     assert stored(entry["after"]) is None
 
