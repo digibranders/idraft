@@ -17,7 +17,6 @@ from idraft.api.permissions import Permission
 from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai import AnswerStatus, ObservationPage, ObservationResponse, Outcome
 from idraft.api.schemas.ai_evidence import AnswerCompareResponse
-from idraft.api.stubs import not_built, not_built_yet
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 
@@ -114,16 +113,20 @@ async def get_observation(
     "/{observation_id}/compare",
     summary="What an AI answer gained, lost and kept against the earlier answer",
     description="The tracked entities and the cited domains of this answer against the newest "
-    "earlier valid answer of the same prompt and engine in which the own brand was mentioned. "
-    "Problems: `404 not_found` (no such answer in the project), `404 no_baseline` (no earlier "
-    "answer to compare with), `403` (no `data:read`), `422` (an id that is not a 64-bit "
-    "integer). Not built yet: `501 not_implemented`.",
+    "earlier valid answer of the same prompt and engine in which the own brand was mentioned "
+    "(same project, not superseded, strictly earlier). Entities are the accepted mentions of "
+    "the current derivation in any tracked role, matched by entity; sources are matched by "
+    "registrable domain, and citations flagged `unresolved_redirect` or `engine_internal` are "
+    "left out. Problems: `404 not_found` (no such answer in the project), `404 no_baseline` "
+    "(no earlier answer to compare with, or this answer has no current facts), `403` (no "
+    "`data:read`), `422` (an id that is not a 64-bit integer).",
 )
-@not_built
 async def compare_observation(
-    project_id: UUID, observation_id: ObservationId, access: ReadData
+    project_id: UUID, observation_id: ObservationId, access: ReadData, observations: Observations
 ) -> AnswerCompareResponse:
-    raise not_built_yet()
+    return AnswerCompareResponse(
+        data=await observations.compare(access, project_id, observation_id)
+    )
 
 
 @router.get(

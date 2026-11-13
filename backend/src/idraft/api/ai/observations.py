@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from idraft.api.ai import answer_diff
 from idraft.api.ai import observation_repository as repository
 from idraft.api.ai.observation_repository import ObservationFilter
 from idraft.api.pagination import (
@@ -36,6 +37,7 @@ from idraft.api.schemas.ai import (
     Outcome,
     PromptSubject,
 )
+from idraft.api.schemas.ai_evidence import AnswerCompare
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
 from idraft.storage.raw import ObjectStore
@@ -297,6 +299,19 @@ class ObservationService:
                 for m in mentions
             ],
         )
+
+    async def compare(
+        self, access: WorkspaceAccess, project_id: UUID, observation_id: int
+    ) -> AnswerCompare:
+        """What the answer gained, lost and kept against its baseline (`answer_diff`). The answer
+        must be one of the live project in the path; no hint narrows the lookup."""
+        async with self._transaction(access) as db:
+            latest = await repository.get_observation(
+                db, access.workspace_id, project_id, observation_id, None
+            )
+            if latest is None:
+                raise NotFoundError
+            return await answer_diff.compare(db, access.workspace_id, project_id, latest)
 
     async def raw_answer(
         self,

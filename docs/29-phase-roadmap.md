@@ -354,6 +354,17 @@ exists), "Show setup checklist" in Settings > General, and any editable retentio
 live call has confirmed (plan open question 4). The end to end flow is `apps/web/e2e/flows/ai-settings.spec.ts`
 (plan `docs/superpowers/plans/2026-11-14-ai-wp-31-settings.md`; contract docs/ai-visibility/contracts/wp-31-engines-device.md).
 
+**As built (AI visibility WP-26 backend, 2026-11-13): answer compare.** The evidence viewer's compare route is built:
+`GET {P}/ai/observations/{observation_id}/compare` (`data:read`) gives what an answer gained, lost and kept
+against the newest earlier valid answer of the same prompt and engine that named the own brand: tracked entities
+by id and cited sources by registrable domain, flagged citations (`unresolved_redirect`, `engine_internal`) left
+out. No earlier such answer is `404 no_baseline`. Five statements read it (not counting `set_config`), whatever the size of the answers
+(`tests/api/ai/test_answer_compare.py` fixes the count); no table and no migration. The route was a `501` stub
+from the contract push (T0); the three additive fields (`quote`, `answer_sha256`, `raw_sha256`) are filled by T1
+and the web half of WP-26 is built separately. Rows built: BE-REPORTS-04 (contract note
+docs/ai-visibility/contracts/evidence.md; doc 19 section 3.7.6 as built note; plan
+`docs/superpowers/plans/2026-11-13-ai-wp-26-evidence-viewer.md`).
+
 ### Phase 10: SEO and AI integration
 
 **10a (MVP):** keyword-prompt links with suggestions (cluster, semantic, fan-out), AI Overview vs organic rank (same-check), AIO citation rate by rank bucket, SEO/AI matrix (keyword level) with thresholds, page intelligence (SEO + AI citations), `core.xch_keyword_weekly`.

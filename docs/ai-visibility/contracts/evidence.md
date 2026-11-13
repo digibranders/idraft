@@ -2,23 +2,21 @@
 
 ## Status
 
-Published by WP-26 on 2026-11-13 (task T0). Owner package: [WP-26 evidence-viewer](../work-packages/WP-26-evidence-viewer.md).
+Published by WP-26 on 2026-11-13 (task T0); built in T1 (fields) and T2 (route). Owner package: [WP-26 evidence-viewer](../work-packages/WP-26-evidence-viewer.md).
 Plan: [docs/superpowers/plans/2026-11-13-ai-wp-26-evidence-viewer.md](../../superpowers/plans/2026-11-13-ai-wp-26-evidence-viewer.md).
-The route and the three fields are in the API document and the generated client. The route answers
-`501 not_implemented` after its access and path checks until WP-26 T2 builds it; the fields are
-optional and WP-26 T1 starts filling them. Where this text and the change log (the last section)
-differ, the change log is right.
+The route and the three fields are in the API document and the generated client and are all built.
+Where this text and the change log (the last section) differ, the change log is right.
 
 | Item | Kind | State |
 |---|---|---|
-| `GET {P}/ai/observations/{observation_id}/compare` | new route | published: `501` |
-| `CitationOut.quote` | optional field of a built route | published, absent (null) until T1 |
-| `ObservationDetail.answer_sha256` | optional field of a built route | published, absent (null) until T1 |
-| `ObservationDetail.raw_sha256` | optional field of a built route | published, absent (null) until T1 |
+| `GET {P}/ai/observations/{observation_id}/compare` | new route | built (T2); it was `501` after T0 |
+| `CitationOut.quote` | optional field of a built route | built (T1); null for rows stored before quotes were kept |
+| `ObservationDetail.answer_sha256` | optional field of a built route | built (T1) |
+| `ObservationDetail.raw_sha256` | optional field of a built route | built (T1) |
 
 `{P}` is `/api/v1/workspaces/{workspace_id}/projects/{project_id}`. The three fields have a default of
 `null` in the model, so they are optional in the generated client (`?: string | null`): no mock or test
-of another package breaks. Once T1 is built the API always sends them.
+of another package breaks. The API always sends them; a value is null only where the table below says.
 
 ## Routes and parameters
 
@@ -27,8 +25,9 @@ of another package breaks. Once T1 is built the API always sends them.
 | GET | `{P}/ai/observations/{observation_id}/compare` | `data:read` | `200 AnswerCompareResponse` |
 
 `observation_id` is a 64-bit integer, validated as on the detail route (1 to 2^63 - 1). No query
-parameters. The answer in the path may be any answer of the project that has text: it is the
-"latest" by role, not necessarily the newest.
+parameters: any parameter, `observed_at` included, is `422 extra_forbidden` (an app-wide rule). The
+answer in the path may be any answer of the project that has current facts: it is the "latest" by
+role, not necessarily the newest.
 
 ## New response fields
 
@@ -63,7 +62,7 @@ parameters. The answer in the path may be any answer of the project that has tex
   from the first citation of the domain.
 - Order. 401, 404 (not a member, or a project outside the member's scope), 403, 422 (the id), then the
   service: `404 not_found` for an answer that is not in the project, `404 no_baseline`, then the
-  `200`. The stub answers `501` at the step where the service would run.
+  `200`.
 
 ## Error codes
 
@@ -71,10 +70,11 @@ parameters. The answer in the path may be any answer of the project that has tex
 |---|---|---|
 | 401 | `unauthenticated` | No session. |
 | 404 | `not_found` | Not a member of the workspace; a project outside the member's scope; an answer that is not in the project. |
-| 404 | `no_baseline` | The answer exists but has no earlier answer to compare with (D1). |
+| 404 | `no_baseline` | The answer exists but has no earlier answer to compare with (D1), or it has no current facts yet (its entities and sources are unknown, not empty). |
 | 403 | `forbidden` | The role lacks `data:read`. |
 | 422 | `validation_failed` | An `observation_id` that is not an integer from 1 to 2^63 - 1. |
-| 501 | `not_implemented` | Until WP-26 T2. |
+| 422 | `extra_forbidden` | Any query parameter (the route takes none). |
+| 501 | `not_implemented` | Gone: the route is built. |
 
 ## Example
 
@@ -125,7 +125,7 @@ GET {P}/ai/observations/84120007/compare
 }
 ```
 
-The detail route (`GET {P}/ai/observations/{observation_id}`) adds, once T1 is built, `"answer_sha256"` and
+The detail route (`GET {P}/ai/observations/{observation_id}`) adds `"answer_sha256"` and
 `"raw_sha256"` (64 hex characters each) to `data` and `"quote"` to each citation.
 
 ## Findings that shape the build
@@ -147,7 +147,7 @@ change is needed; WP-26 adds tests.
 
 | Engine | Raw payload member | Captured fixture |
 |---|---|---|
-| Gemini (scraper) | `items[].sources[].snippet` | 8 of 8 inline sources have one |
+| Gemini (scraper) | `items[].sources[].snippet` | 3 of the 5 distinct sources have one (the 8 inline mentions repeat them); a source only in the source list has none |
 | AI Mode | `items[].references[].text` | the passage |
 | ChatGPT (scraper) | none | 0 of 17 inline sources |
 | AI Mode `links[].description` | empty | empty in the capture |
@@ -156,18 +156,20 @@ The parser keeps the first non-empty value per canonical URL, whitespace collaps
 characters. Rows stored before T1 keep `quote` null: the worker has no update grant on the answer tables
 and there is no re-derive.
 
-## Who builds it
+## Who built it
 
-- T1 (backend): `quote` (one nullable column, parser, ingest, `CitationOut`), `answer_sha256`
-  (`ai.observations.answer_hash`) and `raw_sha256` (`ops.raw_payloads.sha256` through
-  `ai.observation_raw`).
-- T2 (backend): `compare_observation` in `api/ai/observation_routes.py`: drop `@not_built` and
-  `raise not_built_yet()`, write the service, replace `test_contract_evidence.py` with real tests, remove
-  the `Not built yet` sentence of the route description and regenerate `backend/openapi/v1.json`, then
-  `pnpm gen:api`.
+- T1 (backend, built): `quote` (one nullable column `ai.citations.quote`, parser, ingest, `CitationOut`),
+  `answer_sha256` (`ai.observations.answer_hash`) and `raw_sha256` (`ops.raw_payloads.sha256` through
+  `ai.observation_raw`). `raw_sha256` needs only `data:read`: it is a digest of a body the viewer cannot
+  read without `raw:read`, and `/raw` still answers `403` to such a viewer.
+- T2 (backend, built): `compare_observation` in `api/ai/observation_routes.py` with the queries in
+  `api/ai/answer_diff.py` (`NoBaselineError`); `test_contract_evidence.py` was replaced by
+  `test_answer_compare.py`; `backend/openapi/v1.json` and `schema.ts` were regenerated for the new route
+  description at the rebase.
 
 ## Change log
 
 Newest last; one line per change, in the form `date package: change`.
 
 2026-11-13 WP-26: contract published (route stub, three optional fields)
+2026-11-13 WP-26: the compare route is built (T2): the `501 not_implemented` stub is gone and the route answers `200`, `404 not_found` or `404 no_baseline` (also an answer with no current facts yet); the shapes are unchanged; the route description now states the D1 and D2 rules; `test_contract_evidence.py` is replaced by `test_answer_compare.py`

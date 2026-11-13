@@ -748,6 +748,15 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     ai_key = f"raw/v1/ai_raw/dataforseo/planted/{label}-{uuid.uuid4().hex}.json.zst"
     if resources.import_store is not None:
         await resources.import_store.put(ai_key, compress(ai_answer))
+    # An earlier answer of the prompt that names the brand, written first so it is older: the
+    # baseline the answer compare route reads.
+    earlier = await seed_observation(
+        pg,
+        Project(workspace.id, project_id),
+        seeded,
+        object_key=f"{ai_key}.earlier",
+        sha256=digest(ai_answer + b".earlier"),
+    )
     observation_id = await seed_observation(
         pg,
         Project(workspace.id, project_id),
@@ -757,6 +766,20 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     )
     # Its extraction: a citation, a mention of the entity and the facts, read through the routes.
     await seed_extraction(pg, Project(workspace.id, project_id), observation_id, entity["id"])
+    # The earlier answer's facts (a derivation is one per project): valid, and naming the brand.
+    await execute(
+        pg,
+        "INSERT INTO ai.observation_facts (observation_id, observed_at, derivation_id, "
+        "workspace_id, project_id, observed_date, engine_code, observation_class, prompt_id, "
+        "prompt_version_id, replicate_index, is_valid, own_mentioned, own_domain_cited, "
+        "own_citation_count, total_citation_count, tracked_entities_mentioned, "
+        "had_structured_list) SELECT e.id, e.observed_at, f.derivation_id, f.workspace_id, "
+        "f.project_id, e.observed_date, f.engine_code, f.observation_class, f.prompt_id, "
+        "f.prompt_version_id, 1, true, true, false, 0, 0, 0, false FROM ai.observations e "
+        "CROSS JOIN ai.observation_facts f WHERE e.id = $1 AND f.observation_id = $2",
+        earlier,
+        observation_id,
+    )
     # The queries ChatGPT issued while answering, as ingest stores them.
     await execute(
         pg,
