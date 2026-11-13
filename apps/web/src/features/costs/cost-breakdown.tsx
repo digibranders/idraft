@@ -1,7 +1,9 @@
 'use client';
 
 import type { UseQueryResult } from '@tanstack/react-query';
+import type { Route } from 'next';
 import { useTranslations } from 'next-intl';
+import Link from 'next/link';
 import type { ReactElement } from 'react';
 
 import { AiUnitCosts } from './ai-unit-costs';
@@ -13,9 +15,11 @@ import { useCosts, usePriceBook, type CostScope } from './costs-queries';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsPanel } from '@/components/ui/tabs';
+import { TextLink } from '@/components/ui/text-link';
 import type { BudgetStatus, BudgetStatusList, CostRow, Price } from '@/lib/api/types';
 import { formatBusinessDate, formatCurrency, formatInteger, formatPercent, formatUnitPrice } from '@/lib/format';
 import type { MonthKey } from '@/lib/format/month';
+import { useCan } from '@/lib/permissions';
 import { useWorkloadName } from '@/lib/workloads/use-workload-name';
 
 export const COST_TABS = ['provider', 'project', 'units', 'budgets'] as const;
@@ -41,6 +45,8 @@ export interface CostBreakdownProps {
   month: MonthKey;
   projects: readonly CostsProject[];
   budgets: UseQueryResult<BudgetStatusList>;
+  /** The Budgets and usage page of Settings, where budgets are changed; linked for a member with `budgets:manage`. */
+  budgetsHref: Route;
   tab: CostTab;
   onTabChange: (tab: CostTab) => void;
   /** The sentence of a table with no rows: no costs in the month, or none for the filters. */
@@ -71,6 +77,7 @@ export function CostBreakdown({
   month,
   projects,
   budgets,
+  budgetsHref,
   tab,
   onTabChange,
   emptyText,
@@ -95,7 +102,7 @@ export function CostBreakdown({
         <UnitsPanel scope={scope} month={month} now={now} projects={projects} />
       </TabsPanel>
       <TabsPanel value="budgets">
-        <BudgetsPanel projects={projects} budgets={budgets} />
+        <BudgetsPanel projects={projects} budgets={budgets} budgetsHref={budgetsHref} />
       </TabsPanel>
     </Tabs>
   );
@@ -275,8 +282,14 @@ function UnitsPanel({
   );
 }
 
-function BudgetsPanel({ projects, budgets }: Pick<CostBreakdownProps, 'projects' | 'budgets'>): ReactElement {
+function BudgetsPanel({
+  projects,
+  budgets,
+  budgetsHref,
+}: Pick<CostBreakdownProps, 'projects' | 'budgets' | 'budgetsHref'>): ReactElement {
   const t = useTranslations('costs');
+  const manage = useTranslations('budgets');
+  const canManage = useCan('budgets:manage');
   const projectLabel = useProjectLabel();
   const workloadName = useWorkloadName();
   const columns: PlainColumn<BudgetStatus>[] = [
@@ -301,16 +314,24 @@ function BudgetsPanel({ projects, budgets }: Pick<CostBreakdownProps, 'projects'
     { id: 'status', header: t('status'), cell: (row) => <BudgetStatusBadge state={row.state} /> },
   ];
   return (
-    <PlainTable
-      caption={t('tabs.budgets')}
-      columns={columns}
-      rows={budgetRows(budgets.data?.data ?? [])}
-      rowKey={(row) => row.budget.budget_id}
-      status={statusOf(budgets)}
-      errorState={
-        <CostsError error={budgets.error} onRetry={() => void budgets.refetch()} retrying={budgets.isFetching} />
-      }
-      emptyText={t('noBudget')}
-    />
+    <div className="flex flex-col gap-2">
+      {/* Budgets are edited in Settings; this tab only reads them */}
+      {canManage ? (
+        <p className="self-end">
+          <TextLink render={<Link href={budgetsHref} />}>{manage('manage')}</TextLink>
+        </p>
+      ) : null}
+      <PlainTable
+        caption={t('tabs.budgets')}
+        columns={columns}
+        rows={budgetRows(budgets.data?.data ?? [])}
+        rowKey={(row) => row.budget.budget_id}
+        status={statusOf(budgets)}
+        errorState={
+          <CostsError error={budgets.error} onRetry={() => void budgets.refetch()} retrying={budgets.isFetching} />
+        }
+        emptyText={t('noBudget')}
+      />
+    </div>
   );
 }

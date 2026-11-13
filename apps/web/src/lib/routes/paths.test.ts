@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  budgetsPath,
   costsPath,
   keywordDetailPath,
   integrationsPath,
@@ -39,6 +40,12 @@ describe('Rankings paths', () => {
     expect(runsPath('w', 'a b')).toBe('/w/a%20b/ops/runs');
     expect(costsPath('w', 'p')).toBe(projectPath('w', 'p', '/costs'));
     expect(runsPath('w', 'p')).toBe(projectPath('w', 'p', '/ops/runs'));
+  });
+
+  it('names Budgets and usage inside a project, or as the workspace page without one', () => {
+    expect(budgetsPath('digibranders', 'fynix')).toBe('/digibranders/fynix/settings/budgets');
+    expect(budgetsPath('digibranders')).toBe('/digibranders/settings/budgets');
+    expect(budgetsPath('a b', 'c/d')).toBe('/a%20b/c%2Fd/settings/budgets');
   });
 
   it('keeps the workspace pages for a member who can open no project', () => {

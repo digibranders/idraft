@@ -31,7 +31,7 @@ import { enumValuesOf } from '@/lib/filters/filter-values';
 import { EMPTY_VALUE, formatCurrency, formatDateRange, formatInteger, formatList, formatPercent } from '@/lib/format';
 import { currentMonth, monthDays, monthLabel, recentMonths } from '@/lib/format/month';
 import { useCan } from '@/lib/permissions';
-import { projectPath, workspacePath } from '@/lib/routes/paths';
+import { budgetsPath, projectPath, workspacePath } from '@/lib/routes/paths';
 import { useWorkloadName } from '@/lib/workloads/use-workload-name';
 import { isCostWorkload } from '@/lib/workloads/workloads';
 
@@ -88,7 +88,13 @@ export function CostsScreen(props: CostsScreenProps): ReactElement {
   );
 }
 
-function CostsContent({ workspaceId, workspaceName, projects }: CostsScreenProps): ReactElement {
+function CostsContent({
+  workspaceId,
+  workspaceSlug,
+  workspaceName,
+  projectSlug,
+  projects,
+}: CostsScreenProps): ReactElement {
   const t = useTranslations('costs');
   const common = useTranslations('common');
   const locale = useLocale();
@@ -359,6 +365,7 @@ function CostsContent({ workspaceId, workspaceName, projects }: CostsScreenProps
         month={month}
         projects={projects}
         budgets={budgets}
+        budgetsHref={budgetsPath(workspaceSlug, projectSlug ?? undefined)}
         tab={tab}
         onTabChange={(next) => void setTab(next === 'provider' ? null : next)}
         emptyText={emptyText}

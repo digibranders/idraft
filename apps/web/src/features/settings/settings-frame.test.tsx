@@ -59,6 +59,7 @@ describe('SettingsFrame', () => {
       '/digibranders/fynix/settings/retention',
       '/digibranders/fynix/settings/workspace',
       '/digibranders/fynix/settings/members',
+      '/digibranders/fynix/settings/budgets',
       // Inside a project they open in that project's shell
       '/digibranders/fynix/costs',
       '/digibranders/fynix/ops/runs',
@@ -100,6 +101,7 @@ describe('SettingsFrame', () => {
       '/digibranders/settings/preferences',
       '/digibranders/settings/workspace',
       '/digibranders/settings/members',
+      '/digibranders/settings/budgets',
       // No project is open: the workspace's own routes, which pick a project when the member can open one
       '/digibranders/costs',
       '/digibranders/ops/runs',
@@ -107,12 +109,27 @@ describe('SettingsFrame', () => {
     expect(within(nav).getByRole('link', { name: 'Security' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('lists Costs and Operations after Members and roles, Costs only for a member who may read costs', () => {
+  it('the settings navigation lists Budgets and usage and keeps it current', () => {
+    location.pathname = '/digibranders/fynix/settings/budgets';
+    renderWithProviders(frame('fynix'));
+    const nav = screen.getByRole('navigation', { name: 'Settings sections' });
+    // After Members and roles, before the links to Costs and Operations; every member sees it
+    expect(
+      within(nav)
+        .getAllByRole('link')
+        .map((link) => link.textContent)
+        .slice(-4),
+    ).toEqual(['Members and roles', 'Budgets and usage', 'Costs', 'Operations']);
+    expect(within(nav).getByRole('link', { name: 'Budgets and usage' })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('link', { name: 'Members and roles' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('lists Costs and Operations after Budgets and usage, Costs only for a member who may read costs', () => {
     // A viewer reads data but not costs; a billing member reads costs but not data
     for (const [role, expected] of [
-      ['editor', ['Members and roles', 'Costs', 'Operations']],
-      ['viewer', ['Members and roles', 'Operations']],
-      ['billing', ['Members and roles', 'Costs']],
+      ['editor', ['Budgets and usage', 'Costs', 'Operations']],
+      ['viewer', ['Budgets and usage', 'Operations']],
+      ['billing', ['Budgets and usage', 'Costs']],
     ] as const) {
       const { unmount } = renderWithProviders(frame('fynix', role));
       const nav = screen.getByRole('navigation', { name: 'Settings sections' });

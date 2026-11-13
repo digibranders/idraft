@@ -595,9 +595,35 @@ describe('forecast and unit costs', () => {
   });
 });
 
+describe('AI limits', () => {
+  const QUOTA = z.strictObject({ limit: z.number(), used: z.number() });
+  const LIMITS: z.ZodType<Schemas['AiLimitsResponse']> = z.strictObject({
+    data: z.strictObject({ ai_observations_month: QUOTA, manual_runs_today: QUOTA, prompts: QUOTA }),
+  });
+
+  it('answers the generated AiLimitsResponse shape with used and limit for each quota', async () => {
+    const answer = await mockBrowser('owner').call('GET', `${EVENTUS}/ai/limits`);
+    expect(answer.status, JSON.stringify(answer.body)).toBe(200);
+    const { data } = LIMITS.parse(answer.body);
+    expect(data.prompts.limit).toBe(150);
+    expect(data.prompts.used).toBeGreaterThan(0);
+    expect(data.ai_observations_month.limit).toBe(2000);
+    expect(data.ai_observations_month.used).toBeGreaterThanOrEqual(0);
+  });
+
+  it('answers 401, 404 and 403 as the other project reads do', async () => {
+    expect((await fetch(`${TEST_API_ORIGIN}${EVENTUS}/ai/limits`)).status).toBe(401);
+    expect(
+      (await mockBrowser('owner').call('GET', `${W}/projects/0192d1a8-ffff-7a10-8e07-000000000001/ai/limits`)).status,
+    ).toBe(404);
+    // Billing reads costs but not prompts and answers
+    expect((await mockBrowser('billing').call('GET', `${EVENTUS}/ai/limits`)).status).toBe(403);
+  });
+});
+
 describe('where the AI health handlers sit', () => {
-  it('registers the eight routes once, in the handler list', () => {
-    expect(aiHealthHandlers).toHaveLength(8);
+  it('registers the nine routes once, in the handler list', () => {
+    expect(aiHealthHandlers).toHaveLength(9);
     for (const handler of aiHealthHandlers)
       expect(handlers.filter((candidate) => candidate === handler)).toHaveLength(1);
   });

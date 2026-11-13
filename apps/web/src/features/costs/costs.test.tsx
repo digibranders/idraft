@@ -668,6 +668,26 @@ describe('Costs', () => {
     renderWithProviders(costsAs('viewer', projects, null));
     expect(await screen.findByRole('link', { name: 'Back to Overview' })).toHaveAttribute('href', '/digibranders');
   });
+
+  it('the Budgets tab links to the budgets page only for a member who can manage budgets', async () => {
+    // Inside a project the link opens that project's settings page; outside one, the workspace's own
+    const inProject = renderWithProviders(costsAs('admin'), { searchParams: 'tab=budgets' });
+    expect(await screen.findByRole('link', { name: 'Manage budgets' })).toHaveAttribute(
+      'href',
+      '/digibranders/fynix/settings/budgets',
+    );
+    inProject.unmount();
+    const outside = renderWithProviders(costsAs('billing', projects, null), { searchParams: 'tab=budgets' });
+    expect(await screen.findByRole('link', { name: 'Manage budgets' })).toHaveAttribute(
+      'href',
+      '/digibranders/settings/budgets',
+    );
+    outside.unmount();
+    // An editor reads costs and budgets but cannot change them
+    renderWithProviders(costsAs('editor'), { searchParams: 'tab=budgets' });
+    await screen.findByRole('table', { name: 'Budgets' });
+    expect(screen.queryByRole('link', { name: 'Manage budgets' })).toBeNull();
+  });
 });
 
 const status = (state: BudgetStatus['state']): BudgetStatus['state'] => state;

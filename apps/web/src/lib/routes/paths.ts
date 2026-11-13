@@ -89,7 +89,7 @@ export function queryOf(
 }
 
 /** The sections of Settings that exist outside any project: the account's and the workspace's. */
-export type WorkspaceSettingsSection = 'profile' | 'security' | 'preferences' | 'workspace' | 'members';
+export type WorkspaceSettingsSection = 'profile' | 'security' | 'preferences' | 'workspace' | 'members' | 'budgets';
 
 /**
  * A section of Settings outside any project, reachable from the workspace page and when the member can
@@ -97,6 +97,15 @@ export type WorkspaceSettingsSection = 'profile' | 'security' | 'preferences' | 
  */
 export const workspaceSettingsPath = (workspace: string, section: WorkspaceSettingsSection): Route =>
   `/${encodeURIComponent(workspace)}/settings/${section}` as Route;
+
+/**
+ * Settings > Budgets and usage: inside `project`'s shell when one is given, else the workspace's own route
+ * (for a member who can open no project).
+ */
+export const budgetsPath = (workspace: string, project?: string | undefined): Route =>
+  project === undefined
+    ? workspaceSettingsPath(workspace, 'budgets')
+    : projectPath(workspace, project, '/settings/budgets');
 
 /** The sign-in page. */
 export const SIGN_IN_PATH: Route = '/login';
