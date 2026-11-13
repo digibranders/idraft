@@ -3487,7 +3487,18 @@
     "confirm": "Turn on {engine}",
     "turnedOn": "{engine} is on",
     "turnedOnHint": "The first answers arrive after the next Monday or Thursday run.",
-    "turnedOff": "{engine} is off"
+    "turnedOff": "{engine} is off",
+    "classPrefix": "Class:",
+    "classes": {
+      "consumerUi": "Consumer UI",
+      "serpAi": "SERP AI",
+      "officialApi": "Official API"
+    },
+    "perplexityName": "Perplexity API",
+    "perplexityState": "Not available yet",
+    "costChange": "Estimated cost change: about {amount} a month {direction, select, down {less} other {more}}. Estimated total for {count, plural, one {# engine that is} other {# engines that are}} on: {total} a month. Estimate from the price book.",
+    "costChangeNoTotal": "Estimated cost change: about {amount} a month {direction, select, down {less} other {more}}. The total is not estimated because an engine that is on has no price on record. Estimate from the price book.",
+    "costChangeNoPrice": "No price is on record, so the change is not estimated."
   },
   "prompts": {
     "title": "Topics & Prompts",

@@ -5,11 +5,13 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useState, type ReactElement, type ReactNode } from 'react';
 
+import { engineCostChange, type EngineCostChange } from './engine-cost-model';
 import { enginesQuery, PUT_ENGINE, refreshPrompts, type PromptScope } from './prompt-queries';
 import { useMultiSelectHints } from '@/components/app/forms/use-multi-select-hints';
 import { Banner } from '@/components/app/status/banner';
 import { InlineError } from '@/components/app/status/inline-error';
 import { ConfirmDialog } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { MultiSelect } from '@/components/ui/multi-select';
@@ -40,6 +42,9 @@ export interface EnginesScreenProps {
 
 const SKELETON_ROWS = [0, 1, 2] as const;
 
+/** The class of the Perplexity API: an official API, never pooled with the other classes (spec 2026-11-11). */
+const PERPLEXITY_CLASS = 'official_api';
+
 /** The API refused a country: `422 validation_failed` with an error on `location_ids` (engine service `put`). */
 const refusedCountry = (failure: unknown): boolean =>
   isApiProblem(failure, 'validation_failed') && failure.errors.some((item) => item.path.startsWith('location_ids'));
@@ -64,6 +69,13 @@ export function EnginesScreen({
   const engines = useQuery(enginesQuery(scope));
   const countries = useCountries();
   const errorId = useErrorId(engines.error);
+  // The engine the last successful save switched on or off. It stays until the next save starts, and the
+  // summary is read from the list as it is now, so it follows the refetch that comes after the save.
+  const [switched, setSwitched] = useState<{ code: string; on: boolean } | null>(null);
+  const change =
+    switched === null || engines.data === undefined
+      ? null
+      : engineCostChange(engines.data.data, switched.code, switched.on);
   return (
     <section aria-labelledby="engines-title" className="flex flex-col gap-5">
       <div>
@@ -85,6 +97,7 @@ export function EnginesScreen({
       </div>
       <Banner tone="info" placement="region" message={t('spendNote')} />
       {canWrite ? null : <Banner tone="info" placement="region" lead={t('readOnlyLead')} message={t('readOnly')} />}
+      {change === null ? null : <CostChangeSummary change={change} />}
       {countries.isError ? (
         <Banner
           tone="warning"
@@ -122,12 +135,76 @@ export function EnginesScreen({
                 countries={countries.countries}
                 canWrite={canWrite}
                 defaultCountryIso={defaultCountryIso}
+                onSaveStart={() => setSwitched(null)}
+                onSwitched={(code, on) => setSwitched({ code, on })}
               />
             </li>
           ))}
+          <li className="px-4 pb-4">
+            <PerplexityRow />
+          </li>
         </ul>
       )}
     </section>
+  );
+}
+
+/** What the last switch did to the monthly estimate. A condition of the page, so a banner, read out as it appears. */
+function CostChangeSummary({ change }: { change: EngineCostChange }): ReactElement {
+  const t = useTranslations('aiEngines');
+  if (change.delta === null) return <Banner tone="info" placement="region" live message={t('costChangeNoPrice')} />;
+  const amount = formatCurrency(Math.abs(change.delta));
+  const direction = change.delta < 0 ? 'down' : 'up';
+  return (
+    <Banner
+      tone="info"
+      placement="region"
+      live
+      message={
+        change.enabledTotal === null
+          ? t('costChangeNoTotal', { amount, direction })
+          : t('costChange', {
+              amount,
+              direction,
+              count: change.enabledCount,
+              total: formatCurrency(change.enabledTotal),
+            })
+      }
+    />
+  );
+}
+
+/** The class of an engine (doc 04 section 8.1). A class a newer API sends shows as its code, never as nothing. */
+function EngineClass({ code }: { code: string }): ReactElement {
+  const t = useTranslations('aiEngines');
+  const labels = new Map([
+    ['consumer_ui', t('classes.consumerUi')],
+    ['serp_ai', t('classes.serpAi')],
+    ['official_api', t('classes.officialApi')],
+  ]);
+  return (
+    <span className="inline-flex items-center">
+      <span className="sr-only">{t('classPrefix')} </span>
+      <Badge>{labels.get(code) ?? code}</Badge>
+    </span>
+  );
+}
+
+/** The Perplexity API is planned, not built: a row that cannot be switched, never queried, saved or counted. */
+function PerplexityRow(): ReactElement {
+  const t = useTranslations('aiEngines');
+  return (
+    <SettingRow
+      label={t('perplexityName')}
+      description={t('perplexityState')}
+      disabled
+      control={
+        <div className="flex items-center gap-3">
+          <EngineClass code={PERPLEXITY_CLASS} />
+          <Switch checked={false} disabled />
+        </div>
+      }
+    />
   );
 }
 
@@ -137,9 +214,21 @@ interface EngineRowProps {
   countries: readonly Country[];
   canWrite: boolean;
   defaultCountryIso: string | null;
+  /** A save starts: the cost summary of the one before is no longer the last word. */
+  onSaveStart: () => void;
+  /** A save turned the engine on or off (not one that only changed its countries). */
+  onSwitched: (code: string, on: boolean) => void;
 }
 
-function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: EngineRowProps): ReactElement {
+function EngineRow({
+  scope,
+  engine,
+  countries,
+  canWrite,
+  defaultCountryIso,
+  onSaveStart,
+  onSwitched,
+}: EngineRowProps): ReactElement {
   const t = useTranslations('aiEngines');
   const common = useTranslations('common');
   const hints = useMultiSelectHints();
@@ -170,6 +259,7 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
   };
   const save = async (isEnabled: boolean, locationIds: readonly number[]): Promise<void> => {
     setError(null);
+    onSaveStart();
     try {
       await put.mutateAsync({
         params: { path: { workspace_id: scope.workspaceId, project_id: scope.projectId, engine_code: code } },
@@ -186,6 +276,8 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
     // The first engine on makes the project's AI schedules. The key is the Schedules screen's (project-settings
     // keeps it, and features do not import each other), so it is spelled out here as the runs key is elsewhere
     void queryClient.invalidateQueries({ queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'schedules'] });
+    // Only a switch changes the cost: the price of an engine does not depend on its countries
+    if (isEnabled !== engine.is_enabled) onSwitched(code, isEnabled);
     await refreshPrompts(queryClient, scope);
   };
 
@@ -231,7 +323,10 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
         description={cost === null ? t('noPrice') : t('estimate', { cost: formatCurrency(cost), prompts })}
         error={error}
         control={
-          <Switch checked={engine.is_enabled} busy={put.isPending} disabled={!canWrite} onCheckedChange={turn} />
+          <div className="flex items-center gap-3">
+            <EngineClass code={engine.engine.observation_class} />
+            <Switch checked={engine.is_enabled} busy={put.isPending} disabled={!canWrite} onCheckedChange={turn} />
+          </div>
         }
       />
       <Field invalid={missingCountry} disabled={!canWrite}>
