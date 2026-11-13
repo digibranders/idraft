@@ -381,6 +381,8 @@ describe('LayoutGrid states', () => {
     served.status = 500;
     const view = mount();
     expect(await screen.findByText('Your layout could not be loaded. Showing the default.')).toBeInTheDocument();
+    // Said once, with one way to read again
+    expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1);
     await cardsShown();
     expect(await axe(view.container)).toHaveNoViolations();
 

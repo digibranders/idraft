@@ -146,6 +146,24 @@ describe('TeamDefaultMenu', () => {
     });
   });
 
+  it('still says the team default is set when the personal layout it replaces could not be removed', async () => {
+    const served = serveLayouts({ layout: { source: 'personal', document: TEAM }, deleteStatus: 500 });
+    const { user } = renderWithProviders(<ScreenUnderTest />);
+    await startCustomizing(user);
+    await edit(user);
+    const dialog = await ask(user, '1 change', 'Save as team default', SET_TITLE);
+    await user.click(within(dialog).getByRole('button', { name: 'Set team default' }));
+    await waitFor(() => {
+      expect(stateOf()).toBe('view 0');
+    });
+    expect(served.teamPuts).toHaveLength(1);
+    expect(served.deletes).toEqual(['personal']);
+    await waitFor(() => {
+      expect(toastText()).toContain('Team default set');
+    });
+    expect(toastText()).not.toContain('could not be saved');
+  });
+
   it('can set the current layout as the team default with no changes', async () => {
     const served = serveLayouts();
     const { user } = renderWithProviders(<ScreenUnderTest />);

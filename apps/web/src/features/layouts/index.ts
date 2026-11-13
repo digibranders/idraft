@@ -39,6 +39,9 @@ export type { CardCatalogDialogProps } from './catalog/card-catalog-dialog';
 export { NumberStrip } from './numbers/number-strip';
 export type { NumberStripProps, NumberValue } from './numbers/number-strip';
 
+// What a screen says when its layout could not be read: the grid draws it; a page with no grid sets `readBanner`
+export { LayoutReadBanner } from './layout-read-banner';
+
 // Grid and frame: the slots a page or WP-16 fills
 export { LayoutGrid, SPAN_CLASS } from './layout-grid';
 export type { LayoutGridProps } from './layout-grid';

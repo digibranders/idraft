@@ -21,13 +21,12 @@ import { AddCardSlot } from './add-card-slot';
 import { CardFrame } from './card-frame';
 import { CardFailureNotice, CardFailuresContext, createCardFailures } from './cards/card-failures';
 import { useLayoutScreen, type LayoutContextValue } from './layout-provider';
+import { LayoutReadBanner } from './layout-read-banner';
 import { CardSkeleton, type CardRegistry, type RegisteredCard } from './registry';
 import { SortableGrid } from './sortable-grid';
 import { useNearViewport } from './use-near-viewport';
 import { useReducedMotion } from './use-reduced-motion';
-import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
-import { Button } from '@/components/ui/button';
 import { LIMITS, cardType, type CardItem, type Width } from '@/lib/layouts';
 import { cn } from '@/lib/utils';
 
@@ -148,9 +147,8 @@ export function LayoutGrid({
   emptyAction,
 }: LayoutGridProps): ReactElement {
   const t = useTranslations('layouts.core');
-  const tCommon = useTranslations('common');
   const screen = useLayoutScreen();
-  const { status, refetching, mode, shownCards, document, definition, registry, availabilityOf, retry } = screen;
+  const { status, refetching, mode, shownCards, document, definition, registry, availabilityOf } = screen;
   const root = useRef<HTMLElement>(null);
   // The failures of this grid's cards: a card's boundary reports to it, the frame's notice reads from it
   const [failures] = useState(createCardFailures);
@@ -242,20 +240,7 @@ export function LayoutGrid({
             className="absolute inset-x-0 top-0 h-0.5 bg-primary"
           />
         ) : null}
-        {status === 'error' ? (
-          <Banner
-            tone="warning"
-            placement="region"
-            live
-            message={t('readFailed')}
-            actions={
-              <Button size="sm" onClick={retry}>
-                {tCommon('retry')}
-              </Button>
-            }
-            className="mb-4"
-          />
-        ) : null}
+        <LayoutReadBanner />
         {body}
       </section>
     </CardFailuresContext>

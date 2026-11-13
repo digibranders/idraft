@@ -4464,6 +4464,7 @@
         "addAnotherLabel": "Add another {card}",
         "isNew": "New",
         "noMatch": "No cards match “{query}”",
+        "empty": "No cards to add yet.",
         "results": "{count, plural, one {# card matches} other {# cards match}}"
       },
       "numbers": {

@@ -96,6 +96,8 @@ const outcomeText = (outcome: SaveOutcome): string => (outcome.kind === 'failed'
 function LiveBar({ ai, onAiChange }: { ai: boolean; onAiChange: (checked: boolean) => void }): ReactElement {
   const { mode, resolved, canCustomize, canUndo, canRedo, saving, changes, actions } = useLayoutScreen();
   const [last, setLast] = useState<string>(COPY.noSave);
+  // This route never overwrites after a 412: the next Save would send the other version's ETag, so it stays off until Cancel
+  const [conflicted, setConflicted] = useState(false);
   const switchName = useId();
   const customizing = mode === 'customize';
   const changesText = `Changes: ${formatInteger(changes)}`;
@@ -115,9 +117,12 @@ function LiveBar({ ai, onAiChange }: { ai: boolean; onAiChange: (checked: boolea
         <Button
           size="sm"
           variant="primary"
-          disabled={!customizing || saving}
+          disabled={!customizing || saving || conflicted}
           onClick={() => {
-            void actions.save().then((outcome) => setLast(outcomeText(outcome)));
+            void actions.save().then((outcome) => {
+              setLast(outcomeText(outcome));
+              setConflicted(outcome.kind === 'conflict');
+            });
           }}
         >
           {COPY.save}
@@ -127,6 +132,7 @@ function LiveBar({ ai, onAiChange }: { ai: boolean; onAiChange: (checked: boolea
           disabled={!customizing}
           onClick={() => {
             actions.exit();
+            setConflicted(false);
           }}
         >
           {COPY.cancel}

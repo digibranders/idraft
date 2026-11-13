@@ -318,7 +318,7 @@ function TableHead(): ReactElement {
           </>
         }
       />
-      <NumberStrip label={COPY.tableNumbers} valueOf={specimenValueOf} status="ready" />
+      <NumberStrip label={COPY.tableNumbers} valueOf={specimenValueOf} status="ready" readBanner />
     </>
   );
 }

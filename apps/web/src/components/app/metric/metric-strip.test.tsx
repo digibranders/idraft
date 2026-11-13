@@ -285,6 +285,14 @@ describe('MetricStrip', () => {
       expect(columnsAt(1, 100)).toBe('repeat(1, minmax(0, 1fr))');
     });
 
+    it('stacks two items in one column under 281 px, and puts them side by side from there', () => {
+      expect(columnsAt(2, 280)).toBe('repeat(1, minmax(0, 1fr))');
+      cleanup();
+      expect(columnsAt(2, 200)).toBe('repeat(1, minmax(0, 1fr))');
+      cleanup();
+      expect(columnsAt(2, 281)).toBe('repeat(2, minmax(0, 1fr))');
+    });
+
     it('leaves the inspector grid alone', () => {
       expect(columnsAt(6, 366, 'sm')).toBe('repeat(3, minmax(0, 1fr))');
     });

@@ -235,6 +235,34 @@ describe('CardCatalogDialog', () => {
     });
   });
 
+  it('says there are no cards to add, not that none match, on a screen with no card types', async () => {
+    // An empty page offers its own Customize as well as the header's: either one starts the mode
+    const { user } = renderWithProviders(<ScreenUnderTest addSlot screen="inspector.prompt" />);
+    await waitFor(() => {
+      expect(within(box()).getAllByRole('button', { name: 'Customize' })[0]).not.toHaveAttribute(
+        'aria-disabled',
+        'true',
+      );
+    });
+    await user.click(within(box()).getAllByRole('button', { name: 'Customize' })[0] as HTMLElement);
+    await waitFor(() => {
+      expect(stateOf()).toMatch(/^customize/);
+    });
+    const dialog = await openCatalog(user);
+    expect(within(dialog).getByText('No cards to add yet.')).toBeVisible();
+    expect(within(dialog).queryByText(/No cards match/)).not.toBeInTheDocument();
+    expect(within(dialog).queryAllByRole('listitem')).toHaveLength(0);
+
+    // A query on a screen with nothing to find is still a search that matched nothing
+    await user.type(searchField(dialog), 'zzz');
+    expect(within(dialog).getByText('No cards match “zzz”')).toBeVisible();
+    await user.clear(searchField(dialog));
+    expect(within(dialog).getByText('No cards to add yet.')).toBeVisible();
+    await waitFor(() => {
+      expect(polite()).toBe('No cards to add yet.');
+    });
+  });
+
   it('announces a quick run of typing once, after a pause, and not again when the count stays', async () => {
     const user = await customizing();
     const dialog = await openCatalog(user);

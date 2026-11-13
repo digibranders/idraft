@@ -94,11 +94,13 @@ interface Served {
   deletes: ('personal' | 'team')[];
   /** What a write answers: 200, or the status of a problem. */
   putStatus: 200 | 412 | 500;
+  /** What the removal of a personal layout answers: 204, or 500 (a failure). */
+  deleteStatus: 204 | 500;
 }
 
 /** The layout routes, answering `layout`; every read has its own ETag (`"e1"`, `"e2"`...). */
 function serve(layout: ApiResolvedLayout = BUILTIN_LAYOUT): Served {
-  const served: Served = { layout, reads: 0, puts: [], deletes: [], putStatus: 200 };
+  const served: Served = { layout, reads: 0, puts: [], deletes: [], putStatus: 200, deleteStatus: 204 };
   const put =
     (target: 'personal' | 'team') =>
     ({ request }: { request: Request }): Response => {
@@ -112,6 +114,7 @@ function serve(layout: ApiResolvedLayout = BUILTIN_LAYOUT): Served {
     };
   const remove = (target: 'personal' | 'team') => (): Response => {
     served.deletes.push(target);
+    if (target === 'personal' && served.deleteStatus === 500) return HttpResponse.json(INTERNAL, { status: 500 });
     return new HttpResponse(null, { status: 204 });
   };
   server.use(
@@ -1166,6 +1169,25 @@ describe('the team default', () => {
     expect(served.puts).toEqual([{ target: 'team', ifMatch: '"e1"' }]);
     expect(served.deletes).toEqual(['personal']);
     expect(current().mode).toBe('view');
+  });
+
+  it('answers saved, leaves the mode and reads the layout again when the team default is put and the personal layout then will not go', async () => {
+    const served = serve(stored('personal', withoutCompetitors, null));
+    served.deleteStatus = 500;
+    mount();
+    await customizing();
+    run(() => current().actions.hideCard('matrix'));
+    const readsBefore = served.reads;
+    const outcome = await runAsync(() => current().actions.saveTeamDefault());
+    // The team default is saved: that is what the person asked for, and what the toast says
+    expect(outcome).toEqual<SaveOutcome>({ kind: 'saved' });
+    expect(served.puts).toEqual([{ target: 'team', ifMatch: '"e1"' }]);
+    expect(served.deletes).toEqual(['personal']);
+    expect(current().mode).toBe('view');
+    // The personal layout is still there, so the cache is read again and shows what is true
+    await waitFor(() => {
+      expect(served.reads).toBeGreaterThan(readsBefore);
+    });
   });
 
   it('removes no personal layout when the person had none', async () => {

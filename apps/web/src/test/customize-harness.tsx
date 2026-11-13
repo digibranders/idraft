@@ -40,6 +40,8 @@ export interface ServeOptions {
    * 412 (the layout changed somewhere else). A list is one answer per save, in order; the last one repeats.
    */
   putStatus?: SaveStatus | readonly SaveStatus[];
+  /** What the removal of the personal layout answers: 204 by default, or 500 (a failure). */
+  deleteStatus?: 204 | 500;
   /** Fields of the layout a read answers, over the built-in layout: a personal layout, a team default. */
   layout?: Record<string, unknown>;
 }
@@ -67,6 +69,7 @@ export function serveLayouts({
   read = 'ok',
   holdSave,
   putStatus = 200,
+  deleteStatus = 204,
   layout = {},
 }: ServeOptions = {}): ServedLayouts {
   const served: ServedLayouts = { puts: [], deletes: [], teamPuts: [], teamDeletes: [], reads: 0 };
@@ -153,7 +156,7 @@ export function serveLayouts({
     }),
     http.delete(mswPath(PERSONAL), () => {
       served.deletes.push('personal');
-      return new HttpResponse(null, { status: 204 });
+      return deleteStatus === 500 ? failure(500) : new HttpResponse(null, { status: 204 });
     }),
     // Removing the team default is a write that can be under way while the screen is in view mode
     http.delete(mswPath(`${LAYOUTS}/default`), async () => {

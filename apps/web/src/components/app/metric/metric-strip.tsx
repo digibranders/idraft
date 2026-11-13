@@ -77,12 +77,14 @@ export interface MetricStripProps {
 /**
  * Columns of the strip: one row when every cell gets 140 px, else two rows (23 section 2.3). On a phone two rows of
  * three would leave cells under 140 px, so the columns are as many as fit, and two at the least (the preview's phone
- * strip). Above about 420 px, for six items, that is the two rows of three it always was.
+ * strip). Above about 420 px, for six items, that is the two rows of three it always was. Two items that do not fit
+ * side by side stack in one column, as two cells of under 140 px would be worse.
  */
 function columnsFor(count: number, width: number | null, size: 'md' | 'sm' | 'inline'): number {
   if (size === 'sm') return count === 4 ? 2 : Math.min(count, 3);
   if (width === null || width >= count * MIN_CELL + (count - 1)) return count;
-  return Math.min(count, Math.max(2, Math.min(Math.ceil(count / 2), Math.floor(width / MIN_CELL))));
+  const least = count === 2 ? 1 : 2;
+  return Math.min(count, Math.max(least, Math.min(Math.ceil(count / 2), Math.floor(width / MIN_CELL))));
 }
 
 /**

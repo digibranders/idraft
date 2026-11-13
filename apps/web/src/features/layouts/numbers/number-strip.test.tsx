@@ -47,10 +47,25 @@ const GEMINI: NumberItem = { id: 'mention-gemini', metric: 'ai.mention_rate', en
 
 const documentOf = (numbers: NumberItem[]): LayoutDocument => ({ schema: 1, numbers, cards: [...CARDS] });
 
-function serve(numbers: NumberItem[]): void {
+/** A read that answers 500 while `failing.status` says so, and counts itself in `failing.reads`. */
+interface FailingReads {
+  reads: number;
+  status: 200 | 500;
+}
+
+function serve(numbers: NumberItem[], failing?: FailingReads): void {
   server.use(
-    http.get(READ, () =>
-      HttpResponse.json(
+    http.get(READ, () => {
+      if (failing !== undefined) {
+        failing.reads += 1;
+        if (failing.status === 500) {
+          return HttpResponse.json(
+            { type: 'about:blank', title: 'Internal', status: 500, code: 'internal' },
+            { status: 500 },
+          );
+        }
+      }
+      return HttpResponse.json(
         {
           data: {
             screen: 'overview',
@@ -63,8 +78,8 @@ function serve(numbers: NumberItem[]): void {
           },
         },
         { headers: { etag: '"e1"' } },
-      ),
-    ),
+      );
+    }),
   );
 }
 
@@ -107,10 +122,14 @@ interface MountOptions {
   numbers: NumberItem[];
   status?: 'loading' | 'ready' | 'refetching';
   slot?: boolean;
+  /** The page has no grid: the strip says when the layout could not be read. */
+  readBanner?: boolean;
+  /** Reads of the layout: how many were asked, and the status the next one answers (500 until a test sets 200). */
+  failing?: FailingReads;
 }
 
-function mount({ numbers, status = 'ready', slot = false }: MountOptions): ProvidedRender {
-  serve(numbers);
+function mount({ numbers, status = 'ready', slot = false, readBanner, failing }: MountOptions): ProvidedRender {
+  serve(numbers, failing);
   latest = null;
   return renderWithProviders(
     <PermissionProvider membership={membershipFactory('admin')}>
@@ -121,6 +140,7 @@ function mount({ numbers, status = 'ready', slot = false }: MountOptions): Provi
           label="Overview numbers"
           valueOf={valueOf}
           status={status}
+          {...(readBanner === undefined ? {} : { readBanner })}
           {...(slot
             ? {
                 renderAddSlot: () => (
@@ -221,6 +241,42 @@ describe('NumberStrip in view mode', () => {
     mount({ numbers: [] });
     await layoutRead();
     expect(screen.queryByRole('group', { name: 'Overview numbers' })).toBeNull();
+  });
+
+  describe('when the layout could not be read', () => {
+    const FAILED = 'Your layout could not be loaded. Showing the default.';
+
+    it('says so with Try again, above the numbers, on a page with no grid, and reads again on Try again', async () => {
+      const failing: FailingReads = { reads: 0, status: 500 };
+      const view = mount({ numbers: [TOP10], readBanner: true, failing });
+      expect(await screen.findByText(FAILED)).toBeInTheDocument();
+      const strip = screen.getByRole('group', { name: 'Overview numbers' });
+      expect(screen.getByText(FAILED).compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(await axe(view.container)).toHaveNoViolations();
+
+      failing.status = 200;
+      await view.user.click(screen.getByRole('button', { name: 'Try again' }));
+      await waitFor(() => {
+        expect(screen.queryByText(FAILED)).not.toBeInTheDocument();
+      });
+      expect(failing.reads).toBe(2);
+    });
+
+    it('says nothing without the prop, because the grid of the page says it', async () => {
+      const failing: FailingReads = { reads: 0, status: 500 };
+      mount({ numbers: [TOP10], failing });
+      await waitFor(() => {
+        expect(latest?.status).toBe('error');
+      });
+      expect(screen.queryByText(FAILED)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+    });
+
+    it('says nothing with the prop while the layout reads fine', async () => {
+      mount({ numbers: [TOP10], readBanner: true });
+      await layoutRead();
+      expect(screen.queryByText(FAILED)).not.toBeInTheDocument();
+    });
   });
 
   it('keeps the labels while the values load', async () => {

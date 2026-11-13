@@ -98,12 +98,14 @@ function CatalogContent({ index, searchRef, addedRef, onClose }: CatalogContentP
   const groupsFor = (text: string): ReturnType<typeof catalogEntries> =>
     catalogEntries({ screen, document, availabilityOf, query: text, today: date });
   const groups = groupsFor(query);
+  // Nothing to find with an empty search means the screen has no card types at all, not that none matched
+  const nothingFor = (text: string): string => (text.trim() === '' ? t('empty') : t('noMatch', { query: text.trim() }));
 
   const search = (event: ChangeEvent<HTMLInputElement>): void => {
     const next = event.target.value;
     setQuery(next);
     const count = groupsFor(next).reduce((sum, group) => sum + group.entries.length, 0);
-    const message = count === 0 ? t('noMatch', { query: next.trim() }) : t('results', { count });
+    const message = count === 0 ? nothingFor(next) : t('results', { count });
     if (message === announced.current) return;
     announced.current = message;
     // A pause, so a run of typing is read out once; the next message of the layout screens replaces it
@@ -126,7 +128,7 @@ function CatalogContent({ index, searchRef, addedRef, onClose }: CatalogContentP
       </div>
       <DialogBody>
         {groups.length === 0 ? (
-          <p className="py-6 text-center type-meta">{t('noMatch', { query: query.trim() })}</p>
+          <p className="py-6 text-center type-meta">{nothingFor(query)}</p>
         ) : (
           groups.map(({ group, entries }) => (
             <section key={group} aria-labelledby={`catalog-group-${group}`} className="flex flex-col">

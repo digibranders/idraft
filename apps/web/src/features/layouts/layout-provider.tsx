@@ -459,10 +459,17 @@ function ScreenProvider({ screen, workspaceId, capabilities, registry, children 
           if (draft === null) return UNCHANGED;
           try {
             await putTeam({ document: draft, etag });
-            // The person's own layout would keep hiding the new team default
-            if (resolved.source === 'personal') await deletePersonal();
           } catch (error) {
             return failureOf(error);
+          }
+          // The person's own layout would keep hiding the new team default. The team default is saved either way, so
+          // a removal that fails does not fail the save: the layout is read again, and shows that it still differs.
+          if (resolved.source === 'personal') {
+            try {
+              await deletePersonal();
+            } catch {
+              await queryClient.invalidateQueries({ queryKey: layoutQueryKey(workspaceId, screen) });
+            }
           }
           return finish();
         });

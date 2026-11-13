@@ -54,7 +54,7 @@ function TableHeader(): ReactElement {
           </>
         }
       />
-      <NumberStrip label="Overview numbers" valueOf={valueOf} status="ready" />
+      <NumberStrip label="Overview numbers" valueOf={valueOf} status="ready" readBanner />
     </>
   );
 }
@@ -102,6 +102,13 @@ describe('a table page that customizes its numbers', () => {
     expect(within(strip).getAllByRole('button', { name: /^Reorder / }).length).toBeGreaterThan(0);
     expect(within(strip).getAllByRole('button', { name: /^Remove / }).length).toBeGreaterThan(0);
     expect(screen.getByText('Customizing')).toBeInTheDocument();
+  });
+
+  it('says the layout could not be read, and offers Try again, when there is no grid to say it', async () => {
+    serveLayouts({ read: 'error' });
+    renderWithProviders(<Page />);
+    expect(await screen.findByText('Your layout could not be loaded. Showing the default.')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1);
   });
 
   it('has no grid and no Add card', async () => {

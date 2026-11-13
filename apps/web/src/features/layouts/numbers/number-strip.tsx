@@ -33,6 +33,7 @@ import {
 } from '../dnd';
 import { DropLine, columnGapOf, lineRect, sameLine, type LineRect } from '../drop-line';
 import { useLayoutScreen } from '../layout-provider';
+import { LayoutReadBanner } from '../layout-read-banner';
 import { useReducedMotion } from '../use-reduced-motion';
 import { AddNumberSlot } from './number-catalog';
 import { numberCoordinateGetter, useNumberAnnouncements } from './number-dnd';
@@ -66,6 +67,11 @@ export interface NumberStripProps {
    * there is room for one. The catalog of this folder by default.
    */
   renderAddSlot?: (() => ReactNode) | undefined;
+  /**
+   * A page with no card grid sets this: when the layout could not be read, the strip says so above the numbers, with
+   * Try again. A page with a grid leaves it off, as the grid says it.
+   */
+  readBanner?: boolean | undefined;
 }
 
 const renderAddNumberSlot = (): ReactNode => <AddNumberSlot />;
@@ -304,18 +310,29 @@ function CustomizeStrip({
  * The headline numbers of the screen's layout. A strip with no numbers is not drawn in view mode (spec 5.3); in
  * customize mode the Add number slot keeps it.
  */
-export function NumberStrip(props: NumberStripProps): ReactElement | null {
+export function NumberStrip({ readBanner = false, ...props }: NumberStripProps): ReactElement | null {
   const { mode, document, status } = useLayoutScreen();
-  if (mode === 'customize') return <CustomizeStrip {...props} />;
   const numbers = document.numbers ?? [];
-  if (numbers.length === 0) return null;
+  const banner = readBanner ? <LayoutReadBanner /> : null;
+  if (mode === 'customize') {
+    return (
+      <>
+        {banner}
+        <CustomizeStrip {...props} />
+      </>
+    );
+  }
+  if (numbers.length === 0) return banner;
   // Until the layout is read the numbers are the built-in ones, so their values are drawn as loading, as the cards are
   return (
-    <MetricStrip
-      size="md"
-      label={props.label}
-      groups={groupsOf(numbers, props.valueOf)}
-      status={status === 'loading' ? 'loading' : props.status}
-    />
+    <>
+      {banner}
+      <MetricStrip
+        size="md"
+        label={props.label}
+        groups={groupsOf(numbers, props.valueOf)}
+        status={status === 'loading' ? 'loading' : props.status}
+      />
+    </>
   );
 }
