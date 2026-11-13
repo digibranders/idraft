@@ -3,14 +3,14 @@ c5-competitors.md). Reading needs `data:read`; the membership dependency has alr
 project outside the caller's scope.
 
 WP-32 (overview-aggregates) owns this router; api/main.py includes it (docs/ai-visibility/
-MASTER-PLAN.md section 3.3). `ai/competitors` is built apart from its `include` blocks, which
-answer `501` naming the block until they are, and `overview/competitors` is still a stub. The
-scope and compare dependencies are the metric routes' (metrics_routes.py).
+MASTER-PLAN.md section 3.3). Both routes are built: `ai/competitors` with its two `include` blocks
+and `overview/competitors` for its AI half. The scope and compare dependencies are the metric
+routes' (metrics_routes.py).
 """
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, get_args
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -20,7 +20,6 @@ from idraft.api.ai.metrics_routes import COMPARE, SCOPE, Compared, EntityIds, Re
 from idraft.api.pagination import Commas
 from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai_metrics import AiCompetitorsResponse, OverviewCompetitorsResponse
-from idraft.api.stubs import not_built, not_built_yet, refuse_unbuilt
 
 PROJECT = "/api/v1/workspaces/{workspace_id}/projects/{project_id}"
 router = APIRouter(tags=["ai"])
@@ -71,11 +70,15 @@ async def competitors(
         int, Query(ge=1, le=5, description="Rows of `top_sources` per entity.")
     ] = 3,
 ) -> AiCompetitorsResponse:
-    # The blocks are built by the next task: until then a client is told so, not given `[]`.
-    refuse_unbuilt(
-        {f"include={block}": block in (include or []) for block in get_args(CompetitorInclude)}
+    asked = set(include or [])
+    return await service.competitors(
+        access,
+        project_id,
+        query,
+        entity_ids,
+        lost_limit=lost_limit if "lost_prompts" in asked else None,
+        sources_limit=sources_limit if "top_sources" in asked else None,
     )
-    return await service.competitors(access, project_id, query, entity_ids)
 
 
 @router.get(
@@ -87,8 +90,7 @@ async def competitors(
     "The SEO share of voice and visibility are declared and left out until they are built. "
     + COMPARE,
 )
-@not_built
 async def overview_competitors(
-    project_id: UUID, access: ReadData, query: Compared
+    project_id: UUID, access: ReadData, query: Compared, service: Competitors
 ) -> OverviewCompetitorsResponse:
-    raise not_built_yet()
+    return await service.overview(access, project_id, query)

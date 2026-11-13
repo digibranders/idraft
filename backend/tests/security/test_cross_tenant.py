@@ -384,7 +384,10 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
         "filter[country_iso]": "US"
     },
     ("GET", _W + "/projects/{project_id}/ai/metrics/{metric}/breakdown"): {"dimension": "topic"},
-    ("GET", _W + "/projects/{project_id}/ai/competitors"): {"compare": "previous_period"},
+    ("GET", _W + "/projects/{project_id}/ai/competitors"): {
+        "compare": "previous_period",
+        "include": "lost_prompts,top_sources",
+    },
     ("GET", _W + "/projects/{project_id}/overview/competitors"): {"compare": "previous_period"},
     # WP-38 notes-annotations
     # WP-41 versions

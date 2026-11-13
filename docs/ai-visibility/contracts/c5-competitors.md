@@ -77,7 +77,7 @@ client reads `role`. `entity` of a row is the existing `EntityRef` (`entity_id`,
 | | `is_top_competitor` | True on at most one competitor of the engine, and under `entity_ids` possibly on none (rule below). |
 | | `lost_prompts` | Optional: with `include=lost_prompts`, `LostPrompt[]` for a competitor row; absent on an own row and when not asked. `[]` when nothing was lost. |
 | | `lost_prompts_total` | Optional, present and absent exactly as `lost_prompts`: every prompt lost to the competitor on the engine, before the `lost_limit` cap. |
-| | `lost_prompts_with_min_answers` | Optional, present and absent exactly as `lost_prompts`: the prompts in scope with at least 4 answers on the engine, the "of N prompts" beside `lost_prompts_total`. |
+| | `lost_prompts_with_min_answers` | Optional, present and absent exactly as `lost_prompts`: the prompts in scope with at least 4 valid answers on the engine, the "of N prompts" beside `lost_prompts_total`. |
 | `LostPrompt` | `prompt_id`, `text`, `importance` | The prompt, its current text and its importance (1 to 5). |
 | | `lost` | A summary cell: `numerator` the answers on that engine that name the competitor and not the own brand, `denominator` the prompt's valid answers on the engine, `n_observations` all its answers, `value` null when the denominator is 0. |
 | `CompetitorSource` | `registrable_domain` | A domain cited for the entity. |
@@ -117,8 +117,8 @@ the own brand is not (the rule of C2 C-6, `lost_to`), counted over the valid, cu
 are sorted by `importance` descending, then lost answers descending, then text, then id, at most `lost_limit`
 per entity and engine. They are the same prompts `filter[opportunity]=lost_to:<id>` keeps on the summary for the
 same scope and engine. A refusal or an invalid answer is not a lost answer. `lost_prompts_total` counts every
-such prompt, before the cap, and `lost_prompts_with_min_answers` the prompts in scope with at least 4 answers on
-the engine, so the card can say "3 of 12 prompts".
+such prompt, before the cap, and `lost_prompts_with_min_answers` the prompts in scope with at least 4 valid
+answers on the engine (the CH-05 floor of the Overview), so the card can say "3 of 12 prompts".
 
 ### Top sources
 
@@ -153,13 +153,17 @@ Design figures until measured, then the test.
 | Request | Summary request | Extra statements | Extra reads |
 |---|---|---|---|
 | `ai/competitors` | `S(rows left out, include=total,entities)` | +4 (measured) | transaction scope, `entity_refs`, `entity_units`, `version_starts` |
-| with `include=lost_prompts` | | +3 more | `counts_by_prompt`, `lost_counts`, `prompt_cards` |
-| with `include=top_sources` | | +1 more | `top_sources` |
-| `overview/competitors` | `S(rows=none, include=total,entities)` | +2 | `entity_refs`, transaction scope |
+| with `include=lost_prompts` | | +1 more (measured) | `lost_counts`: one grouped statement over every competitor and engine, with the prompts' importance |
+| with `include=top_sources` | | +1 more (measured) | `top_sources`: one ranked statement over every entity |
+| with both | | +2 more (measured) | the two above |
+| `overview/competitors` | `S(rows=none, include=total,entities)` | +3 (measured) | transaction scope, `entity_refs`, `version_starts` |
 
 `rows left out` builds the prompt rows, which is how the route gets the ids of the prompts in scope for the
-sources and lost reads. `compare` adds 2 (the summary's own with `include=entities`: the counts of the window
-compared with and the entity counts there; the Overview reads no entity cells and adds 1).
+sources and lost reads, and the valid answers, all answers and text of each prompt for the lost prompts (the
+summary's prompt rows hold them, so no read of its own is needed). `compare` adds 2 on both routes (the
+summary's own with `include=entities`: the counts of the window compared with and the entity counts there). The
+counts are the same on a 14 answer world and on the full project, with 4 entities more, and with `entity_ids`.
+With no prompt in scope the citation, lost and source reads are not run.
 
 ## Error codes
 
@@ -357,3 +361,8 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-32: C-13 measured: `ai/competitors` is its summary request plus 4 (transaction scope, `entity_refs`, `entity_units`, `version_starts`), the same on a 14 answer world and on the full project; with no prompt in scope `entity_units` is not run (plus 3, the rows still need `entity_refs`); `compare` adds the summary's own 2 and nothing else. The other rows are design figures until measured.
 2026-11-13 WP-32: C-14 top competitor and narrowing: `is_top_competitor` is read over the tracked set before `entity_ids` narrows the rows; when the top competitor is narrowed away, no row of that engine carries the flag, so the flag is true on at most one competitor of an engine, and under narrowing possibly none. An id cut by the 20 entity cap is left out of `entity_ids` like any id that is not a tracked entity.
 2026-11-13 WP-32: C-15 tie rule: ties are compared at 9 decimals, name case-folded, then the id.
+2026-11-14 WP-32: C-16 built: `include=lost_prompts`, `include=top_sources` and `overview/competitors` (no shape changes; the `501` of an `include` is gone). Lost prompts rank by importance descending, lost answers descending, text, id; `lost` is lost answers over the prompt's valid answers on the engine with every answer in `n_observations` and `pooled` null; the valid answers, all answers and text of each prompt are the summary prompt rows'; an own row has no lost block.
+2026-11-14 WP-32: C-17 `lost_prompts_with_min_answers` counts prompts with at least 4 valid answers on the engine (the CH-05 floor the Overview cards use, which these two fields replace), not 4 answers of any status; the OpenAPI field text says "answers" and is published, so it is not changed here (read it as valid answers). The count is the same for every competitor of an engine.
+2026-11-14 WP-32: C-18 top sources are the domains cited with the entity as the role of the domain (`role_entity_id`), over all the engines shown, one list on the row (the model has no list per engine); `answers` is the distinct answers that cite the domain for the entity; ties on units go to the domain name; the flag default is the Sources page's. A list of the domains cited in the answers that name an entity is not built: the model holds one list a row.
+2026-11-14 WP-32: C-19 measured: `include=lost_prompts` adds 1 statement (`lost_counts`, one grouped read over every competitor and engine, with the prompts' importance), `include=top_sources` adds 1, both add 2; `overview/competitors` is `S(rows=none, include=total,entities)` plus 3 (transaction scope, `entity_refs`, `version_starts`, kept so that `meta.entity_config_changes` is the same as in `ai/competitors`); `compare` adds the summary's own 2 on both routes. The design figures (+3, +1, +2) are replaced; counts are the same on a 14 answer world, on the full project and with more entities.
+2026-11-14 WP-32: C-20 overview competitors: the AI half only; `seo` and `seo_other_domains` are never returned (not null, not empty): SEO share of voice is built nowhere (D13, remainder of BE-REPORTS-03). The values are those of `ai/competitors` value for value, `meta` equal.

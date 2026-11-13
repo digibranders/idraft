@@ -1,7 +1,8 @@
-"""Statement counts of the competitors read (contract C5, change C-7): `ai/competitors` costs the
-statements of the summary request it makes plus a fixed number of reads of its own, whatever the
-number of prompts, answers or engines (no test here varies the number of entities). Asserted as
-differences, never as absolute figures, after one warm read so each counted read starts alike."""
+"""Statement counts of the competitors reads (contract C5, change C-7): `ai/competitors` costs the
+statements of the summary request it makes plus a fixed number of reads of its own, one more for
+each `include` block, and `overview/competitors` the statements of its own summary request plus
+three: whatever the number of prompts, answers, engines or entities. Asserted as differences, never
+as absolute figures, after one warm read so each counted read starts alike."""
 
 from __future__ import annotations
 
@@ -13,7 +14,9 @@ import httpx
 from idraft.api.resources import Resources
 from tests.api.ai import summary_support
 from tests.api.ai.competitors_support import get_competitors
+from tests.api.ai.metrics_support import OVERVIEW_COMPETITORS, get_overview
 from tests.api.ai.summary_support import Summary, full_project, get_summary, statements
+from tests.collectors.rank_support import _entity
 from tests.conftest import PostgresServer
 
 seeded = summary_support.seeded
@@ -22,11 +25,20 @@ seeded = summary_support.seeded
 # entity references of the rows, the citation units by entity and the day each entity
 # configuration took effect.
 COMPETITORS_EXTRA = 4
+# `include=lost_prompts` adds the one grouped read of the lost answers of every competitor and
+# engine (with the prompts' importance); the valid answers and the texts are in the summary's
+# prompt rows. `include=top_sources` adds the one ranked read of the domains of every entity.
+LOST_EXTRA = 1
+SOURCES_EXTRA = 1
+# The Overview competitor table reads no citation and no prompt: the scope of the transaction, the
+# entity references and the day each entity configuration took effect.
+OVERVIEW_EXTRA = 3
 # `compare` adds the summary's own two: the counts of the window compared with and the entity
-# counts there (the Overview, which reads no entity cells, adds one).
+# counts there.
 COMPARE_EXTRA = 2
-# What the summary request of the competitors read asks for.
+# What the summary request of each read asks for.
 COMPETITORS_SUMMARY = {"include": "total,entities"}
+OVERVIEW_SUMMARY = {"rows": "none", "include": "total,entities"}
 
 
 async def _competitors(
@@ -38,11 +50,24 @@ async def _competitors(
     return len(seen)
 
 
-async def _summary(
+async def _overview(
     world: Summary, api: httpx.AsyncClient, resources: Resources, **params: Any
 ) -> int:
     with statements(resources) as seen:
-        response = await get_summary(world, api, **COMPETITORS_SUMMARY, **params)
+        response = await get_overview(world, api, OVERVIEW_COMPETITORS, **params)
+    assert response.status_code == 200, response.text
+    return len(seen)
+
+
+async def _summary(
+    world: Summary,
+    api: httpx.AsyncClient,
+    resources: Resources,
+    asked: dict[str, str],
+    **params: Any,
+) -> int:
+    with statements(resources) as seen:
+        response = await get_summary(world, api, **asked, **params)
     assert response.status_code == 200, response.text
     return len(seen)
 
@@ -51,11 +76,22 @@ async def _extra(
     world: Summary, api: httpx.AsyncClient, resources: Resources, **params: Any
 ) -> int:
     """The statements the read adds to the summary request it makes, for the same scope (the
-    summary takes no `entity_ids`: it gives cells for the whole tracked set either way)."""
+    summary takes none of the route's own parameters: it gives cells for the whole tracked set
+    either way)."""
     await get_competitors(world, api, **params)
-    scope = {name: value for name, value in params.items() if name != "entity_ids"}
+    own = ("entity_ids", "include", "lost_limit", "sources_limit")
+    scope = {name: value for name, value in params.items() if name not in own}
     return await _competitors(world, api, resources, **params) - await _summary(
-        world, api, resources, **scope
+        world, api, resources, COMPETITORS_SUMMARY, **scope
+    )
+
+
+async def _overview_extra(
+    world: Summary, api: httpx.AsyncClient, resources: Resources, **params: Any
+) -> int:
+    await get_overview(world, api, OVERVIEW_COMPETITORS, **params)
+    return await _overview(world, api, resources, **params) - await _summary(
+        world, api, resources, OVERVIEW_SUMMARY, **params
     )
 
 
@@ -85,10 +121,65 @@ async def test_the_competitors_read_adds_a_fixed_number_of_statements_to_its_sum
             assert await _extra(each, api, resources, **params) == COMPETITORS_EXTRA, params
 
 
+async def test_each_include_block_adds_one_read_whatever_the_data(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, seeded: Summary
+) -> None:
+    """The lost prompts are one statement over every competitor and engine, the top sources one
+    over every entity, on a small world and on the full project, and with more entities."""
+    world = await full_project(resources, migrated)
+    for number in range(4):
+        await _entity(
+            migrated, world.project, f"Extra {number}", f"extra{number}.example", "competitor"
+        )
+
+    for each in (seeded, world):
+        assert await _extra(each, api, resources, include="lost_prompts") == (
+            COMPETITORS_EXTRA + LOST_EXTRA
+        )
+        assert await _extra(each, api, resources, include="top_sources") == (
+            COMPETITORS_EXTRA + SOURCES_EXTRA
+        )
+        both = {"include": "lost_prompts,top_sources", "lost_limit": 10, "sources_limit": 5}
+        assert await _extra(each, api, resources, **both) == (
+            COMPETITORS_EXTRA + LOST_EXTRA + SOURCES_EXTRA
+        )
+        assert await _extra(each, api, resources, compare="previous_period", **both) == (
+            COMPETITORS_EXTRA + LOST_EXTRA + SOURCES_EXTRA
+        )
+        narrowed = {"include": "lost_prompts,top_sources", "entity_ids": str(each.rival)}
+        assert await _extra(each, api, resources, **narrowed) == (
+            COMPETITORS_EXTRA + LOST_EXTRA + SOURCES_EXTRA
+        )
+
+
+async def test_the_overview_competitors_read_adds_a_fixed_number_of_statements(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, seeded: Summary
+) -> None:
+    world = await full_project(resources, migrated)
+
+    for each in (seeded, world):
+        assert await _overview_extra(each, api, resources) == OVERVIEW_EXTRA
+        plain = await _overview(each, api, resources)
+        for params in (
+            {"include_branded": "true"},
+            {"filter[engine_code_in]": "chatgpt_web"},
+            {"filter[country_iso]": "US"},
+        ):
+            assert await _overview_extra(each, api, resources, **params) == OVERVIEW_EXTRA, params
+        compared = await _overview(each, api, resources, compare="previous_period")
+        # The summary's own read of the window compared with (its counts and its entity counts).
+        assert compared - plain == COMPARE_EXTRA
+
+
 async def test_a_read_of_no_prompt_reads_no_citation_units(
     api: httpx.AsyncClient, resources: Resources, seeded: Summary
 ) -> None:
-    """No prompt in scope: the cells are empty and there is no citation to count."""
-    assert await _extra(seeded, api, resources, **{"filter[country_iso]": "FR"}) == (
+    """No prompt in scope: the cells are empty and there is no citation to count, no lost answer
+    and no source: the scope of the transaction, the references and the day each configuration took
+    effect are all that is read."""
+    scope = {"filter[country_iso]": "FR"}
+
+    assert await _extra(seeded, api, resources, **scope) == COMPETITORS_EXTRA - 1
+    assert await _extra(seeded, api, resources, include="lost_prompts,top_sources", **scope) == (
         COMPETITORS_EXTRA - 1
     )

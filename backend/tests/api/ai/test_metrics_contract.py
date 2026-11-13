@@ -38,7 +38,14 @@ from tests.conftest import PostgresServer
 NOT_BUILT = (501, "not_implemented")
 OK = (200, "ok")
 # The routes WP-32 has built: a good request answers 200 and no longer 501.
-BUILT = {OVERVIEW.name, OVERVIEW_AI.name, METRIC.name, SERIES.name, COMPETITORS.name}
+BUILT = {
+    OVERVIEW.name,
+    OVERVIEW_AI.name,
+    METRIC.name,
+    SERIES.name,
+    COMPETITORS.name,
+    "overview/competitors",
+}
 UNKNOWN = (404, "unknown_metric")
 FORBIDDEN = (403, "forbidden")
 NOT_FOUND = (404, "not_found")
