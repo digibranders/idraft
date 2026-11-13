@@ -494,19 +494,46 @@ function makeAnswer(index: number, languageCode: string, engine: EngineCode, day
   // An emoji before the names moves every span on by two UTF-16 units, so a viewer must not count characters
   const intro = hindi ? HINDI_INTRO : INTRO;
   const plainOwn = planned.find((item) => item.who === OWN && !item.viaProduct);
-  return buildAnswer({
-    base,
-    lead: index % 5 === 0 ? `${MAGNIFIER} ${intro}` : intro,
-    bullet: index % 4 === 0 ? `${PIN} ` : '',
-    planned,
-    repeat:
-      plainOwn !== undefined && (index + day) % 7 === 0
-        ? { planned: plainOwn, sentence: `${OWN.name} is listed first.`, at: 0 }
-        : null,
-    sources,
-    inline: (address) => ` See ${address} for the method.`,
-    closing: turn === 3 ? ' The comparison goes on to cover pricing and...' : ` ${hindi ? HINDI_OUTRO : OUTRO}`,
-    partial: turn === 3,
-    product: { entity_id: MOCK_ENTITY_IDS.fynixAudit, name: PRODUCT_NAME },
-  });
+  return withQuotes(
+    engine,
+    buildAnswer({
+      base,
+      lead: index % 5 === 0 ? `${MAGNIFIER} ${intro}` : intro,
+      bullet: index % 4 === 0 ? `${PIN} ` : '',
+      planned,
+      repeat:
+        plainOwn !== undefined && (index + day) % 7 === 0
+          ? { planned: plainOwn, sentence: `${OWN.name} is listed first.`, at: 0 }
+          : null,
+      sources,
+      inline: (address) => ` See ${address} for the method.`,
+      closing: turn === 3 ? ' The comparison goes on to cover pricing and...' : ` ${hindi ? HINDI_OUTRO : OUTRO}`,
+      partial: turn === 3,
+      product: { entity_id: MOCK_ENTITY_IDS.fynixAudit, name: PRODUCT_NAME },
+    }),
+  );
+}
+
+/** What the Gemini scraper quotes of each cited page (`items[].sources[].snippet`), as the API gives it: one line of text. */
+const GEMINI_QUOTES: Readonly<Record<string, string>> = {
+  'fynix.digital': 'Fynix publishes its audit method and its case studies, with the checks it runs on each site.',
+  'brightwave.digital':
+    'Brightwave Digital writes about content strategy for small teams and shares a planning template.',
+  'www.searchenginejournal.com': 'A guide to search engine optimization: what it is, how it works and where to start.',
+  'news.example.com': 'This week in SEO: three changes to how answer engines name and cite their sources.',
+  'example.org': 'Read more about how the engines rank the pages they quote.',
+};
+
+/**
+ * The answer with each source's `quote`, which the API always sends: the passage Gemini quoted, and null for the
+ * engines that give none (ChatGPT's scraper and AI Mode's cards carry no snippet in these fixtures).
+ */
+function withQuotes(engine: EngineCode, answer: Answer): Answer {
+  return {
+    ...answer,
+    citations: answer.citations.map((citation) => ({
+      ...citation,
+      quote: engine === 'gemini_web' ? (GEMINI_QUOTES[citation.host] ?? null) : null,
+    })),
+  };
 }

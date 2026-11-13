@@ -41,6 +41,7 @@ import {
 import { promptsOf } from '../prompts-state';
 import { invalid, mock, problem } from '../respond';
 import { shiftIsoDate, validateDateWindow } from '../serp-views';
+import { sha256Hex } from '../sha256';
 import type {
   EngineSummary,
   EntityCells,
@@ -166,6 +167,44 @@ function scopeOf(url: URL): string {
   return scope.toString();
 }
 
+/**
+ * The provider's task answer, cut to what the answer holds: the mocks keep no real payload. It is what the raw route
+ * serves and what `raw_sha256` is the digest of, so the two always agree.
+ */
+function rawBodyOf(
+  found: Pick<
+    ObservationDetail,
+    'observation_id' | 'status' | 'model_reported' | 'answer_text' | 'check_url' | 'citations'
+  >,
+): object {
+  const failed = found.status === 'error';
+  return {
+    status_code: 20000,
+    status_message: 'Ok.',
+    tasks: [
+      {
+        id: `task-${found.observation_id}`,
+        status_code: failed ? 50000 : 20000,
+        status_message: failed ? 'Internal error.' : 'Ok.',
+        result: failed
+          ? null
+          : [
+              {
+                model: found.model_reported,
+                markdown: found.answer_text,
+                check_url: found.check_url,
+                sources: found.citations.map((citation) => ({
+                  url: citation.raw_url,
+                  title: citation.title,
+                  domain: citation.host,
+                })),
+              },
+            ],
+      },
+    ],
+  };
+}
+
 /** An answer of a prompt on an engine, observed at `at`, with the answer the mock makes of it. */
 function detailFrom(
   prompt: StoredPrompt,
@@ -202,6 +241,12 @@ function detailFrom(
     offsets_unit: 'utf16',
     citations: answer.citations,
     mentions: answer.mentions,
+    // Null for an answer with no text, never zeros; the mock keeps no payload row of an empty answer, so it has no raw hash
+    answer_sha256: answer.answer_text === null ? null : sha256Hex(answer.answer_text),
+    raw_sha256:
+      answer.status === 'empty'
+        ? null
+        : sha256Hex(JSON.stringify(rawBodyOf({ observation_id: observationId, ...answer }))),
   };
 }
 
@@ -234,7 +279,7 @@ export function deliveredOf(
  * Every answer a project's fixture prompts got and every one Run now delivered, newest first. The fixtures'
  * history has no prompt added here nor an engine turned on here, and an engine turned off keeps what it answered.
  */
-function answersOf(projectId: string, now: number): ObservationDetail[] {
+export function answersOf(projectId: string, now: number): ObservationDetail[] {
   const prompts = fixturePrompts(projectId);
   const engines = fixtureEngines(projectId);
   return [
@@ -275,7 +320,7 @@ const summaryOf = (detail: ObservationDetail): ObservationSummary => ({
 });
 
 /** The number in an observation id's path, or the error the API answers with for a value it cannot take. */
-function idOf(raw: string): bigint | ValidationItem {
+export function idOf(raw: string): bigint | ValidationItem {
   const path = (code: string, message: string): ValidationItem => ({
     location: 'path',
     path: 'observation_id',
@@ -302,7 +347,7 @@ function hintOf(url: URL): number | null | ValidationItem {
 }
 
 /** The answer an id names, when it is a fixture prompt's on an engine it was asked on at a run, within the hint. */
-function findAnswer(projectId: string, id: bigint, hint: number | null, now: number): ObservationDetail | null {
+export function findAnswer(projectId: string, id: bigint, hint: number | null, now: number): ObservationDetail | null {
   const delivered = promptsOf(projectId).observations.find((row) => row.observation_id === id.toString());
   if (delivered !== undefined) {
     return hint !== null && Math.abs(Date.parse(delivered.observed_at) - hint) > HINT_SLACK_MS ? null : delivered;
@@ -487,43 +532,14 @@ export const promptAnswerHandlers: HttpHandler[] = [
     const found = findAnswer(caller.project.project_id, id, hint, Date.now());
     if (found === null) return problem(request, 'not_found');
     if (Date.now() - Date.parse(found.observed_at) > RAW_RETENTION_MS) return problem(request, 'raw_expired');
-    // The provider's task answer, cut to what the answer holds: the mocks keep no real payload
-    const failed = found.status === 'error';
-    return HttpResponse.json(
-      {
-        status_code: 20000,
-        status_message: 'Ok.',
-        tasks: [
-          {
-            id: `task-${found.observation_id}`,
-            status_code: failed ? 50000 : 20000,
-            status_message: failed ? 'Internal error.' : 'Ok.',
-            result: failed
-              ? null
-              : [
-                  {
-                    model: found.model_reported,
-                    markdown: found.answer_text,
-                    check_url: found.check_url,
-                    sources: found.citations.map((citation) => ({
-                      url: citation.raw_url,
-                      title: citation.title,
-                      domain: citation.host,
-                    })),
-                  },
-                ],
-          },
-        ],
+    return HttpResponse.json(rawBodyOf(found), {
+      headers: {
+        'content-disposition': `attachment; filename="ai-observation-${found.observation_id}.json"`,
+        'x-content-type-options': 'nosniff',
+        'content-security-policy': 'sandbox',
+        'cache-control': 'private, no-store',
       },
-      {
-        headers: {
-          'content-disposition': `attachment; filename="ai-observation-${found.observation_id}.json"`,
-          'x-content-type-options': 'nosniff',
-          'content-security-policy': 'sandbox',
-          'cache-control': 'private, no-store',
-        },
-      },
-    );
+    });
   }),
 
   mock('get', `${P}/ai/prompts-summary`, ({ request, cookies, params }) => {

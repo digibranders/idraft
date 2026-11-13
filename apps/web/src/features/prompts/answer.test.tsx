@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { Suspense, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AnswerInspector } from './answer-inspector';
 import { PromptsScreen } from './prompts-screen';
 import type { EngineCode, ObservationDetail, Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
@@ -758,5 +759,431 @@ describe('the answer viewer: loading and failing', () => {
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('complementary', { name: /answer, / })).toBeNull());
     expect(urls.at(-1) ?? '').not.toContain('inspect=');
+  });
+});
+
+/** A source as the API sends it, with the parts a test changes. */
+const citationOf = (
+  index: number,
+  overrides: Partial<ObservationDetail['citations'][number]> = {},
+): ObservationDetail['citations'][number] => ({
+  citation_index: index,
+  url: `https://a${String(index)}.example/m`,
+  raw_url: `https://a${String(index)}.example/m?utm_source=chatgpt.com`,
+  host: `a${String(index)}.example`,
+  title: `Source ${String(index)}`,
+  source_name: null,
+  citation_kind: 'inline',
+  domain_role: 'third_party',
+  role_entity_id: null,
+  occurrences: 1,
+  first_char_offset: null,
+  answer_block_index: null,
+  referral_tag: null,
+  flags: [],
+  ...overrides,
+});
+
+describe('the answer viewer: the evidence view, markers and entity toggles', () => {
+  const RAW_URL = 'https://a1.example/m?utm_source=chatgpt.com';
+  const TEXT = `Fynix and Rankforge lead. See ${RAW_URL} for the method.`;
+  const cited1 = (): ObservationDetail =>
+    detail({
+      answer_text: TEXT,
+      citation_count: 2,
+      mentions: [mentionOf('Fynix', [[0, 5]], 'own'), mentionOf('Rankforge', [[10, 19]], 'competitor')],
+      citations: [
+        citationOf(1, { first_char_offset: TEXT.indexOf(RAW_URL), raw_url: RAW_URL }),
+        citationOf(2, {
+          title: 'Listed only',
+          host: 'b.example',
+          url: 'https://b.example/',
+          raw_url: 'https://b.example/',
+        }),
+      ],
+    });
+  const sources = (): HTMLElement => screen.getByRole('list', { name: 'Sources cited in this answer' });
+
+  it('puts a marker named for its source after the cited address, and none for a source the text does not hold', async () => {
+    serve(cited1());
+    renderOn('viewer', opened('2000001'));
+    const panel = await viewer();
+    const marker = await within(panel).findByRole('button', { name: 'Citation 1: a1.example' });
+    expect(marker).toHaveTextContent('[1]');
+    const text = marker.closest('p') as HTMLElement;
+    // The marker follows the address, which ends the sentence's address and not the text
+    expect(text.textContent).toBe(`Fynix and Rankforge lead. See ${RAW_URL}[1] for the method.`);
+    expect(within(panel).queryByRole('button', { name: /^Citation 2/ })).toBeNull();
+    expect(text).toHaveClass('whitespace-pre-wrap');
+  });
+
+  it('jumps from a marker to its item in the list: scrolled, marked and focused', async () => {
+    serve(cited1());
+    const { user } = renderOn('viewer', opened('2000001'));
+    const panel = await viewer();
+    const scrolled = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = scrolled;
+    try {
+      await user.click(await within(panel).findByRole('button', { name: 'Citation 1: a1.example' }));
+      const item = within(sources()).getByRole('link', { name: 'Source 1' }).closest('li') as HTMLElement;
+      expect(item).toHaveAttribute('aria-current', 'true');
+      expect(item).toHaveFocus();
+      expect(scrolled).toHaveBeenCalled();
+      expect(within(sources()).getByRole('link', { name: 'Listed only' }).closest('li')).not.toHaveAttribute(
+        'aria-current',
+      );
+    } finally {
+      Reflect.deleteProperty(window.HTMLElement.prototype, 'scrollIntoView');
+    }
+  });
+
+  it('jumps back from "Show in answer" to the marker, and a source with no marker has no such button', async () => {
+    serve(cited1());
+    const { user } = renderOn('viewer', opened('2000001'));
+    const panel = await viewer();
+    const marker = await within(panel).findByRole('button', { name: 'Citation 1: a1.example' });
+    expect(within(sources()).queryByRole('button', { name: 'Show in answer, citation 2' })).toBeNull();
+    await user.click(within(sources()).getByRole('button', { name: 'Show in answer, citation 1' }));
+    expect(marker).toHaveFocus();
+    expect(marker).toHaveAttribute('data-active');
+  });
+
+  it('lists the entities the text marks, with how many marks each has, and nothing for an entity it does not mark', async () => {
+    serve(cited1());
+    renderOn('viewer', opened('2000001'));
+    const group = await screen.findByRole('group', { name: 'Entities' });
+    expect(within(group).getByRole('checkbox', { name: 'Fynix' })).toBeChecked();
+    expect(within(group).getByRole('checkbox', { name: 'Rankforge' })).toHaveAccessibleDescription('1 mark');
+    expect(within(group).getAllByRole('checkbox')).toHaveLength(2);
+  });
+
+  it('takes the marks of an entity away when it is toggled off, keeps its words, and puts them back when it is toggled on', async () => {
+    serve(cited1());
+    const { user } = renderOn('viewer', opened('2000001'));
+    const panel = await viewer();
+    const text = (await within(panel).findByLabelText(/^Rankforge mention/)).closest('p') as HTMLElement;
+    await user.click(within(panel).getByRole('checkbox', { name: 'Rankforge' }));
+    expect(within(text).queryByLabelText(/^Rankforge mention/)).toBeNull();
+    expect(text.textContent).toContain('Fynix and Rankforge lead.');
+    // The own brand and the marker are untouched
+    expect(within(text).getByLabelText(/^Fynix mention, own brand/)).toBeInTheDocument();
+    expect(within(text).getByRole('button', { name: 'Citation 1: a1.example' })).toBeInTheDocument();
+    await user.click(within(panel).getByRole('checkbox', { name: 'Rankforge' }));
+    expect(within(text).getByLabelText(/^Rankforge mention/)).toBeInTheDocument();
+  });
+
+  it('shows no toggle list for an answer that marks no entity, and no marker for a citation without an offset', async () => {
+    serve(detail({ citations: [citationOf(1)], citation_count: 1 }));
+    renderOn('viewer', opened('2000001'));
+    await viewer();
+    await screen.findByText('Fynix and Rankforge lead.');
+    expect(screen.queryByRole('group', { name: 'Entities' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Citation 1/ })).toBeNull();
+  });
+
+  it('passes the accessibility checks with markers, toggles and an active source', async () => {
+    serve(cited1());
+    const { container, user } = renderOn('viewer', opened('2000001'));
+    const panel = await viewer();
+    await user.click(await within(panel).findByRole('button', { name: 'Citation 1: a1.example' }));
+    expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('the answer viewer: the Formatted view', () => {
+  const MARKDOWN = [
+    '# Compared',
+    '',
+    'Fynix leads. See [the guide](https://guide.example/seo) and [bad](javascript:alert(1)).',
+    '',
+    '- first',
+    '- second',
+    '',
+    '| a | b |',
+    '|---|---|',
+    '| 1 | 2 |',
+    '',
+    '<script>window.__wp26_xss=1</script>',
+  ].join('\n');
+  const modeOf = (name: 'Evidence' | 'Formatted' | 'Raw'): HTMLElement => screen.getByRole('radio', { name });
+
+  it('renders the markdown as elements without marks, and keeps hostile markup as text', async () => {
+    serve(detail({ answer_text: MARKDOWN, mentions: [mentionOf('Fynix', [[10, 15]], 'own')] }));
+    const { user } = renderOn('viewer', opened('2000001'));
+    await screen.findByLabelText(/^Fynix mention, own brand/);
+    await user.click(modeOf('Formatted'));
+    expect(await screen.findByRole('heading', { level: 4, name: 'Compared' })).toBeInTheDocument();
+    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+    expect(screen.getByRole('link', { name: 'the guide' })).toHaveAttribute('href', 'https://guide.example/seo');
+    expect(screen.queryByRole('link', { name: 'bad' })).toBeNull();
+    expect(screen.getByText(/^Fynix leads\. See/)).toHaveTextContent('and bad.');
+    // No marks, no markers and no toggles in this view; a table stays text
+    expect(within(await viewer()).queryByLabelText(/mention/)).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Entities' })).toBeNull();
+    expect((await viewer()).querySelector('table, script')).toBeNull();
+    expect(document.querySelector('script')).toBeNull();
+    expect(screen.getByText(/\| a \| b \|/)).toBeInTheDocument();
+    expect(Reflect.get(window, '__wp26_xss')).toBeUndefined();
+  });
+
+  it('goes back to the marks when Evidence is chosen again, and says it is the view the viewer opens in', async () => {
+    serve(detail({ answer_text: MARKDOWN, mentions: [mentionOf('Fynix', [[10, 15]], 'own')] }));
+    const { user } = renderOn('viewer', opened('2000001'));
+    await screen.findByLabelText(/^Fynix mention, own brand/);
+    expect(modeOf('Evidence')).toBeChecked();
+    await user.click(modeOf('Formatted'));
+    await user.click(modeOf('Evidence'));
+    expect(await screen.findByLabelText(/^Fynix mention, own brand/)).toBeInTheDocument();
+  });
+
+  it('shows no view control for an answer with no text', async () => {
+    renderOn('viewer', opened(failed.id));
+    await screen.findByText('The answer could not be read');
+    expect(screen.queryByRole('radiogroup', { name: 'Answer view' })).toBeNull();
+  });
+});
+
+describe('the answer viewer: the Raw view', () => {
+  const RAW = mswPath(`${P}/ai/observations/{observation_id}/raw`);
+  const expiredId = (): string => {
+    const at = runInstants(NOW.getTime()).find((instant) => NOW.getTime() - instant > 90 * DAY_MS);
+    if (at === undefined || first.index === null) throw new Error('No fixture answer is past its retention');
+    return observationIdOf(Math.floor(at / DAY_MS), first.index, 0);
+  };
+  const raws: string[] = [];
+  beforeEach(() => {
+    raws.length = 0;
+    server.events.on('request:start', ({ request }) => {
+      if (new URL(request.url).pathname.endsWith('/raw')) raws.push(request.url);
+    });
+  });
+  afterEach(() => {
+    server.events.removeAllListeners();
+  });
+  const openRaw = async (user: ProvidedRender['user']): Promise<void> => {
+    await user.click(await screen.findByRole('radio', { name: 'Raw' }));
+  };
+
+  it('has no Raw mode for a viewer, who may not read it, and asks for nothing', async () => {
+    renderOn('viewer', opened(cited.id));
+    await viewer();
+    await screen.findByLabelText(/^Fynix mention, own brand/);
+    expect(screen.getByRole('radio', { name: 'Formatted' })).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Raw' })).toBeNull();
+    expect(raws).toEqual([]);
+  });
+
+  it('fetches the raw answer once, when Raw is opened and not before, and shows it as escaped monospace text', async () => {
+    server.use(
+      http.get(RAW, () =>
+        HttpResponse.text('{"tasks":[{"note":"<script>window.__wp26_xss=1</script>"}]}', {
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+    const { user } = renderOn('analyst', opened(cited.id));
+    await screen.findByLabelText(/^Fynix mention, own brand/);
+    expect(raws).toEqual([]);
+    await openRaw(user);
+    const raw = await screen.findByText(/"note":/);
+    expect(raw.tagName).toBe('PRE');
+    expect(raw).toHaveClass('type-mono', 'whitespace-pre-wrap');
+    expect(raw.textContent).toBe('{"tasks":[{"note":"<script>window.__wp26_xss=1</script>"}]}');
+    expect(document.querySelector('script')).toBeNull();
+    expect(Reflect.get(window, '__wp26_xss')).toBeUndefined();
+    // Away and back: the answer is kept, not asked for again
+    await user.click(screen.getByRole('radio', { name: 'Formatted' }));
+    await user.click(screen.getByRole('radio', { name: 'Raw' }));
+    expect(await screen.findByText(/"note":/)).toBeInTheDocument();
+    expect(raws).toHaveLength(1);
+  });
+
+  it('shows a skeleton while the raw answer is on its way', async () => {
+    let open: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      open = () => resolve();
+    });
+    server.use(
+      http.get(RAW, async () => {
+        await held;
+        return HttpResponse.json({ tasks: [] });
+      }),
+    );
+    const { user } = renderOn('analyst', opened(cited.id));
+    await openRaw(user);
+    expect(await screen.findByRole('status', { name: 'Loading the raw answer' })).toBeInTheDocument();
+    open();
+    expect(await screen.findByText('{"tasks":[]}')).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Loading the raw answer' })).toBeNull();
+  });
+
+  it('cuts a very long raw answer at 200,000 characters, says so, and keeps the download for the rest', async () => {
+    server.use(
+      http.get(RAW, () => new HttpResponse('x'.repeat(250_000), { headers: { 'content-type': 'application/json' } })),
+    );
+    const { user } = renderOn('analyst', opened(cited.id));
+    await openRaw(user);
+    const raw = await screen.findByText(/^x+$/);
+    expect(raw.textContent).toHaveLength(200_000);
+    expect(
+      screen.getByText('Showing the first 200,000 characters. Download the raw answer for the rest.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download the raw answer' })).toBeInTheDocument();
+  });
+
+  it('says the raw answer is past its retention, and shows no retry', async () => {
+    const { user } = renderOn('analyst', opened(expiredId()));
+    await openRaw(user);
+    expect(await screen.findByText('The raw answer is past its retention and is no longer kept.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+  });
+
+  it('says the raw answer is not available now, and reads it again on Try again', async () => {
+    let calls = 0;
+    server.use(
+      http.get(RAW, ({ request }) => {
+        calls += 1;
+        return calls === 1 ? problem(request, 'raw_unavailable') : HttpResponse.json({ tasks: ['ok'] });
+      }),
+    );
+    const { user } = renderOn('analyst', opened(cited.id));
+    await openRaw(user);
+    expect(await screen.findByText('The raw answer is not available now. Try again later.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('{"tasks":["ok"]}')).toBeInTheDocument();
+    expect(calls).toBe(2);
+  });
+
+  it('says any other failure in the words of the download, with a retry', async () => {
+    server.use(
+      http.get(RAW, () =>
+        HttpResponse.json(
+          { type: 'about:blank', title: 'Server error', status: 500, code: 'internal_error' },
+          { status: 500 },
+        ),
+      ),
+    );
+    const { user } = renderOn('analyst', opened(cited.id));
+    await openRaw(user);
+    expect(
+      await screen.findByText('The raw answer could not be downloaded. Try again in a moment.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  });
+
+  it('passes the accessibility checks in the Raw view', async () => {
+    const { container, user } = renderOn('analyst', opened(cited.id));
+    await openRaw(user);
+    await screen.findByText(/"tasks"/);
+    expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('the answer viewer: going back to the marks, a new answer, and the provider link', () => {
+  const RAW_URL = 'https://a1.example/m?utm_source=chatgpt.com';
+  const TEXT = `Fynix and Rankforge lead. See ${RAW_URL} for the method.`;
+  const withMarker = (id = '2000001'): ObservationDetail =>
+    detail({
+      observation_id: id,
+      answer_text: TEXT,
+      citation_count: 1,
+      mentions: [mentionOf('Fynix', [[0, 5]], 'own'), mentionOf('Rankforge', [[10, 19]], 'competitor')],
+      citations: [citationOf(1, { first_char_offset: TEXT.indexOf(RAW_URL), raw_url: RAW_URL })],
+    });
+  const sources = (): HTMLElement => screen.getByRole('list', { name: 'Sources cited in this answer' });
+  const showInAnswer = (): HTMLElement => within(sources()).getByRole('button', { name: 'Show in answer, citation 1' });
+
+  it('goes back to the marked text from Formatted on "Show in answer", and focuses the marker', async () => {
+    serve(withMarker());
+    const { user } = renderOn('viewer', opened('2000001'));
+    await screen.findByRole('button', { name: 'Citation 1: a1.example' });
+    await user.click(screen.getByRole('radio', { name: 'Formatted' }));
+    expect(screen.queryByRole('button', { name: 'Citation 1: a1.example' })).toBeNull();
+    await user.click(showInAnswer());
+    expect(screen.getByRole('radio', { name: 'Evidence' })).toBeChecked();
+    const marker = await screen.findByRole('button', { name: 'Citation 1: a1.example' });
+    await waitFor(() => expect(marker).toHaveFocus());
+    expect(marker).toHaveAttribute('data-active');
+  });
+
+  it('goes back to the marked text from Raw on "Show in answer", and focuses the marker', async () => {
+    serve(withMarker());
+    // The made-up answer has no payload in the mocks
+    server.use(http.get(mswPath(`${P}/ai/observations/{observation_id}/raw`), () => HttpResponse.json({ tasks: [] })));
+    const { user } = renderOn('analyst', opened('2000001'));
+    await screen.findByRole('button', { name: 'Citation 1: a1.example' });
+    await user.click(screen.getByRole('radio', { name: 'Raw' }));
+    await screen.findByText(/"tasks"/);
+    expect(screen.queryByRole('button', { name: 'Citation 1: a1.example' })).toBeNull();
+    await user.click(showInAnswer());
+    expect(screen.getByRole('radio', { name: 'Evidence' })).toBeChecked();
+    const marker = await screen.findByRole('button', { name: 'Citation 1: a1.example' });
+    await waitFor(() => expect(marker).toHaveFocus());
+  });
+
+  it('starts the view, the toggles and the focused citation again when another answer is opened', async () => {
+    server.use(
+      http.get(DETAIL, ({ params }) => HttpResponse.json({ data: withMarker(String(params.observation_id)) })),
+    );
+    document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('viewer').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
+    const element = (observationId: string): ReactElement => (
+      <PermissionProvider membership={membershipFactory('viewer')}>
+        <AnswerInspector
+          scope={{ workspaceId: MOCK_WORKSPACE.workspace_id, projectId }}
+          observationId={observationId}
+          timeZone="Europe/Berlin"
+          engines={[]}
+          onBack={vi.fn()}
+          onClose={vi.fn()}
+        />
+      </PermissionProvider>
+    );
+    const { user, rerender } = renderWithProviders(element('2000001'));
+    const panel = await viewer();
+    await user.click(await within(panel).findByRole('checkbox', { name: 'Rankforge' }));
+    await user.click(within(panel).getByRole('button', { name: 'Citation 1: a1.example' }));
+    expect(within(sources()).getByRole('link', { name: 'Source 1' }).closest('li')).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+    await user.click(within(panel).getByRole('radio', { name: 'Formatted' }));
+    rerender(element('2000002'));
+    await screen.findByLabelText(/^Rankforge mention/);
+    expect(screen.getByRole('radio', { name: 'Evidence' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Rankforge' })).toBeChecked();
+    expect(within(sources()).getByRole('link', { name: 'Source 1' }).closest('li')).not.toHaveAttribute('aria-current');
+  });
+
+  it('cuts the Formatted view at 200,000 characters with the note of the Raw view', async () => {
+    serve(detail({ answer_text: 'x'.repeat(250_000), mentions: [] }));
+    const { user } = renderOn('viewer', opened('2000001'));
+    await user.click(await screen.findByRole('radio', { name: 'Formatted' }));
+    const text = await screen.findByText(/^x+$/);
+    expect(text.textContent).toHaveLength(200_000);
+    expect(
+      screen.getByText('Showing the first 200,000 characters. Download the raw answer for the rest.'),
+    ).toBeInTheDocument();
+  });
+
+  it('opens the provider link in a new tab that cannot reach back, and links only a web address without credentials', async () => {
+    serve(detail({ check_url: 'https://chatgpt.com/c/abc' }));
+    const view = renderOn('viewer', opened('2000001'));
+    const link = await screen.findByRole('link', { name: 'Open the answer at the provider' });
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    view.unmount();
+    for (const address of [
+      'javascript:alert(1)',
+      'data:text/html,x',
+      'ftp://example.com/',
+      'https://user:pw@evil.example/',
+    ]) {
+      serve(detail({ check_url: address }));
+      const again = renderOn('viewer', opened('2000001'));
+      await viewer();
+      await screen.findByText('Fynix and Rankforge lead.');
+      expect(screen.queryByRole('link', { name: 'Open the answer at the provider' }), address).toBeNull();
+      again.unmount();
+    }
   });
 });

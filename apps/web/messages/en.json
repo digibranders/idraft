@@ -1115,6 +1115,43 @@
       "label": "{entity} mention, {match}, confidence {confidence}",
       "uncertain": "Uncertain match, excluded from rates",
       "viaProduct": "{entity} via {product}"
+    },
+    "citationMarker": {
+      "text": "[{index}]",
+      "label": "Citation {index}: {host}"
+    },
+    "citationList": {
+      "label": "Sources cited in this answer",
+      "roles": {
+        "own": "Own",
+        "competitor": "Competitor",
+        "thirdParty": "Third party"
+      },
+      "flags": {
+        "unresolvedRedirect": "Redirect not resolved. Left out of the counts.",
+        "engineInternal": "An address of the engine itself. Left out of the counts."
+      },
+      "copy": "Copy the address of citation {index}",
+      "copied": "Address of citation {index} copied",
+      "showInAnswer": "Show in answer",
+      "showInAnswerNamed": "Show in answer, citation {index}",
+      "quoteLead": "Quoted passage:"
+    },
+    "entityToggle": {
+      "legend": "Entities",
+      "spanCount": "{count, plural, one {# mark} other {# marks}}"
+    },
+    "viewMode": {
+      "label": "Answer view",
+      "evidence": "Evidence",
+      "formatted": "Formatted",
+      "raw": "Raw"
+    },
+    "raw": {
+      "loading": "Loading the raw answer",
+      "failedTitle": "The raw answer could not be shown",
+      "expiredTitle": "No raw answer to show",
+      "truncated": "Showing the first {count} characters. Download the raw answer for the rest."
     }
   },
   "dataRetention": {
