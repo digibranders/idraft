@@ -1,4 +1,3 @@
-# renumber at push time: next free number, down_revision = the head on origin/develop
 """AI prompts: where the type and the branded flag came from.
 
 `prompt_type_source` says whether the type was set by the server's wording rule (`rule`) or
@@ -10,8 +9,8 @@ rewrite. The API role may change both, like the columns they describe.
 
 The downgrade drops both columns and what they say (local development only, as for 0018).
 
-Revision ID: 0021
-Revises: 0020
+Revision ID: 0022
+Revises: 0021
 """
 
 from __future__ import annotations
@@ -20,8 +19,8 @@ from alembic import op
 
 from idraft.db.ddl import column_grant
 
-revision: str = "0021"
-down_revision: str | None = "0020"
+revision: str = "0022"
+down_revision: str | None = "0021"
 branch_labels: str | tuple[str, ...] | None = None
 depends_on: str | tuple[str, ...] | None = None
 
