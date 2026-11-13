@@ -17,6 +17,7 @@ const GROUP_TITLES = [
   'BudgetMeter',
   'Banner in the inspector',
   'SampleCount',
+  'ConfidenceIndicator',
   'MetricInfo',
   'StatisticsPanel',
 ];
@@ -43,4 +44,36 @@ describe('the metric parts section', () => {
     },
     SECTION_TIMEOUT_MS,
   );
+
+  it('shows each form of the confidence indicator', () => {
+    document.documentElement.className = 'light';
+    const { container } = renderWithProviders(<MetricPartsSection />);
+    const group = within(container).getByRole('heading', { level: 2, name: 'ConfidenceIndicator' }).closest('section');
+    if (group === null) throw new Error('The ConfidenceIndicator group is missing');
+
+    const rowOf = (label: string): HTMLElement => {
+      const row = within(group).getByText(label).parentElement;
+      if (row === null) throw new Error(`The ${label} row is missing`);
+      return row;
+    };
+    const labels = Array.from(group.querySelectorAll('.type-label')).map((node) => node.textContent);
+    expect(labels).toEqual(['Text', 'Text and bar', 'Bar', 'Unknown']);
+
+    const text = rowOf('Text');
+    expect(text.querySelector('[data-slot="confidence-bar"]')).toBeNull();
+    expect(text.textContent).toMatch(/%/);
+
+    const both = rowOf('Text and bar');
+    expect(both.querySelector('[data-slot="confidence-bar"]')).not.toBeNull();
+    expect(both.textContent).toMatch(/%/);
+
+    const bar = rowOf('Bar');
+    expect(bar.querySelector('[data-slot="confidence-bar"]')).not.toBeNull();
+    expect(bar.textContent).not.toMatch(/%/);
+
+    const unknown = rowOf('Unknown');
+    expect(unknown.querySelector('[data-slot="confidence-bar"]')).toBeNull();
+    expect(unknown.textContent).not.toMatch(/%/);
+    expect(unknown.textContent).toContain('n/a');
+  });
 });

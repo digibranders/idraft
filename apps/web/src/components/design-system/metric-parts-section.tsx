@@ -6,6 +6,7 @@ import { SpecimenGroup, SpecimenRow } from './specimen';
 import { TableScroll } from './table-scroll';
 import { EngineBadge } from '@/components/app/engine/engine-badge';
 import { EngineLogo } from '@/components/app/engine/engine-logo';
+import { ConfidenceIndicator } from '@/components/app/metric/confidence-indicator';
 import { Delta, type DeltaTip } from '@/components/app/metric/delta';
 import { DeltaCell } from '@/components/app/metric/delta-cell';
 import { BudgetMeter, Meter, type MeterProps } from '@/components/app/metric/meter';
@@ -396,6 +397,30 @@ export function MetricPartsSection(): ReactNode {
         </SpecimenRow>
         <SpecimenRow label="Unknown">
           <SampleCount k={null} n={null} noun="observations" />
+        </SpecimenRow>
+      </SpecimenGroup>
+
+      <SpecimenGroup
+        title="ConfidenceIndicator"
+        note="23 section 8. The interval is the 95 percent Wilson interval; an unknown estimate shows no bar."
+      >
+        <SpecimenRow label="Text">
+          <ConfidenceIndicator estimate={0.34} low={0.312} high={0.369} form="text" label="95% interval 31% to 37%" />
+        </SpecimenRow>
+        <SpecimenRow label="Text and bar">
+          <ConfidenceIndicator
+            estimate={0.34}
+            low={0.312}
+            high={0.369}
+            form="text-and-bar"
+            label="95% interval 31% to 37%"
+          />
+        </SpecimenRow>
+        <SpecimenRow label="Bar">
+          <ConfidenceIndicator estimate={0.34} low={0.312} high={0.369} form="bar" label="95% interval 31% to 37%" />
+        </SpecimenRow>
+        <SpecimenRow label="Unknown">
+          <ConfidenceIndicator estimate={null} low={null} high={null} form="text-and-bar" label="No estimate yet" />
         </SpecimenRow>
       </SpecimenGroup>
 
