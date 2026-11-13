@@ -41,7 +41,7 @@ import { projectKey } from '@/lib/api/keys';
 import { isApiProblem, retryMinutes, type ApiProblem } from '@/lib/api/problem';
 import { useErrorId } from '@/lib/api/use-error-id';
 import type { ProjectEngine, Prompt } from '@/lib/api/types';
-import { EMPTY_VALUE, formatDetailDateTime, formatInteger, formatList } from '@/lib/format';
+import { EMPTY_VALUE, formatDetailDateTime, formatInteger, formatList, formatRelative } from '@/lib/format';
 import { languageName } from '@/lib/format/language';
 import { useCountries } from '@/lib/locations/countries';
 import { useCan, useMembership } from '@/lib/permissions';
@@ -396,18 +396,25 @@ export function PromptInspector({
         typeLabel: t('type'),
         typeNoun: t('noun'),
         positionText,
+        freshness:
+          counts.row?.last_observed_at == null ? null : (
+            <span>{t('updated', { time: formatRelative(counts.row.last_observed_at, timeZone) })}</span>
+          ),
         navigation,
         badges:
           prompt === null && topic == null ? null : (
             <span className="inline-flex flex-wrap items-center gap-1.5">
               {topic == null ? (
-                firstTopic === undefined ? null : firstTopic.path === firstTopic.name ? (
+                firstTopic === undefined ? null : !firstTopic.path.includes('/') ? (
                   <Badge>{firstTopic.name}</Badge>
                 ) : (
-                  // Where the topic sits in its tree is the tooltip; the badge takes the keyboard so it reaches it. It
-                  // is no button: a prompt that was not opened from a topic has no way back to one (decision 8)
+                  // A topic below another is named by its path (WB-PI-06), cut short in a narrow header; the tooltip
+                  // has it whole, and the badge takes the keyboard so it reaches it. It is no button: a prompt that
+                  // was not opened from a topic has no way back to one (decision 8)
                   <Tooltip content={firstTopic.path}>
-                    <Badge tabIndex={0}>{firstTopic.name}</Badge>
+                    <Badge tabIndex={0} className="max-w-full truncate">
+                      {firstTopic.path}
+                    </Badge>
                   </Tooltip>
                 )
               ) : (
@@ -473,6 +480,7 @@ export function PromptInspector({
             value={current}
             onValueChange={onTabChange}
             items={tabs.map((entry) => ({ value: entry.id, label: entry.label(root) }))}
+            overflowLabel={t('moreTabs')}
           >
             {tabs.map((entry) => (
               <InspectorPanel<string> key={entry.id} value={entry.id}>

@@ -9,6 +9,7 @@ import type { ObservationSummary, Role } from '@/lib/api/types';
 import { projectKey } from '@/lib/api/keys';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
+import { MOCK_TERM_IDS } from '@/mocks/entity-fixtures';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { FIXTURE_PROMPTS, promptId } from '@/mocks/prompt-fixtures';
 import { promptsOf } from '@/mocks/prompts-state';
@@ -125,6 +126,90 @@ describe('the prompt inspector: what it shows', () => {
     expect(within(strip).getByText('33%')).toBeInTheDocument();
     expect(within(strip).getByText('avg of 2')).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('shows when the prompt was last answered beside its position', async () => {
+    renderOn('viewer', opened);
+    const inspector = await panel();
+    // The mock's newest answer came at 02:00 UTC on the day of NOW, ten hours before it
+    const meta = await within(inspector).findByText('Updated 10h ago');
+    expect(meta.closest('p')).toHaveTextContent(/\d+ of \d+.*Updated 10h ago$/);
+  });
+
+  it('measures freshness from the last answer of any kind, not from the last valid one', async () => {
+    server.use(
+      http.get(mswPath(`${P}/ai/prompts-summary`), () =>
+        HttpResponse.json({
+          data: {
+            window: { from: '2026-10-16', to: '2026-11-12', timezone: 'Europe/Berlin' },
+            include_branded: false,
+            engine_codes: [],
+            prompts: [
+              {
+                prompt_id: first.prompt_id,
+                text: first.text,
+                is_branded: false,
+                topic_term_ids: [],
+                last_observed_at: '2026-11-12T08:00:00Z',
+                last_valid_at: '2026-11-10T08:00:00Z',
+                engines: [],
+              },
+            ],
+            topics: [],
+          },
+        }),
+      ),
+    );
+    renderOn('viewer', opened);
+    const inspector = await panel();
+    expect(await within(inspector).findByText('Updated 4h ago')).toBeInTheDocument();
+  });
+
+  it('shows no freshness for a prompt whose summary row has no answer time', async () => {
+    server.use(
+      http.get(mswPath(`${P}/ai/prompts-summary`), () =>
+        HttpResponse.json({
+          data: {
+            window: { from: '2026-10-16', to: '2026-11-12', timezone: 'Europe/Berlin' },
+            include_branded: false,
+            engine_codes: [],
+            prompts: [
+              {
+                prompt_id: first.prompt_id,
+                text: first.text,
+                is_branded: false,
+                topic_term_ids: [],
+                last_observed_at: null,
+                last_valid_at: null,
+                engines: [],
+              },
+            ],
+            topics: [],
+          },
+        }),
+      ),
+    );
+    renderOn('viewer', opened);
+    const inspector = await panel();
+    await within(inspector).findByText('English');
+    expect(within(inspector).queryByText(/^Updated/)).toBeNull();
+    expect(within(inspector).queryByText(/never/i)).toBeNull();
+  });
+
+  it('shows the topic path as the badge when the prompt is opened from the Prompts tab', async () => {
+    const stored = promptsOf(fynix.project_id).prompts.find((prompt) => prompt.prompt_id === first.prompt_id);
+    if (stored === undefined) throw new Error('The stored prompt is missing');
+    stored.term_ids = [MOCK_TERM_IDS.technicalSeo];
+    renderOn('viewer', opened);
+    const inspector = await panel();
+    // The tooltip keeps its own copy of the path for assistive technology: the badge is the one the keyboard reaches
+    await within(inspector).findByText('Technical SEO');
+    const badges = within(inspector)
+      .getAllByText('seo/technical-seo')
+      .filter((element) => element.getAttribute('tabindex') === '0');
+    expect(badges).toHaveLength(1);
+    // The topic stays a fact, by its name
+    expect(within(inspector).getByText('Technical SEO')).toBeInTheDocument();
   });
 
   it('lists the latest ten answers of the prompt on the History tab', async () => {
