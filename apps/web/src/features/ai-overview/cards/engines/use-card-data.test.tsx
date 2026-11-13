@@ -258,6 +258,21 @@ describe('useCardData', () => {
     expect(seen).toHaveLength(0);
   });
 
+  it('is an error, not an empty card, when the engines of the project cannot be read, and retry reads them again', async () => {
+    server.use(http.get(`${PROJECT_PATH}/engines`, () => failing('req-engines')));
+    const { result } = hookOf({ previous: 'none' });
+    await waitFor(() => {
+      expect(result.current.phase).toBe('error');
+    });
+    expect(result.current.errorId).toBe('req-engines');
+
+    server.resetHandlers();
+    act(() => {
+      result.current.retry();
+    });
+    await ready(result);
+  });
+
   it('is loading while the engines of the project are not known, not empty', () => {
     const { result } = hookOf({ previous: 'none' });
     expect(result.current.engines.status).toBe('loading');

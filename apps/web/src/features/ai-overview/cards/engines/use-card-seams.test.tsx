@@ -71,8 +71,35 @@ describe('useCardExport', () => {
       );
     }
     const { user } = renderWithProviders(cardInOverview({ type: TYPE, Card }));
-    await user.click(await screen.findByRole('button', { name: 'Remove' }));
+    const remove = await screen.findByRole('button', { name: 'Remove' });
+    expect(read().blocks).toHaveLength(1);
+    await user.click(remove);
     expect(read().blocks).toEqual([]);
+  });
+
+  it('keeps one block per item id, so two instances of one card type export two tables', async () => {
+    let read: () => ExportRead = () => ({ blocks: [], loading: 0 });
+    function Exporting({ id }: { id: string }): ReactElement {
+      useCardExport(id, () => ({ id, header: ['Engine'], rows: [[id]] }));
+      return <></>;
+    }
+    function Card(): ReactElement {
+      const reader = useExportBlocks();
+      read = reader;
+      return <p>two instances</p>;
+    }
+    function Page(): ReactElement {
+      return (
+        <ExportProvider>
+          <Card />
+          <Exporting id="item-1" />
+          <Exporting id="item-2" />
+        </ExportProvider>
+      );
+    }
+    renderWithProviders(cardInOverview({ type: TYPE, Card: Page }));
+    await screen.findByText('two instances');
+    expect(read().blocks.map((block) => block.id)).toEqual(['item-1', 'item-2']);
   });
 
   it('keeps the block while mounted', async () => {

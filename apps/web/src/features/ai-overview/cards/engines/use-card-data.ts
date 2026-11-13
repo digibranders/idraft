@@ -106,18 +106,26 @@ export function useCardData({ previous: need, include, sources = false }: CardDa
     settled: periods.settled,
     hasContent,
   });
-  // The engines come first: until they are known no read runs, which is waiting and not an empty card
-  const phase: CardPhase = engines.status === 'loading' ? 'loading' : state.phase;
+  // The engines come first: until they are known no read runs, which is waiting and not an empty card; when they
+  // cannot be read every read is idle, which is a failure of the card and not "no engine is on"
+  const phase: CardPhase =
+    engines.status === 'loading' ? 'loading' : engines.status === 'error' ? 'error' : state.phase;
 
   const currentRefetch = periods.current.refetch;
   const previousFailed = periods.previous?.status === 'error';
   const previousRefetch = periods.previous?.refetch;
+  const enginesFailed = engines.status === 'error';
+  const enginesRefetch = engines.refetch;
   const retry = useCallback((): void => {
+    if (enginesFailed) enginesRefetch();
     currentRefetch();
     if (previousFailed) previousRefetch?.();
-  }, [currentRefetch, previousFailed, previousRefetch]);
+  }, [enginesFailed, enginesRefetch, currentRefetch, previousFailed, previousRefetch]);
 
-  const errorId = periods.current.errorId ?? (need === 'required' ? (periods.previous?.errorId ?? null) : null);
+  const errorId =
+    (enginesFailed ? engines.errorId : null) ??
+    periods.current.errorId ??
+    (need === 'required' ? (periods.previous?.errorId ?? null) : null);
   return {
     scope,
     project,
