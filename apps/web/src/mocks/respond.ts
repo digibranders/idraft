@@ -102,6 +102,7 @@ const PROBLEMS = {
   check_pending: [409, 'A check is already under way'],
   single_valued_violation: [409, 'A keyword has two terms of this vocabulary'],
   raw_expired: [410, 'The raw answer is past its retention'],
+  precondition_failed: [412, 'The resource has changed'],
   payload_too_large: [413, 'Payload too large'],
   unsupported_media_type: [415, 'Unsupported media type'],
   quota_exceeded: [422, 'Workspace limit reached'],
