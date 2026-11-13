@@ -8,16 +8,16 @@ to every partition. Table-level grants (the worker inserts, the API reads) alrea
 
 The downgrade drops the column and what it holds (local development only, as for 0018).
 
-Revision ID: 0023
-Revises: 0022
+Revision ID: 0024
+Revises: 0023
 """
 
 from __future__ import annotations
 
 from alembic import op
 
-revision: str = "0023"
-down_revision: str | None = "0022"
+revision: str = "0024"
+down_revision: str | None = "0023"
 branch_labels: str | tuple[str, ...] | None = None
 depends_on: str | tuple[str, ...] | None = None
 
