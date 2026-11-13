@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CitationInspectorHost } from './inspector-host';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import type { SourceDomainDetail, SourcePageRow } from '@/lib/citations/types';
+import type { InspectorTarget } from '@/lib/inspector/placement';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { mswPath } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
@@ -79,12 +80,18 @@ const DETAIL: SourceDomainDetail = {
   },
 };
 
-function Host({ tab }: { tab: string }): ReactElement {
+function Host({
+  tab,
+  target = { type: 'domain', id: 'G2.com' },
+}: {
+  tab: string;
+  target?: InspectorTarget;
+}): ReactElement {
   return (
     <InspectorLayout
       inspector={
         <CitationInspectorHost
-          target={{ type: 'domain', id: 'G2.com' }}
+          target={target}
           source={{ workspaceId: MOCK_WORKSPACE.workspace_id, projectId: 'p-fynix' }}
           filters={{ from: '2026-10-16', to: '2026-11-12', engines: ['chatgpt_web'] }}
           timeZone="UTC"
@@ -152,5 +159,74 @@ describe('the links of the domain inspector tabs', () => {
     const inspector = await screen.findByRole('complementary', { name: 'g2.com' });
     const link = await within(inspector).findByRole('link', { name: 'Which CRM?' });
     expect(link).toHaveAttribute('href', `/digibranders/fynix/ai/prompts?inspect=prompt%3A${PROMPT_ID}`);
+  });
+});
+
+describe('the host for a source', () => {
+  const citation = {
+    citation_index: 2,
+    citation_kind: 'link',
+    domain_role: 'third_party' as const,
+    engine_code: 'chatgpt_web' as const,
+    host: 'g2.com',
+    observation_id: '1001',
+    observed_at: '2026-11-10T08:00:00Z',
+    occurrences: 1,
+    prompt_id: PROMPT_ID,
+    raw_url: 'https://g2.com/page-3',
+    registrable_domain: 'g2.com',
+    role_entity_id: null,
+    title: 'Page three',
+    url: 'https://g2.com/page-3',
+    url_id: 103,
+  };
+
+  beforeEach(() => {
+    server.use(
+      http.get(mswPath(`${P}/ai/citations`), () =>
+        HttpResponse.json({ data: [citation], page: { has_more: false, limit: 100, next_cursor: null } }),
+      ),
+      http.get(mswPath(`${P}/ai/sources/pages`), () =>
+        HttpResponse.json({
+          data: [pageOf(3)],
+          page: { limit: 200, offset: 0, total: 1 },
+          meta: DETAIL.meta,
+        }),
+      ),
+    );
+  });
+
+  it('opens the source inspector for a source in the address', async () => {
+    renderWithProviders(<Host tab="overview" target={{ type: 'source', id: '103' }} />);
+    const inspector = await screen.findByRole('complementary', { name: 'Page three' });
+    expect(within(inspector).getByText('Source')).toBeInTheDocument();
+    expect(await within(inspector).findByRole('group', { name: 'Source summary' })).toBeInTheDocument();
+  });
+
+  it('links to the domain inspector beside the list as it is, on a tab of its own', async () => {
+    const { user } = renderWithProviders(<Host tab="overview" target={{ type: 'source', id: '103' }} />);
+    const inspector = await screen.findByRole('complementary', { name: 'Page three' });
+    await user.click(within(inspector).getByRole('button', { name: 'More actions for Page three' }));
+    const link = await screen.findByRole('menuitem', { name: 'Open domain' });
+    const href = new URL(String(link.getAttribute('href')), 'https://example.test');
+    expect(href.pathname).toBe('/digibranders/fynix/ai/citations');
+    expect(href.searchParams.get('inspect')).toBe('domain:g2.com');
+    expect(href.searchParams.has('itab')).toBe(false);
+    expect(href.searchParams.get('from')).toBe('2026-10-16');
+    expect(href.searchParams.get('engine')).toBe('chatgpt_web');
+    expect(href.searchParams.get('tab')).toBe('domains');
+  });
+
+  it('says a source id that is no number is not there', async () => {
+    renderWithProviders(<Host tab="overview" target={{ type: 'source', id: 'g2.com' }} />);
+    const inspector = await screen.findByRole('complementary', { name: 'Source g2.com' });
+    expect(
+      await within(inspector).findByText('This source does not exist or you do not have access to it.'),
+    ).toBeInTheDocument();
+  });
+
+  it('still opens the domain inspector for a domain', async () => {
+    renderWithProviders(<Host tab="overview" />);
+    expect(await screen.findByRole('complementary', { name: 'g2.com' })).toBeInTheDocument();
   });
 });

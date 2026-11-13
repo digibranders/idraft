@@ -52,6 +52,8 @@ export interface DomainColumnOptions {
   moreHref: (registrable: string) => Route;
   /** Where a domain's name leads: its inspector. Without it the name is text (a page with no inspector). */
   domainHref?: ((registrable: string) => Route) | undefined;
+  /** Where a page's path leads: its source inspector. Without it the path is the outbound link. */
+  pageHref?: ((urlId: number) => Route) | undefined;
   /** Retry on the row that says a domain's pages could not be loaded; `parentId` is the domain's row id. */
   onRetryPages?: ((parentId: string) => void) | undefined;
 }
@@ -135,7 +137,7 @@ function TrendCell({
   );
 }
 
-/** The columns of the Domains table. The caller keeps `moreHref`, `domainHref` and `onRetryPages` stable between renders. */
+/** The columns of the Domains table. The caller keeps `moreHref`, `domainHref`, `pageHref` and `onRetryPages` stable between renders. */
 export function useDomainColumns({
   engines,
   meta,
@@ -146,6 +148,7 @@ export function useDomainColumns({
   locale,
   moreHref,
   domainHref,
+  pageHref,
   onRetryPages,
 }: DomainColumnOptions): readonly DataTableColumn<CitationTableRow>[] {
   return useMemo(() => {
@@ -186,7 +189,15 @@ export function useDomainColumns({
               />
             );
           case 'page':
-            return <URLCell url={row.page.url} hostDisplay="hide" label={t('urlLabel')} title={row.page.title} />;
+            return (
+              <URLCell
+                url={row.page.url}
+                hostDisplay="hide"
+                label={t('urlLabel')}
+                title={row.page.title}
+                inspectorHref={pageHref?.(row.page.url_id)}
+              />
+            );
           case 'more':
             return (
               <TextLink render={<Link href={moreHref(row.registrable)} />} {...GRID_LINK}>
@@ -415,5 +426,5 @@ export function useDomainColumns({
     );
 
     return [domain, role, category, units, share, change, ...engineColumns, answers, prompts, citedWith, status, trend];
-  }, [engines, meta, previousMeta, entities, density, t, locale, moreHref, domainHref, onRetryPages]);
+  }, [engines, meta, previousMeta, entities, density, t, locale, moreHref, domainHref, pageHref, onRetryPages]);
 }

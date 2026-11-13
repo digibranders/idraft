@@ -54,9 +54,10 @@ const ownRow = (row: CitationTableRow): 'own' | undefined => {
  * The Domains tab (DS 9.7, WB-CIT-06 to 09): the cited domains of the scope as a tree. A domain opens onto its top
  * 10 pages, read only while it is open, and "View all N pages" goes to the Pages tab filtered to it. The server
  * sorts (one select) and leaves out the rows below the minimum; shares are always of the whole scope. A row click
- * opens or closes the row (a group row never opens an inspector, plan F6): the domain's name is the link to its
- * inspector, and the row menu has "Open domain" for the keyboard. The tab reports its domains in the order it lists
- * them, which Previous, Next, J and K step through.
+ * opens or closes a domain row (a group row never opens an inspector, plan F6): the domain's name is the link to its
+ * inspector, and the row menu has "Open domain" for the keyboard. A page row opens the source inspector, by a click
+ * or by its path, which is a link. The tab reports its domains and the pages of the open ones, each in the order it
+ * lists them, which Previous, Next, J and K step through.
  */
 export function DomainsTab({ context }: DomainsTabProps): ReactElement {
   const { source, workspaceSlug, projectSlug, scope, filters, enabledEngines, labelOf, previousMeta, setSearch } =
@@ -131,6 +132,10 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
       hrefOf === undefined ? undefined : (registrable: string): Route => hrefOf({ type: 'domain', id: registrable }),
     [hrefOf],
   );
+  const pageHref = useMemo(
+    () => (hrefOf === undefined ? undefined : (urlId: number): Route => hrefOf({ type: 'source', id: String(urlId) })),
+    [hrefOf],
+  );
   const columns = useDomainColumns({
     engines,
     meta,
@@ -141,6 +146,7 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
     locale,
     moreHref,
     domainHref,
+    pageHref,
     onRetryPages: pages.retry,
   });
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
@@ -168,15 +174,25 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
     });
   }, []);
 
-  // The domains in the order the table lists them (a domain read in several roles is one step; a page is none)
+  // The domains in the order the table lists them (a domain read in several roles is one step; a page is none), and
+  // the pages of the open domains in theirs: the domain inspector steps through the first, the source inspector
+  // through the second
   const setOrder = inspect?.setOrder;
   useEffect(() => {
     if (setOrder === undefined || !active) return;
+    setOrder('source', [...new Set(rows.flatMap((row) => (row.kind === 'page' ? [String(row.page.url_id)] : [])))]);
     setOrder('domain', [
       ...new Set(rows.flatMap((row) => (row.kind === 'domain' ? [row.domain.registrable_domain] : []))),
     ]);
   }, [setOrder, active, rows]);
   const openInInspector = inspect?.open;
+  // A group row never opens anything (plan F6); a page row does
+  const openRow = useCallback(
+    (row: CitationTableRow, intent: 'inspector' | 'new-tab'): void => {
+      if (row.kind === 'page') openInInspector?.({ type: 'source', id: String(row.page.url_id) }, intent);
+    },
+    [openInInspector],
+  );
   const rowActions = useCallback(
     (row: CitationTableRow): readonly RecordAction<CitationTableRow>[] =>
       openInInspector === undefined || row.kind !== 'domain'
@@ -191,15 +207,17 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
           ],
     [openInInspector, inspectorWords],
   );
-  // The open domain's first row: a domain read in several roles is several rows, and one is current
-  const openDomain = inspect?.target?.type === 'domain' ? inspect.target.id.toLowerCase() : null;
-  const activeRowId = useMemo(
-    () =>
-      openDomain === null
-        ? null
-        : (rows.find((row) => row.kind === 'domain' && row.domain.registrable_domain === openDomain)?.id ?? null),
-    [rows, openDomain],
-  );
+  // The open record's first row: a domain read in several roles is several rows, and one is current; so is the open
+  // page, which has a row only under a domain that is open
+  const target = inspect?.target ?? null;
+  const activeRowId = useMemo(() => {
+    if (target === null) return null;
+    const match = (row: CitationTableRow): boolean =>
+      target.type === 'domain'
+        ? row.kind === 'domain' && row.domain.registrable_domain === target.id.toLowerCase()
+        : target.type === 'source' && row.kind === 'page' && String(row.page.url_id) === target.id;
+    return rows.find(match)?.id ?? null;
+  }, [rows, target]);
 
   const filtering = Object.keys(filterBar.values).length > 0 || query !== '';
   // A minimum other than the default can be what left no row: Clear filters puts it back
@@ -285,6 +303,7 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
           rowTree={rowTree}
           onToggleGroup={toggle}
           rowActions={rowActions}
+          onRowOpen={openInInspector === undefined ? undefined : openRow}
           activeRowId={activeRowId}
           rowTone={ownRow}
           status={status}

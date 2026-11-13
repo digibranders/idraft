@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useCallback, useMemo, type ReactElement } from 'react';
 
 import { DomainInspector } from './domain-inspector';
+import { SourceInspector } from '../source-inspector';
 import type { InspectorNavigation } from '@/components/app/inspector/inspector-header';
 import type { SourceFilters } from '@/lib/citations/source-queries';
 import type { EngineCode, SourceScope } from '@/lib/citations/types';
@@ -17,7 +18,7 @@ import { projectPath, rankingsPath, withQuery } from '@/lib/routes/paths';
 const DROPPED_KEYS = ['inspect', 'itab', 'cols'] as const;
 
 export interface CitationInspectorHostProps {
-  /** The record the address names; `null` for none. Only a domain opens an inspector so far. */
+  /** The record the address names; `null` for none. A domain or a source (a cited page) opens one. */
   target: InspectorTarget | null;
   source: SourceScope;
   filters: SourceFilters;
@@ -37,8 +38,9 @@ export interface CitationInspectorHostProps {
 }
 
 /**
- * The inspector of the Citations page: the one record the address names (`?inspect=domain:<registrable domain>`),
- * stepped through in the order of the table it was opened from. The source inspector joins the domain's here.
+ * The inspector of the Citations page: the one record the address names (`?inspect=domain:<registrable domain>` or
+ * `?inspect=source:<url_id>`), stepped through in the order of the table it was opened from. The two share the tab
+ * address (`itab`), the position and the way to step.
  */
 export function CitationInspectorHost({
   target,
@@ -54,7 +56,8 @@ export function CitationInspectorHost({
   onTabChange,
   onClose,
 }: CitationInspectorHostProps): ReactElement | null {
-  const t = useTranslations('citations.inspectors.domain');
+  const domainWords = useTranslations('citations.inspectors.domain');
+  const sourceWords = useTranslations('citations.inspectors.source');
   const address = useSearchParams().toString();
   const registrable = target?.type === 'domain' ? target.id.toLowerCase() : null;
   const pagesHref = useMemo((): Route => {
@@ -64,15 +67,23 @@ export function CitationInspectorHost({
     next.set('domain', formatText({ operator: 'equals', text: registrable ?? '' }));
     return withQuery(projectPath(workspaceSlug, projectSlug, '/ai/citations'), next.toString());
   }, [address, workspaceSlug, projectSlug, registrable]);
-  // A page opens its source inspector beside the list as it is (the same scope, filters and view), on a tab of its own
-  const sourceHrefOf = useCallback(
-    (urlId: number): Route => {
+  // A record opens its inspector beside the list as it is (the same scope, filters and view), on a tab of its own
+  const inspectorHrefOf = useCallback(
+    (record: InspectorTarget): Route => {
       const next = new URLSearchParams(address);
-      next.set('inspect', formatInspectTarget({ type: 'source', id: String(urlId) }));
+      next.set('inspect', formatInspectTarget(record));
       next.delete('itab');
       return withQuery(projectPath(workspaceSlug, projectSlug, '/ai/citations'), next.toString());
     },
     [address, workspaceSlug, projectSlug],
+  );
+  const sourceHrefOf = useCallback(
+    (urlId: number): Route => inspectorHrefOf({ type: 'source', id: String(urlId) }),
+    [inspectorHrefOf],
+  );
+  const domainHrefOf = useCallback(
+    (name: string): Route => inspectorHrefOf({ type: 'domain', id: name }),
+    [inspectorHrefOf],
   );
   // A prompt opens on the prompts page, which keeps its own scope: only the record is named
   const promptHrefOf = useCallback(
@@ -83,7 +94,7 @@ export function CitationInspectorHost({
       ),
     [workspaceSlug, projectSlug],
   );
-  if (registrable === null) return null;
+  if (target?.type !== 'domain' && target?.type !== 'source') return null;
 
   const navigation: InspectorNavigation | null =
     position === null
@@ -94,18 +105,37 @@ export function CitationInspectorHost({
           atFirst: position.index === 0,
           atLast: position.index === position.count - 1,
         };
+  const places = position === null ? null : { index: position.index + 1, count: position.count };
+  if (target.type === 'source') {
+    return (
+      <SourceInspector
+        source={source}
+        filters={filters}
+        sourceId={target.id}
+        timeZone={timeZone}
+        engines={engines}
+        domainHref={domainHrefOf}
+        positionText={places === null ? null : sourceWords('position', places)}
+        navigation={navigation}
+        onStep={position === null ? undefined : onStep}
+        tab={tab}
+        onTabChange={onTabChange}
+        onClose={onClose}
+      />
+    );
+  }
   return (
     <DomainInspector
       source={source}
       filters={filters}
-      registrable={registrable}
+      registrable={target.id.toLowerCase()}
       timeZone={timeZone}
       engines={engines}
       pagesHref={pagesHref}
       rankingsHref={rankingsPath(workspaceSlug, projectSlug)}
       sourceHrefOf={sourceHrefOf}
       promptHrefOf={promptHrefOf}
-      positionText={position === null ? null : t('position', { index: position.index + 1, count: position.count })}
+      positionText={places === null ? null : domainWords('position', places)}
       navigation={navigation}
       onStep={position === null ? undefined : onStep}
       tab={tab}

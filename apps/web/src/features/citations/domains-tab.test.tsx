@@ -898,7 +898,11 @@ describe('DomainsTab and the domain inspector', () => {
     await user.click(within(table).getByRole('rowheader', { name: 'g2.com' }));
     await within(table).findByRole('link', { name: 'Open g2.com/products/p1 in a new tab' });
     expect(setOrder).toHaveBeenLastCalledWith('domain', ['g2.com', 'hubspot.com']);
-    expect(setOrder.mock.calls.every(([type]) => type === 'domain')).toBe(true);
+    // The page rows are steps of the source inspector's list, not of the domains': no page id reaches the domain order
+    const domainOrders = setOrder.mock.calls.filter(([type]) => type === 'domain').map(([, ids]) => ids);
+    expect(
+      domainOrders.every((ids: readonly string[]) => ids.every((id) => id === 'g2.com' || id === 'hubspot.com')),
+    ).toBe(true);
   });
 
   it('reports a domain read in several roles once', async () => {
@@ -915,5 +919,85 @@ describe('DomainsTab and the domain inspector', () => {
     await loaded();
     await user.type(screen.getByRole('searchbox', { name: 'Search in table' }), 'hub');
     await waitFor(() => expect(setOrder).toHaveBeenLastCalledWith('domain', ['hubspot.com']));
+  });
+});
+
+describe('DomainsTab and the source inspector', () => {
+  type Inspect = NonNullable<CitationTabContext['inspect']>;
+  function inspecting(target: Inspect['target'] = null): { inspect: Inspect; open: Mock; setOrder: Mock } {
+    const open = vi.fn();
+    const setOrder = vi.fn();
+    return {
+      open,
+      setOrder,
+      inspect: {
+        target,
+        open,
+        setOrder,
+        hrefOf: (next) => `/digibranders/fynix/ai/citations?inspect=${next.type}:${next.id}` as Route,
+      },
+    };
+  }
+  const expand = async (
+    user: ReturnType<typeof renderTab>['user'],
+    table: HTMLElement,
+    domain = 'g2.com',
+  ): Promise<void> => {
+    await user.click(within(table).getByRole('rowheader', { name: domain }));
+    await within(table).findByText('Page 1');
+  };
+
+  it('a page row of an open domain opens the source inspector (inspect=source:id)', async () => {
+    const { inspect, open } = inspecting();
+    const { user } = renderTab('', {}, { inspect });
+    const table = await loaded();
+    await expand(user, table);
+    await user.click(within(table).getByText('Page 2'));
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledWith({ type: 'source', id: '2' }, 'inspector');
+  });
+
+  it('makes the path of a page a link to its inspector, and a click on it does not open the row twice', async () => {
+    const { inspect, open } = inspecting();
+    const { user } = renderTab('', {}, { inspect });
+    const table = await loaded();
+    await expand(user, table);
+    const link = within(table).getByRole('link', { name: 'g2.com/products/p1' });
+    expect(link).toHaveAttribute('href', '/digibranders/fynix/ai/citations?inspect=source:1');
+    // jsdom cannot follow a link to another address
+    link.addEventListener('click', (event) => event.preventDefault());
+    await user.click(link);
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('leaves the path as the outbound link when the page offers no inspector', async () => {
+    const { user } = renderTab();
+    const table = await loaded();
+    await expand(user, table);
+    expect(within(table).queryByRole('link', { name: 'g2.com/products/p1' })).toBeNull();
+    expect(within(table).getByRole('link', { name: 'Open g2.com/products/p1 in a new tab' })).toBeInTheDocument();
+  });
+
+  it('reports the pages of the open domains as steps of their own, in the order of the table', async () => {
+    const { inspect, setOrder } = inspecting();
+    const { user } = renderTab('', {}, { inspect });
+    const table = await loaded();
+    // Nothing is open: no page is listed, and the order is empty rather than the last one
+    await waitFor(() => expect(setOrder).toHaveBeenCalledWith('domain', ['g2.com', 'hubspot.com']));
+    const sourceOrders = (): unknown[] =>
+      setOrder.mock.calls.filter(([type]) => type === 'source').map(([, ids]) => ids);
+    expect(sourceOrders().at(-1)).toEqual([]);
+    await expand(user, table);
+    await waitFor(() => expect(sourceOrders().at(-1)).toEqual(['1', '2']));
+  });
+
+  it('marks the open source as the current row of its domain', async () => {
+    const { inspect } = inspecting({ type: 'source', id: '2' });
+    const { user } = renderTab('', {}, { inspect });
+    const table = await loaded();
+    await expand(user, table);
+    const row = within(table).getByText('Page 2').closest('tr');
+    expect(row).toHaveAttribute('aria-current', 'true');
+    expect(rowOf(table, 'g2.com')).not.toHaveAttribute('aria-current');
   });
 });

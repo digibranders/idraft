@@ -1046,3 +1046,138 @@ describe('Citations page: the domain inspector', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 });
+
+describe('Citations page: the source inspector', () => {
+  const lastWrite = (writes: readonly string[]): URLSearchParams => new URLSearchParams(writes.at(-1));
+  const sourceIdOf = (link: HTMLElement): string[] => {
+    const id = new URL(link.getAttribute('href') ?? '', 'https://app.test').searchParams.get('inspect');
+    return id?.startsWith('source:') === true ? [id.slice('source:'.length)] : [];
+  };
+  /** The grid of the Pages tab once its rows have loaded. */
+  async function pagesGrid(): Promise<HTMLElement> {
+    const table = await screen.findByRole('grid', { name: 'Cited pages' });
+    await waitFor(() => expect(within(table).queryAllByRole('rowheader').length).toBeGreaterThan(0));
+    return table;
+  }
+  /** The pages the table links to, in its order: each link is the address of that page's inspector. */
+  async function listedPages(): Promise<string[]> {
+    const view = render('?tab=pages');
+    const table = await pagesGrid();
+    const ids = [...new Set(within(table).getAllByRole('link').flatMap(sourceIdOf))];
+    view.unmount();
+    expect(ids.length).toBeGreaterThan(2);
+    return ids;
+  }
+
+  beforeEach(() => {
+    registry.real = true;
+  });
+
+  it('a page row opens the source inspector (inspect=source:id)', async () => {
+    const [first] = await listedPages();
+    if (first === undefined) throw new Error('The table has no pages');
+    const writes: string[] = [];
+    const { user } = render('?tab=pages', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
+    const table = await pagesGrid();
+    const row = within(table).getAllByRole('rowheader')[0]?.closest('tr');
+    if (row === null || row === undefined) throw new Error('The table has no row');
+    // A cell that is no link: the units
+    const [, , units] = within(row).getAllByRole('gridcell');
+    if (units === undefined) throw new Error('The units cell is missing');
+    await user.click(units);
+    await waitFor(() => expect(lastWrite(writes).get('inspect')).toBe(`source:${first}`));
+    expect(lastWrite(writes).get('tab')).toBe('pages');
+    expect(await screen.findByRole('group', { name: 'Source summary' })).toBeInTheDocument();
+  });
+
+  it('makes the path of a page a link to its inspector, and a click on it does not open the row twice', async () => {
+    const writes: string[] = [];
+    const { user } = render('?tab=pages', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
+    const table = await pagesGrid();
+    const [link] = within(table)
+      .getAllByRole('link')
+      .filter((entry) => sourceIdOf(entry).length > 0);
+    if (link === undefined) throw new Error('No page links to an inspector');
+    // jsdom cannot follow a link to another address
+    link.addEventListener('click', (event) => event.preventDefault());
+    await user.click(link);
+    expect(
+      writes.filter((query) => new URLSearchParams(query).get('inspect')?.startsWith('source:') === true),
+    ).toHaveLength(0);
+  });
+
+  it('opens from a shared link, with the page read in the page scope', async () => {
+    const [first] = await listedPages();
+    if (first === undefined) throw new Error('The table has no pages');
+    const reads = watch();
+    const { container } = render(`?inspect=source:${first}&engine=gemini_web&win=7d&role=own`);
+    expect(await screen.findByRole('group', { name: 'Source summary' })).toBeInTheDocument();
+    await waitFor(() => expect(to(reads, '/ai/citations').length).toBeGreaterThan(0));
+    const read = to(reads, '/ai/citations')[0];
+    expect(read?.searchParams.get('filter[url_id]')).toBe(first);
+    expect(read?.searchParams.get('filter[engine_code_in]')).toBe('gemini_web');
+    // The inspector is of the whole page: the role filter narrows the table, not this
+    expect(read?.searchParams.has('filter[domain_role_in]')).toBe(false);
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('steps with J and K through the listed pages, and keeps the tab of the inspector', async () => {
+    const [first, second] = await listedPages();
+    if (first === undefined || second === undefined) throw new Error('The table has no pages');
+    const writes: string[] = [];
+    const { user } = render(`?tab=pages&inspect=source:${first}&itab=overview`, {
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    await screen.findByRole('group', { name: 'Source summary' });
+    const table = await pagesGrid();
+    const [row] = within(table).getAllByRole('rowheader');
+    if (row === undefined) throw new Error('The table has no row');
+    act(() => row.focus());
+    await user.keyboard('j');
+    await waitFor(() => expect(lastWrite(writes).get('inspect')).toBe(`source:${second}`));
+    expect(lastWrite(writes).get('itab')).toBe('overview');
+    expect(lastWrite(writes).get('tab')).toBe('pages');
+    await user.keyboard('k');
+    await waitFor(() => expect(lastWrite(writes).get('inspect')).toBe(`source:${first}`));
+  });
+
+  it('Previous and Next step through the listed pages and stop at the first', async () => {
+    const [first, second] = await listedPages();
+    if (first === undefined || second === undefined) throw new Error('The table has no pages');
+    render(`?tab=pages&inspect=source:${first}`);
+    const inspector = await screen.findByRole('complementary');
+    expect(await within(inspector).findByText(/^1 of \d+$/)).toBeInTheDocument();
+    expect(within(inspector).getByRole('button', { name: 'First source in this list' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+  });
+
+  it('closes on Escape and takes the inspector out of the address', async () => {
+    const [first] = await listedPages();
+    if (first === undefined) throw new Error('The table has no pages');
+    const writes: string[] = [];
+    const { user } = render(`?tab=pages&inspect=source:${first}&itab=overview`, {
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    await screen.findByRole('group', { name: 'Source summary' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(lastWrite(writes).has('inspect')).toBe(false));
+    expect(lastWrite(writes).has('itab')).toBe(false);
+    expect(lastWrite(writes).get('tab')).toBe('pages');
+  });
+
+  it('marks the open page as the current row of the table', async () => {
+    const [first] = await listedPages();
+    if (first === undefined) throw new Error('The table has no pages');
+    render(`?tab=pages&inspect=source:${first}`);
+    const table = await pagesGrid();
+    await waitFor(() =>
+      expect(
+        within(table)
+          .getAllByRole('row')
+          .filter((row) => row.getAttribute('aria-current') === 'true'),
+      ).toHaveLength(1),
+    );
+  });
+});

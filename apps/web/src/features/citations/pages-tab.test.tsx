@@ -1,8 +1,9 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { createTranslator } from 'next-intl';
 import { http, HttpResponse } from 'msw';
+import type { Route } from 'next';
 import { useMemo, type ReactElement } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { toFilters, useCitationScope } from './citation-scope';
 import type { CitationRead } from './citation-reads';
@@ -212,6 +213,8 @@ interface HarnessProps {
   timeZone?: string;
   /** What the page's Export button is handed. */
   registerExport?: CitationTabContext['registerExport'];
+  /** What the page hands the tab to open its records in the inspector. */
+  inspect?: CitationTabContext['inspect'];
 }
 
 /**
@@ -224,6 +227,7 @@ function Harness({
   engines = ENABLED,
   timeZone = 'UTC',
   registerExport,
+  inspect,
 }: HarnessProps): ReactElement {
   const { scope, range, setSearch } = useCitationScope(timeZone, engines);
   const filters = useMemo(() => toFilters(scope, range), [scope, range]);
@@ -245,6 +249,7 @@ function Harness({
     previousMeta: previous,
     setSearch,
     registerExport,
+    inspect,
     filterBar: {
       fields: FIELDS,
       values: values ?? fromAddress,
@@ -457,7 +462,7 @@ describe('PagesTab', () => {
     expect(rowOf(table, 'Page 1')).toHaveTextContent('Oct 20, 13:30');
   });
 
-  it('a row click opens nothing: the inspector is not built', async () => {
+  it('a row click opens nothing when the page offers no inspector', async () => {
     const { user } = renderTab();
     const table = await loaded();
     await user.click(within(table).getByText('Page 1'));
@@ -818,5 +823,106 @@ describe('PagesTab', () => {
     await loaded();
     expect(await axe(container)).toHaveNoViolations();
     document.documentElement.removeAttribute('data-theme');
+  });
+});
+
+describe('PagesTab and the source inspector', () => {
+  type Inspect = NonNullable<CitationTabContext['inspect']>;
+  /** What the page hands the tab: the open record, the way to open one, to report the order and to link. */
+  function inspecting(target: Inspect['target'] = null): { inspect: Inspect; open: Mock; setOrder: Mock } {
+    const open = vi.fn();
+    const setOrder = vi.fn();
+    return {
+      open,
+      setOrder,
+      inspect: {
+        target,
+        open,
+        setOrder,
+        hrefOf: (next) => `/digibranders/fynix/ai/citations?inspect=${next.type}:${next.id}` as Route,
+      },
+    };
+  }
+
+  it('a page row opens the source inspector (inspect=source:id)', async () => {
+    const { inspect, open } = inspecting();
+    const { user } = renderTab('', {}, { inspect });
+    const table = await loaded();
+    await user.click(within(table).getByText('Page 1'));
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledWith({ type: 'source', id: '1' }, 'inspector');
+  });
+
+  it('opens the focused row with the keyboard', async () => {
+    const { inspect, open } = inspecting();
+    const { user } = renderTab('', {}, { inspect });
+    const table = await loaded();
+    within(table).getAllByRole('rowheader')[1]?.focus();
+    await user.keyboard('{Enter}');
+    expect(open).toHaveBeenCalledWith({ type: 'source', id: '2' }, 'inspector');
+  });
+
+  it('makes the path a link to the inspector, and a click on it does not open the row twice', async () => {
+    const { inspect, open } = inspecting();
+    const { user } = renderTab('', {}, { inspect });
+    const table = await loaded();
+    const link = within(table).getByRole('link', { name: 'g2.com/products/p1' });
+    expect(link).toHaveAttribute('href', '/digibranders/fynix/ai/citations?inspect=source:1');
+    // jsdom cannot follow a link to another address
+    link.addEventListener('click', (event) => event.preventDefault());
+    await user.click(link);
+    // The link goes where it says; the row's own open is not also called
+    expect(open).not.toHaveBeenCalled();
+    // The page itself is one control away: Open, in a new tab
+    expect(within(table).getAllByRole('link', { name: 'Open g2.com/products/p1 in a new tab' })[0]).toHaveAttribute(
+      'href',
+      'https://g2.com/products/p1',
+    );
+  });
+
+  it('leaves the path as the outbound link when the page offers no inspector', async () => {
+    renderTab();
+    const table = await loaded();
+    expect(within(table).queryByRole('link', { name: 'g2.com/products/p1' })).toBeNull();
+    expect(within(table).getByRole('link', { name: 'Open g2.com/products/p1 in a new tab' })).toBeInTheDocument();
+  });
+
+  it('marks the open source as the current row', async () => {
+    const { inspect } = inspecting({ type: 'source', id: '2' });
+    renderTab('', {}, { inspect });
+    const table = await loaded();
+    expect(rowOf(table, 'The CRM guide')).toHaveAttribute('aria-current', 'true');
+    expect(rowOf(table, 'Page 1')).not.toHaveAttribute('aria-current');
+  });
+
+  it('reports the pages in the order of the table, which J and K step through', async () => {
+    const { inspect, setOrder } = inspecting();
+    renderTab('', {}, { inspect });
+    await loaded();
+    await waitFor(() => expect(setOrder).toHaveBeenLastCalledWith('source', ['1', '2']));
+    expect(setOrder.mock.calls.every(([type]) => type === 'source')).toBe(true);
+  });
+
+  it('reports a page read in two roles once', async () => {
+    servePages([ONE, pageOf(1, { domain_role: 'competitor', role_entity_id: 'ent-rival' }), TWO]);
+    const { inspect, setOrder } = inspecting();
+    renderTab('', {}, { inspect });
+    await loaded();
+    await waitFor(() => expect(setOrder).toHaveBeenLastCalledWith('source', ['1', '2']));
+  });
+
+  it('reports the order the search leaves: only the listed pages are steps', async () => {
+    const { inspect, setOrder } = inspecting();
+    const { user } = renderTab('', {}, { inspect });
+    await loaded();
+    await user.type(screen.getByRole('searchbox', { name: 'Search in table' }), 'hubspot');
+    await waitFor(() => expect(setOrder).toHaveBeenLastCalledWith('source', ['2']));
+  });
+
+  it('reports nothing while another tab is the one shown', async () => {
+    const { inspect, setOrder } = inspecting();
+    renderWithProviders(<Harness inspect={inspect} />, { searchParams: 'tab=domains' });
+    await screen.findByTestId('strip');
+    expect(setOrder).not.toHaveBeenCalled();
   });
 });

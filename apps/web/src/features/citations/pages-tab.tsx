@@ -1,8 +1,9 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import type { Route } from 'next';
 import { useLocale, useTranslations } from 'next-intl';
-import { useCallback, useMemo, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 
 import { DEFAULT_MIN_SUPPORT, DEFAULT_SORT } from './citation-scope';
 import {
@@ -48,7 +49,9 @@ export interface PagesTabProps {
  * The Pages tab (DS 9.7, WB-CIT-10 and 11): the cited pages of the scope, narrowed to one domain by the `domain`
  * key. The server sorts (one select) and leaves out the rows below the minimum; shares are always of the whole
  * scope. "Cited with" is the domain's, read from the domains route, since the pages route has no such block. A row
- * click does nothing: the page inspector is WP-22's.
+ * opens the page's source inspector (a click, Enter), and so does its path, a link a middle click opens in a new
+ * tab. The tab reports its pages in the order it lists them, which Previous, Next, J and K step through. Without an
+ * inspector offered the path stays the outbound link and a row does nothing.
  */
 export function PagesTab({ context }: PagesTabProps): ReactElement {
   const {
@@ -63,7 +66,7 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
     previousMeta,
     setSearch,
   } = context;
-  const { filterBar } = context;
+  const { filterBar, inspect } = context;
   const tt = useTranslations('citations.table');
   const common = useTranslations('common');
   const locale = useLocale();
@@ -115,6 +118,11 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
     () => (meta === undefined || scopeEngines === undefined ? meta : { ...meta, by_role_by_engine: scopeEngines }),
     [meta, scopeEngines],
   );
+  const hrefOf = inspect?.hrefOf;
+  const sourceHref = useMemo(
+    () => (hrefOf === undefined ? undefined : (urlId: number): Route => hrefOf({ type: 'source', id: String(urlId) })),
+    [hrefOf],
+  );
   const columns = usePageColumns({
     engines,
     meta: columnMeta,
@@ -122,11 +130,32 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
     entities,
     citedWith: { rows: cited.data?.data, failed: cited.isError },
     timeZone,
+    sourceHref,
     t: tt,
     locale,
   });
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const visible = useMemo(() => parseColumns(scope.columns, columnIds, ['page']), [scope.columns, columnIds]);
+
+  // The pages in the order the table lists them, which Previous, Next, J and K step through (a page the API reads in
+  // two roles is one step)
+  const setOrder = inspect?.setOrder;
+  useEffect(() => {
+    if (setOrder === undefined || !active) return;
+    setOrder('source', [...new Set(listed.map((row) => String(row.url_id)))]);
+  }, [setOrder, active, listed]);
+  const openInInspector = inspect?.open;
+  const openRow = useCallback(
+    (row: SourcePageRow, intent: 'inspector' | 'new-tab'): void =>
+      openInInspector?.({ type: 'source', id: String(row.url_id) }, intent),
+    [openInInspector],
+  );
+  // The open page's first row: a page read in two roles is two rows, and one is current
+  const openSource = inspect?.target?.type === 'source' ? inspect.target.id : null;
+  const activeRowId = useMemo(() => {
+    const open = openSource === null ? undefined : listed.find((row) => String(row.url_id) === openSource);
+    return open === undefined ? null : pageRowId(open);
+  }, [listed, openSource]);
 
   const filtering = Object.keys(filterBar.values).length > 0 || query !== '';
   // A minimum other than the default can be what left no row: Clear filters puts it back
@@ -222,6 +251,8 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
           searchPlaceholder={tt('searchPages')}
           rowName={rowName}
           rowTone={ownRow}
+          onRowOpen={openInInspector === undefined ? undefined : openRow}
+          activeRowId={activeRowId}
           status={status}
           errorState={<LoadFailed errorId={errorId} onRetry={() => void read.refetch()} retrying={read.isFetching} />}
           emptyState={<CitationEmptyState meta={meta} workspaceSlug={workspaceSlug} projectSlug={projectSlug} />}

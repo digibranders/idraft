@@ -1,5 +1,6 @@
 'use client';
 
+import type { Route } from 'next';
 import { useMemo, type ReactElement } from 'react';
 
 import { joinCitedWith } from './cited-with-join';
@@ -22,7 +23,8 @@ import { EMPTY_VALUE, formatPercent } from '@/lib/format';
  * Role, Units, Share, Change in share, the share on each engine, New, First seen, Last seen and Cited with. Every
  * share carries its units (the tooltip says "300 of 18,420 units"), an unknown figure is n/a with its reason and
  * never 0, and the change in a share is never coloured: no test of it exists. Cited with is the DOMAIN's, since the
- * pages route has no such block: the header and the tooltip say so.
+ * pages route has no such block: the header and the tooltip say so. The path leads to the page's source inspector
+ * when the page has one.
  */
 
 export interface PageColumnOptions {
@@ -38,6 +40,11 @@ export interface PageColumnOptions {
   citedWith: { rows: readonly SourceDomainRow[] | undefined; failed: boolean };
   /** The project's time zone: first and last seen are in it. */
   timeZone: string;
+  /**
+   * Where a page's path leads: its source inspector. Without it (a page with no inspector) the path is the outbound
+   * link. Keep it stable between renders.
+   */
+  sourceHref?: ((urlId: number) => Route) | undefined;
   t: TableTranslate;
   locale: string;
 }
@@ -61,6 +68,7 @@ export function usePageColumns({
   entities,
   citedWith: { rows: citedRows, failed: citedFailed },
   timeZone,
+  sourceHref,
   t,
   locale,
 }: PageColumnOptions): readonly DataTableColumn<SourcePageRow>[] {
@@ -91,7 +99,14 @@ export function usePageColumns({
       cellLabel: (row) => row.url,
       // The host stays drawn beside the path and the title, so neither can hide where the page is
       cell: (row) => (
-        <URLCell url={row.url} hostDisplay="show" label={t('urlLabel')} title={row.title} favicon={FAVICON} />
+        <URLCell
+          url={row.url}
+          hostDisplay="show"
+          label={t('urlLabel')}
+          title={row.title}
+          favicon={FAVICON}
+          inspectorHref={sourceHref?.(row.url_id)}
+        />
       ),
     };
 
@@ -272,5 +287,5 @@ export function usePageColumns({
       answers,
       prompts,
     ];
-  }, [engines, meta, previousMeta, entities, citedRows, citedFailed, timeZone, t, locale]);
+  }, [engines, meta, previousMeta, entities, citedRows, citedFailed, timeZone, sourceHref, t, locale]);
 }
