@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T17:04:23+05:30",
+ "updated": "2026-11-13T17:07:32+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1013,17 +1013,17 @@
    },
    "counts": {
     "total": 37,
-    "done": 19
+    "done": 26
    },
    "owner": "",
-   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | tasks 3/7, rows 19/37; Tasks 1-3 PUSHED (806821e9): Topics tab has List, By engine and Heat map views (?view=engines|heatmap), engine metric select, gap/trend/leader columns, cell drill-down (?eng=), per engine prompt rows, by engine CSV export, phone list; browser pass (390/768, dark, compact) still in Task 7; next Task 4 drawer Overview TopicEnginePanel"
+   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | tasks 4/7, rows 26/37; Tasks 1-4 on develop (07c61c34): Topics tab List/By engine/Heat map views, drill-down, export, phone list, and the topic drawer engine panel with per engine trend; Task 5 competitors (own vs top 3, Related) next; browser pass in Task 7"
   },
   {
    "id": "WP-21",
    "title": "Citations tab in the prompt inspector and the Citations page (Domains, Pages)",
    "wave": "W2",
    "kind": "web",
-   "status": "planning",
+   "status": "building",
    "dependsOn": [
     "WP-08",
     "WP-05",
@@ -1078,7 +1078,7 @@
     "done": 14
    },
    "owner": "",
-   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | steps 3/8, rows 14/31 (WB-PIC-01..10, WB-PI-13, WB-PI-21, CF-02, CF-03); T1 mocks, T2 shared reads/tables/answers/banner/tab seam committed locally, review then push P1; prompt Citations tab browser checked (20 runs, axe 0 serious/critical, light/dark, 4 widths); z-order defect F-19 fix assigned"
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | steps 3/8, rows 14/31 built locally (T1 mocks, T2 prompt Citations tab, banner, seam; browser-checked); z-order fix F-19 then push P1; T3 page shell next"
   },
   {
    "id": "WP-22",
