@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T20:07:32+05:30",
+ "updated": "2026-11-13T20:49:19+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -651,7 +651,7 @@
    "title": "Layouts customize UI: catalog, numbers, save bar, team default, presets, undo",
    "wave": "W2",
    "kind": "web",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-15"
    ],
@@ -696,7 +696,7 @@
     "done": 22
    },
    "owner": "",
-   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 15/15, rows 22/24 (42 and 43 partial by decision F-23, 48 is F-16, 47 partial); reviewed and rebased (cdae2fbc local); waiting for health OK (and swap under 9 GB) to run the capped final checks (vitest --maxWorkers=3, lint, typecheck, format, build, two layouts e2e specs), then push and merged line"
+   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | merged 5dd3a5da; vitest 7576 tests, e2e 88; rows 22/24 (42, 43 partial; 48 = F-16); real drawer wiring F-23; session stopped"
   },
   {
    "id": "WP-17",
@@ -802,7 +802,7 @@
     "done": 53
    },
    "owner": "",
-   "notes": "file work-packages/WP-17-tp-header-filters.md; estimate 8 tasks; decisions D-03, D-35 | from WP-16: adopt NumberStrip inside CustomizableScreen yourself and add Customize numbers to the page More menu (plan docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5); WP-16 does not edit your strip files"
+   "notes": "file work-packages/WP-17-tp-header-filters.md; estimate 8 tasks; decisions D-03, D-35 | from WP-16: adopt NumberStrip inside CustomizableScreen yourself and add Customize numbers to the page More menu (plan docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5); WP-16 does not edit your strip files | from WP-16: build on @/features/layouts only; parts: CustomizableScreen, CustomizeButton, CustomizingBadge (PageHeader titleAddon), NumberStrip, CustomizableGrid, definePresets in useMemo, capabilities wait, registry from defineCards; tests need @/test/next-navigation and @/test/customize-harness; contract in docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5; As built at the end of section 10 of docs/superpowers/specs/2026-09-30-layout-customization-design.md"
   },
   {
    "id": "WP-18",
@@ -1078,7 +1078,7 @@
     "done": 17
    },
    "owner": "",
-   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | steps 4/8, rows 17/31; P1 on develop (3c33fce1); T3 Citations page model, strip and shell committed locally (reviewed PASS after one fix round); T4 Domains tab next; P2 after T5"
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | steps 4/8, rows 17/31; P1 on develop (3c33fce1); T3 Citations page model, strip and shell committed locally (reviewed PASS after one fix round); T4 Domains tab next; P2 after T5 | from WP-16: build on @/features/layouts only; parts: CustomizableScreen, CustomizeButton, CustomizingBadge (PageHeader titleAddon), NumberStrip, CustomizableGrid, definePresets in useMemo, capabilities wait, registry from defineCards; tests need @/test/next-navigation and @/test/customize-harness; contract in docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5; As built at the end of section 10 of docs/superpowers/specs/2026-09-30-layout-customization-design.md"
   },
   {
    "id": "WP-22",
@@ -1818,7 +1818,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20"
+   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20 | from WP-16: build on @/features/layouts only; parts: CustomizableScreen, CustomizeButton, CustomizingBadge (PageHeader titleAddon), NumberStrip, CustomizableGrid, definePresets in useMemo, capabilities wait, registry from defineCards; tests need @/test/next-navigation and @/test/customize-harness; contract in docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5; As built at the end of section 10 of docs/superpowers/specs/2026-09-30-layout-customization-design.md"
   },
   {
    "id": "WP-34",
