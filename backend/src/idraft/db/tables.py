@@ -1621,6 +1621,7 @@ ai_citations = Table(
     Column("role_entity_id", Uuid),
     Column("referral_tag", Text),
     Column("flags", ARRAY(Text), nullable=False, server_default=FetchedValue()),
+    Column("quote", Text),
     _answer_key(),
     schema="ai",
 )

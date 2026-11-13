@@ -140,6 +140,11 @@ def _window(
         raise _out_of_range("to") from None
 
 
+def _hex(digest: bytes | memoryview | None) -> str | None:
+    """A digest as lowercase hex; None stays None, never a row of zeros."""
+    return None if digest is None else bytes(digest).hex()
+
+
 def _utf16(text: str | None) -> Callable[[int], int]:
     """Code point offsets of `text` as UTF-16 code units: each character past U+FFFF is two."""
     if text is None or all(ord(char) <= 0xFFFF for char in text):
@@ -240,11 +245,15 @@ class ObservationService:
                     db, access.workspace_id, row.id, row.observed_at, row.derivation_id
                 )
             )
+            # The registry row outlives the body: its hash is given after the retention too.
+            payload = await repository.raw_payload(db, row.id)
         units = _utf16(row.answer_text)
         extras = row.provider_extras or {}
         return ObservationDetail(
             **_summary_fields(row),
             answer_text=row.answer_text,
+            answer_sha256=_hex(row.answer_hash),
+            raw_sha256=None if payload is None else _hex(payload.sha256),
             error_code=row.error_code,
             check_url=_web_address(extras.get("check_url")),
             offsets_unit="utf16",
@@ -256,6 +265,7 @@ class ObservationService:
                     host=c.host,
                     title=c.title,
                     source_name=c.source_name,
+                    quote=c.quote,
                     citation_kind=c.citation_kind,
                     domain_role=c.domain_role,
                     role_entity_id=c.role_entity_id,

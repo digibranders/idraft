@@ -144,7 +144,7 @@ async def get_observation(
     """An observation of a live project. `observed_at` is a hint; one so far from any answer that
     the slack leaves the calendar finds nothing."""
     statement = (
-        select(*_SUMMARY, _O.answer_text, _O.error_code, _O.provider_extras)
+        select(*_SUMMARY, _O.answer_text, _O.answer_hash, _O.error_code, _O.provider_extras)
         .select_from(
             _source().join(
                 projects,
@@ -180,6 +180,7 @@ async def citations_of(
                 domains.c.host,
                 c.title,
                 c.source_name,
+                c.quote,
                 c.citation_kind,
                 c.domain_role,
                 c.role_entity_id,

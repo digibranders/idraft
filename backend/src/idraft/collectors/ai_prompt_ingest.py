@@ -356,6 +356,7 @@ async def _insert_citations(
                 "raw_url": citation.raw_url,
                 "title": source.title,
                 "source_name": source.source_name,
+                "quote": source.quote,
                 "citation_kind": citation.kind,
                 "first_char_offset": citation.first_char_offset,
                 "answer_block_index": source.answer_block_index,
