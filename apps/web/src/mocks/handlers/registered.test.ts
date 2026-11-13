@@ -18,7 +18,6 @@ const SLOTS: ReadonlyArray<readonly [slug: string, name: string, load: ModuleLoa
   ['prompt-edits', 'promptEditHandlers', () => import('./prompt-edits')],
   ['ai-health', 'aiHealthHandlers', () => import('./ai-health')],
   ['retention', 'retentionHandlers', () => import('./retention')],
-  ['ai-overview', 'aiOverviewHandlers', () => import('./ai-overview')],
   ['notes', 'noteHandlers', () => import('./notes')],
   ['competitors', 'competitorHandlers', () => import('./competitors')],
   ['prompt-versions', 'promptVersionHandlers', () => import('./prompt-versions')],
