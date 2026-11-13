@@ -40,7 +40,15 @@ from idraft.db.tables import (
     locations,
     projects,
 )
-from idraft.domain.ai_engines import BASE_PLAN, Queue
+from idraft.domain.ai_engines import (
+    BASE_PLAN,
+    DEFAULT_DEVICE,
+    ENGINES,
+    EngineCode,
+    EngineDevice,
+    Queue,
+    device_of,
+)
 from idraft.domain.tasks import scheduled_for
 from idraft.domain.workloads import TaskWorkload
 from idraft.extraction.ai_facts import EXTRACTOR_VERSION
@@ -355,6 +363,7 @@ class AiPromptWorkload:
         )
         codes = await location_codes(db, {task.location_id for task, _ in wanted.values()})
         queues = await run_queues(db, {task.run_id for task, _ in wanted.values()})
+        devices = await _devices(db, [task for task, _ in wanted.values()])
         requests: dict[TaskRef, CanonicalRequest] = {}
         for ref, (task, version_id) in wanted.items():
             found = versions.get((version_id, task.workspace_id))
@@ -366,6 +375,7 @@ class AiPromptWorkload:
                     location_code=codes.get(task.location_id, task.location_id),
                     language_code=found.language_code,
                     queue="priority" if queues.get(task.run_id) == "priority" else "standard",
+                    device=devices.get(_device_key(task), DEFAULT_DEVICE),
                 )
             except ValidationError as error:
                 # One prompt the provider would refuse must not take the tasks it is batched
@@ -379,6 +389,36 @@ class AiPromptWorkload:
                 params=params,
             )
         return requests
+
+
+_DeviceKey = tuple[UUID, UUID, str | None]
+
+
+def _device_key(task: LedgerTask) -> _DeviceKey:
+    return (task.workspace_id, task.project_id, task.engine_code)
+
+
+async def _devices(db: AsyncSession, tasks: Sequence[LedgerTask]) -> dict[_DeviceKey, EngineDevice]:
+    """The saved device of each project's device-taking engine (Google AI Mode) among the tasks:
+    one read for the whole batch, by workspace, project and engine. An engine with no row or no
+    device is left out, and asks the default. The scrapers take no device and are not read."""
+    keys = {_device_key(task) for task in tasks if _takes_device(task.engine_code)}
+    if not keys:
+        return {}
+    e = ai_project_engines.c
+    rows = await db.execute(
+        select(e.workspace_id, e.project_id, e.engine_code, e.provider_params).where(
+            tuple_(e.workspace_id, e.project_id, e.engine_code).in_(list(keys))
+        )
+    )
+    return {
+        (row.workspace_id, row.project_id, row.engine_code): device_of(row.provider_params)
+        for row in rows
+    }
+
+
+def _takes_device(engine_code: str | None) -> bool:
+    return engine_code is not None and ENGINES[EngineCode(engine_code)].supports_device
 
 
 @dataclass(frozen=True, slots=True)

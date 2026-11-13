@@ -3,7 +3,8 @@
 
 The workload says what to ask; this module turns that into a `task_post` task. The three are all
 `task_post` then `task_get/advanced`, so they differ in their paths and in two fields AI Mode
-takes: the device and its operating system, a Windows desktop as the spike sent them. ChatGPT is
+takes: the device and its operating system (a Windows desktop as the spike sent them, or the
+project's mobile setting). ChatGPT is
 asked as it answers: `force_web_search` is never sent (doc 07 section 4.2, settled by S-04).
 """
 
@@ -16,7 +17,7 @@ from typing import Final, Literal
 
 from pydantic import Field, field_validator
 
-from idraft.domain.ai_engines import ENGINES, PROMPT_TEXT_MAX
+from idraft.domain.ai_engines import DEFAULT_DEVICE, ENGINES, PROMPT_TEXT_MAX, EngineDevice
 from idraft.providers.contract import CanonicalRequest, Contract
 from idraft.providers.dataforseo.endpoint import TaskBuilder, TaskEndpoint
 
@@ -35,6 +36,12 @@ ENGINE_ENDPOINTS: Final[Mapping[str, str]] = MappingProxyType(
 PROMPT_MAX: Final[Mapping[str, int]] = MappingProxyType(
     {engine.endpoint: engine.max_prompt_chars for engine in ENGINES.values()}
 )
+# The operating system sent with each device: the first system of the SERP adapter's `_SYSTEMS`
+# for the device. Desktop is what S-04 sent. UNVERIFIED for mobile: a real AI Mode request with
+# `android` was never made, so it is not known that DataForSEO accepts it there.
+_AI_MODE_OS: Final[Mapping[EngineDevice, str]] = MappingProxyType(
+    {"desktop": "windows", "mobile": "android"}
+)
 
 
 class AiAnswerParams(Contract):
@@ -44,6 +51,9 @@ class AiAnswerParams(Contract):
     language_code: str = Field(pattern=r"^[a-z]{2,3}(-[A-Za-z]{2,4})?$")
     # The priority queue costs twice as much; only a schedule that chose it uses it.
     queue: Literal["standard", "priority"] = "standard"
+    # The device Google AI Mode asks from (the project's engine setting). Only AI Mode sends it:
+    # the scrapers take no device.
+    device: EngineDevice = DEFAULT_DEVICE
 
     @field_validator("prompt")
     @classmethod
@@ -73,11 +83,11 @@ def scraper_body(request: CanonicalRequest, tag: str) -> dict[str, object]:
 
 
 def ai_mode_body(request: CanonicalRequest, tag: str) -> dict[str, object]:
-    """An AI Mode task: a scraper task on a Windows desktop, at most 700 characters."""
-    prompt = _params(request).prompt
-    if len(prompt) > PROMPT_MAX[AI_MODE]:
+    """An AI Mode task: a scraper task on the project's device, at most 700 characters."""
+    params = _params(request)
+    if len(params.prompt) > PROMPT_MAX[AI_MODE]:
         raise ValueError(f"AI Mode takes at most {PROMPT_MAX[AI_MODE]} characters")
-    return {**scraper_body(request, tag), "device": "desktop", "os": "windows"}
+    return {**scraper_body(request, tag), "device": params.device, "os": _AI_MODE_OS[params.device]}
 
 
 def _endpoint(base: str, build: TaskBuilder, slug: str, id_list: str) -> TaskEndpoint:

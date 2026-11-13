@@ -11,8 +11,7 @@ device rule is `device_of` and `Engine.supports_device` in `backend/src/idraft/d
 Web consumer: WP-31 Task 5 (the device selector).
 
 Built, not a stub: no route is added and no route changes its access. Two existing operations gain an
-optional field each. Part 2 (Task 2) makes the Google AI Mode request use the device; until then the
-device is stored and shown but the collector still sends `desktop`.
+optional field each. The Google AI Mode request uses the saved device (Task 2, see "Changed behavior").
 
 ## Routes and parameters
 
@@ -91,10 +90,24 @@ A ChatGPT or Gemini row carries `"provider_params": {"device": null}`.
 Refusal, `PUT {P}/engines/chatgpt_web` with a device: `422`, code `validation_failed`, `errors` holds
 `{"location": "body", "path": "provider_params.device", "code": "device_not_supported"}`.
 
+## Changed behavior: the request
+
+- `AiAnswerParams.device` (`desktop` or `mobile`, default `desktop`) is new. `ai_mode_body` sends
+  `device` and `os` from it: `desktop` with `windows` (as S-04 sent), `mobile` with `android` (the
+  SERP adapter's system for mobile). The ChatGPT and Gemini bodies never carry a device or an os.
+- `build_requests` reads the saved device with one query for all Google AI Mode tasks of a batch, by
+  the task's workspace, project and engine, through `device_of`. An engine with no row, `{}` or junk
+  params asks `desktop`, and that request is byte identical to the one sent before this change
+  (tests compare the serialized body). `ADAPTER_VERSION` stays 1.
+- The device applies to tasks not yet posted. Answers already collected keep the device the provider
+  reported (`ai.observations.device`).
+- The AI schedules stay paused; nothing in this change calls a provider.
+
 ## Open choices
 
-- Mobile sends os `android` to DataForSEO (Task 2); a real AI Mode mobile request was never made. Owner
-  can confirm with one paid check later.
+- Mobile sends os `android` to DataForSEO (Task 2). UNVERIFIED: a real AI Mode mobile request was never
+  made, so it is not known that DataForSEO accepts `android` for AI Mode. Owner can confirm with one
+  paid check later.
 
 ## Change log
 
@@ -102,3 +115,4 @@ Newest last; one line per change, in the form `date package: change`.
 
 2026-11-14 WP-31: contract published and built (setting and API); the collector change is Task 2
 2026-11-14 WP-31: migration 0023 grants `UPDATE (provider_params)` on `ai.project_engines` to `app_api`; no shape change
+2026-11-14 WP-31: the AI Mode request sends the saved device (desktop request unchanged, mobile is os android, unverified live)
