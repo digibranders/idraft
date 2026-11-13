@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T17:42:18+05:30",
+ "updated": "2026-11-13T17:48:30+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -693,10 +693,10 @@
    },
    "counts": {
     "total": 24,
-    "done": 13
+    "done": 15
    },
    "owner": "",
-   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 9/15 (T0-T8 on develop, 42717d29), rows 13/24; T9 presets (Start from menu) next"
+   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 11/15, rows 15/24; T9 presets and T10 drawer customizer parts reviewed (local, pushing with T11); T11 phones and reduced motion next, then e2e T12-T13 and As built T14; real-drawer wiring (WB-LAY-42) deferred to follow-up F-23 by decision"
   },
   {
    "id": "WP-17",
@@ -3945,20 +3945,6 @@
    "until": "WP-16 merged"
   },
   {
-   "path": "apps/web/src/features/prompts/prompt-inspector.tsx",
-   "wp": "WP-16 (T10)",
-   "granted": "2026-11-13T12:42:47+05:30",
-   "scope": "wrap the Overview tab in DrawerCustomizer, add Customize cards to More, route onClose through the leave guard, save bar in the footer; WP-25 is merged so no conflict",
-   "until": "WP-16 merged"
-  },
-  {
-   "path": "apps/web/src/features/prompts/topic-inspector.tsx",
-   "wp": "WP-16 (T10)",
-   "granted": "2026-11-13T12:42:47+05:30",
-   "scope": "the same edit for the topic drawer; WP-20 (not started) rebases onto it",
-   "until": "WP-16 merged"
-  },
-  {
    "path": "apps/web/src/components/app/shell/page-header.tsx",
    "wp": "WP-16 (optional)",
    "granted": "2026-11-13T12:42:47+05:30",
@@ -4431,6 +4417,16 @@
    "owner": "WP-20 session",
    "severity": "develop e2e red",
    "status": "fixed 20a9bdac (ai-prompts.spec.ts 12/12 incl. axe and no sideways scroll at 390 px, light and dark)"
+  },
+  {
+   "id": "F-23",
+   "found": "2026-11-13T17:48:30+05:30",
+   "by": "WP-16",
+   "title": "WB-LAY-42: customize mode in the REAL prompt and topic drawers is a follow-up package",
+   "detail": "WP-16 delivers the generic parts (DrawerCustomizer, useDrawerCustomize, guardClose, drawer save bar, numbers-only table screen) verified on specimens. The wiring needs: (1) new card types for inspector.prompt and inspector.topic in lib/layouts/catalog.ts (both are empty drawerScreens today; keyword has 6 cards) plus catalog.json regeneration; (2) splitting PromptInspector (no Overview tab: default is Latest with the InspectorStrip above the tabs) and TopicInspector (Overview = rates, by engine, top prompts) into a DrawerCustomizer wrapper plus inner component with a data context for the cards; (3) guarding drawer-unmount paths (opening another inspector from the list, answer inspector, archive close). OWNER QUESTION: does Latest stand in for the Overview tab on prompts? Default taken: yes. SEQUENCE: after WP-16 and WP-20 merge (WP-20 Task 7 mounts its tabs in topic-inspector.tsx first), then this follow-up with leases on prompt-inspector.tsx, topic-inspector.tsx, catalog.ts, catalog.json.",
+   "owner": "next free session after WP-20 merges (suggest the WP-16 session)",
+   "severity": "owner requirement R-11/R-07 part (drawer customization)",
+   "status": "open"
   }
  ],
  "migrations": [
