@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T08:09:51+05:30",
+ "updated": "2026-11-13T08:24:51+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -644,7 +644,7 @@
     "done": 7
    },
    "owner": "",
-   "notes": "file work-packages/WP-15-layouts-react-core.md; estimate 9 tasks; decisions D-14 | plan pushed (13 tasks, 26 rows); needs F-10 team_document from backend; google_ai_overview removed from web ENGINES"
+   "notes": "file work-packages/WP-15-layouts-react-core.md; estimate 9 tasks; decisions D-14 | tasks 3/13; T0 T1 T2 on develop; T4 reviewed; mock T3 in review"
   },
   {
    "id": "WP-16",
@@ -4047,6 +4047,27 @@
    "wp": "WP-15",
    "granted": "2026-11-13T08:06:25+05:30",
    "scope": "one test only (test_a_screen_the_catalog_does_not_list_takes_only_an_empty_document): use 'citations' (listed, cards:false) instead of 'ai_overview'; backend/tests/api/layouts is also edited by the F-10 session (other files)",
+   "until": "WP-15 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/respond.ts",
+   "wp": "SHARED WP-15 first (other mock authors reuse it)",
+   "granted": "2026-11-13T08:24:51+05:30",
+   "scope": "one line in PROBLEMS: precondition_failed: [412, 'The resource has changed']; push as an early small commit",
+   "until": "WP-15 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/handlers/registered.test.ts",
+   "wp": "WP-15",
+   "granted": "2026-11-13T08:24:51+05:30",
+   "scope": "remove the 'layouts' row from SLOTS only",
+   "until": "WP-15 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/session.ts",
+   "wp": "SHARED WP-15 first",
+   "granted": "2026-11-13T08:24:51+05:30",
+   "scope": "add the 'mock-layouts' cookie (LAYOUTS_COOKIE) to MOCK_COOKIES; later mock packages add theirs the same way, additive",
    "until": "WP-15 merged"
   }
  ],
