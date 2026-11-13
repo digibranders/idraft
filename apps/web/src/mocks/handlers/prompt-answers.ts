@@ -2,6 +2,7 @@ import { TZDate } from '@date-fns/tz';
 import { HttpResponse, type HttpHandler } from 'msw';
 
 import { projectCaller, type ProjectCaller } from './access';
+import { attachPrevious, compareWindowOf } from './compare';
 import { countryOf, enabledEngines, isoOf } from './prompts';
 import { booleanQuery, cursorPage, pageRequest, queryError, uuidError } from './rules';
 import { isActiveRole } from '../entities-state';
@@ -370,6 +371,17 @@ interface Counted {
   day: string;
 }
 
+/** The counted answers of a window by prompt and engine code. */
+type ByPrompt = Map<string, Map<string, Counted[]>>;
+
+/** The valid answers `source` holds on the engines `codes`: the summary's `previous_answers` over the compared window. */
+const validAnswersIn = (source: ByPrompt, codes: readonly string[]): number =>
+  [...source.values()].reduce(
+    (total, engines) =>
+      total + codes.reduce((sum, code) => sum + (engines.get(code) ?? []).filter((a) => a.facts.is_valid).length, 0),
+    0,
+  );
+
 /** The later of two instants, either of which may be missing. */
 const later = (current: string | null, at: string): string =>
   current === null || Date.parse(at) > Date.parse(current) ? at : current;
@@ -555,6 +567,9 @@ export const promptAnswerHandlers: HttpHandler[] = [
         'filter[term]',
         'include',
         'rows',
+        'compare',
+        'compare_from',
+        'compare_to',
       ],
     });
     if (caller instanceof Response) return caller;
@@ -572,6 +587,13 @@ export const promptAnswerHandlers: HttpHandler[] = [
       return problem(request, 'window_too_large', {
         detail: `A window is at most ${String(MAX_DAYS)} days.`,
         limit_days: window.limit_days,
+      });
+    }
+    const comparing = compareWindowOf(url, window.range, zone, MAX_DAYS);
+    if (comparing.kind === 'too_large') {
+      return problem(request, 'window_too_large', {
+        detail: `A window is at most ${String(MAX_DAYS)} days.`,
+        limit_days: comparing.limit_days,
       });
     }
     const asked = listOf(url, 'filter[engine_code_in]', null, MAX_ENGINE_FILTER);
@@ -595,12 +617,14 @@ export const promptAnswerHandlers: HttpHandler[] = [
       typeof brandedOnly !== 'boolean' ||
       scopeErrors.length > 0 ||
       Array.isArray(include) ||
-      hasCode(rowsAsked)
+      hasCode(rowsAsked) ||
+      comparing.kind === 'invalid'
     ) {
       return invalid(request, [
         ...[asked, branded, brandedOnly, ...scopeErrors].filter(hasCode),
         ...(Array.isArray(include) ? include : []),
         ...(hasCode(rowsAsked) ? [rowsAsked] : []),
+        ...(comparing.kind === 'invalid' ? comparing.errors : []),
       ]);
     }
     const { firstDate, lastDate } = window.range;
@@ -627,22 +651,29 @@ export const promptAnswerHandlers: HttpHandler[] = [
       )
       .sort((a, b) => byText(a.created_at, b.created_at) || byText(a.prompt_id, b.prompt_id));
     const included = new Set(prompts.map((prompt) => prompt.prompt_id));
-    // The answers of the window's project days that count: the fixtures' have a fact row each
-    const byPrompt = new Map<string, Map<string, Counted[]>>();
-    for (const answer of answersOf(projectId, now)) {
-      const day = formatIsoDate(answer.observed_at, zone);
-      const prompt = answer.subject.prompt_id;
-      if (day < firstDate || day > lastDate || !included.has(prompt) || answer.facts === null) continue;
-      if (asked.length > 0 && !asked.includes(answer.engine_code)) continue;
-      const engines = byPrompt.get(prompt) ?? new Map<string, Counted[]>();
-      engines.set(answer.engine_code, [
-        ...(engines.get(answer.engine_code) ?? []),
-        { facts: answer.facts, mentions: answer.mentions, at: answer.observed_at, day },
-      ]);
-      byPrompt.set(prompt, engines);
-    }
-    const counts = (promptId: string, code: string): Counts => {
-      const counted = byPrompt.get(promptId)?.get(code);
+    // The answers of a window's project days that count: the fixtures' have a fact row each
+    const everyAnswer = answersOf(projectId, now);
+    const collect = (first: string, last: string): ByPrompt => {
+      const found: ByPrompt = new Map();
+      for (const answer of everyAnswer) {
+        const day = formatIsoDate(answer.observed_at, zone);
+        const prompt = answer.subject.prompt_id;
+        if (day < first || day > last || !included.has(prompt) || answer.facts === null) continue;
+        if (asked.length > 0 && !asked.includes(answer.engine_code)) continue;
+        const engines = found.get(prompt) ?? new Map<string, Counted[]>();
+        engines.set(answer.engine_code, [
+          ...(engines.get(answer.engine_code) ?? []),
+          { facts: answer.facts, mentions: answer.mentions, at: answer.observed_at, day },
+        ]);
+        found.set(prompt, engines);
+      }
+      return found;
+    };
+    const byPrompt = collect(firstDate, lastDate);
+    // With `compare`, or `compare_from` and `compare_to`: the answers of the compared window, read the same way
+    const before = comparing.kind === 'window' ? collect(comparing.window.from, comparing.window.to) : null;
+    const counts = (promptId: string, code: string, source: ByPrompt = byPrompt): Counts => {
+      const counted = source.get(promptId)?.get(code);
       return counted === undefined ? NO_COUNTS : countsOf(counted.map((answer) => answer.facts));
     };
     // The engines that are on or have answers in the window, by code
@@ -686,8 +717,8 @@ export const promptAnswerHandlers: HttpHandler[] = [
     }
     // With `include=entities`, a cell for each tracked entity on every engine of a prompt row and of a topic row
     const cellIds = include.entities ? cellEntityIds(entitiesOf(caller)) : null;
-    const named = (promptId: string, code: string, entityId: string): EntityCounts => {
-      const counted = byPrompt.get(promptId)?.get(code);
+    const named = (promptId: string, code: string, entityId: string, source: ByPrompt = byPrompt): EntityCounts => {
+      const counted = source.get(promptId)?.get(code);
       return counted === undefined ? NOT_NAMED : entityCountsOf(entityId, counted);
     };
     // With `include=series`, a point for each week the window touches, from the counts of the week's answers
@@ -738,29 +769,68 @@ export const promptAnswerHandlers: HttpHandler[] = [
       ...(series === null ? {} : { series }),
       ...(entities === null ? {} : { entities }),
     });
+    /** A topic row's engine over the answers `source` holds; only the asked window has a weekly series. */
+    const topicEngine = (
+      source: ByPrompt,
+      members: ReadonlySet<string>,
+      code: string,
+      series: WeekCells[] | null,
+    ): EngineSummary => {
+      const answered = [...members].filter((id) => source.get(id)?.has(code) === true);
+      return withBlocks(
+        topicCells(
+          code,
+          answered.map((id) => counts(id, code, source)),
+        ),
+        series,
+        cellIds === null
+          ? null
+          : cellIds.map((entityId) =>
+              topicEntityCells(
+                entityId,
+                answered.map((id) => ({ counts: counts(id, code, source), named: named(id, code, entityId, source) })),
+              ),
+            ),
+      );
+    };
+    /** A prompt row's engine over the answers `source` holds; only the asked window has a weekly series. */
+    const promptEngine = (
+      source: ByPrompt,
+      promptId: string,
+      code: string,
+      series: WeekCells[] | null,
+    ): EngineSummary =>
+      withBlocks(
+        promptCells(code, counts(promptId, code, source)),
+        series,
+        cellIds === null
+          ? null
+          : cellIds.map((entityId) =>
+              promptEntityCells(entityId, counts(promptId, code, source), named(promptId, code, entityId, source)),
+            ),
+      );
+    /** With a compare window, the engine with the same engine over it beside it (null where the row has no answer of the engine there). */
+    const compared = (
+      engine: EngineSummary,
+      ids: readonly string[],
+      build: (source: ByPrompt) => EngineSummary,
+    ): EngineSummary =>
+      before === null
+        ? engine
+        : attachPrevious(
+            engine,
+            ids.some((id) => before.get(id)?.has(engine.engine_code) === true) ? build(before) : null,
+          );
     const topicRow = (termId: string | null, members: ReadonlySet<string>): TopicSummaryRow => ({
       term_id: termId,
       name: termId === null ? null : (topicTerms.get(termId)?.name ?? null),
       prompt_count: members.size,
       ...lastOf(members),
-      engines: shown.map((code) => {
-        const answered = [...members].filter((id) => byPrompt.get(id)?.has(code) === true);
-        return withBlocks(
-          topicCells(
-            code,
-            answered.map((id) => counts(id, code)),
-          ),
-          seriesOf([...members], code, true),
-          cellIds === null
-            ? null
-            : cellIds.map((entityId) =>
-                topicEntityCells(
-                  entityId,
-                  answered.map((id) => ({ counts: counts(id, code), named: named(id, code, entityId) })),
-                ),
-              ),
-        );
-      }),
+      engines: shown.map((code) =>
+        compared(topicEngine(byPrompt, members, code, seriesOf([...members], code, true)), [...members], (source) =>
+          topicEngine(source, members, code, null),
+        ),
+      ),
     });
     const rows: PromptSummaryRow[] = prompts.map((prompt) => ({
       prompt_id: prompt.prompt_id,
@@ -769,14 +839,10 @@ export const promptAnswerHandlers: HttpHandler[] = [
       topic_term_ids: topicsOf(prompt.term_ids),
       ...lastOf([prompt.prompt_id]),
       engines: shown.map((code) =>
-        withBlocks(
-          promptCells(code, counts(prompt.prompt_id, code)),
-          seriesOf([prompt.prompt_id], code, false),
-          cellIds === null
-            ? null
-            : cellIds.map((entityId) =>
-                promptEntityCells(entityId, counts(prompt.prompt_id, code), named(prompt.prompt_id, code, entityId)),
-              ),
+        compared(
+          promptEngine(byPrompt, prompt.prompt_id, code, seriesOf([prompt.prompt_id], code, false)),
+          [prompt.prompt_id],
+          (source) => promptEngine(source, prompt.prompt_id, code, null),
         ),
       ),
     }));
@@ -824,6 +890,9 @@ export const promptAnswerHandlers: HttpHandler[] = [
             },
           }),
       ...(coMentions === null ? {} : { co_mentions: coMentions }),
+      ...(before === null || comparing.kind !== 'window'
+        ? {}
+        : { compare_window: comparing.window, previous_answers: validAnswersIn(before, shown) }),
     };
     return HttpResponse.json({ data: summary });
   }),
