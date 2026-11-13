@@ -50,13 +50,13 @@ const isCounted = (metric: TopicMetric, value: EngineValue): boolean =>
   metric !== 'share_of_voice' && value.successes !== null;
 
 /** Where engines disagree (CH-43, `ai.topic_engine_gap`): the topics whose engines differ most, on one axis. */
-export default function TopicEngineGapCard({ item, options }: CardProps): ReactElement {
+export default function TopicEngineGapCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.topics.gap');
   const common = useTranslations('aiOverview.topics.common');
   const words = useTopicWords();
   const empties = useTopicEmpty();
   const { workspaceSlug, project, enabledEngines, canManageEngines, setScope } = useOverview();
-  const read = useTopicSummary();
+  const read = useTopicSummary({ subscribed: live });
   // The leaf topics depend on the vocabulary tree: until it is read, rows would be compared beside their parents
   const data: TopicData =
     read.tree.pending && (read.phase === 'ready' || read.phase === 'refetching') ? { ...read, phase: 'loading' } : read;

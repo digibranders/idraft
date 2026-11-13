@@ -253,28 +253,33 @@ describe('a refetch of the same scope', () => {
       void queryClient.invalidateQueries();
     });
     await waitFor(() => {
-      expect(current().settled).toBe(false);
+      expect(current().phase).toBe('refetching');
     });
-    expect(current()).toMatchObject({ phase: 'refetching', paired: true, compared: true });
+    // The same scope again is no change of scope: the data on screen is this scope's, so the frame is settled
+    expect(current()).toMatchObject({ paired: true, compared: true, settled: true });
     expect(current().previous).toBe(before);
     expect(current().previousNodes).not.toBeNull();
     expect(current().previousPrompts).not.toBeNull();
     release.open();
     await waitFor(() => {
-      expect(current().settled).toBe(true);
+      expect(current().phase).toBe('ready');
     });
-    expect(current()).toMatchObject({ phase: 'ready', paired: true, compared: true });
+    expect(current()).toMatchObject({ paired: true, compared: true, settled: true });
   });
 
-  it('a refetch of the previous window alone keeps it paired while settled is false', async () => {
+  it('a refetch of the previous window alone keeps it paired and the card ready', async () => {
     const { queryClient } = renderProbe(() => useTopicPeriods());
     await waitFor(() => {
       expect(current().compared).toBe(true);
     });
     const release = gate();
+    let held = false;
     server.use(
       http.get(SUMMARY, async ({ request }) => {
-        if (new URL(request.url).searchParams.get('to') === '2026-10-15') await release.promise;
+        if (new URL(request.url).searchParams.get('to') === '2026-10-15') {
+          held = true;
+          await release.promise;
+        }
         return getResponse([...handlers], new Request(request.url, { headers: request.headers }));
       }),
     );
@@ -282,13 +287,13 @@ describe('a refetch of the same scope', () => {
       void queryClient.invalidateQueries();
     });
     await waitFor(() => {
-      expect(current().settled).toBe(false);
+      expect(held).toBe(true);
     });
-    expect(current()).toMatchObject({ paired: true, compared: true });
+    expect(current()).toMatchObject({ paired: true, compared: true, settled: true });
     expect(current().previous).not.toBeNull();
     release.open();
     await waitFor(() => {
-      expect(current().settled).toBe(true);
+      expect(current()).toMatchObject({ phase: 'ready', paired: true, compared: true, settled: true });
     });
   });
 

@@ -52,14 +52,14 @@ function PromptLabel({ text, path }: { text: string; path: string | null }): Rea
  * words, hatched under 4 answers and n/a with none; it opens the prompt. The rows are ordered, then cut, so the cut
  * never hides the worst. Each prompt is one row whatever its number of topics.
  */
-export default function PromptHeatmapCard({ item, options }: CardProps): ReactElement {
+export default function PromptHeatmapCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.topics.promptHeatmap');
   const common = useTranslations('aiOverview.topics.common');
   const chart = useTranslations('chart.heatmap');
   const words = useTopicWords();
   const empties = useTopicEmpty();
   const { workspaceId, workspaceSlug, project, scope } = useOverview();
-  const loaded = useTopicSummary();
+  const loaded = useTopicSummary({ subscribed: live });
   const vocabularies = useVocabularies({ workspaceId, projectId: project.id });
   // Without the vocabulary trees no prompt has its topic path: the card waits for them, so the rows do not change
   const data: TopicData =

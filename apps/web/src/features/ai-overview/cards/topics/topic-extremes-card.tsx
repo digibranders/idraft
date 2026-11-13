@@ -46,12 +46,12 @@ function exportRow(code: string, group: string, topic: string, value: EngineValu
 }
 
 /** Strongest and weakest topics of every asked engine (CH-41, `ai.topic_extremes`). */
-export default function TopicExtremesCard({ item, options }: CardProps): ReactElement {
+export default function TopicExtremesCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.topics.extremes');
   const words = useTopicWords();
   const empties = useTopicEmpty();
   const { workspaceSlug, project } = useOverview();
-  const read = useTopicSummary();
+  const read = useTopicSummary({ subscribed: live });
   // The leaf topics depend on the vocabulary tree: until it is read, rows would be ranked beside their parents
   const data: TopicData =
     read.tree.pending && (read.phase === 'ready' || read.phase === 'refetching') ? { ...read, phase: 'loading' } : read;

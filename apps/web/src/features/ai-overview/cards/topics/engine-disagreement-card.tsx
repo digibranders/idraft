@@ -35,13 +35,13 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
  * prompt and another engine, with enough answers to tell, never does. The pair is ordered and the count is text:
  * the Prompts page has no filter for a pair, so the topic is the link.
  */
-export default function EngineDisagreementCard({ item, options }: CardProps): ReactElement {
+export default function EngineDisagreementCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.topics.disagreement');
   const common = useTranslations('aiOverview.topics.common');
   const words = useTopicWords();
   const empties = useTopicEmpty();
   const { workspaceSlug, project, enabledEngines, canManageEngines, setScope } = useOverview();
-  const read = useTopicSummary();
+  const read = useTopicSummary({ subscribed: live });
   // The leaf topics depend on the vocabulary tree: until it is read, rows would be listed beside their parents
   const data: TopicData =
     read.tree.pending && (read.phase === 'ready' || read.phase === 'refetching') ? { ...read, phase: 'loading' } : read;

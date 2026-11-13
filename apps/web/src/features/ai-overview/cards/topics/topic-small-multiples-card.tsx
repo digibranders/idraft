@@ -34,14 +34,14 @@ const NO_HIDDEN: ReadonlySet<string> = new Set();
 const NO_TREND: TrendModel = { weeks: [], rows: [], total: 0 };
 
 /** The weekly mention rate of the leading topics on one engine, one small chart each (CH-33, `ai.topic_small_multiples`). */
-export default function TopicSmallMultiplesCard({ item, options }: CardProps): ReactElement {
+export default function TopicSmallMultiplesCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.topics.multiples');
   const common = useTranslations('aiOverview.topics.common');
   const chart = useTranslations('chart');
   const words = useTopicWords();
   const empties = useTopicEmpty();
   const { workspaceSlug, project, setScope, enabledEngines, canManageEngines } = useOverview();
-  const read = useTopicSummary(READ.topicSeries);
+  const read = useTopicSummary({ ...READ.topicSeries, subscribed: live });
   // The top level topics depend on the vocabulary tree: until it is read, a subtopic would stand among them
   const data: TopicData =
     read.tree.pending && (read.phase === 'ready' || read.phase === 'refetching') ? { ...read, phase: 'loading' } : read;

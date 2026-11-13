@@ -53,7 +53,7 @@ interface Shown {
  * is counted in the footnote and never ranked as 0. A change is over the engines with a rate in both windows, so the
  * same engines stand on both sides, and it is coloured only when larger than normal variation.
  */
-export default function TopPromptsCard({ item, options }: CardProps): ReactElement {
+export default function TopPromptsCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.topics.topPrompts');
   const common = useTranslations('aiOverview.topics.common');
   const words = useTopicWords();
@@ -62,7 +62,7 @@ export default function TopPromptsCard({ item, options }: CardProps): ReactEleme
   const show = enumOf(options.show ?? '', SHOWS, 'least_named');
   const count = countOf(options.rows ?? '', DEFAULT_ROWS);
   const changing = show === 'largest_change';
-  const { data, compareOff } = gateComparison(useTopicPeriods(), changing);
+  const { data, compareOff } = gateComparison(useTopicPeriods({ subscribed: live }), changing);
   const { engines, scope } = data;
   const codes = engines.map((engine) => engine.code);
   const labels = engines.map((engine) => engine.label);

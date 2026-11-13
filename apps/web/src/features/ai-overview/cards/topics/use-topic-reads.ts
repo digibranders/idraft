@@ -1,12 +1,12 @@
 'use client';
 
-import { useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import { buildAggregates } from '../../data/aggregates';
-import { askedEngines, overviewSummaryQuery, type SummaryOptions } from '../../data/overview-queries';
+import { askedEngines, type SummaryOptions } from '../../data/overview-queries';
 import type { Read } from '../../data/read-state';
 import { promptRowsRead } from '../../data/topics-in-scope';
+import type { SummaryReadOptions } from '../../data/use-overview-reads';
 import { useOverview, useOverviewPeriods, useOverviewSummary } from '../../overview-context';
 import type { EngineInfo, Phase, TopicData, TopicNode } from './model-types';
 import { buildTopicNodes, topicDescendants, topicsBelow } from './topic-nodes';
@@ -34,6 +34,8 @@ interface Reads {
   previous: Read<PromptsSummary> | null;
   paired: boolean;
   settled: boolean;
+  /** `false` while the card is paused (customize mode): a read with nothing to show then is not "nothing asked". */
+  subscribed: boolean;
 }
 
 /** The newest of ISO times; `null` when there is none. */
@@ -56,7 +58,7 @@ const NO_PROMPTS: readonly PromptSummaryRow[] = [];
 const promptsOf = (summary: PromptsSummary | null | undefined): readonly PromptSummaryRow[] =>
   summary !== null && summary !== undefined && promptRowsRead(summary) ? summary.prompts : NO_PROMPTS;
 
-function useTopicData({ current, previous, paired, settled }: Reads): TopicData {
+function useTopicData({ current, previous, paired, settled, subscribed }: Reads): TopicData {
   const { workspaceId, project, scope, enabledEngines, engines: engineRead } = useOverview();
   const vocabularies = useVocabularies({ workspaceId, projectId: project.id });
   const tree = useMemo(
@@ -114,7 +116,10 @@ function useTopicData({ current, previous, paired, settled }: Reads): TopicData 
         ? 'error'
         : asked.length === 0
           ? 'idle'
-          : current.status;
+          : // A paused card with no data of this scope waits for its turn: it is a skeleton, not an empty card
+            current.status === 'idle' && !subscribed
+            ? 'loading'
+            : current.status;
   const prompts = promptsOf(summary);
   return {
     phase,
@@ -147,34 +152,31 @@ function useTopicData({ current, previous, paired, settled }: Reads): TopicData 
   };
 }
 
-const busy = (read: Read<PromptsSummary>): boolean => read.status === 'loading' || read.status === 'refetching';
+/** The read has no data of this scope yet: it is loading, or shows the last scope's data meanwhile. */
+const waiting = (read: Read<PromptsSummary>): boolean =>
+  read.status === 'loading' || (read.status === 'refetching' && read.placeholder);
 
-/** The topic data of the scope's window: one read, which the default options share with the strip. */
-export function useTopicSummary(options?: SummaryOptions): TopicData {
+/**
+ * The topic data of the scope's window: one read, which the default options share with the strip. `subscribed` is
+ * the `live` of the card's props: while it is `false` nothing is asked.
+ */
+export function useTopicSummary(options?: SummaryReadOptions): TopicData {
   const current = useOverviewSummary(options);
-  return useTopicData({ current, previous: null, paired: true, settled: !busy(current) });
+  return useTopicData({
+    current,
+    previous: null,
+    paired: true,
+    settled: !waiting(current),
+    subscribed: options?.subscribed ?? true,
+  });
 }
 
 /**
  * The topic data of the window and, while the comparison is on and its window can be asked, of the window before,
  * with whether the two answer for the same scope (`paired`): a card shows a change only when `compared` is true.
+ * A refetch of the same scope keeps both windows paired; a scope change never pairs the last scope's window.
  */
-export function useTopicPeriods(options?: SummaryOptions): TopicData {
+export function useTopicPeriods(options?: SummaryReadOptions): TopicData {
   const { current, previous, paired, settled } = useOverviewPeriods(options);
-  const { workspaceId, project, scope, enabledEngines } = useOverview();
-  const queryClient = useQueryClient();
-  // The shell's `paired` needs both reads `ready`, so a background refetch of the SAME scope unpairs the windows and
-  // the change would vanish under a skeleton. Data cached under this scope's own keys is of this scope whatever the
-  // reads are doing (a scope change shows the last scope's data as placeholder, which is not cached under the new key),
-  // so while both windows have it the pair stands and the refetch is only `settled: false`.
-  const cached = (period: 'current' | 'previous'): boolean =>
-    queryClient.getQueryData(
-      overviewSummaryQuery({ workspaceId, projectId: project.id }, { scope, enabledEngines }, { ...options, period })
-        .queryKey,
-    ) !== undefined;
-  const sameScope =
-    current.data !== undefined &&
-    cached('current') &&
-    (previous === null || (previous.data !== undefined && cached('previous')));
-  return useTopicData({ current, previous, paired: paired || sameScope, settled });
+  return useTopicData({ current, previous, paired, settled, subscribed: options?.subscribed ?? true });
 }

@@ -442,17 +442,23 @@ describe('TopicMoversCard states', () => {
     void user;
   });
 
+  // The current window refetching shows the bar; the previous window alone refetching is the same scope's data
+  // still on screen, so it keeps the rows (and the change) without the bar
   it.each([
-    ['both windows', () => true],
-    ['the previous window alone', isPrevious],
-  ])('a refetch of %s keeps the rows and shows the refetch bar, never a skeleton', async (_name, held) => {
+    ['both windows', () => true, true],
+    ['the previous window alone', isPrevious, false],
+  ])('a refetch of %s keeps the rows, never a skeleton', async (_name, held, bar) => {
     const { queryClient } = renderCard();
     await listOf();
     const release = gate();
+    let asked = false;
     server.use(
       http.get(SUMMARY_PATH, async ({ request }) => {
         const url = new URL(request.url);
-        if (held(url)) await release.promise;
+        if (held(url)) {
+          asked = true;
+          await release.promise;
+        }
         return HttpResponse.json({ data: isPrevious(url) ? BEFORE : NOW });
       }),
     );
@@ -461,8 +467,18 @@ describe('TopicMoversCard states', () => {
     });
     const frame = await frameOf();
     await waitFor(() => {
-      expect(frame.querySelector('[data-slot="chart-refetch-bar"]')).not.toBeNull();
+      expect(asked).toBe(true);
     });
+    if (bar) {
+      await waitFor(() => {
+        expect(frame.querySelector('[data-slot="chart-refetch-bar"]')).not.toBeNull();
+      });
+    } else {
+      // The current window is served at once, so its own refetch ends; the held previous one shows no bar
+      await waitFor(() => {
+        expect(frame.querySelector('[data-slot="chart-refetch-bar"]')).toBeNull();
+      });
+    }
     expect(await itemsOf()).toHaveLength(2);
     expect(frame.querySelector('[data-slot="skeleton"]')).toBeNull();
     release.open();

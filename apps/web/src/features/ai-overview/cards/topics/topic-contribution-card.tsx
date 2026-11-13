@@ -42,7 +42,7 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
 const VIEWS = ['level', 'change'] as const;
 
 /** What each top level topic adds to the mention rate of one engine, or to its change (CH-46, `ai.topic_contribution`). */
-export default function TopicContributionCard({ item, options }: CardProps): ReactElement {
+export default function TopicContributionCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.topics.contribution');
   const common = useTranslations('aiOverview.topics.common');
   const words = useTopicWords();
@@ -50,7 +50,7 @@ export default function TopicContributionCard({ item, options }: CardProps): Rea
   const { workspaceSlug, project, setScope, enabledEngines, canManageEngines } = useOverview();
   const view = enumOf(options.view ?? '', VIEWS, 'level');
   const code = engineOf(options.engine ?? '');
-  const { data, compareOff } = gateComparison(useTopicPeriods(), view === 'change');
+  const { data, compareOff } = gateComparison(useTopicPeriods({ subscribed: live }), view === 'change');
   const { scope } = data;
   const asked = data.engines.some((engine) => engine.code === code);
   const engineLabel = ENGINES.find((engine) => engine.code === code)?.label ?? code;

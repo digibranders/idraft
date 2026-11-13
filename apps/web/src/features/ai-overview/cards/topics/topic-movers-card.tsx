@@ -46,14 +46,14 @@ import { projectPath } from '@/lib/routes/paths';
 const DIRECTIONS: readonly Direction[] = ['both', 'up', 'down'];
 
 /** Topics gaining or losing against the previous window, by engine (CH-42, `ai.topic_movers`). */
-export default function TopicMoversCard({ item, options }: CardProps): ReactElement {
+export default function TopicMoversCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.topics.movers');
   const common = useTranslations('aiOverview.topics.common');
   const chart = useTranslations('chart');
   const words = useTopicWords();
   const empties = useTopicEmpty();
   const { workspaceSlug, project, setScope } = useOverview();
-  const { data, compareOff } = gateComparison(useTopicPeriods(), true);
+  const { data, compareOff } = gateComparison(useTopicPeriods({ subscribed: live }), true);
   const metric = metricOf(options.metric ?? '');
   const cellMetric = CELL_OF[metric];
   const direction = enumOf(options.direction ?? '', DIRECTIONS, 'both');

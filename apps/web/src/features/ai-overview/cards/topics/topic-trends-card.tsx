@@ -31,13 +31,13 @@ import { announce } from '@/lib/a11y/announcer';
 import { formatBusinessDate, formatChartDate, formatList, formatPercent } from '@/lib/format';
 
 /** The weekly rate of the leading topics on each engine, one small chart each (CH-45, `ai.topic_trends`). */
-export default function TopicTrendsCard({ item, options }: CardProps): ReactElement {
+export default function TopicTrendsCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.topics.trends');
   const common = useTranslations('aiOverview.topics.common');
   const chart = useTranslations('chart');
   const words = useTopicWords();
   const empties = useTopicEmpty();
-  const read = useTopicSummary(READ.topicSeries);
+  const read = useTopicSummary({ ...READ.topicSeries, subscribed: live });
   // The top level topics depend on the vocabulary tree: until it is read, a subtopic would stand among them
   const data: TopicData =
     read.tree.pending && (read.phase === 'ready' || read.phase === 'refetching') ? { ...read, phase: 'loading' } : read;

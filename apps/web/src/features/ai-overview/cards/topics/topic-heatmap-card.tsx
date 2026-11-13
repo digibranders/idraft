@@ -37,14 +37,14 @@ const DEFAULT_ROWS = 10;
  * in its words, hatched under 4 answers and n/a with none; it opens the topic's prompts on that engine. Engines are
  * never pooled but in the average, which says how many took part. Topics overlap, which the footnote says.
  */
-export default function TopicHeatmapCard({ item, options }: CardProps): ReactElement {
+export default function TopicHeatmapCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.topics.heatmap');
   const common = useTranslations('aiOverview.topics.common');
   const chart = useTranslations('chart.heatmap');
   const words = useTopicWords();
   const empties = useTopicEmpty();
   const { workspaceSlug, project, scope } = useOverview();
-  const loaded = useTopicSummary();
+  const loaded = useTopicSummary({ subscribed: live });
   // Without the vocabulary trees every topic is a top level row: the card waits for them, so rows do not regroup
   const data: TopicData =
     loaded.tree.pending && (loaded.phase === 'ready' || loaded.phase === 'refetching')
