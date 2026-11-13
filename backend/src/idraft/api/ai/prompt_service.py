@@ -17,6 +17,9 @@ its transaction.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
+import json
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
@@ -60,6 +63,7 @@ from idraft.api.problems import (
     DuplicateError,
     FieldError,
     NotFoundError,
+    PreconditionFailedError,
     QuotaExceededError,
     TooManyMatchesError,
     TooManySubjectsError,
@@ -481,6 +485,24 @@ def _snapshot(record: PromptRecord) -> audit.Snapshot:
     }
 
 
+def etag(record: PromptRecord) -> str:
+    """The prompt's entity tag: 32 hex characters of a SHA-256 over its snapshot (text, metadata,
+    both source fields, terms) and its current version id, quoted. `updated_at` is left out: a
+    change of terms alone does not bump it."""
+    state = {**_snapshot(record), "current_version_id": str(record.current_version.id)}
+    digest = hashlib.sha256(json.dumps(state, sort_keys=True).encode()).hexdigest()
+    return f'"{digest[:32]}"'
+
+
+def if_match_allows(if_match: str, current: str) -> bool:
+    """Whether the `If-Match` list holds `*` or the current tag. A weak validator (`W/"..."`)
+    counts: a proxy that compresses a response weakens its ETag, and this tag is a content hash."""
+    listed = [item.strip().removeprefix("W/") for item in if_match.split(",")]
+    return "*" in listed or any(
+        hmac.compare_digest(item.encode(), current.encode()) for item in listed
+    )
+
+
 def _created_snapshot(record: PromptRecord, item: PromptCreate) -> audit.Snapshot:
     """What a new prompt was and where it came from. `generated_from` has no column, so the
     audit entry is its only trace (a snapshot holds flat values, so it is two keys)."""
@@ -884,6 +906,7 @@ class PromptService:
         prompt_id: UUID,
         body: PromptPatch,
         info: RequestInfo,
+        if_match: str | None = None,
     ) -> PromptRecord:
         given = body.model_fields_set
         async with self._transaction(access) as db:
@@ -896,6 +919,8 @@ class PromptService:
             )
             if current is None:
                 raise NotFoundError
+            if if_match is not None and not if_match_allows(if_match, etag(current)):
+                raise PreconditionFailedError
             if body.term_ids is not None:
                 usable = await keywords.project_terms(
                     db, access.workspace_id, project_id, set(body.term_ids)

@@ -13,7 +13,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query, Response
 
 from idraft.api.ai.prompt_repository import PromptFilter, PromptRecord
-from idraft.api.ai.prompt_service import LintedPrompt, PromptService
+from idraft.api.ai.prompt_service import LintedPrompt, PromptService, etag
 from idraft.api.operations.run_routes import Runs, TriggerRuns, run_view
 from idraft.api.pagination import Commas, Cursor, CursorPageInfo
 from idraft.api.permissions import Permission
@@ -62,7 +62,6 @@ from idraft.api.schemas.keywords import (
     Intent,
 )
 from idraft.api.schemas.operations import RunResponse
-from idraft.api.stubs import refuse_unbuilt
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 
@@ -80,15 +79,14 @@ def get_prompt_service(resources: Annotated[Resources, Depends(get_resources)]) 
 
 Prompts = Annotated[PromptService, Depends(get_prompt_service)]
 
-_NOT_BUILT = "Not built yet: `501 not_implemented`."
-
 IfMatch = Annotated[
     str | None,
     Header(
         alias="If-Match",
         max_length=128,
-        description="The `ETag` of the prompt as read; a changed prompt is `412 "
-        "precondition_failed`. " + _NOT_BUILT,
+        description="The `ETag` of the prompt as read, a comma list of them, or `*` (any "
+        "existing prompt). When none is the prompt's current `ETag`, the answer is `412 "
+        "precondition_failed` and nothing changes. Left out, the change is made as it is.",
     ),
 ]
 
@@ -427,11 +425,18 @@ async def bulk_update_prompts(
     return PromptBulkUpdateResponse(data=PromptBulkUpdateResult(matched=matched, updated=updated))
 
 
-@router.get("/{prompt_id}", summary="A prompt")
+@router.get(
+    "/{prompt_id}",
+    summary="A prompt",
+    description="With an `ETag` header: 32 lowercase hex characters, quoted. It changes with "
+    "every change of the prompt's metadata or terms.",
+)
 async def get_prompt(
-    project_id: UUID, prompt_id: UUID, access: ReadData, prompts: Prompts
+    project_id: UUID, prompt_id: UUID, access: ReadData, prompts: Prompts, response: Response
 ) -> PromptResponse:
-    return PromptResponse(data=prompt_view(await prompts.get(access, project_id, prompt_id)))
+    record = await prompts.get(access, project_id, prompt_id)
+    response.headers["ETag"] = etag(record)
+    return PromptResponse(data=prompt_view(record))
 
 
 @router.patch(
@@ -441,7 +446,7 @@ async def get_prompt(
     "`immutable_field`): archive the prompt and add a new one. `term_ids` replaces the terms. "
     "`is_active: true` brings an archived prompt back and counts against the quota. Setting "
     "`prompt_type` makes `prompt_type_source` `person`, and setting `is_branded` makes "
-    "`is_branded_source` `override`.",
+    "`is_branded_source` `override`. The answer carries the new `ETag`.",
 )
 async def update_prompt(
     project_id: UUID,
@@ -450,10 +455,11 @@ async def update_prompt(
     access: WritePrompts,
     prompts: Prompts,
     info: Info,
+    response: Response,
     if_match: IfMatch = None,
 ) -> PromptResponse:
-    refuse_unbuilt({"If-Match": if_match is not None})
-    record = await prompts.update(access, project_id, prompt_id, body, info)
+    record = await prompts.update(access, project_id, prompt_id, body, info, if_match)
+    response.headers["ETag"] = etag(record)
     return PromptResponse(data=prompt_view(record))
 
 

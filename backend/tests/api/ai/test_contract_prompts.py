@@ -1,6 +1,7 @@
 """Contract C1, prompt list, create and change (docs/ai-visibility/contracts/c1-prompts.md): each
 addition not built yet answers 501 once the caller may use the route; left out, nothing changes.
-The create members are built (test_prompt_provenance.py)."""
+The create members are built (test_prompt_provenance.py), and so is If-Match
+(test_prompt_etag.py)."""
 
 from __future__ import annotations
 
@@ -19,7 +20,6 @@ from tests.api.entities.support import member, problem
 from tests.api.keywords.support import project_url
 from tests.conftest import PostgresServer
 
-NOT_BUILT = (501, "not_implemented")
 FORBIDDEN = (403, "forbidden")
 NOT_FOUND = (404, "not_found")
 INVALID = (422, "validation_failed")
@@ -137,76 +137,6 @@ async def test_a_create_member_out_of_bounds_is_refused(
     )
 
     assert problem(response) == INVALID
-
-
-async def test_if_match_on_a_change_answers_501_and_changes_nothing(
-    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    editor = await member(resources, migrated, workspace, "editor")
-    project = await ai_project(migrated, workspace)
-    (prompt_id,) = await seed_prompts(migrated, workspace, project, 1)
-    url = project_url(workspace, project, "prompts", prompt_id)
-
-    changed = await api.patch(
-        url, json={"importance": 1}, headers={**editor.headers, "If-Match": '"x"'}
-    )
-    read = await api.get(url, headers=editor.headers)
-
-    assert problem(changed) == NOT_BUILT
-    assert read.json()["data"]["importance"] == 3
-
-
-async def test_a_viewer_is_refused_before_if_match_is_looked_at(
-    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    viewer = await member(resources, migrated, workspace, "viewer")
-    project = await ai_project(migrated, workspace)
-    (prompt_id,) = await seed_prompts(migrated, workspace, project, 1)
-
-    response = await api.patch(
-        project_url(workspace, project, "prompts", prompt_id),
-        json={"importance": 1},
-        headers={**viewer.headers, "If-Match": '"x"'},
-    )
-
-    assert problem(response) == FORBIDDEN
-
-
-async def test_an_if_match_over_128_characters_is_refused(
-    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    editor = await member(resources, migrated, workspace, "editor")
-    project = await ai_project(migrated, workspace)
-    (prompt_id,) = await seed_prompts(migrated, workspace, project, 1)
-
-    response = await api.patch(
-        project_url(workspace, project, "prompts", prompt_id),
-        json={"importance": 1},
-        headers={**editor.headers, "If-Match": '"' + "x" * 128 + '"'},
-    )
-
-    assert problem(response) == INVALID
-
-
-async def test_a_change_without_if_match_works_as_before(
-    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    editor = await member(resources, migrated, workspace, "editor")
-    project = await ai_project(migrated, workspace)
-    (prompt_id,) = await seed_prompts(migrated, workspace, project, 1)
-
-    changed = await api.patch(
-        project_url(workspace, project, "prompts", prompt_id),
-        json={"importance": 1},
-        headers=editor.headers,
-    )
-
-    assert changed.status_code == 200, changed.text
-    assert changed.json()["data"]["importance"] == 1
 
 
 def test_the_api_document_has_the_prompt_additions() -> None:
