@@ -255,19 +255,18 @@ Each row could be tightened by WP-11 through the change log. The last column say
 Done by WP-11 on 2026-11-13; the steps stay as the record of what a package does. Differences: the
 `test_the_published_contracts_are_the_not_built_routes` test no longer asserts a fixed example (WP-03
 reduced it to "every `NOT_BUILT` route is a workspace route"), so step 3 had no example to edit; the
-`COUNT_ROUTES` line of step 3 belongs to the cross-tenant task of the WP-11 plan (T6), not to this
-note's commit; and the web side added `pnpm gen:layout-catalog` and its freshness test.
+read was NOT added to `COUNT_ROUTES` (see step 3); and the web side added `pnpm gen:layout-catalog`
+and its freshness test.
 
 1. In `api/layouts/routes.py` drop `@not_built` and `raise not_built_yet()` (`idraft.api.stubs`) from the
    five functions; add `core.layouts` with row-level security (D-09), the catalog check (D-10), the
    16 KB check, the `ETag` and `If-Match` handling and the two audit entries.
 2. Replace `tests/api/layouts/test_contract_layouts.py` with real tests.
-3. In `tests/security/test_cross_tenant.py` add the path of the read, `_W + "/layouts/{screen}"`, to
-   `COUNT_ROUTES` (a resolved layout holds no tenant ids, so the list rule's "shows the caller's own
-   data" does not apply), and edit the one fixed example of
-   `test_the_published_contracts_are_the_not_built_routes`, which asserts the read is still in
-   `NOT_BUILT`. `{screen}` is already a word in the suite's `WORDS`, so these routes are not child
-   routes.
+3. In `tests/security/test_cross_tenant.py` the read stays out of `COUNT_ROUTES` (decided in WP-11): a
+   resolved layout does hold a tenant id (`updated_by.user_id`), so the read is a plain list route and
+   the list rule's "shows the caller's own data" check applies; `_tenant` seeds the owner's personal row
+   and the team default for it. `{screen}` is a word in the suite's `WORDS`, so these routes are not
+   child routes.
 4. An unknown screen answers `404` through the service; the stubs answered `501` (and `422` only for a
    value that is not a key).
 5. Remove the `Not built yet` sentences from the route descriptions, regenerate
