@@ -9,7 +9,7 @@ import { useUnitCosts, type CostScope, type usePriceBook } from './costs-queries
 import { EngineBadge } from '@/components/app/engine/engine-badge';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { Button } from '@/components/ui/button';
-import { EMPTY_VALUE, formatInteger, formatUnitPrice } from '@/lib/format';
+import { EMPTY_VALUE, formatUnitPrice } from '@/lib/format';
 import { monthLabel } from '@/lib/format/month';
 import { useCan } from '@/lib/permissions';
 import { useEngineNames } from '@/lib/runs/ai-reads';
@@ -68,7 +68,7 @@ export function AiUnitCosts({ scope, projectName, engineProjectId, prices }: AiU
     },
     {
       id: 'perAnswer',
-      header: t('aiAnswers.perAnswer'),
+      header: t('aiAnswers.perAnswerAndCount'),
       wrap: true,
       cell: (line) => {
         const cost = line.perAnswer === null ? null : money(line.perAnswer);
@@ -78,11 +78,18 @@ export function AiUnitCosts({ scope, projectName, engineProjectId, prices }: AiU
             <span className="type-label">{t('aiAnswers.noAnswers')}</span>
           </span>
         ) : (
-          formatUnitPrice(cost)
+          // The count sits under the figure so a phone, which scrolls the later columns away, still shows it
+          <span className="flex flex-col">
+            <span>{formatUnitPrice(cost)}</span>
+            {line.answers > 0 ? (
+              <span className="type-meta text-foreground-secondary">
+                {t('aiAnswers.answerCount', { count: line.answers })}
+              </span>
+            ) : null}
+          </span>
         );
       },
     },
-    { id: 'answers', header: t('aiAnswers.answers'), cell: (line) => formatInteger(line.answers) },
     {
       id: 'price',
       header: t('aiAnswers.providerPrice'),

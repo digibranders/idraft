@@ -127,8 +127,11 @@ describe('Unit costs tab, cost per AI answer', () => {
     renderWithProviders(costsAs(), { searchParams: '?tab=units&project=' + fynix.id });
     const table = await openTable();
     const chatgpt = await within(table).findByRole('row', { name: /ChatGPT/ });
-    expect(cells(chatgpt)).toEqual(['ChatGPT', '$0.0015', '148', 'n/a']);
-    expect(cells(within(table).getByRole('row', { name: /Gemini/ }))).toEqual(['Gemini', '$0.0009', '40', 'n/a']);
+    // The count sits in the figure's cell, under it, so a phone that scrolls the later columns away still shows it
+    expect(cells(chatgpt)).toEqual(['ChatGPT', '$0.0015148 answers', 'n/a']);
+    expect(within(chatgpt).getByText('148 answers')).toBeVisible();
+    expect(cells(within(table).getByRole('row', { name: /Gemini/ }))).toEqual(['Gemini', '$0.000940 answers', 'n/a']);
+    expect(within(table).getByRole('row', { name: /Gemini/ })).toHaveTextContent('40 answers');
     // The engines keep the fixed order of every engine list
     expect(
       within(table)
@@ -136,10 +139,11 @@ describe('Unit costs tab, cost per AI answer', () => {
         .slice(1)
         .map((row) => cells(row)[0]),
     ).toEqual(['ChatGPT', 'Gemini', 'Google AI Mode']);
-    for (const name of ['Engine', 'Cost per answer', 'Answers counted', 'Provider price']) {
+    for (const name of ['Engine', 'Cost per answer and answers counted', 'Provider price']) {
       expect(within(table).getByRole('columnheader', { name })).toBeInTheDocument();
     }
-    expect(within(table).getAllByRole('columnheader')).toHaveLength(4);
+    expect(within(table).queryByRole('columnheader', { name: 'Answers counted' })).toBeNull();
+    expect(within(table).getAllByRole('columnheader')).toHaveLength(3);
     // It sits above the price book table, and says what the figures are
     const prices = await screen.findByRole('table', { name: 'Unit costs' });
     expect(table.compareDocumentPosition(prices) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -197,9 +201,12 @@ describe('Unit costs tab, cost per AI answer', () => {
     const table = await openTable();
     const mode = await within(table).findByRole('row', { name: /Google AI Mode/ });
     // The reason is text in the row, not a tooltip
-    const [engine, cost, answers, price] = cells(mode);
-    expect([engine, answers, price]).toEqual(['Google AI Mode', '0', 'n/a']);
+    const [engine, cost, price] = cells(mode);
+    expect([engine, price]).toEqual(['Google AI Mode', 'n/a']);
     expect(cost).toMatch(/^n\/a/);
+    // No count line for an engine with no answers
+    expect(cost).not.toMatch(/answers?$/);
+    expect(within(mode).queryByText(/^\d+ answers?$/)).toBeNull();
     expect(within(mode).getByText('No answers with a cost this month')).toBeVisible();
     // No dollar amount that is zero, at any number of places
     expect(table.textContent).not.toMatch(/\$0(\.0+)?(?![\d.])/);
@@ -216,7 +223,9 @@ describe('Unit costs tab, cost per AI answer', () => {
     ]);
     renderWithProviders(costsAs(), { searchParams: `?tab=units&project=${fynix.id}` });
     const table = await openTable();
-    const figure = (name: RegExp): string | undefined => cells(within(table).getByRole('row', { name }))[1];
+    // The figure itself, without the count line under it
+    const figure = (name: RegExp): string | undefined =>
+      within(within(table).getByRole('row', { name })).getByText(/^\$/).textContent ?? undefined;
     await within(table).findByRole('row', { name: /ChatGPT/ });
     expect(figure(/ChatGPT/)).toBe('$0.0012');
     expect(figure(/Gemini/)).toBe('$0.001234');
@@ -234,10 +243,10 @@ describe('Unit costs tab, cost per AI answer', () => {
     ]);
     renderWithProviders(costsAs(), { searchParams: `?tab=units&project=${fynix.id}` });
     const table = await openTable();
-    await waitFor(() => expect(cells(within(table).getByRole('row', { name: /ChatGPT/ }))[3]).toBe('$0.0012'));
-    expect(cells(within(table).getByRole('row', { name: /Google AI Mode/ }))[3]).toBe('$0.00125');
+    await waitFor(() => expect(cells(within(table).getByRole('row', { name: /ChatGPT/ }))[2]).toBe('$0.0012'));
+    expect(cells(within(table).getByRole('row', { name: /Google AI Mode/ }))[2]).toBe('$0.00125');
     // The book has no price for the Gemini endpoint: n/a, not a guess
-    expect(cells(within(table).getByRole('row', { name: /Gemini/ }))[3]).toBe('n/a');
+    expect(cells(within(table).getByRole('row', { name: /Gemini/ }))[2]).toBe('n/a');
     // No read of its own: the tab asked for the price book once, and for no endpoint of it
     expect(asked).toHaveLength(1);
     expect(asked.every((query) => !query.has('filter[endpoint]'))).toBe(true);

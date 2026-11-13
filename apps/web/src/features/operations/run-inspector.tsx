@@ -131,7 +131,7 @@ export function RunInspector({
         moreActions: [],
       }}
     >
-      <InspectorBody>
+      <InspectorBody label={t('inspector.region')}>
         {detail.isError && run === null ? (
           notFound ? (
             <EmptyState

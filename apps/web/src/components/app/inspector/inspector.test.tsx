@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Inspector } from './inspector';
 import { InspectorLayout } from './inspector-layout';
 import { InspectorSection } from './inspector-section';
-import { InspectorPanel, InspectorTabs } from './inspector-tabs';
+import { InspectorBody, InspectorPanel, InspectorTabs } from './inspector-tabs';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
@@ -241,5 +241,32 @@ describe('Inspector', () => {
     await waitFor(() => {
       expect(inspector()).toHaveStyle({ width: '440px' });
     });
+  });
+});
+
+describe('InspectorBody', () => {
+  it('without a label is a plain scroll container, as before', () => {
+    renderWithProviders(
+      <InspectorBody>
+        <p>Run facts</p>
+      </InspectorBody>,
+    );
+    const body = screen.getByText('Run facts').parentElement?.parentElement;
+    expect(body).toBeDefined();
+    expect(body).not.toHaveAttribute('tabindex');
+    expect(body).not.toHaveAttribute('role');
+    expect(body).not.toHaveAttribute('aria-label');
+  });
+
+  it('with a label is a focusable named region, so a keyboard user can scroll it', () => {
+    renderWithProviders(
+      <InspectorBody label="Run details">
+        <p>Run facts</p>
+      </InspectorBody>,
+    );
+    const region = screen.getByRole('region', { name: 'Run details' });
+    expect(region).toHaveAttribute('tabindex', '0');
+    expect(region.className).toContain('focus-visible:focus-ring-inset');
+    expect(region).toContainElement(screen.getByText('Run facts'));
   });
 });

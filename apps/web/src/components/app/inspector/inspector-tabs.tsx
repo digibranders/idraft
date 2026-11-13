@@ -64,10 +64,19 @@ export function InspectorPanel<TValue extends string>({
   );
 }
 
-/** The body of an inspector without tabs: the same scroll container and spacing. */
-export function InspectorBody({ children }: { children: ReactNode }): ReactElement {
+/**
+ * The body of an inspector without tabs: the same scroll container and spacing. A body with nothing focusable
+ * in it passes a `label`, which makes the scroll container a named region a keyboard can reach and scroll.
+ */
+export function InspectorBody({ children, label }: { children: ReactNode; label?: string }): ReactElement {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border">
+    <div
+      {...(label === undefined ? {} : { role: 'region', 'aria-label': label, tabIndex: 0 })}
+      className={cn(
+        'min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border',
+        label !== undefined && 'outline-none focus-visible:focus-ring-inset',
+      )}
+    >
       <div className="flex flex-col gap-3 p-4">{children}</div>
     </div>
   );
