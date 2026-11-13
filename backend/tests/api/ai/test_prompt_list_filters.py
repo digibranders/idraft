@@ -12,7 +12,7 @@ import pytest
 
 from idraft.api.resources import Resources
 from tests.api.ai.sources_support import cursor_key, forged_cursor, statements
-from tests.api.ai.support import added, ai_project
+from tests.api.ai.support import added, ai_project, seed_prompts
 from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import project_url
@@ -614,3 +614,37 @@ async def test_the_page_is_one_statement_whatever_the_filters_and_sort(
     assert on_prompts(plain) == on_prompts(filtered) == on_prompts(later) == 1
     assert on_prompts(continued) == 1
     assert len(plain) == len(filtered) == len(later) == len(continued)
+
+
+async def test_the_list_checks_access_before_it_reads_the_new_members(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    billing = await member(resources, migrated, workspace, "billing")
+    outsider = await member(resources, migrated, await make_workspace(migrated), "owner")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "prompts")
+
+    refused = await api.get(url, params={"sort": "-importance"}, headers=billing.headers)
+    unseen = await api.get(url, params={"sort": "-importance"}, headers=outsider.headers)
+
+    assert problem(refused) == (403, "forbidden")
+    assert problem(unseen) == (404, "not_found")
+
+
+async def test_the_list_without_additions_answers_as_before(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+    await seed_prompts(migrated, workspace, project, 1)
+    url = project_url(workspace, project, "prompts")
+
+    listed = await api.get(url, headers=viewer.headers)
+    archived = await api.get(url, params={"filter[is_active]": "false"}, headers=viewer.headers)
+
+    assert listed.status_code == 200, listed.text
+    assert len(listed.json()["data"]) == 1
+    assert archived.status_code == 200, archived.text
+    assert archived.json()["data"] == []

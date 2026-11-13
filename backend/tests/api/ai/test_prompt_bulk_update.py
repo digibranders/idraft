@@ -11,8 +11,10 @@ from typing import Any
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from idraft.api.resources import Resources
+from idraft.api.schemas.ai_bulk import PromptBulkUpdate
 from tests.api.ai.sources_support import statements
 from tests.api.ai.support import added, ai_project, seed_prompts
 from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
@@ -21,6 +23,50 @@ from tests.api.keywords.support import errors, project_url, term, vocabulary
 from tests.conftest import PostgresServer
 
 INVALID = (422, "validation_failed")
+ID = str(uuid.uuid4())
+TERM = str(uuid.uuid4())
+
+
+def _codes(body: dict[str, Any]) -> list[str]:
+    with pytest.raises(ValidationError) as caught:
+        PromptBulkUpdate.model_validate(body)
+    return [error["type"] for error in caught.value.errors()]
+
+
+@pytest.mark.parametrize(
+    ("body", "code"),
+    [
+        ({"ids": [ID]}, "nothing_to_change"),
+        ({"ids": [ID], "add_term_ids": [TERM], "remove_term_ids": [TERM]}, "added_and_removed"),
+        ({"set": {"importance": 1}}, "value_error"),
+        ({"ids": [ID], "filter": {}, "set": {"importance": 1}}, "value_error"),
+        ({"ids": [], "set": {"importance": 1}}, "too_short"),
+        ({"ids": [ID], "set": {}}, "value_error"),
+        ({"ids": [ID], "set": {"importance": None}}, "null_not_allowed"),
+        ({"ids": [ID], "set": {"expected_frequency": "daily"}}, "extra_forbidden"),
+        ({"filter": {"importance_in": [6]}, "set": {"is_branded": True}}, "less_than_equal"),
+        ({"ids": [ID] * 1001, "set": {"importance": 1}}, "too_long"),
+        ({"filter": {"q": "x" * 201}, "set": {"importance": 1}}, "string_too_long"),
+        ({"filter": {"intent_in": []}, "set": {"importance": 1}}, "too_short"),
+        ({"filter": {"intent_in": ["commercial"] * 101}, "set": {"importance": 1}}, "too_long"),
+        ({"ids": [ID], "add_term_ids": [TERM] * 21}, "too_long"),
+        ({"ids": [ID], "set": {"importance": 6}}, "less_than_equal"),
+    ],
+)
+def test_a_bulk_update_body_breaking_a_rule_is_refused_with_its_code(
+    body: dict[str, Any], code: str
+) -> None:
+    assert code in _codes(body)
+
+
+def test_a_bulk_update_body_that_says_something_is_accepted() -> None:
+    by_ids = PromptBulkUpdate.model_validate({"ids": [ID], "set": {"importance": 1}})
+    by_filter = PromptBulkUpdate.model_validate(
+        {"filter": {"intent_in": ["commercial"]}, "add_term_ids": [TERM]}
+    )
+
+    assert by_ids.set is not None
+    assert by_filter.filter is not None
 
 
 async def _bulk(

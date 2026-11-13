@@ -7,11 +7,14 @@ import asyncio
 import hashlib
 import json
 import uuid
+from collections.abc import Iterator
+from typing import Any
 
 import asyncpg
 import httpx
 import pytest
 
+from idraft.api.openapi import build_openapi
 from idraft.api.resources import Resources
 from tests.api.ai.support import (
     add_prompt,
@@ -36,6 +39,9 @@ from tests.db.support import scoped
 
 # Built from code points so the file stays ASCII: the composed spelling is "cafe" with
 # e-acute, the decomposed one "cafe" with a combining acute accent after a plain "e".
+PROJECT_PATH = "/api/v1/workspaces/{workspace_id}/projects/{project_id}"
+PROMPTS_PATH = PROJECT_PATH + "/prompts"
+
 E_ACUTE = chr(0xE9)
 COMBINING_ACUTE = chr(0x301)
 CAFE = "Which caf" + E_ACUTE + " suits a meeting?"
@@ -238,6 +244,34 @@ async def test_a_prompt_takes_the_terms_the_project_may_use(
     assert [row["prompt_id"] for row in under_crm.json()["data"]] == [
         tagged.json()["data"]["prompt_id"]
     ]
+
+
+async def test_a_patch_replaces_the_terms_of_a_prompt(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    topics = await vocabulary(migrated, workspace)
+    crm = await term(migrated, workspace, topics, "crm")
+    pricing = await term(migrated, workspace, topics, "pricing", parent=crm)
+    single = await vocabulary(migrated, workspace, single=True)
+    one, two = (
+        await term(migrated, workspace, single, "a"),
+        await term(migrated, workspace, single, "b"),
+    )
+    prompt_id = await added(api, workspace, project, editor, "CRM pricing?", term_ids=[crm])
+    url = project_url(workspace, project, "prompts", prompt_id)
+
+    replaced = await api.patch(url, json={"term_ids": [pricing]}, headers=editor.headers)
+    both = await api.patch(url, json={"term_ids": [one, two]}, headers=editor.headers)
+    cleared = await api.patch(url, json={"term_ids": []}, headers=editor.headers)
+
+    assert replaced.status_code == 200, replaced.text
+    assert [entry["path"] for entry in replaced.json()["data"]["terms"]] == ["crm/pricing"]
+    assert errors(both) == [("term_ids", "single_valued_vocabulary")]
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["data"]["terms"] == []
 
 
 async def test_the_workspace_quota_stops_new_and_returning_prompts(
@@ -651,3 +685,110 @@ async def test_the_new_columns_default_and_are_granted(
     data = read.json()["data"]
     assert (data["prompt_type_source"], data["is_branded_source"]) == ("person", "computed")
     assert updated == "UPDATE 1"
+
+
+def test_the_api_document_has_the_prompt_additions() -> None:
+    document = build_openapi()
+    schemas = document["components"]["schemas"]
+
+    listing = document["paths"][PROMPTS_PATH]["get"]["parameters"]
+    names = {parameter["name"] for parameter in listing}
+    assert {
+        "filter[prompt_type_in]",
+        "filter[funnel_stage_in]",
+        "filter[importance_in]",
+        "filter[is_branded]",
+        "sort",
+    } <= names
+    active = next(item for item in listing if item["name"] == "filter[is_active]")
+    assert "boolean" in json.dumps(active["schema"])
+    assert '"any"' in json.dumps(active["schema"])
+
+    create = schemas["PromptCreate"]
+    new_members = {"is_branded", "source", "creation_method", "generated_from"}
+    assert new_members <= set(create["properties"])
+    assert not new_members & set(create.get("required", []))
+    assert "GeneratedFrom" in schemas
+
+    prompt = schemas["Prompt"]
+    assert {"prompt_type_source", "is_branded_source"} <= set(prompt["properties"])
+    assert {"prompt_type_source", "is_branded_source"} <= set(prompt["required"])
+
+    patch = document["paths"][PROMPTS_PATH + "/{prompt_id}"]["patch"]["parameters"]
+    header = next(item for item in patch if item["in"] == "header" and item["name"] == "If-Match")
+    assert not header.get("required", False)
+
+
+def test_the_api_document_has_the_lint_bulk_and_limits_additions() -> None:
+    document = build_openapi()
+    schemas = document["components"]["schemas"]
+
+    assert "post" in document["paths"][PROJECT_PATH + "/prompts/bulk-update"]
+    assert "get" in document["paths"][PROJECT_PATH + "/ai/limits"]
+    for name in (
+        "PromptLintItems",
+        "PromptLintItem",
+        "LintTracked",
+        "LintNearDuplicate",
+        "LintEstimate",
+        "EngineEstimate",
+        "PromptSelectionFilter",
+        "PromptBulkArchiveByFilter",
+        "PromptBulkSet",
+        "PromptBulkUpdate",
+        "PromptBulkUpdateResponse",
+        "AiLimits",
+        "QuotaUse",
+    ):
+        assert name in schemas, name
+
+    assert set(schemas["LintWarning"]["properties"]["rule"]["enum"]) == {
+        "contains_brand_alias",
+        "engine_limit",
+        "word_count",
+        "multiple_questions",
+        "leading_wording",
+        "language_mismatch",
+        "contains_competitor_alias",
+    }
+    assert set(schemas["PromptBulkArchive"].get("required", [])) == {"ids", "archive"}
+    assert "texts" in schemas["PromptLintRequest"].get("required", [])
+
+
+def _strings(node: Any, schemas: dict[str, Any], seen: set[str]) -> Iterator[str]:
+    """Every text in `node`, following each schema it refers to once."""
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, list):
+        for item in node:
+            yield from _strings(item, schemas, seen)
+    elif isinstance(node, dict):
+        for key, value in node.items():
+            if key == "$ref" and isinstance(value, str):
+                name = value.rsplit("/", 1)[-1]
+                if name not in seen:
+                    seen.add(name)
+                    yield from _strings(schemas[name], schemas, seen)
+            else:
+                yield from _strings(value, schemas, seen)
+
+
+def test_no_c1_description_says_not_built() -> None:
+    document = build_openapi()
+    schemas = document["components"]["schemas"]
+    lane = [
+        path
+        for path in document["paths"]
+        if (
+            path.startswith(PROJECT_PATH + "/prompts")
+            and not path.startswith(PROJECT_PATH + "/prompts-summary")
+        )
+        or path in (PROJECT_PATH + "/ai/limits", PROJECT_PATH + "/term-assignments")
+        or path.endswith("/vocabularies/{vocabulary_id}/terms")
+    ]
+
+    assert len(lane) >= 9, lane
+    for path in lane:
+        for text in _strings(document["paths"][path], schemas, set()):
+            assert "Not built yet" not in text, (path, text)
+            assert "Not returned yet" not in text, (path, text)

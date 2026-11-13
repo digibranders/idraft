@@ -314,6 +314,15 @@ CF-06, OV-N1 to N4, N10, N14, N15; confirmed: BE-METRICS-01 to 04, 07, BE-TOPICS
 `docs/superpowers/plans/2026-11-13-ai-wp-12-summary-lane.md`; contract note
 docs/ai-visibility/contracts/c2-summary.md; doc 19 section 3.7.6 as built note).
 
+**As built (AI visibility WP-13, 2026-11-13): prompts lane.** The C1 stubs and additions are built:
+lint by items with tracked prompts, near duplicates, five more rules, a type suggestion and a cost and
+answers estimate; the prompt type rule and its source; the branded override and provenance at create;
+the quota and `GET {P}/ai/limits`; list filters, sort and `is_active=any`; bulk update and bulk archive
+by filter; ETag and `If-Match` on `PATCH`; term assignments and `prompt_count` for prompts. No
+`501` is left in C1 (contract note `docs/ai-visibility/contracts/c1-prompts.md`; spec notes in
+docs/19-api-specification.md sections 3.5 and 3.7.1; plan
+`docs/superpowers/plans/2026-11-13-ai-wp-13-prompts-lane.md`).
+
 ### Phase 10: SEO and AI integration
 
 **10a (MVP):** keyword-prompt links with suggestions (cluster, semantic, fan-out), AI Overview vs organic rank (same-check), AIO citation rate by rank bucket, SEO/AI matrix (keyword level) with thresholds, page intelligence (SEO + AI citations), `core.xch_keyword_weekly`.

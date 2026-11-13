@@ -9,6 +9,7 @@ import uuid
 from typing import Any
 
 import httpx
+import pytest
 
 from idraft.api.resources import Resources
 from tests.api.ai.sources_support import statements
@@ -474,3 +475,62 @@ async def test_the_keyword_check_is_one_statement_whatever_the_number_of_items(
         )
 
     assert len(one) == len(many) == len(plain) + 1, many
+
+
+async def test_a_viewer_is_refused_before_the_new_members_are_looked_at(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.post(
+        project_url(workspace, project, "prompts"),
+        json=prompt_body("Which CRM suits a startup?", is_branded=True),
+        headers=viewer.headers,
+    )
+
+    assert problem(response) == (403, "forbidden")
+
+
+async def test_a_viewer_is_refused_before_the_new_members_of_a_bulk_create_are_looked_at(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.post(
+        project_url(workspace, project, "prompts", "bulk-create"),
+        json={"items": [prompt_body("Which CRM suits a startup?", is_branded=True)]},
+        headers=viewer.headers,
+    )
+
+    assert problem(response) == (403, "forbidden")
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"source": "llm_variant"},
+        {"creation_method": "llm_generated"},
+        {"generated_from": {"tracked_keyword_id": str(uuid.uuid4()), "template": "listicle"}},
+    ],
+)
+async def test_a_create_member_out_of_bounds_is_refused(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    extra: dict[str, Any],
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.post(
+        project_url(workspace, project, "prompts"),
+        json=prompt_body("Which CRM suits a startup?", **extra),
+        headers=editor.headers,
+    )
+
+    assert problem(response) == INVALID

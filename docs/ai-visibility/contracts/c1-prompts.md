@@ -2,24 +2,30 @@
 
 ## Status
 
-Published by WP-03 on 2026-11-13. Owner package: [WP-13 prompts-lane](../work-packages/WP-13-prompts-lane.md)
+Published by WP-03 on 2026-11-13 and built by WP-13 on 2026-11-13. Owner package: [WP-13 prompts-lane](../work-packages/WP-13-prompts-lane.md)
 (MASTER-PLAN 3.3: `api/ai/limits_routes.py`; 3.6: the prompt and lint models in `schemas/ai.py` and
-`schemas/ai_bulk.py`, which WP-03 extended additively under plan decision D4).
+`schemas/ai_bulk.py`, which WP-03 extended additively under plan decision D4). Every item below is
+built: no route of this note answers `501` any more. Where the contract text and the change log
+differ, the change log (the last section) is right, and the examples have been corrected to it.
 
-| Item | Kind | Answers today |
+| Item | Kind | State |
 |---|---|---|
-| `POST {P}/prompts/bulk-update` | new route (stub) | `501` after the access checks and body validation |
-| `GET {P}/ai/limits` | new route (stub) | `501` after the access checks |
-| `GET {P}/prompts`: `filter[prompt_type_in]`, `filter[funnel_stage_in]`, `filter[importance_in]`, `filter[is_branded]`, `sort`, `filter[is_active]=any` | optional addition to a built route | `501` when used |
-| `POST {P}/prompts` and the items of `POST {P}/prompts/bulk-create`: `is_branded`, `source`, `creation_method`, `generated_from` | optional addition | `501` when any is sent; nothing is written |
-| `PATCH {P}/prompts/{prompt_id}`: header `If-Match` | optional addition | `501` when sent; nothing is changed |
-| `POST {P}/prompts/lint`: body shape `items`, member `language_code` | optional addition | `501` when used |
-| `POST {P}/prompts/bulk-archive`: body shape `filter` | optional addition | `501` when used |
-| Response fields `Prompt.prompt_type_source`, `Prompt.is_branded_source`, `PromptLint.tracked`, `PromptLint.near_duplicate_of`, `PromptLint.suggested_prompt_type`, `PromptQuota.would_create`, `PromptLintResponse.estimate` | new optional fields | absent from every response (not returned yet) |
-| Lint rule names `word_count`, `multiple_questions`, `leading_wording`, `language_mismatch`, `contains_competitor_alias` | widened `LintWarning.rule` enum | never returned yet |
+| `POST {P}/prompts/bulk-update` | new route | built: `200` |
+| `GET {P}/ai/limits` | new route | built: `200` |
+| `GET {P}/prompts`: `filter[prompt_type_in]`, `filter[funnel_stage_in]`, `filter[importance_in]`, `filter[is_branded]`, `sort`, `filter[is_active]=any` | optional addition to a built route | built |
+| `POST {P}/prompts` and the items of `POST {P}/prompts/bulk-create`: `is_branded`, `source`, `creation_method`, `generated_from` | optional addition | built |
+| `PATCH {P}/prompts/{prompt_id}`: header `If-Match`; `GET` and `PATCH` answer an `ETag` header | optional addition | built |
+| `POST {P}/prompts/lint`: body shape `items`, member `language_code` | optional addition | built |
+| `POST {P}/prompts/bulk-archive`: body shape `filter` | optional addition | built |
+| `POST {P}/term-assignments` with `subject_type: prompt`, and `include=prompt_count` on `GET {W}/vocabularies/{vocabulary_id}/terms` | added by WP-13 (not in the WP-03 pack) | built |
+| Response fields `Prompt.prompt_type_source`, `Prompt.is_branded_source` | now required fields | always returned |
+| Response fields `PromptLint.tracked`, `PromptLint.near_duplicate_of`, `PromptQuota.would_create`, `PromptLintResponse.estimate` | optional fields | returned with the `items` shape only |
+| Response field `PromptLint.suggested_prompt_type` | optional field | returned for every text, in both shapes |
+| Lint rule names `word_count`, `multiple_questions`, `leading_wording`, `language_mismatch`, `contains_competitor_alias` | widened `LintWarning.rule` enum | returned |
 
-A request that leaves every addition out behaves exactly as before. Nothing else about the built routes
-changes.
+A request that leaves every addition out behaves exactly as before, with these exceptions: a prompt
+response carries the two source fields, and `PromptCreate.prompt_type` has no default (change log).
+Nothing else about the built routes changes.
 
 ## Routes and parameters
 
@@ -43,14 +49,15 @@ Existing parameters are unchanged (`filter[q]`, `filter[term]`, `filter[intent_i
 
 | Parameter | Type | Bounds | Meaning |
 |---|---|---|---|
-| `filter[prompt_type_in]` | comma list of `question`, `comparison`, `recommendation`, `how_to`, `definition`, `local`, `transactional`, `other` | each value from the list | Prompts of any of these types. `501` when used. |
-| `filter[funnel_stage_in]` | comma list of `tofu`, `mofu`, `bofu`, `retention`, `unknown` | each value from the list | `501` when used. |
-| `filter[importance_in]` | comma list of integers | each 1 to 5 | `501` when used. |
-| `filter[is_branded]` | boolean | | Branded or not branded prompts. `501` when used. |
-| `sort` | `text`, `-text`, `importance`, `-importance`, `created_at`, `-created_at`, `updated_at`, `-updated_at` | one value | A field, `-` first for descending; left out: newest first. `501` when used. |
-| `filter[is_active]` | `true` (default), `false` or the string `any` | | `any` lists active and archived prompts. `501` for `any` only; `true` and `false` work as before. |
+| `filter[prompt_type_in]` | comma list of `question`, `comparison`, `recommendation`, `how_to`, `definition`, `local`, `transactional`, `other` | each value from the list | Prompts of any of these types. |
+| `filter[funnel_stage_in]` | comma list of `tofu`, `mofu`, `bofu`, `retention`, `unknown` | each value from the list | Prompts at any of these stages. |
+| `filter[importance_in]` | comma list of integers | each 1 to 5 | Prompts with any of these importances. |
+| `filter[is_branded]` | boolean | | Branded or not branded prompts; left out, both (a list is not a rate). |
+| `sort` | `text`, `-text`, `importance`, `-importance`, `created_at`, `-created_at`, `updated_at`, `-updated_at` | one value | A field, `-` first for descending; left out: newest first. |
+| `filter[is_active]` | `true` (default), `false` or the string `any` | | `any` lists active and archived prompts. |
 
-The new list filters carry no bound on the number of values, as the existing `filter[intent_in]`.
+The new list filters carry no bound on the number of values, as the existing `filter[intent_in]`. The
+filters combine with `and`; a cursor is bound to the sort and to each filter in use (change log).
 
 ### POST {P}/prompts and bulk-create items: added body members
 
@@ -59,21 +66,21 @@ All optional, none required. Existing members are unchanged (`text`, `language_c
 
 | Member | Type | Bounds | Meaning |
 |---|---|---|---|
-| `is_branded` | boolean | | Overrides the branded flag computed from the own aliases. |
+| `is_branded` | boolean | | Overrides the branded flag computed from the own aliases; the prompt then reads `is_branded_source: override`. |
 | `source` | `manual`, `csv_import`, `seo_keyword`, `paa`, `gsc_query` | | Where the prompt came from; left out: `manual`. The column holds more values (migration 0018) which only the server sets. |
-| `creation_method` | `human`, `template`, `imported` | | How it was written; left out: `human`. `llm_generated` is set by the server only. |
-| `generated_from` | `{ tracked_keyword_id: uuid, template: recommendation, comparison, how_to or procurement }` | both required, no other member | The tracked keyword and template it was generated from. |
+| `creation_method` | `human`, `template`, `imported` | | How it was written; left out: `human`, or `template` when `generated_from` is sent. `llm_generated` is set by the server only. |
+| `generated_from` | `{ tracked_keyword_id: uuid, template: recommendation, comparison, how_to or procurement }` | both required, no other member | The tracked keyword and template it was generated from. The keyword must be a tracked keyword of the project that is not deleted (`422 tracked_keyword_unknown`; in `bulk-create` only that item is rejected). It has no column: the `prompt.created` audit entry carries it. |
 
-A used member answers `501` before anything is written; in `bulk-create` that holds for the first item
-that uses one, and no item is stored.
+`prompt_type` left out (or sent as `null`) takes the server rule and `prompt_type_source` is `rule`; sent,
+it is kept and the source is `person` (change log).
 
 ### PATCH {P}/prompts/{prompt_id}: added header
 
 | Header | Type | Bounds | Meaning |
 |---|---|---|---|
-| `If-Match` | string | up to 128 characters | The `ETag` of the prompt as read. Optional. `501` when sent. |
+| `If-Match` | string | up to 128 characters | The `ETag` of the prompt as read: a comma list of ETags or `*`. Optional. `412 precondition_failed` when none matches, and nothing changes. |
 
-The body (`PromptPatch`) is unchanged.
+The body (`PromptPatch`) is unchanged. `GET` and `PATCH` of a prompt answer the `ETag` header (change log).
 
 ### POST {P}/prompts/lint: added request shape and member
 
@@ -81,16 +88,17 @@ The body is one of two shapes; the shape sent is the one validated (`items` pres
 
 | Shape | Members | Bounds |
 |---|---|---|
-| `texts` (built) | `texts`, `engine_codes?`, `language_code?` (new) | `texts` 1 to 1,000 strings; `engine_codes` 1 or more; `language_code` two lowercase letters. `language_code` answers `501`. |
-| `items` (new, `501`) | `items`, `engine_codes?` | `items` 1 to 1,000 of `{ text, language_code, country_iso }`; `text` up to 8,000 characters (a text too long to save is linted and told so); `country_iso` two uppercase letters. |
+| `texts` | `texts`, `engine_codes?`, `language_code?` | `texts` 1 to 1,000 strings; `engine_codes` 1 or more; `language_code` two lowercase letters, the language every text is checked against. |
+| `items` | `items`, `engine_codes?` | `items` 1 to 1,000 of `{ text, language_code, country_iso }`; `text` up to 8,000 characters (a text too long to save is linted and told so); `country_iso` two uppercase letters. Only this shape answers `tracked`, `near_duplicate_of`, `quota.would_create` and `estimate`. |
 
 ### POST {P}/prompts/bulk-archive: added request shape
 
-`{ ids, archive }` is built. The second shape, `{ filter, archive }`, answers `501`. `filter` is a
+`{ ids, archive }` and `{ filter, archive }` are both built; exactly one of `ids` and `filter`. `filter` is a
 `PromptSelectionFilter`: the names of the list's filters without the brackets (`q`, `term`,
 `intent_in`, `funnel_stage_in`, `prompt_type_in`, `importance_in`, `is_branded`, `country_iso`,
 `language_code`, `is_active`). Each list holds 1 to 100 values; `q` is 1 to 200 characters;
-`is_active` left out takes archived and active prompts alike.
+`is_active` left out takes archived and active prompts alike. A filter that matches more than 1,000
+prompts answers `422 too_many_subjects` with `limit: 1000` (change log).
 
 ### POST {P}/prompts/bulk-update (new)
 
@@ -105,7 +113,11 @@ The body is one of two shapes; the shape sent is the one validated (`items` pres
 At least one of `set`, `add_term_ids` and `remove_term_ids` must say something. Response
 `PromptBulkUpdateResponse`: `data.matched` (the project's prompts found) and `data.updated` (those that
 changed). One transaction; one `prompt.bulk_changed` audit entry and one `prompt.updated` per prompt
-changed (as the route description states).
+changed (as the route description states). Setting `prompt_type` makes `prompt_type_source` `person`; setting
+`is_branded` makes `is_branded_source` `override`. A filter that matches more than 1,000 prompts answers
+`422 too_many_subjects` with `limit: 1000`. A term the project may not use is `422 term_unknown` and two
+terms of one single-valued vocabulary are `single_valued_vocabulary`, both at `add_term_ids` or
+`remove_term_ids`. Ids of another project or workspace are not matched and are no error.
 
 ### GET {P}/ai/limits (new)
 
@@ -117,17 +129,17 @@ No parameters. Response `data`:
 | `ai_observations_month` | `{ limit, used }` | AI answers of the whole workspace this UTC month, planned runs included, against `max_ai_observations_per_month`, counted as Run now counts them. |
 | `manual_runs_today` | `{ used, limit }` | Manual runs people started in the project today (UTC). |
 
-### New response fields (all optional, absent until built)
+### New response fields
 
 | Model | Field | Type | Meaning |
 |---|---|---|---|
-| `Prompt` | `prompt_type_source` | `rule` or `person` | Who set `prompt_type`. |
-| `Prompt` | `is_branded_source` | `computed` or `override` | Whether `is_branded` is computed or set by a person. |
-| `PromptLint` | `tracked` | `{ prompt_id, is_active }` | The project's prompt with this identity, archived ones too (with `items`). |
-| `PromptLint` | `near_duplicate_of` | `{ prompt_id, text }` | A prompt that differs only in case and spacing. |
-| `PromptLint` | `suggested_prompt_type` | `PromptType` | The type the server rule gives the text. |
-| `PromptQuota` | `would_create` | integer | Of the items, those neither tracked nor repeated. |
-| `PromptLintResponse` | `estimate` | `{ engines: [{ engine_code, prompts_fit, answers_per_month, monthly_cost_usd, run_now_answers, run_now_cost_usd }], total_monthly_cost_usd }` | What the prompts that would be created cost on the standard queue. Money is a decimal string, null when the price book has no price. |
+| `Prompt` | `prompt_type_source` | `rule` or `person` | Who set `prompt_type`. Required, always returned. |
+| `Prompt` | `is_branded_source` | `computed` or `override` | Whether `is_branded` is computed or set by a person. Required, always returned. |
+| `PromptLint` | `tracked` | `{ prompt_id, is_active }` | The project's prompt with this identity, archived ones too (with `items` only). |
+| `PromptLint` | `near_duplicate_of` | `{ prompt_id, text }` | A prompt that differs only in case and spacing; only when the text is not tracked (with `items` only). |
+| `PromptLint` | `suggested_prompt_type` | `PromptType` | The type the server rule gives the text; in both shapes. |
+| `PromptQuota` | `would_create` | integer | Of the items, those neither tracked nor repeated by an earlier item nor too long to save; a near duplicate counts. With `items` only. |
+| `PromptLintResponse` | `estimate` | `{ engines: [{ engine_code, prompts_fit, answers_per_month, monthly_cost_usd, run_now_answers, run_now_cost_usd }], total_monthly_cost_usd }` | What the prompts that would be created cost on the standard queue, for each of `engine_codes` or, left out, each engine the project has on. Money is a decimal string, null when the price book has no price. With `items` only; rounding in the change log. |
 | `LintWarning` | `rule` | widened enum | `contains_brand_alias`, `engine_limit` (built) plus `word_count`, `multiple_questions`, `leading_wording`, `language_mismatch`, `contains_competitor_alias`. |
 
 ## Error codes
@@ -137,27 +149,30 @@ Status and code, as the problem body carries them (`code`).
 | Status | Code | When |
 |---|---|---|
 | 401 | `unauthenticated` | No session. |
-| 404 | `not_found` | Not a member of the workspace; a project outside the member's scope; once built, a deleted or unknown project or prompt. |
+| 404 | `not_found` | Not a member of the workspace; a project outside the member's scope; a deleted or unknown project or prompt (the service answers it, as it does for every built route). |
 | 403 | `forbidden` | The role lacks `data:read` (list, lint, limits) or `prompts:write` (the writes). A viewer is refused before any new member is looked at. |
 | 403 | `workspace_suspended` | A write in a suspended workspace. |
 | 422 | `validation_failed` | A value outside its bounds (for example `filter[importance_in]=6`, `sort=volume`, an `If-Match` over 128 characters, a `source` outside the five); the `errors` list names location, path and code. |
-| 422 | `validation_failed` with field code `nothing_to_change` | Bulk update with none of `set`, `add_term_ids`, `remove_term_ids`. Raised by the body model today, before the `501`. |
-| 422 | `validation_failed` with field code `added_and_removed` | Bulk update with a term in both `add_term_ids` and `remove_term_ids`. Raised today, before the `501`. |
+| 422 | `validation_failed` with field code `nothing_to_change` | Bulk update with none of `set`, `add_term_ids`, `remove_term_ids`. Raised by the body model. |
+| 422 | `validation_failed` with field code `added_and_removed` | Bulk update with a term in both `add_term_ids` and `remove_term_ids`. Raised by the body model. |
 | 422 | `validation_failed` (no named field code) | Bulk update with both or neither of `ids` and `filter`; `set` with no member or a null one. |
-| 422 | `validation_failed` with field code `term_unknown` | A later body: a term the project may not use, at `add_term_ids` (create already answers it at `term_ids`). The exact path is the owner's. |
-| 422 | `validation_failed` with field code `prompt_too_long` | Create or bulk-create text over the longest an engine takes (built). |
-| 422 | `quota_exceeded` | A later body: bulk archive by filter with `archive: false` past the active prompt limit, all or none; carries `limit`, `used`, `requested` (built for `ids`). |
-| 412 | `precondition_failed` | A later body: `If-Match` is not the prompt's current ETag. |
-| 400 | `invalid_cursor` | A cursor used with other filters than it was issued for; the new filters and `sort` count as filters once built. |
-| 501 | `not_implemented` | A stub, or an addition that was used (`detail` names it). |
+| 422 | `validation_failed` with field code `term_unknown` | A term the project may not use, at `add_term_ids` or `remove_term_ids` of bulk update (create answers it at `term_ids`). |
+| 422 | `validation_failed` with field code `tracked_keyword_unknown` | `generated_from.tracked_keyword_id` is not a live tracked keyword of the project. |
+| 422 | `validation_failed` with field code `prompt_too_long` | Create or bulk-create text over the longest an engine takes. |
+| 422 | `quota_exceeded` | A write that would pass the active prompt limit: create, bulk-create, bring back by `ids` or by `filter`; all or none; carries `limit`, `used`, `requested`. |
+| 422 | `too_many_subjects` | A selection by filter (bulk update, bulk archive) that matches more than 1,000 prompts, with `limit: 1000`; term assignments over their own limit (change log). |
+| 412 | `precondition_failed` | `If-Match` is not the prompt's current ETag. |
+| 400 | `invalid_cursor` | A cursor used with other filters or another `sort` than it was issued for, or a key that does not fit its sort. |
 
-Order: 401, 404, 403, 422 (body and parameters), then `501`. An addition used on a built route answers
-`501` before the service reads anything, so `PATCH` with `If-Match` on a prompt that does not exist
-answers `501`, not `404`, until the owner builds it.
+No route of this note answers `501` any more.
+
+Order: 401, 404, 403, 422 (body and parameters), then the service: `404` for a deleted or unknown project or
+prompt, `412` for a stale `If-Match` (before terms and quota are looked at), then the writes.
 
 ## Example
 
-The `501` body is in the [README](README.md). The responses below show what the owner will return.
+The responses below were produced from the models by WP-03; WP-13 corrected the values the built
+behaviour changed (the type rule, the estimate rounding, the ETag format; see the change log).
 
 ### List with the new filters
 
@@ -273,11 +288,11 @@ POST {P}/prompts
 
 ### Change with If-Match
 
-The `ETag` format is the owner's to fix; the value below only shows where it goes.
+The `ETag` is a quoted string of 32 lowercase hex characters, read from `GET` or from the last `PATCH`.
 
 ```http
 PATCH {P}/prompts/0000001a-7c1e-4a52-9b3d-00000000001a
-If-Match: "3f9a1c"
+If-Match: "3f9a1c07b2d84e5a91c6f0d2e7a45b18"
 ```
 
 ```json
@@ -302,7 +317,7 @@ If-Match: "3f9a1c"
     "country_iso": "US",
     "intent": "commercial",
     "funnel_stage": "bofu",
-    "prompt_type": "recommendation",
+    "prompt_type": "question",
     "prompt_type_source": "rule",
     "importance": 5,
     "is_branded": false,
@@ -346,7 +361,7 @@ POST {P}/prompts/lint
 }
 ```
 
-The other new shape, `texts` with a language (`501` too until built):
+The other addition, `texts` with a language, checks every text against that language:
 
 ```json
 {"texts": ["Quelle est la meilleure solution de facturation ?"], "language_code": "en"}
@@ -365,7 +380,7 @@ The other new shape, `texts` with a language (`501` too until built):
         {
           "rule": "word_count",
           "severity": "warning",
-          "message": "A prompt reads best with 5 to 60 words.",
+          "message": "Has 2 words. Prompts of 5 to 60 words read like real questions.",
           "engine_code": null,
           "span": null
         }
@@ -381,7 +396,7 @@ The other new shape, `texts` with a language (`501` too until built):
         "prompt_id": "0000001a-7c1e-4a52-9b3d-00000000001a",
         "text": "What are the best project management tools for remote teams?"
       },
-      "suggested_prompt_type": "recommendation"
+      "suggested_prompt_type": "question"
     },
     {
       "text": "Asana vs Trello for a ten person agency",
@@ -392,27 +407,27 @@ The other new shape, `texts` with a language (`501` too until built):
       "suggested_prompt_type": "comparison"
     }
   ],
-  "quota": {"limit": 150, "used": 87, "would_create": 1},
+  "quota": {"limit": 150, "used": 87, "would_create": 2},
   "estimate": {
     "engines": [
       {
         "engine_code": "chatgpt_web",
-        "prompts_fit": 1,
-        "answers_per_month": 8,
-        "monthly_cost_usd": "0.01",
-        "run_now_answers": 1,
-        "run_now_cost_usd": "0.001200"
+        "prompts_fit": 2,
+        "answers_per_month": 17,
+        "monthly_cost_usd": "0.02",
+        "run_now_answers": 2,
+        "run_now_cost_usd": "0.002400"
       },
       {
         "engine_code": "gemini_web",
-        "prompts_fit": 1,
-        "answers_per_month": 8,
+        "prompts_fit": 2,
+        "answers_per_month": 17,
         "monthly_cost_usd": null,
-        "run_now_answers": 1,
+        "run_now_answers": 2,
         "run_now_cost_usd": null
       }
     ],
-    "total_monthly_cost_usd": "0.01"
+    "total_monthly_cost_usd": "0.02"
   }
 }
 ```
@@ -491,8 +506,8 @@ Each row can be tightened (or fixed in detail) by WP-13 through the change log.
 | Q5 | Quota read: `PromptPage.meta.quota`, `GET {W}/quotas` or `GET {P}/ai/limits` | `GET {P}/ai/limits` with N06's names (decision D6) | One place for the same numbers; CF-11 needs the manual runs too, which are per project. The other two can be added later additively. |
 | Q6 | Which `source` values a caller may send | `manual`, `csv_import`, `seo_keyword`, `paa`, `gsc_query` | N07's list; widening a request enum later is additive, narrowing is not. |
 | Q7 | `generated_from.template` type | the four template names of doc 19 `from-keywords/preview` | Doc 19 names them; a string would be wider than any spec. |
-| Q8 | `prompt_type` default on create | unchanged (`question`); `prompt_type_source` added, not returned yet | The field is optional in the generated client either way; WP-13 swaps the default for the rule. |
-| Q26 | `If-Match` on prompt `PATCH` required or optional | optional header, `501` while not built | Doc 19 2.11: optional in V1 except versions and memberships. |
+| Q8 | `prompt_type` default on create | published as unchanged (`question`); built: no default, the server rule sets the type and `prompt_type_source` is returned | The field is optional in the generated client either way; WP-13 swapped the default for the rule (change log). |
+| Q26 | `If-Match` on prompt `PATCH` required or optional | optional header; built, `412` on a stale value | Doc 19 2.11: optional in V1 except versions and memberships. |
 | Q27 | How `filter[is_active]` takes `any` | `boolean` or the string `any` | Keeps `true` and `false` exactly as today. |
 | Q28 | `expected_frequency` on create and in `Prompt` | left out | Owner decision: no frequency per prompt ("Not asked of the backend"). |
 | D5 | Lint `items` (N01) and bulk archive `filter` (D-23) shape | a second body shape in a tagged union; the first shape is unchanged | The service keeps its types (`body.texts`, `body.ids` stay required), no service file changes, the generated component names stay. |
@@ -503,6 +518,11 @@ D-21, competitor aliases get their own warning rule); the confirmed branded defi
 funnel stage (D-22) are WP-13's.
 
 ## How the owner package fills it
+
+Done by WP-13 on 2026-11-13; the steps stay as the record. Step 3 is done: both `test_contract_*` C1
+files are gone and their assertions live in `test_prompts.py`, `test_prompt_provenance.py`,
+`test_prompt_list_filters.py`, `test_prompt_lint.py` and `test_prompt_bulk_update.py`
+(`test_no_c1_description_says_not_built` replaces the document check of the stub text).
 
 1. `bulk_update_prompts` in `api/ai/prompt_routes.py` and `ai_limits` in `api/ai/limits_routes.py`: drop
    `@not_built` and `raise not_built_yet()` (`idraft.api.stubs`), write the service. Bulk update is a
@@ -539,3 +559,4 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-13: Correction to the line above. The cursor of `sort=text` and `sort=-text` holds `[id]` only, the id of the last prompt of the page, not its text: a text of up to 2,000 characters does not fit in a cursor. The next page compares the text of that prompt, read in the same statement, so the page is still one statement. The prompt still anchors the page when it was archived or deleted after the page before. A cursor whose id is not a prompt of this project (a made-up id, or a prompt of another project or workspace) answers `200` with an empty page, `has_more` false and no `next_cursor`; it never answers with that prompt's text or place. The cursors of the other sorts are as described above.
 2026-11-13 WP-13: Correction to the `prompt_count` line above. Archived and deleted prompts and deleted projects are left out. An archived project's prompts count, as they do in the quota and as keywords do in `keyword_count`.
 2026-11-13 WP-13: Term assignments for prompts take at most `min(20000, 200000 // n)` matched prompts for `n` terms, the rule for tracked keywords. More answers `422 too_many_subjects` with that `limit`, after the terms are checked and before anything is written. Ids that are not live prompts of the project are not matched, so they do not count.
+2026-11-13 WP-13: The fills are done. Every route and addition of this note is built and none answers `501`; the status table, the parameter and field tables, the error table and the examples above describe the built state (the examples now show the type rule, 2 prompts that would be created with the estimate rounded as described, and a 32 character ETag). The two `test_contract_*` C1 test files are replaced by real tests.

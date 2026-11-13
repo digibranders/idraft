@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 import httpx
 import pytest
+from pydantic import TypeAdapter, ValidationError
 
 from idraft.api.resources import Resources
+from idraft.api.schemas.ai import PromptLintBody
 from idraft.domain.ai_engines import PROMPT_TEXT_MAX
 from tests.api.ai.sources_support import statements
 from tests.api.ai.support import ai_project, set_prompt_quota
@@ -31,6 +34,29 @@ def _prompt(length: int) -> str:
 
 def _item(text: str, country_iso: str = "US", language_code: str = "en") -> dict[str, str]:
     return {"text": text, "language_code": language_code, "country_iso": country_iso}
+
+
+ITEM = {"text": "Is Acme good?", "language_code": "en", "country_iso": "US"}
+
+
+def _codes(body: dict[str, Any]) -> list[str]:
+    with pytest.raises(ValidationError) as caught:
+        TypeAdapter(PromptLintBody).validate_python(body)
+    return [error["type"] for error in caught.value.errors()]
+
+
+@pytest.mark.parametrize(
+    ("body", "code"),
+    [
+        ({"items": []}, "too_short"),
+        ({"items": [ITEM] * 1001}, "too_long"),
+        ({"items": [{"text": "x?", "language_code": "en"}]}, "missing"),
+        ({"items": [ITEM], "texts": ["x?"]}, "extra_forbidden"),
+        ({"texts": []}, "too_short"),
+    ],
+)
+def test_a_lint_items_body_is_refused_with_its_code(body: dict[str, Any], code: str) -> None:
+    assert code in _codes(body)
 
 
 async def _seed(
@@ -538,5 +564,21 @@ async def test_lint_items_is_for_readers_and_404_for_a_foreign_project(
     unseen = await _lint(api, workspace, foreign, viewer.headers, items)
 
     assert read.status_code == 200, read.text
+    assert problem(refused) == (403, "forbidden")
+    assert problem(unseen) == (404, "not_found")
+
+
+async def test_lint_checks_access_before_the_body_is_used(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    billing = await member(resources, migrated, workspace, "billing")
+    outsider = await member(resources, migrated, await make_workspace(migrated), "owner")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "prompts", "lint")
+
+    refused = await api.post(url, json={"items": [ITEM]}, headers=billing.headers)
+    unseen = await api.post(url, json={"items": [ITEM]}, headers=outsider.headers)
+
     assert problem(refused) == (403, "forbidden")
     assert problem(unseen) == (404, "not_found")
