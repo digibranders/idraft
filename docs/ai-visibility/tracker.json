@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T14:07:34+05:30",
+ "updated": "2026-11-13T14:15:47+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -543,7 +543,7 @@
    "title": "Sources and fan-out reads: series, country, min_support, lost, cited with, ads",
    "wave": "W1",
    "kind": "backend",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-03"
    ],
@@ -587,7 +587,7 @@
     "done": 21
    },
    "owner": "",
-   "notes": "file work-packages/WP-14-sources-lane.md; estimate 8 tasks; decisions D-41 | all 21 rows and T1-T10 committed, rebased on develop with WP-12 and WP-13 (2b3161f4, backup on origin/ai/wp-14-sources-lane); waiting for health OK to run typecheck, schema.test and the capped check.sh, then final whole-diff review, push, merged line"
+   "notes": "file work-packages/WP-14-sources-lane.md; estimate 8 tasks; decisions D-41 | merged 13de1f65; 21/21 rows; backend 6035 passed + 1 load flake (passes alone); no migration; final whole-diff review PASS; session stopped"
   },
   {
    "id": "WP-15",
@@ -953,15 +953,15 @@
    "title": "Topics by engine and the topic drawer (R-09, R-11 topic part)",
    "wave": "W2",
    "kind": "web",
-   "status": "not_started",
+   "status": "building",
    "dependsOn": [
     "WP-05",
     "WP-06",
     "WP-07",
     "WP-12"
    ],
-   "session": null,
-   "branch": null,
+   "session": "ai-prompts-web",
+   "branch": "ai/wp-20-topics-by-engine",
    "rows": {
     "BE": [],
     "WB": [
@@ -1078,7 +1078,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | from WP-25: add tabs through features/prompts seams/inspector-tabs.ts (More tabs absorbs overflow); the e2e phone test hard-codes 4 tabs and no More button: update it when your tab lands; domain chips take href once the domain inspector route exists | from WP-16: adopt NumberStrip inside CustomizableScreen yourself and add Customize numbers to the page More menu (plan docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5); WP-16 does not edit your strip files"
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | from WP-25: add tabs through features/prompts seams/inspector-tabs.ts (More tabs absorbs overflow); the e2e phone test hard-codes 4 tabs and no More button: update it when your tab lands; domain chips take href once the domain inspector route exists | from WP-16: adopt NumberStrip inside CustomizableScreen yourself and add Customize numbers to the page More menu (plan docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5); WP-16 does not edit your strip files | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current"
   },
   {
    "id": "WP-22",
@@ -1123,7 +1123,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-22-citations-inspectors.md; estimate 6 tasks; decisions none"
+   "notes": "file work-packages/WP-22-citations-inspectors.md; estimate 6 tasks; decisions none | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current"
   },
   {
    "id": "WP-23",
@@ -1204,7 +1204,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-24-fanout-views.md; estimate 5 tasks; decisions D-02 | from WP-25: add tabs through features/prompts seams/inspector-tabs.ts (More tabs absorbs overflow); the e2e phone test hard-codes 4 tabs and no More button: update it when your tab lands; domain chips take href once the domain inspector route exists"
+   "notes": "file work-packages/WP-24-fanout-views.md; estimate 5 tasks; decisions D-02 | from WP-25: add tabs through features/prompts seams/inspector-tabs.ts (More tabs absorbs overflow); the e2e phone test hard-codes 4 tabs and no More button: update it when your tab lands; domain chips take href once the domain inspector route exists | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current"
   },
   {
    "id": "WP-25",
@@ -1990,7 +1990,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-37-overview-cards-sources.md; estimate 6 tasks; decisions none"
+   "notes": "file work-packages/WP-37-overview-cards-sources.md; estimate 6 tasks; decisions none | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current"
   },
   {
    "id": "WP-38",
@@ -3070,7 +3070,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-61-sources-page.md; estimate 7 tasks; decisions none"
+   "notes": "file work-packages/WP-61-sources-page.md; estimate 7 tasks; decisions none | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current"
   },
   {
    "id": "WP-62",
@@ -3938,27 +3938,6 @@
    "until": "WP-10 merged"
   },
   {
-   "path": "backend/tests/security/test_cross_tenant.py",
-   "wp": "WP-14 (alongside WP-12)",
-   "granted": "2026-11-13T06:49:17+05:30",
-   "scope": "WORDS line (registrable_domain) and the fan-out QUERIES line only; everything else inside the WP-14 anchors; additive, rebase and keep both sides",
-   "until": "WP-14 merged"
-  },
-  {
-   "path": "backend/src/idraft/providers/dataforseo/ai_parse.py",
-   "wp": "WP-14 (T8b only)",
-   "granted": "2026-11-13T06:49:17+05:30",
-   "scope": "fix _bounded so the other lists are cut before the fan-out queries; WP-57 owns the retrieval part of this file and must rebase",
-   "until": "WP-14 merged"
-  },
-  {
-   "path": "backend/tests/providers/dataforseo/test_ai_parse.py",
-   "wp": "WP-14 (T8b only)",
-   "granted": "2026-11-13T06:49:17+05:30",
-   "scope": "tests for the _bounded fix",
-   "until": "WP-14 merged"
-  },
-  {
    "path": "apps/web/src/components/app/metric/metric-strip.tsx",
    "wp": "WP-16 (T3)",
    "granted": "2026-11-13T12:42:47+05:30",
@@ -4146,6 +4125,16 @@
    "detail": "No audit read route in the contract and no audit page in the web. Belongs with whoever builds the workspace audit log (settings or ops). Also: DS 3.34 ConflictDialog (720 px side by side) does not exist; WP-16 builds a 400 px alert conflict dialog instead.",
    "owner": "settings or ops owner, owner decision",
    "severity": "low",
+   "status": "open"
+  },
+  {
+   "id": "F-17",
+   "found": "2026-11-13T14:15:47+05:30",
+   "by": "WP-14",
+   "title": "WP-14 flags for the owner",
+   "detail": "(1) O1 moves numbers, owner confirms; reverse = FLAGGED_COUNTED_BY_DEFAULT in api/ai/source_routes.py plus default-pin tests. (2) engine_internal never set at ingest. (3) diversity scans ai.citations twice (speed only). (4) A domain whose role changes shows lost under the old role and new under the new one. (5) kind=lost reads three windows (276 days for a 92 day ask), the heaviest read. (6) Fan-out cut: docs/ops/ai-fanout-cut-measure.md read-only SQL for the ops session NOT run; real share of cut answers unknown; WP-57 rebases onto the _bounded fix. (7) fan-out topics include workspace-wide vocabularies. (10) diversity and detail lack an explicit same-workspace other-project test.",
+   "owner": "owner and ops session",
+   "severity": "info and one decision (O1)",
    "status": "open"
   }
  ],
