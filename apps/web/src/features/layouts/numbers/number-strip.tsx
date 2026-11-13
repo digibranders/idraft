@@ -49,7 +49,7 @@ import {
   type MetricStripProps,
 } from '@/components/app/metric/metric-strip';
 import { useMediaQuery } from '@/lib/dom/use-media-query';
-import { numberName, numberType, type NumberItem } from '@/lib/layouts';
+import { LIMITS, numberName, numberType, type NumberItem } from '@/lib/layouts';
 import { cn } from '@/lib/utils';
 
 export type { NumberValue } from './number-cell';
@@ -67,11 +67,9 @@ export interface NumberStripProps {
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
 /** The CSS value that turns dnd-kit's glide off. */
 const NO_TRANSITION = 'none';
-/** The most numbers a strip holds: with the Add number slot a strip of five has six cells. */
-const MAX_NUMBERS = 6;
-
 // Columns of the customize grid by what the strip's own width allows (the preview's rule): two, then three from 576 px,
-// then one row of up to six from 1024 px. Whole class names, so the stylesheet has them.
+// then one row of up to six from 1024 px. Whole class names, so the stylesheet has them; COLUMNS_WIDE has one entry
+// for each of the `LIMITS.numbers` (6) cells a strip can have, the Add number slot included.
 const COLUMNS_MID = ['', '@xl:grid-cols-1', '@xl:grid-cols-2', '@xl:grid-cols-3'] as const;
 const COLUMNS_WIDE = [
   '',
@@ -222,7 +220,7 @@ function CustomizeStrip({ label, valueOf, status, renderAddSlot }: NumberStripPr
     setLine(null);
   };
 
-  const showSlot = renderAddSlot !== undefined && numbers.length < MAX_NUMBERS;
+  const showSlot = renderAddSlot !== undefined && numbers.length < LIMITS.numbers;
   const count = numbers.length + (showSlot ? 1 : 0);
   if (count === 0) return null;
   const dragged = active === null ? undefined : numbers.find((item) => item.id === active.id);

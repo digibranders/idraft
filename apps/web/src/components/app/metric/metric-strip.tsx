@@ -47,6 +47,8 @@ export interface MetricStripItem {
   /**
    * Where the item leads inside the app. The label (with its addon) becomes the link, stretched over the whole
    * cell, so the addon must not be a control of its own. `md` and `sm` strips only; an `inline` chip ignores it.
+   * A cell with both `href` and `tip` has its tooltip reachable by keyboard only: the link's `::after` covers the
+   * value, so a pointer never reaches it.
    */
   href?: Route | undefined;
 }
@@ -72,11 +74,15 @@ export interface MetricStripProps {
   nowrap?: boolean | undefined;
 }
 
-/** Columns of the strip: one row when every cell gets 140 px, else two rows (23 section 2.3). */
+/**
+ * Columns of the strip: one row when every cell gets 140 px, else two rows (23 section 2.3). On a phone two rows of
+ * three would leave cells under 140 px, so the columns are as many as fit, and two at the least (the preview's phone
+ * strip). Above about 420 px, for six items, that is the two rows of three it always was.
+ */
 function columnsFor(count: number, width: number | null, size: 'md' | 'sm' | 'inline'): number {
   if (size === 'sm') return count === 4 ? 2 : Math.min(count, 3);
   if (width === null || width >= count * MIN_CELL + (count - 1)) return count;
-  return Math.ceil(count / 2);
+  return Math.min(count, Math.max(2, Math.min(Math.ceil(count / 2), Math.floor(width / MIN_CELL))));
 }
 
 /**

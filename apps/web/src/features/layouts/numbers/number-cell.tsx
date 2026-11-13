@@ -48,9 +48,12 @@ export const metricLabelOf = (item: NumberItem): string => numberType(item.metri
 
 /** The engine of an AI number as its mark with its name beside it (the name is never left out), else nothing. */
 export function engineOf(item: NumberItem): ReactNode {
-  // `truncate`: a narrow cell shortens the name and keeps it on its line, so the values of a row stay level
+  // The engine keeps its width and its line, so in a narrow cell the metric label shortens first (the label is a
+  // `Truncate`) and the values of a row stay level
   return item.engine === undefined ? null : (
-    <EngineLogo engine={item.engine} name={engineLabel(item.engine)} truncate />
+    <span data-slot="number-engine" className="shrink-0 whitespace-nowrap">
+      <EngineLogo engine={item.engine} name={engineLabel(item.engine)} />
+    </span>
   );
 }
 

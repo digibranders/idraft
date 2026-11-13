@@ -178,6 +178,10 @@ describe('NumberStrip in view mode', () => {
     expect(terms[0]).toHaveTextContent('Top 10');
     expect(terms[1]).toHaveTextContent(/^Mention rate\s*ChatGPT$/);
     expect(terms[1]?.querySelector('img')).not.toBeNull();
+    // in a narrow cell the metric label shortens first: the engine, mark and name, keeps its width
+    const engine = terms[1]?.querySelector('[data-slot="number-engine"]');
+    expect(engine).toHaveClass('shrink-0', 'whitespace-nowrap');
+    expect(engine?.querySelector('img')).not.toBeNull();
     expect(terms[0]?.querySelector('img')).toBeNull();
   });
 
@@ -420,6 +424,11 @@ describe('moving a number with the keyboard', () => {
     const view = mount({ numbers: [VISIBILITY, TOP10, CHATGPT] });
     await customize(view);
     stubCellRects();
+    const seen: boolean[] = [];
+    const listener = (event: KeyboardEvent): void => {
+      if (event.code === 'Escape') seen.push(event.defaultPrevented);
+    };
+    window.addEventListener('keydown', listener);
     await pickUp(view, 'SEO visibility', 'visibility');
     await view.user.keyboard('{ArrowLeft}');
     await waitFor(() => {
@@ -433,7 +442,28 @@ describe('moving a number with the keyboard', () => {
     await waitFor(() => {
       expect(document.getElementById('live-region-polite')).toHaveTextContent('SEO visibility put back');
     });
+    window.removeEventListener('keydown', listener);
     expect(orderOf()).toEqual(['visibility', 'top10', 'mention-chatgpt']);
+    expect(handleOf('SEO visibility')).toHaveAttribute('aria-pressed', 'false');
+    expect(latest?.mode).toBe('customize');
+    // The strip marks the held number's Escape as handled, so a shortcut that leaves the mode (it skips a prevented
+    // key) does not
+    expect(seen).toEqual([true]);
+  });
+
+  it('drops the number where it is when Tab is pressed', async () => {
+    const view = mount({ numbers: [VISIBILITY, TOP10, CHATGPT] });
+    await customize(view);
+    stubCellRects();
+    await pickUp(view, 'SEO visibility', 'visibility');
+    await view.user.keyboard('{ArrowRight}');
+    await view.user.keyboard('{Tab}');
+    await waitFor(() => {
+      expect(document.getElementById('live-region-polite')).toHaveTextContent(
+        'SEO visibility dropped at position 2 of 3',
+      );
+    });
+    expect(orderOf()).toEqual(['top10', 'visibility', 'mention-chatgpt']);
     expect(handleOf('SEO visibility')).toHaveAttribute('aria-pressed', 'false');
   });
 

@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MetricStrip, type MetricStripGroup } from './metric-strip';
@@ -237,6 +237,57 @@ describe('MetricStrip', () => {
     ];
     renderWithProviders(<MetricStrip size="md" label="Six" groups={six} status="ready" />);
     expect(columnsOf('Six')).toBe('repeat(3, minmax(0, 1fr))');
+  });
+
+  describe('columns of a page strip that does not fit in one row', () => {
+    const itemsOf = (count: number): MetricStripGroup[] => [
+      {
+        id: 'seo',
+        items: Array.from({ length: count }, (_, index) => ({
+          id: `m${String(index)}`,
+          label: `Metric ${String(index)}`,
+          value: '1',
+        })),
+      },
+    ];
+    const columnsAt = (count: number, width: number, size: 'md' | 'sm' = 'md'): string => {
+      stripWidth = width;
+      renderWithProviders(<MetricStrip size={size} label="Strip" groups={itemsOf(count)} status="ready" />);
+      return columnsOf('Strip');
+    };
+
+    it('uses two columns for six items on a phone, where three would leave cells under 140 px', () => {
+      // 390 px less the page gutters
+      expect(columnsAt(6, 366)).toBe('repeat(2, minmax(0, 1fr))');
+    });
+
+    it('keeps three columns for six items while every cell still gets 140 px, and drops to two just under that', () => {
+      expect(columnsAt(6, 420)).toBe('repeat(3, minmax(0, 1fr))');
+    });
+
+    it('drops to two columns one pixel under three cells of 140 px', () => {
+      expect(columnsAt(6, 419)).toBe('repeat(2, minmax(0, 1fr))');
+    });
+
+    it('keeps the columns of a tablet strip of six and of a strip of four', () => {
+      expect(columnsAt(6, 768)).toBe('repeat(3, minmax(0, 1fr))');
+      cleanup();
+      expect(columnsAt(4, 300)).toBe('repeat(2, minmax(0, 1fr))');
+      cleanup();
+      expect(columnsAt(4, 600)).toBe('repeat(4, minmax(0, 1fr))');
+    });
+
+    it('never has fewer than two columns for three items or more, and one for a single item', () => {
+      expect(columnsAt(3, 200)).toBe('repeat(2, minmax(0, 1fr))');
+      cleanup();
+      expect(columnsAt(5, 100)).toBe('repeat(2, minmax(0, 1fr))');
+      cleanup();
+      expect(columnsAt(1, 100)).toBe('repeat(1, minmax(0, 1fr))');
+    });
+
+    it('leaves the inspector grid alone', () => {
+      expect(columnsAt(6, 366, 'sm')).toBe('repeat(3, minmax(0, 1fr))');
+    });
   });
 
   it('draws the inspector grid in two columns for four items, and marks a refetch busy', () => {
