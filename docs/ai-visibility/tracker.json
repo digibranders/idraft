@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T21:19:43+05:30",
+ "updated": "2026-11-13T21:30:33+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1781,7 +1781,7 @@
     "done": 2
    },
    "owner": "",
-   "notes": "file work-packages/WP-32-overview-aggregates.md; estimate 8 tasks; decisions D-17"
+   "notes": "file work-packages/WP-32-overview-aggregates.md; estimate 8 tasks; decisions D-17 | plan committed (8 tasks); Task 1 contract notes (c8-metrics.md, c5-competitors.md) then Task 2 models + 7 stub routes + ONE regeneration = FIRST PUSH for WP-33 to 37; routes: ai/metrics/overview, overview/ai, ai/metrics/{metric}, .../series, .../breakdown, ai/competitors, overview/competitors; weekly only; SEO share of voice not built (F-26)"
   },
   {
    "id": "WP-33",
@@ -1818,7 +1818,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20 | plan committed (13 tasks), leases granted incl. the eslint features/layouts boundary entry; T1 scope model and URL state running; milestone M1 at T6"
+   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20 | plan committed (13 tasks), leases granted incl. the eslint features/layouts boundary entry; T1 scope model and URL state running; milestone M1 at T6 | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor)"
   },
   {
    "id": "WP-34",
@@ -1861,7 +1861,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-34-overview-cards-engines.md; estimate 8 tasks; decisions D-04 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6)"
+   "notes": "file work-packages/WP-34-overview-cards-engines.md; estimate 8 tasks; decisions D-04 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor)"
   },
   {
    "id": "WP-35",
@@ -1900,7 +1900,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-35-overview-cards-competitors.md; estimate 6 tasks; decisions none | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6)"
+   "notes": "file work-packages/WP-35-overview-cards-competitors.md; estimate 6 tasks; decisions none | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor)"
   },
   {
    "id": "WP-36",
@@ -1944,7 +1944,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-36-overview-cards-topics.md; estimate 7 tasks; decisions D-04, D-05 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6)"
+   "notes": "file work-packages/WP-36-overview-cards-topics.md; estimate 7 tasks; decisions D-04, D-05 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor)"
   },
   {
    "id": "WP-37",
@@ -1990,7 +1990,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-37-overview-cards-sources.md; estimate 6 tasks; decisions none | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6)"
+   "notes": "file work-packages/WP-37-overview-cards-sources.md; estimate 6 tasks; decisions none | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor)"
   },
   {
    "id": "WP-38",
@@ -4160,6 +4160,27 @@
    "granted": "2026-11-13T21:19:43+05:30",
    "scope": "removed the /ai/citations line (planned routes must 404; the route is live now); WP-33 does the same for the Overview",
    "until": "WP-21 merged"
+  },
+  {
+   "path": "docs/16-metrics-methodology.md",
+   "wp": "SHARED WP-32/WP-33",
+   "granted": "2026-11-13T21:30:33+05:30",
+   "scope": "section 2.1: two rows ai.prompts_in_scope and ai.valid_answers (D-17); whoever pushes second rebases and keeps both sides (check develop first)",
+   "until": "WP-32 merged"
+  },
+  {
+   "path": "backend/tests/security/test_cross_tenant.py",
+   "wp": "WP-32",
+   "granted": "2026-11-13T21:30:33+05:30",
+   "scope": "one line in WORDS ('metric': 'ai.mention_rate'), outside the anchors; additive",
+   "until": "WP-32 merged"
+  },
+  {
+   "path": "docs/ai-visibility/contracts/README.md",
+   "wp": "WP-32",
+   "granted": "2026-11-13T21:30:33+05:30",
+   "scope": "two index rows and one Update line",
+   "until": "WP-32 merged"
   }
  ],
  "followups": [
@@ -4411,6 +4432,16 @@
    "detail": "By engine table scrolls a little at 1024 px; panel bars use the neutral chart token (low non-text contrast, text carries the value); not verified: drawer header at exactly 440 px, a manual look in a real browser, In search double count of a keyword tracked on two devices, whether prompt topics and keyword topics share one vocabulary (F14); heat map links push without pushedFrom (one extra Back); phone list avg of N is sr-only; stale only on panel and trend charts. F-23 will wrap what is mounted in topic-inspector.tsx. e2e not re-run after the final rebase: the release gate should run e2e once.",
    "owner": "quality sweep and owner",
    "severity": "low to medium",
+   "status": "open"
+  },
+  {
+   "id": "F-26",
+   "found": "2026-11-13T21:30:33+05:30",
+   "by": "WP-32",
+   "title": "SEO share of voice is built nowhere (doc 09 section 7: CTR curve and volumes)",
+   "detail": "The seo members of overview/competitors are declared optional and never returned; BE-REPORTS-03 closes with that remainder named. Day and month granularity are not built (weeks only). previous sits beside the value instead of doc 19's MetricComparison (no delta/ci/version_boundaries yet; WP-58 and WP-38 add them additively).",
+   "owner": "owner decision (does the Overview/Competitors page need SEO share of voice) and later backend package",
+   "severity": "scope gap",
    "status": "open"
   }
  ],
