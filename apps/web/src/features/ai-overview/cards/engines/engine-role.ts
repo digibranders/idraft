@@ -10,22 +10,28 @@ import { ENGINES } from '@/lib/layouts/catalog';
  */
 
 /** The fixed order of the engines in a chart: the engine's colour never depends on its place in the data. */
-const ENGINE_ORDER = ['chatgpt_web', 'gemini_web', 'google_ai_mode'] as const;
+const ENGINE_ORDER = ['chatgpt_web', 'gemini_web', 'google_ai_mode', 'google_ai_overview'] as const;
 
-/** The role (colour) of an engine's series: by the engine's place in the fixed order, never by its place in the data. */
+/**
+ * The role (colour) of an engine's series: by the engine's place in the fixed order of design system 14 section 4
+ * (ChatGPT `chart-1`, Gemini `chart-2`, AI Mode `chart-3`, AI Overview `chart-4`), never by its place in the data.
+ */
 export function engineRole(engineCode: string): SeriesRole {
   const place = ENGINE_ORDER.findIndex((code) => code === engineCode);
   if (place === 0) return { kind: 'brand' };
-  return place === 1 || place === 2 ? { kind: 'palette', index: place === 1 ? 2 : 3 } : { kind: 'other' };
+  if (place === 1) return { kind: 'palette', index: 2 };
+  if (place === 2) return { kind: 'palette', index: 3 };
+  return place === 3 ? { kind: 'palette', index: 4 } : { kind: 'other' };
 }
 
-/** The chart token of an engine: ChatGPT `chart-1`, Gemini `chart-2`, AI Mode `chart-3`, any other `chart-other`. */
-export type EngineChartColor = 'chart-1' | 'chart-2' | 'chart-3' | 'chart-other';
+/** The chart token of an engine: ChatGPT `chart-1`, Gemini `chart-2`, AI Mode `chart-3`, AI Overview `chart-4`, any other `chart-other`. */
+export type EngineChartColor = 'chart-1' | 'chart-2' | 'chart-3' | 'chart-4' | 'chart-other';
 
 const CHART_COLORS: ReadonlyMap<string, EngineChartColor> = new Map<string, EngineChartColor>([
   ['chatgpt_web', 'chart-1'],
   ['gemini_web', 'chart-2'],
   ['google_ai_mode', 'chart-3'],
+  ['google_ai_overview', 'chart-4'],
 ]);
 
 export const engineChartColor = (engineCode: string): EngineChartColor => CHART_COLORS.get(engineCode) ?? 'chart-other';

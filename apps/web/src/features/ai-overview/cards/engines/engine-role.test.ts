@@ -11,7 +11,12 @@ describe('engineRole', () => {
     expect(engineRole('perplexity_web')).toEqual({ kind: 'other' });
   });
 
-  it('is the same as the role of the Prompts page for every engine (parity guard: this is a copy)', () => {
+  it('gives AI Overview the chart-4 role of design system 14 section 4', () => {
+    expect(engineRole('google_ai_overview')).toEqual({ kind: 'palette', index: 4 });
+  });
+
+  it('is the same as the role of the Prompts page for the three engines it knows (parity guard: this is a copy)', () => {
+    // The Prompts page has no AI Overview role yet (follow-up of the coordinator): only the three live engines
     for (const code of ['chatgpt_web', 'gemini_web', 'google_ai_mode', 'perplexity_web']) {
       expect(engineRole(code)).toEqual(promptsEngineRole(code));
     }
@@ -23,6 +28,7 @@ describe('engineChartColor', () => {
     expect(engineChartColor('chatgpt_web')).toBe('chart-1');
     expect(engineChartColor('gemini_web')).toBe('chart-2');
     expect(engineChartColor('google_ai_mode')).toBe('chart-3');
+    expect(engineChartColor('google_ai_overview')).toBe('chart-4');
     expect(engineChartColor('perplexity_web')).toBe('chart-other');
   });
 });

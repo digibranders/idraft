@@ -59,6 +59,8 @@ export type SmallMultiplesProps = MultiplesState & {
   /** Stale or partial data, at the end of the meta line. */
   notice?: ChartNotice | undefined;
   footnote?: ReactNode;
+  /** A control that changes what every panel draws (the series), between the header and the charts. */
+  controls?: ReactNode;
   /** Week labels as on the x axis, "Oct 20". */
   categories: readonly string[];
   /** The first column of the Table view: "Week". */
@@ -245,8 +247,21 @@ interface TableRow {
  * with its latest value and counts. The parts compute no rate: the feature passes finished points and words.
  */
 export function SmallMultiples(props: SmallMultiplesProps): ReactElement {
-  const { title, variant, meta, notice, footnote, categories, categoryHeader, titles, panels, height, summary, menu } =
-    props;
+  const {
+    title,
+    variant,
+    meta,
+    notice,
+    footnote,
+    controls,
+    categories,
+    categoryHeader,
+    titles,
+    panels,
+    height,
+    summary,
+    menu,
+  } = props;
   const { boundaries = NO_BOUNDARIES } = props;
   const t = useTranslations('chart');
   const multiples = useTranslations('chart.multiples');
@@ -399,6 +414,7 @@ export function SmallMultiples(props: SmallMultiplesProps): ReactElement {
       meta={meta}
       notice={notice}
       footnote={footnote}
+      controls={controls}
       height={height}
       summary={summary}
       legend={legend}

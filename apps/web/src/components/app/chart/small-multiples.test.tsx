@@ -384,6 +384,12 @@ describe('SmallMultiples', () => {
     expect(chatgpt.closest('figure')).toHaveTextContent('ChatGPT');
   });
 
+  it('shows the controls a feature gives it in the frame, before the charts (guard)', async () => {
+    renderWithProviders(<SmallMultiples {...BASE} controls={<button type="button">Series</button>} />);
+    await screen.findAllByTestId('echart-canvas');
+    expect(screen.getByRole('button', { name: 'Series' })).toBeInTheDocument();
+  });
+
   it('is one column at a phone width and two from 768 px when more than two panels show', async () => {
     const { container, user } = renderWithProviders(<SmallMultiples {...BASE} />);
     await screen.findAllByTestId('echart-canvas');
