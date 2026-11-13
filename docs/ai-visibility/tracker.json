@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T08:06:25+05:30",
+ "updated": "2026-11-13T08:09:51+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -4149,7 +4149,7 @@
    "detail": "GET layouts/{screen} returns only the resolved document. With a personal layout over a team default, Reset and the 'draft equals default' save rule cannot work (defaultDocument is null). Add team_document (null when no team default exists) to ResolvedLayout, always present when a team default exists. Additive contract change in api/layouts (WP-11 files) plus one regeneration of v1.json and schema.ts. Until then WP-15 stores the draft and WP-16 disables Reset with a reason.",
    "owner": "backend session with WP-11 context (wp-01-be-scaffold), small push between WP-14 tasks",
    "severity": "blocks Reset in the customize UI (R-07)",
-   "status": "assigned"
+   "status": "fixed ccf28401 (team_document on ResolvedLayout; 5 mutation proofs, no separate fresh reviewer)"
   }
  ],
  "migrations": [
