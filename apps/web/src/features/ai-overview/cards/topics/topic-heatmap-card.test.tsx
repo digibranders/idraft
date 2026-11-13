@@ -576,6 +576,42 @@ describe('states', () => {
     expect(await screen.findByText('Partial data: ChatGPT has no valid answer in this window')).toBeInTheDocument();
     expect(await rowNames()).toEqual(['CRM']);
   });
+
+  it('holds the card as loading while the vocabulary tree is pending, then shows the grid', async () => {
+    const release = gate();
+    let served = false;
+    server.use(
+      ...vocabularyHandlers(TERMS),
+      summaryHandler(() => {
+        served = true;
+        return SUMMARY;
+      }),
+    );
+    // Added last so it matches first: held until released, then falls through to the served vocabularies
+    server.use(
+      http.get(mswPath('/api/v1/workspaces/:w/vocabularies'), async () => {
+        await release.promise;
+        return undefined;
+      }),
+    );
+    function Card(props: CardProps): ReactElement {
+      return <TopicHeatmapCard {...props} />;
+    }
+    renderWithProviders(
+      cardInOverview({ type: 'ai.topic_heatmap', Card: Card as ComponentType<CardProps>, width: 'two_thirds' }),
+    );
+    const section = await frame();
+    await waitFor(() => {
+      expect(served).toBe(true);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(section).toHaveAttribute('aria-busy', 'true');
+    expect(section.querySelector('[data-slot="skeleton"]')).not.toBeNull();
+    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
+    expect(screen.queryByRole('treegrid')).not.toBeInTheDocument();
+    release.open();
+    expect(await rowNames()).toEqual(['CRM', 'Security', 'Support', 'Prompts without a topic']);
+  });
 });
 
 describe('the whole card', () => {
