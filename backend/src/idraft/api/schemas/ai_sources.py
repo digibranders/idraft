@@ -253,10 +253,16 @@ class SourceChangeRow(BaseModel):
     registrable_domain: str = Field(max_length=DOMAIN_MAX)
     domain_role: DomainRole
     role_entity_id: UUID | None
-    current_units: int = Field(description="Citation units in the window.")
-    previous_units: int = Field(description="Citation units in the window compared with.")
-    first_seen_at: datetime | None = Field(description="Its first citation in the window.")
-    last_seen_at: datetime | None = Field(description="Its last citation in the window.")
+    current_units: int = Field(description="Citation units in `meta.window` (0 for `lost`).")
+    previous_units: int = Field(
+        description="Citation units in `meta.compare_window` (0 for `new`)."
+    )
+    first_seen_at: datetime | None = Field(
+        description="Its first citation in `meta.window`; null when it has none (`lost`)."
+    )
+    last_seen_at: datetime | None = Field(
+        description="Its last citation in `meta.window`; null when it has none (`lost`)."
+    )
 
 
 class SourceChangesMeta(BaseModel):

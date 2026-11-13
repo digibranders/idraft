@@ -44,6 +44,10 @@ from idraft.api.schemas.ai_sources import (
     FanoutQueryRow,
     PreviousUnits,
     RoleUnits,
+    SourceChangeKind,
+    SourceChangePage,
+    SourceChangeRow,
+    SourceChangesMeta,
     SourceCompare,
     SourceDomainPage,
     SourceDomainRow,
@@ -350,6 +354,7 @@ class SourceService:
         sort: SourceSort,
         compare: SourceCompare = "none",
         include: Collection[str] = (),
+        min_support: int | None = None,
         page: OffsetParams,
     ) -> SourceDomainPage:
         engines = shown_engines(query.engine_codes)
@@ -360,7 +365,13 @@ class SourceService:
         async with self._transaction(access) as db:
             now = await scoped(db, access, project_id, query, engines)
             rows, total = await repository.domain_counts(
-                db, now.scope, roles=query.roles, sort=sort, offset=page.offset, limit=page.limit
+                db,
+                now.scope,
+                roles=query.roles,
+                sort=sort,
+                min_support=min_support,
+                offset=page.offset,
+                limit=page.limit,
             )
             whole = await repository.totals(db, now.scope)
             if "series" in include:
@@ -413,6 +424,7 @@ class SourceService:
         sort: SourceSort,
         compare: SourceCompare = "none",
         include: Collection[str] = (),
+        min_support: int | None = None,
         page: OffsetParams,
     ) -> SourcePagePage:
         engines = shown_engines(query.engine_codes)
@@ -428,6 +440,7 @@ class SourceService:
                 roles=query.roles,
                 registrable_domain=registrable_domain,
                 sort=sort,
+                min_support=min_support,
                 offset=page.offset,
                 limit=page.limit,
             )
@@ -470,6 +483,72 @@ class SourceService:
             ],
             page=OffsetPageInfo(offset=page.offset, limit=page.limit, total=total),
             meta=compared(sources_meta(now, query, engines, whole, series), prior, prior_answers),
+        )
+
+    async def changes(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        query: SourceQuery,
+        *,
+        kind: SourceChangeKind,
+        min_support: int,
+        page: OffsetParams,
+    ) -> SourceChangePage:
+        """New and lost sources (docs/16 C5 and C6). New: `min_support` units in the asked
+        window and none in as many days before. Lost: `min_support` units in a support window
+        and none in each of the 2 windows after it, which the asked window and the one before
+        it are: so `meta.window` is those 2 windows and `meta.compare_window` the support one."""
+        engines = shown_engines(query.engine_codes)
+        async with self._transaction(access) as db:
+            now = await scoped(db, access, project_id, query, engines)
+            gap = before(now)
+            if kind == "new":
+                answered, support = now, gap
+            else:
+                support = before(gap)
+                answered = Scoped(
+                    scope=replace(now.scope, since=gap.scope.since),
+                    window=MetricWindow(
+                        from_=gap.window.from_, to=now.window.to, timezone=now.window.timezone
+                    ),
+                    first=gap.first,
+                    last=now.last,
+                    zone=now.zone,
+                )
+            span = replace(now.scope, since=support.scope.since)
+            rows, total = await repository.changes(
+                db,
+                span,
+                split=answered.scope.since,
+                kind=kind,
+                min_support=min_support,
+                roles=query.roles,
+                offset=page.offset,
+                limit=page.limit,
+            )
+        return SourceChangePage(
+            data=[
+                SourceChangeRow(
+                    registrable_domain=row.registrable_domain,
+                    domain_role=cast(DomainRole, row.domain_role),
+                    role_entity_id=row.role_entity_id,
+                    current_units=row.current_units,
+                    previous_units=row.previous_units,
+                    first_seen_at=row.first_seen_at,
+                    last_seen_at=row.last_seen_at,
+                )
+                for row in rows
+            ],
+            page=OffsetPageInfo(offset=page.offset, limit=page.limit, total=total),
+            meta=SourceChangesMeta(
+                window=answered.window,
+                compare_window=support.window,
+                include_branded=query.include_branded,
+                engine_codes=[EngineCode(code) for code in engines],
+                kind=kind,
+                min_support=min_support,
+            ),
         )
 
     async def citations(

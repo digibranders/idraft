@@ -32,10 +32,10 @@ INVALID = (422, "validation_failed")
         ("sources/domains", {"include": "cited_with"}),
         ("sources/domains", {"include": "by_role_by_engine"}),
         ("sources/domains", {"include": "series,cited_with"}),
-        ("sources/domains", {"min_support": "2"}),
-        ("sources/pages", {"min_support": "2"}),
         ("sources/domains", {"include_unresolved_redirects": "true"}),
         ("sources/pages", {"include_engine_internal": "true"}),
+        ("sources/changes", {"include_unresolved_redirects": "true"}),
+        ("sources/changes", {"kind": "lost", "include_engine_internal": "true"}),
         ("fanout-queries", {"include": "topics"}),
     ],
 )
@@ -52,22 +52,6 @@ async def test_a_source_addition_answers_501(
 
     response = await api.get(
         project_url(workspace, project, "ai", path), params=params, headers=viewer.headers
-    )
-
-    assert problem(response) == NOT_BUILT
-
-
-async def test_source_changes_answers_501(
-    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    viewer = await member(resources, migrated, workspace, "viewer")
-    project = await ai_project(migrated, workspace)
-
-    response = await api.get(
-        project_url(workspace, project, "ai", "sources", "changes"),
-        params={"kind": "lost", "min_support": "3"},
-        headers=viewer.headers,
     )
 
     assert problem(response) == NOT_BUILT

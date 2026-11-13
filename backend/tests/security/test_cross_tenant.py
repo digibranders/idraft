@@ -323,11 +323,19 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     ("GET", _W + "/projects/{project_id}/ai/sources/domains"): {
         "include": "series",
         "compare": "previous_period",
+        "min_support": "1",
         "filter[country_iso]": "US",
     },
     ("GET", _W + "/projects/{project_id}/ai/sources/pages"): {
         "include": "series",
         "compare": "previous_period",
+        "min_support": "1",
+        "filter[country_iso]": "US",
+    },
+    # The tenant's answer cites its own page once and is new in the default window.
+    ("GET", _W + "/projects/{project_id}/ai/sources/changes"): {
+        "kind": "new",
+        "min_support": "1",
         "filter[country_iso]": "US",
     },
     ("GET", _W + "/projects/{project_id}/ai/citations"): {"filter[country_iso]": "US"},

@@ -274,10 +274,12 @@ async def domain_counts(
     *,
     roles: Sequence[str] | None,
     sort: str,
+    min_support: int | None = None,
     offset: int,
     limit: int,
 ) -> tuple[list[DomainCount], int]:
-    """A page of sources by (registrable domain, role, entity), and how many there are."""
+    """A page of sources by (registrable domain, role, entity), and how many there are; with
+    `min_support` only those with at least that many citation units (docs/16 C5)."""
     answers, source = _cited(scope)
     keys = (_D.registrable_domain, _C.domain_role, _C.role_entity_id)
     grouped = (
@@ -286,6 +288,8 @@ async def domain_counts(
         .where(*citation_bounds(scope))
         .group_by(*keys)
     )
+    if min_support is not None:
+        grouped = grouped.having(func.count(unit()) >= min_support)
     if roles:
         grouped = grouped.where(_C.domain_role.in_(list(roles)))
     rows, total = await page_of(
@@ -334,11 +338,13 @@ async def page_counts(
     roles: Sequence[str] | None,
     registrable_domain: str | None,
     sort: str,
+    min_support: int | None = None,
     offset: int,
     limit: int,
 ) -> tuple[list[PageCount], int]:
-    """A page of sources by (page, role, entity), and how many there are. The title is the
-    greatest one an answer gave the page (any one, the same on every read)."""
+    """A page of sources by (page, role, entity), and how many there are; `min_support` as for
+    the domains. The title is the greatest one an answer gave the page (any one, the same on
+    every read)."""
     answers, source = _cited(scope)
     u = urls.c
     keys = (
@@ -355,6 +361,8 @@ async def page_counts(
         .where(*citation_bounds(scope))
         .group_by(*keys)
     )
+    if min_support is not None:
+        grouped = grouped.having(func.count(unit()) >= min_support)
     if roles:
         grouped = grouped.where(_C.domain_role.in_(list(roles)))
     if registrable_domain is not None:
@@ -378,6 +386,82 @@ async def page_counts(
             domain_role=row.domain_role,
             role_entity_id=row.role_entity_id,
             counted=_counted(row, scope),
+        )
+        for row in rows
+    ], total
+
+
+@dataclass(frozen=True, slots=True)
+class ChangeCount:
+    registrable_domain: str
+    domain_role: str
+    role_entity_id: UUID | None
+    current_units: int
+    previous_units: int
+    first_seen_at: datetime | None
+    last_seen_at: datetime | None
+
+
+async def changes(
+    db: AsyncSession,
+    scope: SourceScope,
+    *,
+    split: datetime,
+    kind: str,
+    min_support: int,
+    roles: Sequence[str] | None,
+    offset: int,
+    limit: int,
+) -> tuple[list[ChangeCount], int]:
+    """New or lost sources in one grouped statement (docs/16 C5 and C6). `scope` spans the
+    window compared with and the window answered; `split` is where the answered window starts.
+    Units before `split` are the previous ones, units from it the current ones. A new source
+    has at least `min_support` current units and no previous one; a lost one at least
+    `min_support` previous units and no current one. The most units first."""
+    _, source = _cited(scope)
+    keys = (_D.registrable_domain, _C.domain_role, _C.role_entity_id)
+    current = func.count(unit()).filter(_C.observed_at >= split)
+    previous = func.count(unit()).filter(_C.observed_at < split)
+    grouped = (
+        select(
+            *keys,
+            current.label("current_units"),
+            previous.label("previous_units"),
+            func.min(_C.observed_at).filter(_C.observed_at >= split).label("first_seen_at"),
+            func.max(_C.observed_at).filter(_C.observed_at >= split).label("last_seen_at"),
+        )
+        .select_from(source)
+        .where(*citation_bounds(scope))
+        .group_by(*keys)
+        .having(
+            and_(current >= min_support, previous == 0)
+            if kind == "new"
+            else and_(previous >= min_support, current == 0)
+        )
+    )
+    if roles:
+        grouped = grouped.where(_C.domain_role.in_(list(roles)))
+    rows, total = await page_of(
+        db,
+        grouped,
+        [
+            desc(literal_column("current_units" if kind == "new" else "previous_units")),
+            _D.registrable_domain,
+            _C.domain_role,
+            _C.role_entity_id.asc().nulls_first(),
+        ],
+        offset=offset,
+        limit=limit,
+    )
+    return [
+        ChangeCount(
+            registrable_domain=row.registrable_domain,
+            domain_role=row.domain_role,
+            role_entity_id=row.role_entity_id,
+            current_units=row.current_units,
+            previous_units=row.previous_units,
+            first_seen_at=row.first_seen_at,
+            last_seen_at=row.last_seen_at,
         )
         for row in rows
     ], total

@@ -122,7 +122,11 @@ CountryFilter = Annotated[
 MinSupport = Annotated[
     int | None,
     Query(
-        ge=1, le=1000, description="The fewest citation units a row is listed for. " + _NOT_BUILT
+        ge=1,
+        le=1000,
+        description="The fewest citation units in the window a row is listed for (docs/16 C5). "
+        "Rows with fewer are left out of the rows and of `page.total`; `meta` and every share "
+        "still count them.",
     ),
 ]
 
@@ -192,7 +196,6 @@ async def source_domains(
     refuse_unbuilt(
         {
             "include": bool(set(include or ()) - {"series"}),
-            "min_support": min_support is not None,
             "include_unresolved_redirects": "unresolved_redirect" not in flags,
             "include_engine_internal": "engine_internal" not in flags,
         }
@@ -204,6 +207,7 @@ async def source_domains(
         sort=sort,
         compare=compare,
         include=include or (),
+        min_support=min_support,
         page=page,
     )
 
@@ -252,7 +256,6 @@ async def source_pages(
 ) -> SourcePagePage:
     refuse_unbuilt(
         {
-            "min_support": min_support is not None,
             "include_unresolved_redirects": "unresolved_redirect" not in flags,
             "include_engine_internal": "engine_internal" not in flags,
         }
@@ -265,6 +268,7 @@ async def source_pages(
         sort=sort,
         compare=compare,
         include=include or (),
+        min_support=min_support,
         page=page,
     )
 
@@ -274,14 +278,21 @@ async def source_pages(
     summary="New and lost sources against the window before",
     description=SCOPE
     + "`kind=new` (default): domains with at least `min_support` citation units in the window "
-    "and none in as many days before. `kind=lost`: domains with at least `min_support` units "
-    "before and none in the window. One row per registrable domain and role; offset pages. "
-    + _NOT_BUILT,
+    "and none in as many days before (docs/16 C5). `kind=lost` (docs/16 C6): domains with at "
+    "least `min_support` units in a support window and none in each of the 2 windows after it. "
+    "The windows are as long as the asked one: for `lost`, `meta.window` is the asked window "
+    "and the one before it (the 2 empty windows) and `meta.compare_window` the support window "
+    "before those, so a 92 day ask reads 276 days; for `new`, `meta.window` is the asked "
+    "window and `meta.compare_window` the one before. `min_support` (default 2) counts "
+    "citation units. `current_units` and `previous_units` are the units in `meta.window` and "
+    "`meta.compare_window`; `first_seen_at` and `last_seen_at` are in `meta.window` (null for "
+    "`lost`). One row per registrable domain and role (and entity), the most units first; "
+    "offset pages.",
 )
-@not_built
 async def source_changes(
     project_id: UUID,
     access: ReadData,
+    sources: Sources,
     scope: Scope,
     page: Offset,
     flags: Flags,
@@ -289,7 +300,20 @@ async def source_changes(
     min_support: Annotated[int, Query(ge=1, le=1000)] = 2,
     country_iso: CountryFilter = None,
 ) -> SourceChangePage:
-    raise not_built_yet()
+    refuse_unbuilt(
+        {
+            "include_unresolved_redirects": "unresolved_redirect" not in flags,
+            "include_engine_internal": "engine_internal" not in flags,
+        }
+    )
+    return await sources.changes(
+        access,
+        project_id,
+        replace(scope, country_iso=country_iso),
+        kind=kind,
+        min_support=min_support,
+        page=page,
+    )
 
 
 @router.get(
