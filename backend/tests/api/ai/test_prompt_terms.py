@@ -11,12 +11,13 @@ from typing import Any
 import httpx
 import pytest
 
+from idraft.api.keywords import service as keyword_service
 from idraft.api.permissions import ROLE_PERMISSIONS, Permission, Role
 from idraft.api.resources import Resources
 from idraft.api.workspaces import access as workspace_access
 from tests.api.ai.sources_support import statements
 from tests.api.ai.support import ai_project, seed_prompts
-from tests.api.auth.support import Workspace, execute, fetch, make_workspace
+from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import errors, project_url, term, tracked_id, vocabulary
 from tests.conftest import PostgresServer
@@ -311,6 +312,110 @@ async def test_a_prompt_subject_filter_is_422(
     assert await _entries(migrated, workspace) == []
 
 
+async def test_term_assignments_refuse_another_projects_vocabulary_term(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, editor, project = await _scene(resources, migrated)
+    other = await ai_project(migrated, workspace)
+    owned = await fetchrow(
+        migrated,
+        "INSERT INTO core.taxonomy_vocabularies (workspace_id, project_id, kind, name, "
+        "is_hierarchical, is_single_valued) VALUES ($1, $2, 'topic', 'Theirs', true, false) "
+        "RETURNING id",
+        workspace.id,
+        other,
+    )
+    theirs = await term(migrated, workspace, str(owned["id"]), "secret")
+    (prompt,) = await seed_prompts(migrated, workspace, project, 1)
+
+    refused = [
+        await _assign(
+            api,
+            workspace,
+            project,
+            editor,
+            {"op": op, "subject_ids": _ids([prompt]), "term_ids": [theirs]},
+        )
+        for op in ("add", "remove", "replace")
+    ]
+
+    assert [problem(response) for response in refused] == [(422, "validation_failed")] * 3
+    assert [errors(response) for response in refused] == [[("term_ids", "term_unknown")]] * 3
+    assert await _held(migrated, [prompt]) == {prompt: set()}
+    linked = await fetch(
+        migrated, "SELECT 1 FROM ai.prompt_terms WHERE term_id = $1", uuid.UUID(theirs)
+    )
+    assert linked == []
+    assert await _entries(migrated, workspace) == []
+
+
+async def test_term_assignments_of_an_unknown_or_foreign_project_are_404(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The project is looked up before the body is judged, so a `subject_filter` that would be
+    422 on a project of the caller's is 404 on one that is not."""
+    workspace, editor, project = await _scene(resources, migrated)
+    stranger = await make_workspace(migrated)
+    foreign_project = await ai_project(migrated, stranger)
+    crm = await term(migrated, workspace, await vocabulary(migrated, workspace), "crm")
+    (prompt,) = await seed_prompts(migrated, workspace, project, 1)
+    bodies: list[dict[str, Any]] = [
+        {"op": "add", "subject_ids": _ids([prompt]), "term_ids": [crm]},
+        {"op": "add", "subject_filter": {}, "term_ids": [crm]},
+    ]
+
+    answers = [
+        await _assign(api, workspace, missing, editor, body)
+        for missing in (uuid.uuid4(), foreign_project)
+        for body in bodies
+    ]
+
+    assert [problem(response) for response in answers] == [(404, "not_found")] * 4
+    assert await _held(migrated, [prompt]) == {prompt: set()}
+    assert await _entries(migrated, workspace) == []
+    assert await _entries(migrated, stranger) == []
+
+
+async def test_term_assignments_take_at_most_the_keyword_rule_of_prompts(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One request changes at most `LINK_CHANGES_MAX` links: with two terms, three prompts when
+    the maximum is 6. The count is of the prompts matched, and comes after the terms are
+    checked and before anything is written."""
+    workspace, editor, project = await _scene(resources, migrated)
+    topics = await vocabulary(migrated, workspace)
+    crm, erp = [await term(migrated, workspace, topics, slug) for slug in ("crm", "erp")]
+    prompts = await seed_prompts(migrated, workspace, project, 4)
+    monkeypatch.setattr(keyword_service, "LINK_CHANGES_MAX", 6)
+
+    async def assign(op: str, ids: list[uuid.UUID], *term_ids: str) -> httpx.Response:
+        body = {"op": op, "subject_ids": _ids(ids), "term_ids": list(term_ids)}
+        return await _assign(api, workspace, project, editor, body)
+
+    unknown = await assign("add", prompts, crm, str(uuid.uuid4()))
+    added = await assign("add", prompts, crm, erp)
+    replaced = await assign("replace", prompts, crm, erp)
+    removed = await assign("remove", prompts, crm, erp)
+    assert problem(unknown) == (422, "validation_failed")
+    assert errors(unknown) == [("term_ids", "term_unknown")]
+    for refused in (added, replaced, removed):
+        assert problem(refused) == (422, "too_many_subjects")
+        assert refused.json()["limit"] == 3
+    assert await _held(migrated, prompts) == {prompt_id: set() for prompt_id in prompts}
+    assert await _entries(migrated, workspace) == []
+
+    # Three prompts are at the limit; an id that is no prompt of the project is not one.
+    assert _answer(await assign("add", [*prompts[:3], uuid.uuid4()], crm, erp)) == (3, 6, 0)
+
+
+def test_the_limit_the_prompt_path_reads_is_the_keyword_rule() -> None:
+    assert keyword_service.subjects_limit(100) == 2000
+    assert keyword_service.subjects_limit(1) == keyword_service.SUBJECTS_MAX == 20_000
+
+
 async def test_prompt_assignments_need_prompts_write(
     api: httpx.AsyncClient,
     resources: Resources,
@@ -474,6 +579,24 @@ async def test_prompt_counts_leave_out_archived_and_deleted(
     # The prompt in a project that is not deleted yet counts, so the project is what takes it out.
     assert [node["prompt_count"] for node in before.json()["data"]] == [2]
     assert [node["prompt_count"] for node in after.json()["data"]] == [1]
+
+
+async def test_prompts_of_an_archived_project_still_count(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """Only a deleted project takes its prompts out, as in the quota and in keyword counts."""
+    workspace, editor, project = await _scene(resources, migrated)
+    topics = await vocabulary(migrated, workspace)
+    crm = await term(migrated, workspace, topics, "crm")
+    (prompt,) = await seed_prompts(migrated, workspace, project, 1)
+    await _link(migrated, workspace, prompt, crm)
+    await execute(migrated, "UPDATE core.projects SET status = 'archived' WHERE id = $1", project)
+    url = f"/api/v1/workspaces/{workspace.id}/vocabularies/{topics}/terms"
+
+    counted = await api.get(url, params={"include": "prompt_count"}, headers=editor.headers)
+
+    assert counted.status_code == 200, counted.text
+    assert [node["prompt_count"] for node in counted.json()["data"]] == [1]
 
 
 async def test_prompt_counts_leave_out_projects_the_member_cannot_see(

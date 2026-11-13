@@ -50,6 +50,7 @@ from idraft.api.ai.prompt_repository import (
 from idraft.api.entities.project_repository import MatcherEntity
 from idraft.api.entities.project_service import MatcherRules, matcher_rules, to_utf16
 from idraft.api.keywords import repository as keywords
+from idraft.api.keywords.service import subjects_limit
 from idraft.api.operations import runs_repository as runs
 from idraft.api.operations.runs import MANUAL_RUNS_PER_DAY
 from idraft.api.pagination import (
@@ -1105,7 +1106,9 @@ class PromptService:
         vocabulary takes the place of the prompt's other one), `remove` takes them, `replace`
         makes them the prompt's only terms within their vocabularies. The caller also needs
         `prompts:write`, as the route only asks for `keywords:write`. Only `subject_ids`: the
-        project's live prompts among them are matched, other ids are not. How many matched,
+        project's live prompts among them are matched, other ids are not, and at most
+        `subjects_limit(len(term_ids))` of them (`422 too_many_subjects`), the rule for tracked
+        keywords. How many matched,
         how many assignments were added and how many removed."""
         if not access.holds(Permission.PROMPTS_WRITE):
             raise ForbiddenError
@@ -1131,6 +1134,11 @@ class PromptService:
             if error is not None:
                 raise invalid_fields([error])
             ids = list(await _selected(db, access, project_id, body.subject_ids, None))
+            limit = subjects_limit(len(body.term_ids))
+            if len(ids) > limit:
+                raise TooManySubjectsError(
+                    f"This change takes at most {limit} prompts; choose fewer.", limit=limit
+                )
             if body.op == "remove":
                 removed = await prompts.remove_terms(
                     db,
