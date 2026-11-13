@@ -218,6 +218,9 @@
       "order": "The start date is after the end date.",
       "droppedTooLong": "The link asked for more than {max, number} days, so the last 28 days are shown.",
       "droppedInvalid": "The dates in the link could not be read, so the last 28 days are shown.",
+      "droppedOrder": "The link had a start date after its end date, so the last 28 days are shown.",
+      "droppedFuture": "The link asked for dates after today, so the last 28 days are shown.",
+      "droppedBeforeStart": "The link asked for dates before {date}, when the data starts, so the last 28 days are shown.",
       "day": "{weekday}, {date}",
       "weekdaysShort": {
         "monday": "Mo",
