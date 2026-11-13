@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T22:26:05+05:30",
+ "updated": "2026-11-13T22:28:23+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1123,7 +1123,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-22-citations-inspectors.md; estimate 6 tasks; decisions none | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current | from WP-21: WP-21 builds the MSW mocks for sources/changes, sources/diversity and sources/prompts and the shared reads in apps/web/src/lib/citations/; reuse them, do not rebuild"
+   "notes": "file work-packages/WP-22-citations-inspectors.md; estimate 6 tasks; decisions none | plan pushed (10 tasks); T1 mock fixtures (New and lost data) first; shared parts to create: components/app/scope/country-scope-control.tsx, lib/locations/country-scope.ts; WB-DOM-06 SEO share of voice stays an honest not-available section (F-26)"
   },
   {
    "id": "WP-23",
@@ -4405,6 +4405,69 @@
    "granted": "2026-11-13T22:26:05+05:30",
    "scope": "additive only if needed (new budget schemas go in the new schemas/budgets.py)",
    "until": "WP-30 merged"
+  },
+  {
+   "path": "apps/web/src/features/citations/",
+   "wp": "WP-22",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "the WP-21 files listed in its plan section 2 (citation-scope, citation-tabs, citations-filters, citation-reads, citations-screen, domains-tab, domain-columns, pages-tab, page-columns) with their tests; additive; WP-21 is merged",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/src/lib/citations/",
+   "wp": "WP-22",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "source-queries.ts and its test, types.ts",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/messages/en.json",
+   "wp": "SHARED WP-22",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "new keys only under citations.newLost, citations.flagFilters, citations.scope, citations.inspectors.*, citations.mobile",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/handlers/citations-model.ts",
+   "wp": "WP-22",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "New and lost data in the mocks, plus citation-details.ts and their tests",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/inspector/inspector.tsx",
+   "wp": "WP-22",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "ONE line so J/K work from the Domains treegrid (role=treegrid); every inspector consumer test must stay green",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/inspector/inspector.test.tsx",
+   "wp": "WP-22",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "its test line",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "docs/design-system/24-page-templates.md",
+   "wp": "SHARED WP-22",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "append-only As built (also docs 23, 25, 20, 11)",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompts-scope.tsx",
+   "wp": "WP-22 (optional)",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "fold the prompts country control into the shared one only if no other package holds it at that time; WP-19 holds prompts-screen.tsx, not this file",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompt-model.ts",
+   "wp": "WP-22 (optional)",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "same condition",
+   "until": "WP-22 merged"
   }
  ],
  "followups": [
