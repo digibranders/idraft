@@ -52,6 +52,8 @@ Layouts = Annotated[LayoutService, Depends(get_layout_service)]
 
 def answer(found: Resolved, response: Response) -> ResolvedLayoutResponse:
     response.headers["ETag"] = found.etag
+    # The answer depends on who asks: no shared cache may keep it (F-08).
+    response.headers["Cache-Control"] = "private, no-store"
     return ResolvedLayoutResponse(data=found.layout)
 
 

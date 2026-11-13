@@ -61,6 +61,25 @@ async def test_nothing_saved_reads_as_builtin_with_an_etag(
     assert first.headers["etag"] == second.headers["etag"]
 
 
+async def test_a_layout_answer_is_never_cached_by_a_shared_cache(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The answer depends on who asks (F-08): the read and the personal save say so."""
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+
+    read = await api.get(layout_url(workspace.id, "layouts", "overview"), headers=viewer.headers)
+    saved = await api.put(
+        layout_url(workspace.id, "me", "layouts", "overview"),
+        json=DOCUMENT,
+        headers=viewer.headers,
+    )
+
+    assert (read.status_code, saved.status_code) == (200, 200)
+    assert read.headers["cache-control"] == "private, no-store"
+    assert saved.headers["cache-control"] == "private, no-store"
+
+
 async def test_the_personal_layout_comes_first(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
