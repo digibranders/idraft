@@ -79,6 +79,32 @@ describe('MetricStrip', () => {
     expect(screen.queryByTestId('meter')).toBeNull();
   });
 
+  it('links the label of an item that has an href across its whole cell, and leaves the other items as text', async () => {
+    const linked: MetricStripGroup[] = [
+      {
+        id: 'seo',
+        items: [
+          { id: 'tracked', label: 'Tracked keywords', value: '986', href: '/design-system' },
+          { id: 'volume', label: 'Search volume', value: '48,210' },
+        ],
+      },
+    ];
+    const { container, rerender } = renderWithProviders(
+      <MetricStrip size="md" label="Summary" groups={linked} status="ready" />,
+    );
+    const link = screen.getByRole('link', { name: 'Tracked keywords' });
+    expect(link).toHaveAttribute('href', '/design-system');
+    expect(link).toHaveClass('after:absolute', 'after:inset-0');
+    expect(screen.getAllByRole('link')).toHaveLength(1);
+    const [linkedCell, plainCell] = screen.getAllByRole('term').map((term) => term.parentElement);
+    expect(linkedCell).toHaveClass('relative', 'hover:bg-surface-hover', 'has-focus-visible:focus-ring-inset');
+    expect(plainCell).not.toHaveClass('relative');
+    expect(await axe(container)).toHaveNoViolations();
+    // the label stays a link while the values load
+    rerender(<MetricStrip size="md" label="Summary" groups={linked} status="loading" />);
+    expect(screen.getByRole('link', { name: 'Tracked keywords' })).toBeInTheDocument();
+  });
+
   it('describes an item with the tooltip text that carries its counts, and draws none while loading', () => {
     const tipped: MetricStripGroup[] = [
       { id: 'ai', items: [{ id: 'mention', label: 'Mention rate', value: '50%', tip: 'Mentioned: 4 of 8 answers' }] },

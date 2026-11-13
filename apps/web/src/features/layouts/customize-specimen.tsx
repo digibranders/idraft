@@ -7,6 +7,8 @@ import { CustomizableGrid, CustomizableScreen } from './customize/customizable-s
 import { CustomizeButton } from './customize/customize-button';
 import { CustomizingBadge } from './customize/customizing-badge';
 import { GALLERY_CARDS } from './live-fixtures';
+import { NumberStrip } from './numbers/number-strip';
+import { specimenValueOf } from './numbers/number-strip-specimen-values';
 import { useLayoutCapabilities } from './use-layout-capabilities';
 import { PageHeader } from '@/components/app/shell/page-header';
 import { Select } from '@/components/ui/select';
@@ -28,6 +30,7 @@ const COPY = {
   project: 'Project',
   pageTitle: 'Overview',
   grid: 'Overview cards',
+  numbers: 'Overview numbers',
   checking: 'Checking who is signed in.',
   signedOut: 'Sign in to try customize mode. While you are signed out this page asks for no layout.',
   noWorkspace: 'This person has no workspace, so there is no layout to show.',
@@ -68,6 +71,7 @@ function ProjectScreen({ membership, projectId }: ProjectScreenProps): ReactElem
       registry={GALLERY_CARDS}
     >
       <PageHeader title={COPY.pageTitle} titleAddon={<CustomizingBadge />} actions={<CustomizeButton />} />
+      <NumberStrip label={COPY.numbers} valueOf={specimenValueOf} status="ready" />
       <CustomizableGrid label={COPY.grid} />
     </CustomizableScreen>
   );

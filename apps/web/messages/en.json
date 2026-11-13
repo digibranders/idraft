@@ -4230,6 +4230,13 @@
         "noMatch": "No cards match “{query}”",
         "results": "{count, plural, one {# card matches} other {# cards match}}"
       },
+      "numbers": {
+        "group": "{number} number",
+        "reorder": "Reorder {number}",
+        "remove": "Remove {number}",
+        "removeTip": "Remove",
+        "move": "Move {number}"
+      },
       "announce": {
         "numberAdded": "{number} added",
         "numberRemoved": "{number} removed",

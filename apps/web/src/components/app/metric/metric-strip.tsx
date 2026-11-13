@@ -1,5 +1,7 @@
 'use client';
 
+import type { Route } from 'next';
+import Link from 'next/link';
 import { useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
@@ -42,6 +44,11 @@ export interface MetricStripItem {
    * is read in its place.
    */
   tip?: string | undefined;
+  /**
+   * Where the item leads inside the app. The label (with its addon) becomes the link, stretched over the whole
+   * cell, so the addon must not be a control of its own. `md` and `sm` strips only; an `inline` chip ignores it.
+   */
+  href?: Route | undefined;
 }
 
 export interface MetricStripGroup {
@@ -171,6 +178,12 @@ export function MetricStrip({ size, label, groups, status, nowrap = false }: Met
           const firstInRow = index % columns === 0;
           const unknown = item.unknown ?? null;
           const tipped = item.tip !== undefined && status !== 'loading';
+          const name = (
+            <>
+              <Truncate text={item.label} className="text-foreground-tertiary" />
+              {item.labelAddon}
+            </>
+          );
           return (
             <div
               key={item.id}
@@ -179,11 +192,21 @@ export function MetricStrip({ size, label, groups, status, nowrap = false }: Met
                 md ? 'px-5 py-3' : 'p-3',
                 !firstInRow && (groupStart ? 'border-l border-border' : 'border-l border-border-subtle'),
                 index >= columns && 'border-t border-border-subtle',
+                // the link's ::after covers the cell, so the cell is its box, and it shows hover and focus
+                item.href !== undefined && 'relative hover:bg-surface-hover has-focus-visible:focus-ring-inset',
               )}
             >
               <dt className={cn('flex min-w-0 items-center gap-1', md ? 'type-meta' : 'type-label')}>
-                <Truncate text={item.label} className="text-foreground-tertiary" />
-                {item.labelAddon}
+                {item.href === undefined ? (
+                  name
+                ) : (
+                  <Link
+                    href={item.href}
+                    className="flex min-w-0 items-center gap-1 outline-none after:absolute after:inset-0"
+                  >
+                    {name}
+                  </Link>
+                )}
               </dt>
               <Tooltip content={item.tip ?? ''} disabled={!tipped}>
                 <dd

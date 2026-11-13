@@ -22,6 +22,10 @@ export { CustomizingBadge } from './customize/customizing-badge';
 export { CardCatalogDialog } from './catalog/card-catalog-dialog';
 export type { CardCatalogDialogProps } from './catalog/card-catalog-dialog';
 
+// The headline numbers of a screen: view mode is a MetricStrip, customize mode arranges the same cells
+export { NumberStrip } from './numbers/number-strip';
+export type { NumberStripProps, NumberValue } from './numbers/number-strip';
+
 // Grid and frame: the slots a page or WP-16 fills
 export { LayoutGrid, SPAN_CLASS } from './layout-grid';
 export type { LayoutGridProps } from './layout-grid';

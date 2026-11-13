@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LayoutsCustomizeLive } from './customize-specimen';
@@ -39,6 +39,20 @@ describe('the customize specimen', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Overview cards' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Project' })).toBeInTheDocument();
+  });
+
+  it('shows the headline numbers as links, and as arranged cells once Customize is pressed', async () => {
+    document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('admin').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
+    const { user } = renderWithProviders(<LayoutsCustomizeLive />);
+    const strip = await screen.findByRole('group', { name: 'Overview numbers' });
+    expect(within(strip).getAllByRole('link').length).toBeGreaterThan(0);
+    const button = await screen.findByRole('button', { name: 'Customize' });
+    await waitFor(() => {
+      expect(button).not.toHaveAttribute('aria-disabled', 'true');
+    });
+    await user.click(button);
+    expect((await screen.findAllByRole('button', { name: /^Reorder / })).length).toBeGreaterThan(0);
+    expect(within(screen.getByRole('group', { name: 'Overview numbers' })).queryAllByRole('link')).toHaveLength(0);
   });
 
   it('shows the badge beside the title once Customize is pressed', async () => {
