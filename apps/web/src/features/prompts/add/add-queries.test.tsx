@@ -89,6 +89,35 @@ describe('useAddLint', () => {
     await waitFor(() => expect(bodies).toHaveLength(2));
   });
 
+  it('does not carry the previous answer over to another country, language or set of engines', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    server.use(
+      http.post(`${PROJECT}/prompts/lint`, async () => {
+        calls += 1;
+        // The second answer waits, so the hook shows what it holds while that one is on its way
+        if (calls > 1) await gate;
+        return HttpResponse.json(LINTED);
+      }),
+    );
+    const { result, rerender } = renderHook((props: AddLintInput) => useAddLint(scope, props), {
+      wrapper,
+      initialProps: input(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    // A text tracked in Germany is not tracked in France: that answer is not shown for France
+    rerender(input({ countryIso: 'FR' }));
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.isPlaceholderData).toBe(false);
+    release();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    rerender(input({ countryIso: 'FR', engineCodes: ['chatgpt_web'] }));
+    expect(result.current.data).toBeUndefined();
+  });
+
   it('asks nothing for an empty list, and asks again for the same list when it is read again', async () => {
     let calls = 0;
     server.use(

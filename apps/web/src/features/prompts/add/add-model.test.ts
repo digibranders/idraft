@@ -55,6 +55,25 @@ describe('classifying the lines of a pasted list', () => {
     expect(counts).toEqual({ lines: 2, new: 1, tracked: 1, archived: 1, repeats: 0, refused: 0 });
   });
 
+  it('lets an authoritative lint answer of not tracked win over the loaded page, and keeps the fallback for a text it has no row for', () => {
+    const text = 'Known on the page?\nNo row for this one?';
+    const classifyWith = (authoritative: boolean): ClassifiedLine[] =>
+      classifyLines({
+        read: readPromptLines(text),
+        // The lint says the first is not tracked (`tracked: null`) and has no row for the second
+        lint: [lintRow('Known on the page?', { tracked: null })],
+        existingKeys: new Set(
+          ['Known on the page?', 'No row for this one?'].map((line) => promptKeyOf(line, 'en', 'DE')),
+        ),
+        languageCode: 'en',
+        countryIso: 'DE',
+        authoritative,
+      });
+    expect(groups(classifyWith(true))).toEqual(['1:new', '2:tracked']);
+    // Not authoritative (no country, or no answer): the loaded page decides both
+    expect(groups(classifyWith(false))).toEqual(['1:tracked', '2:tracked']);
+  });
+
   it('decides tracked by the lint, not by the loaded page: an active prompt past the first page is tracked', () => {
     const lines = classify('Past the first page?', [
       lintRow('Past the first page?', { tracked: { prompt_id: ID_ACTIVE, is_active: true } }),

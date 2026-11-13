@@ -1,6 +1,6 @@
 'use client';
 
-import { keepPreviousData, useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
 import { promptsKey, type LintAnswer, type PromptScope } from '../prompt-queries';
 import { api, unwrap } from '@/lib/api/client';
@@ -47,16 +47,26 @@ export function lintBodyOf(input: AddLintInput): Schemas['PromptLintItems'] | Sc
 }
 
 /**
+ * What an answer is about besides the texts: the shape of the body, the market and the engines. An answer says
+ * what is tracked and what it costs for these, so it is no stand-in for a request that differs in any of them.
+ */
+const marketOf = (input: AddLintInput, body: ReturnType<typeof lintBodyOf>): string =>
+  JSON.stringify(['items' in body ? 'items' : 'texts', input.languageCode, input.countryIso, input.engineCodes]);
+
+/**
  * `POST {P}/prompts/lint` for the lines of the field: nothing is stored. The key sits under the project's prompts,
- * so a change to them reads it again, and the last answer stays while the next one is on its way.
+ * so a change to them reads it again. While the next answer is on its way the last one stays (`isPlaceholderData`)
+ * as long as it is for the same market and engines: a text tracked in one country is not tracked in another, so an
+ * answer for a country is never shown for a different one.
  */
 export function useAddLint(scope: PromptScope, input: AddLintInput): UseQueryResult<LintAnswer> {
   const body = lintBodyOf(input);
+  const market = marketOf(input, body);
   return useQuery({
-    queryKey: [...promptsKey(scope), 'add-lint', body],
+    queryKey: [...promptsKey(scope), 'add-lint', market, body],
     queryFn: ({ signal }) => unwrap(api.POST(LINT, { params: { path: pathOf(scope) }, body, signal })),
     enabled: input.texts.length > 0,
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) => (previousQuery?.queryKey.at(-2) === market ? previous : undefined),
     staleTime: 0,
   });
 }

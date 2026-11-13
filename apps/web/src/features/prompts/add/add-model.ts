@@ -49,6 +49,11 @@ export interface ClassifyInput {
   existingKeys: ReadonlySet<string>;
   languageCode: string;
   countryIso: string;
+  /**
+   * The lint answered in the shape that says what is tracked (items, country chosen): a row of it that names no
+   * tracked prompt means the project has none, whatever the loaded page holds. Without it the loaded prompts decide.
+   */
+  authoritative?: boolean;
 }
 
 const blank = (line: number, text: string): ClassifiedLine => ({
@@ -66,7 +71,14 @@ const blank = (line: number, text: string): ClassifiedLine => ({
  * project tracks, archived prompts and active ones beyond the loaded page included; the loaded active prompts are
  * the fallback while the lint is pending, failed, or answered in the shape that does not say.
  */
-export function classifyLines({ read, lint, existingKeys, languageCode, countryIso }: ClassifyInput): ClassifiedLine[] {
+export function classifyLines({
+  read,
+  lint,
+  existingKeys,
+  languageCode,
+  countryIso,
+  authoritative = false,
+}: ClassifyInput): ClassifiedLine[] {
   const rows = new Map((lint ?? []).map((row) => [row.text, row]));
   const lines = read.lines.map(({ line, text }): ClassifiedLine => {
     const refusal = refusalOf(text);
@@ -76,7 +88,8 @@ export function classifyLines({ read, lint, existingKeys, languageCode, countryI
     if (tracked !== null) {
       return { ...blank(line, text), group: tracked.is_active ? 'tracked' : 'archived', promptId: tracked.prompt_id };
     }
-    if (existingKeys.has(promptKeyOf(text, languageCode, countryIso)))
+    const decided = authoritative && row !== undefined;
+    if (!decided && existingKeys.has(promptKeyOf(text, languageCode, countryIso)))
       return { ...blank(line, text), group: 'tracked' };
     const near = row?.near_duplicate_of ?? null;
     return near === null
@@ -107,7 +120,7 @@ export interface LineCounts {
   refused: number;
 }
 
-export function lineCounts(lines: readonly ClassifiedLine[]): LineCounts {
+export function lineCounts(lines: readonly { group: LineGroup }[]): LineCounts {
   const of = (...groups: LineGroup[]): number => lines.filter((line) => groups.includes(line.group)).length;
   return {
     lines: lines.length,

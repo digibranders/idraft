@@ -4337,7 +4337,7 @@
         "moreChecks": "And {count, plural, one {# more check} other {# more checks}}",
         "fewerChecks": "Show fewer checks",
         "showIt": "Show it",
-        "showItLabel": "Show the prompt on line {line, number}",
+        "showItLabel": "Show it, line {line, number}",
         "showMore": "Show {count, number} more",
         "showFewer": "Show fewer",
         "restore": "Restore archived ({count, number})",
@@ -4356,6 +4356,10 @@
         "duplicate": "the project already tracks this prompt."
       },
       "done": "Done",
+      "entry": {
+        "groupLabel": "Add prompts options",
+        "menuLabel": "More ways to add prompts"
+      },
       "topicPicker": {
         "placeholder": "Choose or type a topic",
         "loading": "Loading topics",
