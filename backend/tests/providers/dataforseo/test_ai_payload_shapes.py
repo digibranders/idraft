@@ -18,6 +18,7 @@ from typing import Any
 
 import pytest
 
+from idraft.collectors.ai_prompt_ingest import SCHEMA_MISMATCH
 from idraft.domain.ai_engines import ENGINES
 from idraft.providers.dataforseo.ai_parse import (
     AiSchemaMismatchError,
@@ -154,6 +155,7 @@ def test_a_payload_of_an_unknown_shape_is_refused_with_its_path() -> None:
     with pytest.raises(AiSchemaMismatchError) as raised:
         parse_ai_answer("chatgpt_web", changed)
     assert raised.value.path == "tasks[].result[].items"
-    # What the ingest keeps of it: an error answer with the code `schema_mismatch`.
-    answer = unreadable("schema_mismatch")
+    # What the ingest keeps of it (an error answer with this code) is tested in
+    # tests/collectors/test_ai_prompt_ingest.py; here the code is pinned.
+    answer = unreadable(SCHEMA_MISMATCH)
     assert (answer.status, answer.error_code) == ("error", "schema_mismatch")
