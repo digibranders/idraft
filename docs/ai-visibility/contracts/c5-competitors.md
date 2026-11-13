@@ -74,10 +74,11 @@ client reads `role`. `entity` of a row is the existing `EntityRef` (`entity_id`,
 | | `recommendation_rate` | `AiMetricValue` (`ai.recommendation_rate`), suppressed `not_classified`. |
 | | `citation_share` | `AiMetricValue` (`ai.citation_share`) with `entity_id` set. |
 | | `share_of_voice` | `AiMetricValue` (`ai.share_of_voice`) with `entity_id` set. |
-| | `is_top_competitor` | True on at most one competitor of the engine, and under `entity_ids` possibly on none (rule below). |
+| | `is_top_competitor` | True for at most one competitor of the engine: the one with the most share of voice among the tracked competitors, read over the tracked set before `entity_ids` narrows the rows; none when no competitor was named or the top one is narrowed away (rule below). |
 | | `lost_prompts` | Optional: with `include=lost_prompts`, `LostPrompt[]` for a competitor row; absent on an own row and when not asked. `[]` when nothing was lost. |
-| | `lost_prompts_total` | Optional, present and absent exactly as `lost_prompts`: every prompt lost to the competitor on the engine, before the `lost_limit` cap. |
-| | `lost_prompts_with_min_answers` | Optional, present and absent exactly as `lost_prompts`: the prompts in scope with at least 4 valid answers on the engine, the "of N prompts" beside `lost_prompts_total`. |
+| | `lost_prompts_total` | Optional, present and absent exactly as `lost_prompts`: every prompt lost to the competitor on the engine under the per-answer rule (named in at least one valid answer that does not name the own brand), before the `lost_limit` cap. It can exceed `lost_prompts_with_min_answers`, so it is not the numerator of an "of N prompts". |
+| | `lost_prompts_with_min_answers` | Optional, present and absent exactly as `lost_prompts`: the prompts in scope with at least 4 valid answers on the engine, the "of N prompts" beside `lost_prompts_clear_total`. |
+| | `lost_prompts_clear_total` | Optional, present and absent exactly as `lost_prompts`: the prompts on the engine where the competitor is named in at least one valid answer, the own brand in none of the prompt's valid answers, and the prompt has at least 4 valid answers; uncapped (no `lost_limit`). The number to show beside `lost_prompts_with_min_answers`: it is never larger than it. |
 | `LostPrompt` | `prompt_id`, `text`, `importance` | The prompt, its current text and its importance (1 to 5). |
 | | `lost` | A summary cell: `numerator` the answers on that engine that name the competitor and not the own brand, `denominator` the prompt's valid answers on the engine, `n_observations` all its answers, `value` null when the denominator is 0. |
 | `CompetitorSource` | `registrable_domain` | A domain cited for the entity. |
@@ -117,8 +118,12 @@ the own brand is not (the rule of C2 C-6, `lost_to`), counted over the valid, cu
 are sorted by `importance` descending, then lost answers descending, then text, then id, at most `lost_limit`
 per entity and engine. They are the same prompts `filter[opportunity]=lost_to:<id>` keeps on the summary for the
 same scope and engine. A refusal or an invalid answer is not a lost answer. `lost_prompts_total` counts every
-such prompt, before the cap, and `lost_prompts_with_min_answers` the prompts in scope with at least 4 valid
-answers on the engine (the CH-05 floor of the Overview), so the card can say "3 of 12 prompts".
+such prompt, before the cap, under that per-answer rule, so a prompt where the own brand is also named in
+other answers is in it, and it can exceed `lost_prompts_with_min_answers` (the prompts in scope with at least 4
+valid answers on the engine, the CH-05 floor of the Overview). The card's rule is per prompt and engine and
+stricter: the competitor named in at least one valid answer, the own brand in none, and 4 or more valid
+answers. `lost_prompts_clear_total` counts those prompts (uncapped), so the card can say "2 of 12 prompts" with
+`lost_prompts_clear_total` of `lost_prompts_with_min_answers`, and never "4 of 3".
 
 ### Top sources
 
@@ -191,7 +196,8 @@ Made-up world, the same as the overview example of [c8-metrics.md](c8-metrics.md
 project's timezone is `Europe/Berlin`. Over the answers that name a tracked entity the shares of Acme and Globex
 add up to the whole (3.0 and 3.0 of 6). Globex is the top competitor and the only prompt it wins is "best CRM for
 small agencies" (2 of its 2 valid answers, 3 answers in all). The 4 prompts have 4, 3, 2 and 1 answers on the
-engine, so one prompt has the 4 answers `lost_prompts_with_min_answers` asks for.
+engine, so one prompt has the 4 valid answers `lost_prompts_with_min_answers` asks for. The one prompt Globex
+wins has 2 valid answers, so no loss is clear (`lost_prompts_clear_total` 0, beside a total of 1).
 
 ### Competitors with lost prompts and top sources (route 6)
 
@@ -235,7 +241,8 @@ Model: `AiCompetitorsResponse`.
             {"prompt_id": "0191a7c2-7c1e-4a52-9b3d-0000000000c4", "text": "best CRM for small agencies", "importance": 4, "lost": {"value": 1.0, "numerator": 2.0, "denominator": 2, "n_observations": 3, "pooled": null}}
           ],
           "lost_prompts_total": 1,
-          "lost_prompts_with_min_answers": 1
+          "lost_prompts_with_min_answers": 1,
+          "lost_prompts_clear_total": 0
         }
       ],
       "top_sources": [
@@ -371,3 +378,5 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-14 WP-32: C-21 performance (single warm local runs on the full project, 150 prompts, three engines, 3,600 answers, whole request, one measurement each, so the order of the figures is noise and not a rule: `top_sources` at 120 ms against both blocks at 50 ms says nothing about either): `ai/competitors` plain 43 ms, `include=lost_prompts` (`lost_limit=10`) 47 ms, `include=top_sources` (`sources_limit=5`) 120 ms, both 50 ms, `overview/competitors` 34 ms; bodies 7.7 kB and 4.1 kB. Measured with table statistics present; see C-22 for the planner setting that keeps it so without them.
 2026-11-14 WP-32: C-22 planner setting: the second transaction of `ai/competitors` starts with `SET LOCAL enable_nestloop = off` (the setting the sources service uses) before its citation reads, because without table statistics (a new month's partition, a backfill) the planner nests loops over the citation join and `lost_counts` and `top_sources` ran 30 to 100 times slower (0.5 s against 6 to 25 ms). It adds 1 statement: `ai/competitors` is the summary plus 5, with `lost_prompts` plus 1, with `top_sources` plus 1 (statement table above). It is issued only when a citation, lost or source read runs: with no prompt in scope the read stays the summary plus 3, and `overview/competitors` (no citation read) stays the summary plus 3 without it. No isolation level change.
 2026-11-14 WP-32: C-23 lost numerator: the lost answers and the valid answers are read in two transactions, so `lost.numerator` is held to `lost.denominator` (an answer ingested between the reads cannot make a lost count exceed the valid ones).
+2026-11-14 WP-32: C-24 `lost_prompts_clear_total` (one optional integer on `AiCompetitorEngine`, additive, present and absent exactly as `lost_prompts`): per competitor and engine, the prompts where the competitor is named in at least one valid answer, the own brand in none of the prompt's valid answers (the prompt row's Mentioned numerator is 0) and the prompt has at least 4 valid answers; uncapped, no `lost_limit`. `lost_prompts_total` stays the per-answer rule (the summary's `lost_to`) and can exceed `lost_prompts_with_min_answers`, so the card's "of N" is `lost_prompts_clear_total` of `lost_prompts_with_min_answers` (clear is never larger than the judged count). Example: providers on ChatGPT in the seeded test world has the own brand named in 2 of 5 valid answers, so total 1, judged 1, clear 0. WP-35's CH-05 card reads this field.
+2026-11-14 WP-32: C-25 published wording (descriptions only, no shape change besides C-24): `lost_prompts_with_min_answers` says 4 valid answers; `lost_prompts_total` says it is the per-answer rule and may exceed the judged count; `is_top_competitor` says true for at most one competitor, read over the tracked set before `entity_ids` narrows the rows, none when no competitor was named or the top one is narrowed away; `entity_config_changes` and `AiEntityConfigChange.from` say the project-local day the version first derived an answer, not "took effect"; the route 6 description names the three lost counts.

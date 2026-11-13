@@ -114,11 +114,12 @@ def top_competitor(contenders: Sequence[Contender]) -> UUID | None:
 @dataclass(frozen=True, slots=True)
 class PromptAnswers:
     """What the summary's prompt row says of one prompt on one engine: its current text, its valid
-    answers and every answer."""
+    answers, every answer and the valid answers that name the own brand."""
 
     text: str
     valid: int
     answers: int
+    mentioned: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +143,7 @@ def prompt_answers(data: PromptsSummary) -> dict[tuple[UUID, str], PromptAnswers
             text=row.text,
             valid=engine.mentioned.denominator,
             answers=engine.mentioned.n_observations,
+            mentioned=round(engine.mentioned.numerator),
         )
         for row in data.prompts
         for engine in row.engines
@@ -180,11 +182,13 @@ def lost_prompt(found: Lost) -> LostPrompt:
 @dataclass(frozen=True, slots=True)
 class LostBlock:
     """One competitor's lost prompts on one engine: the listed ones, every one lost before the
-    cap, and the prompts in scope with enough valid answers to be judged."""
+    cap (the per-answer rule of the summary's `lost_to`), the prompts in scope with enough valid
+    answers to be judged, and the clear losses among them (uncapped)."""
 
     prompts: list[LostPrompt]
     total: int
     with_min_answers: int
+    clear_total: int
 
 
 def lost_block(
@@ -196,11 +200,15 @@ def lost_block(
 ) -> LostBlock:
     """The lost prompts of one competitor on one engine from the lost answers of every competitor
     and engine and the prompt rows."""
-    found = [
-        Lost(prompt, card.text, counted.importance, counted.answers, card.valid, card.answers)
+    rows = [
+        (
+            Lost(prompt, card.text, counted.importance, counted.answers, card.valid, card.answers),
+            card.mentioned,
+        )
         for (prompt, engine, entity), counted in lost.items()
         if engine == code and entity == entity_id and (card := answers.get((prompt, engine)))
     ]
+    found = [item for item, _ in rows]
     return LostBlock(
         prompts=[lost_prompt(item) for item in rank_lost(found, limit)],
         total=len(found),
@@ -209,6 +217,9 @@ def lost_block(
             for (_, engine), card in answers.items()
             if engine == code and card.valid >= MIN_ANSWERS
         ),
+        # Every row has a lost answer; the own brand is named in none of the prompt's valid answers
+        # and there are enough of them to judge: the card's rule, per prompt and engine.
+        clear_total=sum(1 for item, own in rows if own == 0 and item.valid >= MIN_ANSWERS),
     )
 
 
@@ -296,6 +307,7 @@ def entity_entry(
         lost_prompts=None if lost is None else lost.prompts,
         lost_prompts_total=None if lost is None else lost.total,
         lost_prompts_with_min_answers=None if lost is None else lost.with_min_answers,
+        lost_prompts_clear_total=None if lost is None else lost.clear_total,
     )
 
 
@@ -526,7 +538,8 @@ class CompetitorService:
         """What the summary does not hold, in one transaction: the references of the rows, the
         citation units of each engine by entity, the lost answers of the competitors shown and the
         top domains of the entities shown (the last two only when asked for), over the prompts and
-        window the summary counted, and when each entity configuration version took effect. No
+        window the summary counted, and the day each entity configuration version first derived an
+        answer. No
         citation or answer is read when no prompt is in scope."""
         ids = tuple(row.prompt_id for row in data.prompts)
         scope = None

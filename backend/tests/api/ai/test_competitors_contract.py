@@ -6,9 +6,12 @@ competitor table answers 200."""
 
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 import pytest
 
+from idraft.api.openapi import build_openapi
 from idraft.api.resources import Resources
 from tests.api.ai.metrics_support import COMPETITORS, OVERVIEW_COMPETITORS, World
 from tests.api.entities.support import problem
@@ -80,3 +83,47 @@ async def test_the_overview_competitors_read_takes_none_of_them(world: World, na
 
     assert problem(response) == INVALID
     assert (name, "extra_forbidden") in _codes(response)
+
+
+def _schema(name: str) -> dict[str, Any]:
+    schemas = build_openapi()["components"]["schemas"]
+    found: dict[str, Any] = schemas[name]
+    return found
+
+
+def test_the_clear_total_is_an_optional_integer_beside_the_other_lost_counts() -> None:
+    """Additive: a client that does not know it is not broken, and it is left out unless
+    `lost_prompts` is."""
+    engine = _schema("AiCompetitorEngine")
+    clear = engine["properties"]["lost_prompts_clear_total"]
+
+    assert "lost_prompts_clear_total" not in engine.get("required", [])
+    assert {"type": "integer"} in clear["anyOf"]
+    for name in ("lost_prompts", "lost_prompts_total", "lost_prompts_with_min_answers"):
+        assert name not in engine.get("required", [])
+
+
+def test_the_field_texts_say_what_the_numbers_are() -> None:
+    """The published words are what a card is built from: the judged count is of valid answers, the
+    total is the per-answer rule that may exceed it, the clear total is the number beside it, the
+    top competitor is read before the rows are narrowed, and a configuration version is dated by its
+    first derived answer."""
+    engine = _schema("AiCompetitorEngine")["properties"]
+    judged = engine["lost_prompts_with_min_answers"]["description"]
+    total = engine["lost_prompts_total"]["description"]
+    clear = engine["lost_prompts_clear_total"]["description"]
+    top = engine["is_top_competitor"]["description"]
+    change = _schema("AiEntityConfigChange")
+    meta = _schema("AiMetricMeta")["properties"]["entity_config_changes"]["description"]
+
+    assert "at least 4 valid answers" in judged
+    for phrase in ("per-answer", "can exceed", "lost_prompts_clear_total"):
+        assert phrase in total, phrase
+    assert "lost_prompts_with_min_answers" in clear
+    assert "own brand in none" in clear
+    for phrase in ("before `entity_ids` narrows", "at most one competitor"):
+        assert phrase in top, phrase
+    assert "first derived an answer" in change["description"]
+    assert "first derived an answer" in change["properties"]["from"]["description"]
+    assert "first derived an answer" in meta
+    assert "took effect" not in meta

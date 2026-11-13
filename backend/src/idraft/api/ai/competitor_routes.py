@@ -44,12 +44,16 @@ CompetitorInclude = Literal["lost_prompts", "top_sources"]
     "in AI answers, at most 20; `entity_ids` narrows them), each with one entry per engine shown: "
     "Mentioned and Share of voice from the prompts summary's entity cells, citation share (the "
     "entity's citation units over all those of the engine, as the Sources page counts them) and "
-    "recommendation (suppressed: `not_classified`). `is_top_competitor` is true on exactly the "
-    "competitor with the most share of voice on that engine, and false for every row when no "
+    "recommendation (suppressed: `not_classified`). `is_top_competitor` is true on at most one "
+    "competitor of the engine, the one with the most share of voice among the tracked "
+    "competitors (read before `entity_ids` narrows the rows), and false for every row when no "
     "competitor was named. `include=lost_prompts` adds, per competitor and engine, the prompts "
     "where it is named and the own brand is not (the `lost_to` opportunity of the summary), by "
-    "importance, at most `lost_limit`, with `lost_prompts_total` (before the cap) and "
-    "`lost_prompts_with_min_answers`; `include=top_sources` adds the domains cited most with the "
+    "importance, at most `lost_limit`, with `lost_prompts_total` (the per-answer rule, before "
+    "the cap, which can exceed the next one), `lost_prompts_with_min_answers` (prompts with at "
+    "least 4 valid answers) and `lost_prompts_clear_total` (of those, the prompts where the own "
+    "brand is named in none of the valid answers); `include=top_sources` adds the domains cited "
+    "most with the "
     "entity, at most `sources_limit`, over all engines. " + COMPARE,
 )
 async def competitors(

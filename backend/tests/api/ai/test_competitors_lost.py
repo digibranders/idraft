@@ -23,7 +23,8 @@ import httpx
 import pytest
 
 from idraft.api.ai import competitor_repository
-from idraft.api.ai.competitors import Lost, lost_prompt
+from idraft.api.ai.competitor_repository import LostAnswers
+from idraft.api.ai.competitors import Lost, PromptAnswers, lost_block, lost_prompt
 from idraft.api.ai.source_repository import SourceScope
 from idraft.api.resources import Resources
 from idraft.collectors.ai_prompt_ingest import ingest
@@ -39,6 +40,7 @@ from tests.api.ai.competitors_support import (
 from tests.api.ai.summary_support import (
     CHATGPT,
     GEMINI,
+    OWN_ONLY,
     REFUSAL,
     Answer,
     Summary,
@@ -62,7 +64,12 @@ from tests.conftest import PostgresServer
 seeded = summary_support.seeded
 
 LOST = {"include": "lost_prompts"}
-LOST_KEYS = ("lost_prompts", "lost_prompts_total", "lost_prompts_with_min_answers")
+LOST_KEYS = (
+    "lost_prompts",
+    "lost_prompts_total",
+    "lost_prompts_with_min_answers",
+    "lost_prompts_clear_total",
+)
 PROVIDERS_TEXT = "Best managed SOC providers in India?"
 
 
@@ -123,10 +130,14 @@ async def test_a_prompt_where_the_competitor_is_named_and_the_own_brand_is_not_i
     assert lost["lost"]["value"] == pytest.approx(0.2)
     assert lost["lost"]["pooled"] is None
     assert (chatgpt["lost_prompts_total"], chatgpt["lost_prompts_with_min_answers"]) == (1, 1)
+    # The own brand is named in 2 of the 5 valid answers of `providers`: lost per answer,
+    # and not a clear loss, so the card's "of 1 prompts" has no "1 of" in front of it.
+    assert chatgpt["lost_prompts_clear_total"] == 0
     # Gemini's one answer names both brands: nothing is lost there, and the block is still there.
     gemini = _lost(body, seeded.rival, GEMINI)
     assert (gemini["lost_prompts"], gemini["lost_prompts_total"]) == ([], 0)
     assert gemini["lost_prompts_with_min_answers"] == 0
+    assert gemini["lost_prompts_clear_total"] == 0
 
 
 async def test_a_prompt_naming_both_is_not_lost(
@@ -356,6 +367,74 @@ async def test_prompts_with_at_least_four_valid_answers_are_counted_beside_the_t
     # The same number for every competitor of an engine, and none on the other engine.
     body = await competitors_body(seeded, api, **LOST)
     assert _lost(body, seeded.rival, GEMINI)["lost_prompts_with_min_answers"] == 0
+
+
+def test_a_clear_loss_has_a_lost_answer_no_own_mention_and_four_valid_answers() -> None:
+    """(valid answers, own brand named, lost answers) of five prompts on one engine. Clear: a lost
+    answer, the own brand named in none, and at least 4 valid answers (4 is enough, 3 is not)."""
+    entity = uuid.uuid4()
+    shapes = [(4, 0, 1), (3, 0, 3), (4, 1, 2), (6, 0, 6), (5, 0, 0)]
+    prompts = [uuid.uuid4() for _ in shapes]
+    answers = {
+        (prompt, "e"): PromptAnswers(f"P{number}?", valid, valid + 1, own)
+        for number, (prompt, (valid, own, _)) in enumerate(zip(prompts, shapes, strict=True))
+    }
+    lost = {
+        (prompt, "e", entity): LostAnswers(count, 3)
+        for prompt, (_, _, count) in zip(prompts, shapes, strict=True)
+        if count
+    }
+
+    block = lost_block(entity, "e", lost, answers, 1)
+
+    # Lost: the first four prompts; judged (4 valid answers or more): 1, 3, 4 and 5; clear: 1 and 4.
+    assert (block.total, block.with_min_answers, block.clear_total) == (4, 4, 2)
+    # The cap is for the list only: the counts are over every prompt.
+    assert len(block.prompts) == 1
+
+
+async def test_the_clear_total_differs_from_the_lost_total_and_the_judged_prompts(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+) -> None:
+    """Four prompts lost to the rival on ChatGPT by the per-answer rule: `a1` and `a2` with four
+    valid answers that name the rival alone (clear losses), `b` with two (too few answers to judge)
+    and `c` with four of which one names the own brand (judged, but not clear). So 4 lost, 3 judged
+    and 2 clear: the card's "2 of 3" is `lost_prompts_clear_total` of the judged prompts
+    and never "4 of 3"."""
+    world = await _lost_world(resources, migrated, ["a1", "a2", "b", "c"])
+    await ingested(
+        world,
+        migrated,
+        worker_db,
+        import_store,
+        [
+            *_rival_only("a1", 4, 1),
+            *_rival_only("a2", 4, 5),
+            *_rival_only("b", 2, 9),
+            *_rival_only("c", 3, 11),
+            Answer("c", OWN_ONLY, (), 14),
+        ],
+    )
+
+    body = await competitors_body(world, api, **LOST)
+    capped = await competitors_body(world, api, lost_limit=1, **LOST)
+
+    item = _lost(body, world.rival)
+    assert item["lost_prompts_total"] == 4
+    assert item["lost_prompts_with_min_answers"] == 3
+    assert item["lost_prompts_clear_total"] == 2
+    assert len(item["lost_prompts"]) == 4
+    # No sample limit on the counts, and nothing on an engine nobody answered on.
+    one = _lost(capped, world.rival)
+    assert len(one["lost_prompts"]) == 1
+    assert (one["lost_prompts_total"], one["lost_prompts_clear_total"]) == (4, 2)
+    for row in body["data"]:
+        if row["entity"]["role"] == "own":
+            assert all(key not in entry for entry in row["by_engine"] for key in LOST_KEYS)
 
 
 async def test_the_own_entity_has_no_lost_prompts(api: httpx.AsyncClient, seeded: Summary) -> None:

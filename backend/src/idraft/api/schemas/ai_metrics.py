@@ -168,14 +168,14 @@ class AiMetricValue(BaseModel):
 
 
 class AiEntityConfigChange(BaseModel):
-    """The day an entity configuration version took effect."""
+    """The project-local day an entity configuration version first derived an answer."""
 
     version: int = Field(description="The entity configuration version.")
     from_: date = Field(
         alias="from",
         serialization_alias="from",
-        description="The first project-local day answers were counted with this version; it can "
-        "precede the window.",
+        description="The project-local day this version first derived an answer of the project; "
+        "it can precede the window.",
     )
 
     model_config = {"populate_by_name": True}
@@ -213,9 +213,9 @@ class AiMetricMeta(BaseModel):
     entity_config_changes: list[AiEntityConfigChange] | None = Field(
         default=None,
         exclude_if=_absent,
-        description="When more than one version is listed in `entity_config_versions`: the day "
-        "each took effect, oldest first, so a chart can mark where share of voice changes basis. "
-        "Left out when the window holds one version.",
+        description="When more than one version is listed in `entity_config_versions`: the "
+        "project-local day each first derived an answer, oldest first, so a chart can mark where "
+        "share of voice changes basis. Left out when the window holds one version.",
     )
     notes: list[str] = Field(
         description="What a route has to say about its numbers; [] if nothing."
@@ -410,8 +410,10 @@ class AiCompetitorEngine(BaseModel):
     )
     share_of_voice: AiMetricValue = Field(description="`ai.share_of_voice` of the entity.")
     is_top_competitor: bool = Field(
-        description="True for exactly the competitor with the most share of voice on the engine; "
-        "false for every row when no competitor was named."
+        description="True for at most one competitor of the engine: the one with the most share of "
+        "voice among the tracked competitors, read over the tracked set before `entity_ids` "
+        "narrows the rows. False for every row when no competitor was named, or when the top one "
+        "is narrowed away."
     )
     lost_prompts: list[LostPrompt] | None = Field(
         default=None,
@@ -423,14 +425,25 @@ class AiCompetitorEngine(BaseModel):
         default=None,
         exclude_if=_absent,
         description="With `include=lost_prompts`, on a competitor: every prompt lost to it on the "
-        "engine, before the `lost_limit` cap of `lost_prompts`. Left out otherwise.",
+        "engine under the per-answer rule (it is named in at least one valid answer that does not "
+        "name the own brand), before the `lost_limit` cap of `lost_prompts`. It can exceed "
+        "`lost_prompts_with_min_answers`, so it is not the count to show over it: use "
+        "`lost_prompts_clear_total`. Left out otherwise.",
     )
     lost_prompts_with_min_answers: int | None = Field(
         default=None,
         exclude_if=_absent,
         description="With `include=lost_prompts`, on a competitor: the prompts in scope with at "
-        "least 4 answers on the engine, the 'of N prompts' beside `lost_prompts_total`. Left out "
-        "otherwise.",
+        "least 4 valid answers on the engine, the 'of N prompts' beside "
+        "`lost_prompts_clear_total`. Left out otherwise.",
+    )
+    lost_prompts_clear_total: int | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=lost_prompts`, on a competitor: the prompts on the engine "
+        "where it is named in at least one valid answer, the own brand in none of the prompt's "
+        "valid answers, and the prompt has at least 4 valid answers; not capped by `lost_limit`. "
+        "Never larger than `lost_prompts_with_min_answers`. Left out otherwise.",
     )
 
 

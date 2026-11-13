@@ -1157,7 +1157,7 @@ export interface paths {
         };
         /**
          * Each tracked entity's mention rate, share of voice and citation share, per engine
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One row per tracked entity (the own entities, then the competitors by name, those tracked in AI answers, at most 20; `entity_ids` narrows them), each with one entry per engine shown: Mentioned and Share of voice from the prompts summary's entity cells, citation share (the entity's citation units over all those of the engine, as the Sources page counts them) and recommendation (suppressed: `not_classified`). `is_top_competitor` is true on exactly the competitor with the most share of voice on that engine, and false for every row when no competitor was named. `include=lost_prompts` adds, per competitor and engine, the prompts where it is named and the own brand is not (the `lost_to` opportunity of the summary), by importance, at most `lost_limit`, with `lost_prompts_total` (before the cap) and `lost_prompts_with_min_answers`; `include=top_sources` adds the domains cited most with the entity, at most `sources_limit`, over all engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One row per tracked entity (the own entities, then the competitors by name, those tracked in AI answers, at most 20; `entity_ids` narrows them), each with one entry per engine shown: Mentioned and Share of voice from the prompts summary's entity cells, citation share (the entity's citation units over all those of the engine, as the Sources page counts them) and recommendation (suppressed: `not_classified`). `is_top_competitor` is true on at most one competitor of the engine, the one with the most share of voice among the tracked competitors (read before `entity_ids` narrows the rows), and false for every row when no competitor was named. `include=lost_prompts` adds, per competitor and engine, the prompts where it is named and the own brand is not (the `lost_to` opportunity of the summary), by importance, at most `lost_limit`, with `lost_prompts_total` (the per-answer rule, before the cap, which can exceed the next one), `lost_prompts_with_min_answers` (prompts with at least 4 valid answers) and `lost_prompts_clear_total` (of those, the prompts where the own brand is named in none of the valid answers); `include=top_sources` adds the domains cited most with the entity, at most `sources_limit`, over all engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.
          */
         get: operations["competitors_api_v1_workspaces__workspace_id__projects__project_id__ai_competitors_get"];
         put?: never;
@@ -2938,7 +2938,7 @@ export interface components {
             entities: components["schemas"]["SummaryEntity"][];
             /**
              * Entity Config Changes
-             * @description When more than one version is listed in `entity_config_versions`: the day each took effect, oldest first, so a chart can mark where share of voice changes basis. Left out when the window holds one version.
+             * @description When more than one version is listed in `entity_config_versions`: the project-local day each first derived an answer, oldest first, so a chart can mark where share of voice changes basis. Left out when the window holds one version.
              */
             entity_config_changes?: components["schemas"]["AiEntityConfigChange"][] | null;
             /**
@@ -3054,7 +3054,7 @@ export interface components {
             engine_code: string;
             /**
              * Is Top Competitor
-             * @description True for exactly the competitor with the most share of voice on the engine; false for every row when no competitor was named.
+             * @description True for at most one competitor of the engine: the one with the most share of voice among the tracked competitors, read over the tracked set before `entity_ids` narrows the rows. False for every row when no competitor was named, or when the top one is narrowed away.
              */
             is_top_competitor: boolean;
             /**
@@ -3063,13 +3063,18 @@ export interface components {
              */
             lost_prompts?: components["schemas"]["LostPrompt"][] | null;
             /**
+             * Lost Prompts Clear Total
+             * @description With `include=lost_prompts`, on a competitor: the prompts on the engine where it is named in at least one valid answer, the own brand in none of the prompt's valid answers, and the prompt has at least 4 valid answers; not capped by `lost_limit`. Never larger than `lost_prompts_with_min_answers`. Left out otherwise.
+             */
+            lost_prompts_clear_total?: number | null;
+            /**
              * Lost Prompts Total
-             * @description With `include=lost_prompts`, on a competitor: every prompt lost to it on the engine, before the `lost_limit` cap of `lost_prompts`. Left out otherwise.
+             * @description With `include=lost_prompts`, on a competitor: every prompt lost to it on the engine under the per-answer rule (it is named in at least one valid answer that does not name the own brand), before the `lost_limit` cap of `lost_prompts`. It can exceed `lost_prompts_with_min_answers`, so it is not the count to show over it: use `lost_prompts_clear_total`. Left out otherwise.
              */
             lost_prompts_total?: number | null;
             /**
              * Lost Prompts With Min Answers
-             * @description With `include=lost_prompts`, on a competitor: the prompts in scope with at least 4 answers on the engine, the 'of N prompts' beside `lost_prompts_total`. Left out otherwise.
+             * @description With `include=lost_prompts`, on a competitor: the prompts in scope with at least 4 valid answers on the engine, the 'of N prompts' beside `lost_prompts_clear_total`. Left out otherwise.
              */
             lost_prompts_with_min_answers?: number | null;
             /** @description `ai.mention_rate` of the entity. */
@@ -3169,13 +3174,13 @@ export interface components {
         };
         /**
          * AiEntityConfigChange
-         * @description The day an entity configuration version took effect.
+         * @description The project-local day an entity configuration version first derived an answer.
          */
         AiEntityConfigChange: {
             /**
              * From
              * Format: date
-             * @description The first project-local day answers were counted with this version; it can precede the window.
+             * @description The project-local day this version first derived an answer of the project; it can precede the window.
              */
             from: string;
             /**
@@ -3250,7 +3255,7 @@ export interface components {
             entities: components["schemas"]["SummaryEntity"][];
             /**
              * Entity Config Changes
-             * @description When more than one version is listed in `entity_config_versions`: the day each took effect, oldest first, so a chart can mark where share of voice changes basis. Left out when the window holds one version.
+             * @description When more than one version is listed in `entity_config_versions`: the project-local day each first derived an answer, oldest first, so a chart can mark where share of voice changes basis. Left out when the window holds one version.
              */
             entity_config_changes?: components["schemas"]["AiEntityConfigChange"][] | null;
             /**
