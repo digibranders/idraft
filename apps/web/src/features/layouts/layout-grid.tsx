@@ -187,7 +187,13 @@ export function LayoutGrid({
     body = (
       // `relative`: what is placed inside the grid (the drop line) measures against the grid, not the section
       <div className={cn('relative', containerClass)}>
-        <SortableGrid cards={shownCards} cellClass={cellClass} renderBody={bodyOf} renderNotice={noticeOf} />
+        <SortableGrid
+          cards={shownCards}
+          cellClass={cellClass}
+          renderBody={bodyOf}
+          renderNotice={noticeOf}
+          columns={columns}
+        />
         {shownCards.length === 0 ? (
           <p className="col-span-12 type-body text-foreground-secondary">
             {t(onAddCard === undefined ? 'emptyView' : 'empty')}
