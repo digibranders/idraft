@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T09:33:49+05:30",
+ "updated": "2026-11-13T10:03:54+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -475,7 +475,7 @@
     "done": 8
    },
    "owner": "",
-   "notes": "file work-packages/WP-12-summary-lane.md; estimate 10 tasks; decisions D-04 | steps 1/10, rows 0/24; plan committed (9 tasks); decisions: API pools per C2 (D-04), include=cells opt-in, filter rules, previous_year, by_country"
+   "notes": "file work-packages/WP-12-summary-lane.md; estimate 10 tasks; decisions D-04 | steps 7/10, tasks 1b-6 committed and reviewed (local, push at the end); Task 7 resumed after the 09:55 hang"
   },
   {
    "id": "WP-13",
@@ -4215,6 +4215,16 @@
    "detail": "CF-26 is WP-26 step 1 (backend and web, not started). WP-25 task 9 is conditional. Start WP-26 early so WB-PI-23 can close. Also WB-PI-01 (quotes around the h2) skipped: would change the accessible name in 7 test files and needs inspector-header.tsx.",
    "owner": "WP-26 session",
    "severity": "one row blocked",
+   "status": "open"
+  },
+  {
+   "id": "F-12",
+   "found": "2026-11-13T10:03:54+05:30",
+   "by": "WP-12",
+   "title": "Ops runbook: ANALYZE ai.entity_mentions and ai.observation_facts after a restore, upgrade or large backfill",
+   "detail": "WP-12 Task 4 co-mentions statement: with no table statistics the planner chose a nested loop taking 69 s (over the 15 s statement timeout); with the leaf partitions analyzed it takes 0.4 s. Real pair volume is much lower than the 20-entity worst case. Add one line to the ops runbook (docs/ops).",
+   "owner": "ops session",
+   "severity": "performance hardening",
    "status": "open"
   }
  ],
