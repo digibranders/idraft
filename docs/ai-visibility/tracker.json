@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T17:30:16+05:30",
+ "updated": "2026-11-13T17:42:18+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1013,10 +1013,10 @@
    },
    "counts": {
     "total": 37,
-    "done": 26
+    "done": 30
    },
    "owner": "",
-   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | tasks 4/7, rows 26/37; Tasks 1-4 on develop (07c61c34): Topics tab List/By engine/Heat map views, drill-down, export, phone list, and the topic drawer engine panel with per engine trend; Task 5 competitors (own vs top 3, Related) next; browser pass in Task 7"
+   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | tasks 5/7, rows 30/37; Tasks 1-5 on develop (20a9bdac): + drawer engine panel, per engine trend, comparison sentence, own vs top 3, Competitors and Related tabs (not mounted yet: Task 7 after WP-16); F-22 fixed; Task 6 drawer header, Prompts tab by engine, In search card next"
   },
   {
    "id": "WP-21",
@@ -4202,6 +4202,13 @@
    "granted": "2026-11-13T17:30:16+05:30",
    "scope": "the test at ~line 213 (390 px a11y and no sideways scroll): the Topics treegrid no longer exists at 390 px because the phone list rows replace it; adapt line ~220 and the checks after it; WP-21 holds a lease for other lines of the same file (tab loop): both rebase",
    "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/data-table/data-table.test.tsx",
+   "wp": "WP-20 (flake fix)",
+   "granted": "2026-11-13T17:42:18+05:30",
+   "scope": "harden only the DataTable row context menu test 'leaves Shift plus right click, a link in a cell and an input to the browser' (load flake); no other test or source change",
+   "until": "WP-20 merged"
   }
  ],
  "followups": [
@@ -4250,7 +4257,7 @@
    "found": "2026-11-13T04:51:06+05:30",
    "by": "WP-06",
    "title": "Load-sensitive flaky tests",
-   "detail": "data-table.test.tsx right-click context menu test fails once under load, passes alone 185/185; also rankings and prompts DOM-timeout tests under uncapped load; backend test_five_thousand_keywords; prompt-inspector counts test. Harden with fake timers or longer waits in the quality sweep.",
+   "detail": "data-table.test.tsx right-click context menu test fails once under load, passes alone 185/185; also rankings and prompts DOM-timeout tests under uncapped load; backend test_five_thousand_keywords; prompt-inspector counts test. Harden with fake timers or longer waits in the quality sweep. UPDATE 17:4x: the DataTable row context menu test (Shift plus right click, link in a cell, an input) failed in WP-06, WP-21 and WP-20 full runs under load; assigned to WP-20 to harden now (its own WP-09 code).",
    "owner": "quality sweep at wave end",
    "severity": "test debt",
    "status": "open"
@@ -4423,7 +4430,7 @@
    "detail": "Fails at line 220 getByRole('treegrid', {name:'Topics'}): at 390 px the page renders mobile list rows (DataTableList / WP-20 topics-mobile-list) so no treegrid exists. Reproduced on a clean checkout of origin/develop (2 failed, light and dark). The spec passed at WP-10 merge, so the change came with the Topics phone list (WP-20 Task 3, WB-TPE-17). Owner: WP-20 (assigned). The release e2e gate is red until fixed.",
    "owner": "WP-20 session",
    "severity": "develop e2e red",
-   "status": "assigned"
+   "status": "fixed 20a9bdac (ai-prompts.spec.ts 12/12 incl. axe and no sideways scroll at 390 px, light and dark)"
   }
  ],
  "migrations": [
