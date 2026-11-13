@@ -59,14 +59,17 @@ from idraft.api.pagination import (
     encode_cursor,
     invalid_cursor,
 )
+from idraft.api.permissions import Permission
 from idraft.api.problems import (
     DuplicateError,
     FieldError,
+    ForbiddenError,
     NotFoundError,
     PreconditionFailedError,
     QuotaExceededError,
     TooManyMatchesError,
     TooManySubjectsError,
+    invalid_field,
     invalid_fields,
 )
 from idraft.api.request_info import RequestInfo
@@ -88,6 +91,7 @@ from idraft.api.schemas.ai_bulk import (
     PromptBulkUpdate,
     PromptSelectionFilter,
 )
+from idraft.api.schemas.keywords import TermAssignment
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
 from idraft.domain.ai_engines import (
@@ -711,6 +715,16 @@ def _bulk_term_errors(
     return found
 
 
+def _assignment_error(body: TermAssignment, usable: Mapping[UUID, TermRecord]) -> FieldError | None:
+    """Terms to give must be ones the project may use, at most one of a single-valued
+    vocabulary; terms to take away must only be ones it may use."""
+    if body.op != "remove":
+        return term_error(body.term_ids, usable)
+    if set(body.term_ids) - usable.keys():
+        return FieldError("term_ids", "term_unknown", "A term the project cannot use.")
+    return None
+
+
 class PromptService:
     def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
@@ -1033,21 +1047,25 @@ class PromptService:
             changed = await prompts.set_metadata(
                 db, access.workspace_id, project_id, ids, values, sources, now
             )
-            by_terms = await prompts.remove_terms(
-                db,
-                access.workspace_id,
-                project_id,
-                ids,
-                removed=body.remove_term_ids,
-                replaced_in={
-                    usable[term_id].vocabulary_id
-                    for term_id in body.add_term_ids
-                    if usable[term_id].is_single_valued
-                },
-                kept=body.add_term_ids,
+            by_terms = set(
+                await prompts.remove_terms(
+                    db,
+                    access.workspace_id,
+                    project_id,
+                    ids,
+                    removed=body.remove_term_ids,
+                    replaced_in={
+                        usable[term_id].vocabulary_id
+                        for term_id in body.add_term_ids
+                        if usable[term_id].is_single_valued
+                    },
+                    kept=body.add_term_ids,
+                )
             )
-            by_terms |= await prompts.add_terms_to_prompts(
-                db, access.workspace_id, project_id, ids, body.add_term_ids
+            by_terms |= set(
+                await prompts.add_terms_to_prompts(
+                    db, access.workspace_id, project_id, ids, body.add_term_ids
+                )
             )
             await prompts.touch(db, access.workspace_id, project_id, by_terms - changed, now)
             changed |= by_terms
@@ -1079,6 +1097,100 @@ class PromptService:
                 ],
             )
         return len(selected), len(changed)
+
+    async def assign_terms(
+        self, access: WorkspaceAccess, project_id: UUID, body: TermAssignment, info: RequestInfo
+    ) -> tuple[int, int, int]:
+        """`POST term-assignments` for prompts: `add` gives the terms (one of a single-valued
+        vocabulary takes the place of the prompt's other one), `remove` takes them, `replace`
+        makes them the prompt's only terms within their vocabularies. The caller also needs
+        `prompts:write`, as the route only asks for `keywords:write`. Only `subject_ids`: the
+        project's live prompts among them are matched, other ids are not. How many matched,
+        how many assignments were added and how many removed."""
+        if not access.holds(Permission.PROMPTS_WRITE):
+            raise ForbiddenError
+        now = datetime.now(UTC)
+        async with self._transaction(access) as db:
+            await live_project(db, access, project_id)
+            if body.subject_filter is not None:
+                raise invalid_field(
+                    "subject_filter",
+                    code="filter_not_supported",
+                    message="Prompts are chosen by `subject_ids`; to choose them by filter, "
+                    "use bulk-update.",
+                )
+            # Taking terms away cannot break a vocabulary's rule, so only additions hold the
+            # vocabularies against a change to `is_single_valued`.
+            usable = {
+                found.term_id: found
+                for found in await keywords.project_terms(
+                    db, access.workspace_id, project_id, body.term_ids, hold=body.op != "remove"
+                )
+            }
+            error = _assignment_error(body, usable)
+            if error is not None:
+                raise invalid_fields([error])
+            ids = list(await _selected(db, access, project_id, body.subject_ids, None))
+            if body.op == "remove":
+                removed = await prompts.remove_terms(
+                    db,
+                    access.workspace_id,
+                    project_id,
+                    ids,
+                    removed=body.term_ids,
+                    replaced_in=(),
+                    kept=(),
+                )
+                added: Counter[UUID] = Counter()
+            else:
+                removed = await prompts.remove_terms(
+                    db,
+                    access.workspace_id,
+                    project_id,
+                    ids,
+                    removed=(),
+                    replaced_in={
+                        usable[term_id].vocabulary_id
+                        for term_id in body.term_ids
+                        if body.op == "replace" or usable[term_id].is_single_valued
+                    },
+                    kept=body.term_ids,
+                )
+                added = await prompts.add_terms_to_prompts(
+                    db, access.workspace_id, project_id, ids, body.term_ids
+                )
+            changed = removed.keys() | added.keys()
+            await prompts.touch(db, access.workspace_id, project_id, changed, now)
+            await audit.record(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="prompt.bulk_changed",
+                target_type="project",
+                target_id=project_id,
+                info=info,
+                after={
+                    "term_assignment": body.op,
+                    "term_ids": sorted(map(str, set(body.term_ids))),
+                    "matched": len(ids),
+                    "changed": len(changed),
+                },
+            )
+            await audit.record_each(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="prompt.updated",
+                target_type="prompt",
+                info=info,
+                entries=[
+                    audit.Entry(
+                        target_id=prompt_id, after={"term_assignment": body.op, "bulk": True}
+                    )
+                    for prompt_id in sorted(changed)
+                ],
+            )
+        return len(ids), added.total(), removed.total()
 
     async def bulk_archive(
         self,

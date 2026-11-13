@@ -17,6 +17,7 @@ from sqlalchemy import (
     ColumnElement,
     Row,
     Select,
+    Table,
     and_,
     delete,
     exists,
@@ -32,6 +33,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.db.errors import violated_unique_constraint
 from idraft.db.tables import (
+    ai_prompt_terms,
+    ai_prompts,
     projects,
     taxonomy_terms,
     taxonomy_vocabularies,
@@ -407,18 +410,22 @@ async def levels_below(db: AsyncSession, workspace_id: UUID, vocabulary_id: UUID
     return 0 if deepest is None else deepest - path.count("/")
 
 
-async def keyword_counts(
+async def _subject_counts(
     db: AsyncSession,
     workspace_id: UUID,
     vocabulary_id: UUID,
     *,
+    links: Table,
+    link_column: str,
+    subjects: Table,
     visible: Collection[UUID] | None,
 ) -> dict[UUID, int]:
-    """For each term with any: the active tracked keywords that have it or a term under it, in
-    projects that are not deleted and that the member may see. A keyword counts once."""
+    """For each term with any: the active, live subjects (rows of `subjects`, linked through
+    `links`) that have it or a term under it, in projects that are not deleted and that the
+    member may see. A subject counts once, however many terms of the branch it has."""
     term = taxonomy_terms.alias("term")
     under = taxonomy_terms.alias("under")
-    k, t, p = tracked_keyword_terms.c, tracked_keywords.c, projects.c
+    link, t, p = links.c, subjects.c, projects.c
     live: list[ColumnElement[bool]] = [
         t.deleted_at.is_(None),
         t.is_active,
@@ -427,7 +434,7 @@ async def keyword_counts(
     if visible is not None:
         live.append(t.project_id.in_(list(visible)))
     rows = await db.execute(
-        select(term.c.id, func.count(func.distinct(t.id)).label("keywords"))
+        select(term.c.id, func.count(func.distinct(t.id)).label("subjects"))
         .select_from(
             term.join(
                 under,
@@ -437,13 +444,9 @@ async def keyword_counts(
                 ),
             )
             .join(
-                tracked_keyword_terms,
-                and_(k.term_id == under.c.id, k.workspace_id == under.c.workspace_id),
+                links, and_(link.term_id == under.c.id, link.workspace_id == under.c.workspace_id)
             )
-            .join(
-                tracked_keywords,
-                and_(t.id == k.tracked_keyword_id, t.workspace_id == k.workspace_id),
-            )
+            .join(subjects, and_(t.id == link[link_column], t.workspace_id == link.workspace_id))
             .join(projects, and_(p.id == t.project_id, p.workspace_id == t.workspace_id))
         )
         .where(
@@ -454,7 +457,47 @@ async def keyword_counts(
         )
         .group_by(term.c.id)
     )
-    return {row.id: row.keywords for row in rows}
+    return {row.id: row.subjects for row in rows}
+
+
+async def keyword_counts(
+    db: AsyncSession,
+    workspace_id: UUID,
+    vocabulary_id: UUID,
+    *,
+    visible: Collection[UUID] | None,
+) -> dict[UUID, int]:
+    """For each term with any: the active tracked keywords that have it or a term under it, in
+    projects that are not deleted and that the member may see. A keyword counts once."""
+    return await _subject_counts(
+        db,
+        workspace_id,
+        vocabulary_id,
+        links=tracked_keyword_terms,
+        link_column="tracked_keyword_id",
+        subjects=tracked_keywords,
+        visible=visible,
+    )
+
+
+async def prompt_counts(
+    db: AsyncSession,
+    workspace_id: UUID,
+    vocabulary_id: UUID,
+    *,
+    visible: Collection[UUID] | None,
+) -> dict[UUID, int]:
+    """For each term with any: the active, live prompts that have it or a term under it, branded
+    or not, in projects that are not deleted and that the member may see. A prompt counts once."""
+    return await _subject_counts(
+        db,
+        workspace_id,
+        vocabulary_id,
+        links=ai_prompt_terms,
+        link_column="prompt_id",
+        subjects=ai_prompts,
+        visible=visible,
+    )
 
 
 async def a_keyword_with_two_terms(

@@ -12,7 +12,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response
 
-from idraft.api.pagination import Offset, OffsetPageInfo
+from idraft.api.pagination import Commas, Offset, OffsetPageInfo
 from idraft.api.permissions import Permission
 from idraft.api.request_info import Info
 from idraft.api.resources import Resources, get_resources
@@ -85,12 +85,15 @@ def _term(record: TermRecord) -> Term:
     return Term.model_validate(_term_fields(record))
 
 
-def _node(branch: Branch, counts: Mapping[UUID, int]) -> TermNode:
+def _node(
+    branch: Branch, counts: Mapping[UUID, int], prompt_counts: Mapping[UUID, int] | None
+) -> TermNode:
     return TermNode.model_validate(
         {
             **_term_fields(branch.term),
             "keyword_count": counts.get(branch.term.id, 0),
-            "children": [_node(child, counts) for child in branch.children],
+            "prompt_count": None if prompt_counts is None else prompt_counts.get(branch.term.id, 0),
+            "children": [_node(child, counts, prompt_counts) for child in branch.children],
         }
     )
 
@@ -168,7 +171,9 @@ async def delete_vocabulary(
 @router.get(
     "/vocabularies/{vocabulary_id}/terms",
     summary="A vocabulary's terms, as a tree or flat",
-    description="In path order. `flat` lists every term with empty `children`.",
+    description="In path order. `flat` lists every term with empty `children`. "
+    "`include=prompt_count` adds `prompt_count` to every term (one grouped query, left out "
+    "otherwise).",
 )
 async def list_terms(
     vocabulary_id: UUID,
@@ -182,9 +187,16 @@ async def list_terms(
             description="Terms whose name holds the text; the tree keeps their ancestors.",
         ),
     ] = None,
+    include: Annotated[
+        list[Literal["prompt_count"]] | None,
+        Commas,
+        Query(max_length=1, description="Counts to add: `prompt_count`."),
+    ] = None,
 ) -> TermTree:
-    branches, counts = await taxonomy.terms(access, vocabulary_id, q=q, tree=format == "tree")
-    return TermTree(data=[_node(branch, counts) for branch in branches])
+    branches, counts, prompt_counts = await taxonomy.terms(
+        access, vocabulary_id, q=q, tree=format == "tree", with_prompt_counts=bool(include)
+    )
+    return TermTree(data=[_node(branch, counts, prompt_counts) for branch in branches])
 
 
 @router.post(

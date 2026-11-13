@@ -7,7 +7,7 @@ is shown with its current version, in slice 1 the first and only one.
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -741,12 +741,12 @@ async def remove_terms(
     removed: Collection[UUID],
     replaced_in: Collection[UUID],
     kept: Collection[UUID],
-) -> set[UUID]:
+) -> Counter[UUID]:
     """Takes `removed` terms off the project's prompts among `ids`, and every term of the
-    single-valued vocabularies `replaced_in` that is not one of `kept` (the terms about to be
-    added). Says which prompts lost a term."""
+    vocabularies `replaced_in` that is not one of `kept` (the terms about to be added). Says how
+    many terms each prompt lost; the keys are the prompts that lost one."""
     if not ids or not (removed or replaced_in):
-        return set()
+        return Counter()
     links, terms, p = ai_prompt_terms.c, taxonomy_terms.c, ai_prompts.c
     wanted: list[ColumnElement[bool]] = []
     if removed:
@@ -778,7 +778,7 @@ async def remove_terms(
         )
         .returning(links.prompt_id)
     )
-    return set(rows.scalars())
+    return Counter(rows.scalars())
 
 
 async def add_terms_to_prompts(
@@ -787,12 +787,13 @@ async def add_terms_to_prompts(
     project_id: UUID,
     ids: Sequence[UUID],
     term_ids: Collection[UUID],
-) -> set[UUID]:
+) -> Counter[UUID]:
     """Gives the project's prompts among `ids` each of these terms (the caller has checked
-    them) as a person's assignment; says which prompts gained one. One statement however many
-    prompts and terms: a link held already is left as it is."""
+    them) as a person's assignment; says how many terms each prompt gained (the keys are the
+    prompts that gained one). One statement however many prompts and terms: a link held
+    already is left as it is."""
     if not ids or not term_ids:
-        return set()
+        return Counter()
     p, terms, links = ai_prompts.c, taxonomy_terms.c, ai_prompt_terms.c
     rows = await db.execute(
         upsert(ai_prompt_terms)
@@ -811,7 +812,7 @@ async def add_terms_to_prompts(
         .on_conflict_do_nothing()
         .returning(links.prompt_id)
     )
-    return set(rows.scalars())
+    return Counter(rows.scalars())
 
 
 async def touch(

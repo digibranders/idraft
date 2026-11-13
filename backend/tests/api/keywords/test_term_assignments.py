@@ -150,7 +150,6 @@ async def test_a_single_valued_term_replaces_the_one_there_and_two_are_refused(
 @pytest.mark.parametrize(
     ("body", "expected"),
     [
-        ({"subject_type": "prompt"}, ("subject_type", "subject_type_not_supported")),
         ({"term_ids": ["00000000-0000-0000-0000-000000000000"]}, ("term_ids", "term_unknown")),
     ],
 )

@@ -285,16 +285,30 @@ class TaxonomyService:
     # Terms.
 
     async def terms(
-        self, access: WorkspaceAccess, vocabulary_id: UUID, *, q: str | None, tree: bool
-    ) -> tuple[list[Branch], dict[UUID, int]]:
-        """The terms, and the keyword count of each term that has any (`keyword_counts`)."""
+        self,
+        access: WorkspaceAccess,
+        vocabulary_id: UUID,
+        *,
+        q: str | None,
+        tree: bool,
+        with_prompt_counts: bool = False,
+    ) -> tuple[list[Branch], dict[UUID, int], dict[UUID, int] | None]:
+        """The terms, the keyword count of each term that has any (`keyword_counts`), and with
+        `with_prompt_counts` its prompt count too (`prompt_counts`); None when not asked."""
         async with self._transaction(access) as db:
             await self._vocabulary(db, access, vocabulary_id)
             found = await repository.terms_of(db, access.workspace_id, vocabulary_id)
             counts = await repository.keyword_counts(
                 db, access.workspace_id, vocabulary_id, visible=access.project_ids
             )
-        return arrange(found, q=q, tree=tree), counts
+            prompt_counts = (
+                await repository.prompt_counts(
+                    db, access.workspace_id, vocabulary_id, visible=access.project_ids
+                )
+                if with_prompt_counts
+                else None
+            )
+        return arrange(found, q=q, tree=tree), counts, prompt_counts
 
     async def add_terms(
         self,
