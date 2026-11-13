@@ -4446,7 +4446,26 @@
       "competitive": "Competitive",
       "topicOwner": "Topic owner"
     },
-    "engines": {},
+    "engines": {
+      "common": {
+        "stale": "Stale: these are the last figures read",
+        "partialPrevious": "Partial data: the previous window could not be read",
+        "errorTitle": "Could not load {name}",
+        "errorReason": "The server returned an error. The rest of the page is unchanged.",
+        "retry": "Try again",
+        "metaPrompts": "{count, plural, one {# prompt} other {# prompts}}",
+        "metaAnswers": "{count, plural, one {# valid answer} other {# valid answers}}",
+        "brandedExcluded": "branded prompts left out",
+        "brandedOnly": "branded prompts only",
+        "brandedIncluded": "branded prompts included",
+        "eachPromptOnce": "each prompt counts once",
+        "avg": "avg of {count, number}",
+        "unknownEngine": "Unknown engine",
+        "viewRuns": "View runs",
+        "toEngines": "Turn on engines",
+        "askAdmin": "Ask a workspace admin to turn on an engine"
+      }
+    },
     "competitors": {
       "common": {},
       "shareOfVoice": {},
