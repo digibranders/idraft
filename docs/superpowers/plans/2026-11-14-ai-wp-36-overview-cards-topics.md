@@ -943,8 +943,9 @@ brief's authorisation.
 
 Counts of cases from `grep` of `it(` and `test(` at the start of a line in the 47 test files of `cards/topics` (not a test run; the 4
 `.each` declarations expand to more cases at run time), 708 in all: T1 7, T2 109, T3 58, T4 64, T5 78, T6 34, T7 72, T8 77, T9 108, T10 56,
-T11 43, and 2 in `subscribed.test.tsx`. The e2e spec was not counted as committed. The results of the final checks (lint, typecheck, format,
-the full test run, the build and the e2e run, section 2.8 C4 and C5) belong to the session lead and are not recorded here.
+T11 43, and 2 in `subscribed.test.tsx`. The e2e spec (12 tests, `apps/web/e2e/flows/ai-overview-topics.spec.ts`) is committed and is not part of this
+count. The results of the final checks (lint, typecheck, format, the full test run, the build and the e2e run, section 2.8 C4 and C5) are
+recorded in the report to the coordinator.
 
 ### 11.5 Review process
 
