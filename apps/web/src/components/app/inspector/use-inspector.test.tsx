@@ -95,6 +95,42 @@ describe('useInspector', () => {
     expect(update.options.history).toBe('replace');
   });
 
+  describe('with another instance beside it (a drawer part reads the inspector too)', () => {
+    const wrapper = ({ children }: { children: ReactNode }): ReactNode => <NuqsAdapter>{children}</NuqsAdapter>;
+    beforeEach(() => {
+      window.history.replaceState(null, '', '/?metric=citation');
+    });
+    afterEach(() => {
+      window.history.replaceState(null, '', '/');
+    });
+
+    it('keeps the entry it pushed when another instance goes away, so Close still goes back', async () => {
+      const page = renderHook(() => useInspector(), { wrapper });
+      act(() => page.result.current.open({ type: 'topic', id: 't1' }));
+      await waitFor(() => expect(window.location.search).toBe('?metric=citation&inspect=topic:t1'));
+      const part = renderHook(() => useInspector(), { wrapper });
+      part.unmount();
+      const back = vi.spyOn(window.history, 'back');
+      act(() => page.result.current.close());
+      expect(back).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(window.location.search).toBe('?metric=citation'));
+    });
+
+    it('goes back to close a topic whose drawer instance went away after it opened a prompt', async () => {
+      const page = renderHook(() => useInspector(), { wrapper });
+      act(() => page.result.current.open({ type: 'topic', id: 't1' }));
+      await waitFor(() => expect(window.location.search).toBe('?metric=citation&inspect=topic:t1'));
+      const drawer = renderHook(() => useInspector(), { wrapper });
+      act(() => drawer.result.current.open({ type: 'prompt', id: 'p1' }));
+      await waitFor(() => expect(window.location.search).toBe('?metric=citation&inspect=prompt:p1'));
+      drawer.unmount();
+      const back = vi.spyOn(window.history, 'back');
+      act(() => page.result.current.close());
+      expect(back).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(window.location.search).toBe('?metric=citation'));
+    });
+  });
+
   describe('with the browser’s own history', () => {
     // The real adapter writes to window.location and the history, so what a close does to the URL is seen
     const wrapper = ({ children }: { children: ReactNode }): ReactNode => <NuqsAdapter>{children}</NuqsAdapter>;

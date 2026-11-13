@@ -212,11 +212,13 @@ describe('the topic drawer: the numbers', () => {
     expect(within(rates).getByText('No valid answers')).toBeInTheDocument();
     const byEngine = within(panel).getByRole('heading', { name: 'By engine' }).closest('section');
     if (byEngine === null) throw new Error('The By engine card is missing');
-    // The panel's rows and its table form both say it
-    expect(within(byEngine).getAllByText('38%').length).toBeGreaterThan(0);
-    // The answers behind the rate, not the sum of the prompts' rates over the prompts (0.75 of 2)
-    expect(within(byEngine).getAllByText('3 of 8 answers, 2 prompts').length).toBeGreaterThan(0);
-    expect(within(byEngine).getAllByText('8 of 8 answers, 2 prompts').length).toBeGreaterThan(0);
+    // The panel's row of each engine says the rate and the answers behind it, not the sum of the prompts' rates over the
+    // prompts (0.75 of 2); the rate is also in the table form beneath the panel
+    expect(within(byEngine).getByRole('link', { name: 'ChatGPT: 38%, 3 of 8 answers' })).toBeInTheDocument();
+    expect(within(byEngine).getByRole('link', { name: 'Gemini: 100%, 8 of 8 answers' })).toBeInTheDocument();
+    expect(within(byEngine).getAllByText('38%')).toHaveLength(2);
+    expect(within(byEngine).getByText('3 of 8 answers, 2 prompts')).toBeInTheDocument();
+    expect(within(byEngine).getByText('8 of 8 answers, 2 prompts')).toBeInTheDocument();
     expect(within(byEngine).queryByText(/^0\.75/)).toBeNull();
     expect(
       within(byEngine).getByText('Each prompt counts once, whatever the number of its answers.'),

@@ -1,19 +1,23 @@
 import { screen, waitFor, within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import { parseAsString, useQueryStates } from 'nuqs';
 import { Suspense, useEffect, type ComponentProps, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PromptsScreen } from './prompts-screen';
 import type { Role } from '@/lib/api/types';
+import { topicRow } from './topics-by-engine/cells-fixtures';
 import { PermissionProvider } from '@/lib/permissions';
 import { MOCK_TERM_IDS } from '@/mocks/entity-fixtures';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
+import { mswPath } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders, type ProvidedRender, type ProvidedRenderOptions } from '@/test/render';
-import '@/test/topic-drawer-harness';
+// The harness also answers the entities and the tracked keywords with none
+import { summaryOf } from '@/test/topic-drawer-harness';
 
 /*
  * The topic drawer as the Topics tab mounts it (WP-20 task 7): the header, the Overview sections, the four tabs, the
@@ -49,6 +53,7 @@ vi.mock('next/link', () => ({
 
 /** Thursday 12 November 2026, noon UTC: the 02:00 run has answered. */
 const NOW = new Date('2026-11-12T12:00:00Z');
+const SUMMARY_PATH = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary');
 const [fynix] = MOCK_PROJECTS;
 if (fynix === undefined) throw new Error('The Fynix project fixture is missing');
 const FYNIX_ID = fynix.project_id;
@@ -114,16 +119,18 @@ describe('the topic drawer: the header', () => {
   it('shows the prompt count, the scope and the freshness as badges, and Add prompt and Run now to an editor', async () => {
     renderOn('editor', inspect(PAID_SEARCH));
     const panel = await drawer('Paid Search');
-    expect(within(panel).getByText('2 prompts')).toBeInTheDocument();
+    expect(await within(panel).findByText('2 prompts')).toBeInTheDocument();
     expect(within(panel).getByRole('group', { name: 'Scope of the counts: 2 engines and Non-branded' })).toBeVisible();
-    expect(within(panel).getByRole('button', { name: 'Add prompt' })).toBeInTheDocument();
-    expect(within(panel).getByRole('button', { name: 'Run now' })).toBeInTheDocument();
+    expect(await within(panel).findByRole('button', { name: 'Add prompt' })).toBeInTheDocument();
+    expect(await within(panel).findByRole('button', { name: 'Run now' })).toBeInTheDocument();
   });
 
-  it('gives a viewer neither Add prompt nor Run now', async () => {
+  it('gives a viewer neither Add prompt nor Run now, once the engines and the summary are in', async () => {
     renderOn('viewer', inspect(PAID_SEARCH));
     const panel = await drawer('Paid Search');
-    expect(within(panel).getByText('2 prompts')).toBeInTheDocument();
+    expect(await within(panel).findByText('2 prompts')).toBeInTheDocument();
+    // The engines are what Add prompt waits for: with them in, the absence is the role's and not the load's
+    expect(await within(panel).findByRole('link', { name: /^ChatGPT/ })).toBeInTheDocument();
     expect(within(panel).queryByRole('button', { name: 'Add prompt' })).toBeNull();
     expect(within(panel).queryByRole('button', { name: 'Run now' })).toBeNull();
   });
@@ -222,5 +229,89 @@ describe('the topic drawer: Add prompt and Run now', () => {
     await user.click(await screen.findByRole('button', { name: 'Run 2 prompts' }));
     await waitFor(() => expect(bodies).toHaveLength(1));
     expect(bodies[0]?.prompt_ids).toHaveLength(2);
+  });
+
+  it('disables Run now with its reason for a topic that holds no prompt', async () => {
+    server.use(
+      http.get(SUMMARY_PATH, () => HttpResponse.json({ data: summaryOf([topicRow(PAID_SEARCH, 'Paid Search', 0)]) })),
+    );
+    const { user } = renderOn('editor', inspect(PAID_SEARCH));
+    const panel = await drawer('Paid Search');
+    const run = await within(panel).findByRole('button', { name: 'Run now' });
+    // First the list is read, then the topic is known to hold nothing
+    await waitFor(() => expect(run).toHaveAttribute('aria-disabled', 'true'));
+    await user.hover(run);
+    expect((await screen.findAllByText('This topic holds no prompt to run.')).length).toBeGreaterThan(0);
+  });
+});
+
+describe('the topic drawer: topics without a row, and a topic without a topic', () => {
+  it('says an unknown topic could not be loaded and offers no action', async () => {
+    renderOn('editor', inspect('99999999-0000-4000-8000-000000000001'));
+    const panel = await screen.findByRole('complementary');
+    expect(
+      await within(panel).findByText('This topic does not exist or you do not have access to it.'),
+    ).toBeInTheDocument();
+    // The engines are in, so the absence is the topic's and not the load's
+    await waitFor(() => expect(within(panel).queryByRole('button', { name: 'Add prompt' })).toBeNull());
+    expect(within(panel).queryByRole('button', { name: 'Run now' })).toBeNull();
+    expect(within(panel).queryByRole('tab')).toBeNull();
+  });
+
+  it('opens No topic without Add prompt or In search, and says its competitors are read per topic', async () => {
+    server.use(http.get(SUMMARY_PATH, () => HttpResponse.json({ data: summaryOf([topicRow(null, null, 3)]) })));
+    renderOn('editor', inspect('__none'));
+    const panel = await drawer('No topic');
+    expect(await within(panel).findByText('3 prompts')).toBeInTheDocument();
+    expect(await within(panel).findByRole('button', { name: 'Run now' })).toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: 'Add prompt' })).toBeNull();
+    expect(
+      await within(panel).findByRole('heading', { name: 'Visibility trend against competitors' }),
+    ).toBeInTheDocument();
+    expect(await within(panel).findByText('Read per topic')).toBeInTheDocument();
+    expect(within(panel).queryByRole('heading', { name: 'In search' })).toBeNull();
+  });
+
+  it('keeps the drawer content while the summary is read again', async () => {
+    const { user, queryClient } = renderOn('viewer', inspect(PAID_SEARCH));
+    const panel = await drawer('Paid Search');
+    expect(await within(panel).findByRole('link', { name: /^ChatGPT/ })).toBeInTheDocument();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get(SUMMARY_PATH, async () => {
+        await gate;
+        return undefined;
+      }),
+    );
+    void queryClient.invalidateQueries();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Nothing of the drawer goes while the new answer is on its way
+    expect(within(panel).getByRole('heading', { name: 'Rates' })).toBeInTheDocument();
+    expect(within(panel).getByRole('link', { name: /^ChatGPT/ })).toBeInTheDocument();
+    expect(within(panel).getByText('2 prompts')).toBeInTheDocument();
+    release();
+    await user.click(await within(panel).findByRole('tab', { name: 'Prompts' }));
+    expect(await within(panel).findAllByRole('listitem')).toHaveLength(2);
+  });
+});
+
+describe('the topic drawer: Close', () => {
+  it('goes back to the page the drawer was opened from, also after a prompt was opened from the drawer', async () => {
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    const { user } = renderOn('viewer', '');
+    const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+    await user.click(await within(tree).findByRole('button', { name: 'Open the topic Paid Search' }));
+    const panel = await drawer('Paid Search');
+    const top = (await within(panel).findByRole('heading', { name: 'Top prompts' })).closest('section');
+    if (top === null) throw new Error('The Top prompts card is missing');
+    const [first] = await within(top).findAllByRole('listitem');
+    await user.click(within(first ?? top).getByRole('button'));
+    const prompt = await screen.findByRole('complementary', { name: /\?$/ });
+    await user.click(within(prompt).getByRole('button', { name: 'Close' }));
+    expect(back).toHaveBeenCalledTimes(1);
+    back.mockRestore();
   });
 });

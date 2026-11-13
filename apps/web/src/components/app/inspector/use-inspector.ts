@@ -42,6 +42,8 @@ function keysFor(entryKeys: readonly string[]): KeySet {
  * section 2.7). History is one per window, so this is too.
  */
 let pushedFrom: string | null = null;
+/** How many instances of the hook are mounted: `pushedFrom` goes when the last one does. */
+let mounted = 0;
 
 /** The URL's query string without the inspector's keys, and the entry keys a caller says belong to the entry. */
 function pageQuery(entryKeys: readonly string[]): string {
@@ -86,13 +88,16 @@ export function useInspector({ entryKeys = NO_KEYS }: UseInspectorOptions = {}):
   useEffect(() => {
     if (closed) pushedFrom = null;
   }, [closed]);
-  // A page that goes away takes its entry with it: what it pushed is not what a later inspector sits on
-  useEffect(
-    () => () => {
-      pushedFrom = null;
-    },
-    [],
-  );
+  // A page that goes away takes its entry with it: what it pushed is not what a later inspector sits on. Parts of a page
+  // (a drawer's header, its tabs) read the inspector too and come and go while it is open, so only the last one to go
+  // away counts as the page going
+  useEffect(() => {
+    mounted += 1;
+    return () => {
+      mounted -= 1;
+      if (mounted === 0) pushedFrom = null;
+    };
+  }, []);
   const tabParam = (next: string | undefined): string | null =>
     next === undefined || next === DEFAULT_INSPECTOR_TAB ? null : next;
 

@@ -54,7 +54,7 @@ export function useTopicHeader({
   /** The prompts of the topic and of the topics below it; `null` while they cannot be told. */
   prompts: readonly PromptSummaryRow[] | null;
 }): TopicHeader {
-  const { engines, extras } = useTopicDrawer();
+  const { engines, extras, counts } = useTopicDrawer();
   const t = useTranslations('prompts.topicDrawer');
   const words = useTranslations('prompts');
   const locale = useLocale();
@@ -99,7 +99,10 @@ export function useTopicHeader({
     </span>
   );
 
-  const { onAddPrompt, run } = extras;
+  // A topic the summary has no row for (the body says it could not be loaded) has nothing to add to or to run
+  const missing = counts.status === 'ready' && row === undefined;
+  const onAddPrompt = missing ? null : extras.onAddPrompt;
+  const run = missing ? null : extras.run;
   const runReason =
     run === null
       ? null
