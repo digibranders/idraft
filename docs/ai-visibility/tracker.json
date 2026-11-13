@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T19:53:09+05:30",
+ "updated": "2026-11-13T20:07:32+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1013,10 +1013,10 @@
    },
    "counts": {
     "total": 37,
-    "done": 34
+    "done": 36
    },
    "owner": "",
-   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | tasks 6/7, rows 34/37; Tasks 1-6 on develop (234d37b1): + drawer header badges, Add prompt and Run now, J/K stepping, Prompts tab filtered by ?eng, In search card; DataTable context menu flake hardened (20/20, cause inferred not proven); Task 7 mounts tabs in topic-inspector.tsx (free: WP-16 does not edit it), e2e, browser pass, As built"
+   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | ALL 7 tasks, rows 36/37; Task 7 drawer wired into the Topics tab on develop (76c678f9, 80aee895); final reviewer, then full capped checks when health is OK, push, merged line"
   },
   {
    "id": "WP-21",
