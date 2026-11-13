@@ -11,6 +11,11 @@ import { serveLayouts, stubViewport } from '@/test/customize-harness';
 import { gate } from '@/test/gate';
 import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
+import { ACTIVITY_CARDS } from './cards/activity';
+import { COMPETITOR_CARDS } from './cards/competitors';
+import { ENGINE_CARDS } from './cards/engines';
+import { SOURCE_CARDS } from './cards/sources';
+import { TOPIC_CARDS } from './cards/topics';
 import { useOverview } from './overview-context';
 import { buildOverviewPresets, EXECUTIVE_LAYOUT } from './presets/presets';
 import type { ReactElement } from 'react';
@@ -21,6 +26,14 @@ vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).
 const NOW = new Date('2026-11-12T12:00:00Z');
 const ENGINES = mswPath('/api/v1/workspaces/:w/projects/:p/engines');
 const CARDS = 'AI visibility cards';
+/** The family maps of the page: a type listed in one is no longer a pending card. */
+const FAMILIES: readonly Readonly<Record<string, unknown>>[] = [
+  ENGINE_CARDS,
+  COMPETITOR_CARDS,
+  TOPIC_CARDS,
+  SOURCE_CARDS,
+  ACTIVITY_CARDS,
+];
 
 beforeEach(() => {
   vi.setSystemTime(NOW);
@@ -78,28 +91,35 @@ describe('the AI visibility page of a project with engines on', () => {
     expect(await screen.findByText('Link copied')).toBeInTheDocument();
   });
 
-  it('shows the nine cards of the built-in layout, each a pending card with its catalog title', async () => {
+  it('shows the nine cards of the built-in layout, each card a pending card with its catalog title until its family builds it', async () => {
     renderWithProviders(overviewAs('admin'));
-    const names = SCREENS.ai_overview.builtin.cards?.map(cardName) ?? [];
-    expect(names).toHaveLength(9);
+    const cards = SCREENS.ai_overview.builtin.cards ?? [];
+    expect(cards).toHaveLength(9);
+    // A card that a family registers replaces its placeholder: only the others are pending
+    const built = new Set(FAMILIES.flatMap((family) => Object.keys(family)));
+    const pending = cards.filter((card) => !built.has(card.type));
+    const pendingNames = pending.map(cardName);
     await waitFor(() => {
       expect(within(cardsRegion()).getAllByRole('heading', { level: 2 })).toHaveLength(9);
     });
+    // The pending cards keep the order of the layout
     expect(
       within(cardsRegion())
         .getAllByRole('heading', { level: 2 })
-        .map((heading) => heading.textContent),
-    ).toEqual(names);
+        .map((heading) => heading.textContent ?? '')
+        .filter((text) => pendingNames.includes(text)),
+    ).toEqual(pendingNames);
     const reason = 'This card is being built. You can keep it in your layout.';
-    const bodies = cardsRegion().querySelectorAll('[data-slot="pending-card"]');
-    expect(bodies).toHaveLength(9);
-    for (const body of bodies) {
+    await waitFor(() => {
+      expect(cardsRegion().querySelectorAll('[data-slot="pending-card"]')).toHaveLength(pending.length);
+    });
+    for (const body of cardsRegion().querySelectorAll('[data-slot="pending-card"]')) {
       expect(body.querySelector('p.type-subsection-title')).toHaveTextContent('This card is not built yet');
       expect(body.querySelector('p.type-body')).toHaveTextContent(reason);
       // No Table view or menu on a card with nothing to show
       expect(within(body as HTMLElement).queryAllByRole('button')).toHaveLength(0);
     }
-    expect(within(cardsRegion()).getAllByText(reason)).toHaveLength(9);
+    expect(within(cardsRegion()).queryAllByText(reason)).toHaveLength(pending.length);
   });
 
   it('does not offer Customize while the engines load, and offers it once they are read', async () => {
