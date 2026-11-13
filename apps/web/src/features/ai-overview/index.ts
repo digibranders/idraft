@@ -25,5 +25,7 @@ export type {
   OverviewSchedule,
   OverviewSourcesMeta,
 } from './data/use-overview-reads';
+export { DRILL_SUPPORT, drillHref } from './drilldown/drill-links';
+export type { DrillExtra, DrillKind, DrillMetric, DrillProject, DrillSupport } from './drilldown/drill-links';
 export { buildAggregates } from './data/aggregates';
 export type { OverviewAggregates } from './data/aggregates';
