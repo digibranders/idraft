@@ -1,5 +1,6 @@
 'use client';
 
+import type { RowData } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
@@ -57,7 +58,7 @@ export interface ListLine2 {
   delta: ReactNode | null;
 }
 
-export interface DataTableListProps<TRow> {
+export interface DataTableListProps<TRow extends RowData> {
   /** "Prompts": the list's name, with the count: "Prompts, 412 results". */
   caption: string;
   itemNoun: { one: string; other: string };
@@ -92,7 +93,8 @@ export interface DataTableListProps<TRow> {
 }
 
 /** A rendered row of the window, or the space of the rows that are not rendered. */
-type ListItem<TRow> = { kind: 'gap'; key: string; height: number } | { kind: 'row'; row: TRow; index: number };
+type ListItem<TRow extends RowData> =
+  { kind: 'gap'; key: string; height: number } | { kind: 'row'; row: TRow; index: number };
 
 /**
  * The rendering of a table below 768 px (19-responsive-behavior.md section 6.7): two-line rows, each one
@@ -102,7 +104,7 @@ type ListItem<TRow> = { kind: 'gap'; key: string; height: number } | { kind: 'ro
  * Not available here: J and K stepping. `inspector.tsx` `stepFromHere` only steps from inside a
  * `[role="grid"]`, so it does nothing from the list; the inspector's own Previous and Next buttons work.
  */
-export function DataTableList<TRow>({
+export function DataTableList<TRow extends RowData>({
   caption,
   itemNoun,
   columns,
@@ -431,7 +433,7 @@ export function ListTableSwitch({ mode, onModeChange }: ListTableSwitchProps): R
   );
 }
 
-export interface DataTableListSortProps<TRow> {
+export interface DataTableListSortProps<TRow extends RowData> {
   columns: readonly DataTableColumn<TRow>[];
   sort: readonly SortKey[];
   onSortChange: (sort: readonly SortKey[]) => void;
@@ -442,7 +444,11 @@ export interface DataTableListSortProps<TRow> {
  * direction, named "Sort: Mention rate" when a column sorts. Choosing a column keeps the direction. The list
  * sorts by one key, so a choice here replaces the table's two keys.
  */
-export function DataTableListSort<TRow>({ columns, sort, onSortChange }: DataTableListSortProps<TRow>): ReactElement {
+export function DataTableListSort<TRow extends RowData>({
+  columns,
+  sort,
+  onSortChange,
+}: DataTableListSortProps<TRow>): ReactElement {
   const t = useTranslations('common.dataTableList');
   const tt = useTranslations('dataTable');
   const announceKey = `${useId()}-sort`;

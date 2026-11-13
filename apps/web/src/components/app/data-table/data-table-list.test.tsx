@@ -454,7 +454,7 @@ describe('DataTableList windowing', () => {
       hasNext: true,
       onPrevious: vi.fn(),
       onNext: vi.fn(),
-      pageSize: 150,
+      pageSize: 100,
       onPageSizeChange: vi.fn(),
     });
 
