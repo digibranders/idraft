@@ -200,6 +200,15 @@ describe('the change columns of the Prompts tab', () => {
     }
   });
 
+  it('is aligned like its header and the other numeric columns: to the left, never pushed to the right edge', () => {
+    render(rowOf([chat(DETECTABLE), gemini(cell(20, 40), null)]));
+    // The header of a volumeTrend column is left aligned, so a cell flushed right would sit away from its header
+    for (const id of ['change_chatgpt_web', 'change_gemini_web']) {
+      expect(screen.getByTestId(id).querySelector('.justify-end')).toBeNull();
+      expect(screen.getByTestId(id).querySelector('.text-right')).toBeNull();
+    }
+  });
+
   it('follows the metric of the page: Mention, Citation or Share of voice', () => {
     const base = engineOf('chatgpt_web', cell(30, 60), cell(12, 60), [cell(36, 60), cell(6, 60)]);
     const engine: EngineSummary = {

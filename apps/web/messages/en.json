@@ -4368,7 +4368,7 @@
         "noPrevious": "No answers in the previous period",
         "tooFew": "Too few answers in one of the periods for a rate",
         "shareNoTest": "No test exists for share of voice, so its change is not coloured",
-        "untested": "No test is told for this change: the weighted rates and the pooled answers do not agree, so it is not coloured",
+        "untested": "This change is not tested because the engine rates and the pooled answers move in different directions, so it is not coloured",
         "noEngineInBoth": "No engine has a rate in both periods"
       },
       "tip": {
@@ -4382,8 +4382,8 @@
         "detail": "{average}. {change}"
       },
       "strip": {
-        "previousLabel": "Previous period, {range}",
-        "tip": "{tip} {change}."
+        "previousLabel": "Previous period: {range}",
+        "tip": "{tip} {change}"
       }
     },
     "citationsTab": {

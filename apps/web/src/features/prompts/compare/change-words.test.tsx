@@ -100,7 +100,7 @@ describe('useChangeWords', () => {
   it('says why a change that could not be tested is not coloured, and does not claim a test', () => {
     const change = engine(DETECTABLE);
     const { tip } = tipOf(change === null ? null : { ...change, detectable: null }, { kind: 'engine', range: RANGE });
-    expect(tip).toContain('No test is told for this change');
+    expect(tip).toContain('This change is not tested because');
     expect(tip).not.toContain('Detectable change');
     expect(tip).not.toContain('Within normal variation');
     expect(tip).not.toContain('Interim test');
@@ -114,7 +114,7 @@ describe('useChangeWords', () => {
     const prompts = promptsOf([cell(15, 30), cell(6, 30)], [cell(15, 30), cell(6, 30)]);
     const strip = tipOf(stripChangeOf(prompts, 'chatgpt_web', 'mentioned'), { kind: 'strip', range: RANGE });
     expect(strip.tip).toContain('Previous 20%, 12 of 60 answers, over 2 prompts');
-    expect(strip.tip).toContain(`Previous period, ${RANGE}`);
+    expect(strip.tip).toContain(`Previous period: ${RANGE}`);
   });
 
   it('leaves the window out when the response names none', () => {

@@ -74,7 +74,8 @@ describe('PromptsStrip change', () => {
     expect(chip).toHaveTextContent('up 32.5 pts');
     expect(chip.textContent).not.toMatch(/detectable|within normal variation|interim test/);
     await user.hover(chip);
-    await waitFor(() => expect(tooltip()).toHaveTextContent('No test is told for this change'));
+    await waitFor(() => expect(tooltip()).toHaveTextContent('This change is not tested because'));
+    expect(tooltip()?.textContent).not.toMatch(/weighted|pooled answers do not agree/);
     expect(tooltip()?.textContent).not.toMatch(/Detectable change|Within normal variation|Interim test/);
   });
 
@@ -93,9 +94,11 @@ describe('PromptsStrip change', () => {
     const { user } = render(twice(DETECTABLE));
     await user.hover(chipOf('ChatGPT'));
     await waitFor(() => expect(tooltip()).toHaveTextContent('Previous 20%, 12 of 60 answers, over 2 prompts'));
-    expect(tooltip()).toHaveTextContent('Previous period, Sep 18 to Oct 15');
+    expect(tooltip()).toHaveTextContent('Previous period: Sep 18 to Oct 15');
     expect(tooltip()).toHaveTextContent('Detectable change');
     expect(tooltip()).toHaveTextContent('Interim test');
+    // The same style as the cell tips: a colon before the window, and no full stop at the end
+    expect(tooltip()?.textContent).not.toMatch(/\.$/);
     // What the chip said before the change is still there
     expect(tooltip()).toHaveTextContent('Mentioned: 30 of 60 answers');
   });

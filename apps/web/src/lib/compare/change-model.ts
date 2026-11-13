@@ -174,10 +174,14 @@ export function stripChangeOf(prompts: readonly StripPrompt[], code: string, met
   return rateChange(engineRates(prompts, code)[key], engineRates(earlier, code)[key], metric);
 }
 
-/** What `Delta` and `DeltaCell` take: the points, and the test's verdict as the only source of colour. */
+/**
+ * What `Delta` and `DeltaCell` take: the points, and the test's verdict as the only source of colour. A move the text
+ * writes as "0 pts" (under 0.05 points) is 0, so it is read as no change and not as "down 0 pts".
+ */
 export function deltaInput(change: RateChange | null): MetricDeltaInput {
+  const points = change?.points ?? null;
   return {
-    value: change?.points ?? null,
+    value: points !== null && Math.round(points * 1000) === 0 ? 0 : points,
     unit: 'points',
     polarity: 'higher_is_better',
     isDetectable: change?.detectable ?? null,

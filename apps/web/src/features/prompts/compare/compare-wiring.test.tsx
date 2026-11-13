@@ -294,7 +294,7 @@ describe('Topics & Prompts: compare, the read and the address', () => {
       ),
     );
     await on.user.hover(await chipOf());
-    await waitFor(() => expect(tooltip()).toHaveTextContent('Previous period, Sep 18 to Oct 15, 2026'));
+    await waitFor(() => expect(tooltip()).toHaveTextContent('Previous period: Sep 18 to Oct 15, 2026'));
     await waitFor(async () =>
       expect(await mentionOf()).toHaveAccessibleDescription(/Previous period: Sep 18 to Oct 15, 2026/),
     );

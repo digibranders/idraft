@@ -40,6 +40,23 @@ describe('ChangeInline', () => {
     expect(screen.getByText('up 30.0 pts')).toBeInTheDocument();
   });
 
+  it('holds its hidden text inside a positioned box, so it cannot widen a scroller around it', () => {
+    const { container } = renderWithProviders(<ChangeInline change={change(DETECTABLE)} />);
+    const hidden = container.querySelector('.sr-only');
+    // The visually hidden text is absolutely placed: it needs a positioned ancestor inside this component
+    expect(hidden?.closest('.relative')).not.toBeNull();
+    expect(container.contains(hidden?.closest('.relative') ?? null)).toBe(true);
+  });
+
+  it('says no change, not up or down, for a change that rounds to 0 pts', () => {
+    // 29.98 of 60 against 30 of 60 is a fall of 0.03 points: the text rounds to 0 pts
+    const tiny = change(DETECTABLE);
+    renderWithProviders(<ChangeInline change={tiny === null ? null : { ...tiny, points: -0.0003 }} />);
+    expect(screen.getByText('0 pts')).toBeInTheDocument();
+    expect(screen.getByText(/^no change/)).toBeInTheDocument();
+    expect(screen.queryByText(/^(up|down) /)).toBeNull();
+  });
+
   it('draws nothing for a change that is not known, never a zero', () => {
     const { container } = renderWithProviders(<ChangeInline change={null} />);
     expect(container.querySelector('.num')).toBeNull();

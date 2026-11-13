@@ -3,19 +3,19 @@ import { CELL_OF_METRIC, cellsOfPrompt } from '../prompt-model';
 import type { PromptColumnEntry } from '../seams/columns';
 import { col } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
-import { DeltaCell } from '@/components/app/metric/delta-cell';
+import { DeltaValue, hasDeltaComparison } from '@/components/app/metric/delta';
 import { deltaInput, engineChangeOf, type RateChange } from '@/lib/compare/change-model';
-import { formatDateRange } from '@/lib/format';
+import { EMPTY_VALUE, formatDateRange } from '@/lib/format';
 
 /**
  * The change columns of the Prompts tab (WB-PRM-12): one per engine shown, "ChatGPT change", of the metric the page
  * shows (Mention, Citation or Share of voice), hidden until the column chooser asks for it. Each cell is the change
- * in points of that engine's own cell since the compared window, as a `DeltaCell` of the interim test: coloured by
- * its test and nothing else, n/a where there is no change to tell, never 0. Engines are never pooled here.
+ * in points of that engine's own cell since the compared window, the value of a `Delta` of the interim test: coloured
+ * by its test and nothing else, n/a where there is no change to tell, never 0. Engines are never pooled here.
  *
  * The tip is the table's own cell tip (`cellTip`): the focused cell holds it through `aria-describedby`, so the cell
- * adds no tab stop of its own (`DeltaCell` gets `tip={false}`), as the citation columns do. The comparison, the window
- * and the words come with the context, since a column of the seam is built without a hook.
+ * adds no tab stop of its own. The comparison, the window and the words come with the context, since a column of the
+ * seam is built without a hook.
  */
 export const compareColumns: PromptColumnEntry = {
   id: 'compare',
@@ -54,7 +54,17 @@ export const compareColumns: PromptColumnEntry = {
       );
       return {
         ...base,
-        cell: (row) => <DeltaCell input={deltaInput(changeOf(row))} test="interim" tip={false} />,
+        cell: (row) => {
+          const input = deltaInput(changeOf(row));
+          // Left aligned like its header and the other numeric columns; `DeltaCell` pushes its value to the right edge
+          return hasDeltaComparison(input) ? (
+            <span className="num type-table">
+              <DeltaValue input={input} test="interim" />
+            </span>
+          ) : (
+            <span className="text-foreground-tertiary">{EMPTY_VALUE}</span>
+          );
+        },
         cellTip: tipOf,
       };
     });

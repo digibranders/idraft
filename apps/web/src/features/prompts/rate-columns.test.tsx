@@ -110,7 +110,7 @@ describe('the Mention rate cell change', () => {
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(screen.getByTestId('cell').textContent).not.toMatch(/detectable|within normal variation/);
     expect(screen.getByTestId('tip').textContent).not.toMatch(/Detectable|Within normal variation|Interim/);
-    expect(screen.getByTestId('tip')).toHaveTextContent('No test is told for this change');
+    expect(screen.getByTestId('tip')).toHaveTextContent('This change is not tested because');
   });
 
   it('is unchanged with comparison off: the same text and tooltip, no change', () => {
@@ -158,18 +158,11 @@ describe('the Mention rate cell change', () => {
     expect(screen.getByTestId('cell').firstElementChild).toHaveClass('whitespace-nowrap');
   });
 
-  it('is as wide as its type allows, so rate, count and change fit', () => {
-    function Width(): ReactElement {
-      const { mention, citation } = useRateColumns<Row>(BOTH, rowCells);
-      return (
-        <output data-testid="widths">
-          {mention.width}/{citation.width}
-        </output>
-      );
-    }
-    renderWithProviders(<Width />);
-    // The Citation rate column keeps the type's own width
-    expect(screen.getByTestId('widths')).toHaveTextContent(/^200\/(?!200)/);
+  it('keeps the gap between rate, count and change at 4 px so the widest case fits a 152 px cell', () => {
+    render({ cells: [chat(DETECTABLE), gemini(cell(20, 40), cell(8, 40))] });
+    const line = screen.getByTestId('cell').firstElementChild;
+    expect(line).toHaveClass('gap-1');
+    expect(line).not.toHaveClass('gap-1.5');
   });
 
   it('has no accessibility violation with a change', async () => {

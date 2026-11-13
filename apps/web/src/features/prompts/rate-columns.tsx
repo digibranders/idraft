@@ -28,12 +28,6 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
 /** "Google AI Mode mention" in capitals with its sort arrow needs about 176 px. */
 export const ENGINE_COLUMN_WIDTH = 176;
 
-/**
- * The Mention rate cell is "87% avg of 3" and "+5.3 pts" on one line, about 144 to 152 px of content, which does not
- * fit the 136 px content box of a 160 px column (12 px padding each side): the column takes its type's maximum.
- */
-export const MENTION_COLUMN_WIDTH = 200;
-
 /** What a cell says in place of a rate, and what its tooltip says about why. */
 interface Gap {
   label: string;
@@ -112,8 +106,6 @@ export function useRateColumns<TRow>(
         headerTooltip: withNote(tip),
         priority: metric === 'mentioned' ? 1 : 2,
         sortable: true,
-        // The Mention cell holds the rate, "avg of N" and the change on one line, which needs the type's widest column
-        ...(metric === 'mentioned' ? { width: MENTION_COLUMN_WIDTH } : {}),
         // The cell is drawn below, for it has the insufficient state too
         known: () => null,
       });
@@ -124,7 +116,9 @@ export function useRateColumns<TRow>(
           if (average.state === 'insufficient') return <InsufficientPill answers={average.answers} tip={false} />;
           if (average.state === 'none') return <Missing label={gapOf(row, average).label} />;
           return (
-            <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+            // The widest case, "100% avg of 2 +13.4 pts", is 139 px wide with a 4 px gap (measured in Chrome): it fits
+            // the 152 px column the table gives it, whatever width the column asks for, with its 12 px of padding
+            <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
               <span className="num">{words.text(average)}</span>{' '}
               <span className="type-label text-foreground-tertiary">
                 {rate('avgLabel', { count: average.engines })}

@@ -18,9 +18,17 @@ export interface ChangeInlineProps {
  * change's own test says detectable (`Delta` picks the tone, never the sign), and draws nothing while comparison is off
  * or the change is not known: an unknown change is not a zero. The tooltip is the cell's or the chip's, which is the
  * tab stop that holds it, so this one has none.
+ *
+ * The spoken text of a `Delta` is visually hidden by absolute placement. The box here is its positioned ancestor, so it
+ * stays beside the figure and cannot reach out of a scroller that is not positioned itself (a strip chip row) and widen
+ * the page.
  */
 export function ChangeInline({ change, size = 'md' }: ChangeInlineProps): ReactElement | null {
   const { compare } = useCompare();
   if (!compare || change === null) return null;
-  return <Delta input={deltaInput(change)} size={size} test="interim" tip={false} />;
+  return (
+    <span className="relative inline-flex">
+      <Delta input={deltaInput(change)} size={size} test="interim" tip={false} />
+    </span>
+  );
 }

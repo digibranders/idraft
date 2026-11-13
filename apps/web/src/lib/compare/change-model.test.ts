@@ -321,4 +321,12 @@ describe('deltaInput', () => {
     const untested = rateChange(reading(31, 60), reading(27, 60), 'share_of_voice');
     expect(deltaInput(untested).isDetectable).toBeNull();
   });
+
+  it('is 0 for a change that rounds to 0 pts, so it is read as no change and not as up or down', () => {
+    const fall = rateChange(reading(30, 60), reading(30, 60), 'mentioned');
+    expect(deltaInput(fall === null ? null : { ...fall, points: -0.0003 }).value).toBe(0);
+    expect(deltaInput(fall === null ? null : { ...fall, points: 0.0004 }).value).toBe(0);
+    // 0.1 points is the smallest change the text writes
+    expect(deltaInput(fall === null ? null : { ...fall, points: -0.001 }).value).toBe(-0.001);
+  });
 });
