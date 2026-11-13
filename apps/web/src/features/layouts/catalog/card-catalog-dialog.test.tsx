@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import type { UserEvent } from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -171,6 +171,10 @@ describe('CardCatalogDialog', () => {
     const row = rowOf(dialog, 'Mention rate trend');
     expect(within(row).getByRole('button', { name: 'Unavailable' })).toBeDisabled();
     expect(within(row).getByText('AI tracking is off in this project')).toBeVisible();
+    // The button is described by the card and by why it cannot be added
+    expect(within(row).getByRole('button', { name: 'Unavailable' })).toHaveAccessibleDescription(
+      'Mention rate trend AI tracking is off in this project',
+    );
     // A card the project can use shows no reason
     expect(within(rowOf(dialog, 'Top movers')).queryByText(/tracking is off/)).not.toBeInTheDocument();
   });
@@ -226,6 +230,58 @@ describe('CardCatalogDialog', () => {
     await waitFor(() => {
       expect(polite()).toBe('No cards match “zzz”');
     });
+  });
+
+  it('announces a quick run of typing once, after a pause, and not again when the count stays', async () => {
+    const user = await customizing();
+    const dialog = await openCatalog(user);
+    const region = document.getElementById('live-region-polite');
+    if (region === null) throw new Error('no live region');
+    const spoken: string[] = [];
+    const watch = new MutationObserver(() => {
+      if (region.textContent !== '') spoken.push(region.textContent);
+    });
+    watch.observe(region, { childList: true, characterData: true, subtree: true });
+    const search = searchField(dialog);
+    const type = (value: string): void => {
+      act(() => {
+        fireEvent.change(search, { target: { value } });
+      });
+    };
+    const pass = async (ms: number): Promise<void> => {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+    };
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      type('t');
+      type('to');
+      type('top mov');
+      await pass(299);
+      expect(spoken).toEqual([]);
+      await pass(1);
+      expect(spoken).toEqual(['1 card matches']);
+
+      // Still one card: the same sentence is not read out a second time
+      type('top move');
+      await pass(500);
+      expect(spoken).toEqual(['1 card matches']);
+    } finally {
+      watch.disconnect();
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps focus on the opener after Escape once an earlier add has closed the dialog', async () => {
+    const user = await customizing();
+    const dialog = await openCatalog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Add Top movers' }));
+    await closed();
+    await openCatalog(user);
+    await user.keyboard('{Escape}');
+    await closed();
+    expect(slot()).toHaveFocus();
   });
 
   it('starts empty each time it opens', async () => {

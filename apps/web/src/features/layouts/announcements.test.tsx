@@ -213,6 +213,33 @@ describe('useLayoutAnnouncer', () => {
     expect(announce).toHaveBeenNthCalledWith(2, 'Reset to the team default', { key: 'layouts' });
   });
 
+  it('say with a delay waits that long, and a newer message of the same key replaces the waiting one', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      renderWithProviders(<Probe />);
+      act(() => {
+        current().say('First', 300);
+        current().say('Second', 300);
+      });
+      expect(announce).toHaveBeenNthCalledWith(1, 'First', { key: 'layouts', debounceMs: 300 });
+      expect(polite()).toBe('');
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(polite()).toBe('Second');
+
+      // An immediate message cancels one that is still waiting
+      act(() => {
+        current().say('Waiting', 300);
+        current().added({ card: 'Top movers', position: 9, total: 9 });
+        vi.advanceTimersByTime(300);
+      });
+      expect(polite()).toBe('Top movers added, position 9 of 9');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('keeps one announcer for as long as the messages do not change', () => {
     const { rerender } = renderWithProviders(<Probe />);
     const first = current();

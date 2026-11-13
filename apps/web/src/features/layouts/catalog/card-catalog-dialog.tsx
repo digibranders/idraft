@@ -6,35 +6,27 @@
  * returns focus to what opened it.
  */
 import { useTranslations } from 'next-intl';
-import { useId, useRef, useState, type ChangeEvent, type ReactElement, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, type ChangeEvent, type ReactElement, type RefObject } from 'react';
 
 import { useLayoutAnnouncer } from '../announcements';
 import { useLayoutScreen } from '../layout-provider';
 import { CardSchematic } from './card-schematic';
-import { catalogEntries, type CatalogEntry, type CatalogState } from './catalog-entries';
+import { catalogEntries, type CatalogEntry } from './catalog-entries';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogHeader } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { browserTimeZone, formatIsoDate } from '@/lib/format';
 
+/** How long the search waits before it says how many cards match. */
+const SEARCH_PAUSE_MS = 300;
+
 export interface CardCatalogDialogProps {
   open: boolean;
   /** Where the card goes in the document: the slot that opened the catalog. */
   index: number;
   onOpenChange: (open: boolean) => void;
-  /** ISO business date for the New badge; today by default, fixed by a test. */
-  today?: string | undefined;
 }
-
-/** The label of the button of each state. */
-const STATE_LABEL = {
-  add: 'add',
-  addAnother: 'addAnother',
-  added: 'added',
-  unavailable: 'unavailable',
-  pageFull: 'pageFull',
-} as const satisfies Record<CatalogState, string>;
 
 interface EntryRowProps {
   entry: CatalogEntry;
@@ -70,13 +62,13 @@ function EntryRow({ entry, onAdd }: EntryRowProps): ReactElement {
         // A button that acts says which card; one that does not points at the card or at why it cannot
         {...(acts
           ? { 'aria-label': t(state === 'add' ? 'addLabel' : 'addAnotherLabel', { card: type.title }) }
-          : { 'aria-describedby': reason === undefined ? titleId : reasonId })}
+          : { 'aria-describedby': reason === undefined ? titleId : `${titleId} ${reasonId}` })}
         onClick={() => {
           onAdd(type.key);
         }}
         className="whitespace-nowrap"
       >
-        {t(STATE_LABEL[state])}
+        {t(state)}
       </Button>
     </li>
   );
@@ -84,22 +76,25 @@ function EntryRow({ entry, onAdd }: EntryRowProps): ReactElement {
 
 interface CatalogContentProps {
   index: number;
-  today: string | undefined;
   searchRef: RefObject<HTMLInputElement | null>;
-  /** The person added a card: focus belongs to it, not to what opened the dialog. */
-  onAdded: () => void;
+  /** Set when a card was added: focus belongs to it, not to what opened the dialog. Cleared on each open. */
+  addedRef: RefObject<boolean>;
   onClose: () => void;
 }
 
 /** Everything inside the dialog. It goes with the popup, so the search starts empty each time. */
-function CatalogContent({ index, today, searchRef, onAdded, onClose }: CatalogContentProps): ReactElement {
+function CatalogContent({ index, searchRef, addedRef, onClose }: CatalogContentProps): ReactElement {
   const t = useTranslations('layouts.customize.catalog');
   const { screen, document, availabilityOf, actions } = useLayoutScreen();
   const announcer = useLayoutAnnouncer();
   const [query, setQuery] = useState('');
   // What the last announcement said, so typing that changes nothing is not read out again
   const announced = useRef<string | null>(null);
-  const date = today ?? formatIsoDate(new Date(), browserTimeZone());
+  const date = formatIsoDate(new Date(), browserTimeZone());
+  // Mounting is opening: nothing has been added yet
+  useEffect(() => {
+    addedRef.current = false;
+  }, [addedRef]);
   const groupsFor = (text: string): ReturnType<typeof catalogEntries> =>
     catalogEntries({ screen, document, availabilityOf, query: text, today: date });
   const groups = groupsFor(query);
@@ -111,7 +106,8 @@ function CatalogContent({ index, today, searchRef, onAdded, onClose }: CatalogCo
     const message = count === 0 ? t('noMatch', { query: next.trim() }) : t('results', { count });
     if (message === announced.current) return;
     announced.current = message;
-    announcer.say(message);
+    // A pause, so a run of typing is read out once; the next message of the layout screens replaces it
+    announcer.say(message, SEARCH_PAUSE_MS);
   };
 
   return (
@@ -143,8 +139,8 @@ function CatalogContent({ index, today, searchRef, onAdded, onClose }: CatalogCo
                     key={entry.type.key}
                     entry={entry}
                     onAdd={(typeKey) => {
-                      onAdded();
-                      actions.addCard(typeKey, index);
+                      // Only a card that was added can take focus; after a refusal focus goes back to the opener
+                      addedRef.current = actions.addCard(typeKey, index) !== null;
                       onClose();
                     }}
                   />
@@ -159,7 +155,7 @@ function CatalogContent({ index, today, searchRef, onAdded, onClose }: CatalogCo
 }
 
 /** Inside a `LayoutProvider`, in customize mode. The customize controller owns when it is open. */
-export function CardCatalogDialog({ open, index, onOpenChange, today }: CardCatalogDialogProps): ReactElement {
+export function CardCatalogDialog({ open, index, onOpenChange }: CardCatalogDialogProps): ReactElement {
   const searchRef = useRef<HTMLInputElement>(null);
   const added = useRef(false);
   return (
@@ -177,11 +173,8 @@ export function CardCatalogDialog({ open, index, onOpenChange, today }: CardCata
     >
       <CatalogContent
         index={index}
-        today={today}
         searchRef={searchRef}
-        onAdded={() => {
-          added.current = true;
-        }}
+        addedRef={added}
         onClose={() => {
           onOpenChange(false);
         }}

@@ -49,16 +49,20 @@ export interface LayoutAnnouncer {
   undone(): void;
   redone(): void;
   saved(): void;
-  /** Any other sentence of the layout screens (a preset applied, a team default saved), on the same region. */
-  say(message: string): void;
+  /**
+   * Any other sentence of the layout screens (a preset applied, a team default saved), on the same region.
+   * With `debounceMs` it is spoken after that pause, and any newer message of the layout screens replaces it
+   * while it waits (a count that changes as the person types).
+   */
+  say(message: string, debounceMs?: number): void;
 }
 
 export function useLayoutAnnouncer(): LayoutAnnouncer {
   const t = useTranslations('layouts.core');
   const tCustomize = useTranslations('layouts.customize');
   return useMemo(() => {
-    const say = (message: string): void => {
-      announce(message, { key: ANNOUNCE_KEY });
+    const say = (message: string, debounceMs?: number): void => {
+      announce(message, debounceMs === undefined ? { key: ANNOUNCE_KEY } : { key: ANNOUNCE_KEY, debounceMs });
     };
     return {
       say,
