@@ -30,6 +30,7 @@ function props(extra: Partial<SavedViewMenuProps> = {}): SavedViewMenuProps {
   return {
     views: PRESETS,
     current: DEFAULT,
+    viewKeys: KEYS,
     edited: false,
     onApply: vi.fn(),
     onReset: vi.fn(),
@@ -346,6 +347,7 @@ describe('SavedViewMenu with the URL', () => {
       <SavedViewMenu
         views={PRESETS}
         current={saved.view}
+        viewKeys={KEYS}
         edited={saved.edited}
         onApply={saved.apply}
         onReset={saved.reset}

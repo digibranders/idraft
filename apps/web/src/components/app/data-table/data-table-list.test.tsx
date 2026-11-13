@@ -268,6 +268,24 @@ describe('DataTableList order', () => {
     expect(first).toHaveAttribute('aria-setsize', '412');
     expect(screen.getByRole('list', { name: 'Prompts, 412 results' })).toBeInTheDocument();
   });
+
+  it('says the size of the set is unknown (-1) in server mode when the total is not known', () => {
+    const server: ServerPaging = {
+      rangeText: 'Showing 201 to 206 prompts',
+      offset: 200,
+      hasPrevious: true,
+      hasNext: false,
+      onPrevious: vi.fn(),
+      onNext: vi.fn(),
+      pageSize: 100,
+      onPageSizeChange: vi.fn(),
+    };
+    renderWithProviders(<DataTableList {...props({ server, total: null })} />);
+    const items = screen.getAllByRole('listitem');
+    // The position is in the whole set, so the size must not be the size of the page
+    expect(items[0]).toHaveAttribute('aria-posinset', '201');
+    for (const item of items) expect(item).toHaveAttribute('aria-setsize', '-1');
+  });
 });
 
 describe('DataTableList opening', () => {

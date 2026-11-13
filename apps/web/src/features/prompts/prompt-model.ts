@@ -25,8 +25,9 @@ export interface DateRange {
 }
 
 /**
- * How far back the Latest tab looks: the longest window of the page. The API refuses more than 92 days of elapsed time
- * (`422 window_too_large`), so 92 calendar days would be refused across the clock change of a project's zone.
+ * How far back the Latest tab looks: the longest preset of the page (90 days). A custom range reaches 91 days
+ * (`MAX_RANGE_DAYS`); the API refuses more than 92 days of elapsed time (`422 window_too_large`), so 92 calendar
+ * days would be refused across the clock change of a project's zone.
  */
 export const WIDEST_WINDOW = 90;
 

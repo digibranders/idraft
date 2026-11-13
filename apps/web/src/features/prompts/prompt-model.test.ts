@@ -1,3 +1,4 @@
+import { TZDate } from '@date-fns/tz';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -37,7 +38,9 @@ import {
   trailingRange,
   WIDEST_WINDOW,
   windowRange,
+  type DateRange,
 } from './prompt-model';
+import { checkRange, MAX_RANGE_DAYS } from '@/components/app/date-range/range-model';
 import type {
   MetricCell,
   ObservationDetail,
@@ -102,14 +105,33 @@ describe('the window', () => {
     expect(windowRange(7, late, 'America/New_York')).toEqual({ from: '2026-10-26', to: '2026-11-01' });
   });
 
-  it('never asks for more days than the API takes, the 90 days across a clock change included', () => {
-    const MAX_DAYS = 92;
+  it('holds the days the preset names, whatever the clock changes in between', () => {
     const DAY = 86_400_000;
     for (const days of [7, 28, 90]) {
       const { from, to } = windowRange(days, new Date('2026-11-12T12:00:00Z'), 'America/New_York');
       expect((Date.parse(to) - Date.parse(from)) / DAY + 1).toBe(days);
-      expect(days).toBeLessThanOrEqual(MAX_DAYS);
     }
+  });
+
+  it('accepts 91 days and refuses 92 across the fall-back clock change, as the answers route measures it', () => {
+    const zone = 'Europe/Amsterdam';
+    const DAY = 86_400_000;
+    const startOfDay = (iso: string, shift = 0): number => {
+      const [year = 1970, month = 1, day = 1] = iso.split('-').map(Number);
+      return new TZDate(year, month - 1, day + shift, zone).getTime();
+    };
+    // The route counts elapsed time from the start of the first day to the end of the last one
+    const elapsed = ({ from, to }: DateRange): number => startOfDay(to, 1) - startOfDay(from);
+    const limits = { today: '2026-11-12' };
+    // The clock goes back on 2026-10-25: both ranges contain that day
+    const edge = trailingRange('2026-11-02', MAX_RANGE_DAYS);
+    const over = trailingRange('2026-11-02', MAX_RANGE_DAYS + 1);
+    expect(edge.from < '2026-10-25' && '2026-10-25' < edge.to).toBe(true);
+    expect(checkRange(edge.from, edge.to, limits)).toBeNull();
+    expect(elapsed(edge)).toBeLessThanOrEqual(92 * DAY);
+    expect(checkRange(over.from, over.to, limits)).toEqual({ code: 'too_long', days: 92, max: 91 });
+    // 92 project days last 92 days and an hour there, which the route would refuse
+    expect(elapsed(over)).toBeGreaterThan(92 * DAY);
   });
 });
 

@@ -181,13 +181,29 @@ describe('viewParams', () => {
 });
 
 describe('viewChangeCount', () => {
-  it('counts the params of the view', () => {
-    expect(viewChangeCount(DEFAULT)).toBe(0);
-    expect(viewChangeCount(BRANDED)).toBe(1);
-    expect(viewChangeCount(UNCITED)).toBe(2);
+  const KEYS = ['branded', 'cited', 'sort', 'q'];
+
+  it('counts the governed params the view sets', () => {
+    expect(viewChangeCount(DEFAULT, KEYS)).toBe(0);
+    expect(viewChangeCount(BRANDED, KEYS)).toBe(1);
+    expect(viewChangeCount(UNCITED, KEYS)).toBe(2);
   });
 
   it('does not count a key that is never a view key', () => {
-    expect(viewChangeCount({ ...BRANDED, params: { branded: 'only', win: '7d', inspect: 'keyword:1' } })).toBe(1);
+    expect(
+      viewChangeCount({ ...BRANDED, params: { branded: 'only', win: '7d', inspect: 'keyword:1' } }, [
+        ...KEYS,
+        'win',
+        'inspect',
+      ]),
+    ).toBe(1);
+  });
+
+  it('does not count a param the screen does not govern', () => {
+    expect(viewChangeCount({ ...BRANDED, params: { branded: 'only', engine: 'chatgpt' } }, KEYS)).toBe(1);
+  });
+
+  it('does not count an empty value, which is an absent one', () => {
+    expect(viewChangeCount({ ...BRANDED, params: { branded: 'only', q: '', cited: '' } }, KEYS)).toBe(1);
   });
 });

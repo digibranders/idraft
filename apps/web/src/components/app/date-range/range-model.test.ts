@@ -18,6 +18,7 @@ import {
   type DroppedMessageKey,
   type DroppedReason,
   type RangeLimits,
+  type RangeProblem,
 } from './range-model';
 
 const TODAY = '2026-11-13';
@@ -61,30 +62,41 @@ describe('firstDay', () => {
 
 describe('droppedMessageKey', () => {
   // A Record over the type: a reason added to RangeProblem is a type error here until it has its words
-  const KEYS: Record<DroppedReason, DroppedMessageKey> = {
-    invalid: 'droppedInvalid',
-    order: 'droppedOrder',
-    future: 'droppedFuture',
-    before_start: 'droppedBeforeStart',
-    too_long: 'droppedTooLong',
+  const PROBLEMS: Record<DroppedReason, { problem: RangeProblem; key: DroppedMessageKey }> = {
+    invalid: { problem: { code: 'invalid', field: 'from' }, key: 'droppedInvalid' },
+    order: { problem: { code: 'order' }, key: 'droppedOrder' },
+    future: { problem: { code: 'future', today: TODAY }, key: 'droppedFuture' },
+    before_start: {
+      problem: { code: 'before_start', earliest: '2026-03-02', known: true },
+      key: 'droppedBeforeStart',
+    },
+    too_long: { problem: { code: 'too_long', days: 100, max: 91 }, key: 'droppedTooLong' },
   };
-  const REASONS: readonly DroppedReason[] = ['invalid', 'order', 'future', 'before_start', 'too_long'];
+  const REASONS = Object.keys(PROBLEMS) as DroppedReason[];
 
   it('is tested for every reason there is', () => {
-    expect([...REASONS].sort()).toEqual(Object.keys(KEYS).sort());
+    expect([...REASONS].sort()).toEqual(['future', 'invalid', 'order', 'before_start', 'too_long'].sort());
   });
 
   it.each(REASONS)('maps %s to a message that exists and says what is shown instead', (reason) => {
-    const key = droppedMessageKey(reason);
-    expect(key).toBe(KEYS[reason]);
+    const { problem, key } = PROBLEMS[reason];
+    expect(droppedMessageKey(problem)).toBe(key);
     expect(messages.common.dateRange[key]).toMatch(/last 28 days are shown\.$/);
   });
 
   it('gives each reason its own message, and the problem of a link past maxDays the too long one', () => {
-    expect(new Set(Object.values(KEYS)).size).toBe(REASONS.length);
+    expect(new Set(Object.values(PROBLEMS).map(({ key }) => key)).size).toBe(REASONS.length);
     const past = readRangeParams({ win: '90d', from: null, to: null }, { ...LIMITS, maxDays: 60 }).dropped;
     expect(past?.code).toBe('too_long');
-    if (past !== null) expect(droppedMessageKey(past.code)).toBe('droppedTooLong');
+    if (past !== null) expect(droppedMessageKey(past)).toBe('droppedTooLong');
+  });
+
+  it('says dates before a first day nobody knows without claiming that data starts there', () => {
+    expect(droppedMessageKey({ code: 'before_start', earliest: '2000-01-01', known: false })).toBe(
+      'droppedBeforeFirst',
+    );
+    expect(messages.common.dateRange.droppedBeforeFirst).not.toMatch(/data starts/i);
+    expect(messages.common.dateRange.beforeFirst).not.toMatch(/data starts/i);
   });
 });
 
@@ -146,16 +158,32 @@ describe('checkRange', () => {
     expect(checkRange('2026-01-01', '2026-11-13', { ...LIMITS, earliest: '2026-03-02' })).toEqual({
       code: 'before_start',
       earliest: '2026-03-02',
+      known: true,
     });
   });
 
   it('says a real day before 2000 is before the first day, not that its format is wrong', () => {
-    expect(checkRange('1999-12-31', TODAY, LIMITS)).toEqual({ code: 'before_start', earliest: '2000-01-01' });
-    expect(checkRange('0050-01-01', TODAY, LIMITS)).toEqual({ code: 'before_start', earliest: '2000-01-01' });
+    expect(checkRange('1999-12-31', TODAY, LIMITS)).toEqual({
+      code: 'before_start',
+      earliest: '2000-01-01',
+      known: false,
+    });
+    expect(checkRange('0050-01-01', TODAY, LIMITS)).toEqual({
+      code: 'before_start',
+      earliest: '2000-01-01',
+      known: false,
+    });
     // The data starting later than 2000 is the nearer reason
     expect(checkRange('1999-12-31', TODAY, { ...LIMITS, earliest: '2026-03-02' })).toEqual({
       code: 'before_start',
       earliest: '2026-03-02',
+      known: true,
+    });
+    // An earliest day at or before 2000 is no knowledge of where the data starts: the floor is a limit of the app
+    expect(checkRange('1999-12-31', TODAY, { ...LIMITS, earliest: '1990-05-05' })).toEqual({
+      code: 'before_start',
+      earliest: '2000-01-01',
+      known: false,
     });
     // The order of the checks holds: a start after the end, or an end in the future, is reported first
     expect(checkRange('1999-12-31', '1999-01-01', LIMITS)).toEqual({ code: 'order' });
@@ -198,6 +226,7 @@ describe('checkRange', () => {
     expect(checkRange('2026-03-01', '2026-04-01', { ...LIMITS, earliest: '2026-03-02' })).toEqual({
       code: 'before_start',
       earliest: '2026-03-02',
+      known: true,
     });
     expect(checkRange('2026-03-01', '2026-04-01', { ...LIMITS, earliest: null })).toBeNull();
   });
@@ -299,13 +328,14 @@ describe('readRangeParams', () => {
     expect(
       readRangeParams({ win: null, from: '2026-01-01', to: '2026-02-01' }, { ...LIMITS, earliest: '2026-03-02' })
         .dropped,
-    ).toEqual({ code: 'before_start', earliest: '2026-03-02' });
+    ).toEqual({ code: 'before_start', earliest: '2026-03-02', known: true });
   });
 
   it('falls back with before_start for a link that starts before 2000', () => {
     expect(readRangeParams({ win: null, from: '1999-12-31', to: '2026-11-01' }, LIMITS).dropped).toEqual({
       code: 'before_start',
       earliest: '2000-01-01',
+      known: false,
     });
   });
 

@@ -640,7 +640,14 @@ function LiveViewMenu(): ReactElement {
   return (
     <div className="flex flex-col gap-3">
       <SpecimenRow label="Live, on the page address">
-        <SavedViewMenu views={PRESET_VIEWS} current={view} edited={edited} onApply={apply} onReset={reset} />
+        <SavedViewMenu
+          views={PRESET_VIEWS}
+          current={view}
+          viewKeys={VIEW_KEYS}
+          edited={edited}
+          onApply={apply}
+          onReset={reset}
+        />
         <Button size="sm" aria-pressed={searching} onClick={() => void setAddress({ q: searching ? null : 'crm' })}>
           Search crm
         </Button>
@@ -721,6 +728,7 @@ function StaticMenu({
     <SavedViewMenu
       views={views}
       current={current}
+      viewKeys={VIEW_KEYS}
       edited={edited}
       onApply={noop}
       onReset={noop}

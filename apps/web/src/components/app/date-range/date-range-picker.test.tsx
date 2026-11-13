@@ -322,7 +322,9 @@ describe('DateRangePicker custom range', () => {
   it('says a real day before 2000 is before the first day, and not that its format is wrong', async () => {
     const { user } = await openCustom();
     await typeInto(user, 'Start date', '1999-12-31');
-    expect(note()).toHaveTextContent('Data starts on Jan 1, 2000, so earlier dates are not available.');
+    // Nobody knows where the data starts here, so the note does not say that it starts in 2000
+    expect(note()).toHaveTextContent('Dates before Jan 1, 2000 are not available.');
+    expect(note()).not.toHaveTextContent('Data starts');
     expect(note()).not.toHaveTextContent('YYYY-MM-DD');
     expect(field('Start date')).toHaveAttribute('aria-invalid', 'true');
     expect(button('Apply')).toBeDisabled();
@@ -533,12 +535,61 @@ describe('DateRangePicker calendar', () => {
     expect(onValueChange).toHaveBeenCalledExactlyOnceWith({ kind: 'custom', from: '2026-05-01', to: '2026-07-30' });
   });
 
-  it('shows only the limit when the cap is later than today', async () => {
+  it('shows no end limit when the cap is later than today', async () => {
     const { user } = await openCustom();
     for (let step = 0; step < 2; step += 1) await user.click(button('Previous month'));
     await user.click(button('Tuesday, Sep 1, 2026'));
-    expect(note()).toHaveTextContent('A range is at most 91 days.');
     expect(note()).not.toHaveTextContent('End dates after');
+    // The earliest start is Jun 3 (a range of 91 days ends on Sep 1), and the note says so
+    expect(note()).toHaveTextContent(
+      'Start dates before Jun 3, 2026 are not available, because a range is at most 91 days.',
+    );
+  });
+
+  it('does not say the span limits the start when the first day of the data is the nearer limit', async () => {
+    const { user } = await openCustom({ earliest: '2026-08-10' });
+    for (let step = 0; step < 2; step += 1) await user.click(button('Previous month'));
+    // 91 days ending on Sep 1 would start on Jun 3, before the first day with data: the data is the limit
+    await user.click(button('Tuesday, Sep 1, 2026'));
+    expect(note()).not.toHaveTextContent('Start dates before');
+    expect(button('Sunday, Aug 9, 2026')).toBeDisabled();
+    expect(button('Sunday, Aug 9, 2026')).toHaveAccessibleDescription(
+      'Data starts on Aug 10, 2026, so earlier dates are not available.',
+    );
+  });
+
+  it('does not let a second pick far before the start make a range over the limit', async () => {
+    const { user } = await openCustom();
+    // Oct and Nov are shown: Nov 1 is the start
+    await user.click(button('Sunday, Nov 1, 2026'));
+    expect(field('Start date')).toHaveValue('2026-11-01');
+    // 91 days ending on Nov 1 start on Aug 3: the day before is not a start
+    for (let step = 0; step < 2; step += 1) await user.click(button('Previous month'));
+    const tooEarly = button('Sunday, Aug 2, 2026');
+    expect(tooEarly).toBeDisabled();
+    expect(tooEarly).toHaveAccessibleDescription(
+      'Start dates before Aug 3, 2026 are not available, because a range is at most 91 days.',
+    );
+    expect(button('Monday, Aug 3, 2026')).toBeEnabled();
+    // The calendar does not go to months where every day is refused
+    expect(button('Previous month')).toBeDisabled();
+    fireEvent.click(tooEarly);
+    expect(field('Start date')).toHaveValue('2026-11-01');
+    expect(field('End date')).toHaveValue('');
+    // The day that is allowed completes a range of exactly 91 days
+    await user.click(button('Monday, Aug 3, 2026'));
+    expect(field('Start date')).toHaveValue('2026-08-03');
+    expect(field('End date')).toHaveValue('2026-11-01');
+    expect(button('Apply')).toBeEnabled();
+  });
+
+  it('refuses a start typed so early that the range is over the limit, as before', async () => {
+    const { user } = await openCustom();
+    await user.click(button('Sunday, Nov 1, 2026'));
+    await typeInto(user, 'Start date', '2026-07-01');
+    await typeInto(user, 'End date', '2026-11-01');
+    expect(button('Apply')).toBeDisabled();
+    expect(note()).toHaveTextContent('124 days is longer than the 91 day limit.');
   });
 
   it('keeps the months where they were when a day inside them is typed', async () => {

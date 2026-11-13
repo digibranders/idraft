@@ -213,6 +213,8 @@
       "endLimited": "End dates after {date} are not available, because a range is at most {max, number} days.",
       "tooLong": "{days, number} days is longer than the {max, number} day limit. Pick a later start date or an earlier end date.",
       "beforeStart": "Data starts on {date}, so earlier dates are not available.",
+      "beforeFirst": "Dates before {date} are not available.",
+      "startLimited": "Start dates before {date} are not available, because a range is at most {max, number} days.",
       "future": "Dates after today, {date}, are not available.",
       "invalid": "Enter the date as YYYY-MM-DD.",
       "order": "The start date is after the end date.",
@@ -221,6 +223,7 @@
       "droppedOrder": "The link had a start date after its end date, so the last 28 days are shown.",
       "droppedFuture": "The link asked for dates after today, so the last 28 days are shown.",
       "droppedBeforeStart": "The link asked for dates before {date}, when the data starts, so the last 28 days are shown.",
+      "droppedBeforeFirst": "The link asked for dates before {date}, so the last 28 days are shown.",
       "day": "{weekday}, {date}",
       "weekdaysShort": {
         "monday": "Mo",
@@ -3489,9 +3492,6 @@
   "prompts": {
     "title": "Topics & Prompts",
     "meta": "Answers from {from} to {to}",
-    "window": "Window",
-    "windowOption": "Last {days, number} days",
-    "windowOptionShort": "{days, number}d",
     "updated": "Updated {time}",
     "moreActions": "More actions",
     "copyLink": "Copy link",

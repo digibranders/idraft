@@ -42,9 +42,8 @@ const present = (value: string | null | undefined): string | null =>
 /**
  * A value as a set, for comparing only (a view is written as it is given). The filter bar writes a multi
  * value as `a,b` in the order the person picked (lib/filters/filter-values.ts), so `b,a` is the same state;
- * empty members and an empty value are absent. shortcut: every key is read as a set, so a key whose order
- * matters (a multi sort) reads as unedited when only its order changes; give such a key its own comparison
- * when one exists.
+ * empty members and an empty value are absent. `matchView` reads every key as a set except `sort`, which is
+ * compared in order; give another key whose order matters its own comparison there.
  */
 const asSet = (value: string | null | undefined): string | null => {
   if (value === undefined || value === null) return null;
@@ -87,7 +86,7 @@ export function viewParams(view: SavedView, viewKeys: readonly string[]): Record
   return written;
 }
 
-/** How many view keys `view` sets: "3 filters" in the announcement. */
-export function viewChangeCount(view: SavedView): number {
-  return governedKeys(Object.keys(view.params)).length;
+/** How many of the screen's governed keys `view` sets to a value: "3 filters" in the announcement. */
+export function viewChangeCount(view: SavedView, viewKeys: readonly string[]): number {
+  return governedKeys(viewKeys).filter((key) => present(view.params[key]) !== null).length;
 }

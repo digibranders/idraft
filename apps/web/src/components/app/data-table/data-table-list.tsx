@@ -225,6 +225,8 @@ export function DataTableList<TRow extends RowData>({
   // The count line. No count while the first rows load or after a failure: "0 prompts" would be wrong
   const nouns = { nounOne: itemNoun.one, nounOther: itemNoun.other };
   const shownCount = serverMode || needle === '' ? (total ?? rows.length) : rows.length;
+  // ARIA: -1 says the size of the set is not known; a server page of an unknown total is not the whole set
+  const setSize = serverMode && total === null ? -1 : shownCount;
   const countText = tt('count', { count: shownCount, ...nouns });
   const progressText =
     loadProgress === null || loadProgress === undefined
@@ -260,7 +262,7 @@ export function DataTableList<TRow extends RowData>({
     const second = line2(row);
     const active = id === activeRowId;
     return (
-      <li key={id} aria-setsize={shownCount} aria-posinset={(server?.offset ?? 0) + index + 1} className={ROW_BOX}>
+      <li key={id} aria-setsize={setSize} aria-posinset={(server?.offset ?? 0) + index + 1} className={ROW_BOX}>
         <button
           type="button"
           aria-current={active ? 'true' : undefined}

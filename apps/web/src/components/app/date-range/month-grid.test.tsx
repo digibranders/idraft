@@ -111,6 +111,24 @@ describe('MonthGrid days', () => {
     expect(day('Tuesday, Mar 10, 2026')).not.toHaveAccessibleDescription();
   });
 
+  it('cannot pick a day before the earliest start while a start is picked, and says why', () => {
+    const onPick = vi.fn();
+    const reasons = {
+      ...REASONS,
+      before: 'Start dates before Aug 3, 2026 are not available, because a range is at most 91 days.',
+    };
+    renderWithProviders(
+      <MonthGrid
+        {...props({ month: '2026-07-01', from: '2026-11-01', min: '2026-08-03', max: '2026-11-01', reasons, onPick })}
+      />,
+    );
+    const july = day('Wednesday, Jul 1, 2026');
+    expect(july).toBeDisabled();
+    expect(july).toHaveAccessibleDescription(reasons.before);
+    fireEvent.click(july);
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
   it('marks today with aria-current, and nothing else', () => {
     renderWithProviders(<MonthGrid {...props()} />);
     expect(day('Friday, Nov 13, 2026')).toHaveAttribute('aria-current', 'date');
@@ -268,6 +286,13 @@ describe('MonthGrid keyboard', () => {
     const capped = { max: '2026-07-30', month: '2026-07-01' };
     expect(await press('2026-07-29', '{PageDown}', capped)).toHaveBeenCalledExactlyOnceWith('2026-07-30');
     expect(await press('2026-07-30', '{ArrowRight}', capped)).not.toHaveBeenCalled();
+  });
+
+  it('stops at the earliest start the cap allows while only a start is picked', async () => {
+    // A start on Nov 1 with at most 91 days: the first start is Aug 3
+    const capped = { from: '2026-11-01', min: '2026-08-03' };
+    expect(await press('2026-08-05', '{PageUp}', capped)).toHaveBeenCalledExactlyOnceWith('2026-08-03');
+    expect(await press('2026-08-03', '{ArrowLeft}', capped)).not.toHaveBeenCalled();
   });
 
   it('crosses into the next month, which the picker then shows', async () => {

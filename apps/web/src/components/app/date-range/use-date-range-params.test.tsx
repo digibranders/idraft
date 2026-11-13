@@ -141,7 +141,7 @@ describe('useDateRangeParams', () => {
 
   it('applies the limits it is given', () => {
     const { result } = setup('?from=2026-01-01&to=2026-02-01', { earliest: '2026-03-02' });
-    expect(result.current.dropped).toEqual({ code: 'before_start', earliest: '2026-03-02' });
+    expect(result.current.dropped).toEqual({ code: 'before_start', earliest: '2026-03-02', known: true });
     expect(setup('?win=90d', { maxDays: 60 }).result.current.dropped).toEqual({
       code: 'too_long',
       days: 90,

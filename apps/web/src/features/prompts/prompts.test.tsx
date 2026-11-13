@@ -495,19 +495,19 @@ describe('Topics & Prompts: what the list and the counts do while they load or f
     expect(screen.queryByText(/^The link /)).toBeNull();
   });
 
-  it('refuses a custom range of more than 91 days in the picker: the answers route takes no more', async () => {
+  it('refuses a custom range of 92 days in the picker: the answers route takes no more than 91', async () => {
     const { user } = renderOnPrompts(withTopBar(promptsAs('viewer')));
     await grid();
     await user.click(await rangeTrigger());
     await user.click(await screen.findByRole('button', { name: 'Custom range' }));
     const start = await screen.findByRole('textbox', { name: 'Start date' });
     await user.clear(start);
-    await user.type(start, '2026-08-01');
+    await user.type(start, '2026-08-13');
     const end = screen.getByRole('textbox', { name: 'End date' });
     await user.clear(end);
     await user.type(end, '2026-11-12');
     expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
-    expect(screen.getAllByText(/is longer than the 91 day limit/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^92 days is longer than the 91 day limit/).length).toBeGreaterThan(0);
   });
 
   it('keeps the table on screen while a new window is read', async () => {

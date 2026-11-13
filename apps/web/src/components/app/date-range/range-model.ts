@@ -59,7 +59,8 @@ export type RangeProblem =
   | { code: 'invalid'; field: 'from' | 'to' }
   | { code: 'order' }
   | { code: 'future'; today: BusinessDate }
-  | { code: 'before_start'; earliest: BusinessDate }
+  /** `earliest` is the first day a range may start on; `known` says it is the first day with data, not the floor of the app. */
+  | { code: 'before_start'; earliest: BusinessDate; known: boolean }
   | { code: 'too_long'; days: number; max: number };
 
 /** The days a range may have: `maxDays`, cut to the ceiling. */
@@ -74,6 +75,11 @@ export function firstDay({ earliest }: RangeLimits): BusinessDate {
   return earliest != null && earliest > FIRST_BUSINESS_DATE ? earliest : FIRST_BUSINESS_DATE;
 }
 
+/** Whether `firstDay` is the first day with data. When it is not, it is only the floor of the app: nobody knows where the data starts. */
+export function firstDayKnown({ earliest }: RangeLimits): boolean {
+  return earliest != null && earliest > FIRST_BUSINESS_DATE;
+}
+
 const isKnownDate = (text: string): boolean => isBusinessDate(text) || isBeforeFirstDay(text);
 
 /** The first problem of a typed or picked range, in this order: invalid, order, future, before start, too long. */
@@ -85,7 +91,7 @@ export function checkRange(from: string, to: string, limits: RangeLimits): Range
   if (from > to) return { code: 'order' };
   if (to > limits.today) return { code: 'future', today: limits.today };
   const first = firstDay(limits);
-  if (from < first) return { code: 'before_start', earliest: first };
+  if (from < first) return { code: 'before_start', earliest: first, known: firstDayKnown(limits) };
   const days = daysInclusive(from, to);
   const max = limitDaysOf(limits);
   return days > max ? { code: 'too_long', days, max } : null;
@@ -100,14 +106,16 @@ export function lastEnd(from: BusinessDate, limits: RangeLimits): BusinessDate {
 /** Why a link's range was not used: the code of the problem. */
 export type DroppedReason = RangeProblem['code'];
 export type DroppedMessageKey =
-  'droppedInvalid' | 'droppedOrder' | 'droppedFuture' | 'droppedBeforeStart' | 'droppedTooLong';
+  'droppedInvalid' | 'droppedOrder' | 'droppedFuture' | 'droppedBeforeStart' | 'droppedBeforeFirst' | 'droppedTooLong';
 
 /**
  * The message (`common.dateRange.<key>`) that tells a page's reader why the last 28 days are shown instead of the
- * range in the link. A link past `maxDays` is `too_long`. `droppedTooLong` takes `max`, `droppedBeforeStart` takes `date`.
+ * range in the link. A link past `maxDays` is `too_long`. `droppedTooLong` takes `max`; `droppedBeforeStart` and
+ * `droppedBeforeFirst` take `date` (the second is for a first day nobody knows, which it does not call the start
+ * of the data).
  */
-export function droppedMessageKey(reason: DroppedReason): DroppedMessageKey {
-  switch (reason) {
+export function droppedMessageKey(problem: RangeProblem): DroppedMessageKey {
+  switch (problem.code) {
     case 'invalid':
       return 'droppedInvalid';
     case 'order':
@@ -115,7 +123,7 @@ export function droppedMessageKey(reason: DroppedReason): DroppedMessageKey {
     case 'future':
       return 'droppedFuture';
     case 'before_start':
-      return 'droppedBeforeStart';
+      return problem.known ? 'droppedBeforeStart' : 'droppedBeforeFirst';
     case 'too_long':
       return 'droppedTooLong';
   }

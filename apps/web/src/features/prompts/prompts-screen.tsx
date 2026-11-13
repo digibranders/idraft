@@ -87,9 +87,9 @@ import { Tooltip } from '@/components/ui/tooltip';
 import type { SummaryEntity } from '@/lib/api/types';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { copyText } from '@/lib/dom/clipboard';
-import { useUtcDay } from '@/lib/dom/use-utc-day';
+import { useZoneDay } from '@/lib/dom/use-zone-day';
 import { enumValuesOf } from '@/lib/filters/filter-values';
-import { formatBusinessDate, formatInteger, formatIsoDate, formatList, formatRelative } from '@/lib/format';
+import { formatBusinessDate, formatInteger, formatList, formatRelative } from '@/lib/format';
 import { formatInspectTarget } from '@/lib/inspector/placement';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { useCountries } from '@/lib/locations/countries';
@@ -187,11 +187,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const tab = parseTab(view.tab);
   // The market of the top bar: every country unless the address names one
   const country = parseCountry(view.country);
-  // The same date all UTC day; a new day is read at midnight UTC
-  const now = useUtcDay();
   // The range of every query of the page, from the picker's keys (`win`, `from`, `to`; `window` of older links).
-  // `today` is a day of the project's zone, the one place the clock is read
-  const today = formatIsoDate(now, project.timeZone);
+  // `today` is a day of the project's zone, the one place the clock is read; it turns at that zone's midnight
+  const today = useZoneDay(project.timeZone);
   const picked = useDateRangeParams({ today, legacyWindowKey: 'window' });
   const range = useMemo((): DateRange => ({ from: picked.range.from, to: picked.range.to }), [picked.range]);
 
@@ -695,7 +693,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const droppedWords =
     dropped === null
       ? null
-      : common(`dateRange.${droppedMessageKey(dropped.code)}`, {
+      : common(`dateRange.${droppedMessageKey(dropped)}`, {
           max: dropped.code === 'too_long' ? dropped.max : 0,
           date: dropped.code === 'before_start' ? formatBusinessDate(dropped.earliest) : '',
         });

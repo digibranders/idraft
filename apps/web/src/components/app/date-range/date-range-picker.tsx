@@ -4,11 +4,12 @@ import { Calendar, Check, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState, type ReactElement } from 'react';
 
-import { addMonths, isBusinessDate, monthStart, type BusinessDate } from './business-date';
+import { addDays, addMonths, isBusinessDate, monthStart, type BusinessDate } from './business-date';
 import { MonthGrid, type DayReasons, type MonthGridProps } from './month-grid';
 import {
   checkRange,
   firstDay,
+  firstDayKnown,
   lastEnd,
   limitDaysOf,
   PRESET_DAYS,
@@ -165,30 +166,38 @@ export function DateRangePicker({
       case 'future':
         return t('future', { date: formatBusinessDate(found.today) });
       case 'before_start':
-        return t('beforeStart', { date: formatBusinessDate(found.earliest) });
+        return t(found.known ? 'beforeStart' : 'beforeFirst', { date: formatBusinessDate(found.earliest) });
       case 'too_long':
         return t('tooLong', { days: found.days, max: found.max });
     }
   };
 
-  // While only a start is picked, the end can be no later than the cap allows
+  // While only a start is picked, the second pick is held to the cap in both directions: no later than the start
+  // plus the cap, and no earlier than the start minus it (a second pick before the start swaps the two)
   const picking = fromDay !== null && toDay === null;
   const gridMax = picking ? lastEnd(fromDay, limits) : today;
   // The grids stop at the first day with data, or at the first business date (2000-01-01) when there is none:
   // a month before it cannot be drawn
-  const gridMin = firstDay(limits);
+  const first = firstDay(limits);
+  const spanMin = picking ? addDays(fromDay, 1 - limitDays) : first;
+  const gridMin = spanMin > first ? spanMin : first;
+  const startLimited = gridMin > first;
+  const beforeWords = startLimited
+    ? t('startLimited', { date: formatBusinessDate(gridMin), max: limitDays })
+    : t(firstDayKnown(limits) ? 'beforeStart' : 'beforeFirst', { date: formatBusinessDate(gridMin) });
+  const endWords = t('endLimited', { date: formatBusinessDate(gridMax), max: limitDays });
   const reasons: DayReasons = {
-    before: t('beforeStart', { date: formatBusinessDate(gridMin) }),
-    after:
-      gridMax < today
-        ? t('endLimited', { date: formatBusinessDate(gridMax), max: limitDays })
-        : t('future', { date: formatBusinessDate(today) }),
+    before: beforeWords,
+    after: gridMax < today ? endWords : t('future', { date: formatBusinessDate(today) }),
   };
+  const limitWords = [gridMax < today ? endWords : null, startLimited ? beforeWords : null].filter(
+    (words): words is string => words !== null,
+  );
   const noteWords =
     shown !== null
       ? problemWords(shown)
-      : picking && gridMax < today
-        ? t('endLimited', { date: formatBusinessDate(gridMax), max: limitDays })
+      : limitWords.length > 0
+        ? limitWords.join(' ')
         : t('limit', { max: limitDays });
   const clampDay = (day: BusinessDate): BusinessDate => (day > gridMax ? gridMax : day < gridMin ? gridMin : day);
   // The one Tab stop is always a day the grids can focus

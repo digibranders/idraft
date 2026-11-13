@@ -18,6 +18,8 @@ export interface SavedViewMenuProps {
   /** Every view the screen offers, the default view included. An empty list gives a menu with the current view alone. */
   views: readonly SavedView[];
   current: SavedView;
+  /** The URL keys the screen governs (the ones `useSavedView` takes): the announcement counts only these. */
+  viewKeys: readonly string[];
   edited: boolean;
   onApply: (view: SavedView) => void;
   onReset: () => void;
@@ -41,6 +43,7 @@ export interface SavedViewMenuProps {
 export function SavedViewMenu({
   views,
   current,
+  viewKeys,
   edited,
   onApply,
   onReset,
@@ -56,7 +59,7 @@ export function SavedViewMenu({
 
   const applied = (view: SavedView): void => {
     setOpen(false);
-    announce(t('applied', { name: view.name, count: viewChangeCount(view) }), { key: 'saved-view' });
+    announce(t('applied', { name: view.name, count: viewChangeCount(view, viewKeys) }), { key: 'saved-view' });
   };
   const apply = (view: SavedView): void => {
     applied(view);
