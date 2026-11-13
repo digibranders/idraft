@@ -5082,7 +5082,21 @@
       },
       "notAvailable": {}
     },
-    "topics": {},
+    "topics": {
+      "common": {},
+      "heatmap": {},
+      "extremes": {},
+      "gap": {},
+      "disagreement": {},
+      "movers": {},
+      "trends": {},
+      "multiples": {},
+      "contribution": {},
+      "promptHeatmap": {},
+      "topPrompts": {},
+      "promptWeek": {},
+      "scatter": {}
+    },
     "sources": {}
   },
   "citations": {
