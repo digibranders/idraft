@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T19:07:30+05:30",
+ "updated": "2026-11-13T19:53:09+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -693,10 +693,10 @@
    },
    "counts": {
     "total": 24,
-    "done": 19
+    "done": 22
    },
    "owner": "",
-   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 12/15, rows 19/24; T0-T11 on develop (4cfcd08c): presets and Start from menu, drawer customizer parts, phones and reduced motion; e2e T12 and T13 next, As built T14; real drawer wiring deferred to F-23"
+   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 15/15, rows 22/24 (42 and 43 partial by decision F-23, 48 is F-16, 47 partial); reviewed and rebased (cdae2fbc local); waiting for health OK (and swap under 9 GB) to run the capped final checks (vitest --maxWorkers=3, lint, typecheck, format, build, two layouts e2e specs), then push and merged line"
   },
   {
    "id": "WP-17",
