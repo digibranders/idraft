@@ -2,6 +2,8 @@
 
 import type { ReactElement, ReactNode } from 'react';
 
+import { CardBoundary } from '../cards/card-boundary';
+import { UnavailableCard } from '../cards/unavailable-card';
 import { LayoutGrid, type LayoutGridProps } from '../layout-grid';
 import { LayoutProvider, type LayoutProviderProps } from '../layout-provider';
 import { LayoutSaveBar } from '../save-bar/layout-save-bar';
@@ -35,14 +37,28 @@ function ScreenRoot({ saveBar, children }: { saveBar: 'end' | 'none'; children: 
   );
 }
 
+/** What the grid shows for a card this project cannot show, in customize mode. */
+const renderUnavailable: NonNullable<LayoutGridProps['renderUnavailable']> = (item, reason) => (
+  <UnavailableCard item={item} reason={reason} />
+);
+
 /**
- * The cards of a customizable screen: the layout grid with its Add card slot wired to the catalog and the
- * Customize button on an empty page. Later parts of the customize UI (placeholders, the card boundary) fill the
- * grid's other slots here.
+ * The cards of a customizable screen: the layout grid with its slots filled. The Add card slot opens the catalog,
+ * an unavailable card is a placeholder, every card has its own error boundary, and an empty page offers the
+ * Customize button.
  */
 export function CustomizableGrid({ label, columns }: Pick<LayoutGridProps, 'label' | 'columns'>): ReactElement {
   const { openCatalog } = useCustomize();
-  return <LayoutGrid label={label} columns={columns} onAddCard={openCatalog} emptyAction={<CustomizeButton />} />;
+  return (
+    <LayoutGrid
+      label={label}
+      columns={columns}
+      onAddCard={openCatalog}
+      renderUnavailable={renderUnavailable}
+      CardBoundary={CardBoundary}
+      emptyAction={<CustomizeButton />}
+    />
+  );
 }
 
 /**

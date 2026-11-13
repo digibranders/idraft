@@ -1,6 +1,6 @@
 /** The card registry (plan WP-15, section 2.2): components load lazily, once, and are never rebuilt by a render. */
 import { act, render, screen } from '@testing-library/react';
-import { Suspense, type ComponentType, type ReactElement } from 'react';
+import { Component, Suspense, type ComponentType, type ReactElement, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CardSkeleton, defineCards, type CardProps, type CardRegistry } from './registry';
@@ -121,6 +121,97 @@ describe('defineCards', () => {
 
   it('has no entry for a type nobody registered', () => {
     expect(defineCards({})['seo.top_movers']).toBeUndefined();
+  });
+});
+
+/** Shows what an error boundary would: the failure of a card, in place of the card. */
+class Catch extends Component<{ children: ReactNode }, { failed: boolean }> {
+  override state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  override render(): ReactNode {
+    return this.state.failed ? <p>caught</p> : this.props.children;
+  }
+}
+
+describe('reset', () => {
+  it('after a failed load makes the next render load again', async () => {
+    // React reports the error it hands to the boundary
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const load = vi
+      .fn<() => Promise<{ default: ComponentType<CardProps> }>>()
+      .mockRejectedValueOnce(new Error('chunk failed'))
+      .mockResolvedValue({ default: Probe });
+    const registry = defineCards({ a: { load } });
+    const component = registry.a?.Component;
+    const first = render(
+      <Catch>
+        <Slot registry={registry} type="a" />
+      </Catch>,
+    );
+    expect(await screen.findByText('caught')).toBeInTheDocument();
+    first.unmount();
+
+    // Without a reset the failure is remembered, and nothing is asked of the network again
+    const stuck = render(
+      <Catch>
+        <Slot registry={registry} type="a" />
+      </Catch>,
+    );
+    expect(await screen.findByText('caught')).toBeInTheDocument();
+    expect(load).toHaveBeenCalledTimes(1);
+    stuck.unmount();
+
+    registry.a?.reset();
+    render(
+      <Catch>
+        <Slot registry={registry} type="a" />
+      </Catch>,
+    );
+    expect(await screen.findByTestId('probe')).toBeInTheDocument();
+    expect(load).toHaveBeenCalledTimes(2);
+    // Callers keep the one Component they were given
+    expect(registry.a?.Component).toBe(component);
+    consoleError.mockRestore();
+  });
+
+  it('after a good load keeps the loaded component', async () => {
+    const load = vi.fn(() => Promise.resolve({ default: Probe }));
+    const registry = defineCards({ a: { load } });
+    const first = render(<Slot registry={registry} type="a" />);
+    expect(await screen.findByTestId('probe')).toBeInTheDocument();
+    first.unmount();
+
+    registry.a?.reset();
+    render(<Slot registry={registry} type="a" />);
+    expect(await screen.findByTestId('probe')).toBeInTheDocument();
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts a load that throws at once as a failed load', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    let broken = true;
+    const registry = defineCards({
+      a: {
+        load: () => {
+          if (broken) throw new Error('no network');
+          return Promise.resolve({ default: Probe });
+        },
+      },
+    });
+    const first = render(
+      <Catch>
+        <Slot registry={registry} type="a" />
+      </Catch>,
+    );
+    expect(await screen.findByText('caught')).toBeInTheDocument();
+    first.unmount();
+    broken = false;
+    registry.a?.reset();
+    render(<Slot registry={registry} type="a" />);
+    expect(await screen.findByTestId('probe')).toBeInTheDocument();
+    consoleError.mockRestore();
   });
 });
 

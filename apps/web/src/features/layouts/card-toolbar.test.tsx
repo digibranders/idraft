@@ -7,16 +7,29 @@ import { CardTools } from './card-toolbar';
 import { LayoutGrid } from './layout-grid';
 import { LayoutProvider, useLayoutScreen } from './layout-provider';
 import { defineCards } from './registry';
+import { dismissToast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
 import type * as Announcer from '@/lib/a11y/announcer';
-import { SCREENS, type CardItem, type LayoutDocument, type ScreenKey } from '@/lib/layouts';
+import {
+  LIMITS,
+  SCREENS,
+  addCard,
+  duplicateCard,
+  type CardItem,
+  type LayoutDocument,
+  type ScreenKey,
+} from '@/lib/layouts';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_WORKSPACE } from '@/mocks/fixtures';
 import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
+import { ScreenUnderTest, serveLayouts, startCustomizing, stateOf, stubViewport } from '@/test/customize-harness';
 import { server } from '@/test/msw';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
+
+// The controller of a customizable screen reads the router and the address
+vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
 
 /** The real announcer, watched: the live region still gets every message, and a double announcement can be counted. */
 vi.mock('@/lib/a11y/announcer', async (importOriginal) => {
@@ -397,6 +410,289 @@ describe('More', () => {
     const menu = await openMenu(view, 'trend', 'Visibility and mention rate');
     await view.user.click(within(menu).getByRole('menuitem', { name: 'Move to start' }));
     expect(ids()).toEqual(BUILTIN_CARDS.map((card) => card.id));
+  });
+});
+
+/** A personal layout on the mock API, made with the pure edits so the server and the page agree on it. */
+function personal(build: (builtin: LayoutDocument) => LayoutDocument): Record<string, unknown> {
+  return {
+    source: 'personal',
+    document: build(structuredClone(SCREENS.overview.builtin)),
+    updated_at: '2026-11-10T09:12:44Z',
+  };
+}
+
+const toastOf = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-slot="toast"]');
+const handleOf = (id: string): HTMLElement | null =>
+  document.querySelector<HTMLElement>(`[data-layout-card="${id}"] [data-part="handle"]`);
+
+describe('Hide with Undo', () => {
+  beforeEach(() => {
+    serveLayouts();
+    stubViewport();
+  });
+  afterEach(() => {
+    dismissToast();
+  });
+
+  /** A screen in customize mode whose cards have no code. */
+  async function screenInCustomizeMode(): Promise<ProvidedRender> {
+    const view = renderWithProviders(<ScreenUnderTest addSlot />);
+    await startCustomizing(view.user);
+    return view;
+  }
+  /** The save bar has an Undo of its own: this one is the toast's. */
+  const undoOnToast = async (): Promise<HTMLElement> => {
+    await waitFor(() => {
+      expect(toastOf()).not.toBeNull();
+    });
+    return within(toastOf() as HTMLElement).getByRole('button', { name: 'Undo' });
+  };
+  const hide = (view: ProvidedRender, id: string, card: string): Promise<void> =>
+    view.user.click(within(toolbarOf(id)).getByRole('button', { name: `Hide ${card}` }));
+
+  it('raises a toast named for the card, with Undo', async () => {
+    const view = await screenInCustomizeMode();
+    await hide(view, 'rank-distribution', 'Rank distribution');
+    await waitFor(() => {
+      expect(toastOf()).not.toBeNull();
+    });
+    expect(toastOf()).toHaveTextContent('Rank distribution hidden');
+    expect(await undoOnToast()).toBeInTheDocument();
+  });
+
+  it('brings the card back with Undo on the toast, and focus goes to its handle', async () => {
+    const view = await screenInCustomizeMode();
+    await hide(view, 'rank-distribution', 'Rank distribution');
+    await view.user.click(await undoOnToast());
+    await waitFor(() => {
+      expect(ids()).toEqual(BUILTIN_CARDS.map((card) => card.id));
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(handleOf('rank-distribution'));
+    });
+    expect(stateOf()).toBe('customize 0');
+    await waitFor(() => {
+      expect(toastOf()).toBeNull();
+    });
+  });
+
+  it('goes on the next edit, so Undo never undoes anything but the hide', async () => {
+    const view = await screenInCustomizeMode();
+    await hide(view, 'rank-distribution', 'Rank distribution');
+    await waitFor(() => {
+      expect(toastOf()).not.toBeNull();
+    });
+    await view.user.click(within(toolbarOf('matrix')).getByRole('button', { name: 'Move SEO and AI matrix' }));
+    await view.user.click(await screen.findByRole('menuitem', { name: 'Move to end' }));
+    await waitFor(() => {
+      expect(toastOf()).toBeNull();
+    });
+  });
+
+  it('goes when the document changes again by Ctrl Z', async () => {
+    const view = await screenInCustomizeMode();
+    await hide(view, 'rank-distribution', 'Rank distribution');
+    await waitFor(() => {
+      expect(toastOf()).not.toBeNull();
+    });
+    await view.user.keyboard('{Control>}z{/Control}');
+    await waitFor(() => {
+      expect(ids()).toContain('rank-distribution');
+    });
+    await waitFor(() => {
+      expect(toastOf()).toBeNull();
+    });
+  });
+
+  it('is replaced by the toast of the next hide, whose Undo brings back that card only', async () => {
+    const view = await screenInCustomizeMode();
+    await hide(view, 'rank-distribution', 'Rank distribution');
+    await waitFor(() => {
+      expect(toastOf()).toHaveTextContent('Rank distribution hidden');
+    });
+    await hide(view, 'matrix', 'SEO and AI matrix');
+    await waitFor(() => {
+      expect(toastOf()).toHaveTextContent('SEO and AI matrix hidden');
+    });
+    expect(document.querySelectorAll('[data-slot="toast"]')).toHaveLength(1);
+    await view.user.click(await undoOnToast());
+    await waitFor(() => {
+      expect(ids()).toContain('matrix');
+    });
+    expect(ids()).not.toContain('rank-distribution');
+  });
+
+  it('goes when customize mode ends', async () => {
+    const view = await screenInCustomizeMode();
+    await hide(view, 'rank-distribution', 'Rank distribution');
+    await waitFor(() => {
+      expect(toastOf()).not.toBeNull();
+    });
+    await view.user.click(screen.getByRole('button', { name: 'Leave' }));
+    await view.user.click(await screen.findByRole('button', { name: 'Discard changes' }));
+    await waitFor(() => {
+      expect(stateOf()).toBe('view 0');
+    });
+    await waitFor(() => {
+      expect(toastOf()).toBeNull();
+    });
+  });
+});
+
+describe('Duplicate', () => {
+  beforeEach(() => {
+    stubViewport();
+  });
+  afterEach(() => {
+    dismissToast();
+  });
+
+  const TREND = { id: 't1', type: 'ai.mention_trend', width: 'half', options: { engine: 'chatgpt_web' } } as const;
+  const trendOnly = (): Record<string, unknown> => ({
+    source: 'personal',
+    document: { schema: 1, numbers: [], cards: [TREND, { id: 'solo', type: 'seo.rank_distribution', width: 'third' }] },
+    updated_at: '2026-11-10T09:12:44Z',
+  });
+
+  async function openMore(layout: Record<string, unknown>, id: string, card: string): Promise<ProvidedRender> {
+    serveLayouts({ layout });
+    const view = renderWithProviders(<ScreenUnderTest addSlot />);
+    await startCustomizing(view.user);
+    await view.user.click(within(toolbarOf(id)).getByRole('button', { name: `Move ${card}` }));
+    await screen.findByRole('menu', { name: `Move ${card}` });
+    return view;
+  }
+
+  it('is listed after the moves for a reusable type', async () => {
+    await openMore(trendOnly(), 't1', 'Mention rate trend: ChatGPT');
+    const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
+    // The card is the first one: its earlier moves say why they are off
+    expect(items.map((item) => item.textContent)).toEqual([
+      'Move earlierAlready first',
+      'Move later',
+      'Move to startAlready first',
+      'Move to end',
+      'Duplicate',
+    ]);
+    expect(items[4]).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('is not listed for a single use type', async () => {
+    await openMore(trendOnly(), 'solo', 'Rank distribution');
+    const names = within(screen.getByRole('menu'))
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent);
+    expect(names).not.toContain('Duplicate');
+  });
+
+  it('puts the copy right after the source, on the next engine, says so and focuses its handle', async () => {
+    const view = await openMore(trendOnly(), 't1', 'Mention rate trend: ChatGPT');
+    await view.user.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Duplicate' }));
+    await waitFor(() => {
+      expect(ids()).toHaveLength(3);
+    });
+    const [source, copy] = ids();
+    expect(source).toBe('t1');
+    expect(copy).not.toBe('solo');
+    expect(
+      within(frameOf(copy as string)).getByRole('group', { name: 'Mention rate trend: Gemini card' }),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(polite()).toBe('Mention rate trend: Gemini duplicated, position 2 of 3');
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(handleOf(copy as string));
+    });
+    expect(stateOf()).toBe('customize 1');
+  });
+
+  it('is disabled with Every choice is already on this page when no value is free', async () => {
+    await openMore(
+      personal((doc) => {
+        const withTrend = addCard(doc, 'ai.mention_trend', 't1', 0);
+        return duplicateCard(duplicateCard(withTrend, 't1', 't2'), 't2', 't3');
+      }),
+      't1',
+      'Mention rate trend: ChatGPT',
+    );
+    const item = within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Duplicate' });
+    expect(item).toHaveAttribute('aria-disabled', 'true');
+    expect(item).toHaveAccessibleDescription('Every choice is already on this page');
+    // The label is not squeezed out by the reason: the menu shows the short form
+    expect(item).toHaveTextContent('DuplicateAlready on this page');
+  });
+
+  it('is disabled with Page is full when the page has no room', async () => {
+    await openMore(
+      personal((doc) => {
+        let full = addCard(doc, 'ai.mention_trend', 't1', 0);
+        for (const [index, type] of [
+          'seo.serp_features',
+          'seo.top_movers',
+          'ai.citation_share_by_domain_type',
+        ].entries()) {
+          full = addCard(full, type, `filler-${String(index)}`);
+        }
+        return full;
+      }),
+      't1',
+      'Mention rate trend: ChatGPT',
+    );
+    expect(ids()).toHaveLength(LIMITS.cards);
+    const item = within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Duplicate' });
+    expect(item).toHaveAttribute('aria-disabled', 'true');
+    expect(item).toHaveAccessibleDescription('Page is full');
+  });
+
+  it('leaves the document alone when a disabled Duplicate is chosen', async () => {
+    const view = await openMore(
+      personal((doc) =>
+        duplicateCard(duplicateCard(addCard(doc, 'ai.mention_trend', 't1', 0), 't1', 't2'), 't2', 't3'),
+      ),
+      't1',
+      'Mention rate trend: ChatGPT',
+    );
+    const before = ids();
+    await view.user.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Duplicate' }));
+    expect(ids()).toEqual(before);
+    expect(stateOf()).toBe('customize 0');
+  });
+});
+
+describe('Tooltips', () => {
+  beforeEach(() => {
+    serveLayouts();
+    stubViewport();
+  });
+
+  it('gives More the Move tooltip and Options the Card options tooltip', async () => {
+    const view = renderWithProviders(<ScreenUnderTest addSlot />);
+    await startCustomizing(view.user);
+    const more = within(toolbarOf('key-changes')).getByRole('button', { name: 'Move Key changes' });
+    expect(more).toHaveAccessibleDescription('Move');
+    await view.user.hover(more);
+    await waitFor(() => {
+      expect(document.querySelector('[data-slot="tooltip"]')).toHaveTextContent('Move');
+    });
+    await view.user.unhover(more);
+    const options = within(toolbarOf('key-changes')).getByRole('button', { name: 'Options for Key changes' });
+    expect(options).toHaveAccessibleDescription('Card options');
+    await view.user.hover(options);
+    await waitFor(() => {
+      expect(document.querySelector('[data-slot="tooltip"]')).toHaveTextContent('Card options');
+    });
+  });
+});
+
+describe('Hide without a customizable screen', () => {
+  it('still hides the card, without a toast', async () => {
+    const view = await customize();
+    await view.user.click(
+      within(toolbarOf('rank-distribution')).getByRole('button', { name: 'Hide Rank distribution' }),
+    );
+    expect(ids()).not.toContain('rank-distribution');
+    expect(toastOf()).toBeNull();
   });
 });
 

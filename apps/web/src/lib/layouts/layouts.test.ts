@@ -15,6 +15,7 @@ import {
   addNumber,
   canAddCard,
   canAddNumber,
+  canDuplicate,
   cardAvailability,
   cardType,
   changeCount,
@@ -677,5 +678,18 @@ describe('duplicateCard', () => {
     const doc = withTrend();
     expect(duplicateCard(doc, 'nothing', 'x')).toBe(doc);
     expect(duplicateCard(doc, 't1', 'trend')).toBe(doc);
+  });
+
+  it('canDuplicate says what duplicateCard would do, without an id from the caller', () => {
+    const doc = withTrend();
+    expect(canDuplicate(doc, 't1')).toBe(true);
+    // One instance only
+    expect(canDuplicate(doc, 'trend')).toBe(false);
+    expect(canDuplicate(doc, 'nothing')).toBe(false);
+    // Every engine is shown already
+    const engines = duplicateCard(duplicateCard(doc, 't1', 't2'), 't2', 't3');
+    expect(canDuplicate(engines, 't3')).toBe(false);
+    // A card whose id is "probe" does not confuse it
+    expect(canDuplicate(addCard(overview(), 'ai.mention_trend', 'probe', 0), 'probe')).toBe(true);
   });
 });

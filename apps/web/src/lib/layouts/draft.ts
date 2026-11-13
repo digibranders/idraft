@@ -104,6 +104,15 @@ export function duplicateCard(doc: LayoutDocument, id: string, newId: string): L
   return { ...doc, cards: insertAt(cards, copy, cards.indexOf(source) + 1) };
 }
 
+/**
+ * Whether duplicateCard would add a copy, for a menu that shows Duplicate as unavailable. The probe id is longer
+ * than every id the document has (it holds them all), so it can never be one of them.
+ */
+export function canDuplicate(doc: LayoutDocument, id: string): boolean {
+  const ids = cardsOf(doc).map((card) => card.id);
+  return duplicateCard(doc, id, `${ids.join('')}-copy`) !== doc;
+}
+
 export function hideCard(doc: LayoutDocument, id: string): LayoutDocument {
   const cards = cardsOf(doc);
   if (!cards.some((card) => card.id === id)) return doc;

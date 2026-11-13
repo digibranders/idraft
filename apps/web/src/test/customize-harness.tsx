@@ -10,7 +10,7 @@ import { useCustomize } from '@/features/layouts/customize/customize-controller'
 import { CustomizingBadge } from '@/features/layouts/customize/customizing-badge';
 import { LayoutGrid } from '@/features/layouts/layout-grid';
 import { useLayoutScreen } from '@/features/layouts/layout-provider';
-import { defineCards } from '@/features/layouts/registry';
+import { defineCards, type CardRegistry } from '@/features/layouts/registry';
 import type { Capabilities, ScreenKey } from '@/lib/layouts';
 import type { Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
@@ -273,6 +273,8 @@ export interface UnderTestProps {
   saveBar?: ComponentProps<typeof CustomizableScreen>['saveBar'];
   /** The person's role in the workspace; an admin by default, who may set the team default. */
   workspaceRole?: Role;
+  /** The cards that have code; none by default, so every card says it is not available yet. */
+  registry?: CardRegistry;
 }
 
 /** One customizable screen: its header with the button and the badge, the test's controls, and the cards. */
@@ -286,6 +288,7 @@ export function ScreenUnderTest({
   addSlot = false,
   saveBar,
   workspaceRole = 'admin',
+  registry,
 }: UnderTestProps): ReactElement {
   return (
     <PermissionProvider membership={membershipFactory(workspaceRole)}>
@@ -295,7 +298,7 @@ export function ScreenUnderTest({
           workspaceId={WORKSPACE}
           workspaceName="Acme"
           capabilities={capabilities}
-          registry={defineCards({})}
+          registry={registry ?? defineCards({})}
           {...(saveBar === undefined ? {} : { saveBar })}
         >
           <header>

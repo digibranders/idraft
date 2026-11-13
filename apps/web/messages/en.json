@@ -4259,6 +4259,16 @@
         "engineChoice": "{number} {engine}",
         "shown": "Already shown"
       },
+      "card": {
+        "hiddenToast": "{card} hidden",
+        "undo": "Undo",
+        "duplicate": "Duplicate",
+        "duplicateNone": "Every choice is already on this page",
+        "failed": "This card could not be shown.",
+        "failedReason": "The other cards on this page are not affected.",
+        "retry": "Retry",
+        "placeholderNote": "This card shows in projects that have what it needs."
+      },
       "announce": {
         "numberAdded": "{number} added",
         "numberRemoved": "{number} removed",

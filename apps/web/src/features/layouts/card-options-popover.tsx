@@ -9,8 +9,8 @@ import { Settings2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
+import { TippedIconButton } from './cards/tipped-icon-button';
 import { useLayoutScreen } from './layout-provider';
-import { IconButton } from '@/components/ui/icon-button';
 import { Popover } from '@/components/ui/popover';
 import { RadioGroup, type RadioOption } from '@/components/ui/radio-group';
 import { cardName, cardType, identityOption, takenIdentityValues, type CardItem } from '@/lib/layouts';
@@ -33,9 +33,10 @@ export function CardOptionsPopover({ item }: CardOptionsPopoverProps): ReactElem
     <Popover
       title={t('optionsFor', { card: name })}
       trigger={
-        <IconButton
+        <TippedIconButton
           icon={Settings2}
           label={t('optionsFor', { card: name })}
+          tip={t('optionsTip')}
           data-part="options"
           className="pointer-coarse:size-control-touch"
         />

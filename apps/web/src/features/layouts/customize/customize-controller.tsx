@@ -26,9 +26,10 @@ import { useLayoutScreen } from '../layout-provider';
 import { MEDIUM_MEDIA } from '../use-breakpoint';
 import { useLayoutLeaveGuard } from './use-layout-leave-guard';
 import { DiscardChangesDialog } from '@/components/ui/alert-dialog';
+import { dismissToast, toast } from '@/components/ui/toast';
 import { useShortcut } from '@/lib/a11y/use-shortcut';
 import { useMediaQuery } from '@/lib/dom/use-media-query';
-import type { LayoutDocument } from '@/lib/layouts';
+import { cardName, type LayoutDocument } from '@/lib/layouts';
 
 export interface CustomizeContextValue {
   /** For the dialogs of the team default: "Set this as the default for everyone in {workspace}?". */
@@ -72,6 +73,12 @@ export interface CustomizeContextValue {
   dismissConflict(): void;
   /** The question was answered (Keep mine, Load the other version): clears both. The mode ending does too. */
   resolveConflict(): void;
+  /**
+   * Hides a card and raises a toast "{card} hidden" with Undo (D-06). The toast goes with the next change to the
+   * draft (any edit, Undo, Redo) and with the mode, so its Undo can only ever bring this card back; focus then
+   * goes to the card's handle.
+   */
+  hideWithUndo(id: string): void;
 }
 
 /** The personal layout or the team default: what "Keep mine" writes again. */
@@ -86,6 +93,13 @@ interface ActiveScreen {
   exit(): void;
 }
 let active: ActiveScreen | null = null;
+
+/** The toast of the last hide: what Undo on it may undo, and the document the hide left behind. */
+interface HideToast {
+  toastId: string;
+  /** Known after the render that shows the hide; null until then. */
+  after: LayoutDocument | null;
+}
 
 /** Focus that is on nothing, or on a dialog that is about to go. */
 function focusIsLost(): boolean {
@@ -115,6 +129,7 @@ export interface CustomizeControllerProps {
 /** Inside a `LayoutProvider`. */
 export function CustomizeController({ workspaceName, children }: CustomizeControllerProps): ReactElement {
   const t = useTranslations('layouts.customize.mode');
+  const tCard = useTranslations('layouts.customize.card');
   const { mode, document: layout, dirty, saving, canCustomize, actions } = useLayoutScreen();
   const customizing = mode === 'customize';
   const wide = useMediaQuery(MEDIUM_MEDIA);
@@ -252,6 +267,57 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
     setConflictState({ open: null, pending: null });
   }, []);
 
+  // The toast of the last hide. Undo on it is only right while the draft is the one the hide made
+  const hideToast = useRef<HideToast | null>(null);
+  const refocusCard = useRef<string | null>(null);
+  const closeHideToast = useCallback((): void => {
+    const open = hideToast.current;
+    hideToast.current = null;
+    if (open !== null) dismissToast(open.toastId);
+  }, []);
+  const hideWithUndo = useCallback(
+    (id: string): void => {
+      const { layout: before, actions: current } = live.current;
+      const card = before.cards?.find((candidate) => candidate.id === id);
+      if (card === undefined || !current.hideCard(id)) return;
+      closeHideToast();
+      const toastId = toast({
+        type: 'info',
+        title: tCard('hiddenToast', { card: cardName(card) }),
+        action: {
+          label: tCard('undo'),
+          onAction: () => {
+            const open = hideToast.current;
+            if (open?.toastId !== toastId || open.after !== live.current.layout) return;
+            hideToast.current = null;
+            if (live.current.actions.undo()) refocusCard.current = id;
+          },
+        },
+      });
+      hideToast.current = { toastId, after: null };
+    },
+    [closeHideToast, tCard],
+  );
+  useEffect(() => {
+    const open = hideToast.current;
+    if (open === null) return;
+    if (!customizing) closeHideToast();
+    // The first render after the hide shows what it left; any later change to the draft ends the offer
+    else if (open.after === null) open.after = layout;
+    else if (open.after !== layout) closeHideToast();
+  }, [layout, customizing, closeHideToast]);
+  useEffect(() => closeHideToast, [closeHideToast]);
+  // Undo from the toast has no focus request of its own: the card is back after this render
+  useEffect(() => {
+    const id = refocusCard.current;
+    if (id === null) return;
+    refocusCard.current = null;
+    const frame = [...(rootRef.current?.querySelectorAll<HTMLElement>('[data-layout-card]') ?? [])].find(
+      (candidate) => candidate.dataset.layoutCard === id,
+    );
+    frame?.querySelector<HTMLElement>('[data-part="handle"]')?.focus({ preventScroll: true });
+  }, [layout]);
+
   // Escape leaves the mode. A card in the hand, a menu and a dialog keep the key for themselves
   useShortcut(
     'Escape',
@@ -283,6 +349,7 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
       setConflict,
       dismissConflict,
       resolveConflict,
+      hideWithUndo,
     }),
     [
       workspaceName,
@@ -296,6 +363,7 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
       setConflict,
       dismissConflict,
       resolveConflict,
+      hideWithUndo,
     ],
   );
 
@@ -340,4 +408,9 @@ export function useCustomize(): CustomizeContextValue {
   const value = use(CustomizeContext);
   if (value === null) throw new Error('useCustomize is used outside a CustomizableScreen');
   return value;
+}
+
+/** Like `useCustomize`, for parts that also work on a bare `LayoutProvider` (a grid with no controller): null there. */
+export function useOptionalCustomize(): CustomizeContextValue | null {
+  return use(CustomizeContext);
 }

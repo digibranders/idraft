@@ -9,6 +9,7 @@ import { CustomizingBadge } from './customize/customizing-badge';
 import { GALLERY_CARDS } from './live-fixtures';
 import { NumberStrip } from './numbers/number-strip';
 import { specimenValueOf } from './numbers/number-strip-specimen-values';
+import { defineCards, type CardRegistry } from './registry';
 import { useLayoutCapabilities } from './use-layout-capabilities';
 import { PageHeader } from '@/components/app/shell/page-header';
 import { Select } from '@/components/ui/select';
@@ -26,7 +27,7 @@ import { meQuery } from '@/lib/session/me-query';
  */
 const COPY = {
   title: 'Customize mode, live',
-  note: 'WP-16. The real customize UI on the mock API: the Customize button and badge in the page header, Escape, the question before changes are lost, Undo and Redo with Ctrl or Cmd Z. A saved layout is kept in a cookie of the mock, so a reload keeps it.',
+  note: 'WP-16. The real customize UI on the mock API: the Customize button and badge in the page header, Escape, the question before changes are lost, Undo and Redo with Ctrl or Cmd Z. A saved layout is kept in a cookie of the mock, so a reload keeps it. A project with AI tracking off shows placeholders for the AI cards. The SERP features card fails its first load: add it, save, and Retry in view mode loads it. Hide offers Undo in a toast, and More has Duplicate.',
   project: 'Project',
   pageTitle: 'Overview',
   grid: 'Customizable overview cards',
@@ -40,6 +41,30 @@ const COPY = {
 } as const;
 
 const PROJECTS = '/api/v1/workspaces/{workspace_id}/projects';
+
+/** The card whose code fails to load the first time, so the error state and Retry can be tried. */
+const FAILING_TYPE = 'seo.serp_features';
+let failingLoads = 0;
+
+/**
+ * The gallery's cards, with SERP features made to fail its first load (add it from the catalog, save, and view the
+ * page): Retry then loads it. Fixture only: no production registry has a card like this.
+ */
+const CUSTOMIZE_CARDS: CardRegistry = {
+  ...GALLERY_CARDS,
+  ...defineCards({
+    [FAILING_TYPE]: {
+      load: () => {
+        failingLoads += 1;
+        const working = GALLERY_CARDS[FAILING_TYPE];
+        if (failingLoads === 1 || working === undefined) {
+          return Promise.reject(new Error('The code of this card could not be loaded'));
+        }
+        return Promise.resolve({ default: working.Component });
+      },
+    },
+  }),
+};
 
 function Group({ title, note, children }: { title: string; note: string; children: ReactNode }): ReactElement {
   return (
@@ -68,7 +93,7 @@ function ProjectScreen({ membership, projectId }: ProjectScreenProps): ReactElem
       workspaceId={workspaceId}
       workspaceName={membership.workspace.name}
       capabilities={capabilities}
-      registry={GALLERY_CARDS}
+      registry={CUSTOMIZE_CARDS}
     >
       <PageHeader title={COPY.pageTitle} titleAddon={<CustomizingBadge />} actions={<CustomizeButton />} />
       <NumberStrip label={COPY.numbers} valueOf={specimenValueOf} status="ready" />
