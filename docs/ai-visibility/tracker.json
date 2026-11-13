@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T16:41:15+05:30",
+ "updated": "2026-11-13T17:04:23+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -693,10 +693,10 @@
    },
    "counts": {
     "total": 24,
-    "done": 8
+    "done": 13
    },
    "owner": "",
-   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 7/15 (T0-T6 on develop, aab83cb7): provider, controller/button/badge, catalog dialog, number strip, number catalog, save bar, team default menu + conflict dialog; T6 review found and fixed a real bug (Load the other version loaded the personal layout after a team 412); T7 leave guard next; rows 8/24 built"
+   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 9/15 (T0-T8 on develop, 42717d29), rows 13/24; T9 presets (Start from menu) next"
   },
   {
    "id": "WP-17",
@@ -4367,6 +4367,16 @@
    "title": "PlainTable header is string only: engine count headers (CHATGPT, GEMINI) are text and partly off the right edge at 358 and 440 px",
    "detail": "The plan wanted EngineLogo headers: needs PlainTable support for node headers (shared file). Also: one 404 resource in the console per run (to be traced in T3); the existing message key domains.unitsOf reads '1 units for 1'.",
    "owner": "later, shared-parts quality sweep",
+   "severity": "low",
+   "status": "open"
+  },
+  {
+   "id": "F-21",
+   "found": "2026-11-13T17:04:23+05:30",
+   "by": "WP-16",
+   "title": "Toast with an action never times out and the bottom-right toast viewport covers the sticky layout save bar",
+   "detail": "components/ui/toast.tsx. WP-16 works around it with an 8 s dismissal of the Hide toast. Proper fix: lift the toast viewport above the save bar and give action toasts a timeout.",
+   "owner": "shared parts quality sweep",
    "severity": "low",
    "status": "open"
   }
