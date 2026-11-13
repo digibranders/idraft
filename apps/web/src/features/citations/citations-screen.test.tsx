@@ -18,6 +18,9 @@ import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders, type ProvidedRenderOptions } from '@/test/render';
 
+// A test turns the Pages entry off to see the page before T5a lists it
+const registry = vi.hoisted(() => ({ withPages: true }));
+
 // The two tabs the page lists once T4b and T5a land, as text, so the shell is tested on its own
 vi.mock('./citation-tabs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./citation-tabs')>();
@@ -26,9 +29,13 @@ vi.mock('./citation-tabs', async (importOriginal) => {
     label: () => label,
     render: () => `Panel of ${label}`,
   });
+  const both = actual.defineCitationTabs([entry('domains', 'Domains'), entry('pages', 'Pages')]);
+  const domainsOnly = actual.defineCitationTabs([entry('domains', 'Domains')]);
   return {
     ...actual,
-    CITATION_TABS: actual.defineCitationTabs([entry('domains', 'Domains'), entry('pages', 'Pages')]),
+    get CITATION_TABS() {
+      return registry.withPages ? both : domainsOnly;
+    },
   };
 });
 
@@ -58,6 +65,7 @@ beforeEach(() => {
   stubWideScreen();
 });
 afterEach(() => {
+  registry.withPages = true;
   server.events.removeAllListeners();
   vi.useRealTimers();
   restoreWideScreen();
@@ -132,19 +140,49 @@ describe('Citations page', () => {
     expect(await screen.findByText(/^Updated .* ago; [\d,]+ citation units in [\d,]+ answers$/)).toBeInTheDocument();
   });
 
-  it('says No new citation since a date when the newest citation is older than 7 days', async () => {
+  /** The newest citation of the scope was read at `observedAt`. */
+  const newestAt = (observedAt: string): void =>
     server.use(
       http.get(mswPath(`${P}/ai/citations`), async ({ request }) => {
         const real = await getResponse([...handlers], request);
         const body = (await real?.json()) as { data: { observed_at: string }[] };
         return HttpResponse.json({
           ...body,
-          data: body.data.map((row) => ({ ...row, observed_at: '2026-11-02T02:00:00Z' })),
+          data: body.data.map((row) => ({ ...row, observed_at: observedAt })),
         });
       }),
     );
+
+  it('says No new citation since a date when the newest citation is older than 7 days', async () => {
+    newestAt('2026-11-02T02:00:00Z');
     render();
     expect(await screen.findByText(/^No new citation since Nov 2, /)).toBeInTheDocument();
+  });
+
+  it('calls a citation stale from 7 days on, as the prompt History does, and not before', async () => {
+    // Today is 12 November in the project's zone: the 5th is 7 days back, the 6th is 6
+    newestAt('2026-11-05T02:00:00Z');
+    const stale = render();
+    expect(await screen.findByText(/^No new citation since Nov 5, /)).toBeInTheDocument();
+    stale.unmount();
+    newestAt('2026-11-06T02:00:00Z');
+    render();
+    expect(await screen.findByText(/^Updated 6d ago; /)).toBeInTheDocument();
+  });
+
+  it('gives the page the height of the window, so a table fills what the strip leaves', async () => {
+    render();
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Citations' });
+    expect(heading.closest('.h-page-body')).toHaveClass('min-h-page-body-min', 'flex', 'flex-col');
+    const tabs = document.querySelector('[data-slot="tabs"]');
+    expect(tabs).toHaveClass('min-h-0', 'flex-1');
+    expect(await screen.findByText('Panel of Domains')).toHaveClass('min-h-0', 'flex-1');
+  });
+
+  it('keeps the page that scrolls with the window for the no access state', async () => {
+    renderWithProviders(citationsAs('billing'));
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Citations' });
+    expect(heading.closest('.h-page-body')).toBeNull();
   });
 
   it('says no citation in the window when there is no unit', async () => {
@@ -222,22 +260,94 @@ describe('Citations page', () => {
     expect(cell('Distinct domains')).not.toHaveTextContent('n/a');
   });
 
-  it('counts the read of the previous period for the partial banner only while the comparison is on', async () => {
+  /** The banner's Retry button. */
+  const bannerRetry = (): HTMLElement =>
+    within(screen.getByText('Some figures could not be loaded.').closest('div') as HTMLElement).getByRole('button', {
+      name: 'Try again',
+    });
+
+  /**
+   * Fails the requests of `route` that `fails` accepts for as long as `broken.on` is true, and lists them, so a test
+   * can tell which reads a Retry asked for again.
+   */
+  function breakReads(route: RegExp, fails: (url: URL) => boolean): { broken: { on: boolean }; requests: URL[] } {
+    const broken = { on: true };
+    const requests: URL[] = [];
     server.use(
-      http.get(DOMAINS, async ({ request }) => {
+      http.get(route, async ({ request }) => {
         const url = new URL(request.url);
-        // The previous period is the one read that takes no `compare` and no `include`
-        if (!url.searchParams.has('compare') && !url.searchParams.has('include')) return problem(request, 'not_found');
+        if (fails(url)) requests.push(url);
+        if (broken.on && fails(url)) return problem(request, 'not_found');
         return (await getResponse([...handlers], request)) ?? problem(request, 'not_found');
       }),
     );
-    const on = render();
+    return { broken, requests };
+  }
+
+  it('says Retry asks again for every read that failed, not for the first only', async () => {
+    const diversity = breakReads(/\/ai\/sources\/diversity$/, () => true);
+    const added = breakReads(/\/ai\/sources\/changes$/, (url) => url.searchParams.get('kind') === 'new');
+    const { user } = render();
     expect(await screen.findByText('Some figures could not be loaded.')).toBeInTheDocument();
-    on.unmount();
-    render('?cmp=off');
-    await strip();
-    await waitFor(() => expect(cell('Citation units')).toHaveTextContent(/[\d,]{3,}/));
+    expect(diversity.requests).toHaveLength(1);
+    expect(added.requests).toHaveLength(1);
+    diversity.broken.on = false;
+    added.broken.on = false;
+    await user.click(bannerRetry());
+    await waitFor(() => expect(screen.queryByText('Some figures could not be loaded.')).toBeNull());
+    expect(diversity.requests).toHaveLength(2);
+    expect(added.requests).toHaveLength(2);
+    expect(cell('Distinct domains')).not.toHaveTextContent('n/a');
+    expect(cell('New sources')).not.toHaveTextContent('n/a');
+  });
+
+  it.each([
+    ['New', 'new', 'Lost sources'],
+    ['Lost', 'lost', 'New sources'],
+  ])('a failed %s read shows the partial banner, is n/a and leaves the other count', async (_name, kind, other) => {
+    const failing = breakReads(/\/ai\/sources\/changes$/, (url) => url.searchParams.get('kind') === kind);
+    const { user } = render();
+    expect(await screen.findByText('Some figures could not be loaded.')).toBeInTheDocument();
+    await waitFor(() => expect(cell(other)).toHaveTextContent(/\d/));
+    expect(cell(kind === 'new' ? 'New sources' : 'Lost sources')).toHaveTextContent('n/a');
+    failing.broken.on = false;
+    await user.click(bannerRetry());
+    await waitFor(() => expect(screen.queryByText('Some figures could not be loaded.')).toBeNull());
+    expect(failing.requests).toHaveLength(2);
+  });
+
+  it('a refetch that failed keeps the figures and still counts as failed', async () => {
+    const failing = breakReads(/\/ai\/sources\/diversity$/, () => true);
+    failing.broken.on = false;
+    const { user, queryClient } = render();
+    await waitFor(() => expect(cell('Distinct domains')).toHaveTextContent(/\d/));
+    const before = cell('Distinct domains').textContent;
     expect(screen.queryByText('Some figures could not be loaded.')).toBeNull();
+    failing.broken.on = true;
+    await act(() =>
+      queryClient.refetchQueries({ predicate: (query) => JSON.stringify(query.queryKey).includes('diversity') }),
+    );
+    // The read has its data and an error: its status is ready, so only the error id says it failed
+    expect(await screen.findByText('Some figures could not be loaded.')).toBeInTheDocument();
+    expect(cell('Distinct domains').textContent).toBe(before);
+    failing.broken.on = false;
+    await user.click(bannerRetry());
+    await waitFor(() => expect(screen.queryByText('Some figures could not be loaded.')).toBeNull());
+  });
+
+  it('counts the read of the previous period while the comparison is on and stops when it is turned off', async () => {
+    // The previous period is the one read of the domains that takes no `compare` and no `include`
+    const previous = breakReads(
+      /\/ai\/sources\/domains$/,
+      (url) => !url.searchParams.has('compare') && !url.searchParams.has('include'),
+    );
+    const { user } = render();
+    expect(await screen.findByText('Some figures could not be loaded.')).toBeInTheDocument();
+    expect(previous.requests.length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('combobox', { name: 'Compare with' }));
+    await user.click(await screen.findByRole('option', { name: 'No comparison' }));
+    await waitFor(() => expect(screen.queryByText('Some figures could not be loaded.')).toBeNull());
+    expect(cell('Citation units')).toHaveTextContent(/[\d,]{3,}/);
   });
 
   it('choosing a Role keeps the Own citation share, and no strip read takes the role filter', async () => {
@@ -330,13 +440,45 @@ describe('Citations page: the scope in the address', () => {
     expect(await screen.findByText('Panel of Domains')).toBeInTheDocument();
   });
 
-  it('the tab list writes the tab, and Domains writes nothing', async () => {
-    const writes: string[] = [];
-    const { user } = render('', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
+  it('the tab list writes the tab as a history entry, and Domains writes nothing', async () => {
+    const writes: { queryString: string; history: string | undefined }[] = [];
+    const { user } = render('', {
+      onUrlUpdate: ({ queryString, options }) => writes.push({ queryString, history: options.history }),
+    });
     await user.click(await screen.findByRole('tab', { name: 'Pages' }));
-    await waitFor(() => expect(writes.at(-1)).toContain('tab=pages'));
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('tab=pages'));
+    // A view is a place to go back to
+    expect(writes.at(-1)?.history).toBe('push');
     await user.click(screen.getByRole('tab', { name: 'Domains' }));
-    await waitFor(() => expect(writes.at(-1)).not.toContain('tab'));
+    await waitFor(() => expect(writes.at(-1)?.queryString).not.toContain('tab'));
+    expect(writes.at(-1)?.history).toBe('push');
+  });
+
+  it('writes a filter or the comparison with history replace, not as an entry', async () => {
+    const writes: { queryString: string; history: string | undefined }[] = [];
+    const { user } = render('?tab=pages', {
+      onUrlUpdate: ({ queryString, options }) => writes.push({ queryString, history: options.history }),
+    });
+    await user.click(await screen.findByRole('combobox', { name: 'Compare with' }));
+    await user.click(await screen.findByRole('option', { name: 'No comparison' }));
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=off'));
+    expect(writes.at(-1)?.history).toBe('replace');
+    expect(writes.at(-1)?.queryString).toContain('tab=pages');
+  });
+
+  it('offers the Domain filter on the Pages tab only when that tab is listed', async () => {
+    const listed = render('?tab=pages');
+    await screen.findByText('Panel of Pages');
+    await listed.user.click(screen.getByRole('button', { name: 'Add a filter' }));
+    expect(await screen.findByRole('button', { name: 'Domain' })).toBeInTheDocument();
+    listed.unmount();
+    // Before T5a lists Pages the page shows Domains, so its filters are those of Domains
+    registry.withPages = false;
+    const unlisted = render('?tab=pages');
+    expect(await screen.findByText('Panel of Domains')).toBeInTheDocument();
+    await unlisted.user.click(screen.getByRole('button', { name: 'Add a filter' }));
+    expect(await screen.findByRole('button', { name: 'Engine' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Domain' })).toBeNull();
   });
 
   it('reads nothing before the engines resolve, keeps the engine in the address and then asks for it', async () => {

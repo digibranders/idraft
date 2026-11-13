@@ -40,7 +40,8 @@ export interface CitationTabEntry {
   render: (context: CitationTabContext) => ReactNode;
 }
 
-const ORDER: readonly CitationTab[] = ['domains', 'pages'];
+/** The place of each tab: a record, so a tab added to `CitationTab` must be given one to compile. */
+const ORDER: Readonly<Record<CitationTab, number>> = { domains: 0, pages: 1 };
 
 /** The entries in the page's order. A repeated id is a mistake of the code that lists them, so it throws. */
 export function defineCitationTabs(entries: readonly CitationTabEntry[]): readonly CitationTabEntry[] {
@@ -49,7 +50,7 @@ export function defineCitationTabs(entries: readonly CitationTabEntry[]): readon
     if (seen.has(id)) throw new Error(`The citation tab "${id}" is listed twice`);
     seen.add(id);
   }
-  return [...entries].sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
+  return [...entries].sort((a, b) => ORDER[a.id] - ORDER[b.id]);
 }
 
 /** Empty until T4b adds Domains and T5a adds Pages. */

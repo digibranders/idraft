@@ -134,8 +134,11 @@ export interface CitationScopeState {
   /** The date range's keys, for the picker, and the window the reads use. */
   picked: DateRangeParamsState;
   range: DateWindow;
-  /** Writes keys of the page with history replace; a `null` removes one. */
-  setSearch: (values: Partial<Record<CitationKey, string | null>>) => void;
+  /**
+   * Writes keys of the page, with history replace unless `history` says `push` (a view is a place to go back to:
+   * the tab). A `null` removes a key.
+   */
+  setSearch: (values: Partial<Record<CitationKey, string | null>>, options?: { history?: 'push' | 'replace' }) => void;
 }
 
 /**
@@ -150,8 +153,11 @@ export function useCitationScope(timeZone: string, enabledEngines: readonly Engi
   const picked = useDateRangeParams({ today });
   const range = useMemo((): DateWindow => ({ from: picked.range.from, to: picked.range.to }), [picked.range]);
   const setSearch = useCallback(
-    (values: Partial<Record<CitationKey, string | null>>): void => {
-      void setState(values);
+    (
+      values: Partial<Record<CitationKey, string | null>>,
+      { history = 'replace' }: { history?: 'push' | 'replace' } = {},
+    ): void => {
+      void setState(values, { history });
     },
     [setState],
   );

@@ -69,8 +69,8 @@ const COPY_LINK = 'copy-link';
 const DAY_MS = 86_400_000;
 /** The address's `cmp` for a comparison that is on (no key, the default) or off. */
 const cmpOf = (compare: boolean): string | null => (compare ? null : 'off');
-// shortcut: the same 7 days as the prompt History's stale rule (features/prompts/history-model.ts, which a feature
-// may not import); replace both with the shared stale rule of WP-18 (CF-27) when it lands
+// shortcut: stale from 7 days on, the same rule as the prompt History's `STALE_AFTER_DAYS` (features/prompts/
+// history-model.ts, which a feature may not import); replace both with the shared stale rule of WP-18 (CF-27)
 const STALE_AFTER_DAYS = 7;
 const NO_ENGINES: readonly never[] = [];
 
@@ -149,11 +149,14 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
   );
   const meta = scopeMeta.data?.meta;
   const byRole = useMemo(() => (meta === undefined ? null : roleUnits(meta)), [meta]);
+  // The tab shown: the one asked for, or Domains while that one is not listed. Its filters and context follow it
+  const tab = useMemo(() => activeCitationTab(CITATION_TABS, scope.tab), [scope.tab]);
+  const activeId = tab?.id ?? 'domains';
   const fields = useMemo(
     () =>
       citationFilterFields({
         t: filterWords,
-        tab: scope.tab,
+        tab: activeId,
         engines: enabledEngines.map((code) => ({ code, label: labelOf(code) })),
         enginesLoading: engines.data === undefined,
         roleUnits: byRole,
@@ -162,7 +165,7 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
       }),
     [
       filterWords,
-      scope.tab,
+      activeId,
       enabledEngines,
       labelOf,
       engines.data,
@@ -195,7 +198,7 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
     );
   };
 
-  // "Updated ..." is the newest citation in scope; older than a week it says so
+  // "Updated ..." is the newest citation in scope; a week old or more it says so
   const newest = latest.data?.data[0]?.observed_at;
   const metaLine = ((): string => {
     if (meta === undefined) return EMPTY_VALUE;
@@ -203,7 +206,7 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
     const counts = { units: meta.citation_units, answers: meta.answers };
     if (newest === undefined) return t('metaCounts', counts);
     // Whole project days since the newest citation, so the clock is read in one place (`useZoneDay`)
-    if ((Date.parse(today) - Date.parse(formatIsoDate(newest, project.timeZone))) / DAY_MS > STALE_AFTER_DAYS) {
+    if ((Date.parse(today) - Date.parse(formatIsoDate(newest, project.timeZone))) / DAY_MS >= STALE_AFTER_DAYS) {
       return t('metaStale', { date: formatTableDateTime(newest, project.timeZone) });
     }
     return t('meta', { time: formatRelative(newest, project.timeZone), ...counts });
@@ -271,13 +274,12 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
       />
     );
   } else {
-    const tab = activeCitationTab(CITATION_TABS, scope.tab);
     const context: CitationTabContext = {
       source,
       workspaceSlug,
       projectSlug: project.slug,
       timeZone: project.timeZone,
-      scope,
+      scope: { ...scope, tab: activeId },
       filters,
       range,
       enabledEngines,
@@ -289,20 +291,18 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
     // The scope read failing leaves nothing to show a panel against; any other read fails alone, and the strip says so.
     // A refetch that failed keeps its data and has an error id, so the read is failed whenever it has one
     const scopeFailed = scopeMeta.status === 'error';
-    // The read of the previous period counts only while the comparison is on
-    const { previous, ...others } = stripReads;
-    const failed = [...Object.values(others), ...(scope.compare ? [previous] : [])].filter(
-      (read) => read.errorId !== null,
-    );
+    // With the comparison off the read of the previous period has nothing to ask, so it has no error to count
+    const failed = Object.values(stripReads).filter((read) => read.errorId !== null);
     const partial = !scopeFailed && failed.length > 0;
     body = (
       <Tabs
         variant="underline"
         label={t('tabs.label')}
-        value={tab?.id ?? 'domains'}
-        onValueChange={(next) => setSearch({ tab: next === 'domains' ? null : next })}
+        value={activeId}
+        // A view is a place to go back to: the tab is the one change of the page that makes a history entry
+        onValueChange={(next) => setSearch({ tab: next === 'domains' ? null : next }, { history: 'push' })}
         items={CITATION_TABS.map((entry) => ({ value: entry.id, label: entry.label(t) }))}
-        className="gap-3"
+        className="min-h-0 flex-1 gap-3"
       >
         {scopeFailed ? (
           <InlineError
@@ -346,7 +346,7 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
           </div>
         </div>
         {scopeFailed || tab === null ? null : (
-          <TabsPanel value={tab.id} className="flex flex-col gap-3">
+          <TabsPanel value={tab.id} className="flex min-h-0 flex-1 flex-col gap-3">
             {tab.render(context)}
           </TabsPanel>
         )}
@@ -364,7 +364,8 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
           timeZone={project.timeZone}
         />
       </TopBarPortal>
-      <div className={PAGE_CLASS}>
+      {/* The window's height, as the Prompts page has it: the table of a tab fills what the strip and the filters leave */}
+      <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
         {header}
         {droppedWords === null ? null : <Banner tone="info" placement="region" message={droppedWords} />}
         {body}
