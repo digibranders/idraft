@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T14:15:47+05:30",
+ "updated": "2026-11-13T14:23:53+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1016,7 +1016,7 @@
     "done": 9
    },
    "owner": "",
-   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | from WP-25: statisticsContent in stats-model.ts builds StatisticsContent for one rate of one engine; reuse in the topic drawer | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11"
+   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | planning; F-14 fix on develop (e5ea65d0); steps 0/6, rows 9/37"
   },
   {
    "id": "WP-21",
@@ -3964,6 +3964,41 @@
    "granted": "2026-11-13T12:42:47+05:30",
    "scope": "additive titleAddon slot for the Customizing badge",
    "until": "WP-16 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/history-model.ts",
+   "wp": "WP-20",
+   "granted": "2026-11-13T14:23:53+05:30",
+   "scope": "F-14 fix (done)",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/prompt-summary.ts",
+   "wp": "WP-20",
+   "granted": "2026-11-13T14:23:53+05:30",
+   "scope": "F-14 mock pooling (done)",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/handlers/prompt-answers.ts",
+   "wp": "WP-20",
+   "granted": "2026-11-13T14:23:53+05:30",
+   "scope": "F-14 mock pooling (done)",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/lib/api/types.ts",
+   "wp": "WP-20",
+   "granted": "2026-11-13T14:23:53+05:30",
+   "scope": "one line: PointPool export (done)",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/messages/en.json",
+   "wp": "WP-20",
+   "granted": "2026-11-13T14:23:53+05:30",
+   "scope": "edit ONLY the History tab copy keys chartFootnote, chartSummary and weekColumn so they no longer say '4 weeks' (use the pool weeks); additive otherwise",
+   "until": "WP-20 merged"
   }
  ],
  "followups": [
@@ -4105,7 +4140,7 @@
    "detail": "apps/web/src/features/prompts/history-model.ts lines ~66-80 sums the trailing 4 weekly mentioned points of a prompt row. Under C-11 every prompt point is already a trailing 4 week pool, so summing four overlapping pools counts answers up to 4 times (n inflated, Wilson band too narrow, wrong insufficient state). Fix: read each point as it is (use its own pooled numerator and denominator, and pool.weeks/pool.window for the label); the web mock prompt-summary.ts should also pool (returns is_pooled false and no pool today). MUST be fixed before the web switches from mocks to the real API. Owner: WP-18 or WP-20 (first to touch history), or a small fix package.",
    "owner": "web (assign to the next free session)",
    "severity": "correctness, blocks wiring real API",
-   "status": "open"
+   "status": "fixed e5ea65d0 (history-model reads each pooled point; mock pools prompt points always and topic points under 10 prompts)"
   },
   {
    "id": "F-15",
