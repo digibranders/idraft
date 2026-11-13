@@ -197,6 +197,16 @@ describe('the topic drawer: change on the three cards', () => {
     expect(tooltip()?.textContent).not.toMatch(/Detectable change|Within normal variation|Interim test/);
   });
 
+  it('does not say a share of voice change was tested on pooled answers, and says what its answers are', async () => {
+    const { user } = renderDrawer();
+    await user.hover(stopOf(await valueOf('Share of voice')));
+    await waitFor(() => expect(tooltip()).toHaveTextContent('Average of 2 engines that have a rate in both periods'));
+    expect(tooltip()?.textContent).not.toMatch(/pooled|tested/);
+    // No count of answers that count exists for share of voice: the answers are those that name a brand
+    expect(tooltip()).toHaveTextContent('Previous 40%, 140 answers naming a brand');
+    expect(tooltip()).toHaveTextContent('No test exists for share of voice');
+  });
+
   it('shows nothing for a topic with no previous period, and its tooltip says so', async () => {
     const { user } = renderDrawer({
       engines: [
@@ -268,6 +278,19 @@ describe('the topic drawer: change on the prompts', () => {
     expect(itemOf(list, 'few').textContent).not.toMatch(/\d pts/);
   });
 
+  it('puts the change at the end of the meta line in one unit with no separator dot that a wrap could strand', async () => {
+    renderDrawer();
+    const rose = itemOf(await sectionOf('Top prompts'), 'rose');
+    const meta = rose.querySelector('p');
+    const unit = meta?.lastElementChild;
+    if (unit === null || unit === undefined) throw new Error('The meta line is empty');
+    expect(unit).toContainElement(within(rose).getByText('+27.5 pts'));
+    expect(unit).toHaveClass('whitespace-nowrap');
+    // The element before the change is the last engine's count, not a dot
+    expect(unit.previousElementSibling).not.toHaveAttribute('aria-hidden');
+    expect(unit.previousElementSibling).toHaveTextContent('Gemini mentioned');
+  });
+
   it('keeps Show all opening the Prompts tab', async () => {
     const many = Array.from({ length: 6 }, (_, index) => promptOf(`n${String(index)}`, PROMPTS[0]?.engines ?? []));
     const onTabChange = vi.fn();
@@ -282,5 +305,46 @@ describe('the topic drawer: change on the prompts', () => {
     expect(top.textContent).not.toMatch(/\d pts/);
     // Only the prompt's own buttons are tab stops: the meta line has none
     expect(top.querySelector('p [tabindex="0"]')).toBeNull();
+  });
+});
+
+describe('the topic drawer: change on the prompts of one engine', () => {
+  it('shows the engine change of each prompt with the previous value in its tooltip', async () => {
+    const { user } = renderDrawer({ tab: 'prompts', searchParams: '?eng=chatgpt_web' });
+    const list = await sectionOf('Prompts');
+    const rose = itemOf(list, 'rose');
+    expect(within(rose).getByText('+30.0 pts')).toHaveClass('text-positive-text');
+    // A previous period of 3 answers has no rate, so no change
+    expect(itemOf(list, 'few').textContent).not.toMatch(/\d pts/);
+    const stop = within(rose).getByText('+30.0 pts').closest<HTMLElement>('[tabindex="0"]');
+    expect(stop).not.toBeNull();
+    if (stop !== null) await user.hover(stop);
+    await waitFor(() => expect(tooltip()).toHaveTextContent('Previous 20%, 12 of 60 answers'));
+    expect(tooltip()).toHaveTextContent('Previous period: Sep 18 to Oct 15');
+    expect(tooltip()).toHaveTextContent('Detectable change');
+  });
+
+  it('shows no change without comparison', async () => {
+    renderDrawer({ tab: 'prompts', searchParams: '?eng=chatgpt_web&cmp=off' });
+    const list = await sectionOf('Prompts');
+    expect(itemOf(list, 'rose')).toBeInTheDocument();
+    expect(list.textContent).not.toMatch(/\d pts/);
+  });
+});
+
+describe('the topic drawer: change in the By engine rows', () => {
+  const engineRows = async (): Promise<HTMLElement> => sectionOf('By engine');
+
+  it('shows the change of each engine row while comparison is on', async () => {
+    renderDrawer();
+    expect(await engineRows()).toHaveTextContent('up 30.0 pts, detectable, interim test');
+  });
+
+  it('shows no change once comparison is off, though the held rows still carry their previous cells', async () => {
+    renderDrawer({ searchParams: '?cmp=off' });
+    const rows = await engineRows();
+    expect(within(rows).getAllByRole('link').length).toBeGreaterThan(0);
+    expect(rows.textContent).not.toMatch(/\d pts/);
+    expect(rows.textContent).not.toMatch(/interim test/);
   });
 });

@@ -4558,6 +4558,8 @@
         "previousPrompts": "Previous {rate}, {basis}, over {count, plural, one {# prompt} other {# prompts}}",
         "average": "Average of {count, plural, one {# engine} other {# engines}} that have a rate in both periods",
         "averageTest": "{partial, select, true {Average of {count} of {shown} engines, the ones with a rate in both periods, tested on pooled answers} other {Average of {count} engines that have a rate in both periods, tested on pooled answers}}",
+        "averageCount": "{partial, select, true {Average of {count} of {shown} engines, the ones with a rate in both periods} other {Average of {count} engines that have a rate in both periods}}",
+        "previousShare": "Previous {rate}, {count, plural, one {# answer} other {# answers}} naming a brand",
         "onlyEngine": "Change of {engine} only, the one engine with a rate in both periods"
       },
       "cell": {

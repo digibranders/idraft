@@ -75,8 +75,9 @@ export function useChangeWords(): ChangeWords {
       // read as the average's change
       if (kind === 'average' && change.engines > 1) {
         const inAverage = shown ?? change.engines;
+        // Share of voice has no test, so its average is not said to be tested on pooled answers
         sentences.push(
-          t('tip.averageTest', {
+          t(metric === 'share_of_voice' ? 'tip.averageCount' : 'tip.averageTest', {
             count: change.engines,
             shown: inAverage,
             partial: inAverage > change.engines ? 'true' : 'false',
@@ -85,7 +86,12 @@ export function useChangeWords(): ChangeWords {
       } else if (kind === 'average' && engine !== undefined && (shown ?? 1) > 1) {
         sentences.push(t('tip.onlyEngine', { engine }));
       }
-      sentences.push(label(change));
+      // Share of voice has no count of answers that count: its answers are those that name a brand, which the tip says
+      sentences.push(
+        metric === 'share_of_voice'
+          ? t('tip.previousShare', { rate: words.text(readingOf(change.before)), count: change.before.answers })
+          : label(change),
+      );
       if (range !== null) {
         sentences.push(kind === 'strip' ? t('strip.previousLabel', { range }) : t('windowTip', { range }));
       }

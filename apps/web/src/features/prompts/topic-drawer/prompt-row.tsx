@@ -24,7 +24,6 @@ export function PromptRow({
   change?: ReactNode;
 }): ReactElement {
   const words = useTranslations('prompts');
-  const separator = useTranslations('inspector')('separator');
   return (
     <li className="flex flex-col gap-0.5 border-t border-border-subtle py-2 first:border-t-0 first:pt-0 last:pb-0">
       <span className="flex items-start gap-2">
@@ -35,12 +34,8 @@ export function PromptRow({
       </span>
       <p className="flex flex-wrap items-center gap-x-1.5 type-meta text-foreground-tertiary">
         {meta}
-        {change === undefined ? null : (
-          <>
-            <span aria-hidden="true">{separator}</span>
-            {change}
-          </>
-        )}
+        {/* No dot before the change: a dot would be stranded at the end or the start of a line when the meta wraps */}
+        {change === undefined ? null : <span className="ml-1.5 inline-flex whitespace-nowrap">{change}</span>}
       </p>
     </li>
   );

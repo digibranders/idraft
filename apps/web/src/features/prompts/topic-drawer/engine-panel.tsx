@@ -11,6 +11,7 @@ import { TopicEnginePanel, type EnginePanelRow } from '@/components/app/chart/to
 import { InspectorSection, type InspectorSectionStatus } from '@/components/app/inspector/inspector-section';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
+import { useCompare } from '@/features/prompts/compare';
 import { CELL_OF_METRIC, topicSummaryRow } from '@/features/prompts/prompt-model';
 import { useRateWords } from '@/features/prompts/rate-view';
 import { drillHref } from '@/features/prompts/topics-by-engine/drill';
@@ -39,6 +40,7 @@ export function EnginePanel(): ReactElement {
   const search = useSearchParams().toString();
   const { metric, setMetric } = useDrawerMetric();
   const drill = useDrill();
+  const { compare } = useCompare();
   const key = CELL_OF_METRIC[metric];
   const row = topicSummaryRow(summary, topicKey);
   const metricLabel = prompts(`metric.${metric}`);
@@ -58,7 +60,8 @@ export function EnginePanel(): ReactElement {
     const { engine_code: code, label } = engine;
     const basis = words.basis(value) ?? '';
     const noneText = words.reason(value) ?? panel('noAnswers');
-    const change = engineChange(row?.engines, code, key);
+    // Off at once: the rows held while the next read runs still carry the cells of the period they were compared with
+    const change = compare ? engineChange(row?.engines, code, key) : null;
     const input: MetricDeltaInput | null =
       change === null
         ? null

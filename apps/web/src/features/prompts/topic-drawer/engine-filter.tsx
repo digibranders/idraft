@@ -9,11 +9,15 @@ import { promptsBehindCell } from './prompts-behind';
 import { PromptRow } from './prompt-row';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { Tag } from '@/components/ui/tag';
+import { ChangeInline, useChangeWords, useComparedWindow, useCompare } from '@/features/prompts/compare';
+import { TippedChange } from '@/features/prompts/compare/tipped-change';
 import { CELL_OF_METRIC } from '@/features/prompts/prompt-model';
 import { useRateWords } from '@/features/prompts/rate-view';
 import { ENGINE_PARAM, parseEngineParam } from '@/features/prompts/topics-by-engine/drill';
 import { engineValue } from '@/features/prompts/topics-by-engine/engine-values';
 import type { PromptSummaryRow } from '@/lib/api/types';
+import { engineChangeOf } from '@/lib/compare/change-model';
+import { formatDateRange } from '@/lib/format';
 
 export interface EngineFilteredPromptsProps {
   /** Every prompt of the topic and of the topics below it, in the order the drawer lists them. */
@@ -37,6 +41,10 @@ export function EngineFilteredPrompts({ prompts, onOpen, renderList }: EngineFil
   const words = useTranslations('prompts');
   const rate = useRateWords();
   const { metric } = useDrawerMetric();
+  const changeWords = useChangeWords();
+  const { compare } = useCompare();
+  const compared = useComparedWindow();
+  const range = compared === null ? null : formatDateRange(compared.from, compared.to);
   const [engineText, setEngine] = useQueryState(ENGINE_PARAM, parseAsString);
   const code = parseEngineParam(
     engineText,
@@ -73,12 +81,21 @@ export function EngineFilteredPrompts({ prompts, onOpen, renderList }: EngineFil
           <ul className="flex flex-col">
             {behind.map((prompt) => {
               const value = engineValue(prompt.engines, code, key);
+              // The change of the same metric on the same engine as the value beside it; none is nothing to draw
+              const change = compare ? engineChangeOf(prompt.engines, code, key) : null;
               return (
                 <PromptRow
                   key={prompt.prompt_id}
                   text={prompt.text}
                   isBranded={prompt.is_branded}
                   onOpen={() => onOpen(prompt.prompt_id)}
+                  change={
+                    change === null ? undefined : (
+                      <TippedChange tip={changeWords.tip(change, { kind: 'engine', range, metric: key })}>
+                        <ChangeInline change={change} size="sm" />
+                      </TippedChange>
+                    )
+                  }
                   meta={
                     <span className="num">
                       {value.state === 'none'

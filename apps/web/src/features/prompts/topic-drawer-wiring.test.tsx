@@ -1,5 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { parseAsString, useQueryStates } from 'nuqs';
 import { Suspense, useEffect, type ComponentProps, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -200,6 +200,20 @@ describe('the topic drawer: the Overview', () => {
       const section = await engineRows();
       await waitFor(() => expect(section).toHaveTextContent('up 30.0 pts, detectable, interim test'));
       expect(asked).toContain('previous_period');
+    });
+
+    it('drops the By engine change at once when comparison is turned off, before the next read lands', async () => {
+      asked.length = 0;
+      rising();
+      const { user } = renderOn('viewer', inspect(PAID_SEARCH));
+      const section = await engineRows();
+      await waitFor(() => expect(section).toHaveTextContent('up 30.0 pts, detectable, interim test'));
+      // The read that follows the toggle never answers: the rows on screen are the held ones, with their previous cells
+      server.use(http.get(SUMMARY_PATH, () => delay('infinite')));
+      await user.click(screen.getByRole('combobox', { name: 'Compare with' }));
+      await user.click(await screen.findByRole('option', { name: 'No comparison' }));
+      await waitFor(() => expect(section.textContent).not.toMatch(/\d pts/));
+      expect(within(section).getAllByRole('link').length).toBeGreaterThan(0);
     });
 
     it('asks no compare and shows no change when comparison is off', async () => {
