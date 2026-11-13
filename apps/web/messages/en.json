@@ -4191,7 +4191,47 @@
     "generate": {},
     "versions": {},
     "panels": {},
-    "compare": {},
+    "compare": {
+      "label": "Compare with",
+      "previous": "vs previous period",
+      "off": "No comparison",
+      "windowTip": "Previous period: {range}",
+      "offTip": "No change is read while comparison is off",
+      "detectable": {
+        "field": "Show",
+        "option": "Detectable changes only",
+        "tip": "Keeps the rows whose Mention rate change is larger than normal variation. Interim test: unpaired, on pooled answers."
+      },
+      "empty": {
+        "noneTitle": "No detectable change in these rows",
+        "noneReason": "{count, plural, one {# row was} other {# rows were}} compared with the previous period and none changed by more than normal variation.",
+        "offTitle": "No comparison to read changes from",
+        "offReason": "Comparison is off, so no change can be detected. Turn it on or clear the filter.",
+        "noPreviousReason": "The previous period has no answers, so no change can be told.",
+        "turnOn": "Compare with previous period"
+      },
+      "change": {
+        "header": "Change",
+        "engineHeader": "{engine} change",
+        "engineHeaderTip": "Change in points of this engine's {metric} since the previous period. Coloured only when the change is detectable.",
+        "off": "Comparison is off",
+        "noPrevious": "No answers in the previous period",
+        "tooFew": "Too few answers in one of the periods for a rate",
+        "shareNoTest": "No test exists for share of voice, so its change is not coloured.",
+        "noEngineInBoth": "No engine has a rate in both periods"
+      },
+      "tip": {
+        "previous": "Previous {rate}, {basis}",
+        "previousAnswers": "Previous {rate}, {answers, plural, one {# answer} other {# answers}}",
+        "average": "Average of {count, plural, one {# engine} other {# engines}} that have a rate in both periods",
+        "pooled": "test on the answers of those engines together",
+        "prompts": "over {count, plural, one {# prompt} other {# prompts}}",
+        "method": "unpaired, pooled counts"
+      },
+      "strip": {
+        "previousLabel": "Previous period, {range}"
+      }
+    },
     "citationsTab": {
       "tab": "Citations",
       "label": "Citations of this prompt",
