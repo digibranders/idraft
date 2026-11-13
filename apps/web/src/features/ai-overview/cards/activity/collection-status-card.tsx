@@ -43,13 +43,12 @@ const FINISHED_STATUS = {
  * not "no schedule", and a next run that could not be read is n/a. Without access to runs the card says so and reads
  * nothing.
  */
-export default function CollectionStatusCard({ item }: CardProps): ReactElement {
+export default function CollectionStatusCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.activity.collection');
   const { project, canViewRuns } = useOverview();
   const drill = useCardDrill();
-  const runs = useAiRuns();
-  // WP-33 adds a `subscribed` option to the Overview reads: pass `live` to this one when it lands
-  const schedule = useOverviewSchedule();
+  const runs = useAiRuns({ subscribed: live });
+  const schedule = useOverviewSchedule({ subscribed: live });
   const timeZone = project.timeZone;
   const status: CollectionStatus | null = runs.data === undefined ? null : collectionStatus(runs.data);
   const next = nextRunOf(schedule.data);
@@ -122,7 +121,13 @@ export default function CollectionStatusCard({ item }: CardProps): ReactElement 
     frame = { status: 'empty', empty: { title: t('noAccessTitle'), reason: t('noAccessReason') } };
   } else if (runs.status === 'error') {
     frame = { status: 'error', error };
-  } else if (runs.status === 'loading' || runs.status === 'idle' || schedule.status === 'loading') {
+  } else if (
+    runs.status === 'loading' ||
+    runs.status === 'idle' ||
+    // The schedule is always asked for unless the card is paused: idle is a read not made yet, not a missing schedule
+    schedule.status === 'loading' ||
+    schedule.status === 'idle'
+  ) {
     frame = { status: 'loading' };
   } else if (!hasRun) {
     frame = { status: 'empty', empty: { title: t('noRunTitle'), reason: noRunReason(next) } };

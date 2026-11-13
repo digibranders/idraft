@@ -46,16 +46,18 @@ export interface RenderActivityOptions {
   searchParams?: string;
   /** `customize` puts the card in an `inert` body, as the layout's card frame does: it is arranged, not used. */
   mode?: CardProps['mode'];
+  /** The `live` prop of the card: `false` pauses its reads, as customize mode does in the grid. */
+  live?: boolean;
 }
 
 /** One card of the activity family, signed in as `role`, on a project of the mock world. */
 export function renderActivityCard(
   type: string,
   Card: ComponentType<CardProps>,
-  { role = 'admin', world = 'fynix', searchParams = 'cmp=off', mode = 'view' }: RenderActivityOptions = {},
+  { role = 'admin', world = 'fynix', searchParams = 'cmp=off', mode = 'view', live = true }: RenderActivityOptions = {},
 ): ProvidedRender {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
-  const card = <Card item={{ id: ITEM_ID, type, width: 'half' }} options={{}} width="half" mode={mode} live />;
+  const card = <Card item={{ id: ITEM_ID, type, width: 'half' }} options={{}} width="half" mode={mode} live={live} />;
   return renderWithProviders(
     <PermissionProvider membership={membershipFactory(role)}>
       <Suspense fallback={null}>

@@ -51,14 +51,14 @@ const WITH_ENGINE_SPLIT: readonly DomainInclude[] = ['by_role_by_engine'];
  * are its units of the engine's total. Roles only: the categories of the preview (media, review sites, community) need
  * the source intelligence of a later package, so none is drawn here.
  */
-export default function RoleShareCard({ item }: CardProps): ReactElement {
+export default function RoleShareCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.sources.roleShare');
   const say = useTranslations('aiOverview.sources.common') as Say;
   const roleWords = useTranslations('common.domainCell.roles');
   const insufficient = useTranslations('common.insufficient');
   const density = useCardDensity();
   // One row of domains is enough: the split by engine is in `meta`, which no row narrows
-  const reads = useSourceDomains({ limit: 1, include: WITH_ENGINE_SPLIT });
+  const reads = useSourceDomains({ limit: 1, include: WITH_ENGINE_SPLIT, subscribed: live });
   const page = reads.current.data;
   const mixes = page === undefined ? [] : roleMix(page.meta);
 

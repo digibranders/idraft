@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import { overviewSchedulesQuery, type ProjectRef } from '../../../data/overview-queries';
-import { mapRead, useRead, type Read } from '../../../data/read-state';
+import { mapRead, useRead, type Gate, type Read } from '../../../data/read-state';
+import type { ReadOptions } from '../../../data/use-overview-reads';
 import { useOverview } from '../../../overview-context';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import type { BudgetStatus, Run, Schedule } from '@/lib/api/types';
@@ -16,8 +17,9 @@ import { useCan } from '@/lib/permissions';
  * and the models change. Each key starts with the project (or workspace) and then the route, so a refresh of the
  * project reaches them, and two cards that ask the same thing make one request.
  *
- * The Overview hooks (`useOverviewSchedule`, `useOverviewEngines`) take no `subscribed` option yet (WP-33 adds it):
- * these hooks run for a card in customize mode too, and gate only on what the person may read.
+ * Each hook takes `{ subscribed }` like the Overview hooks (a card passes its `live`): while it is `false` (customize
+ * mode) nothing is asked, the data the read already has stays, and a read with none is `idle`, never `error`. What
+ * the person may read gates on top of that, so a read that is not permitted asks nothing whatever `subscribed` says.
  */
 
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
@@ -40,29 +42,37 @@ export const aiRunsQuery = (project: ProjectRef): ApiQueryOptions<typeof RUNS> =
 export const budgetStatusQuery = (workspaceId: string): ApiQueryOptions<typeof BUDGET_STATUS> =>
   apiQuery(BUDGET_STATUS, { params: { path: { workspace_id: workspaceId } } });
 
+/** `idle` when the person may not read it; otherwise `run`, or `paused` while the card is not subscribed. */
+const gateOf = (allowed: boolean, subscribed: boolean): Gate => (!allowed ? 'idle' : subscribed ? 'run' : 'paused');
+
 /**
  * The newest AI runs. Not asked, and `idle`, for a member without access to runs (`canViewRuns`): a card that
  * would show them says so instead.
  */
-export function useAiRuns(): Read<readonly Run[]> {
+export function useAiRuns({ subscribed = true }: ReadOptions = {}): Read<readonly Run[]> {
   const { workspaceId, project, canViewRuns } = useOverview();
-  const query = useQuery({ ...aiRunsQuery({ workspaceId, projectId: project.id }), enabled: canViewRuns });
-  const read = useRead(query, canViewRuns ? 'run' : 'idle');
+  const gate = gateOf(canViewRuns, subscribed);
+  const query = useQuery({ ...aiRunsQuery({ workspaceId, projectId: project.id }), enabled: gate === 'run' });
+  const read = useRead(query, gate);
   return useMemo(() => mapRead(read, (page): readonly Run[] => page.data), [read]);
 }
 
 /** The AI schedules of the project, paused ones too: the same request as `useOverviewSchedule`. */
-export function useAiSchedules(): Read<readonly Schedule[]> {
+export function useAiSchedules({ subscribed = true }: ReadOptions = {}): Read<readonly Schedule[]> {
   const { workspaceId, project } = useOverview();
-  const read = useRead(useQuery(overviewSchedulesQuery({ workspaceId, projectId: project.id })));
+  const query = useQuery({
+    ...overviewSchedulesQuery({ workspaceId, projectId: project.id }),
+    enabled: subscribed,
+  });
+  const read = useRead(query, gateOf(true, subscribed));
   return useMemo(() => mapRead(read, (page): readonly Schedule[] => page.data), [read]);
 }
 
 /** The budgets' status of the month. Not asked, and `idle`, without `costs:read`: money is not read for a viewer. */
-export function useBudgetStatus(): Read<readonly BudgetStatus[]> {
+export function useBudgetStatus({ subscribed = true }: ReadOptions = {}): Read<readonly BudgetStatus[]> {
   const { workspaceId } = useOverview();
-  const canReadCosts = useCan('costs:read');
-  const query = useQuery({ ...budgetStatusQuery(workspaceId), enabled: canReadCosts });
-  const read = useRead(query, canReadCosts ? 'run' : 'idle');
+  const gate = gateOf(useCan('costs:read'), subscribed);
+  const query = useQuery({ ...budgetStatusQuery(workspaceId), enabled: gate === 'run' });
+  const read = useRead(query, gate);
   return useMemo(() => mapRead(read, (page): readonly BudgetStatus[] => page.data), [read]);
 }

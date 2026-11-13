@@ -40,13 +40,13 @@ const SUMMARY_LEADERS = 3;
  * its words. The address and the title are provider text and only ever drawn as text: a row opens the source
  * inspector of the Citations page, never the address itself.
  */
-export default function OwnPagesCard({ item, options }: CardProps): ReactElement {
+export default function OwnPagesCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.sources.ownPages');
   const say = useTranslations('aiOverview.sources.common') as Say;
   const density = useCardDensity();
   const citations = useCitationsDrill();
   const limit = rowsOf(options.rows);
-  const reads = useSourcePages({ limit });
+  const reads = useSourcePages({ limit, subscribed: live });
   const page = reads.current.data;
   const figures = page === undefined ? [] : pageRows(page);
 

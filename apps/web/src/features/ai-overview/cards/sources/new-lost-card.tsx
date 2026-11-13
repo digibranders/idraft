@@ -56,15 +56,14 @@ function mergeFacts(reads: readonly ReadFacts[]): ReadFacts {
  * before that has answers, and never show as 0 without it; lost shows what the route returns, whose rule needs 2
  * windows after the last citation. The units of every engine in scope are one pool, as the route aggregates them.
  */
-export default function NewLostCard({ item }: CardProps): ReactElement {
+export default function NewLostCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.sources.newLost');
   const say = useTranslations('aiOverview.sources.common') as Say;
   const roleWords = useTranslations('common.domainCell.roles');
   const density = useCardDensity();
   const citations = useCitationsDrill();
-  const reads = useSourceChanges({ limit: LIST_ROWS });
-  const diversity = useSourceDiversity();
-  // The Overview read hooks do not take `subscribed` yet (WP-33): pass `live` to the reads when they do
+  const reads = useSourceChanges({ limit: LIST_ROWS, subscribed: live });
+  const diversity = useSourceDiversity({ subscribed: live });
   const [choice, setChoice] = useState<readonly ChangeKind[]>(['new']);
 
   const newPage = reads.newer.data;

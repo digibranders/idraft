@@ -65,7 +65,7 @@ const VIEWS = ['bars', 'roles'] as const satisfies readonly View[];
  * the Table view carry the split. Beside every percent are its units of the scope's total. A change of the share is
  * never coloured: the API sends no detectability for it yet. Flagged citations are left out, as on the strip.
  */
-export default function TopDomainsCard({ item, options }: CardProps): ReactElement {
+export default function TopDomainsCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.sources.topDomains');
   const say = useTranslations('aiOverview.sources.common') as Say;
   const roleWords = useTranslations('common.domainCell.roles');
@@ -77,7 +77,7 @@ export default function TopDomainsCard({ item, options }: CardProps): ReactEleme
   // Viewer state, as on the other cards: not in the address, and the same read serves both views (`meta.by_role` is in it)
   const [view, setView] = useState<View>('bars');
   const byRole = view === 'roles';
-  const reads = useSourceDomains({ limit, roles, compare: true });
+  const reads = useSourceDomains({ limit, roles, compare: true, subscribed: live });
   const page = reads.current.data;
   const previousMeta = reads.previous?.data ?? null;
   const figures = page === undefined ? [] : domainRows(page, previousMeta);

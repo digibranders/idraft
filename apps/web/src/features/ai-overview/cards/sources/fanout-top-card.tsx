@@ -72,11 +72,11 @@ function situationOf(
  * which search found which source is not stored). The search text and the domains are provider text: React text
  * only. No row links anywhere: the Fan-out page is not live.
  */
-export default function FanoutTopCard({ item, options }: CardProps): ReactElement {
+export default function FanoutTopCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.sources.fanout');
   const insufficient = useTranslations('common.insufficient');
   const density = useCardDensity();
-  const reads = useFanoutRows({ limit: rowsOf(options.rows) });
+  const reads = useFanoutRows({ limit: rowsOf(options.rows), subscribed: live });
   const page = reads.current.data;
   const figures = page === undefined ? [] : fanoutFigures(page);
   const standing = page === undefined ? null : fanoutStanding(page);

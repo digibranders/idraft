@@ -63,11 +63,10 @@ function shownLines(option: Record<string, unknown>): { id: string; name: string
  * API states, labelled as the equal-weight mean of the engines with units. A week with no citation unit is a gap in
  * the line and not 0. The Table view and every tooltip carry both inputs of a week: its units and its domains.
  */
-export default function DiversityCard({ item }: CardProps): ReactElement {
+export default function DiversityCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.sources.diversity');
   const say = useTranslations('aiOverview.sources.common') as Say;
-  // The Overview read hooks do not take `subscribed` yet (WP-33): pass `live` to the reads when they do
-  const reads = useSourceDiversity();
+  const reads = useSourceDiversity({ subscribed: live });
   const read = reads.current.data;
   const [view, setView] = useState<DiversityView>('distinct');
   const model = useMemo(() => (read === undefined ? null : diversityModel(read)), [read]);

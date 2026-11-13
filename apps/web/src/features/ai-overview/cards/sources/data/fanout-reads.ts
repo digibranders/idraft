@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { sourceFilters, sourcesAskable, type SourcesAskable } from './source-filters';
 import { askedEngines } from '../../../data/overview-queries';
 import { useRead, type Gate, type Read } from '../../../data/read-state';
+import type { ReadOptions } from '../../../data/use-overview-reads';
 import { useOverview } from '../../../overview-context';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import type { EngineCode, ProjectEngine, Schemas } from '@/lib/api/types';
@@ -33,7 +34,7 @@ export interface FanoutRows {
   without: readonly EngineCode[];
 }
 
-export interface FanoutOptions {
+export interface FanoutOptions extends ReadOptions {
   /** The rows asked for. */
   limit: number;
 }
@@ -71,9 +72,8 @@ function fanoutRowsQuery(
 }
 
 /** The queries answers issued, most answers first, over the scope of the Overview. */
-export function useFanoutRows({ limit }: FanoutOptions): FanoutRows {
+export function useFanoutRows({ limit, subscribed = true }: FanoutOptions): FanoutRows {
   const { workspaceId, project, scope, enabledEngines, engines } = useOverview();
-  // The Overview read hooks do not take `subscribed` yet (WP-33): pass `live` here when they do
   const known = engines.data !== undefined;
   const entries = useMemo(() => engines.data ?? [], [engines.data]);
   const asked = useMemo(() => askedEngines({ scope, enabledEngines }), [scope, enabledEngines]);
@@ -90,11 +90,12 @@ export function useFanoutRows({ limit }: FanoutOptions): FanoutRows {
   const ref = useMemo(() => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const query = useQuery({
     ...fanoutRowsQuery(ref, { ...filters, engines: showing.length === enabledShowing.length ? [] : showing }, limit),
-    enabled: runs,
+    enabled: runs && subscribed,
     placeholderData: keepPreviousData,
   });
-  // The engines say which of them show their queries: until they are known there is nothing to ask yet
-  const gate: Gate = runs ? 'run' : askable === 'ok' ? 'waiting' : 'idle';
+  // The engines say which of them show their queries: until they are known there is nothing to ask yet. A card that
+  // is not live (customize mode) asks nothing: it keeps the rows it has for the scope, or is `idle` without any.
+  const gate: Gate = runs ? (subscribed ? 'run' : 'paused') : askable === 'ok' ? 'waiting' : 'idle';
   const current = useRead(query, gate);
   return useMemo(() => ({ current, askable, without }), [current, askable, without]);
 }

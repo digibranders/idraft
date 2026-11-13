@@ -45,13 +45,12 @@ interface Line {
  * that is off is not asked, so it has no days and no next run, and its cost is labelled "if on"; a price the book does
  * not have is n/a, never $0.
  */
-export default function EnginesCard({ item }: CardProps): ReactElement {
+export default function EnginesCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.activity.engines');
   const common = useTranslations('aiOverview.activity.common');
   const { workspaceSlug, project, engines, canManageEngines } = useOverview();
-  const schedules = useAiSchedules();
-  // WP-33 adds a `subscribed` option to the Overview reads: pass `live` to this one when it lands
-  const schedule = useOverviewSchedule();
+  const schedules = useAiSchedules({ subscribed: live });
+  const schedule = useOverviewSchedule({ subscribed: live });
   const timeZone = project.timeZone;
 
   const schedulesRead = schedules.status === 'ready' || schedules.status === 'refetching';
@@ -116,7 +115,13 @@ export default function EnginesCard({ item }: CardProps): ReactElement {
   let frame: FrameState;
   if (engines.status === 'error') {
     frame = { status: 'error', error };
-  } else if (engines.status === 'loading' || engines.status === 'idle' || schedules.status === 'loading') {
+  } else if (
+    engines.status === 'loading' ||
+    engines.status === 'idle' ||
+    // The schedules are always asked for unless the card is paused: idle is a read not made yet, not "not scheduled"
+    schedules.status === 'loading' ||
+    schedules.status === 'idle'
+  ) {
     frame = { status: 'loading' };
   } else if (rows.length === 0) {
     frame = {

@@ -5,7 +5,8 @@ import { useMemo } from 'react';
 
 import { MIN_DOMAIN_UNITS, sourceFilters, sourcesAskable, type SourcesAskable } from './source-filters';
 import { comparisonWindow } from '../../../data/overview-queries';
-import { mapRead, useRead, type Read } from '../../../data/read-state';
+import { mapRead, useRead, type Gate, type Read } from '../../../data/read-state';
+import type { ReadOptions } from '../../../data/use-overview-reads';
 import { useOverview } from '../../../overview-context';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import {
@@ -34,7 +35,14 @@ import type {
 const NO_ROLES: readonly DomainRole[] = [];
 const NO_INCLUDE: readonly DomainInclude[] = [];
 
-export interface DomainListOptions {
+/**
+ * How a read of this family stands: `idle` when it has nothing to ask, `paused` while the card is not live (customize
+ * mode: it asks nothing, keeps the data it has for the scope and is `idle` without any), otherwise `run`. The same
+ * rule as the Overview read hooks.
+ */
+const gateOf = (runs: boolean, subscribed: boolean): Gate => (!runs ? 'idle' : subscribed ? 'run' : 'paused');
+
+export interface DomainListOptions extends ReadOptions {
   /** The rows asked for. */
   limit: number;
   /** Narrows the rows; the totals stay those of the scope. */
@@ -68,24 +76,26 @@ export function useSourceDomains({
   roles = NO_ROLES,
   compare = false,
   include = NO_INCLUDE,
+  subscribed = true,
 }: DomainListOptions): SourceDomains {
   const { workspaceId, project, scope, enabledEngines } = useOverview();
-  // The Overview read hooks do not take `subscribed` yet (WP-33): pass `live` here and below when they do
   const readScope = useMemo(() => ({ scope, enabledEngines }), [scope, enabledEngines]);
   const askable = sourcesAskable(readScope);
   const runs = askable === 'ok';
+  const gate = gateOf(runs, subscribed);
   const compared = compare && comparisonWindow(scope) !== null;
   const ref = useMemo(() => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const filters = useMemo(() => sourceFilters(readScope, roles), [readScope, roles]);
   const currentQuery = useQuery({
     ...sourceDomainsQuery(ref, filters, { limit, minSupport: MIN_DOMAIN_UNITS, compare: compared, include }),
-    enabled: runs,
+    enabled: gate === 'run',
     placeholderData: keepPreviousData,
   });
-  const current = useRead(currentQuery, runs ? 'run' : 'idle');
+  const current = useRead(currentQuery, gate);
 
   const meta = current.data?.meta;
   const before = meta?.compare_window ?? null;
+  // While paused the window before keeps what it has (and is `idle` without it), so a card that shows rows keeps its changes
   const askBefore = runs && compared && before !== null && (meta?.previous_answers ?? 0) > 0;
   const beforeFilters = useMemo(
     () => ({ ...sourceFilters(readScope), from: before?.from ?? filters.from, to: before?.to ?? filters.to }),
@@ -93,9 +103,9 @@ export function useSourceDomains({
   );
   const beforeQuery = useQuery({
     ...sourceDomainsQuery(ref, beforeFilters, { limit: 1 }),
-    enabled: askBefore,
+    enabled: askBefore && subscribed,
   });
-  const beforeRead = useRead(beforeQuery, askBefore ? 'run' : 'idle');
+  const beforeRead = useRead(beforeQuery, gateOf(askBefore, subscribed));
   const previous = useMemo(
     (): Read<SourcesMeta> | null => (askBefore ? { ...beforeRead, data: beforeRead.data?.meta } : null),
     [askBefore, beforeRead],
@@ -105,7 +115,7 @@ export function useSourceDomains({
 
 const OWN_ONLY: readonly DomainRole[] = ['own'];
 
-export interface PageListOptions {
+export interface PageListOptions extends ReadOptions {
   /** The rows asked for. */
   limit: number;
 }
@@ -122,24 +132,23 @@ export interface SourcePages {
  * `meta` is the scope's whole, so a card can still say how many units the other roles hold. No comparison and no
  * minimum: one own page cited once is a page worth listing.
  */
-export function useSourcePages({ limit }: PageListOptions): SourcePages {
+export function useSourcePages({ limit, subscribed = true }: PageListOptions): SourcePages {
   const { workspaceId, project, scope, enabledEngines } = useOverview();
-  // The Overview read hooks do not take `subscribed` yet (WP-33): pass `live` here when they do
   const readScope = useMemo(() => ({ scope, enabledEngines }), [scope, enabledEngines]);
   const askable = sourcesAskable(readScope);
-  const runs = askable === 'ok';
+  const gate = gateOf(askable === 'ok', subscribed);
   const ref = useMemo(() => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const filters = useMemo(() => sourceFilters(readScope, OWN_ONLY), [readScope]);
   const query = useQuery({
     ...sourcePagesQuery(ref, filters, { limit }),
-    enabled: runs,
+    enabled: gate === 'run',
     placeholderData: keepPreviousData,
   });
-  const current = useRead(query, runs ? 'run' : 'idle');
+  const current = useRead(query, gate);
   return useMemo(() => ({ current, askable }), [current, askable]);
 }
 
-export interface ChangeListOptions {
+export interface ChangeListOptions extends ReadOptions {
   /** The rows asked for from each list. */
   limit: number;
 }
@@ -163,26 +172,26 @@ export interface SourceChanges {
  * window before. The route compares the window before on its own, so these reads do not depend on the scope's
  * comparison switch. `min_support` is asked of the route (default 2), not applied here.
  */
-export function useSourceChanges({ limit }: ChangeListOptions): SourceChanges {
+export function useSourceChanges({ limit, subscribed = true }: ChangeListOptions): SourceChanges {
   const { workspaceId, project, scope, enabledEngines } = useOverview();
-  // The Overview read hooks do not take `subscribed` yet (WP-33): pass `live` here and below when they do
   const readScope = useMemo(() => ({ scope, enabledEngines }), [scope, enabledEngines]);
   const askable = sourcesAskable(readScope);
   const runs = askable === 'ok';
+  const gate = gateOf(runs, subscribed);
   const ref = useMemo(() => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const filters = useMemo(() => sourceFilters(readScope), [readScope]);
   const newQuery = useQuery({
     ...sourceChangesQuery(ref, filters, { kind: 'new', minSupport: MIN_DOMAIN_UNITS, limit }),
-    enabled: runs,
+    enabled: gate === 'run',
     placeholderData: keepPreviousData,
   });
   const lostQuery = useQuery({
     ...sourceChangesQuery(ref, filters, { kind: 'lost', minSupport: MIN_DOMAIN_UNITS, limit }),
-    enabled: runs,
+    enabled: gate === 'run',
     placeholderData: keepPreviousData,
   });
-  const newer = useRead(newQuery, runs ? 'run' : 'idle');
-  const lost = useRead(lostQuery, runs ? 'run' : 'idle');
+  const newer = useRead(newQuery, gate);
+  const lost = useRead(lostQuery, gate);
 
   const compareWindow = newer.data?.meta.compare_window ?? null;
   const askBefore = runs && compareWindow !== null;
@@ -192,9 +201,9 @@ export function useSourceChanges({ limit }: ChangeListOptions): SourceChanges {
   );
   const beforeQuery = useQuery({
     ...sourceDomainsQuery(ref, beforeFilters, { limit: 1 }),
-    enabled: askBefore,
+    enabled: askBefore && subscribed,
   });
-  const beforeRead = useRead(beforeQuery, askBefore ? 'run' : 'idle');
+  const beforeRead = useRead(beforeQuery, gateOf(askBefore, subscribed));
   const before = useMemo(
     (): Read<number> | null => (askBefore ? mapRead(beforeRead, (page) => page.meta.answers) : null),
     [askBefore, beforeRead],
@@ -228,14 +237,18 @@ const diversityQuery = (
   });
 
 /** The weekly source diversity of every engine in scope (CH-26). Two cards that ask it are one request. */
-export function useSourceDiversity(): SourceDiversityRead {
+export function useSourceDiversity({ subscribed = true }: ReadOptions = {}): SourceDiversityRead {
   const { workspaceId, project, scope, enabledEngines } = useOverview();
   const readScope = useMemo(() => ({ scope, enabledEngines }), [scope, enabledEngines]);
   const askable = sourcesAskable(readScope);
-  const runs = askable === 'ok';
+  const gate = gateOf(askable === 'ok', subscribed);
   const ref = useMemo(() => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const filters = useMemo(() => sourceFilters(readScope), [readScope]);
-  const query = useQuery({ ...diversityQuery(ref, filters), enabled: runs, placeholderData: keepPreviousData });
-  const current = useRead(query, runs ? 'run' : 'idle');
+  const query = useQuery({
+    ...diversityQuery(ref, filters),
+    enabled: gate === 'run',
+    placeholderData: keepPreviousData,
+  });
+  const current = useRead(query, gate);
   return useMemo(() => ({ current, askable }), [current, askable]);
 }

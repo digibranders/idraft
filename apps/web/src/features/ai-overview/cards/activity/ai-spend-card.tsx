@@ -29,13 +29,12 @@ interface Fact {
  * Money is read only with `costs:read`: the read does not run without it (`useBudgetStatus`), so a viewer makes no
  * request and sees none of it. The catalog hides the card from such a member too; this is the second guard.
  */
-export default function AiSpendCard({ item }: CardProps): ReactElement {
+export default function AiSpendCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.activity.spend');
   const { project } = useOverview();
   const canReadCosts = useCan('costs:read');
   const canManageBudgets = useCan('budgets:manage');
-  // WP-33 adds a `subscribed` option to the Overview reads: pass `live` to this one when it lands
-  const read = useBudgetStatus();
+  const read = useBudgetStatus({ subscribed: live });
   const facts: SpendFacts | null = read.data === undefined ? null : chooseSpend(read.data, project.id);
 
   const money = (usd: number | null): string => formatCurrency(usd);
