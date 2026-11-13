@@ -4520,6 +4520,56 @@
       "engineUnits": "Citation units on {engine}",
       "change": "Change in share (points)"
     },
+    "newLost": {
+      "tab": "New and lost",
+      "label": "New or lost",
+      "new": "New",
+      "lost": "Lost",
+      "caption": {
+        "new": "New sources",
+        "lost": "Lost sources"
+      },
+      "noun": {
+        "new": {
+          "one": "source",
+          "other": "sources"
+        },
+        "lost": {
+          "one": "source",
+          "other": "sources"
+        }
+      },
+      "ruleName": "New and lost sources",
+      "ruleDefinition": "A source is new when it starts to be cited and lost when it stops.",
+      "ruleNew": "New: at least {min, number} citation units in this window and none in the {days, number} days before it.",
+      "ruleLost": "Lost after 0 units in 2 following windows, having had at least {min, number} units before them.",
+      "sample": "{answers, plural, one {# answer} other {# answers}}, {range}",
+      "lostCost": "Lost sources read {days, number} days of answers, three windows of {window, number} days, so this list can take a moment.",
+      "noPrevious": "The previous period has no answers, so nothing is new.",
+      "noPreviousLost": "The earlier periods have no answers, so nothing can be lost.",
+      "emptyNewTitle": "No new source",
+      "emptyNewReason": "No source reached {min, number} units in this window without being cited in the {days, number} days before it. Lower the minimum or choose another window.",
+      "emptyLostTitle": "No lost source",
+      "emptyLostReason": "A source is lost after it was cited in one window and not at all in the 2 windows after it, so a lost source needs {days, number} days of answers behind this window.",
+      "failed": "{kind, select, new {The new sources} other {The lost sources}} could not be loaded.",
+      "countFailed": "The count of {kind, select, new {new} other {lost}} sources could not be loaded.",
+      "truncated": "The {limit, number} sources with the most units are listed of {total, number}. Raise the minimum or narrow the filters.",
+      "columns": {
+        "domain": "Domain",
+        "role": "Role",
+        "units": "Citation units",
+        "unitsBefore": "Units before it went quiet",
+        "firstCited": "First cited",
+        "lastCited": "Last cited"
+      },
+      "unitsBeforeTip": "{units, number} units between {range}"
+    },
+    "flagFilters": {
+      "redirects": "Unresolved redirects",
+      "redirectsInclude": "Include unresolved redirects",
+      "internal": "Engine links",
+      "internalInclude": "Include engine-internal links"
+    },
     "inspectors": {}
   },
   "competitors": {},
