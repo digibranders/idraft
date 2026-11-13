@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,6 +8,7 @@ import { LayoutGrid } from './layout-grid';
 import { LayoutProvider, useLayoutScreen } from './layout-provider';
 import { defineCards } from './registry';
 import { dismissToast } from '@/components/ui/toast';
+import type * as Toast from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
 import type * as Announcer from '@/lib/a11y/announcer';
 import {
@@ -24,12 +25,18 @@ import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_WORKSPACE } from '@/mocks/fixtures';
 import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
-import { ScreenUnderTest, serveLayouts, startCustomizing, stateOf, stubViewport } from '@/test/customize-harness';
+import { ScreenUnderTest, box, serveLayouts, startCustomizing, stateOf, stubViewport } from '@/test/customize-harness';
 import { server } from '@/test/msw';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
 
 // The controller of a customizable screen reads the router and the address
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
+
+/** The real toast functions, watched: a dismissal that should not happen twice can be counted. */
+vi.mock('@/components/ui/toast', async (importOriginal) => {
+  const original = await importOriginal<typeof Toast>();
+  return { ...original, dismissToast: vi.fn(original.dismissToast) };
+});
 
 /** The real announcer, watched: the live region still gets every message, and a double announcement can be counted. */
 vi.mock('@/lib/a11y/announcer', async (importOriginal) => {
@@ -536,6 +543,83 @@ describe('Hide with Undo', () => {
     });
     await waitFor(() => {
       expect(toastOf()).toBeNull();
+    });
+  });
+
+  describe('on its own clock', () => {
+    // The toast has an action, so the toast region never closes it: it would cover the save bar for good
+    const SECONDS = 1000;
+    const dismissals = (): unknown[] =>
+      vi
+        .mocked(dismissToast)
+        .mock.calls.map(([id]) => id)
+        .filter((id) => id !== undefined);
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('dismisses itself after 8 seconds and not before, and the save bar Undo still undoes the hide', async () => {
+      const view = await screenInCustomizeMode();
+      vi.mocked(dismissToast).mockClear();
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      await hide(view, 'rank-distribution', 'Rank distribution');
+      await waitFor(() => {
+        expect(toastOf()).not.toBeNull();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(7 * SECONDS);
+      });
+      expect(toastOf()).not.toBeNull();
+      expect(dismissals()).toHaveLength(0);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1.5 * SECONDS);
+      });
+      await waitFor(() => {
+        expect(toastOf()).toBeNull();
+      });
+      expect(dismissals()).toHaveLength(1);
+
+      // The hide is still in the draft, and the save bar can still take it back
+      expect(ids()).not.toContain('rank-distribution');
+      await view.user.click(within(box()).getByRole('button', { name: 'Undo' }));
+      await waitFor(() => {
+        expect(ids()).toContain('rank-distribution');
+      });
+    });
+
+    it('clears its timer when the toast goes for another reason, so nothing is dismissed twice', async () => {
+      const view = await screenInCustomizeMode();
+      vi.mocked(dismissToast).mockClear();
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      await hide(view, 'rank-distribution', 'Rank distribution');
+      await waitFor(() => {
+        expect(toastOf()).not.toBeNull();
+      });
+      await view.user.click(within(toolbarOf('matrix')).getByRole('button', { name: 'Move SEO and AI matrix' }));
+      await view.user.click(await screen.findByRole('menuitem', { name: 'Move to end' }));
+      await waitFor(() => {
+        expect(toastOf()).toBeNull();
+      });
+      expect(dismissals()).toHaveLength(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20 * SECONDS);
+      });
+      expect(dismissals()).toHaveLength(1);
+    });
+
+    it('clears its timer when Undo on the toast is used', async () => {
+      const view = await screenInCustomizeMode();
+      vi.mocked(dismissToast).mockClear();
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      await hide(view, 'rank-distribution', 'Rank distribution');
+      await view.user.click(await undoOnToast());
+      await waitFor(() => {
+        expect(ids()).toContain('rank-distribution');
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20 * SECONDS);
+      });
+      expect(dismissals()).toHaveLength(0);
     });
   });
 });

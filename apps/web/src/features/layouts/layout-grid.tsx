@@ -10,6 +10,7 @@ import {
   Suspense,
   useEffect,
   useRef,
+  useState,
   type ComponentType,
   type ReactElement,
   type ReactNode,
@@ -18,6 +19,7 @@ import {
 
 import { AddCardSlot } from './add-card-slot';
 import { CardFrame } from './card-frame';
+import { CardFailureNotice, CardFailuresContext, createCardFailures } from './cards/card-failures';
 import { useLayoutScreen, type LayoutContextValue } from './layout-provider';
 import { CardSkeleton, type CardRegistry, type RegisteredCard } from './registry';
 import { SortableGrid } from './sortable-grid';
@@ -152,16 +154,21 @@ export function LayoutGrid({
   const screen = useLayoutScreen();
   const { status, refetching, mode, shownCards, document, definition, registry, availabilityOf, retry } = screen;
   const root = useRef<HTMLElement>(null);
+  // The failures of this grid's cards: a card's boundary reports to it, the frame's notice reads from it
+  const [failures] = useState(createCardFailures);
   useFocusRequests(root, screen);
 
   const customizing = mode === 'customize';
   const containerClass = columns === 'one' ? 'flex flex-col gap-4' : 'grid grid-cols-12 gap-4';
   const cellClass = (item: CardItem): string => (columns === 'one' ? '' : SPAN_CLASS[item.width ?? 'full']);
   const cards = document.cards ?? [];
-  /** Why a card cannot show, for the frame's notice (outside the inert body); nothing for a card that can. */
+  /**
+   * What goes in the frame's notice (outside the inert body): why a card cannot show, or in customize mode the
+   * failure of a card that can (reported by its boundary, so Retry stays reachable).
+   */
   const noticeOf = (item: CardItem): ReactNode => {
     const availability = availabilityOf(item);
-    if (availability.state !== 'unavailable') return undefined;
+    if (availability.state !== 'unavailable') return customizing ? <CardFailureNotice item={item} /> : undefined;
     return renderUnavailable === undefined ? (
       <p className="type-meta text-foreground-secondary">{availability.reason}</p>
     ) : (
@@ -228,25 +235,31 @@ export function LayoutGrid({
   }
 
   return (
-    <section ref={root} aria-label={label} className="relative">
-      {refetching ? (
-        <div aria-hidden="true" data-slot="layout-refetch-bar" className="absolute inset-x-0 top-0 h-0.5 bg-primary" />
-      ) : null}
-      {status === 'error' ? (
-        <Banner
-          tone="warning"
-          placement="region"
-          live
-          message={t('readFailed')}
-          actions={
-            <Button size="sm" onClick={retry}>
-              {tCommon('retry')}
-            </Button>
-          }
-          className="mb-4"
-        />
-      ) : null}
-      {body}
-    </section>
+    <CardFailuresContext value={failures}>
+      <section ref={root} aria-label={label} className="relative">
+        {refetching ? (
+          <div
+            aria-hidden="true"
+            data-slot="layout-refetch-bar"
+            className="absolute inset-x-0 top-0 h-0.5 bg-primary"
+          />
+        ) : null}
+        {status === 'error' ? (
+          <Banner
+            tone="warning"
+            placement="region"
+            live
+            message={t('readFailed')}
+            actions={
+              <Button size="sm" onClick={retry}>
+                {tCommon('retry')}
+              </Button>
+            }
+            className="mb-4"
+          />
+        ) : null}
+        {body}
+      </section>
+    </CardFailuresContext>
   );
 }

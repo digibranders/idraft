@@ -99,7 +99,12 @@ interface HideToast {
   toastId: string;
   /** Known after the render that shows the hide; null until then. */
   after: LayoutDocument | null;
+  /** Ends the offer after `HIDE_TOAST_MS`. */
+  timer: ReturnType<typeof setTimeout>;
 }
+
+/** How long Undo stays on the toast: it sits over the save bar, and the save bar's own Undo outlasts it. */
+const HIDE_TOAST_MS = 8000;
 
 /** Focus that is on nothing, or on a dialog that is about to go. */
 function focusIsLost(): boolean {
@@ -273,7 +278,9 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
   const closeHideToast = useCallback((): void => {
     const open = hideToast.current;
     hideToast.current = null;
-    if (open !== null) dismissToast(open.toastId);
+    if (open === null) return;
+    clearTimeout(open.timer);
+    dismissToast(open.toastId);
   }, []);
   const hideWithUndo = useCallback(
     (id: string): void => {
@@ -288,13 +295,20 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
           label: tCard('undo'),
           onAction: () => {
             const open = hideToast.current;
-            if (open?.toastId !== toastId || open.after !== live.current.layout) return;
+            if (open?.toastId !== toastId) return;
+            // The toast closes itself after this action
+            clearTimeout(open.timer);
             hideToast.current = null;
+            if (open.after !== live.current.layout) return;
             if (live.current.actions.undo()) refocusCard.current = id;
           },
         },
       });
-      hideToast.current = { toastId, after: null };
+      // The toast has an action, so the toast region never closes it, and it would stay over the save bar
+      const timer = setTimeout(() => {
+        if (hideToast.current?.toastId === toastId) closeHideToast();
+      }, HIDE_TOAST_MS);
+      hideToast.current = { toastId, after: null, timer };
     },
     [closeHideToast, tCard],
   );

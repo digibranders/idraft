@@ -4,16 +4,16 @@
  * One card's own error boundary (spec section 8, WB-LAY-38): a card that throws, fails to load its code or whose
  * data fails shows its error state in its own place, and every other card goes on. Retry asks the registry for a
  * fresh load (React.lazy remembers a failure for good), clears the query errors the card's data left, and renders
- * the card again.
+ * the card again. In view mode the error state is the card's body; in customize mode (inert body) it is the frame's
+ * notice, fed by `card-failures`.
  */
 import { QueryErrorResetBoundary } from '@tanstack/react-query';
-import { CircleX } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Component, type ReactElement, type ReactNode } from 'react';
 
 import { useLayoutScreen } from '../layout-provider';
+import { ReportCardFailure, useCardFailures } from './card-failures';
 import { InlineError } from '@/components/app/status/inline-error';
-import { Icon } from '@/components/ui/icon';
 import { cardName, type CardItem } from '@/lib/layouts';
 
 interface CatcherProps {
@@ -55,6 +55,7 @@ export interface CardBoundaryProps {
 export function CardBoundary({ item, children }: CardBoundaryProps): ReactElement {
   const t = useTranslations('layouts.customize.card');
   const { registry, mode } = useLayoutScreen();
+  const failures = useCardFailures();
   return (
     <QueryErrorResetBoundary>
       {({ reset }) => (
@@ -64,13 +65,16 @@ export function CardBoundary({ item, children }: CardBoundaryProps): ReactElemen
             if (Object.hasOwn(registry, item.type)) registry[item.type]?.reset();
             reset();
           }}
-          fallback={(retry) => (
-            <div
-              role="group"
-              aria-label={cardName(item)}
-              className="flex h-full min-h-30 rounded-lg border border-border bg-surface"
-            >
-              {mode === 'view' ? (
+          fallback={(retry) =>
+            // In customize mode the body is inert: the failure goes to the frame's notice, which is not
+            mode === 'customize' && failures !== null ? (
+              <ReportCardFailure failures={failures} id={item.id} retry={retry} />
+            ) : (
+              <div
+                role="group"
+                aria-label={cardName(item)}
+                className="flex h-full min-h-30 rounded-lg border border-border bg-surface"
+              >
                 <InlineError
                   title={t('failed')}
                   reason={t('failedReason')}
@@ -79,18 +83,9 @@ export function CardBoundary({ item, children }: CardBoundaryProps): ReactElemen
                   retryLabel={t('retry')}
                   onRetry={retry}
                 />
-              ) : (
-                // The card is arranged and not used in customize mode: its body is inert, so no Retry is offered
-                <div className="flex items-start gap-2 p-4">
-                  <Icon icon={CircleX} className="mt-0.5 shrink-0 text-negative-text" />
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <p className="type-body-strong text-foreground">{t('failed')}</p>
-                    <p className="type-body text-foreground-secondary">{t('failedReason')}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+              </div>
+            )
+          }
         >
           {children}
         </Catcher>
