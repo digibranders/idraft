@@ -7,6 +7,7 @@ import { engineOption, useChangeFrame, type OwnEmpty } from './change-frame';
 import { useCardMeta } from './card-meta';
 import { engineLabel } from './engine-role';
 import { buildMovers, type Mover, type MoverDirection } from './movers-model';
+import { percentNumber } from './percent';
 import { pairPrompts } from './prompt-pairs';
 import { useCardData } from './use-card-data';
 import { useCardDensity } from './use-card-density';
@@ -51,9 +52,6 @@ const directionOf = (value: string | undefined): MoverDirection =>
 /** The Rows option of the catalog: 5 or 8, 5 by default. */
 const rowsOf = (value: string | undefined): number => (value === '8' ? 8 : 5);
 
-/** A rate on the 0 to 1 scale as a percent number to two places, for a file: float noise does not reach it. */
-const percentNumber = (rate: number): number => Math.round(rate * 10000) / 100;
-
 const changeOf = (mover: Mover): PointsDeltaInput => ({
   value: mover.points,
   unit: 'points',
@@ -97,7 +95,7 @@ export default function PromptMoversCard({ item, options, live }: CardProps): Re
 
   const currentRows = data.current.data?.prompts;
   const previousRows = data.previous?.data?.prompts;
-  // No manual memo: the React Compiler keeps the model between renders, and cannot preserve one made from `[engine]`
+  // No memo: the model is a cheap pure function of the two summaries (one pass over the prompts), recomputed per render
   const model = buildMovers({
     pairs:
       currentRows === undefined || previousRows === undefined ? null : pairPrompts(currentRows, previousRows, [engine]),

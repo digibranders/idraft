@@ -7,6 +7,7 @@ import { useChangeFrame } from './change-frame';
 import { useCardMeta } from './card-meta';
 import { buildComparison, comparisonDomains, type ComparisonMetric, type ComparisonRow } from './comparison-model';
 import { engineChartColor } from './engine-role';
+import { percentNumber } from './percent';
 import { useCardData } from './use-card-data';
 import { useCardDensity } from './use-card-density';
 import { useCardExport } from './use-card-seams';
@@ -55,9 +56,6 @@ const EXPORT_HEADER = [
 
 const metricOf = (value: string | undefined): ComparisonMetric =>
   value === 'citation' || value === 'share_of_voice' ? value : 'mention';
-
-/** A rate on the 0 to 1 scale as a percent number to two places, for a file: float noise does not reach it. */
-const percentNumber = (rate: number): number => Math.round(rate * 10000) / 100;
 
 const changeOf = (row: Compared): PointsDeltaInput => ({
   value: row.points,

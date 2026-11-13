@@ -15,6 +15,7 @@ import {
   type SourcesState,
 } from './by-engine-model';
 import { useCardMeta } from './card-meta';
+import { percentNumber } from './percent';
 import { useCardData } from './use-card-data';
 import { useCardDrill, useCardExport } from './use-card-seams';
 import { useFrameState } from './use-frame-state';
@@ -56,8 +57,6 @@ const STATUS_KEY = {
 
 /** The name of the downloaded file, without its extension. */
 const FILE_NAME = 'ai-by-engine';
-
-const percentPoints = (rate: number): number => Math.round(rate * 10000) / 100;
 
 /** What a cell of a rate says in one line, for the summary: the percent with its counts, or why there is none. */
 function figureText(cell: RateCell, kind: RateKind, t: Translate): string {
@@ -159,13 +158,13 @@ function exportCells(row: LongRow): CsvCell[] {
   return [
     row.label,
     row.metric,
-    shown && row.value !== null ? percentPoints(row.value) : null,
+    shown && row.value !== null ? percentNumber(row.value) : null,
     row.k,
     row.n,
     row.prompts,
-    row.interval === null ? null : percentPoints(row.interval.low),
-    row.interval === null ? null : percentPoints(row.interval.high),
-    change === null ? null : percentPoints(change),
+    row.interval === null ? null : percentNumber(row.interval.low),
+    row.interval === null ? null : percentNumber(row.interval.high),
+    change === null ? null : percentNumber(change),
     row.change?.isDetectable == null ? null : row.change.isDetectable ? 'true' : 'false',
     row.status,
   ];
@@ -341,7 +340,8 @@ export default function ByEngineCard({ item, live }: CardProps): ReactElement {
       meta={meta({
         range: scope.range,
         prompts: model?.promptCount ?? null,
-        answers: model === null ? null : model.rows.reduce((total, row) => total + row.validAnswers, 0),
+        // Not summed over the engines: the rows never pool engines, and each cell states its own counts
+        answers: null,
         branded: scope.branded,
         promptWeighted: true,
       })}

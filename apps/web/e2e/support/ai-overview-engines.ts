@@ -62,7 +62,24 @@ export const BUILTIN_FAMILY = {
 /** The headings of the three family cards the built-in layout holds. */
 export const BUILTIN_TITLES = ['What changed', 'Mention rate by engine', 'Named and cited, by engine'] as const;
 
-/** The other nine cards of the family, as the Add card dialog and the card headings name them. */
+/**
+ * The other nine cards of the family as the Add card dialog names them: the catalog titles
+ * (`src/lib/layouts/catalog.ts`), which `addCard` clicks as `Add <title>`. Two of them differ from the heading the
+ * card draws (the funnel says "..., by engine" in its heading), so a card is found by `ADDED_TITLES`, not by these.
+ */
+export const ADDED_CATALOG_TITLES = [
+  'Mention rate trend',
+  'Prompt movers',
+  'This period vs the last',
+  'What moved the rate',
+  'AI by engine',
+  'From answer to citation',
+  'Answers behind the numbers',
+  'Engine agreement',
+  'By country',
+] as const;
+
+/** The same nine cards by the exact heading each draws (`aiOverview.engines.*.title`), in the order of the list above. */
 export const ADDED_TITLES = [
   'Mention rate trend',
   'Prompt movers',
@@ -113,7 +130,7 @@ async function hideOtherCards(page: Page): Promise<void> {
 
 /**
  * Signed in as the editor: opens the screen, optionally hides the six other cards, adds the cards of `titles`
- * through the Add card slot and saves. The built-in layout has nine cards, so with the six hidden three are left and
+ * through the Add card slot and saves; `titles` are catalog titles (`ADDED_CATALOG_TITLES`), not card headings. The built-in layout has nine cards, so with the six hidden three are left and
  * nine more fit: twelve, the most a layout holds.
  */
 export async function saveEnginesLayout(
@@ -194,6 +211,13 @@ export async function openSummary(page: Page): Promise<void> {
     const gate: unknown = Reflect.get(window, name);
     if (typeof gate === 'object' && gate !== null && 'open' in gate && typeof gate.open === 'function') gate.open();
   }, GATE_GLOBAL);
+}
+
+/** The top of the first card from the top of the document, as whole pixels: what sits above the grid shows in it. */
+export async function firstCardTop(page: Page): Promise<number> {
+  return allCards(page)
+    .first()
+    .evaluate((card) => Math.round(card.getBoundingClientRect().top + window.scrollY));
 }
 
 /** The distance of each card's top from the top of the grid, in document order, as whole pixels. */

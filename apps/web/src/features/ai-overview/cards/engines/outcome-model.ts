@@ -33,9 +33,6 @@ export function outcomeFigures(prompts: readonly StripPrompt[], code: EngineCode
   };
 }
 
-/** A rate as a percent number to two places, for a file: the float noise of 0.3125 * 100 does not reach it. */
-export const percentNumber = (rate: number): number => Math.round(rate * 10000) / 100;
-
 /** One outcome's share (0 to 1) of the prompts' valid answers, and the pooled answers that have it. */
 export interface OutcomeShare {
   part: OutcomePart;

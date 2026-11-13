@@ -5178,7 +5178,6 @@
         "rowName": "{engine}: {value}, {context}",
         "rowThin": "{engine}: {count, plural, one {# answer} other {# answers}}, too few for a rate",
         "rowNone": "{engine}: {reason}",
-        "rowTip": "{count, plural, one {# valid answer} other {# valid answers}}",
         "thin": "{count, plural, one {# answer} other {# answers}}",
         "noAnswers": "No answers",
         "noneValid": "No valid answers",

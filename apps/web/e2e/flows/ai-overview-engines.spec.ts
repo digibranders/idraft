@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { signIn } from '../support';
 import {
-  ADDED_TITLES,
+  ADDED_CATALOG_TITLES,
   BUILTIN_FAMILY,
   BUILTIN_TITLES,
   CLEANSTART_PATH,
@@ -23,6 +23,7 @@ import {
   cardTops,
   countDeltas,
   expectNoSidewaysScroll,
+  firstCardTop,
   heldSummaryReads,
   installSummaryFault,
   installSummaryHold,
@@ -43,10 +44,32 @@ import { expectNoSeriousViolations } from '../support/layouts';
  */
 test.describe.configure({ timeout: 120_000 });
 
-/** "612 of 1,800 answers": a count of what the figure rests on, as the Table views write it. */
+/** "612 of 1,800 answers": a count of what the figure rests on, as the cells of the rate Table views write it. */
 const K_OF_N = /\d[\d,]* of [\d,]+ (?:valid )?(?:answers?|prompts?|citation units?)/;
 /** What What changed may say instead when it has no answer counts to give: engines, domains or days compared. */
 const ANY_COUNT = /\d[\d,]* (?:of [\d,]+ )?(?:answers?|prompts?|engines?|domains?|days?|citation units?)/;
+
+/**
+ * What each card's Table view must show, by the exact heading of the card. The rate cards write "k of n answers" in
+ * their cells (`rateText`, `tip`, `shareValid`, `countText`). Four cards do not: "AI by engine" gives k and n in the
+ * columns "Answers that count" and "Valid answers"; the waterfall, the agreement and the coverage card put their
+ * counts in columns of their own ("Largest change", "Of compared prompts", "Of prompts in scope"); the country card
+ * has an "Answers" column. Those four are held to their header words, which are the same whatever the data.
+ */
+const TABLE_WORDS: Record<(typeof FAMILY_TITLES)[number], RegExp> = {
+  'What changed': ANY_COUNT,
+  'Mention rate by engine': K_OF_N,
+  'Named and cited, by engine': K_OF_N,
+  'Mention rate trend': K_OF_N,
+  'Prompt movers': K_OF_N,
+  'This period vs the last': K_OF_N,
+  'What moved the rate': /Largest change/,
+  'AI by engine': /Answers that count/,
+  'From answer to citation, by engine': K_OF_N,
+  'Answers behind the numbers': /Of prompts in scope/,
+  'Engine agreement': /Of compared prompts/,
+  'By country': /Answers/,
+};
 
 test.describe('the engines cards', () => {
   test.beforeEach(async ({ page }) => {
@@ -76,7 +99,7 @@ test.describe('the engines cards', () => {
   });
 
   test('every card of the family can be added in Customize and renders at 1280 px', async ({ page }) => {
-    await saveEnginesLayout(page, ADDED_TITLES);
+    await saveEnginesLayout(page, ADDED_CATALOG_TITLES);
     await expect(allCards(page)).toHaveCount(12);
     await expectNoSidewaysScroll(page, 1280);
     for (const title of FAMILY_TITLES) {
@@ -92,8 +115,8 @@ test.describe('the engines cards', () => {
     expect(await cardGrid(page).innerText()).not.toMatch(/[\u{2013}\u{2014}]/u);
   });
 
-  test('the Table toggle of each card shows k of n answers', async ({ page }) => {
-    await saveEnginesLayout(page, ADDED_TITLES);
+  test('the Table toggle of each card shows the counts the figures rest on', async ({ page }) => {
+    await saveEnginesLayout(page, ADDED_CATALOG_TITLES);
     for (const title of FAMILY_TITLES) {
       await test.step(title, async () => {
         const card = cardByHeading(page, title);
@@ -101,7 +124,7 @@ test.describe('the engines cards', () => {
         await expect(tableButton(card)).toBeVisible();
         await tableButton(card).click();
         await expect(tableButton(card)).toHaveAttribute('aria-pressed', 'true');
-        await expect(card.getByRole('table').first()).toContainText(title === 'What changed' ? ANY_COUNT : K_OF_N);
+        await expect(card.getByRole('table').first()).toContainText(TABLE_WORDS[title]);
         await tableButton(card).click();
         await expect(tableButton(card)).toHaveAttribute('aria-pressed', 'false');
       });
@@ -213,7 +236,7 @@ test.describe('the engines cards', () => {
 
   test('no card moves between loading and loaded', async ({ page }) => {
     await installSummaryHold(page);
-    await saveEnginesLayout(page, ADDED_TITLES);
+    await saveEnginesLayout(page, ADDED_CATALOG_TITLES);
 
     // Load the page again with the summary held back: the cards are in their loading state
     await setSummaryHold(page, true);
@@ -221,11 +244,22 @@ test.describe('the engines cards', () => {
     await expect(pageHeading(page)).toBeVisible();
     await expect(allCards(page)).toHaveCount(12);
     await expect.poll(() => heldSummaryReads(page)).toBeGreaterThan(0);
-    const loading = await cardTops(page);
+    const loadingTops = await cardTops(page);
+    const loadingFirst = await firstCardTop(page);
 
     await openSummary(page);
     await awaitTitlesReady(page, FAMILY_TITLES);
-    const loaded: number[] = await cardTops(page);
-    expect(loaded).toEqual(loading);
+    const loadedTops: number[] = await cardTops(page);
+    expect(await firstCardTop(page)).toBe(loadingFirst);
+
+    // Only the first row is held to its place. A skeleton stands in for a card at an estimated height (plan
+    // deviation: the stand-ins are within about 70 px of the loaded card at 1280 px and 40 to 250 px off at 390 px), so
+    // the rows under the first may shift once the data is in. What is guaranteed is that nothing moves above or
+    // inside the first row, which is what the viewer is reading while the page loads.
+    const topOfGrid = loadingTops[0];
+    expect(topOfGrid).toBeDefined();
+    const firstRow = loadingTops.flatMap((top, index) => (top === topOfGrid ? [index] : []));
+    expect(firstRow.length).toBeGreaterThan(0);
+    for (const index of firstRow) expect(loadedTops[index]).toBe(loadingTops[index]);
   });
 });

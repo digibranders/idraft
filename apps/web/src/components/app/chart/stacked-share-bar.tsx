@@ -3,7 +3,7 @@
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useId, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import { SmallSampleMarker } from './small-sample-marker';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
@@ -65,7 +65,9 @@ export interface StackedShareBarProps {
   density?: Density | undefined;
 }
 
-/** A segment narrower than this share of the bar is too narrow for its label; the legend table says it. */
+/** A segment narrower than this many px is too narrow for its label; the image name and the legend table say it. */
+const MIN_LABEL_PX = 40;
+/** The same test as a share of the bar, for as long as the bar is not measured (the server, jsdom, a width of 0). */
 const MIN_LABEL_SHARE = 0.06;
 
 const FILL: Record<ShareColor, string> = {
@@ -194,6 +196,20 @@ function ShareBarFigure({
   patternBase,
 }: ShareBarFigureProps): ReactElement {
   const t = useTranslations('chart');
+  const bar = useRef<HTMLDivElement>(null);
+  // `null` until measured: only a bar that writes labels needs its width
+  const [width, setWidth] = useState<number | null>(null);
+  useEffect(() => {
+    const element = bar.current;
+    if (!inside || element === null || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry !== undefined) setWidth(entry.contentRect.width);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [inside]);
+  const fits = (share: number): boolean =>
+    width === null || width === 0 ? share >= MIN_LABEL_SHARE : share * width >= MIN_LABEL_PX;
   const known = segments.flatMap((segment, index) => {
     const cell = cells.find((entry) => entry.segmentId === segment.id);
     return cell === undefined ? [] : [{ segment, index, cell }];
@@ -212,7 +228,7 @@ function ShareBarFigure({
     denominator: denominatorText,
   });
   return (
-    <div role="img" aria-label={name} className={cn('flex gap-px overflow-hidden', className)}>
+    <div ref={bar} role="img" aria-label={name} className={cn('flex gap-px overflow-hidden', className)}>
       {/* An unknown outcome (no cell) and a known zero are both left out; the legend table tells them apart (R6) */}
       {known
         .filter(({ cell }) => cell.share > 0)
@@ -230,7 +246,7 @@ function ShareBarFigure({
               {patternBase === null ? null : (
                 <PatternOverlay kind={patternKind(index)} id={patternId(patternBase, `s${String(index)}`)} />
               )}
-              {inside && labelClass !== null && cell.share >= MIN_LABEL_SHARE ? (
+              {inside && labelClass !== null && fits(cell.share) ? (
                 <span className="absolute inset-0 flex items-center justify-center">
                   {/* A chip of the segment's own fill: with Patterns on, no stroke passes behind the glyphs, so the 4.5 to 1 of LABEL_ON holds */}
                   <span

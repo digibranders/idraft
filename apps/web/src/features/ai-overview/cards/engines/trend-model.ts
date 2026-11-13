@@ -1,4 +1,5 @@
 import { engineRole } from './engine-role';
+import { percentNumber } from './percent';
 import type { OverviewAggregates } from '../../data/aggregates';
 import type { SmallMultiplePanel } from '@/components/app/chart/small-multiples';
 import { addDays } from '@/components/app/date-range/business-date';
@@ -342,8 +343,6 @@ export interface TrendExport {
   rows: CsvCell[][];
 }
 
-const percent = (rate: number): number => Math.round(rate * 10000) / 100;
-
 export function trendExport(model: TrendModel, labelOf: (code: EngineCode) => string): TrendExport {
   const rows = model.weeks.flatMap((weekStart, index) =>
     model.series.map((series) => {
@@ -352,12 +351,12 @@ export function trendExport(model: TrendModel, labelOf: (code: EngineCode) => st
       return [
         weekStart,
         labelOf(series.engineCode),
-        shown ? percent(point.value ?? 0) : null,
+        shown ? percentNumber(point.value ?? 0) : null,
         point?.k ?? null,
         point?.n ?? 0,
         point?.prompts ?? null,
-        point?.band == null ? null : percent(point.band.low),
-        point?.band == null ? null : percent(point.band.high),
+        point?.band == null ? null : percentNumber(point.band.low),
+        point?.band == null ? null : percentNumber(point.band.high),
         point?.pooledWeeks ?? null,
         point?.partial === true ? 'true' : 'false',
         point === undefined || point.n === 0 ? 'no_answers' : point.thin ? 'insufficient' : 'ok',

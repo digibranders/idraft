@@ -7,7 +7,7 @@ import { useAnswersFrame } from './answers-frame';
 import { useCardMeta } from './card-meta';
 import { engineLabel } from './engine-role';
 import { funnelOf, funnelScale, type EngineFunnel, type FunnelStep, type FunnelStepId } from './funnel-model';
-import { percentNumber } from './outcome-model';
+import { percentNumber } from './percent';
 import { useCardData } from './use-card-data';
 import { useCardDensity } from './use-card-density';
 import { useCardExport } from './use-card-seams';

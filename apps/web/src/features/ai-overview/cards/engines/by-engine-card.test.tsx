@@ -73,6 +73,14 @@ describe('the AI by engine card', () => {
     expect(section).toHaveTextContent('That mean can sit outside the interval of the pooled answers.');
   });
 
+  it('names the prompts in the meta line but no pooled valid answers: each engine states its own counts', async () => {
+    render();
+    await tableOf();
+    const section = screen.getByRole('heading', { name: 'AI by engine' }).closest('section') as HTMLElement;
+    expect(section.textContent).toMatch(/\d[\d,]* prompts? · branded prompts left out, each prompt counts once/);
+    expect(section.textContent).not.toMatch(/\d[\d,]* valid answers?/);
+  });
+
   it('has no Recommendation column', async () => {
     const { user } = render();
     const table = await tableOf();

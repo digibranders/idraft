@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { screen, within } from '@testing-library/react';
 import type { Route } from 'next';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ChartFrame } from './chart-frame';
 import {
@@ -143,7 +143,24 @@ const present = (element: HTMLElement | undefined): HTMLElement => {
 
 afterEach(() => {
   document.documentElement.className = '';
+  vi.unstubAllGlobals();
 });
+
+/** A bar of the measured width: the stub reports it as soon as the bar is observed. */
+function stubBarWidth(width: number): void {
+  class BarObserver {
+    constructor(private readonly callback: ResizeObserverCallback) {}
+    observe(target: Element): void {
+      this.callback(
+        [{ target, contentRect: { width, height: 32 } } as unknown as ResizeObserverEntry],
+        this as unknown as ResizeObserver,
+      );
+    }
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+  vi.stubGlobal('ResizeObserver', BarObserver);
+}
 
 describe('StackedShareBar bars', () => {
   it('draws the segments in the order of `segments`, each growing by its share, with a hairline between', () => {
@@ -178,6 +195,60 @@ describe('StackedShareBar bars', () => {
     expect(cited).toHaveTextContent('');
     expect(neither).toHaveTextContent('39%');
     expect(within(present(both)).getByText('50%')).toHaveClass('type-micro', 'num');
+  });
+
+  describe('label width in pixels', () => {
+    /** Shares of 0.1 and 0.05 (and 0.85): 20 px and 10 px of a 200 px bar, 100 px and 50 px of a 1,000 px one. */
+    const TIGHT: ShareRow = {
+      id: 'tight',
+      label: 'Outcome mix',
+      denominatorText: 'of 100 answers',
+      value: {
+        kind: 'shares',
+        cells: [
+          { segmentId: 'both', share: 0.1, shareText: '10%', countText: '10 of 100' },
+          { segmentId: 'named', share: 0.05, shareText: '5%', countText: '5 of 100' },
+          { segmentId: 'neither', share: 0.85, shareText: '85%', countText: '85 of 100' },
+        ],
+      },
+    };
+
+    it('draws no label in a segment narrower than 40 px, and keeps its share and count in the name and the table', () => {
+      stubBarWidth(200);
+      renderWithProviders(<StackedShareBar {...props({ rows: [TIGHT] })} />);
+      const [both, named, neither] = segmentsOf(bar(TIGHT));
+      expect(both).toHaveTextContent('');
+      expect(named).toHaveTextContent('');
+      expect(neither).toHaveTextContent('85%');
+      expect(bar(TIGHT)).toHaveAccessibleName(expect.stringContaining('Named and cited 10%, 10 of 100'));
+      const table = screen.getByRole('table', { name: CAPTION });
+      expect(within(within(table).getByRole('row', { name: /Named and cited/ })).getByRole('cell')).toHaveTextContent(
+        '10%, 10 of 100',
+      );
+    });
+
+    it('draws the label of the same segment when the bar is wide enough for 40 px', () => {
+      stubBarWidth(1000);
+      renderWithProviders(<StackedShareBar {...props({ rows: [TIGHT] })} />);
+      const [both, named] = segmentsOf(bar(TIGHT));
+      expect(both).toHaveTextContent('10%');
+      expect(named).toHaveTextContent('5%');
+    });
+
+    it('falls back to the share of the bar when the width is unknown or 0', () => {
+      renderWithProviders(<StackedShareBar {...props({ rows: [TIGHT] })} />);
+      const [both, named] = segmentsOf(bar(TIGHT));
+      expect(both).toHaveTextContent('10%');
+      expect(named).toHaveTextContent('');
+    });
+
+    it('treats a measured width of 0 as unknown', () => {
+      stubBarWidth(0);
+      renderWithProviders(<StackedShareBar {...props({ rows: [TIGHT] })} />);
+      const [both, named] = segmentsOf(bar(TIGHT));
+      expect(both).toHaveTextContent('10%');
+      expect(named).toHaveTextContent('');
+    });
   });
 
   it('colours each inside label from the map of its segment colour', () => {
