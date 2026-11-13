@@ -543,8 +543,8 @@ Tests first:
 
 Implementation: `LayoutPreset { id: string; label: string; document: LayoutDocument }` (labels come from the page's
 messages); `definePresets(screen, presets): readonly LayoutPreset[]` (module level, runs `sanitizeLayout` and throws
-`Error('Preset <id> is not a valid <screen> layout')` when `changed`); `presetItems(resolved, screen, presets)`.
-`StartFromMenu`: `Menu` with a `secondary` `sm` trigger `startFrom` (`LayoutTemplate` icon), radio items are not
+`Error('Preset <id> is not a valid <screen> layout')` when `changed`); `presetItems(resolved, screen, presets, labels)` (the labels of the built-in and team entries are the 4th argument, because they come from messages).
+`StartFromMenu`: `Menu` with a `secondary` trigger of the default `Button` size (not `sm`, to match Reset and Cancel in the bar) `startFrom` (`LayoutTemplate` icon), radio items are not
 used (a preset is an action); `onSelect` `actions.replaceDraft(document, t('announce.preset', { preset: label }))`.
 No stored named layouts (D-01; spec section 3 keeps one layout per person per screen).
 

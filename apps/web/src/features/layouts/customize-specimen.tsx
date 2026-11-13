@@ -71,7 +71,7 @@ const CUSTOMIZE_CARDS: CardRegistry = {
 
 /**
  * Two presets of the overview for the Start from menu. Their cards are half or full width, which are 6 and 12 of
- * 12 columns at 1280 and at 768 px, so every row is full there and applying one leaves no part empty row.
+ * 12 columns at 1280 and at 768 px, so every row is full there and applying one leaves no partly empty row.
  * Fixtures: the real overview's presets are WP-33's.
  */
 const PRESETS = definePresets('overview', [

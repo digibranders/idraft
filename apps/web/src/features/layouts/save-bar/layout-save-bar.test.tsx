@@ -305,14 +305,23 @@ describe('LayoutSaveBar', () => {
   it('gives the scope line the full text as a title, since it may be cut short', async () => {
     const { user } = renderWithProviders(<ScreenUnderTest />);
     await startCustomizing(user);
-    expect(within(bar('No changes')).getByText(SCOPE)).toHaveAttribute('title', SCOPE);
+    expect(within(bar('No changes')).getByText(SCOPE).closest('[title]')).toHaveAttribute('title', SCOPE);
+  });
+
+  it('shows the scope text only where its container is wide enough to read some of it', async () => {
+    const { user } = renderWithProviders(<ScreenUnderTest />);
+    await startCustomizing(user);
+    const text = within(bar('No changes')).getByText(SCOPE);
+    // jsdom has no layout: the contract is the container query classes; the width is measured in a browser
+    expect(text).toHaveClass('hidden', '@min-[9.5rem]:block');
+    expect(text.parentElement).toHaveClass('@container');
   });
 
   it('gives the differs line the full text as a title too', async () => {
     personalOverTeam();
     const { user } = renderWithProviders(<ScreenUnderTest />);
     await startCustomizing(user);
-    expect(within(bar('No changes')).getByText(DIFFERS)).toHaveAttribute('title', DIFFERS);
+    expect(within(bar('No changes')).getByText(DIFFERS).closest('[title]')).toHaveAttribute('title', DIFFERS);
   });
 
   describe('keeping the focus clear of the bar', () => {

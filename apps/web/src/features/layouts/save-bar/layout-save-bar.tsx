@@ -138,15 +138,21 @@ export function LayoutSaveBar({ variant = 'page' }: LayoutSaveBarProps): ReactEl
         />
       </span>
       {/* Takes what is left of the row, so the bar stays one row; the full text is the title when it is cut. The
-          two lines of the differs line are 40 px: the negative margin keeps them inside the bar's own height. */}
+          two lines of the differs line are 40 px: the negative margin keeps them inside the bar's own height. The
+          text shows only when the room is wide enough to read some of it: at 1024 px beside the sidebar it is not,
+          and a few clipped letters say nothing. The span is the container the text asks about. */}
       <span
         title={scope}
-        className={cn(
-          'hidden min-w-0 flex-1 type-meta',
-          differs ? 'lg:-my-0.5 lg:line-clamp-2' : 'lg:block lg:truncate',
-        )}
+        className={cn('@container hidden min-w-0 flex-1 type-meta lg:block', differs && 'lg:-my-0.5')}
       >
-        {scope}
+        <span
+          className={cn(
+            'hidden',
+            differs ? '@min-[9.5rem]:line-clamp-2' : '@min-[9.5rem]:block @min-[9.5rem]:truncate',
+          )}
+        >
+          {scope}
+        </span>
       </span>
       {/* A narrowed window (customize mode starts at 768 px) may not fit the actions, the team menu included */}
       <span className="ml-auto flex shrink-0 items-center justify-end gap-2 max-md:max-w-full max-md:flex-wrap">
