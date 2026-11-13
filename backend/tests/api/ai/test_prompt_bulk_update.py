@@ -15,7 +15,7 @@ import pytest
 from idraft.api.resources import Resources
 from tests.api.ai.sources_support import statements
 from tests.api.ai.support import added, ai_project, seed_prompts
-from tests.api.auth.support import Workspace, execute, fetch, make_workspace
+from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import errors, project_url, term, vocabulary
 from tests.conftest import PostgresServer
@@ -439,6 +439,104 @@ async def test_bulk_update_marks_type_and_branded_as_set_by_a_person(
         "rule",
         "computed",
     )
+
+
+async def test_a_value_the_row_already_holds_still_becomes_the_persons_word(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """As PATCH does: setting the type or the flag marks the source even when the value is the
+    one the rule or the aliases gave. A row that is marked already is left as it is."""
+    workspace, editor, project = await _scene(resources, migrated)
+    guessed, decided = await seed_prompts(migrated, workspace, project, 2)
+    await execute(
+        migrated,
+        "UPDATE ai.prompts SET prompt_type_source = 'rule', is_branded_source = 'computed' "
+        "WHERE id = $1",
+        guessed,
+    )
+    await execute(
+        migrated,
+        "UPDATE ai.prompts SET prompt_type_source = 'person', is_branded_source = 'override' "
+        "WHERE id = $1",
+        decided,
+    )
+    before = await _rows(migrated, [guessed, decided])
+    same = {"prompt_type": before[guessed]["prompt_type"], "is_branded": False}
+
+    first = await _bulk(api, workspace, project, editor, {"ids": _ids([guessed]), "set": same})
+    second = await _bulk(api, workspace, project, editor, {"ids": _ids([decided]), "set": same})
+
+    assert first.json() == {"data": {"matched": 1, "updated": 1}}
+    assert second.json() == {"data": {"matched": 1, "updated": 0}}
+    after = await _rows(migrated, [guessed, decided])
+    assert (after[guessed]["prompt_type_source"], after[guessed]["is_branded_source"]) == (
+        "person",
+        "override",
+    )
+    assert after[guessed]["updated_at"] > before[guessed]["updated_at"]
+    assert after[decided] == before[decided]
+    entries = [e for e in await _entries(migrated, workspace) if e["action"] == "prompt.updated"]
+    assert [entry["target_id"] for entry in entries] == [str(guessed)]
+
+
+async def test_a_term_of_another_projects_vocabulary_is_unknown(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, editor, project = await _scene(resources, migrated)
+    other = await ai_project(migrated, workspace)
+    owned = await fetchrow(
+        migrated,
+        "INSERT INTO core.taxonomy_vocabularies (workspace_id, project_id, kind, name, "
+        "is_hierarchical, is_single_valued) VALUES ($1, $2, 'topic', 'Theirs', true, false) "
+        "RETURNING id",
+        workspace.id,
+        other,
+    )
+    theirs = await term(migrated, workspace, str(owned["id"]), "secret")
+    prompt, _spare = await seed_prompts(migrated, workspace, project, 2)
+
+    add_by_ids = await _bulk(
+        api, workspace, project, editor, {"ids": _ids([prompt]), "add_term_ids": [theirs]}
+    )
+    add_by_filter = await _bulk(
+        api, workspace, project, editor, {"filter": {}, "add_term_ids": [theirs]}
+    )
+    remove = await _bulk(
+        api, workspace, project, editor, {"ids": _ids([prompt]), "remove_term_ids": [theirs]}
+    )
+
+    assert [r.status_code for r in (add_by_ids, add_by_filter, remove)] == [422, 422, 422]
+    assert errors(add_by_ids) == errors(add_by_filter) == [("add_term_ids", "term_unknown")]
+    assert errors(remove) == [("remove_term_ids", "term_unknown")]
+    linked = await fetch(
+        migrated, "SELECT 1 FROM ai.prompt_terms WHERE term_id = $1", uuid.UUID(theirs)
+    )
+    assert linked == []
+
+
+async def test_a_repeated_term_id_is_audited_once(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, editor, project = await _scene(resources, migrated)
+    topics = await vocabulary(migrated, workspace)
+    crm = await term(migrated, workspace, topics, "crm")
+    erp = await term(migrated, workspace, topics, "erp")
+    (prompt,) = await seed_prompts(migrated, workspace, project, 1)
+
+    response = await _bulk(
+        api,
+        workspace,
+        project,
+        editor,
+        {"ids": _ids([prompt]), "add_term_ids": [crm, crm], "remove_term_ids": [erp, erp]},
+    )
+
+    assert response.status_code == 200, response.text
+    entries = await _entries(migrated, workspace)
+    (summary,) = [e for e in entries if e["action"] == "prompt.bulk_changed"]
+    assert summary["after"]["add_term_ids"] == [crm]
+    assert summary["after"]["remove_term_ids"] == [erp]
+    assert await _terms(migrated, [prompt]) == {prompt: {crm}}
 
 
 async def test_a_filter_over_1000_prompts_is_too_many_subjects(

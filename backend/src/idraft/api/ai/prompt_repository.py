@@ -705,9 +705,10 @@ async def set_metadata(
     sources: Mapping[str, str],
     now: datetime,
 ) -> set[UUID]:
-    """Sets `values` on the project's prompts among `ids` that differ from them in at least one
-    column, with the `sources` that go with them (`prompt_type_source`, `is_branded_source`), and
-    says which prompts changed. A prompt already holding every value is left as it is."""
+    """Sets `values` and the `sources` that go with them (`prompt_type_source`,
+    `is_branded_source`) on the project's prompts among `ids` that differ in at least one of
+    those columns, and says which prompts changed. A value already held but not yet marked as a
+    person's word changes the source, and counts. A prompt holding all of it is left as it is."""
     if not ids or not values:
         return set()
     p = ai_prompts.c
@@ -718,7 +719,12 @@ async def set_metadata(
             p.project_id == project_id,
             p.deleted_at.is_(None),
             among_ids(p.id, ids),
-            or_(*(ai_prompts.c[name].is_distinct_from(value) for name, value in values.items())),
+            or_(
+                *(
+                    ai_prompts.c[name].is_distinct_from(value)
+                    for name, value in {**values, **sources}.items()
+                )
+            ),
         )
         .values(**values, **sources, updated_at=now)
         .returning(p.id)

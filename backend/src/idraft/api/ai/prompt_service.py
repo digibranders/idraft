@@ -1028,9 +1028,9 @@ class PromptService:
             changed |= by_terms
             summary: dict[str, str | int | bool | list[str] | None] = {**values}
             if body.add_term_ids:
-                summary["add_term_ids"] = sorted(map(str, body.add_term_ids))
+                summary["add_term_ids"] = sorted(map(str, set(body.add_term_ids)))
             if body.remove_term_ids:
-                summary["remove_term_ids"] = sorted(map(str, body.remove_term_ids))
+                summary["remove_term_ids"] = sorted(map(str, set(body.remove_term_ids)))
             await audit.record(
                 db,
                 workspace_id=access.workspace_id,
