@@ -1,7 +1,7 @@
 """Statement counts of the competitors read (contract C5, change C-7): `ai/competitors` costs the
 statements of the summary request it makes plus a fixed number of reads of its own, whatever the
-number of prompts, answers, engines or entities. Asserted as differences, never as absolute
-figures, after one warm read so each counted read starts alike."""
+number of prompts, answers or engines (no test here varies the number of entities). Asserted as
+differences, never as absolute figures, after one warm read so each counted read starts alike."""
 
 from __future__ import annotations
 

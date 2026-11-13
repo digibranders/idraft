@@ -41,7 +41,7 @@ Route specific, route 6 only:
 
 | Parameter | Type and bounds | Meaning |
 |---|---|---|
-| `entity_ids` | comma list of UUID, at most 20 | Narrows the rows to those tracked entities. An id that is not a tracked entity of the project (a watched one, one not tracked in AI answers, a removed one, another project's or workspace's) is left out and the answer is `200`, never `404`. |
+| `entity_ids` | comma list of UUID, at most 20 | Narrows the rows to those tracked entities. An id that is not a tracked entity of the project (a watched one, one not tracked in AI answers, a removed one, another project's or workspace's) is left out and the answer is `200`, never `404`. An id cut by the 20 entity cap is left out too. |
 | `include` | comma list: `lost_prompts`, `top_sources` | Adds those blocks. Each is absent unless asked for. Any other value is `422`. |
 | `lost_limit` | integer, 1 to 10, default 5 | Rows of `lost_prompts` per entity and engine. |
 | `sources_limit` | integer, 1 to 5, default 3 | Rows of `top_sources` per entity. |
@@ -74,7 +74,7 @@ client reads `role`. `entity` of a row is the existing `EntityRef` (`entity_id`,
 | | `recommendation_rate` | `AiMetricValue` (`ai.recommendation_rate`), suppressed `not_classified`. |
 | | `citation_share` | `AiMetricValue` (`ai.citation_share`) with `entity_id` set. |
 | | `share_of_voice` | `AiMetricValue` (`ai.share_of_voice`) with `entity_id` set. |
-| | `is_top_competitor` | True on exactly one competitor of the engine (rule below). |
+| | `is_top_competitor` | True on at most one competitor of the engine, and under `entity_ids` possibly on none (rule below). |
 | | `lost_prompts` | Optional: with `include=lost_prompts`, `LostPrompt[]` for a competitor row; absent on an own row and when not asked. `[]` when nothing was lost. |
 | | `lost_prompts_total` | Optional, present and absent exactly as `lost_prompts`: every prompt lost to the competitor on the engine, before the `lost_limit` cap. |
 | | `lost_prompts_with_min_answers` | Optional, present and absent exactly as `lost_prompts`: the prompts in scope with at least 4 answers on the engine, the "of N prompts" beside `lost_prompts_total`. |
@@ -102,10 +102,13 @@ scope in the compare window; absent without compare). An engine with no answer h
 ### Top competitor
 
 `is_top_competitor` is true, per engine, for exactly the competitor with the largest `share_of_voice.numerator`
-on that engine. Ties go to the larger `mention_rate.numerator`, then to the name, then to the id. The own entity
-is never the top competitor. It is false for every row when no competitor has a numerator above 0: the product
-never names a top competitor that was never named. The flag is per engine, so a different competitor can lead on
-each engine.
+on that engine. Ties go to the larger `mention_rate.numerator`, then to the name, then to the id. Ties are
+compared at 9 decimals, and the name case-folded. The own entity is never the top competitor. It is false for
+every row when no competitor has a numerator above 0: the product never names a top competitor that was never
+named. The flag is per engine, so a different competitor can lead on each engine.
+
+`is_top_competitor` is read over the tracked set before `entity_ids` narrows the rows; when the top competitor is
+narrowed away, no row of that engine carries the flag.
 
 ### Lost prompts
 
@@ -149,13 +152,14 @@ Design figures until measured, then the test.
 
 | Request | Summary request | Extra statements | Extra reads |
 |---|---|---|---|
-| `ai/competitors` | `S(rows left out, include=total,entities)` | +3 | `entity_refs`, `entity_units`, transaction scope |
+| `ai/competitors` | `S(rows left out, include=total,entities)` | +4 (measured) | transaction scope, `entity_refs`, `entity_units`, `version_starts` |
 | with `include=lost_prompts` | | +3 more | `counts_by_prompt`, `lost_counts`, `prompt_cards` |
 | with `include=top_sources` | | +1 more | `top_sources` |
 | `overview/competitors` | `S(rows=none, include=total,entities)` | +2 | `entity_refs`, transaction scope |
 
 `rows left out` builds the prompt rows, which is how the route gets the ids of the prompts in scope for the
-sources and lost reads. `compare` adds 1 (the summary's own).
+sources and lost reads. `compare` adds 2 (the summary's own with `include=entities`: the counts of the window
+compared with and the entity counts there; the Overview reads no entity cells and adds 1).
 
 ## Error codes
 
@@ -350,3 +354,6 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-32: C-10 reading of the contract where the plan was silent: with `include=top_sources` the own rows list their domains as well; `lost` of a `LostPrompt` has `pooled` null (it is a count of answers of one prompt); an engine entry whose engine has no answer has null values and zero counts and no top competitor; `meta.entities` lists the whole tracked set in the summary's order (competitors by name, then the own entities).
 2026-11-13 WP-32: C-11 lost prompt context: `lost_prompts_total` (every prompt lost to the competitor on the engine, before the `lost_limit` cap) and `lost_prompts_with_min_answers` (prompts in scope with at least 4 answers on the engine, the "of N prompts" context) are optional integers on `AiCompetitorEngine`, present exactly when `lost_prompts` is, absent otherwise.
 2026-11-13 WP-32: C-12 `top_sources` is `[]` for an entity with no cited domain, absent without `include=top_sources`. The `meta` of every body gains the optional `entity_config_changes` and the shared text of c8 C-17 to C-23 (value text, engine filter, order as built) applies.
+2026-11-13 WP-32: C-13 measured: `ai/competitors` is its summary request plus 4 (transaction scope, `entity_refs`, `entity_units`, `version_starts`), the same on a 14 answer world and on the full project; with no prompt in scope `entity_units` is not run (plus 3, the rows still need `entity_refs`); `compare` adds the summary's own 2 and nothing else. The other rows are design figures until measured.
+2026-11-13 WP-32: C-14 top competitor and narrowing: `is_top_competitor` is read over the tracked set before `entity_ids` narrows the rows; when the top competitor is narrowed away, no row of that engine carries the flag, so the flag is true on at most one competitor of an engine, and under narrowing possibly none. An id cut by the 20 entity cap is left out of `entity_ids` like any id that is not a tracked entity.
+2026-11-13 WP-32: C-15 tie rule: ties are compared at 9 decimals, name case-folded, then the id.

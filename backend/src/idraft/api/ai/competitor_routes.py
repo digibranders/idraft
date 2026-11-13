@@ -2,9 +2,10 @@
 c5-competitors.md). Reading needs `data:read`; the membership dependency has already refused a
 project outside the caller's scope.
 
-WP-32 (overview-aggregates) builds the bodies; api/main.py includes this router already (docs/
-ai-visibility/MASTER-PLAN.md section 3.3). The scope and compare dependencies are the metric
-routes' (metrics_routes.py).
+WP-32 (overview-aggregates) owns this router; api/main.py includes it (docs/ai-visibility/
+MASTER-PLAN.md section 3.3). `ai/competitors` is built apart from its `include` blocks, which
+answer `501` naming the block until they are, and `overview/competitors` is still a stub. The
+scope and compare dependencies are the metric routes' (metrics_routes.py).
 """
 
 from __future__ import annotations

@@ -84,7 +84,17 @@ def top_competitor(contenders: Sequence[Contender]) -> UUID | None:
     named = [c for c in contenders if c.role == "competitor" and c.share_of_voice > 0]
     if not named:
         return None
-    best = min(named, key=lambda c: (-c.share_of_voice, -c.mentioned, c.name, c.entity_id))
+    # Numerators are sums of shares: float noise must not decide a tie (9 decimals), and the name
+    # order is explicit, not the collation's (case-folded).
+    best = min(
+        named,
+        key=lambda c: (
+            -round(c.share_of_voice, 9),
+            -round(c.mentioned, 9),
+            c.name.casefold(),
+            c.entity_id,
+        ),
+    )
     return best.entity_id
 
 
@@ -100,7 +110,8 @@ def _earlier(
 
 
 def _valid_answers(engine: EngineSummary) -> int:
-    """The engine's valid answers in scope: the answers behind its Mentioned cell."""
+    """The engine's valid answers in scope: the answers behind its Mentioned cell. The same as
+    `_valid_answers` of metrics.py, which is private there (kept apart, not imported)."""
     pooled = engine.mentioned.pooled
     return 0 if pooled is None else pooled.trials
 
@@ -187,7 +198,8 @@ class CompetitorService:
         tracked = entity_cell_ids(
             [TrackedEntity(e.entity_id, e.name, e.role) for e in data.entities]
         )
-        shown = [i for i in tracked if entity_ids is None or i in set(entity_ids)]
+        wanted = None if entity_ids is None else set(entity_ids)
+        shown = [i for i in tracked if wanted is None or i in wanted]
         refs, units, starts = await self._reads(access, project_id, data, shown)
         frame = Frame(
             window=data.window,
@@ -207,7 +219,8 @@ class CompetitorService:
             engine.engine_code: {c.entity_id: c for c in engine.entities or []}
             for engine in total.engines
         }
-        # The flag is read over the whole tracked set, so narrowing the rows never moves it.
+        # The flag is read over the cut set of at most 20 that has cells, before `entity_ids`
+        # narrows the rows: narrowing never moves it, and may leave no row with it.
         top = {
             engine.engine_code: top_competitor(
                 [

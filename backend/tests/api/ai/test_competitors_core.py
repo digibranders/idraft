@@ -102,6 +102,33 @@ def test_ties_go_to_the_larger_mention_numerator_then_name_then_id() -> None:
     assert top_competitor(by_id) == uuid.UUID(int=4)
 
 
+def test_ties_are_compared_at_nine_decimals() -> None:
+    """Sums of shares that differ by float noise are a tie: 0.1 + 0.2 is not above 0.3."""
+    noisy = [
+        _contender("Noisy", "competitor", 0.1 + 0.2, 1.0, key=2),
+        _contender("Plain", "competitor", 0.3, 2.0, key=3),
+    ]
+    mention_noise = [
+        _contender("Alpha", "competitor", 1.0, 0.1 + 0.2, key=2),
+        _contender("Beta", "competitor", 1.0, 0.3, key=3),
+    ]
+
+    assert 0.1 + 0.2 > 0.3
+    # Tied on share of voice, so the larger mention numerator wins.
+    assert top_competitor(noisy) == uuid.UUID(int=3)
+    # Tied on both, so the name (Alpha) decides.
+    assert top_competitor(mention_noise) == uuid.UUID(int=2)
+
+
+def test_the_name_tie_is_case_folded() -> None:
+    rows = [
+        _contender("Zoho", "competitor", 1.0, 1.0, key=2),
+        _contender("adobe", "competitor", 1.0, 1.0, key=3),
+    ]
+
+    assert top_competitor(rows) == uuid.UUID(int=3)
+
+
 def test_the_own_entity_is_never_the_top_competitor() -> None:
     rows = [
         _contender("Own", "own", 9.0, 9.0, key=1),
@@ -520,6 +547,36 @@ async def test_no_top_competitor_when_no_competitor_was_named(
     assert entry(row_of(body, seeded.own), CHATGPT)["share_of_voice"]["numerator"] == 1
 
 
+async def test_the_top_competitor_flag_is_read_over_the_tracked_set_not_the_narrowed_rows(
+    api: httpx.AsyncClient,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+    seeded: Summary,
+) -> None:
+    """A third entity named once, so it has a share of voice below the rival's: narrowing to it
+    must not make it the top competitor, and narrowing the rival away leaves no flag."""
+    alpha = await _entity(migrated, seeded.project, "Alpha Corp", "alpha.example", "competitor")
+    named = "Alpha Corp runs a managed SOC service in Mumbai with 24x7 monitoring."
+    await ingested(seeded, migrated, worker_db, import_store, [Answer("misc", named, (), 2)])
+
+    full = await competitors_body(seeded, api)
+
+    weaker = entry(row_of(full, alpha), CHATGPT)["share_of_voice"]["numerator"]
+    top = entry(row_of(full, seeded.rival), CHATGPT)["share_of_voice"]["numerator"]
+    assert 0 < weaker < top
+    assert top_of(full, CHATGPT) == [RIVAL_NAME]
+    for ids, flagged in (
+        ([seeded.own], []),
+        ([alpha], []),
+        ([seeded.own, alpha], []),
+        ([seeded.rival, alpha], [RIVAL_NAME]),
+        ([seeded.own, seeded.rival], [RIVAL_NAME]),
+    ):
+        body = await competitors_body(seeded, api, entity_ids=",".join(map(str, ids)))
+        assert top_of(body, CHATGPT) == flagged, ids
+
+
 async def test_entity_ids_narrow_the_rows_and_a_foreign_id_is_left_out_and_is_200(
     api: httpx.AsyncClient, migrated: PostgresServer, seeded: Summary
 ) -> None:
@@ -580,6 +637,10 @@ async def test_at_most_twenty_entities_own_first(
         str(entity) for entity in (world.own, world.rival, *extra[:18])
     ]
     assert len(body["meta"]["entities"]) == 22
+    # An id the cap cut is left out of `entity_ids` like an untracked one: 200, no row.
+    cut = await get_competitors(world, api, entity_ids=f"{extra[-1]},{extra[0]}")
+    assert cut.status_code == 200, cut.text
+    assert [row["entity"]["entity_id"] for row in cut.json()["data"]] == [str(extra[0])]
 
 
 async def test_branded_prompts_are_left_out_by_default_and_counted_when_asked(
