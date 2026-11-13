@@ -2,7 +2,6 @@
 
 import { createContext, use, useMemo, type ReactElement, type ReactNode } from 'react';
 
-import type { SourcesOptions, SummaryOptions } from './data/overview-queries';
 import type { Read } from './data/read-state';
 import {
   useOverviewEngines as readEngines,
@@ -17,6 +16,9 @@ import {
   type OverviewReadInput,
   type OverviewSchedule,
   type OverviewSourcesMeta,
+  type ReadOptions,
+  type SourcesReadOptions,
+  type SummaryReadOptions,
 } from './data/use-overview-reads';
 import type { OverviewScope, ScopePatch } from './scope/scope-model';
 import { useOverviewScope } from './scope/use-overview-scope';
@@ -124,19 +126,26 @@ function useReadInput(): OverviewReadInput {
   );
 }
 
-export const useOverviewSummary = (options?: SummaryOptions): Read<PromptsSummary> =>
+/*
+ * Every read below takes `{ subscribed }` (default true). A card passes the `subscribed` prop of its `CardProps`:
+ * while it is false (customize mode, out of view) the read asks nothing and shows the data it has for the scope, or
+ * is `idle` (see `ReadOptions` in ./data/use-overview-reads.ts).
+ */
+export const useOverviewSummary = (options?: SummaryReadOptions): Read<PromptsSummary> =>
   readSummary(useReadInput(), options);
 
-export const useOverviewPeriods = (options?: SummaryOptions): OverviewPeriods => readPeriods(useReadInput(), options);
+export const useOverviewPeriods = (options?: SummaryReadOptions): OverviewPeriods =>
+  readPeriods(useReadInput(), options);
 
-export const useOverviewSources = (options?: SourcesOptions): Read<OverviewSourcesMeta> =>
+export const useOverviewSources = (options?: SourcesReadOptions): Read<OverviewSourcesMeta> =>
   readSources(useReadInput(), options);
 
-export const useOverviewFanout = (): Read<OverviewFanoutMeta> => readFanout(useReadInput());
+export const useOverviewFanout = (options?: ReadOptions): Read<OverviewFanoutMeta> =>
+  readFanout(useReadInput(), options);
 
-export function useOverviewSchedule(): Read<OverviewSchedule> {
+export function useOverviewSchedule(options?: ReadOptions): Read<OverviewSchedule> {
   const { workspaceId, project } = useOverview();
-  return readSchedule({ workspaceId, projectId: project.id });
+  return readSchedule({ workspaceId, projectId: project.id }, options);
 }
 
 /** The engines of the project and their read, from the provider (the same request the layout capabilities make). */

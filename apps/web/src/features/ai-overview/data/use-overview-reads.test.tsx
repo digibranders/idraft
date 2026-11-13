@@ -14,6 +14,7 @@ import {
   useOverviewSummary,
 } from './use-overview-reads';
 import type { OverviewReadInput } from './use-overview-reads';
+import type { Read } from './read-state';
 import type { OverviewScope } from '../scope/scope-model';
 import { useLayoutCapabilities } from '@/features/layouts';
 import { makeQueryClient } from '@/lib/api/query-client';
@@ -450,5 +451,175 @@ describe('useOverviewSchedule', () => {
       expect(none.result.current.status).toBe('ready');
     });
     expect(none.result.current.data).toEqual({ nextRunAt: null, paused: false });
+  });
+});
+
+/** Lets a request that would have been sent on a render reach the server, so "none" is a fact and not a race. */
+const settle = (): Promise<void> =>
+  act(async () => {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 30);
+    });
+  });
+
+/** A read of the scope, as a card makes it: the hook, the path it asks, and what it asks for when it runs. */
+const SUBSCRIBABLE: readonly (readonly [
+  name: string,
+  suffix: string,
+  use: (input: OverviewReadInput, subscribed: boolean) => Read<unknown>,
+])[] = [
+  ['summary', '/ai/prompts-summary', (input, subscribed) => useOverviewSummary(input, { subscribed })],
+  ['sources', '/ai/sources/domains', (input, subscribed) => useOverviewSources(input, { subscribed })],
+  ['fan-out', '/ai/fanout-queries', (input, subscribed) => useOverviewFanout(input, { subscribed })],
+  ['schedule', '/schedules', (input, subscribed) => useOverviewSchedule(input.project, { subscribed })],
+];
+
+describe('the subscribed option of the reads', () => {
+  const hookOf =
+    (use: (input: OverviewReadInput, subscribed: boolean) => Read<unknown>) =>
+    (props: { scope: OverviewScope; subscribed: boolean }): Read<unknown> =>
+      use({ project: FYNIX, scope: props.scope, enabledEngines: ALL }, props.subscribed);
+
+  it.each(SUBSCRIBABLE)(
+    '%s: a paused read makes no request and is idle, never loading or error',
+    async (_, suffix, use) => {
+      const seen = recordRequests();
+      const { result } = renderHook(hookOf(use), { wrapper, initialProps: { scope: scopeOf(), subscribed: false } });
+      // The fan-out read first learns the engines (a request of its own), then knows it has nothing to ask
+      await waitFor(() => {
+        expect(result.current.status).toBe('idle');
+      });
+      await settle();
+      expect(result.current.data).toBeUndefined();
+      expect(result.current.errorId).toBeNull();
+      expect(to(seen, suffix)).toHaveLength(0);
+    },
+  );
+
+  it.each(SUBSCRIBABLE)('%s: subscribing again makes exactly one request', async (_, suffix, use) => {
+    const seen = recordRequests();
+    const { result, rerender } = renderHook(hookOf(use), {
+      wrapper,
+      initialProps: { scope: scopeOf(), subscribed: false },
+    });
+    await waitFor(() => {
+      expect(result.current.status).toBe('idle');
+    });
+    rerender({ scope: scopeOf(), subscribed: true });
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready');
+    });
+    await settle();
+    expect(to(seen, suffix)).toHaveLength(1);
+  });
+
+  it.each(SUBSCRIBABLE)('%s: pausing keeps the last data and asks for nothing more', async (_, suffix, use) => {
+    const seen = recordRequests();
+    const { result, rerender } = renderHook(hookOf(use), {
+      wrapper,
+      initialProps: { scope: scopeOf(), subscribed: true },
+    });
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready');
+    });
+    const before = result.current.data;
+    rerender({ scope: scopeOf(), subscribed: false });
+    await settle();
+    expect(result.current.status).toBe('ready');
+    expect(result.current.data).toBe(before);
+    expect(to(seen, suffix)).toHaveLength(1);
+  });
+
+  it('shows no data of an earlier scope while paused: the last data is only the data of this scope', async () => {
+    const seen = recordRequests();
+    const { result, rerender } = renderHook(
+      hookOf((input, subscribed) => useOverviewSummary(input, { subscribed })),
+      {
+        wrapper,
+        initialProps: { scope: scopeOf(), subscribed: true },
+      },
+    );
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready');
+    });
+    rerender({ scope: scopeOf({ country: 'DE' }), subscribed: false });
+    await settle();
+    expect(result.current.status).toBe('idle');
+    expect(result.current.data).toBeUndefined();
+    expect(to(seen, '/ai/prompts-summary')).toHaveLength(1);
+    rerender({ scope: scopeOf({ country: 'DE' }), subscribed: true });
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready');
+    });
+    expect(to(seen, '/ai/prompts-summary')).toHaveLength(2);
+  });
+
+  it('never turns a paused read into an error: a failing API is not asked, and is reported once it is', async () => {
+    server.use(http.get(`${PROJECT_PATH}/ai/prompts-summary`, () => failing('req-paused')));
+    const { result, rerender } = renderHook(
+      hookOf((input, subscribed) => useOverviewSummary(input, { subscribed })),
+      { wrapper, initialProps: { scope: scopeOf(), subscribed: false } },
+    );
+    await settle();
+    expect(result.current.status).toBe('idle');
+    expect(result.current.errorId).toBeNull();
+    rerender({ scope: scopeOf(), subscribed: true });
+    await waitFor(() => {
+      expect(result.current.status).toBe('error');
+    });
+    expect(result.current.errorId).toBe('req-paused');
+  });
+
+  it('periods: paused makes no request and settles, not paired; subscribing reads both windows once and pairs them', async () => {
+    const seen = recordRequests();
+    const { result, rerender } = renderHook(
+      (props: { subscribed: boolean }) => useOverviewPeriods(inputOf(), { subscribed: props.subscribed }),
+      { wrapper, initialProps: { subscribed: false } },
+    );
+    await settle();
+    expect(result.current.current.status).toBe('idle');
+    expect(result.current.previous?.status).toBe('idle');
+    expect(result.current.settled).toBe(true);
+    expect(result.current.paired).toBe(false);
+    expect(to(seen, '/ai/prompts-summary')).toHaveLength(0);
+    rerender({ subscribed: true });
+    await waitFor(() => {
+      expect(result.current.paired).toBe(true);
+    });
+    expect(result.current.settled).toBe(true);
+    expect(to(seen, '/ai/prompts-summary')).toHaveLength(2);
+  });
+
+  it('periods: pausing after the data is in keeps both windows paired and settled', async () => {
+    const { result, rerender } = renderHook(
+      (props: { subscribed: boolean }) => useOverviewPeriods(inputOf(), { subscribed: props.subscribed }),
+      { wrapper, initialProps: { subscribed: true } },
+    );
+    await waitFor(() => {
+      expect(result.current.paired).toBe(true);
+    });
+    rerender({ subscribed: false });
+    await settle();
+    expect(result.current.paired).toBe(true);
+    expect(result.current.settled).toBe(true);
+    expect(result.current.current.data).toBeDefined();
+  });
+
+  it('is subscribed when the option is left out or undefined, as before', async () => {
+    const seen = recordRequests();
+    const { result } = renderHook(
+      () => ({
+        summary: useOverviewSummary(inputOf()),
+        sources: useOverviewSources(inputOf(), { subscribed: undefined }),
+        schedule: useOverviewSchedule(FYNIX),
+      }),
+      { wrapper },
+    );
+    await waitFor(() => {
+      expect(result.current.summary.status).toBe('ready');
+      expect(result.current.sources.status).toBe('ready');
+      expect(result.current.schedule.status).toBe('ready');
+    });
+    expect(to(seen, '/ai/prompts-summary')).toHaveLength(1);
   });
 });

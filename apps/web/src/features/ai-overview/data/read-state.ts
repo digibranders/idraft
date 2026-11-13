@@ -28,12 +28,16 @@ export interface Read<T> {
   errorId: string | null;
   /** The data is the last that was read: a later read of it failed. The card says so and keeps showing it. */
   stale: boolean;
-  /** Reads again; does nothing for an `idle` read. */
+  /** Reads again; does nothing for an `idle` read or a read that is paused. */
   refetch: () => void;
 }
 
-/** Whether a read runs: `waiting` is `loading` for a read that must first learn what to ask from another one. */
-export type Gate = 'run' | 'idle' | 'waiting';
+/**
+ * Whether a read runs: `waiting` is `loading` for a read that must first learn what to ask from another one;
+ * `paused` is a read that could run and has been asked not to (a card out of view or in customize mode): it shows
+ * the data it already has for this scope, if any, and is `idle` otherwise. It never asks and never fails.
+ */
+export type Gate = 'run' | 'idle' | 'waiting' | 'paused';
 
 /** The part of a query result a read is made from (also made of the pages of an infinite query). */
 export interface QueryLike<T> {
@@ -41,15 +45,22 @@ export interface QueryLike<T> {
   error: Error | null;
   isError: boolean;
   isFetching: boolean;
+  /** The data is that of the previous key, kept while this one is read: not data of this scope. */
+  isPlaceholderData?: boolean;
   refetch: () => unknown;
 }
 
-export function useRead<T>({ data, error, isError, isFetching, refetch }: QueryLike<T>, gate: Gate = 'run'): Read<T> {
+export function useRead<T>(
+  { data, error, isError, isFetching, isPlaceholderData = false, refetch }: QueryLike<T>,
+  requested: Gate = 'run',
+): Read<T> {
   return useMemo((): Read<T> => {
+    // A paused read shows what it has for this scope; with nothing (or the data of an earlier scope) it is idle
+    const gate: Gate = requested === 'paused' && (data === undefined || isPlaceholderData) ? 'idle' : requested;
     const retry = (): void => {
-      if (gate !== 'idle') void refetch();
+      if (gate === 'run') void refetch();
     };
-    if (gate !== 'run') {
+    if (gate === 'idle' || gate === 'waiting') {
       return {
         status: gate === 'idle' ? 'idle' : 'loading',
         data: undefined,
@@ -65,7 +76,7 @@ export function useRead<T>({ data, error, isError, isFetching, refetch }: QueryL
       return { status, data: undefined, errorId, stale: false, refetch: retry };
     }
     return { status: isFetching ? 'refetching' : 'ready', data, errorId, stale: isError, refetch: retry };
-  }, [data, error, isError, isFetching, refetch, gate]);
+  }, [data, error, isError, isFetching, isPlaceholderData, refetch, requested]);
 }
 
 /** The same read with its data changed by `change`; absent data stays absent. */

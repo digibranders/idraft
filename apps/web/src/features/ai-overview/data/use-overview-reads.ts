@@ -33,6 +33,23 @@ export interface OverviewReadInput extends ReadScope {
   project: ProjectRef;
 }
 
+/**
+ * Options every read takes besides its own. A card passes the `subscribed` prop of its `CardProps`:
+ * `useOverviewSummary({ subscribed })`. While it is `false` (the grid is in customize mode, or the card is out of
+ * view) the read asks nothing, whatever the scope does; it shows the data it already has for the scope and is `idle`
+ * when it has none, never `loading` and never `error`. When it turns `true` again the read asks once, or serves
+ * the cache while it is fresh. Left out or `undefined` it is `true`, so a caller that passes nothing is unchanged.
+ */
+export interface ReadOptions {
+  subscribed?: boolean | undefined;
+}
+
+export type SummaryReadOptions = SummaryOptions & ReadOptions;
+export type SourcesReadOptions = SourcesOptions & ReadOptions;
+
+/** `idle` when the read has nothing to ask; otherwise `run`, or `paused` while it is not subscribed. */
+const gateOf = (runs: boolean, subscribed: boolean): Gate => (!runs ? 'idle' : subscribed ? 'run' : 'paused');
+
 export type OverviewSourcesMeta = Schemas['SourcesMeta'];
 export type OverviewFanoutMeta = Schemas['FanoutMeta'];
 
@@ -79,14 +96,14 @@ export function useOverviewEngines(project: ProjectRef): OverviewEngines {
 function useSummary(
   input: OverviewReadInput,
   period: 'current' | 'previous',
-  options: SummaryOptions,
+  { subscribed = true, ...options }: SummaryReadOptions,
 ): Read<PromptsSummary> {
   const { project, scope, enabledEngines } = input;
   const runs = askedEngines(input).length > 0 && (period === 'current' || comparisonWindow(scope) !== null);
-  const gate: Gate = runs ? 'run' : 'idle';
+  const gate = gateOf(runs, subscribed);
   const query = useQuery({
     ...overviewSummaryQuery(project, { scope, enabledEngines }, { ...options, period }),
-    enabled: runs,
+    enabled: gate === 'run',
     // A scope change keeps the last figures on screen until the new ones arrive
     placeholderData: keepPreviousData,
   });
@@ -94,8 +111,11 @@ function useSummary(
   return useMemo(() => mapRead(read, summaryOf), [read]);
 }
 
-/** The summary of the scope's window, one read; not asked while no engine in the scope is on. */
-export function useOverviewSummary(input: OverviewReadInput, options: SummaryOptions = {}): Read<PromptsSummary> {
+/**
+ * The summary of the scope's window, one read; not asked while no engine in the scope is on, nor while
+ * `options.subscribed` is `false` (a card passes the `subscribed` of its `CardProps`).
+ */
+export function useOverviewSummary(input: OverviewReadInput, options: SummaryReadOptions = {}): Read<PromptsSummary> {
   return useSummary(input, 'current', options);
 }
 
@@ -124,8 +144,10 @@ const busy = (read: Read<PromptsSummary>): boolean => read.status === 'loading' 
 /**
  * The summary of the window and, while the comparison is on and its window can be asked, of the window just
  * before it, with whether the two answer for the same scope (`paired`) and whether the reads are done (`settled`).
+ * While `options.subscribed` is `false` neither window is asked: with data of this scope in the cache both keep it
+ * (`paired` and `settled` hold), without it both are `idle` (`settled`, not `paired`), so nothing waits on them.
  */
-export function useOverviewPeriods(input: OverviewReadInput, options: SummaryOptions = {}): OverviewPeriods {
+export function useOverviewPeriods(input: OverviewReadInput, options: SummaryReadOptions = {}): OverviewPeriods {
   const current = useSummary(input, 'current', options);
   const previousRead = useSummary(input, 'previous', options);
   const compared = comparisonWindow(input.scope) !== null;
@@ -141,15 +163,18 @@ export function useOverviewPeriods(input: OverviewReadInput, options: SummaryOpt
 }
 
 /** The meta of the sources read: the citation units by role (own over all), per engine, and the window before. */
-export function useOverviewSources(input: OverviewReadInput, options: SourcesOptions = {}): Read<OverviewSourcesMeta> {
+export function useOverviewSources(
+  input: OverviewReadInput,
+  { subscribed = true, ...options }: SourcesReadOptions = {},
+): Read<OverviewSourcesMeta> {
   const { project, scope, enabledEngines } = input;
-  const runs = askedEngines(input).length > 0 && brandedAskable(scope);
+  const gate = gateOf(askedEngines(input).length > 0 && brandedAskable(scope), subscribed);
   const query = useQuery({
     ...overviewSourcesQuery(project, { scope, enabledEngines }, options),
-    enabled: runs,
+    enabled: gate === 'run',
     placeholderData: keepPreviousData,
   });
-  const read = useRead(query, runs ? 'run' : 'idle');
+  const read = useRead(query, gate);
   return useMemo(() => mapRead(read, sourcesMetaOf), [read]);
 }
 
@@ -157,7 +182,10 @@ export function useOverviewSources(input: OverviewReadInput, options: SourcesOpt
  * The meta of the fan-out read: the answers that issued a query over the answers, of the engines that show their
  * fan-out. Waits for the engines (the same request `useOverviewEngines` makes) to learn which those are.
  */
-export function useOverviewFanout(input: OverviewReadInput): Read<OverviewFanoutMeta> {
+export function useOverviewFanout(
+  input: OverviewReadInput,
+  { subscribed = true }: ReadOptions = {},
+): Read<OverviewFanoutMeta> {
   const { project, scope } = input;
   const engines = useQuery(overviewEnginesQuery(project));
   const showing = useMemo(
@@ -171,15 +199,29 @@ export function useOverviewFanout(input: OverviewReadInput): Read<OverviewFanout
   const read: ReadScope = { scope, enabledEngines: showing };
   const known = engines.data !== undefined;
   const runs = known && askedEngines(read).length > 0 && brandedAskable(scope);
-  const query = useQuery({ ...overviewFanoutQuery(project, read), enabled: runs, placeholderData: keepPreviousData });
+  const query = useQuery({
+    ...overviewFanoutQuery(project, read),
+    enabled: runs && subscribed,
+    placeholderData: keepPreviousData,
+  });
   // Without the engines there is nothing to ask yet, unless they could not be read: then nothing can be asked
-  const gate: Gate = runs ? 'run' : known || engines.isError || !brandedAskable(scope) ? 'idle' : 'waiting';
+  const gate: Gate = runs
+    ? gateOf(true, subscribed)
+    : known || engines.isError || !brandedAskable(scope)
+      ? 'idle'
+      : 'waiting';
   const result = useRead(query, gate);
   return useMemo(() => mapRead(result, fanoutMetaOf), [result]);
 }
 
 /** When the AI workload runs next and whether it is paused, for the notice before the first answers. */
-export function useOverviewSchedule(project: ProjectRef): Read<OverviewSchedule> {
-  const read = useRead(useQuery(overviewSchedulesQuery(project)));
-  return useMemo(() => mapRead(read, scheduleOf), [read]);
+export function useOverviewSchedule(
+  project: ProjectRef,
+  { subscribed = true }: ReadOptions = {},
+): Read<OverviewSchedule> {
+  const query = useQuery({ ...overviewSchedulesQuery(project), enabled: subscribed });
+  const read = useRead(query, gateOf(true, subscribed));
+  // Made from the page, not from the read, so pausing and resuming give the same object while the page is the same
+  const schedule = useMemo(() => (query.data === undefined ? undefined : scheduleOf(query.data)), [query.data]);
+  return useMemo(() => ({ ...read, data: read.data === undefined ? undefined : schedule }), [read, schedule]);
 }

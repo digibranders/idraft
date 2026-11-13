@@ -1,15 +1,24 @@
 import { screen, waitFor } from '@testing-library/react';
 import { renderHook } from '@testing-library/react';
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { OverviewProvider, useOverview, useOverviewSummary } from './overview-context';
+import {
+  OverviewProvider,
+  useOverview,
+  useOverviewFanout,
+  useOverviewPeriods,
+  useOverviewSchedule,
+  useOverviewSources,
+  useOverviewSummary,
+} from './overview-context';
 import type { Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { overviewProject } from '@/test/ai-overview-harness';
+import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
 // A card imports these from the feature's entry, so the entry must export them (plan section 5, items 4 and 5)
 import type {
@@ -19,9 +28,12 @@ import type {
   OverviewSchedule,
   OverviewSourcesMeta,
   Read,
+  ReadOptions,
   ReadStatus,
   SourcesOptions,
+  SourcesReadOptions,
   SummaryOptions,
+  SummaryReadOptions,
 } from '.';
 
 /** Type level only: it fails the typecheck when the entry stops exporting a type a card needs. */
@@ -32,9 +44,12 @@ export type EntryTypes = [
   OverviewSchedule,
   OverviewSourcesMeta,
   Read<string>,
+  ReadOptions,
   ReadStatus,
   SourcesOptions,
+  SourcesReadOptions,
   SummaryOptions,
+  SummaryReadOptions,
 ];
 
 beforeEach(() => {
@@ -121,5 +136,81 @@ describe('useOverview', () => {
     await waitFor(() => {
       expect(screen.getByTestId('summary').textContent).toMatch(/^(ready|refetching) [1-9]/);
     });
+  });
+});
+
+/** The reads a card makes with the `subscribed` prop of its props: all five, with one switch. */
+function CardProbe(): ReactElement {
+  const [subscribed, setSubscribed] = useState(false);
+  const { engines } = useOverview();
+  const summary = useOverviewSummary({ subscribed });
+  const periods = useOverviewPeriods({ subscribed });
+  const sources = useOverviewSources({ subscribed });
+  const fanout = useOverviewFanout({ subscribed });
+  const schedule = useOverviewSchedule({ subscribed });
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setSubscribed(true);
+        }}
+      >
+        subscribe
+      </button>
+      <output data-testid="engines-state">{engines.status}</output>
+      <output data-testid="statuses">
+        {[summary, periods.current, sources, fanout, schedule].map((read) => read.status).join(' ')}
+      </output>
+    </>
+  );
+}
+
+describe('the subscribed option of the bound reads', () => {
+  it('pauses all five reads of a card and reads each once when it subscribes', async () => {
+    document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('admin').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
+    const seen: URL[] = [];
+    const listener = ({ request }: { request: Request }): void => {
+      seen.push(new URL(request.url));
+    };
+    server.events.on('request:start', listener);
+    try {
+      const { user } = renderWithProviders(
+        <PermissionProvider membership={membershipFactory('admin')}>
+          <OverviewProvider
+            workspaceId={MOCK_WORKSPACE.workspace_id}
+            workspaceSlug={MOCK_WORKSPACE.slug}
+            project={overviewProject('fynix')}
+          >
+            <CardProbe />
+          </OverviewProvider>
+        </PermissionProvider>,
+        { searchParams: 'from=2026-10-16&to=2026-11-12&cmp=off' },
+      );
+      // With the engines known the reads could run: that they do not is the pause
+      await waitFor(() => {
+        expect(screen.getByTestId('engines-state')).toHaveTextContent('ready');
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('statuses')).toHaveTextContent('idle idle idle idle idle');
+      });
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 30);
+      });
+      const asked = (suffix: string): number => seen.filter((url) => url.pathname.endsWith(suffix)).length;
+      for (const suffix of ['/ai/prompts-summary', '/ai/sources/domains', '/ai/fanout-queries', '/schedules']) {
+        expect(asked(suffix)).toBe(0);
+      }
+      await user.click(screen.getByRole('button', { name: 'subscribe' }));
+      await waitFor(() => {
+        expect(screen.getByTestId('statuses')).toHaveTextContent('ready ready ready ready ready');
+      });
+      expect(asked('/ai/prompts-summary')).toBe(1);
+      expect(asked('/ai/sources/domains')).toBe(1);
+      expect(asked('/ai/fanout-queries')).toBe(1);
+      expect(asked('/schedules')).toBe(1);
+    } finally {
+      server.events.removeListener('request:start', listener);
+    }
   });
 });
