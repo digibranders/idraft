@@ -96,6 +96,7 @@ export function CitationsScreen(props: CitationsScreenProps): ReactNode {
 function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScreenProps): ReactElement {
   const t = useTranslations('citations');
   const filterWords = useTranslations('citations.filters');
+  const flagWords = useTranslations('citations.flagFilters');
   const common = useTranslations('common');
   const locale = useLocale();
   const source = useMemo((): SourceScope => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
@@ -155,6 +156,7 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
     () =>
       citationFilterFields({
         t: filterWords,
+        flagWords,
         tab: activeId,
         engines: enabledEngines.map((code) => ({ code, label: labelOf(code) })),
         enginesLoading: engines.data === undefined,
@@ -164,6 +166,7 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
       }),
     [
       filterWords,
+      flagWords,
       activeId,
       enabledEngines,
       labelOf,
@@ -242,13 +245,16 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
             onApply={savedView.apply}
             onReset={savedView.reset}
           />
-          <ExportButton
-            source={exportSource}
-            scope={source}
-            previousMeta={previousMeta.data?.meta}
-            engines={exportEngines}
-            range={range}
-          />
+          {/* The export rows type covers domains and pages: New and lost rows have no file (plan D7) */}
+          {activeId === 'new-lost' ? null : (
+            <ExportButton
+              source={exportSource}
+              scope={source}
+              previousMeta={previousMeta.data?.meta}
+              engines={exportEngines}
+              range={range}
+            />
+          )}
           <Menu
             align="end"
             trigger={<IconButton icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}
@@ -294,7 +300,7 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
         label={t('tabs.label')}
         value={activeId}
         // A view is a place to go back to: the tab is the one change of the page that makes a history entry
-        onValueChange={(next) => setSearch({ tab: next === 'domains' ? null : next }, { history: 'push' })}
+        onValueChange={(next) => setSearch({ tab: next === 'domains' ? null : next, cols: null }, { history: 'push' })}
         items={CITATION_TABS.map((entry) => ({ value: entry.id, label: entry.label(t) }))}
         className="gap-3 lg:min-h-0 lg:flex-1"
       >

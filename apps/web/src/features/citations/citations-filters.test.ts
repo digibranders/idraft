@@ -77,6 +77,20 @@ describe('citationFilterFields', () => {
     });
   });
 
+  it('offers the two flag fields on every tab', () => {
+    const flagWords = createTranslator({ locale: 'en', messages, namespace: 'citations.flagFilters' });
+    for (const tab of ['domains', 'pages', 'new-lost'] as const) {
+      const fields = citationFilterFields(input({ tab, flagWords }));
+      expect(fields.map((entry) => entry.id)).toEqual(expect.arrayContaining(['redirects', 'internal']));
+      expect(field(fields, 'redirects')).toMatchObject({ kind: 'enum', multi: false, label: 'Unresolved redirects' });
+      expect(field(fields, 'internal')).toMatchObject({ kind: 'enum', multi: false, label: 'Engine links' });
+      expect(options(fields, 'redirects')).toEqual([{ value: 'include', label: 'Include unresolved redirects' }]);
+      expect(options(fields, 'internal')).toEqual([{ value: 'include', label: 'Include engine-internal links' }]);
+    }
+    // Without the words (a harness that does not need them) no flag field is offered
+    expect(citationFilterFields(input()).map((entry) => entry.id)).toEqual(['engine', 'role', 'topic', 'branded']);
+  });
+
   it('topic options are the topic terms by name, and by place when two share a name', () => {
     expect(options(citationFilterFields(input()), 'topic')).toEqual([
       { value: 't-1', label: 'Technical SEO' },

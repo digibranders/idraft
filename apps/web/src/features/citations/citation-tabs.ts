@@ -5,14 +5,15 @@ import type { CitationRead } from './citation-reads';
 import type { CitationScope, CitationScopeState, CitationTab, DateWindow } from './citation-scope';
 import type { ExportSource } from './citations-export';
 import { DomainsTab } from './domains-tab';
+import { NewLostTab } from './new-lost';
 import { PagesTab } from './pages-tab';
 import type { FilterField, FilterValues } from '@/components/app/filters/types';
 import type { SourceFilters } from '@/lib/citations/source-queries';
 import type { EngineCode, SourceDomainPage, SourceScope } from '@/lib/citations/types';
 
 /**
- * The tabs of the Citations page (plan F16). Each tab is one entry, so the Domains tab (T4b) and the Pages tab
- * (T5a) are one line each, and the New and lost tab (WP-22) is one more after them.
+ * The tabs of the Citations page (plan F16). Each tab is one entry: Domains, Pages and New and lost are one line
+ * each.
  */
 
 /** The translator of `citations`, as `useTranslations('citations')` and `createTranslator` give it. */
@@ -56,7 +57,7 @@ export interface CitationTabEntry {
 }
 
 /** The place of each tab: a record, so a tab added to `CitationTab` must be given one to compile. */
-const ORDER: Readonly<Record<CitationTab, number>> = { domains: 0, pages: 1 };
+const ORDER: Readonly<Record<CitationTab, number>> = { domains: 0, pages: 1, 'new-lost': 2 };
 
 /** The entries in the page's order. A repeated id is a mistake of the code that lists them, so it throws. */
 export function defineCitationTabs(entries: readonly CitationTabEntry[]): readonly CitationTabEntry[] {
@@ -68,10 +69,11 @@ export function defineCitationTabs(entries: readonly CitationTabEntry[]): readon
   return [...entries].sort((a, b) => ORDER[a.id] - ORDER[b.id]);
 }
 
-/** Domains and Pages; WP-22 adds the New and lost tab with one more entry. */
+/** Domains, Pages and New and lost. */
 export const CITATION_TABS: readonly CitationTabEntry[] = defineCitationTabs([
   { id: 'domains', label: (t) => t('tabs.domains'), render: (context) => createElement(DomainsTab, { context }) },
   { id: 'pages', label: (t) => t('tabs.pages'), render: (context) => createElement(PagesTab, { context }) },
+  { id: 'new-lost', label: (t) => t('newLost.tab'), render: (context) => createElement(NewLostTab, { context }) },
 ]);
 
 /** The tab asked for, or Domains when it is not listed (a link to Pages before that tab exists). */

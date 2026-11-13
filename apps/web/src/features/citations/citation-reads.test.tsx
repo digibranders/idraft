@@ -6,7 +6,9 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  CHANGES_LIMIT,
   useChangeCounts,
+  useChangeList,
   useDiversity,
   useLatestCitation,
   usePreviousMeta,
@@ -16,7 +18,7 @@ import {
 import messages from '../../../messages/en.json';
 import { makeQueryClient } from '@/lib/api/query-client';
 import type { SourceFilters } from '@/lib/citations/source-queries';
-import type { SourceDomainPage, SourceScope } from '@/lib/citations/types';
+import type { SourceChangePage, SourceDomainPage, SourceScope } from '@/lib/citations/types';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { mswPath, problem } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
@@ -173,7 +175,7 @@ describe('the other reads of the strip', () => {
     expect(seen[0]?.searchParams.has('filter[domain_role_in]')).toBe(false);
   });
 
-  it('useChangeCounts reads one row of a kind with the minimum, whatever the role filter', async () => {
+  it('useChangeCounts reads the list of a kind with the minimum, whatever the role filter', async () => {
     const seen = watch('/sources/changes');
     const { result } = renderHook(() => useChangeCounts(scope, FILTERS, { kind: 'lost', minSupport: 3 }), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('ready'));
@@ -182,7 +184,7 @@ describe('the other reads of the strip', () => {
     const query = seen[0]?.searchParams;
     expect(query?.get('kind')).toBe('lost');
     expect(query?.get('min_support')).toBe('3');
-    expect(query?.get('limit')).toBe('1');
+    expect(query?.get('limit')).toBe(String(CHANGES_LIMIT));
     expect(query?.has('filter[domain_role_in]')).toBe(false);
   });
 
@@ -193,5 +195,88 @@ describe('the other reads of the strip', () => {
     expect(result.current.data?.data).toHaveLength(1);
     expect(seen[0]?.searchParams.get('limit')).toBe('1');
     expect(seen[0]?.searchParams.has('filter[domain_role_in]')).toBe(false);
+  });
+});
+
+interface StripAndTab {
+  /** The strip's reads of New and Lost. */
+  counts: readonly [CitationRead<SourceChangePage>, CitationRead<SourceChangePage>];
+  /** The tab's reads of New and Lost. */
+  lists: readonly [CitationRead<SourceChangePage>, CitationRead<SourceChangePage>];
+}
+
+/** The strip's counts and the tab's lists of both kinds, mounted together as the page has them. */
+function useStripAndTab(filters: SourceFilters): StripAndTab {
+  return {
+    counts: [
+      useChangeCounts(scope, filters, { kind: 'new', minSupport: 2 }),
+      useChangeCounts(scope, filters, { kind: 'lost', minSupport: 2 }),
+    ],
+    lists: [
+      useChangeList(scope, filters, { kind: 'new', minSupport: 2 }),
+      useChangeList(scope, filters, { kind: 'lost', minSupport: 2 }),
+    ],
+  };
+}
+
+const useLostList = ({ filters }: { filters: SourceFilters }): CitationRead<SourceChangePage> =>
+  useChangeList(scope, filters, { kind: 'lost', minSupport: 2 });
+
+describe('the changes read the strip and the tab share', () => {
+  it('the strip and the list share one request for each kind', async () => {
+    const seen = watch('/sources/changes');
+    const { result } = renderHook(() => useStripAndTab({ ...FILTERS, roles: [] }), { wrapper });
+    await waitFor(() => {
+      for (const read of [...result.current.counts, ...result.current.lists]) expect(read.status).toBe('ready');
+    });
+    // Two requests, one for New and one for Lost: not four
+    expect(seen.map((url) => url.searchParams.get('kind')).sort()).toEqual(['lost', 'new']);
+    expect(result.current.lists[0].data).toBe(result.current.counts[0].data);
+    expect(result.current.lists[1].data).toBe(result.current.counts[1].data);
+    for (const url of seen) expect(url.searchParams.get('limit')).toBe(String(CHANGES_LIMIT));
+  });
+
+  it('the lost read is asked again only when its scope changes', async () => {
+    const seen = watch('/sources/changes');
+    let now = NOW;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const initialProps = { filters: { ...FILTERS, roles: [] } satisfies SourceFilters };
+    const first = renderHook(useLostList, { wrapper, initialProps });
+    await waitFor(() => expect(first.result.current.status).toBe('ready'));
+    expect(seen).toHaveLength(1);
+    // Two minutes on: past the 30 seconds of a configuration read, inside the 5 minutes of this one
+    now += 2 * 60_000;
+    first.unmount();
+    const again = renderHook(useLostList, { wrapper, initialProps });
+    expect(again.result.current.status).toBe('ready');
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(seen).toHaveLength(1);
+    // A new window is a new scope: one more request
+    again.rerender({ filters: { ...initialProps.filters, from: '2026-10-17' } });
+    await waitFor(() => expect(seen).toHaveLength(2));
+    await waitFor(() => expect(again.result.current.retrying).toBe(false));
+  });
+
+  it("a role filter gives the tab its own read and leaves the strip's", async () => {
+    const seen = watch('/sources/changes');
+    const { result } = renderHook(() => useStripAndTab({ ...FILTERS, roles: ['own'] }), { wrapper });
+    await waitFor(() => {
+      for (const read of [...result.current.counts, ...result.current.lists]) expect(read.status).toBe('ready');
+    });
+    const newReads = seen.filter((url) => url.searchParams.get('kind') === 'new');
+    const withRole = newReads.filter((url) => url.searchParams.has('filter[domain_role_in]'));
+    const withoutRole = newReads.filter((url) => !url.searchParams.has('filter[domain_role_in]'));
+    expect(withRole).toHaveLength(1);
+    expect(withoutRole).toHaveLength(1);
+    expect(withRole[0]?.searchParams.get('filter[domain_role_in]')).toBe('own');
+    expect(result.current.counts[0].data).not.toBe(result.current.lists[0].data);
+  });
+
+  it('reads nothing while it is turned off', () => {
+    const seen = watch('/sources/changes');
+    renderHook(() => useChangeList(scope, FILTERS, { kind: 'new', minSupport: 2, enabled: false }), { wrapper });
+    expect(seen).toHaveLength(0);
   });
 });

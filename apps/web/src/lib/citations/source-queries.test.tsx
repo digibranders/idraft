@@ -143,6 +143,61 @@ describe('the builders', () => {
     }
   });
 
+  it('a flag is sent only when true', () => {
+    const redirects = { ...FILTERS, includeUnresolvedRedirects: true } satisfies SourceFilters;
+    const internal = { ...FILTERS, includeEngineInternal: true } satisfies SourceFilters;
+    const both = { ...redirects, includeEngineInternal: true } satisfies SourceFilters;
+    const off = { ...FILTERS, includeUnresolvedRedirects: false, includeEngineInternal: false } satisfies SourceFilters;
+    const routes = (filters: SourceFilters): (readonly unknown[])[] => [
+      sourceDomainsQuery(scope, filters).queryKey,
+      sourcePagesQuery(scope, filters).queryKey,
+      sourceDiversityQuery(scope, filters).queryKey,
+      sourceChangesQuery(scope, filters, { kind: 'new' }).queryKey,
+      sourcePromptsQuery(scope, filters).queryKey,
+    ];
+    for (const key of routes(redirects)) {
+      expect(queryOf(key)).toHaveProperty('include_unresolved_redirects', true);
+      expect(queryOf(key)).not.toHaveProperty('include_engine_internal');
+    }
+    for (const key of routes(internal)) {
+      expect(queryOf(key)).toHaveProperty('include_engine_internal', true);
+      expect(queryOf(key)).not.toHaveProperty('include_unresolved_redirects');
+    }
+    for (const key of routes(both)) {
+      expect(queryOf(key)).toMatchObject({ include_unresolved_redirects: true, include_engine_internal: true });
+    }
+    // false is the default, so it is left out and the key equals the URL
+    expect(routes(off)).toEqual(routes(FILTERS));
+  });
+
+  it('no flag key at all by default', () => {
+    for (const key of [
+      sourceDomainsQuery(scope, FILTERS).queryKey,
+      sourcePagesQuery(scope, FILTERS).queryKey,
+      sourceDiversityQuery(scope, FILTERS).queryKey,
+      sourceChangesQuery(scope, FILTERS, { kind: 'lost' }).queryKey,
+      sourcePromptsQuery(scope, FILTERS).queryKey,
+      citationListQuery(scope, FILTERS).queryKey,
+    ]) {
+      expect(queryOf(key)).not.toHaveProperty('include_unresolved_redirects');
+      expect(queryOf(key)).not.toHaveProperty('include_engine_internal');
+    }
+  });
+
+  it('the citation list query never sends a flag', () => {
+    // The route answers 422 for both: the list keeps flagged citations whatever is asked
+    const flagged = {
+      ...FILTERS,
+      includeUnresolvedRedirects: true,
+      includeEngineInternal: true,
+    } satisfies SourceFilters;
+    expect(queryOf(citationListQuery(scope, flagged, { limit: 1 }).queryKey)).toEqual(
+      queryOf(citationListQuery(scope, FILTERS, { limit: 1 }).queryKey),
+    );
+    expect(queryOf(citationListQuery(scope, flagged).queryKey)).not.toHaveProperty('include_unresolved_redirects');
+    expect(queryOf(citationListQuery(scope, flagged).queryKey)).not.toHaveProperty('include_engine_internal');
+  });
+
   it('sourcePromptsQuery keeps ownCited false, which is a filter and not an absence', () => {
     expect(queryOf(sourcePromptsQuery(scope, FILTERS, { ownCited: false }).queryKey)).toHaveProperty(
       'filter[own_cited]',

@@ -2,6 +2,7 @@
 
 import { keepPreviousData, useQuery, type UseQueryResult } from '@tanstack/react-query';
 
+import type { ChangeKind } from './citation-scope';
 import { useErrorId, type ErrorIdWords } from '@/lib/api/use-error-id';
 import {
   citationListQuery,
@@ -115,19 +116,38 @@ export function useDiversity(
   return useRead(useQuery({ ...sourceDiversityQuery(scope, wholeScope(filters)), ...options(enabled) }));
 }
 
-/** How many sources are new or lost: `page.total` of one row of `sources/changes`. */
-export function useChangeCounts(
+/** The most rows the New and lost list asks for: the tab lists them, the strip counts them (`page.total`). */
+export const CHANGES_LIMIT = 100;
+/** `kind=lost` reads three windows, so a read stays good for five minutes and is not asked again on focus. */
+const CHANGES_STALE_MS = 5 * 60_000;
+
+/**
+ * The domains that are new or lost against the windows before. The strip and the New and lost tab ask for the
+ * same key (this limit, this staleness), so with no role filter each kind is one request, not two.
+ */
+export function useChangeList(
   scope: SourceScope,
   filters: SourceFilters,
-  { kind, minSupport }: { kind: 'new' | 'lost'; minSupport: number },
-  enabled = true,
+  { kind, minSupport, enabled = true }: { kind: ChangeKind; minSupport: number; enabled?: boolean },
 ): CitationRead<SourceChangePage> {
   return useRead(
     useQuery({
-      ...sourceChangesQuery(scope, wholeScope(filters), { kind, minSupport, limit: 1 }),
+      ...sourceChangesQuery(scope, filters, { kind, minSupport, limit: CHANGES_LIMIT }),
       ...options(enabled),
+      staleTime: CHANGES_STALE_MS,
+      refetchOnWindowFocus: false,
     }),
   );
+}
+
+/** How many sources are new or lost: `page.total` of the list, of the whole scope whatever the role filter. */
+export function useChangeCounts(
+  scope: SourceScope,
+  filters: SourceFilters,
+  { kind, minSupport }: { kind: ChangeKind; minSupport: number },
+  enabled = true,
+): CitationRead<SourceChangePage> {
+  return useChangeList(scope, wholeScope(filters), { kind, minSupport, enabled });
 }
 
 /** The newest citation in scope (newest first), for "Updated ..." and the stale note. */

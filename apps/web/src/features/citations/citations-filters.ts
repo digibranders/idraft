@@ -14,8 +14,13 @@ import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 /** The translator of `citations.filters`, as `useTranslations('citations.filters')` and `createTranslator` give it. */
 export type FilterTranslate = ReturnType<typeof useTranslations<'citations.filters'>>;
 
+/** The translator of `citations.flagFilters`, as `useTranslations('citations.flagFilters')` and `createTranslator` give it. */
+export type FlagTranslate = ReturnType<typeof useTranslations<'citations.flagFilters'>>;
+
 export interface CitationFilterInput {
   t: FilterTranslate;
+  /** The words of the two flag toggles; without them the bar offers neither (a harness that does not need them). */
+  flagWords?: FlagTranslate | undefined;
   tab: CitationTab;
   /** The engines that are on, in the project's order. */
   engines: readonly { code: EngineCode; label: string }[];
@@ -42,6 +47,7 @@ function topicOptions(topics: readonly NamedTerm[]): FilterOption[] {
 
 export function citationFilterFields({
   t,
+  flagWords,
   tab,
   engines,
   enginesLoading,
@@ -87,5 +93,24 @@ export function citationFilterFields({
     },
   ];
   if (tab === 'pages') fields.push({ id: 'domain', kind: 'text', label: t('domain'), operators: ['equals'] });
+  // Both are off unless chosen: the flagged citations stay out of every share and unit (owner decision O1)
+  if (flagWords !== undefined) {
+    fields.push(
+      {
+        id: 'redirects',
+        kind: 'enum',
+        label: flagWords('redirects'),
+        multi: false,
+        options: [{ value: 'include', label: flagWords('redirectsInclude') }],
+      },
+      {
+        id: 'internal',
+        kind: 'enum',
+        label: flagWords('internal'),
+        multi: false,
+        options: [{ value: 'include', label: flagWords('internalInclude') }],
+      },
+    );
+  }
   return fields;
 }

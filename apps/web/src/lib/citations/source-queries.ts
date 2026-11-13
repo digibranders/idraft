@@ -30,6 +30,10 @@ export interface SourceFilters {
   term?: string;
   roles?: readonly DomainRole[];
   includeBranded?: boolean;
+  /** Count the citations flagged as an unresolved redirect, which every share and unit leaves out by default. */
+  includeUnresolvedRedirects?: boolean;
+  /** Count the citations flagged as engine-internal links, left out by default. */
+  includeEngineInternal?: boolean;
 }
 
 /** The query values `SourceFilters` stand for. */
@@ -54,6 +58,17 @@ export function filterParams(filters: SourceFilters): ScopeParams {
     ...(filters.term === undefined ? {} : { 'filter[term]': filters.term }),
     ...(roles.length === 0 ? {} : { 'filter[domain_role_in]': [...roles] }),
     ...(filters.includeBranded === true ? { include_branded: true as const } : {}),
+  };
+}
+
+/** The two flags as query values, left out when off. The citation list route takes neither (422), so it never spreads them. */
+export function flagParams(filters: SourceFilters): {
+  include_unresolved_redirects?: true;
+  include_engine_internal?: true;
+} {
+  return {
+    ...(filters.includeUnresolvedRedirects === true ? { include_unresolved_redirects: true as const } : {}),
+    ...(filters.includeEngineInternal === true ? { include_engine_internal: true as const } : {}),
   };
 }
 
@@ -107,6 +122,7 @@ export const sourceDomainsQuery = (
       path: pathOf(scope),
       query: {
         ...filterParams(filters),
+        ...flagParams(filters),
         ...listParams(list),
         ...(include.length === 0 ? {} : { include: [...include] }),
       },
@@ -131,6 +147,7 @@ export const sourcePagesQuery = (
       path: pathOf(scope),
       query: {
         ...filterParams(filters),
+        ...flagParams(filters),
         ...listParams(list),
         ...(include.length === 0 ? {} : { include: [...include] }),
         ...(registrableDomain === undefined ? {} : { 'filter[registrable_domain]': registrableDomain }),
@@ -140,7 +157,9 @@ export const sourcePagesQuery = (
 
 /** `GET {P}/ai/sources/diversity`: per engine the distinct and the effective sources. It has no role filter. */
 export const sourceDiversityQuery = (scope: SourceScope, filters: SourceFilters): ApiQueryOptions<typeof DIVERSITY> =>
-  apiQuery(DIVERSITY, { params: { path: pathOf(scope), query: filterParams({ ...filters, roles: [] }) } });
+  apiQuery(DIVERSITY, {
+    params: { path: pathOf(scope), query: { ...filterParams({ ...filters, roles: [] }), ...flagParams(filters) } },
+  });
 
 /** `GET {P}/ai/sources/changes`: the domains that are new or lost against the window before. */
 export const sourceChangesQuery = (
@@ -153,6 +172,7 @@ export const sourceChangesQuery = (
       path: pathOf(scope),
       query: {
         ...filterParams(filters),
+        ...flagParams(filters),
         kind,
         ...(minSupport === undefined ? {} : { min_support: minSupport }),
         ...(limit === undefined ? {} : { limit }),
@@ -161,7 +181,10 @@ export const sourceChangesQuery = (
     },
   });
 
-/** `GET {P}/ai/citations`: the first page of the citation list, newest answer first. It keeps the flagged citations the aggregates leave out. */
+/**
+ * `GET {P}/ai/citations`: the first page of the citation list, newest answer first. It keeps the flagged citations
+ * the aggregates leave out, so it takes no flag: the route answers 422 for both.
+ */
 export const citationListQuery = (
   scope: SourceScope,
   filters: SourceFilters,
@@ -182,6 +205,7 @@ export const sourcePromptsQuery = (
       path: pathOf(scope),
       query: {
         ...filterParams({ ...filters, roles: [] }),
+        ...flagParams(filters),
         ...(ownCited === undefined ? {} : { 'filter[own_cited]': ownCited }),
         ...(limit === undefined ? {} : { limit }),
       },

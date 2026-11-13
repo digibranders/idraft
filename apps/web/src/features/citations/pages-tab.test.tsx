@@ -327,11 +327,11 @@ const idle = (client: ReturnType<typeof renderTab>['queryClient']): Promise<void
   waitFor(() => expect(client.isFetching()).toBe(0));
 
 describe('the tab list', () => {
-  it('has Domains and Pages, and tab=pages is chosen by the address', () => {
-    expect(CITATION_TABS.map((tab) => tab.id)).toEqual(['domains', 'pages']);
+  it('has Domains, Pages and New and lost, and tab=pages is chosen by the address', () => {
+    expect(CITATION_TABS.map((tab) => tab.id)).toEqual(['domains', 'pages', 'new-lost']);
     expect(activeCitationTab(CITATION_TABS, 'pages')?.id).toBe('pages');
     const words = createTranslator({ locale: 'en', messages, namespace: 'citations' });
-    expect(CITATION_TABS.map((tab) => tab.label(words))).toEqual(['Domains', 'Pages']);
+    expect(CITATION_TABS.map((tab) => tab.label(words))).toEqual(['Domains', 'Pages', 'New and lost']);
   });
 });
 

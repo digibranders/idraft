@@ -44,6 +44,8 @@ vi.mock('./citation-tabs', async (importOriginal) => {
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/digibranders/fynix/ai/citations',
+  // The real Domains tab reads the address to build its "View all" links
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 /** Thursday 12 November 2026, noon UTC: the 02:00 run has answered. */
@@ -491,6 +493,17 @@ describe('Citations page: the scope in the address', () => {
     expect(writes.at(-1)?.history).toBe('push');
   });
 
+  it('a tab change drops the saved columns, which belong to the table that was left', async () => {
+    registry.real = true;
+    const writes: string[] = [];
+    const { user } = render('?cols=domain,answers', {
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    await user.click(await screen.findByRole('tab', { name: 'New and lost' }));
+    await waitFor(() => expect(writes.at(-1)).toContain('tab=new-lost'));
+    expect(writes.at(-1)).not.toContain('cols');
+  });
+
   it('writes a filter or the comparison with history replace, not as an entry', async () => {
     const writes: { queryString: string; history: string | undefined }[] = [];
     const { user } = render('?tab=pages', {
@@ -629,5 +642,113 @@ describe('Citations page: the scope in the address', () => {
     render();
     await waitFor(() => expect(to(reads, '/ai/citations').length).toBeGreaterThan(0));
     expect(to(reads, '/ai/citations')[0]?.searchParams.get('limit')).toBe('1');
+  });
+});
+
+describe('Citations page: the New and lost tab', () => {
+  it('lists three tabs', async () => {
+    registry.real = true;
+    render();
+    const tabs = await screen.findByRole('tablist', { name: 'Citation views' });
+    const items = within(tabs).getAllByRole('tab');
+    expect(items).toHaveLength(3);
+    for (const name of ['Domains', 'Pages', 'New and lost']) {
+      expect(within(tabs).getByRole('tab', { name })).toBeInTheDocument();
+    }
+  });
+
+  it('opens on New and lost from the link and writes the tab as a history entry', async () => {
+    registry.real = true;
+    const writes: { queryString: string; history: string | undefined }[] = [];
+    const { user } = render('', {
+      onUrlUpdate: ({ queryString, options }) => writes.push({ queryString, history: options.history }),
+    });
+    await user.click(await screen.findByRole('tab', { name: 'New and lost' }));
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('tab=new-lost'));
+    expect(writes.at(-1)?.history).toBe('push');
+    expect(await screen.findByRole('grid', { name: 'New sources' })).toBeInTheDocument();
+  });
+
+  it('Export is not offered on New and lost', async () => {
+    registry.real = true;
+    const domains = render();
+    expect(await screen.findByRole('button', { name: 'Export CSV' })).toBeInTheDocument();
+    domains.unmount();
+    render('?tab=new-lost');
+    await screen.findByRole('grid', { name: 'New sources' });
+    expect(screen.queryByRole('button', { name: 'Export CSV' })).toBeNull();
+  });
+
+  it('the flag chips clear with Clear filters', async () => {
+    registry.real = true;
+    const writes: string[] = [];
+    const { user } = render('?tab=new-lost&redirects=include&internal=include', {
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    expect(
+      await screen.findByRole('button', { name: 'Remove filter Unresolved redirects: Include unresolved redirects' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Remove filter Engine links: Include engine-internal links' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(writes.at(-1)).not.toContain('redirects'));
+    expect(writes.at(-1)).not.toContain('internal');
+    expect(writes.at(-1)).toContain('tab=new-lost');
+    expect(screen.queryByRole('button', { name: /^Remove filter/ })).toBeNull();
+  });
+
+  it('a flag is a view key: it makes the saved view read as edited', async () => {
+    registry.real = true;
+    render('?redirects=include');
+    expect(await screen.findByRole('button', { name: /^Saved view: Default, edited/ })).toBeInTheDocument();
+  });
+
+  it('sends a flag to every read except the citations list route', async () => {
+    registry.real = true;
+    const reads = watch();
+    render('?tab=new-lost&redirects=include&internal=include');
+    await screen.findByRole('grid', { name: 'New sources' });
+    await waitFor(() => expect(to(reads, '/ai/citations').length).toBeGreaterThan(0));
+    for (const route of ['/ai/sources/domains', '/ai/sources/diversity', '/ai/sources/changes']) {
+      expect(to(reads, route).length).toBeGreaterThan(0);
+      for (const url of to(reads, route)) {
+        expect(url.searchParams.get('include_unresolved_redirects')).toBe('true');
+        expect(url.searchParams.get('include_engine_internal')).toBe('true');
+      }
+    }
+    // The route answers 422 for a flag
+    for (const url of to(reads, '/ai/citations')) {
+      expect(url.searchParams.has('include_unresolved_redirects')).toBe(false);
+      expect(url.searchParams.has('include_engine_internal')).toBe(false);
+    }
+  });
+
+  it("the strip's counts equal the segment counts", async () => {
+    registry.real = true;
+    render('?tab=new-lost');
+    const table = await screen.findByRole('grid', { name: 'New sources' });
+    await waitFor(() => expect(within(table).queryAllByRole('rowheader').length).toBeGreaterThan(0));
+    // The table's own caption says "New sources" too, so the strip's cell is looked up inside the strip
+    const stripGroup = await strip();
+    const stripCount = (name: string): string =>
+      within(stripGroup).getByText(name).closest('div')?.textContent?.match(/\d+/)?.[0] ?? '';
+    await waitFor(() => expect(stripCount('New sources')).not.toBe(''));
+    await waitFor(() => expect(stripCount('Lost sources')).not.toBe(''));
+    expect(screen.getByRole('radio', { name: `New ${stripCount('New sources')}` })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: `Lost ${stripCount('Lost sources')}` })).toBeInTheDocument();
+  });
+
+  it('asks each of New and Lost once for the strip and the tab together', async () => {
+    registry.real = true;
+    const reads = watch();
+    render('?tab=new-lost');
+    await screen.findByRole('grid', { name: 'New sources' });
+    await waitFor(() => expect(to(reads, '/ai/sources/changes')).toHaveLength(2));
+    expect(
+      to(reads, '/ai/sources/changes')
+        .map((url) => url.searchParams.get('kind'))
+        .sort(),
+    ).toEqual(['lost', 'new']);
   });
 });

@@ -16,6 +16,34 @@ describe('parseScope', () => {
     expect(parseScope({}, ENABLED).tab).toBe('domains');
   });
 
+  it('reads tab=new-lost', () => {
+    expect(parseScope({ tab: 'new-lost' }, ENABLED).tab).toBe('new-lost');
+    expect(parseScope({ tab: 'new_lost' }, ENABLED).tab).toBe('domains');
+  });
+
+  it('kind defaults to new and an unknown kind is new', () => {
+    expect(parseScope({}, ENABLED).changeKind).toBe('new');
+    expect(parseScope({ kind: 'lost' }, ENABLED).changeKind).toBe('lost');
+    expect(parseScope({ kind: 'new' }, ENABLED).changeKind).toBe('new');
+    for (const kind of ['Lost', 'gone', '', null, undefined]) {
+      expect(parseScope({ kind }, ENABLED).changeKind).toBe('new');
+    }
+  });
+
+  it('redirects and internal are on only for the value include', () => {
+    expect(parseScope({}, ENABLED)).toMatchObject({ includeUnresolvedRedirects: false, includeEngineInternal: false });
+    expect(parseScope({ redirects: 'include', internal: 'include' }, ENABLED)).toMatchObject({
+      includeUnresolvedRedirects: true,
+      includeEngineInternal: true,
+    });
+    for (const value of ['true', 'on', '1', 'Include', '', null]) {
+      expect(parseScope({ redirects: value, internal: value }, ENABLED)).toMatchObject({
+        includeUnresolvedRedirects: false,
+        includeEngineInternal: false,
+      });
+    }
+  });
+
   it('keeps only enabled engines and at most 3', () => {
     expect(parseScope({ engine: 'gemini_web,chatgpt_web' }, ENABLED).engines).toEqual(['gemini_web', 'chatgpt_web']);
     expect(parseScope({ engine: 'gemini_web,unknown_web,gemini_web' }, ENABLED).engines).toEqual(['gemini_web']);
@@ -96,6 +124,22 @@ describe('toFilters', () => {
     });
   });
 
+  it('toFilters carries the flags', () => {
+    const only = (search: Record<string, string>): ReturnType<typeof toFilters> =>
+      toFilters(parseScope(search, ENABLED), RANGE);
+    expect(only({ redirects: 'include' })).toMatchObject({ includeUnresolvedRedirects: true });
+    expect(only({ redirects: 'include' })).not.toHaveProperty('includeEngineInternal');
+    expect(only({ internal: 'include' })).toMatchObject({ includeEngineInternal: true });
+    expect(only({ internal: 'include' })).not.toHaveProperty('includeUnresolvedRedirects');
+  });
+
+  it('a scope with no flags makes the same filters as before', () => {
+    const filters = toFilters(parseScope({ tab: 'new-lost', kind: 'lost' }, ENABLED), RANGE);
+    expect(filters).toEqual({ from: RANGE.from, to: RANGE.to, engines: [], roles: [], includeBranded: false });
+    expect(Object.keys(filters)).not.toContain('includeUnresolvedRedirects');
+    expect(Object.keys(filters)).not.toContain('includeEngineInternal');
+  });
+
   it('leaves out what is not set', () => {
     expect(toFilters(parseScope({}, ENABLED), RANGE)).toEqual({
       from: RANGE.from,
@@ -110,7 +154,22 @@ describe('toFilters', () => {
 describe('CITATION_KEYS', () => {
   it('names every key the scope reads, once', () => {
     expect([...CITATION_KEYS].sort()).toEqual(
-      ['branded', 'cmp', 'cols', 'density', 'domain', 'engine', 'min', 'role', 'sort', 'tab', 'topic'].sort(),
+      [
+        'branded',
+        'cmp',
+        'cols',
+        'density',
+        'domain',
+        'engine',
+        'internal',
+        'kind',
+        'min',
+        'redirects',
+        'role',
+        'sort',
+        'tab',
+        'topic',
+      ].sort(),
     );
     expect(new Set(CITATION_KEYS).size).toBe(CITATION_KEYS.length);
   });

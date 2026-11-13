@@ -16,15 +16,21 @@ import { parseDensity, type Density } from '@/lib/tables/table-state';
  * `to`). `parseScope` and `toFilters` are pure; `useCitationScope` only reads the address and hands both.
  */
 
-export type CitationTab = 'domains' | 'pages';
+export type CitationTab = 'domains' | 'pages' | 'new-lost';
+
+/** The two lists of the New and lost tab. */
+export type ChangeKind = 'new' | 'lost';
 
 /** Every URL key of the page besides the date range's: the saved views govern these. */
 export const CITATION_KEYS = [
   'tab',
+  'kind',
   'engine',
   'role',
   'topic',
   'branded',
+  'redirects',
+  'internal',
   'cmp',
   'min',
   'sort',
@@ -40,6 +46,7 @@ export type CitationSearch = Readonly<Partial<Record<CitationKey, string | null 
 
 /** The most engines one read takes. */
 export const MAX_ENGINES = 3;
+const TABS: readonly CitationTab[] = ['domains', 'pages', 'new-lost'];
 const ROLES: readonly DomainRole[] = ['own', 'competitor', 'third_party'];
 const SORTS: readonly SourceSort[] = ['-citation_units', '-observations', '-prompts'];
 export const DEFAULT_SORT: SourceSort = '-citation_units';
@@ -49,12 +56,18 @@ export const MIN_SUPPORT_RANGE = { min: 1, max: 1000 } as const;
 
 export interface CitationScope {
   tab: CitationTab;
+  /** The list the New and lost tab shows; New unless the address says Lost. */
+  changeKind: ChangeKind;
   /** Enabled engines only, at most 3; none means every engine that is on. */
   engines: readonly EngineCode[];
   roles: readonly DomainRole[];
   /** One topic term: the prompts given it or one below it. */
   term: string | null;
   includeBranded: boolean;
+  /** Count the citations flagged as unresolved redirects (off by default, owner decision O1). */
+  includeUnresolvedRedirects: boolean;
+  /** Count the citations flagged as engine-internal links (off by default). */
+  includeEngineInternal: boolean;
   /**
    * False for `cmp=off`: the own share change and the read of the previous period stop, and the tables show no
    * change. The New and Lost counts are still read: they are server-side counts over their own windows.
@@ -91,11 +104,14 @@ export function parseScope(search: CitationSearch, enabledEngines: readonly Engi
   const term = search.topic?.trim() ?? '';
   const columns = search.cols?.trim() ?? '';
   return {
-    tab: search.tab === 'pages' ? 'pages' : 'domains',
+    tab: TABS.find((tab) => tab === search.tab) ?? 'domains',
+    changeKind: search.kind === 'lost' ? 'lost' : 'new',
     engines: listOf(search.engine, enabledEngines).slice(0, MAX_ENGINES),
     roles: listOf(search.role, ROLES),
     term: term === '' ? null : term,
     includeBranded: search.branded === 'include',
+    includeUnresolvedRedirects: search.redirects === 'include',
+    includeEngineInternal: search.internal === 'include',
     compare: search.cmp !== 'off',
     minSupport: minSupportOf(search.min),
     sort: SORTS.find((sort) => sort === search.sort) ?? DEFAULT_SORT,
@@ -123,6 +139,8 @@ export function toFilters(scope: CitationScope, range: DateWindow): SourceFilter
     roles: scope.roles,
     ...(scope.term === null ? {} : { term: scope.term }),
     includeBranded: scope.includeBranded,
+    ...(scope.includeUnresolvedRedirects ? { includeUnresolvedRedirects: true } : {}),
+    ...(scope.includeEngineInternal ? { includeEngineInternal: true } : {}),
   };
 }
 
