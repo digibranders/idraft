@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AiCollectionStatus } from './ai-collection-status';
 import type { Role, Run, Schemas } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
+import type { AiRunsScope } from '@/lib/runs/ai-reads';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { mockUser } from '@/mocks/fixtures';
 import { mswPath } from '@/mocks/respond';
@@ -93,12 +94,12 @@ function serveCoverage(byRun: Readonly<Record<string, readonly EngineRow[] | nul
 
 const NAMES = { chatgpt_web: 'ChatGPT', gemini_web: 'Gemini', google_ai_mode: 'Google AI Mode' };
 
-function statusAs(role: Role, onFinished: () => void = vi.fn()): ReactElement {
+function statusAs(role: Role, onFinished: () => void = vi.fn(), scope: AiRunsScope = RUNS_SCOPE): ReactElement {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   return (
     <PermissionProvider membership={membershipFactory(role)}>
       <AiCollectionStatus
-        scope={RUNS_SCOPE}
+        scope={scope}
         workspaceSlug={WORKSPACE_SLUG}
         projectSlug={PROJECT_SLUG}
         onFinished={onFinished}
@@ -131,6 +132,17 @@ describe('AiCollectionStatus progress', () => {
     serveWorld({ open: openRun({ status: 'planned', tasks_succeeded: 0, tasks_failed: 0 }), finished: null });
     renderWithProviders(statusAs('viewer'));
     expect(await screen.findByText('Collecting answers: 0 of 1,000 tasks')).toBeVisible();
+  });
+
+  it('says the tasks are being prepared for an open run that has planned none, not 0 of 0', async () => {
+    serveWorld({
+      open: openRun({ status: 'planned', tasks_total: 0, tasks_succeeded: 0, tasks_failed: 0 }),
+      finished: null,
+    });
+    renderWithProviders(statusAs('viewer'));
+    expect(await screen.findByText('Collecting answers: preparing the tasks')).toBeVisible();
+    expect(screen.queryByText(/0 of 0/)).toBeNull();
+    expect(screen.getByRole('link', { name: 'View run' })).toHaveAttribute('href', runHref(OPEN_ID));
   });
 
   it('progress is absent when no AI run is open', async () => {
@@ -177,6 +189,22 @@ describe('AiCollectionStatus progress', () => {
 
       // Later polls and re-renders say nothing more
       await vi.advanceTimersByTimeAsync(60_000);
+      expect(onFinished).toHaveBeenCalledTimes(1);
+    });
+
+    it('announces a finish once even when the page moves to another project afterwards', async () => {
+      const world: World = { open: openRun(), finished: null };
+      serveWorld(world);
+      const onFinished = vi.fn();
+      const { rerender } = renderWithProviders(statusAs('viewer', onFinished));
+      await screen.findByText('Collecting answers: 412 of 1,000 tasks, 3 failed');
+      world.open = null;
+      await vi.advanceTimersByTimeAsync(10_000);
+      await waitFor(() => expect(onFinished).toHaveBeenCalledTimes(1));
+
+      // Another project, with no open run: the end of the first run is not told again
+      rerender(statusAs('viewer', onFinished, { ...RUNS_SCOPE, projectId: '0192d1a8-dddd-7b44-8c2d-1f0e9d8c7b0d' }));
+      await vi.advanceTimersByTimeAsync(10_000);
       expect(onFinished).toHaveBeenCalledTimes(1);
     });
 
@@ -290,7 +318,11 @@ describe('AiCollectionStatus notice', () => {
     await waitFor(() => expect(coverage.asked).toContain(NEW_ID));
     await waitFor(() => expect(renderedIdle(container)).toBe(true));
     expect(coverage.asked).not.toContain(OLD_ID);
-    expect(served.queries.find((query) => !isOpenQuery(query))?.get('limit')).toBe('1');
+    const finishedQuery = served.queries.find((query) => !isOpenQuery(query));
+    expect(finishedQuery?.get('limit')).toBe('1');
+    // Only AI runs that ended with answers: a failed or cancelled run has no coverage to judge
+    expect(finishedQuery?.get('filter[workload_in]')).toBe('ai_prompt');
+    expect(finishedQuery?.get('filter[status_in]')).toBe('completed,completed_with_errors');
   });
 
   it('judges the run that finished with errors too', async () => {
