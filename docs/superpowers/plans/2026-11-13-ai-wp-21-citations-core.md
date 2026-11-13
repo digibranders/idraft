@@ -395,3 +395,47 @@ Built already: 0. Process rows (step 0 plan, step 7 notes, reports): T7, T8 and 
 | The phone e2e tab count changes with fonts | Measured at the browser check, asserted as "all tabs reachable and no sideways scroll". |
 | A share without its units slips in | The reviewer's first check; every share cell has `of N units` in its tooltip, description and the scope line. |
 | Hostile provider text (titles, raw URLs, hosts) | Only `DomainCell` and `URLCell` render them; tests use `xss-fixtures.ts`. |
+
+## 11. As built (2026-11-13)
+
+T1 to T6 were committed before this note; T7 is this note and the one in `docs/design-system/24-page-templates.md` (sections 9.6 and 9.7); T8 (rebase, final checks, report) follows. 31 of 31 rows are closed by the page, the tab, the mocks and the e2e. The page needed no edit to `prompt-inspector.tsx`, `prompt-answers.ts`, `lib/api/types.ts`, `columns.tsx`, `plain-table.tsx` or the shortcut files; the seam took two lines.
+
+### Decisions that changed on the way
+
+- **Q9, search.** The plan left the table search out. Both tables have one: "Search listed domains" and "Search listed pages", a client search over the listed rows only (the Pages search matches the address and the title). `DataTable` cannot hide its search, and the label says what it does. Export takes the rows after it, and the toast says N of M.
+- **Q15 and F8, the own row.** The page tables mark the own row by the Role badge and `rowTone`. `DomainCell`'s `role` prop is not used for the domain row: it draws a badge beside the name, which the Role column already has, and there is no option for primary text alone (a later shared change). In the prompt tab the Top domains cell is a local identity cell (domain on one line, badges under it), not `DomainCell`, so a badge does not take the width of a 322 px table; third party rows carry no badge there.
+- **Pages read.** Section 4 listed `include=series` on the Pages read; it is not asked, so there is no Trend column on Pages. The pages route also returns no `by_role_by_engine`, so the engine totals for Share by engine come from the scope read. Engine cells on both tabs are shares with the units in the tooltip (the plan said a count on Pages).
+- **New and Lost in the strip.** With `previous_answers` 0 both counts are n/a with a reason, besides the "nothing is marked New" note of D4.
+- **Tab history.** The address is written with history replace, except the tab, which pushes an entry, so Back returns to the other tab.
+- **Card wording.** The route behind "Prompts with no own page cited" has no total, so a full first page says "10 or more prompt and engine pairs cite no page of yours" (`noOwn.leadMore`), and "More pairs are not listed" follows the list. The list scrolls inside the card (about four rows in view).
+- **Domain filter.** Its text is lower-cased, because registrable domains are, and the backend filter is not.
+- **Messages.** The catalog grew past section 5 (for example `table.truncatedPages`, `table.noPrevious`, `strip.newNoPrevious`, `strip.lostNoPrevious`, `noOwn.leadMore`, `exportColumns`). Copy says "answers", not "observations" (D15).
+- **Phone tab count (T2c, T6).** Measured at 390 px: Latest, History, Citations and Competitors in the row, Stats under More tabs. The e2e asserts exactly that, and that the row does not scroll sideways.
+
+Kept as planned: D1 to D16; Q1 (two tabs through `defineCitationTabs`); Q2 (banner in the tab); Q3 (cited means the own domain); Q4 (Updated from one `ai/citations` read with `limit=1`); Q5 and D3 (the previous window read); Q6 (the domain's Cited with, joined from a domains read of 200); Q7 (Category hidden, n/a); Q8 and D7 (200 rows and a banner); Q10 (minimum 2 on the page, 1 on the tab); Q11 (`include_branded` for a branded prompt); Q12 (a local identity column); Q13 and D16 (favicons always shown); Q14 (WP-22 keeps `domains/{registrable_domain}`); Q16 (the count popover reads the first 10 rows only); Q17 (no `RefetchBar`; each part's own refetching state).
+
+### Measured and counted
+
+- 31 rows closed by the page, the tab, the mocks and the e2e.
+- `e2e/flows/ai-citations.spec.ts` (WB-E2E-10) has 14 tests: 10 named flows and 4 accessibility runs (2 themes at 2 widths).
+- Heavy run before P2: vitest over citations, lib/citations, prompts, mocks, navigation, shell, app and i18n, 173 files and 2579 tests, all passing; lint, typecheck and format check exit 0.
+- Prompt inspector at 390 px: 4 tabs in the row and Stats under More tabs.
+- Count popover at 390 px after F-19 (dd3740da on develop; the dropdown z token is 75, above the drawer's 70): it opens inside the viewport, measured x 32 to 382.
+- Eventus mock: 27 domains and 63 pages. Neither mock world has a New or a Lost row.
+- `shell.spec.ts` lines 126 and 156 fail on develop and are not from this package (the keywords work).
+
+### Not done, not checked
+
+- The "Methodology" link of the Effective sources MetricInfo is the constant `METHODOLOGY_HREF = '/methodology'` in `lib/citations/methodology.ts`. No such page exists, so the link is dead. The coordinator tracks it as F-24 (a small static page from `docs/16-metrics-methodology.md`, built before release); flip that one constant if the route changes.
+- The New badge and the Lost state were not seen in a browser (the mocks have none); they are covered by component tests.
+- Not checked against the dev API, and not at the 390 px sidebar drawer.
+- Eventus cannot be served in the e2e build (`ai-seed` is development only), so the real "View all" link is driven by URL in e2e.
+- Engine column headers are text, because the table headers take strings only (F-20), and they truncate ("CHAT..."). The Effective sources label is clipped by its info icon (the shared `MetricStrip`). The favicon service answers 404 for the mocks' invented hosts. The saved view menu reads "Default (edited)" on the Pages tab and with `density=default`, because `tab`, `density` and `cols` are view keys (D14).
+- This note ran no test, build or lint: the full suite, build and e2e are T8's.
+
+### Asks and follow-ups
+
+- Backend: `meta.previous_citation_units` and `previous_by_role` (F-18; removes the previous window read), `meta.last_observed_at` (Q4), `cited_with` on page rows (Q6), top domains on `sources/prompts` rows (Q16), categories (WP-60).
+- Shared: a primary-text-only option on `DomainCell` and a `col.domain` column helper (Q12); `rowTone` on `PlainTable` (Q15); a pager for the tree table (Q8); string-only header limit (F-20).
+- Prompt inspector: move the banner into the header with one hunk once WP-16's file is free (Q2).
+- Mocks: `answersWithCitations` in `citations-model.ts` is a copy of `answersOf` in `prompt-answers.ts`; export that one and delete the copy (WP-20 has merged).
