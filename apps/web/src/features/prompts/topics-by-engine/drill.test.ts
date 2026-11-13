@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { drillHref, ENGINE_PARAM, parseEngineParam, parseView } from './drill';
+import { drillHref, ENGINE_PARAM, parseEngineParam, parseView, topicHref } from './drill';
 
 const PATH = '/acme/site/ai/prompts';
 
@@ -40,6 +40,20 @@ describe('drillHref: the address of a topic on one engine (WB-TPE-07 and 12)', (
   it('keeps the key __none', () => {
     const { params } = parts(drillHref(PATH, '', '__none', 'chatgpt_web'));
     expect(params.get('inspect')).toBe('topic:__none');
+  });
+});
+
+describe('topicHref: the address of a topic on its Overview (a heat map row)', () => {
+  it('opens the topic and drops the tab and the engine of an earlier drawer, keeping the other keys', () => {
+    const { path, params } = parts(
+      topicHref(PATH, 'inspect=topic:t-9&itab=prompts&eng=chatgpt_web&view=heatmap&q=seo', 't-1'),
+    );
+    expect(path).toBe(PATH);
+    expect(params.getAll('inspect')).toEqual(['topic:t-1']);
+    expect(params.has('itab')).toBe(false);
+    expect(params.has(ENGINE_PARAM)).toBe(false);
+    expect(params.get('view')).toBe('heatmap');
+    expect(params.get('q')).toBe('seo');
   });
 });
 

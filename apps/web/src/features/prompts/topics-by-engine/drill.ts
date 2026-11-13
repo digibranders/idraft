@@ -21,6 +21,19 @@ export const parseEngineParam = (value: string | null, codes: readonly string[])
   value !== null && codes.includes(value) ? value : null;
 
 /**
+ * The address that opens a topic's drawer on its Overview, from the current address: every other key stays, an
+ * earlier `inspect`, `itab` and `eng` are replaced or dropped (a heat map row, WB-TPE-07).
+ */
+export function topicHref(pathname: string, search: string, topicKey: string): Route {
+  const params = new URLSearchParams(search);
+  params.set('inspect', formatInspectTarget({ type: 'topic', id: topicKey }));
+  params.delete('itab');
+  params.delete(ENGINE_PARAM);
+  // The path is the page's own, so it is a route of the app; typed routes cannot know that of a built string
+  return `${pathname}?${params.toString()}` as Route;
+}
+
+/**
  * The address that opens the Prompts tab of a topic filtered to one engine, from the current address: every other
  * key stays, an earlier `inspect`, `itab` and `eng` are replaced. `topicKey` is a topic id, or `__none`.
  */
