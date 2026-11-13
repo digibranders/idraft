@@ -688,6 +688,35 @@ WP-33 also adds its card types and numbers (inventory 9.3, 9.4) to `lib/layouts/
 `backend/src/idraft/api/layouts/catalog.json` in the same commit (lease L5), and adds schematic keys to
 `catalog/card-schematic.tsx` (same lease). It does not render `LayoutSaveBar` itself.
 
+As built, what WP-33 must also know (final review of WP-16):
+
+1. `definePresets(screen, presets)` takes the labels as strings and throws on an invalid, duplicate or reserved
+   (`builtin`, `team`) preset. The labels come from messages, so a page builds them in
+   `useMemo(() => definePresets(screen, [...]), [t])`; module level works only for fixed text. Its page test must
+   render it, so a typo fails that test and not the person.
+2. The Customizing badge goes in the `titleAddon` slot of `PageHeader` (added by WP-16); `titleHidden` drops it, so
+   a page with a hidden title puts `CustomizingBadge` in `actions`.
+3. `capabilities` come from `useLayoutCapabilities`, and the page waits for its status before the person can enter
+   customize mode: while engines load, AI cards count as unavailable (skipped in view, placeholders in customize).
+4. `registry` comes from `defineCards` at module level with an entry for every active catalog key of the screen; an
+   unregistered card renders "This card is not available yet." in view mode.
+5. `NumberValue` is `Omit<MetricStripItem, 'id' | 'label'>`: `href` is typed `Route` (not `string`) and is drawn in
+   view mode only; `tip` and `meter` are not drawn in customize mode. `valueOf` runs for every number on every
+   render, so keep it pure and cheap, return `unknown` for a not collected engine and show counts beside rates.
+6. Exports beyond the table above: `DrawerCustomizer`, `DrawerGrid`, `useDrawerCustomize`, `LayoutSaveBar` (needed
+   with `saveBar="none"`), `StartFromMenu`, `presetItems`, `CardCatalogDialog`, `LayoutReadBanner`. `ConflictKind`
+   and `useOptionalCustomize` are not exported.
+7. The page must not render its own save bar (the default `saveBar="end"` does). The sticky bar reserves scroll
+   padding on the nearest scrolling ancestor. Only one customizable screen is active at a time (a module level
+   registry asks before another one starts), so an Overview plus an open drawer is fine.
+8. The leave guard needs the router and the pathname: component tests `vi.mock('next/navigation', ...)` with
+   `@/test/next-navigation` and use `@/test/customize-harness`. The guard adds one history entry while dirty and
+   `useLeaveGuard` has one interceptor, so a page with a dirty form cannot also be customizable.
+9. Cards pass `subscribed: live` and respect the mode (their body is `inert` in customize mode). A page with only a
+   `NumberStrip` (no grid) sets `readBanner` on it to show the read failure; the grid already shows one.
+10. Start from shows only when the page passes presets or a team default exists. Customize is hidden below 768 px,
+    so nothing on a phone may depend on it.
+
 ## 6. Order and dependencies
 
 T0, then T1 (everything uses the controller), then T2, T3, T4 (catalogs), T5, T6 (save bar first), T7, T8, T9, T10,
