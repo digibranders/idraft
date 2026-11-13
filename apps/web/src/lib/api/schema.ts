@@ -1089,7 +1089,7 @@ export interface paths {
         };
         /**
          * Active prompts, monthly AI answers and manual runs: used and limit
-         * @description The workspace's active prompts and AI answers this UTC month, and the project's manual runs today (UTC), each with its limit, as the writes count them. Not built yet: `501 not_implemented`.
+         * @description The workspace's active prompts and AI answers this UTC month, and the project's manual runs today (UTC), each with its limit, as the writes count them. Reading changes nothing.
          */
         get: operations["ai_limits_api_v1_workspaces__workspace_id__projects__project_id__ai_limits_get"];
         put?: never;
@@ -1795,13 +1795,13 @@ export interface paths {
         };
         /**
          * The project's prompts
-         * @description Newest first. `filter[is_active]` is true when left out; archived prompts are listed with false. `filter[term]` takes the term or one under it, `filter[q]` matches the text as a substring without case, and `filter[intent_in]` takes a comma list. A cursor is bound to its filters (`400 invalid_cursor` otherwise). The type, funnel stage, importance and branded filters, `sort` and `filter[is_active]=any` are published and not built yet (`501`).
+         * @description Newest first, or by `sort`. `filter[is_active]` is true when left out; archived prompts are listed with false, and both with `any`. `filter[term]` takes the term or one under it, `filter[q]` matches the text as a substring without case, and `filter[intent_in]`, `filter[prompt_type_in]`, `filter[funnel_stage_in]` and `filter[importance_in]` take a comma list. `filter[is_branded]` lists branded or unbranded prompts; left out, both are listed (a list is not a rate). A cursor is bound to its filters and its sort (`400 invalid_cursor` otherwise).
          */
         get: operations["list_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_get"];
         put?: never;
         /**
          * Add a prompt
-         * @description `409 duplicate` (with `existing_id`) when the project has the same text in the same language and country, archived prompts included; `422 quota_exceeded` (with `limit`, `used` and `requested`) past the workspace's active prompt limit. Field codes: `prompt_too_long` (over 2,000 characters, the most any engine takes), `location_not_supported` (`country_iso` has no location of an enabled engine), `term_unknown` and `single_valued_vocabulary`. `is_branded` is computed from the project's own aliases.
+         * @description `409 duplicate` (with `existing_id`) when the project has the same text in the same language and country, archived prompts included; `422 quota_exceeded` (with `limit`, `used` and `requested`) past the workspace's active prompt limit. Field codes: `prompt_too_long` (over 2,000 characters, the most any engine takes), `location_not_supported` (`country_iso` has no location of an enabled engine), `term_unknown`, `single_valued_vocabulary` and `tracked_keyword_unknown` (`generated_from` names a keyword the project does not track). `is_branded` left out is computed from the project's own aliases and `is_branded_source` says `computed`; sent, it is kept and says `override`. `source` left out is `manual` and `creation_method` is `human` (`template` with `generated_from`, which is kept in the audit entry). `prompt_type` left out is chosen from the wording (`rule`: `vs` or `versus` is a comparison, `how to` is how_to, a leading question word or a question mark is a question, anything else is other) and `prompt_type_source` says `rule`; sent, it is kept and says `person`.
          */
         post: operations["create_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts_post"];
         delete?: never;
@@ -1821,7 +1821,7 @@ export interface paths {
         put?: never;
         /**
          * Archive or bring back many prompts
-         * @description Up to 1,000 `ids` of the project's prompts; an id it does not have is not matched. `archive: true` archives them as `DELETE` does one, `false` brings them back as `PATCH is_active: true` does; answers, versions and terms stay. Bringing back counts against the workspace's active prompt limit, all or none (`422 quota_exceeded` with `limit`, `used` and `requested`). `matched` is the prompts found, `updated` those whose state changed. One audit entry for the request and one per prompt changed. `filter` in place of `ids` is published and not built yet (`501`).
+         * @description Up to 1,000 `ids` of the project's prompts, or a `filter` (the list's filters; `is_active` left out takes archived and active prompts alike), exactly one; an id the project does not have is not matched, and a filter matching more than 1,000 prompts is `422 too_many_subjects` with `limit`. `archive: true` archives them as `DELETE` does one, `false` brings them back as `PATCH is_active: true` does; answers, versions and terms stay. Bringing back counts against the workspace's active prompt limit, all or none (`422 quota_exceeded` with `limit`, `used` and `requested`). `matched` is the prompts found, `updated` those whose state changed. One audit entry for the request and one per prompt changed.
          */
         post: operations["bulk_archive_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_archive_post"];
         delete?: never;
@@ -1841,7 +1841,7 @@ export interface paths {
         put?: never;
         /**
          * Add a list of prompts
-         * @description Up to 1,000 items. An item that cannot be saved is rejected with its code (`location_not_supported`, `term_unknown`, `single_valued_vocabulary`, `duplicate_in_request` for the same prompt twice in the list, and `duplicate` with `on_duplicate: error`); with `skip`, a prompt the project has is listed in `skipped`. The rest are written together: `422 quota_exceeded` past the workspace's active prompt limit, and nothing is written. No Idempotency-Key: sending the list again skips what it added.
+         * @description Up to 1,000 items. An item that cannot be saved is rejected with its code (`location_not_supported`, `term_unknown`, `single_valued_vocabulary`, `tracked_keyword_unknown`, `duplicate_in_request` for the same prompt twice in the list, and `duplicate` with `on_duplicate: error`); with `skip`, a prompt the project has is listed in `skipped`. The rest are written together: `422 quota_exceeded` past the workspace's active prompt limit, and nothing is written. Each item without a `prompt_type` takes the wording rule on its own. No Idempotency-Key: sending the list again skips what it added.
          */
         post: operations["bulk_create_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_create_post"];
         delete?: never;
@@ -1861,7 +1861,7 @@ export interface paths {
         put?: never;
         /**
          * Change the metadata of many prompts
-         * @description Up to 1,000 `ids` of the project's prompts, or `filter` (the list's filters), exactly one. `set` changes intent, funnel stage, type, importance and the branded flag; `add_term_ids` and `remove_term_ids` add and remove terms. `matched` is the prompts found, `updated` those that changed. One transaction; one `prompt.bulk_changed` audit entry and one `prompt.updated` per prompt changed. Not built yet: `501 not_implemented`.
+         * @description Up to 1,000 `ids` of the project's prompts, or `filter` (the list's filters), exactly one. `set` changes intent, funnel stage, type, importance and the branded flag; `add_term_ids` and `remove_term_ids` add and remove terms. `matched` is the prompts found, `updated` those that changed. Setting `prompt_type` makes `prompt_type_source` `person`, and setting `is_branded` makes `is_branded_source` `override`. An added term of a single-valued vocabulary takes the place of the prompt's other term of it; field codes `term_unknown` and `single_valued_vocabulary` name `add_term_ids` or `remove_term_ids`. A filter matching more than 1,000 prompts is `422 too_many_subjects` with `limit`. One transaction; one `prompt.bulk_changed` audit entry and one `prompt.updated` per prompt changed.
          */
         post: operations["bulk_update_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_update_post"];
         delete?: never;
@@ -1881,7 +1881,7 @@ export interface paths {
         put?: never;
         /**
          * Check prompts before saving them
-         * @description Nothing is stored. For each text, as it would be saved: whether it names an own brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine it is too long for (`engine_limit`: a warning when the engine skips it, an error when it is too long to save). `quota` is the workspace's active prompt limit and use. `items` (with language and country, to say what is tracked) and `language_code` are published and not built yet (`501`).
+         * @description Nothing is stored. For each text, as it would be saved: whether it names an own brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine it is too long for (`engine_limit`: a warning when the engine skips it, an error when it is too long to save). `quota` is the workspace's active prompt limit and use. With `items` (text, language and country) each result also says which prompt of the project it is (`tracked`, archived ones too) or, when none, the one that differs only in case and spacing (`near_duplicate_of`), and `quota.would_create` counts the items saving would create: not tracked, not a repeat of an earlier item, not too long to save. Five rules read the text, after `contains_brand_alias` and before `engine_limit`: `contains_competitor_alias` (a warning, a note when the text compares with `vs` or `versus`; it never makes the prompt branded), `leading_wording` (a superlative within 3 words of an own or competitor name, or "why is X the best"), `multiple_questions`, `word_count` (5 to 60 words; scripts written without spaces count half their characters) and `language_mismatch` (the text reads as another script, or for en, de, fr, es, it, pt and nl another language, than the item's `language_code`, or the body's for `texts`; texts under 4 words and unknown languages are not checked). The competitor and leading rules carry a span; the others carry none. Every result has `suggested_prompt_type`, the type the wording rule gives the text. With `items`, `estimate` says what the prompts that would be created cost on the standard queue, for each of `engine_codes` or, left out, each engine the project has on: the prompts the engine takes, the answers a month at two runs a week (rounded down), the cost a month to the cent, and the answers and cost of one run now. An engine the price book has no price for has null costs.
          */
         post: operations["lint_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_lint_post"];
         delete?: never;
@@ -1897,7 +1897,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A prompt */
+        /**
+         * A prompt
+         * @description With an `ETag` header: 32 lowercase hex characters, quoted. It changes with every change of the prompt's metadata or terms.
+         */
         get: operations["get_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__get"];
         put?: never;
         post?: never;
@@ -1910,7 +1913,7 @@ export interface paths {
         head?: never;
         /**
          * Change a prompt's metadata
-         * @description The text, language and country cannot change (`422 validation_failed` with `immutable_field`): archive the prompt and add a new one. `term_ids` replaces the terms. `is_active: true` brings an archived prompt back and counts against the quota.
+         * @description The text, language and country cannot change (`422 validation_failed` with `immutable_field`): archive the prompt and add a new one. `term_ids` replaces the terms. `is_active: true` brings an archived prompt back and counts against the quota. Setting `prompt_type` makes `prompt_type_source` `person`, and setting `is_branded` makes `is_branded_source` `override`. The answer carries the new `ETag`.
          */
         patch: operations["update_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__patch"];
         trace?: never;
@@ -2212,8 +2215,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Add, remove or replace terms of tracked keywords
-         * @description Exactly one of `subject_ids` (up to 5,000) and `subject_filter` (the list's filters; `422 too_many_subjects` over 20,000 matches). `add` with a term of a single-valued vocabulary replaces the keyword's other term of it; `replace` makes the given terms the keyword's only ones within their vocabularies, and other vocabularies are kept. Two terms of one single-valued vocabulary are `422 validation_failed` with `single_valued_vocabulary`; `subject_type: 'prompt'` is `subject_type_not_supported` until prompts exist.
+         * Add, remove or replace terms of tracked keywords or prompts
+         * @description Exactly one of `subject_ids` (up to 5,000) and `subject_filter` (the list's filters; `422 too_many_subjects` over 20,000 matches). `add` with a term of a single-valued vocabulary replaces the subject's other term of it; `replace` makes the given terms the subject's only ones within their vocabularies, and other vocabularies are kept. Two terms of one single-valued vocabulary are `422 validation_failed` with `single_valued_vocabulary`. `subject_type: 'prompt'` also needs `prompts:write` (`403` without it) and takes `subject_ids` only: a `subject_filter` is `422 validation_failed` with `filter_not_supported` (to choose prompts by filter, use bulk-update). Ids that are not live prompts of the project are not matched and are no error.
          */
         post: operations["assign_terms_api_v1_workspaces__workspace_id__projects__project_id__term_assignments_post"];
         delete?: never;
@@ -2603,7 +2606,7 @@ export interface paths {
         };
         /**
          * A vocabulary's terms, as a tree or flat
-         * @description In path order. `flat` lists every term with empty `children`.
+         * @description In path order. `flat` lists every term with empty `children`. `include=prompt_count` adds `prompt_count` to every term (one grouped query, left out otherwise).
          */
         get: operations["list_terms_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__terms_get"];
         put?: never;
@@ -3821,12 +3824,15 @@ export interface components {
         };
         /** EngineEstimate */
         EngineEstimate: {
-            /** Answers Per Month */
+            /**
+             * Answers Per Month
+             * @description Answers in an average month: prompts x runs a week x answers per run x 52 weeks / 12 months, rounded down.
+             */
             answers_per_month: number;
             engine_code: components["schemas"]["EngineCode"];
             /**
              * Monthly Cost Usd
-             * @description Null when the price book has no price.
+             * @description What those answers cost, to the cent. Null when the price book has no price.
              */
             monthly_cost_usd: string | null;
             /**
@@ -3834,9 +3840,15 @@ export interface components {
              * @description Prompts it would create that the engine takes.
              */
             prompts_fit: number;
-            /** Run Now Answers */
+            /**
+             * Run Now Answers
+             * @description Answers one run of these prompts asks for.
+             */
             run_now_answers: number;
-            /** Run Now Cost Usd */
+            /**
+             * Run Now Cost Usd
+             * @description What one run costs, not rounded. Null when the price book has no price.
+             */
             run_now_cost_usd: string | null;
         };
         /** EngineRoleUnits */
@@ -5202,9 +5214,15 @@ export interface components {
          * @description What the prompts that would be created cost on the standard queue (prompt-dialogs N05).
          */
         LintEstimate: {
-            /** Engines */
+            /**
+             * Engines
+             * @description The engines in `engine_codes`, or the project's enabled engines, in the engines' own order.
+             */
             engines: components["schemas"]["EngineEstimate"][];
-            /** Total Monthly Cost Usd */
+            /**
+             * Total Monthly Cost Usd
+             * @description The engines' monthly costs added; null when none has a price.
+             */
             total_monthly_cost_usd: string | null;
         };
         /** LintNearDuplicate */
@@ -6471,9 +6489,10 @@ export interface components {
             is_branded: boolean;
             /**
              * Is Branded Source
-             * @description Not returned yet: absent from every response until it is built.
+             * @description `computed` from the own aliases, or `override` when a person set the flag.
+             * @enum {string}
              */
-            is_branded_source?: ("computed" | "override") | null;
+            is_branded_source: "computed" | "override";
             /** Language Code */
             language_code: string;
             /**
@@ -6488,9 +6507,10 @@ export interface components {
             prompt_type: "question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other";
             /**
              * Prompt Type Source
-             * @description Not returned yet: absent from every response until it is built.
+             * @description `rule` when the server's wording rule set the type, `person` when a person sent or changed it.
+             * @enum {string}
              */
-            prompt_type_source?: ("rule" | "person") | null;
+            prompt_type_source: "rule" | "person";
             /** Source */
             source: string;
             /** Terms */
@@ -6516,7 +6536,7 @@ export interface components {
         };
         /**
          * PromptBulkArchiveByFilter
-         * @description Every prompt of the project the filter matches. Not built yet (`501`).
+         * @description Every prompt of the project the filter matches, at most 1,000 (`422 too_many_subjects`).
          */
         PromptBulkArchiveByFilter: {
             /**
@@ -6621,7 +6641,7 @@ export interface components {
             country_iso: string;
             /**
              * Creation Method
-             * @description How it was written; left out: `human`. Not built yet: `501 not_implemented`.
+             * @description How it was written; left out: `human`, or `template` with `generated_from`.
              */
             creation_method?: ("human" | "template" | "imported") | null;
             /**
@@ -6630,7 +6650,7 @@ export interface components {
              * @enum {string}
              */
             funnel_stage: "tofu" | "mofu" | "bofu" | "retention" | "unknown";
-            /** @description The tracked keyword and template it was generated from. Not built yet: `501 not_implemented`. */
+            /** @description The tracked keyword (one of the project's, else `tracked_keyword_unknown`) and template it was generated from. Kept in the audit entry only. */
             generated_from?: components["schemas"]["GeneratedFrom"] | null;
             /**
              * Importance
@@ -6645,20 +6665,19 @@ export interface components {
             intent: "informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown";
             /**
              * Is Branded
-             * @description Overrides the branded flag computed from the own aliases. Not built yet: `501 not_implemented`.
+             * @description Overrides the branded flag computed from the own aliases; sent, it is kept and `is_branded_source` is `override`.
              */
             is_branded?: boolean | null;
             /** Language Code */
             language_code: string;
             /**
              * Prompt Type
-             * @default question
-             * @enum {string}
+             * @description Left out: the server rule reads the wording and `prompt_type_source` is `rule`. Sent: kept as sent, `person`.
              */
-            prompt_type: "question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other";
+            prompt_type?: ("question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other") | null;
             /**
              * Source
-             * @description Where the prompt came from; left out: `manual`. Not built yet: `501 not_implemented`.
+             * @description Where the prompt came from; left out: `manual`.
              */
             source?: ("manual" | "csv_import" | "seo_keyword" | "paa" | "gsc_query") | null;
             /**
@@ -6681,19 +6700,20 @@ export interface components {
              * @description Own brand names found, each once.
              */
             matched_aliases: components["schemas"]["MatchedAlias"][];
-            /** @description A prompt that differs only in case and spacing. Not returned yet: absent from every response until it is built. */
+            /** @description A prompt of the same language and country that differs only in case and spacing (with `items`, when the text is not tracked). */
             near_duplicate_of?: components["schemas"]["LintNearDuplicate"] | null;
             /**
              * Suggested Prompt Type
-             * @description The type the server rule gives the text. Not returned yet: absent from every response until it is built.
+             * @description The type the server rule gives the text when none is sent.
+             * @enum {string}
              */
-            suggested_prompt_type?: ("question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other") | null;
+            suggested_prompt_type: "question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other";
             /**
              * Text
              * @description As it would be saved.
              */
             text: string;
-            /** @description The project's prompt with this identity, archived ones too (with `items`). Not returned yet: absent from every response until it is built. */
+            /** @description The project's prompt with this identity, archived ones too (with `items`). */
             tracked?: components["schemas"]["LintTracked"] | null;
             /** Warnings */
             warnings: components["schemas"]["LintWarning"][];
@@ -6729,7 +6749,7 @@ export interface components {
             engine_codes?: components["schemas"]["EngineCode"][] | null;
             /**
              * Language Code
-             * @description The language the texts should be in, for `language_mismatch`. Not built yet: `501 not_implemented`.
+             * @description The language the texts should be in, for `language_mismatch`. Left out: that rule is not checked.
              */
             language_code?: string | null;
             /** Texts */
@@ -6739,7 +6759,7 @@ export interface components {
         PromptLintResponse: {
             /** Data */
             data: components["schemas"]["PromptLint"][];
-            /** @description Not returned yet: absent from every response until it is built. */
+            /** @description With `items`: what the prompts that would be created cost. Absent for `texts`. */
             estimate?: components["schemas"]["LintEstimate"] | null;
             quota: components["schemas"]["PromptQuota"];
         };
@@ -6811,7 +6831,10 @@ export interface components {
              * @description `true` brings an archived prompt back; it counts against the quota.
              */
             is_active?: boolean;
-            /** Is Branded */
+            /**
+             * Is Branded
+             * @description Sets the branded flag; `is_branded_source` becomes `override`, even when the value is the one the aliases give.
+             */
             is_branded?: boolean;
             /**
              * Prompt Type
@@ -6835,7 +6858,7 @@ export interface components {
             used: number;
             /**
              * Would Create
-             * @description Of the items, those neither tracked nor repeated. Not returned yet: absent from every response until it is built.
+             * @description With `items`: of the items, those neither tracked nor repeated nor too long to save.
              */
             would_create?: number | null;
         };
@@ -8629,7 +8652,7 @@ export interface components {
             subject_ids?: string[] | null;
             /**
              * Subject Type
-             * @description `prompt` arrives with prompts.
+             * @description `prompt` also needs `prompts:write` and takes `subject_ids` only.
              * @enum {string}
              */
             subject_type: "tracked_keyword" | "prompt";
@@ -8705,6 +8728,11 @@ export interface components {
              * @description Slugs from the root down, joined by `/`.
              */
             path: string;
+            /**
+             * Prompt Count
+             * @description With `include=prompt_count`: active, live prompts with the term or one under it, branded or not, in projects the caller can see; each prompt once. A membership count, not a rate. Left out of the answer unless asked for.
+             */
+            prompt_count?: number | null;
             /** Slug */
             slug: string;
             /**
@@ -13766,17 +13794,17 @@ export interface operations {
                 "filter[intent_in]"?: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown")[] | null;
                 "filter[country_iso]"?: string | null;
                 "filter[language_code]"?: string | null;
-                /** @description `true` (default) or `false`; `any` lists both. `any`: Not built yet: `501 not_implemented`. */
+                /** @description `true` (default) or `false`; `any` lists archived and active prompts together. */
                 "filter[is_active]"?: boolean | "any";
-                /** @description Not built yet: `501 not_implemented`. */
+                /** @description A comma list of types; prompts of any of them. */
                 "filter[prompt_type_in]"?: ("question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other")[] | null;
-                /** @description Not built yet: `501 not_implemented`. */
+                /** @description A comma list of funnel stages; prompts at any of them. */
                 "filter[funnel_stage_in]"?: ("tofu" | "mofu" | "bofu" | "retention" | "unknown")[] | null;
-                /** @description Not built yet: `501 not_implemented`. */
+                /** @description A comma list of importances, 1 to 5; prompts with any of them. */
                 "filter[importance_in]"?: number[] | null;
-                /** @description Not built yet: `501 not_implemented`. */
+                /** @description `true` lists branded prompts, `false` the others; left out, both. */
                 "filter[is_branded]"?: boolean | null;
-                /** @description A field, `-` first for descending; left out: newest first. Not built yet: `501 not_implemented`. */
+                /** @description A field, `-` first for descending; left out: newest first. */
                 sort?: ("text" | "-text" | "importance" | "-importance" | "created_at" | "-created_at" | "updated_at" | "-updated_at") | null;
                 /** @description `page.next_cursor` of the previous page. */
                 cursor?: string | null;
@@ -14059,7 +14087,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description The `ETag` of the prompt as read; a changed prompt is `412 precondition_failed`. Not built yet: `501 not_implemented`. */
+                /** @description The `ETag` of the prompt as read, a comma list of them, or `*` (any existing prompt). When none is the prompt's current `ETag`, the answer is `412 precondition_failed` and nothing changes. Left out, the change is made as it is. */
                 "If-Match"?: string | null;
             };
             path: {
@@ -15678,6 +15706,8 @@ export interface operations {
                 format?: "tree" | "flat";
                 /** @description Terms whose name holds the text; the tree keeps their ancestors. */
                 "filter[q]"?: string | null;
+                /** @description Counts to add: `prompt_count`. */
+                include?: "prompt_count"[] | null;
             };
             header?: never;
             path: {
@@ -15896,9 +15926,9 @@ export const projectUpdateStatusValues: ReadonlyArray<FlattenedDeepRequired<comp
 export const promptCreation_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["creation_method"]> = ["human", "template", "llm_generated", "imported"];
 export const promptFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
 export const promptIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
-export const promptIs_branded_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["is_branded_source"]> = ["computed", "override"];
+export const promptIs_branded_sourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["is_branded_source"]> = ["computed", "override"];
 export const promptPrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
-export const promptPrompt_type_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["prompt_type_source"]> = ["rule", "person"];
+export const promptPrompt_type_sourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["prompt_type_source"]> = ["rule", "person"];
 export const promptBulkCreateOn_duplicateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptBulkCreate"]["on_duplicate"]> = ["skip", "error"];
 export const promptBulkSetFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptBulkSet"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
 export const promptBulkSetIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptBulkSet"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
@@ -15906,9 +15936,9 @@ export const promptBulkSetPrompt_typeValues: ReadonlyArray<FlattenedDeepRequired
 export const promptCreateCreation_methodAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["creation_method"]> = ["human", "template", "imported"];
 export const promptCreateFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
 export const promptCreateIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
-export const promptCreatePrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
+export const promptCreatePrompt_typeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
 export const promptCreateSourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["source"]> = ["manual", "csv_import", "seo_keyword", "paa", "gsc_query"];
-export const promptLintSuggested_prompt_typeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptLint"]["suggested_prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
+export const promptLintSuggested_prompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptLint"]["suggested_prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
 export const promptPatchFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptPatch"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
 export const promptPatchIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptPatch"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
 export const promptPatchPrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptPatch"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];

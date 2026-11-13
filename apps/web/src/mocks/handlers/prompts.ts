@@ -218,8 +218,10 @@ export function promptView(stored: StoredPrompt): Prompt {
     intent: stored.intent,
     funnel_stage: stored.funnel_stage,
     prompt_type: stored.prompt_type,
+    prompt_type_source: 'rule',
     importance: stored.importance,
     is_branded: stored.is_branded,
+    is_branded_source: 'computed',
     source: 'manual',
     creation_method: 'human',
     is_active: stored.is_active,
@@ -694,6 +696,10 @@ export const promptHandlers: HttpHandler[] = [
         return {
           text,
           is_branded: found.length > 0,
+          // The mock's own simple rule: a question mark or a leading question word is a question, the rest is other
+          suggested_prompt_type: /\?\s*$|^(what|which|who|where|when|why|how|is|are|can|does|do)\b/i.test(text)
+            ? 'question'
+            : 'other',
           // Each text the aliases matched, once per brand: the alias is what the text says, not the brand's name
           matched_aliases: found.flatMap(({ entity, role, mention }) =>
             [

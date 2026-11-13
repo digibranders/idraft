@@ -2977,6 +2977,7 @@
       "EngineEstimate": {
         "properties": {
           "answers_per_month": {
+            "description": "Answers in an average month: prompts x runs a week x answers per run x 52 weeks / 12 months, rounded down.",
             "title": "Answers Per Month",
             "type": "integer"
           },
@@ -2996,7 +2997,7 @@
                 "type": "null"
               }
             ],
-            "description": "Null when the price book has no price.",
+            "description": "What those answers cost, to the cent. Null when the price book has no price.",
             "title": "Monthly Cost Usd"
           },
           "prompts_fit": {
@@ -3005,6 +3006,7 @@
             "type": "integer"
           },
           "run_now_answers": {
+            "description": "Answers one run of these prompts asks for.",
             "title": "Run Now Answers",
             "type": "integer"
           },
@@ -3021,6 +3023,7 @@
                 "type": "null"
               }
             ],
+            "description": "What one run costs, not rounded. Null when the price book has no price.",
             "title": "Run Now Cost Usd"
           }
         },
@@ -6776,6 +6779,7 @@
         "description": "What the prompts that would be created cost on the standard queue (prompt-dialogs N05).",
         "properties": {
           "engines": {
+            "description": "The engines in `engine_codes`, or the project's enabled engines, in the engines' own order.",
             "items": {
               "$ref": "#/components/schemas/EngineEstimate"
             },
@@ -6795,6 +6799,7 @@
                 "type": "null"
               }
             ],
+            "description": "The engines' monthly costs added; null when none has a price.",
             "title": "Total Monthly Cost Usd"
           }
         },
@@ -10109,20 +10114,13 @@
             "type": "boolean"
           },
           "is_branded_source": {
-            "anyOf": [
-              {
-                "enum": [
-                  "computed",
-                  "override"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+            "description": "`computed` from the own aliases, or `override` when a person set the flag.",
+            "enum": [
+              "computed",
+              "override"
             ],
-            "description": "Not returned yet: absent from every response until it is built.",
-            "title": "Is Branded Source"
+            "title": "Is Branded Source",
+            "type": "string"
           },
           "language_code": {
             "title": "Language Code",
@@ -10148,20 +10146,13 @@
             "type": "string"
           },
           "prompt_type_source": {
-            "anyOf": [
-              {
-                "enum": [
-                  "rule",
-                  "person"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+            "description": "`rule` when the server's wording rule set the type, `person` when a person sent or changed it.",
+            "enum": [
+              "rule",
+              "person"
             ],
-            "description": "Not returned yet: absent from every response until it is built.",
-            "title": "Prompt Type Source"
+            "title": "Prompt Type Source",
+            "type": "string"
           },
           "source": {
             "title": "Source",
@@ -10188,8 +10179,10 @@
           "intent",
           "funnel_stage",
           "prompt_type",
+          "prompt_type_source",
           "importance",
           "is_branded",
+          "is_branded_source",
           "source",
           "creation_method",
           "is_active",
@@ -10230,7 +10223,7 @@
       },
       "PromptBulkArchiveByFilter": {
         "additionalProperties": false,
-        "description": "Every prompt of the project the filter matches. Not built yet (`501`).",
+        "description": "Every prompt of the project the filter matches, at most 1,000 (`422 too_many_subjects`).",
         "properties": {
           "archive": {
             "description": "false brings the prompts back, within the active prompt quota.",
@@ -10496,7 +10489,7 @@
                 "type": "null"
               }
             ],
-            "description": "How it was written; left out: `human`. Not built yet: `501 not_implemented`.",
+            "description": "How it was written; left out: `human`, or `template` with `generated_from`.",
             "title": "Creation Method"
           },
           "funnel_stage": {
@@ -10520,7 +10513,7 @@
                 "type": "null"
               }
             ],
-            "description": "The tracked keyword and template it was generated from. Not built yet: `501 not_implemented`."
+            "description": "The tracked keyword (one of the project's, else `tracked_keyword_unknown`) and template it was generated from. Kept in the audit entry only."
           },
           "importance": {
             "default": 3,
@@ -10551,7 +10544,7 @@
                 "type": "null"
               }
             ],
-            "description": "Overrides the branded flag computed from the own aliases. Not built yet: `501 not_implemented`.",
+            "description": "Overrides the branded flag computed from the own aliases; sent, it is kept and `is_branded_source` is `override`.",
             "title": "Is Branded"
           },
           "language_code": {
@@ -10560,19 +10553,26 @@
             "type": "string"
           },
           "prompt_type": {
-            "default": "question",
-            "enum": [
-              "question",
-              "comparison",
-              "recommendation",
-              "how_to",
-              "definition",
-              "local",
-              "transactional",
-              "other"
+            "anyOf": [
+              {
+                "enum": [
+                  "question",
+                  "comparison",
+                  "recommendation",
+                  "how_to",
+                  "definition",
+                  "local",
+                  "transactional",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Prompt Type",
-            "type": "string"
+            "description": "Left out: the server rule reads the wording and `prompt_type_source` is `rule`. Sent: kept as sent, `person`.",
+            "title": "Prompt Type"
           },
           "source": {
             "anyOf": [
@@ -10590,7 +10590,7 @@
                 "type": "null"
               }
             ],
-            "description": "Where the prompt came from; left out: `manual`. Not built yet: `501 not_implemented`.",
+            "description": "Where the prompt came from; left out: `manual`.",
             "title": "Source"
           },
           "term_ids": {
@@ -10642,29 +10642,22 @@
                 "type": "null"
               }
             ],
-            "description": "A prompt that differs only in case and spacing. Not returned yet: absent from every response until it is built."
+            "description": "A prompt of the same language and country that differs only in case and spacing (with `items`, when the text is not tracked)."
           },
           "suggested_prompt_type": {
-            "anyOf": [
-              {
-                "enum": [
-                  "question",
-                  "comparison",
-                  "recommendation",
-                  "how_to",
-                  "definition",
-                  "local",
-                  "transactional",
-                  "other"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+            "description": "The type the server rule gives the text when none is sent.",
+            "enum": [
+              "question",
+              "comparison",
+              "recommendation",
+              "how_to",
+              "definition",
+              "local",
+              "transactional",
+              "other"
             ],
-            "description": "The type the server rule gives the text. Not returned yet: absent from every response until it is built.",
-            "title": "Suggested Prompt Type"
+            "title": "Suggested Prompt Type",
+            "type": "string"
           },
           "text": {
             "description": "As it would be saved.",
@@ -10680,7 +10673,7 @@
                 "type": "null"
               }
             ],
-            "description": "The project's prompt with this identity, archived ones too (with `items`). Not returned yet: absent from every response until it is built."
+            "description": "The project's prompt with this identity, archived ones too (with `items`)."
           },
           "warnings": {
             "items": {
@@ -10694,7 +10687,8 @@
           "text",
           "is_branded",
           "matched_aliases",
-          "warnings"
+          "warnings",
+          "suggested_prompt_type"
         ],
         "title": "PromptLint",
         "type": "object"
@@ -10792,7 +10786,7 @@
                 "type": "null"
               }
             ],
-            "description": "The language the texts should be in, for `language_mismatch`. Not built yet: `501 not_implemented`.",
+            "description": "The language the texts should be in, for `language_mismatch`. Left out: that rule is not checked.",
             "title": "Language Code"
           },
           "texts": {
@@ -10831,7 +10825,7 @@
                 "type": "null"
               }
             ],
-            "description": "Not returned yet: absent from every response until it is built."
+            "description": "With `items`: what the prompts that would be created cost. Absent for `texts`."
           },
           "quota": {
             "$ref": "#/components/schemas/PromptQuota"
@@ -11005,6 +10999,7 @@
             "type": "boolean"
           },
           "is_branded": {
+            "description": "Sets the branded flag; `is_branded_source` becomes `override`, even when the value is the one the aliases give.",
             "title": "Is Branded",
             "type": "boolean"
           },
@@ -11056,7 +11051,7 @@
                 "type": "null"
               }
             ],
-            "description": "Of the items, those neither tracked nor repeated. Not returned yet: absent from every response until it is built.",
+            "description": "With `items`: of the items, those neither tracked nor repeated nor too long to save.",
             "title": "Would Create"
           }
         },
@@ -15974,7 +15969,7 @@
             "title": "Subject Ids"
           },
           "subject_type": {
-            "description": "`prompt` arrives with prompts.",
+            "description": "`prompt` also needs `prompts:write` and takes `subject_ids` only.",
             "enum": [
               "tracked_keyword",
               "prompt"
@@ -16193,6 +16188,18 @@
             "description": "Slugs from the root down, joined by `/`.",
             "title": "Path",
             "type": "string"
+          },
+          "prompt_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=prompt_count`: active, live prompts with the term or one under it, branded or not, in projects the caller can see; each prompt once. A membership count, not a rate. Left out of the answer unless asked for.",
+            "title": "Prompt Count"
           },
           "slug": {
             "title": "Slug",
@@ -23750,7 +23757,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/limits": {
       "get": {
-        "description": "The workspace's active prompts and AI answers this UTC month, and the project's manual runs today (UTC), each with its limit, as the writes count them. Not built yet: `501 not_implemented`.",
+        "description": "The workspace's active prompts and AI answers this UTC month, and the project's manual runs today (UTC), each with its limit, as the writes count them. Reading changes nothing.",
         "operationId": "ai_limits_api_v1_workspaces__workspace_id__projects__project_id__ai_limits_get",
         "parameters": [
           {
@@ -28466,7 +28473,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts": {
       "get": {
-        "description": "Newest first. `filter[is_active]` is true when left out; archived prompts are listed with false. `filter[term]` takes the term or one under it, `filter[q]` matches the text as a substring without case, and `filter[intent_in]` takes a comma list. A cursor is bound to its filters (`400 invalid_cursor` otherwise). The type, funnel stage, importance and branded filters, `sort` and `filter[is_active]=any` are published and not built yet (`501`).",
+        "description": "Newest first, or by `sort`. `filter[is_active]` is true when left out; archived prompts are listed with false, and both with `any`. `filter[term]` takes the term or one under it, `filter[q]` matches the text as a substring without case, and `filter[intent_in]`, `filter[prompt_type_in]`, `filter[funnel_stage_in]` and `filter[importance_in]` take a comma list. `filter[is_branded]` lists branded or unbranded prompts; left out, both are listed (a list is not a rate). A cursor is bound to its filters and its sort (`400 invalid_cursor` otherwise).",
         "operationId": "list_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_get",
         "parameters": [
           {
@@ -28586,7 +28593,7 @@
             }
           },
           {
-            "description": "`true` (default) or `false`; `any` lists both. `any`: Not built yet: `501 not_implemented`.",
+            "description": "`true` (default) or `false`; `any` lists archived and active prompts together.",
             "in": "query",
             "name": "filter[is_active]",
             "required": false,
@@ -28601,12 +28608,12 @@
                 }
               ],
               "default": true,
-              "description": "`true` (default) or `false`; `any` lists both. `any`: Not built yet: `501 not_implemented`.",
+              "description": "`true` (default) or `false`; `any` lists archived and active prompts together.",
               "title": "Filter[Is Active]"
             }
           },
           {
-            "description": "Not built yet: `501 not_implemented`.",
+            "description": "A comma list of types; prompts of any of them.",
             "in": "query",
             "name": "filter[prompt_type_in]",
             "required": false,
@@ -28632,12 +28639,12 @@
                   "type": "null"
                 }
               ],
-              "description": "Not built yet: `501 not_implemented`.",
+              "description": "A comma list of types; prompts of any of them.",
               "title": "Filter[Prompt Type In]"
             }
           },
           {
-            "description": "Not built yet: `501 not_implemented`.",
+            "description": "A comma list of funnel stages; prompts at any of them.",
             "in": "query",
             "name": "filter[funnel_stage_in]",
             "required": false,
@@ -28660,12 +28667,12 @@
                   "type": "null"
                 }
               ],
-              "description": "Not built yet: `501 not_implemented`.",
+              "description": "A comma list of funnel stages; prompts at any of them.",
               "title": "Filter[Funnel Stage In]"
             }
           },
           {
-            "description": "Not built yet: `501 not_implemented`.",
+            "description": "A comma list of importances, 1 to 5; prompts with any of them.",
             "in": "query",
             "name": "filter[importance_in]",
             "required": false,
@@ -28683,12 +28690,12 @@
                   "type": "null"
                 }
               ],
-              "description": "Not built yet: `501 not_implemented`.",
+              "description": "A comma list of importances, 1 to 5; prompts with any of them.",
               "title": "Filter[Importance In]"
             }
           },
           {
-            "description": "Not built yet: `501 not_implemented`.",
+            "description": "`true` lists branded prompts, `false` the others; left out, both.",
             "in": "query",
             "name": "filter[is_branded]",
             "required": false,
@@ -28701,12 +28708,12 @@
                   "type": "null"
                 }
               ],
-              "description": "Not built yet: `501 not_implemented`.",
+              "description": "`true` lists branded prompts, `false` the others; left out, both.",
               "title": "Filter[Is Branded]"
             }
           },
           {
-            "description": "A field, `-` first for descending; left out: newest first. Not built yet: `501 not_implemented`.",
+            "description": "A field, `-` first for descending; left out: newest first.",
             "in": "query",
             "name": "sort",
             "required": false,
@@ -28729,7 +28736,7 @@
                   "type": "null"
                 }
               ],
-              "description": "A field, `-` first for descending; left out: newest first. Not built yet: `501 not_implemented`.",
+              "description": "A field, `-` first for descending; left out: newest first.",
               "title": "Sort"
             }
           },
@@ -28793,7 +28800,7 @@
         ]
       },
       "post": {
-        "description": "`409 duplicate` (with `existing_id`) when the project has the same text in the same language and country, archived prompts included; `422 quota_exceeded` (with `limit`, `used` and `requested`) past the workspace's active prompt limit. Field codes: `prompt_too_long` (over 2,000 characters, the most any engine takes), `location_not_supported` (`country_iso` has no location of an enabled engine), `term_unknown` and `single_valued_vocabulary`. `is_branded` is computed from the project's own aliases.",
+        "description": "`409 duplicate` (with `existing_id`) when the project has the same text in the same language and country, archived prompts included; `422 quota_exceeded` (with `limit`, `used` and `requested`) past the workspace's active prompt limit. Field codes: `prompt_too_long` (over 2,000 characters, the most any engine takes), `location_not_supported` (`country_iso` has no location of an enabled engine), `term_unknown`, `single_valued_vocabulary` and `tracked_keyword_unknown` (`generated_from` names a keyword the project does not track). `is_branded` left out is computed from the project's own aliases and `is_branded_source` says `computed`; sent, it is kept and says `override`. `source` left out is `manual` and `creation_method` is `human` (`template` with `generated_from`, which is kept in the audit entry). `prompt_type` left out is chosen from the wording (`rule`: `vs` or `versus` is a comparison, `how to` is how_to, a leading question word or a question mark is a question, anything else is other) and `prompt_type_source` says `rule`; sent, it is kept and says `person`.",
         "operationId": "create_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts_post",
         "parameters": [
           {
@@ -28857,7 +28864,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-archive": {
       "post": {
-        "description": "Up to 1,000 `ids` of the project's prompts; an id it does not have is not matched. `archive: true` archives them as `DELETE` does one, `false` brings them back as `PATCH is_active: true` does; answers, versions and terms stay. Bringing back counts against the workspace's active prompt limit, all or none (`422 quota_exceeded` with `limit`, `used` and `requested`). `matched` is the prompts found, `updated` those whose state changed. One audit entry for the request and one per prompt changed. `filter` in place of `ids` is published and not built yet (`501`).",
+        "description": "Up to 1,000 `ids` of the project's prompts, or a `filter` (the list's filters; `is_active` left out takes archived and active prompts alike), exactly one; an id the project does not have is not matched, and a filter matching more than 1,000 prompts is `422 too_many_subjects` with `limit`. `archive: true` archives them as `DELETE` does one, `false` brings them back as `PATCH is_active: true` does; answers, versions and terms stay. Bringing back counts against the workspace's active prompt limit, all or none (`422 quota_exceeded` with `limit`, `used` and `requested`). `matched` is the prompts found, `updated` those whose state changed. One audit entry for the request and one per prompt changed.",
         "operationId": "bulk_archive_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_archive_post",
         "parameters": [
           {
@@ -28929,7 +28936,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-create": {
       "post": {
-        "description": "Up to 1,000 items. An item that cannot be saved is rejected with its code (`location_not_supported`, `term_unknown`, `single_valued_vocabulary`, `duplicate_in_request` for the same prompt twice in the list, and `duplicate` with `on_duplicate: error`); with `skip`, a prompt the project has is listed in `skipped`. The rest are written together: `422 quota_exceeded` past the workspace's active prompt limit, and nothing is written. No Idempotency-Key: sending the list again skips what it added.",
+        "description": "Up to 1,000 items. An item that cannot be saved is rejected with its code (`location_not_supported`, `term_unknown`, `single_valued_vocabulary`, `tracked_keyword_unknown`, `duplicate_in_request` for the same prompt twice in the list, and `duplicate` with `on_duplicate: error`); with `skip`, a prompt the project has is listed in `skipped`. The rest are written together: `422 quota_exceeded` past the workspace's active prompt limit, and nothing is written. Each item without a `prompt_type` takes the wording rule on its own. No Idempotency-Key: sending the list again skips what it added.",
         "operationId": "bulk_create_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_create_post",
         "parameters": [
           {
@@ -28993,7 +29000,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-update": {
       "post": {
-        "description": "Up to 1,000 `ids` of the project's prompts, or `filter` (the list's filters), exactly one. `set` changes intent, funnel stage, type, importance and the branded flag; `add_term_ids` and `remove_term_ids` add and remove terms. `matched` is the prompts found, `updated` those that changed. One transaction; one `prompt.bulk_changed` audit entry and one `prompt.updated` per prompt changed. Not built yet: `501 not_implemented`.",
+        "description": "Up to 1,000 `ids` of the project's prompts, or `filter` (the list's filters), exactly one. `set` changes intent, funnel stage, type, importance and the branded flag; `add_term_ids` and `remove_term_ids` add and remove terms. `matched` is the prompts found, `updated` those that changed. Setting `prompt_type` makes `prompt_type_source` `person`, and setting `is_branded` makes `is_branded_source` `override`. An added term of a single-valued vocabulary takes the place of the prompt's other term of it; field codes `term_unknown` and `single_valued_vocabulary` name `add_term_ids` or `remove_term_ids`. A filter matching more than 1,000 prompts is `422 too_many_subjects` with `limit`. One transaction; one `prompt.bulk_changed` audit entry and one `prompt.updated` per prompt changed.",
         "operationId": "bulk_update_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_update_post",
         "parameters": [
           {
@@ -29057,7 +29064,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/lint": {
       "post": {
-        "description": "Nothing is stored. For each text, as it would be saved: whether it names an own brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine it is too long for (`engine_limit`: a warning when the engine skips it, an error when it is too long to save). `quota` is the workspace's active prompt limit and use. `items` (with language and country, to say what is tracked) and `language_code` are published and not built yet (`501`).",
+        "description": "Nothing is stored. For each text, as it would be saved: whether it names an own brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine it is too long for (`engine_limit`: a warning when the engine skips it, an error when it is too long to save). `quota` is the workspace's active prompt limit and use. With `items` (text, language and country) each result also says which prompt of the project it is (`tracked`, archived ones too) or, when none, the one that differs only in case and spacing (`near_duplicate_of`), and `quota.would_create` counts the items saving would create: not tracked, not a repeat of an earlier item, not too long to save. Five rules read the text, after `contains_brand_alias` and before `engine_limit`: `contains_competitor_alias` (a warning, a note when the text compares with `vs` or `versus`; it never makes the prompt branded), `leading_wording` (a superlative within 3 words of an own or competitor name, or \"why is X the best\"), `multiple_questions`, `word_count` (5 to 60 words; scripts written without spaces count half their characters) and `language_mismatch` (the text reads as another script, or for en, de, fr, es, it, pt and nl another language, than the item's `language_code`, or the body's for `texts`; texts under 4 words and unknown languages are not checked). The competitor and leading rules carry a span; the others carry none. Every result has `suggested_prompt_type`, the type the wording rule gives the text. With `items`, `estimate` says what the prompts that would be created cost on the standard queue, for each of `engine_codes` or, left out, each engine the project has on: the prompts the engine takes, the answers a month at two runs a week (rounded down), the cost a month to the cent, and the answers and cost of one run now. An engine the price book has no price for has null costs.",
         "operationId": "lint_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_lint_post",
         "parameters": [
           {
@@ -29184,6 +29191,7 @@
         ]
       },
       "get": {
+        "description": "With an `ETag` header: 32 lowercase hex characters, quoted. It changes with every change of the prompt's metadata or terms.",
         "operationId": "get_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__get",
         "parameters": [
           {
@@ -29245,7 +29253,7 @@
         ]
       },
       "patch": {
-        "description": "The text, language and country cannot change (`422 validation_failed` with `immutable_field`): archive the prompt and add a new one. `term_ids` replaces the terms. `is_active: true` brings an archived prompt back and counts against the quota.",
+        "description": "The text, language and country cannot change (`422 validation_failed` with `immutable_field`): archive the prompt and add a new one. `term_ids` replaces the terms. `is_active: true` brings an archived prompt back and counts against the quota. Setting `prompt_type` makes `prompt_type_source` `person`, and setting `is_branded` makes `is_branded_source` `override`. The answer carries the new `ETag`.",
         "operationId": "update_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__patch",
         "parameters": [
           {
@@ -29279,7 +29287,7 @@
             }
           },
           {
-            "description": "The `ETag` of the prompt as read; a changed prompt is `412 precondition_failed`. Not built yet: `501 not_implemented`.",
+            "description": "The `ETag` of the prompt as read, a comma list of them, or `*` (any existing prompt). When none is the prompt's current `ETag`, the answer is `412 precondition_failed` and nothing changes. Left out, the change is made as it is.",
             "in": "header",
             "name": "If-Match",
             "required": false,
@@ -29293,7 +29301,7 @@
                   "type": "null"
                 }
               ],
-              "description": "The `ETag` of the prompt as read; a changed prompt is `412 precondition_failed`. Not built yet: `501 not_implemented`.",
+              "description": "The `ETag` of the prompt as read, a comma list of them, or `*` (any existing prompt). When none is the prompt's current `ETag`, the answer is `412 precondition_failed` and nothing changes. Left out, the change is made as it is.",
               "title": "If-Match"
             }
           }
@@ -30944,7 +30952,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/term-assignments": {
       "post": {
-        "description": "Exactly one of `subject_ids` (up to 5,000) and `subject_filter` (the list's filters; `422 too_many_subjects` over 20,000 matches). `add` with a term of a single-valued vocabulary replaces the keyword's other term of it; `replace` makes the given terms the keyword's only ones within their vocabularies, and other vocabularies are kept. Two terms of one single-valued vocabulary are `422 validation_failed` with `single_valued_vocabulary`; `subject_type: 'prompt'` is `subject_type_not_supported` until prompts exist.",
+        "description": "Exactly one of `subject_ids` (up to 5,000) and `subject_filter` (the list's filters; `422 too_many_subjects` over 20,000 matches). `add` with a term of a single-valued vocabulary replaces the subject's other term of it; `replace` makes the given terms the subject's only ones within their vocabularies, and other vocabularies are kept. Two terms of one single-valued vocabulary are `422 validation_failed` with `single_valued_vocabulary`. `subject_type: 'prompt'` also needs `prompts:write` (`403` without it) and takes `subject_ids` only: a `subject_filter` is `422 validation_failed` with `filter_not_supported` (to choose prompts by filter, use bulk-update). Ids that are not live prompts of the project are not matched and are no error.",
         "operationId": "assign_terms_api_v1_workspaces__workspace_id__projects__project_id__term_assignments_post",
         "parameters": [
           {
@@ -31000,7 +31008,7 @@
             "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
           }
         },
-        "summary": "Add, remove or replace terms of tracked keywords",
+        "summary": "Add, remove or replace terms of tracked keywords or prompts",
         "tags": [
           "taxonomy"
         ]
@@ -33515,7 +33523,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}/terms": {
       "get": {
-        "description": "In path order. `flat` lists every term with empty `children`.",
+        "description": "In path order. `flat` lists every term with empty `children`. `include=prompt_count` adds `prompt_count` to every term (one grouped query, left out otherwise).",
         "operationId": "list_terms_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__terms_get",
         "parameters": [
           {
@@ -33570,6 +33578,29 @@
               ],
               "description": "Terms whose name holds the text; the tree keeps their ancestors.",
               "title": "Filter[Q]"
+            }
+          },
+          {
+            "description": "Counts to add: `prompt_count`.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "const": "prompt_count",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Counts to add: `prompt_count`.",
+              "maxLength": 1,
+              "title": "Include"
             }
           }
         ],
