@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T18:07:32+05:30",
+ "updated": "2026-11-13T18:23:31+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1078,7 +1078,7 @@
     "done": 14
    },
    "owner": "",
-   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | steps 3/8, rows 14/31; P1 pushed (3c33fce1); T3 Citations page shell (T3a page model and strip) in progress"
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | steps 3.5/8, rows 14/31; T3a page model and strip reviewed PASS (local); P2 after T5; methodology link constant pending F-24"
   },
   {
    "id": "WP-22",
@@ -4426,6 +4426,16 @@
    "detail": "WP-16 delivers the generic parts (DrawerCustomizer, useDrawerCustomize, guardClose, drawer save bar, numbers-only table screen) verified on specimens. The wiring needs: (1) new card types for inspector.prompt and inspector.topic in lib/layouts/catalog.ts (both are empty drawerScreens today; keyword has 6 cards) plus catalog.json regeneration; (2) splitting PromptInspector (no Overview tab: default is Latest with the InspectorStrip above the tabs) and TopicInspector (Overview = rates, by engine, top prompts) into a DrawerCustomizer wrapper plus inner component with a data context for the cards; (3) guarding drawer-unmount paths (opening another inspector from the list, answer inspector, archive close). OWNER QUESTION: does Latest stand in for the Overview tab on prompts? Default taken: yes. SEQUENCE: after WP-16 and WP-20 merge (WP-20 Task 7 mounts its tabs in topic-inspector.tsx first), then this follow-up with leases on prompt-inspector.tsx, topic-inspector.tsx, catalog.ts, catalog.json.",
    "owner": "next free session after WP-20 merges (suggest the WP-16 session)",
    "severity": "owner requirement R-11/R-07 part (drawer customization)",
+   "status": "open"
+  },
+  {
+   "id": "F-24",
+   "found": "2026-11-13T18:23:31+05:30",
+   "by": "WP-21",
+   "title": "No methodology page exists: MetricInfo links go to /methodology which is not a route",
+   "detail": "MetricInfo (WP-07) requires a methodologyHref; the Help menu waits for a page too. WP-21 keeps one constant METHODOLOGY_HREF = '/methodology' in apps/web/src/lib/citations/methodology.ts (falls into the [workspace] segment until a page exists). Needs a small static methodology page (sections from docs/16-metrics-methodology.md) at /methodology or under Help, built before release; then WP-21 and every MetricInfo user points to it. Not in any work package today.",
+   "owner": "WP-72 docs or a small new package; owner to confirm the route",
+   "severity": "dead link before release",
    "status": "open"
   }
  ],
