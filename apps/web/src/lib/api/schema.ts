@@ -838,7 +838,7 @@ export interface paths {
         };
         /**
          * The layout a member sees on a screen
-         * @description Their personal layout, else the team default, else `source: builtin` with a null document; with an `ETag`. Not built yet: `501 not_implemented`.
+         * @description Their personal layout, else the team default, else `source: builtin` with a null document. The `ETag` covers the caller's personal layout and the team default of the screen; send it as `If-Match` to save. An unknown screen is `404`.
          */
         get: operations["get_layout_api_v1_workspaces__workspace_id__layouts__screen__get"];
         put?: never;
@@ -859,13 +859,13 @@ export interface paths {
         get?: never;
         /**
          * Save the team default of a screen
-         * @description As the personal layout; audited as `layout.default.set` with the documents before and after. Not built yet: `501 not_implemented`.
+         * @description As the personal layout, for the team default (owner and admin only); audited as `layout.default.set` with the documents before and after.
          */
         put: operations["put_team_layout_api_v1_workspaces__workspace_id__layouts__screen__default_put"];
         post?: never;
         /**
          * Remove the team default of a screen
-         * @description Audited as `layout.default.remove`. Not built yet: `501 not_implemented`.
+         * @description Audited as `layout.default.remove` with the document removed; `204` also when there was none.
          */
         delete: operations["delete_team_layout_api_v1_workspaces__workspace_id__layouts__screen__default_delete"];
         options?: never;
@@ -883,13 +883,13 @@ export interface paths {
         get?: never;
         /**
          * Save the caller's own layout of a screen
-         * @description Card types and metric keys of the catalog for the screen, allowed widths, at most 12 cards and 6 numbers, at most 16 KB (`422 validation_failed` with field paths). Not built yet: `501 not_implemented`.
+         * @description Card types and metric keys of the catalog for the screen, allowed widths, at most 12 cards and 6 numbers, at most 16 KB (`422 validation_failed` with field paths). `If-Match` is required once the caller has a layout of the screen; a missing or stale one is `412 precondition_failed`. Answers the layout as it now resolves, with its new `ETag`.
          */
         put: operations["put_personal_layout_api_v1_workspaces__workspace_id__me_layouts__screen__put"];
         post?: never;
         /**
          * Go back to the team or built-in default
-         * @description Not built yet: `501 not_implemented`.
+         * @description `204` also when there was nothing to remove.
          */
         delete: operations["delete_personal_layout_api_v1_workspaces__workspace_id__me_layouts__screen__delete"];
         options?: never;
@@ -7021,7 +7021,7 @@ export interface components {
              * Screen
              * @enum {string}
              */
-            screen: "overview" | "ai_overview" | "rankings" | "prompts" | "citations" | "sources" | "pages" | "inspector.keyword" | "inspector.prompt" | "inspector.page" | "inspector.citation";
+            screen: "overview" | "ai_overview" | "rankings" | "prompts" | "citations" | "sources" | "pages" | "inspector.keyword" | "inspector.prompt" | "inspector.page" | "inspector.citation" | "inspector.topic";
             /**
              * Source
              * @enum {string}
@@ -15408,7 +15408,7 @@ export const rankChangeLabelValues: ReadonlyArray<FlattenedDeepRequired<componen
 export const readinessStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Readiness"]["status"]> = ["ready", "not_ready"];
 export const reservedProjectSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedProjectSlug"]> = ["billing", "costs", "members", "new", "onboarding", "ops", "projects", "settings"];
 export const reservedWorkspaceSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedWorkspaceSlug"]> = ["account", "admin", "api", "assets", "design-system", "docs", "favicon", "forgot-password", "health", "healthz", "help", "icon", "invite", "login", "logout", "new", "null", "onboarding", "public", "reset-password", "robots", "settings", "sign-in", "sign-up", "signup", "sitemap", "static", "two-factor", "undefined", "verify-email", "www"];
-export const resolvedLayoutScreenValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ResolvedLayout"]["screen"]> = ["overview", "ai_overview", "rankings", "prompts", "citations", "sources", "pages", "inspector.keyword", "inspector.prompt", "inspector.page", "inspector.citation"];
+export const resolvedLayoutScreenValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ResolvedLayout"]["screen"]> = ["overview", "ai_overview", "rankings", "prompts", "citations", "sources", "pages", "inspector.keyword", "inspector.prompt", "inspector.page", "inspector.citation", "inspector.topic"];
 export const resolvedLayoutSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ResolvedLayout"]["source"]> = ["personal", "team", "builtin"];
 export const roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Role"]> = ["owner", "admin", "editor", "analyst", "viewer", "billing"];
 export const roleUnitsDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RoleUnits"]["domain_role"]> = ["own", "competitor", "third_party"];

@@ -11877,7 +11877,8 @@
               "inspector.keyword",
               "inspector.prompt",
               "inspector.page",
-              "inspector.citation"
+              "inspector.citation",
+              "inspector.topic"
             ],
             "title": "Screen",
             "type": "string"
@@ -21474,7 +21475,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/layouts/{screen}": {
       "get": {
-        "description": "Their personal layout, else the team default, else `source: builtin` with a null document; with an `ETag`. Not built yet: `501 not_implemented`.",
+        "description": "Their personal layout, else the team default, else `source: builtin` with a null document. The `ETag` covers the caller's personal layout and the team default of the screen; send it as `If-Match` to save. An unknown screen is `404`.",
         "operationId": "get_layout_api_v1_workspaces__workspace_id__layouts__screen__get",
         "parameters": [
           {
@@ -21532,7 +21533,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/layouts/{screen}/default": {
       "delete": {
-        "description": "Audited as `layout.default.remove`. Not built yet: `501 not_implemented`.",
+        "description": "Audited as `layout.default.remove` with the document removed; `204` also when there was none.",
         "operationId": "delete_team_layout_api_v1_workspaces__workspace_id__layouts__screen__default_delete",
         "parameters": [
           {
@@ -21581,7 +21582,7 @@
         ]
       },
       "put": {
-        "description": "As the personal layout; audited as `layout.default.set` with the documents before and after. Not built yet: `501 not_implemented`.",
+        "description": "As the personal layout, for the team default (owner and admin only); audited as `layout.default.set` with the documents before and after.",
         "operationId": "put_team_layout_api_v1_workspaces__workspace_id__layouts__screen__default_put",
         "parameters": [
           {
@@ -21668,7 +21669,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/me/layouts/{screen}": {
       "delete": {
-        "description": "Not built yet: `501 not_implemented`.",
+        "description": "`204` also when there was nothing to remove.",
         "operationId": "delete_personal_layout_api_v1_workspaces__workspace_id__me_layouts__screen__delete",
         "parameters": [
           {
@@ -21717,7 +21718,7 @@
         ]
       },
       "put": {
-        "description": "Card types and metric keys of the catalog for the screen, allowed widths, at most 12 cards and 6 numbers, at most 16 KB (`422 validation_failed` with field paths). Not built yet: `501 not_implemented`.",
+        "description": "Card types and metric keys of the catalog for the screen, allowed widths, at most 12 cards and 6 numbers, at most 16 KB (`422 validation_failed` with field paths). `If-Match` is required once the caller has a layout of the screen; a missing or stale one is `412 precondition_failed`. Answers the layout as it now resolves, with its new `ETag`.",
         "operationId": "put_personal_layout_api_v1_workspaces__workspace_id__me_layouts__screen__put",
         "parameters": [
           {
