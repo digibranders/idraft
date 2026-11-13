@@ -1,6 +1,7 @@
 'use client';
 
 import { Users } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState, type ReactElement } from 'react';
 
@@ -12,12 +13,14 @@ import { InlineError } from '@/components/app/status/inline-error';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { Badge } from '@/components/ui/badge';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { TextLink } from '@/components/ui/text-link';
 import { Truncate } from '@/components/ui/truncate';
 import { useRateWords } from '@/features/prompts/rate-view';
 import type { TopicInspectorTab } from '@/features/prompts/seams/topic-tabs';
 import { useTopicEntities } from '@/features/prompts/topics-by-engine/topic-entities-query';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { formatPercent } from '@/lib/format';
+import { projectPath } from '@/lib/routes/paths';
 
 /**
  * The Competitors tab of the topic drawer (WB-TPE-13): for this topic over the window, how each tracked entity does on
@@ -31,6 +34,7 @@ export function CompetitorsTab(): ReactElement {
   const t = useTranslations('prompts.topicDrawer.competitors');
   const panel = useTranslations('prompts.topicDrawer.panel');
   const prompts = useTranslations('prompts');
+  const strip = useTranslations('prompts.strip');
   const common = useTranslations('common');
   const words = useRateWords();
   const { scope, range, includeBranded, country } = extras;
@@ -56,11 +60,15 @@ export function CompetitorsTab(): ReactElement {
 
   const cellOf = (cell: EntityTableCell, label: string): ReactElement => {
     const figure = cell.figure;
-    if (figure === null || figure.state === 'none') return <span>{panel('noAnswers')}</span>;
+    if (figure === null) return <span>{panel('noAnswers')}</span>;
+    // A cell with no valid answer says why (none valid, no brand named), as the panel does
+    if (figure.state === 'none') return <span>{words.reason(figure) ?? panel('noAnswers')}</span>;
     if (figure.state === 'insufficient') return <span>{words.inline(figure)}</span>;
+    const answers = words.basis(figure) ?? '';
     const text = t('cell', {
       value: formatPercent(figure.value, { decimals: 0 }),
-      basis: words.basis(figure) ?? '',
+      // Share of voice counts the answers that name a brand, which is not the same count as the answers of Mentioned
+      basis: metric === 'share_of_voice' ? strip('tipShareBasis', { basis: answers }) : answers,
     });
     return cell.leads ? (
       <span className="inline-flex flex-col">
@@ -126,7 +134,21 @@ export function CompetitorsTab(): ReactElement {
           retryLabel={common('retry')}
         />
       }
-      empty={<EmptyState variant="inline" title={t('emptyTitle')} reason={t('emptyReason')} headingLevel={3} />}
+      empty={
+        <EmptyState
+          variant="inline"
+          title={t('emptyTitle')}
+          reason={t('emptyReason')}
+          secondaryAction={
+            <TextLink
+              render={<Link href={projectPath(extras.workspaceSlug, extras.projectSlug, '/settings/entities')} />}
+            >
+              {t('entitiesLink')}
+            </TextLink>
+          }
+          headingLevel={3}
+        />
+      }
     >
       <div className="flex flex-col gap-3">
         <PlainTable<EntityTableRow>

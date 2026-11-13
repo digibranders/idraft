@@ -27,8 +27,8 @@ const isPalette = (index: number | null | undefined): index is PaletteIndex =>
 
 /**
  * The chart colour of each line (F15): the own brand is chart 1, a competitor keeps the colour stored for it in the
- * entities (chart 2 to 6), and one with none stored, or one outside that range, takes the first of those colours no
- * competitor holds, in the order of `entities`.
+ * entities (chart 2 to 6), and one with none stored, one outside that range, or one an earlier line already holds,
+ * takes the first of those colours nobody holds, in the order of `entities`: no two lines share a colour.
  */
 export function rivalRoles(
   entities: readonly { entityId: string; role: 'own' | 'competitor' }[],
@@ -39,7 +39,7 @@ export function rivalRoles(
   for (const { entityId, role } of entities) {
     const index = stored.get(entityId);
     if (role === 'own') roles.set(entityId, { kind: 'brand' });
-    else if (isPalette(index)) {
+    else if (isPalette(index) && !held.has(index)) {
       roles.set(entityId, { kind: 'palette', index });
       held.add(index);
     }
@@ -117,7 +117,8 @@ export function RivalsTrend(): ReactElement {
     };
   }, [chosen, available, trend.tracked, entities.data, t]);
   // The own brand alone is no comparison: without a competitor named there is nothing to draw
-  const named = lines.some((line) => line.role.kind !== 'brand');
+  const competitors = lines.filter((line) => line.role.kind !== 'brand').length;
+  const named = competitors > 0;
   const noSeries = trend.row === undefined || trend.row.engines.every((cells) => cells.series == null);
 
   const state: RateFrameState = untopiced
@@ -149,14 +150,16 @@ export function RivalsTrend(): ReactElement {
   return (
     <RateLinesFrame
       title={t('title')}
-      meta={t('meta', { count: TOP_COMPETITORS })}
+      meta={competitors > 0 ? t('meta', { count: competitors }) : t('metaNone')}
+      banded={chosen !== AVERAGE}
       summary={t('summary')}
       weeks={weeks}
       lines={lines}
       lastValidAt={trend.row?.last_valid_at ?? null}
       footnote={<p>{t('footnote')}</p>}
       controls={
-        options.length > 1 && named ? (
+        // Kept when the engine chosen names no competitor, so the average can be chosen again
+        options.length > 1 && !untopiced ? (
           <div className="w-44 min-w-0">
             <Select<string>
               aria-label={t('engineLabel')}

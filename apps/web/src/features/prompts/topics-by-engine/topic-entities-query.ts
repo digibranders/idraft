@@ -44,7 +44,7 @@ export const topicEntitiesQuery = ({
   });
 
 export interface EntityRead {
-  /** `loading` while the first read is on its way or not asked; `failed` when it failed; `ready` once rows are held. */
+  /** `loading` while the first read is on its way or not asked; `failed` when it failed with no rows held; `ready` once rows are held. */
   status: 'loading' | 'failed' | 'ready';
   /** The topic rows by key: the term id, or `NO_TOPIC` for the prompts without a topic. */
   rows: ReadonlyMap<string, TopicSummaryRow>;
@@ -72,7 +72,8 @@ export function useTopicEntities(read: TopicReadScope, enabled: boolean): Entity
     [data],
   );
   return {
-    status: query.isError ? 'failed' : data === undefined ? 'loading' : 'ready',
+    // A read that fails while rows are held keeps them (the error says so): only a first read that failed is `failed`
+    status: data !== undefined ? 'ready' : query.isError ? 'failed' : 'loading',
     rows,
     tracked: data?.data.entities ?? NO_ENTITIES,
     fetching: query.isFetching,

@@ -3848,13 +3848,15 @@
         "cellNone": "No valid answer",
         "cellPooled": "{cell} ({span})",
         "footnote": "The band is the 95% interval of the pooled answers. A hollow point has fewer than {min, number} answers.",
+        "footnoteAverage": "An average counts each engine once, so it has no band. An engine with fewer than {min, number} answers in a week is left out of that week.",
         "summary": "{metric} of the topic on each engine, week by week.",
         "noSeriesTitle": "No weekly points yet",
         "noSeriesReason": "This topic has no answer in the weeks of the window."
       },
       "rivals": {
         "title": "Visibility trend against competitors",
-        "meta": "Mention rate of the own brand and the {count, number} most mentioned competitors",
+        "meta": "Mention rate of the own brand and {count, plural, one {the most mentioned competitor} other {the # most mentioned competitors}}",
+        "metaNone": "Mention rate of the own brand and the competitors named most",
         "engineLabel": "Engine",
         "engineAverage": "avg of {count, number} engines",
         "own": "{name}, own brand",
@@ -3888,6 +3890,7 @@
         "footnote": "The tracked set of the answers read, at most 20 entities, the own brand first. The leading competitor on each engine is in bold.",
         "emptyTitle": "No tracked competitor",
         "emptyReason": "Add a competitor in Entities to compare it here.",
+        "entitiesLink": "Open Entities",
         "failedTitle": "Competitors could not be loaded"
       },
       "related": {
@@ -3898,6 +3901,7 @@
         "more": "{count, plural, one {# more topic is} other {# more topics are}} in the Topics table.",
         "emptyTitle": "No topic beside this one",
         "emptyReason": "This topic has no sibling in the tree.",
+        "notInTreeReason": "The topic tree does not list this topic, so the topics beside it cannot be told.",
         "open": "Open the topic {name}"
       },
       "promptsTab": {

@@ -308,6 +308,18 @@ describe('averageEntityLines: own against the top competitors, the engines of eq
     expect(own0?.points.map((point) => point.value)).toEqual([0.2, 0.4]);
   });
 
+  it('leaves out an engine that has a series but no entity cells, as it has nothing to average', () => {
+    const seriesOnly = engine('gemini_web', {
+      mentioned: weighted(5, 10, 5),
+      series: [week('2026-10-05', { prompts: 3 }), week('2026-10-12', { prompts: 4, pool: POOL })],
+    });
+    const lines = averageEntityLines([engines[0] ?? seriesOnly, seriesOnly], tracked, 3);
+    const acme = lines.find((line) => line.entityId === 'own');
+    // ChatGPT alone: its own values, not halved by an engine that has none
+    expect(acme?.points.map((point) => point.value)).toEqual([0.2, 0.4]);
+    expect(acme?.points[0]).toMatchObject({ n: 10, prompts: 3 });
+  });
+
   it('has no lines when no engine has a series with entity cells', () => {
     expect(averageEntityLines([], tracked, 3)).toEqual([]);
     expect(averageEntityLines([engine('chatgpt_web', { mentioned: weighted(5, 10, 5) })], tracked, 3)).toEqual([]);

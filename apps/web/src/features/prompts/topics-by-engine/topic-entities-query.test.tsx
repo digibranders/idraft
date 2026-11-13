@@ -137,6 +137,25 @@ describe('the entities read of the Topics tab', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'));
   });
 
+  it('keeps the rows when a refetch fails, and says failed only when no rows are held', async () => {
+    let fail = false;
+    server.use(
+      http.get(SUMMARY_PATH, () =>
+        fail
+          ? HttpResponse.json({ status: 500, code: 'internal_error', title: 'x' }, { status: 500 })
+          : HttpResponse.json(body(['First'])),
+      ),
+    );
+    const { result } = renderHook(() => useTopicEntities(READ, true), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    fail = true;
+    void client.invalidateQueries();
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    // The rows of the last good read stay, so the table does not turn into an error
+    expect(result.current.status).toBe('ready');
+    expect([...result.current.rows.values()].map((row) => row.name)).toEqual(['First']);
+  });
+
   it('keeps the last rows while the next window is read', async () => {
     let release: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => {

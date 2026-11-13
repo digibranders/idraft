@@ -36,7 +36,8 @@ const cellsOf = (engine: EngineSummary | undefined, entityId: string): EntityCel
 
 /**
  * The entity that leads `engine` by `metric`: by share of voice the rule of `leaderOn` (WB-TPE-08), by Mentioned the
- * competitor with the highest rate over at least `MIN_OBSERVATIONS` valid answers, ties by the order of `tracked`. A
+ * competitor with the highest rate over at least `MIN_OBSERVATIONS` valid answers, ties by the order of `tracked` (the
+ * entities the table lists). A
  * competitor at 0 is not named, so it leads nothing.
  */
 function leaderId(
@@ -75,7 +76,8 @@ export function entityTable(
       code,
       leaderId(
         row?.engines.find((engine) => engine.engine_code === code),
-        tracked,
+        // The leader of the table is the best of the entities it lists, not of those the cap leaves out
+        entities,
         metric,
       ),
     ]),

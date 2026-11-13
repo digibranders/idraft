@@ -21,10 +21,6 @@ describe('TopicEngineSections: the engine sections of the Overview', () => {
       http.get(mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary'), () =>
         HttpResponse.json({ status: 500, code: 'internal_error', title: 'x' }, { status: 500 }),
       ),
-      // The colours of the entities: the test sends no session, which the mock answers by signing out
-      http.get(mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities'), () =>
-        HttpResponse.json({ data: [] }),
-      ),
     );
     const summary = summaryOf([
       topicRow(DRAWER_TOPIC_ID, 'Technical SEO', 4, [engine('chatgpt_web', { mentioned: weighted(3, 8, 4) })]),

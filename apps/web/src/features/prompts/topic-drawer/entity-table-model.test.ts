@@ -102,6 +102,57 @@ describe('entityTable: the tracked entities by engine', () => {
     expect(leadersOf(rows, 'gemini_web')).toEqual([]);
   });
 
+  it('leaves no leader by Mentioned where every competitor is at 0', () => {
+    const quiet = row(
+      onEngine('chatgpt_web', [
+        ['own', 3, 3],
+        ['beta', 0, 5],
+        ['gamma', 0, 3],
+      ]),
+    );
+    expect(leadersOf(entityTable(quiet, TRACKED, CODES, 'mentioned'), 'chatgpt_web')).toEqual([]);
+  });
+
+  it('leaves no leader by Mentioned over an engine with under 4 valid answers', () => {
+    const few = row(
+      onEngine(
+        'gemini_web',
+        [
+          ['beta', 2, 2],
+          ['gamma', 1, 1],
+        ],
+        3,
+      ),
+    );
+    expect(leadersOf(entityTable(few, TRACKED, CODES, 'mentioned'), 'gemini_web')).toEqual([]);
+  });
+
+  it('gives a tie to the entity listed first, by either metric', () => {
+    const tied = row(
+      onEngine('chatgpt_web', [
+        ['gamma', 5, 4],
+        ['beta', 5, 4],
+      ]),
+    );
+    // The tracked order is Beta, Acme, Gamma: Beta comes before Gamma
+    expect(leadersOf(entityTable(tied, TRACKED, CODES, 'mentioned'), 'chatgpt_web')).toEqual(['beta']);
+    expect(leadersOf(entityTable(tied, TRACKED, CODES, 'share_of_voice'), 'chatgpt_web')).toEqual(['beta']);
+  });
+
+  it('names the leader among the entities shown, not among the ones the cap leaves out', () => {
+    const many = Array.from({ length: 24 }, (_, at) => competitor(`c${String(at)}`, `Competitor ${String(at)}`));
+    const crowded = row(
+      onEngine('chatgpt_web', [
+        ['own', 3, 3],
+        ...many.map((entity, at): [string, number, number] => [entity.entity_id, 1, at === 5 ? 3 : at === 22 ? 6 : 0]),
+      ]),
+    );
+    const rows = entityTable(crowded, [own('own', 'Acme'), ...many], CODES, 'share_of_voice');
+    expect(rows).toHaveLength(MAX_ENTITIES);
+    // Competitor 22 has the most share but is not listed: the leader of the table is the best of those that are
+    expect(leadersOf(rows, 'chatgpt_web')).toEqual(['c5']);
+  });
+
   it('gives a null cell for an entity without cells, never 0', () => {
     const partial = row(
       onEngine('chatgpt_web', [['beta', 6, 5]]),

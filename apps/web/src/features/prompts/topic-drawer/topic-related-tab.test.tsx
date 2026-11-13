@@ -114,12 +114,34 @@ describe('RelatedTab: the topics beside this one', () => {
     expect(rows()[9]).toHaveTextContent('Sibling 03');
   });
 
-  it('is a skeleton while the topic tree is not read', () => {
-    renderTab({ descendants: new Map() });
+  it('is a skeleton while the summary is on its way', () => {
+    renderTab({ summary: undefined, counts: { ...READY_COUNTS, status: 'loading' } });
     expect(screen.getByRole('heading', { name: 'Topics beside this one' }).closest('section')).toHaveAttribute(
       'aria-busy',
       'true',
     );
+  });
+
+  it('says why when the topic tree does not hold the topic, and is no endless skeleton', () => {
+    renderTab({ descendants: new Map() });
+    const section = screen.getByRole('heading', { name: 'Topics beside this one' }).closest('section');
+    expect(section).not.toHaveAttribute('aria-busy');
+    expect(screen.getByText('No topic beside this one')).toBeInTheDocument();
+    expect(
+      screen.getByText('The topic tree does not list this topic, so the topics beside it cannot be told.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('table')).toBeNull();
+  });
+
+  it('says a failed read of the page with Retry and keeps the drawer', async () => {
+    const retry = vi.fn();
+    const { user } = renderTab({
+      summary: undefined,
+      counts: { status: 'failed', errorId: null, retry, retrying: false },
+    });
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(retry).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('table')).toBeNull();
   });
 
   it('says there is no sibling when the topic has none in the tree', () => {

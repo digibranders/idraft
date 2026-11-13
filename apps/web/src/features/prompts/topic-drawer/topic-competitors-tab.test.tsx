@@ -92,12 +92,13 @@ describe('CompetitorsTab: the tracked entities by engine', () => {
     // The API lists the competitors before the own brand; the own brand is first here, tagged
     expect(acme).toHaveTextContent('Acme');
     expect(acme).toHaveTextContent('own brand');
-    expect(acme).toHaveTextContent('30%, 10 answers');
-    expect(acme).toHaveTextContent('50%, 8 answers');
+    // Share of voice counts the answers that name a brand, and says so
+    expect(acme).toHaveTextContent('30%, 10 answers that name a brand');
+    expect(acme).toHaveTextContent('50%, 8 answers that name a brand');
     expect(beta).toHaveTextContent('Beta');
-    expect(beta).toHaveTextContent('50%, 10 answers');
+    expect(beta).toHaveTextContent('50%, 10 answers that name a brand');
     expect(gamma).toHaveTextContent('Gamma');
-    expect(gamma).toHaveTextContent('38%, 8 answers');
+    expect(gamma).toHaveTextContent('38%, 8 answers that name a brand');
     expect(screen.getByRole('heading', { name: 'Competitors by engine' })).toBeInTheDocument();
   });
 
@@ -106,10 +107,11 @@ describe('CompetitorsTab: the tracked entities by engine', () => {
     await screen.findByRole('table', { name: 'Competitors by engine' });
     const [, beta, gamma] = rowsOf();
     // Beta leads ChatGPT with 50 percent, Gamma leads Gemini with 38 percent; the own brand never leads
-    expect(within(beta ?? document.body).getByText('50%, 10 answers')).toHaveClass('type-body-strong');
-    expect(within(gamma ?? document.body).getByText('38%, 8 answers')).toHaveClass('type-body-strong');
+    const share = (rate: string, answers: number): string => `${rate}, ${String(answers)} answers that name a brand`;
+    expect(within(beta ?? document.body).getByText(share('50%', 10))).toHaveClass('type-body-strong');
+    expect(within(gamma ?? document.body).getByText(share('38%', 8))).toHaveClass('type-body-strong');
     // A value that does not lead keeps the plain weight
-    expect(within(beta ?? document.body).getByText('13%, 8 answers')).not.toHaveClass('type-body-strong');
+    expect(within(beta ?? document.body).getByText(share('13%', 8))).not.toHaveClass('type-body-strong');
     expect(within(beta ?? document.body).getByText('leads on ChatGPT')).toHaveClass('sr-only');
     expect(within(beta ?? document.body).queryByText('leads on Gemini')).toBeNull();
     expect(within(gamma ?? document.body).getByText('leads on Gemini')).toBeInTheDocument();
@@ -137,6 +139,30 @@ describe('CompetitorsTab: the tracked entities by engine', () => {
     expect(await screen.findByText('No tracked competitor')).toBeInTheDocument();
     expect(screen.getByText('Add a competitor in Entities to compare it here.')).toBeInTheDocument();
     expect(screen.queryByRole('table')).toBeNull();
+    // The way to do it is one link away, to the project's entities
+    expect(screen.getByRole('link', { name: 'Open Entities' })).toHaveAttribute(
+      'href',
+      '/digibranders/fynix/settings/entities',
+    );
+  });
+
+  it('says why a cell has no rate with the reason, not always No answers', async () => {
+    const noneValid = engine('gemini_web', {
+      mentioned: weighted(5, 8, 4),
+      share_of_voice: cell(8, 8),
+      // Three answers were read and none of them was valid
+      entities: [
+        entityCells('own', cell(0, 0, 3), cell(0, 0, 3)),
+        entityCells('beta', weighted(1, 8, 4), cell(1, 8)),
+        entityCells('gamma', weighted(5, 8, 4), cell(3, 8)),
+      ],
+    });
+    renderTab(rowOf(CHATGPT, noneValid));
+    await screen.findByRole('table', { name: 'Competitors by engine' });
+    const [acme, beta] = rowsOf();
+    expect(acme).toHaveTextContent('None valid');
+    expect(acme).not.toHaveTextContent('No answers');
+    expect(beta).toHaveTextContent('13%, 8 answers that name a brand');
   });
 
   it('says a failed read, keeps the section and retries', async () => {
@@ -163,7 +189,7 @@ describe('CompetitorsTab: the tracked entities by engine', () => {
     renderTab(rowOf(CHATGPT, engine('gemini_web')));
     await screen.findByRole('table', { name: 'Competitors by engine' });
     const [acme, beta] = rowsOf();
-    expect(acme).toHaveTextContent('30%, 10 answers');
+    expect(acme).toHaveTextContent('30%, 10 answers that name a brand');
     expect(acme).toHaveTextContent('No answers');
     expect(beta).toHaveTextContent('No answers');
     expect(table().textContent).not.toMatch(/(^|\s)0%/);
@@ -202,7 +228,7 @@ describe('CompetitorsTab: the tracked entities by engine', () => {
     );
     renderDrawerPart(<CompetitorsTab />, { topicKey: NO_TOPIC, summary: summaryOf([none], TRACKED) });
     expect(await screen.findByRole('table', { name: 'Competitors by engine' })).toBeInTheDocument();
-    expect(rowsOf()[0]).toHaveTextContent('30%, 10 answers');
+    expect(rowsOf()[0]).toHaveTextContent('30%, 10 answers that name a brand');
   });
 
   it('asks the topic rows with the entity cells and nothing else', async () => {

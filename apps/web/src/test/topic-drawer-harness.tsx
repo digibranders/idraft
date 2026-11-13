@@ -1,4 +1,6 @@
+import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
+import { beforeEach } from 'vitest';
 
 import {
   TopicDrawerProvider,
@@ -9,6 +11,8 @@ import { projectEngine } from '@/features/prompts/topics-by-engine/cells-fixture
 import type { TopicCounts } from '@/features/prompts/topic-inspector';
 import type { PromptsSummary, TopicSummaryRow } from '@/lib/api/types';
 import { MOCK_PROJECTS, MOCK_WORKSPACE } from '@/mocks/fixtures';
+import { mswPath } from '@/mocks/respond';
+import { server } from '@/test/msw';
 import { renderWithProviders, type ProvidedRender, type ProvidedRenderOptions } from '@/test/render';
 
 /**
@@ -18,6 +22,18 @@ import { renderWithProviders, type ProvidedRender, type ProvidedRenderOptions } 
 
 const [fynix] = MOCK_PROJECTS;
 if (fynix === undefined) throw new Error('The Fynix project fixture is missing');
+
+// The drawer's charts read the colours the project stored for its entities. A test sends no session, which the mock of
+// that route answers by signing out (and a signed out client empties its cache and reads again, without end), so every
+// test of a drawer part starts with none stored. It is a hook and not part of the render: a test that says what the
+// project stored (`server.use`, later) wins over it.
+beforeEach(() => {
+  server.use(
+    http.get(mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities'), () =>
+      HttpResponse.json({ data: [] }),
+    ),
+  );
+});
 
 /** The topic every drawer test opens, a term id of the vocabulary. */
 export const DRAWER_TOPIC_ID = '33333333-0000-4000-8000-000000000001';

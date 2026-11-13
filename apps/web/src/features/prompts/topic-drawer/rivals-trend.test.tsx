@@ -118,8 +118,6 @@ const valuesOf = (id: string): (number | null)[] =>
 
 beforeEach(() => {
   drawn.options.length = 0;
-  // The tests send no session, which the mock of the entities answers by signing out: they say what the project stored
-  colours([]);
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -187,13 +185,70 @@ describe('RivalsTrend: the own brand against the competitors named most', () => 
     expect(lineIds()).toEqual(['own', 'beta', 'gamma', 'delta']);
   });
 
+  it('does not count an engine with a series but no entity cells in the average', async () => {
+    const noEntities = engine('gemini_web', {
+      mentioned: weighted(5, 10, 4),
+      series: [
+        week('2026-10-19', { mentioned: weighted(5, 10, 4), prompts: 4 }),
+        week('2026-10-26', { mentioned: weighted(5, 10, 4), prompts: 4 }),
+      ],
+    });
+    renderRivals(rowWith([CHATGPT, noEntities]));
+    await screen.findByTestId('echart-canvas');
+    // One engine takes part: there is no average to offer, and ChatGPT is drawn as it is
+    expect(screen.queryByRole('combobox', { name: 'Engine' })).toBeNull();
+    expect(valuesOf('own')).toEqual([0.2, 0.6]);
+  });
+
   it('keeps no band on an average, and a band on one engine', async () => {
+    const bandsOf = (): string[] =>
+      lineIds().filter((id) => (seriesOption(`${id}:band-low`)?.data ?? []).some((point) => point !== null));
     const { user } = renderRivals(rowWith([CHATGPT, GEMINI]));
     await screen.findByTestId('echart-canvas');
-    expect((seriesOption('gamma:band-low')?.data ?? []).every((point) => point === null)).toBe(true);
+    expect(lineIds()).toEqual(['own', 'gamma', 'beta', 'delta']);
+    // An average of rates has no interval of its own: no line has a band
+    expect(bandsOf()).toEqual([]);
+    expect(screen.queryByText(/The band is the 95% interval/)).toBeNull();
+    expect(screen.getByText(/An average counts each engine once, so it has no band\./)).toBeInTheDocument();
     await user.click(screen.getByRole('combobox', { name: 'Engine' }));
     await user.click(await screen.findByRole('option', { name: 'ChatGPT' }));
-    await waitFor(() => expect(seriesOption('gamma:band-low')?.data.some((point) => point !== null)).toBe(true));
+    await waitFor(() => expect(bandsOf()).toEqual(['own', 'beta', 'gamma', 'delta']));
+    expect(screen.getByText(/The band is the 95% interval/)).toBeInTheDocument();
+    expect(screen.queryByText(/has no band/)).toBeNull();
+  });
+
+  it('keeps the engine choice when the chosen engine names no competitor, so the average can be chosen again', async () => {
+    const quiet = onEngine(
+      'gemini_web',
+      { own: 2, beta: 0, gamma: 0, delta: 0, eps: 0, zero: 0 },
+      { own: 1, beta: 0, gamma: 0, delta: 0, eps: 0, zero: 0 },
+      { own: 3, beta: 0, gamma: 0, delta: 0, eps: 0, zero: 0 },
+    );
+    const { user } = renderRivals(rowWith([CHATGPT, quiet]));
+    await screen.findByTestId('echart-canvas');
+    await user.click(screen.getByRole('combobox', { name: 'Engine' }));
+    await user.click(await screen.findByRole('option', { name: 'Gemini' }));
+    expect(await screen.findByText('No competitor named')).toBeInTheDocument();
+    // The control is still there, with the same choices
+    const select = screen.getByRole('combobox', { name: 'Engine' });
+    expect(select).toHaveTextContent('Gemini');
+    await user.click(select);
+    await user.click(await screen.findByRole('option', { name: 'avg of 2 engines' }));
+    await waitFor(() => expect(lineIds()).toEqual(['own', 'beta', 'gamma', 'delta']));
+    expect(screen.queryByText('No competitor named')).toBeNull();
+  });
+
+  it('says how many competitors it draws in the meta line, and none when none is named', async () => {
+    const one = renderRivals(
+      rowWith([onEngine('chatgpt_web', { own: 4, beta: 8 }, { own: 2, beta: 6 }, { own: 6, beta: 9 })]),
+    );
+    await screen.findByTestId('echart-canvas');
+    expect(screen.getByText('Mention rate of the own brand and the most mentioned competitor')).toBeInTheDocument();
+    one.unmount();
+    renderRivals(rowWith([onEngine('chatgpt_web', { own: 4, beta: 0 }, { own: 2, beta: 0 }, { own: 6, beta: 0 })]));
+    expect(await screen.findByText('No competitor named')).toBeInTheDocument();
+    expect(screen.getByText('Mention rate of the own brand and the competitors named most')).toBeInTheDocument();
+    expect(screen.queryByText(/most mentioned competitor/)).toBeNull();
   });
 
   it('uses the stored colour of a competitor, in the legend', async () => {
@@ -351,6 +406,23 @@ describe('rivalRoles: the colour each line has', () => {
     expect(roles.get('b')).toEqual({ kind: 'palette', index: 2 });
     expect(roles.get('a')).toEqual({ kind: 'palette', index: 3 });
     expect(roles.get('c')).toEqual({ kind: 'palette', index: 4 });
+  });
+
+  it('gives no two lines one colour: a stored colour an earlier line holds counts as none stored', () => {
+    const roles = rivalRoles(
+      [entity('own', 'own'), entity('a', 'competitor'), entity('b', 'competitor'), entity('c', 'competitor')],
+      new Map([
+        ['a', 4],
+        ['b', 4],
+        ['c', 2],
+      ]),
+    );
+    expect(roles.get('a')).toEqual({ kind: 'palette', index: 4 });
+    // The second competitor storing chart 4 takes the first colour nobody holds
+    expect(roles.get('b')).toEqual({ kind: 'palette', index: 3 });
+    expect(roles.get('c')).toEqual({ kind: 'palette', index: 2 });
+    const indexes = ['a', 'b', 'c'].map((id) => (roles.get(id) as { index: number }).index);
+    expect(new Set(indexes).size).toBe(3);
   });
 
   it('treats a stored colour outside chart 2 to 6 as none stored', () => {

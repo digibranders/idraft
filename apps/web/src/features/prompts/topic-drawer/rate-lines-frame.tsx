@@ -41,6 +41,8 @@ export interface RateLinesFrameProps {
   footnote?: ReactNode;
   /** What the viewer can change about the lines (an engine). */
   controls?: ReactNode;
+  /** The lines carry the interval of their pooled answers. An average of engines does not, and the footnote says so. */
+  banded?: boolean;
   state: RateFrameState;
 }
 
@@ -59,6 +61,7 @@ export function RateLinesFrame({
   lastValidAt,
   footnote,
   controls,
+  banded = true,
   state,
 }: RateLinesFrameProps): ReactElement {
   const t = useTranslations('prompts.topicDrawer.trend');
@@ -166,7 +169,7 @@ export function RateLinesFrame({
         footnote={
           <>
             {footnote}
-            <p>{t('footnote', { min: MIN_OBSERVATIONS })}</p>
+            <p>{t(banded ? 'footnote' : 'footnoteAverage', { min: MIN_OBSERVATIONS })}</p>
             {pooledAny ? <p>{pooling('sentence')}</p> : null}
           </>
         }
