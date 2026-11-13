@@ -3,6 +3,7 @@ import { TZDate } from '@date-fns/tz';
 import type { DateRange } from './prompt-model';
 import type { EngineSummary, ObservationSummary } from '@/lib/api/types';
 import type { SeriesRole } from '@/lib/charts/category-chart';
+import { formatIsoDate } from '@/lib/format';
 import { rateState, wilsonInterval, type Interval } from '@/lib/stats';
 
 /**
@@ -174,6 +175,35 @@ export function staleEvents(
       const days = Math.floor((Date.parse(stops[place] ?? end) - Date.parse(at)) / DAY_MS);
       return days >= STALE_AFTER_DAYS ? [{ id: `stale:${engineCode}:${at}`, kind: 'stale', at, engineCode, days }] : [];
     });
+  });
+}
+
+/** A change of the model of one engine, on the week of the chart it happened in. */
+export interface ModelBoundary {
+  /** The Monday of the week, one of `weeks`. */
+  week: string;
+  engineCode: string;
+  from: string;
+  to: string;
+}
+
+/**
+ * The `model` events as marks on the weeks of the chart: each on the latest week that starts on or before the day of
+ * the change in the project zone. A change before the first week is left out (no mark is better than one on a wrong
+ * week). One mark for each change, so two engines changing in one week are two marks, never one pooled.
+ */
+export function modelBoundaries(
+  events: readonly HistoryEvent[],
+  weeks: readonly string[],
+  timeZone: string,
+): ModelBoundary[] {
+  return events.flatMap((event): ModelBoundary[] => {
+    if (event.kind !== 'model' || event.engineCode === undefined) return [];
+    const day = formatIsoDate(event.at, timeZone);
+    const week = weeks.filter((start) => start <= day).at(-1);
+    return week === undefined
+      ? []
+      : [{ week, engineCode: event.engineCode, from: event.from ?? '', to: event.to ?? '' }];
   });
 }
 

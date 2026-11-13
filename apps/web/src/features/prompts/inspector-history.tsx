@@ -7,6 +7,7 @@ import { useCallback, useMemo, type ReactElement } from 'react';
 import {
   engineRole,
   historyEvents,
+  modelBoundaries,
   POOLED_WEEKS,
   rateCeiling,
   staleEvents,
@@ -25,6 +26,7 @@ import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import type { ObservationSummary, ProjectEngine } from '@/lib/api/types';
+import type { ChartBoundary } from '@/lib/charts/boundaries';
 import { rateBandOption, type RateBandPoint } from '@/lib/charts/rate-band-chart';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import {
@@ -39,6 +41,8 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 /** The answers the table lists. */
 const LAST_ANSWERS = 10;
+/** Room above the plot for a model change label, in px (as `small-multiples.tsx` gives its panels). */
+const BOUNDARY_ROOM = 24;
 /** An event is no detectable change of the brand's rate, so no icon carries a colour. */
 const EVENT_ICON = { added: Plus, model: Sparkles, stale: CircleSlash } as const satisfies Record<
   HistoryEvent['kind'],
@@ -132,16 +136,50 @@ export function InspectorHistory({
     return bySeries;
   }, [model, weekText]);
   const ceiling = rateCeiling(model);
+  // A list that is not read (loading, failed) says nothing of silence: no answers there would read as all engines stale
+  const events = useMemo(
+    (): HistoryEvent[] =>
+      createdAt === null
+        ? []
+        : [
+            ...historyEvents(createdAt, answers.rows),
+            ...(answers.status === 'ready'
+              ? staleEvents(
+                  engines.map((engine) => engine.engine.engine_code),
+                  answers.rows,
+                  staleWindow(range, createdAt, timeZone, new Date()),
+                  !answers.hasMore,
+                )
+              : []),
+          ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)),
+    [createdAt, answers.rows, answers.status, answers.hasMore, engines, range, timeZone],
+  );
+  /** One mark for each model change, on the week it happened in; the words are also under the chart. */
+  const changes = useMemo(() => modelBoundaries(events, model?.weeks ?? [], timeZone), [events, model, timeZone]);
+  const boundaries = useMemo(
+    (): ChartBoundary[] =>
+      changes.map((change) => ({
+        at: formatChartDate(change.week),
+        label: history('markerModel', { engine: labelOf(change.engineCode), model: change.to }),
+      })),
+    [changes, history, labelOf],
+  );
   const extendOption = useCallback(
-    (option: Record<string, unknown>, tokens: ChartTokens): Record<string, unknown> =>
-      rateBandOption(option, tokens, {
+    (option: Record<string, unknown>, tokens: ChartTokens): Record<string, unknown> => {
+      const banded = rateBandOption(option, tokens, {
         points: bands,
         titles,
         ceiling,
+        boundaries,
         // The band is a little stronger on the dark ground (15 section 4); the theme is a class of the page
         dark: document.documentElement.classList.contains('dark'),
-      }),
-    [bands, titles, ceiling],
+      });
+      // The label of a mark sits above the plot, outside the grid: room for it only when one is drawn
+      return boundaries.length === 0
+        ? banded
+        : { ...banded, grid: { ...(banded.grid as Record<string, unknown> | undefined), top: BOUNDARY_ROOM } };
+    },
+    [bands, titles, ceiling, boundaries],
   );
 
   const chartTitle = history('chartTitle');
@@ -187,7 +225,25 @@ export function InspectorHistory({
           title={chartTitle}
           variant="inspector"
           meta={formatDateRange(range.from, range.to)}
-          footnote={history('chartFootnote', { min: MIN_OBSERVATIONS })}
+          footnote={
+            <>
+              <p>{history('chartFootnote', { min: MIN_OBSERVATIONS })}</p>
+              {changes.length === 0 ? null : (
+                <ul className="mt-1">
+                  {changes.map((change) => (
+                    <li key={`${change.engineCode}:${change.week}:${change.to}`}>
+                      {history('markerNote', {
+                        engine: labelOf(change.engineCode),
+                        date: formatChartDate(change.week),
+                        from: change.from,
+                        to: change.to,
+                      })}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          }
           kind="line"
           categories={model.weeks.map((week) => formatChartDate(week))}
           categoryHeader={history('weekColumn')}
@@ -240,22 +296,6 @@ export function InspectorHistory({
       cell: (row) => t(`outcomes.${outcomeKey(row.status, row.facts)}`),
     },
   ];
-  // A list that is not read (loading, failed) says nothing of silence: no answers there would read as all engines stale
-  const events: HistoryEvent[] =
-    createdAt === null
-      ? []
-      : [
-          ...historyEvents(createdAt, answers.rows),
-          ...(answers.status === 'ready'
-            ? staleEvents(
-                engines.map((engine) => engine.engine.engine_code),
-                answers.rows,
-                staleWindow(range, createdAt, timeZone, new Date()),
-                !answers.hasMore,
-              )
-            : []),
-        ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
-
   return (
     <>
       {chart}

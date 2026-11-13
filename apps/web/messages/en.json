@@ -3904,7 +3904,9 @@
         "eventsLabel": "Events of this prompt",
         "eventAdded": "Prompt added",
         "eventModel": "Answer model changed on {engine}: {from} to {to}",
-        "eventStale": "No valid answer on {engine} for {days, plural, one {# day} other {# days}}"
+        "eventStale": "No valid answer on {engine} for {days, plural, one {# day} other {# days}}",
+        "markerModel": "{engine}: {model}",
+        "markerNote": "Model change on {engine}, week of {date}: {from} to {to}"
       },
       "competitors": {
         "engineLabel": "Engine",

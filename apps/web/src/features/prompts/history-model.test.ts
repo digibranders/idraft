@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest';
 import {
   engineRole,
   historyEvents,
+  modelBoundaries,
   rateCeiling,
   STALE_AFTER_DAYS,
   staleEvents,
   staleWindow,
   weeklyHistory,
+  type HistoryEvent,
 } from './history-model';
 import type { EngineSummary, MetricCell, ObservationSummary, WeekCells } from '@/lib/api/types';
 import { MIN_OBSERVATIONS, wilsonInterval } from '@/lib/stats';
@@ -196,6 +198,61 @@ describe('the events of a prompt', () => {
       model('4', CHATGPT, '2026-10-09T02:00:00Z', 'gpt-5'),
     ]);
     expect(events.map((event) => event.kind)).toEqual(['added']);
+  });
+});
+
+describe('the model changes on the weeks of the chart', () => {
+  const WEEKS = ['2026-10-12', '2026-10-19', '2026-10-26'];
+  const change = (id: string, at: string, engineCode: string, from: string, to: string): HistoryEvent => ({
+    id,
+    kind: 'model',
+    at,
+    engineCode,
+    from,
+    to,
+  });
+
+  it('puts a model change on the week it happened in', () => {
+    // Wed Oct 21 is in the week of Mon Oct 19, Sun Oct 25 is still in it, Mon Oct 26 starts the next
+    const events = [
+      change('a', '2026-10-21T02:00:00Z', CHATGPT, 'gpt-4o', 'gpt-5'),
+      change('b', '2026-10-25T23:00:00Z', GEMINI, 'gemini-2.5', 'gemini-3'),
+      change('c', '2026-10-26T01:00:00Z', CHATGPT, 'gpt-5', 'gpt-5.1'),
+    ];
+    expect(modelBoundaries(events, WEEKS, 'UTC').map((entry) => [entry.engineCode, entry.week])).toEqual([
+      [CHATGPT, '2026-10-19'],
+      [GEMINI, '2026-10-19'],
+      [CHATGPT, '2026-10-26'],
+    ]);
+  });
+
+  it('keeps the model before and after, and drops a change before the first week and every other kind of event', () => {
+    const events: HistoryEvent[] = [
+      change('early', '2026-10-05T02:00:00Z', CHATGPT, 'a', 'b'),
+      change('a', '2026-10-21T02:00:00Z', CHATGPT, 'gpt-4o', 'gpt-5'),
+      { id: 'added', kind: 'added', at: '2026-10-21T02:00:00Z' },
+    ];
+    expect(modelBoundaries(events, WEEKS, 'UTC')).toEqual([
+      { week: '2026-10-19', engineCode: CHATGPT, from: 'gpt-4o', to: 'gpt-5' },
+    ]);
+    expect(modelBoundaries(events, [], 'UTC')).toEqual([]);
+  });
+
+  it('reads the day of a change in the project zone', () => {
+    // Sun Oct 25, 23:00 UTC is Mon Oct 26 in Berlin (UTC+1 after the clocks change)
+    const events = [change('a', '2026-10-25T23:30:00Z', CHATGPT, 'gpt-4o', 'gpt-5')];
+    expect(modelBoundaries(events, WEEKS, 'Europe/Berlin').map((entry) => entry.week)).toEqual(['2026-10-26']);
+    expect(modelBoundaries(events, WEEKS, 'UTC').map((entry) => entry.week)).toEqual(['2026-10-19']);
+  });
+
+  it('gives two engines that change in one week a boundary each', () => {
+    const events = [
+      change('a', '2026-10-21T02:00:00Z', CHATGPT, 'gpt-4o', 'gpt-5'),
+      change('b', '2026-10-22T02:00:00Z', GEMINI, 'gemini-2.5', 'gemini-3'),
+    ];
+    const boundaries = modelBoundaries(events, WEEKS, 'UTC');
+    expect(boundaries).toHaveLength(2);
+    expect(new Set(boundaries.map((entry) => entry.engineCode))).toEqual(new Set([CHATGPT, GEMINI]));
   });
 });
 
