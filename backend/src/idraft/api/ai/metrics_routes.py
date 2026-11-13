@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, Path, Query
 from pydantic import BeforeValidator
 from pydantic_core import PydanticCustomError
 
-from idraft.api.ai.metrics import MetricsService
+from idraft.api.ai.metrics import MetricsService, resolve
 from idraft.api.ai.summary import SummaryQuery, compare_dates, summary_dates
 from idraft.api.pagination import Commas
 from idraft.api.permissions import Permission
@@ -236,15 +236,17 @@ async def overview_ai(
     "have them; `ai.outcome_mix` gives four values per engine that add up to the whole. "
     "`entity_ids` gives one value per listed entity and engine instead. " + COMPARE,
 )
-@not_built
 async def metric_value(
     project_id: UUID,
     access: ReadData,
     query: Compared,
+    service: Metrics,
     metric: Metric,
     entity_ids: EntityIds = None,
 ) -> AiMetricResponse:
-    raise not_built_yet()
+    # The key is checked before any read: a bad key is `unknown_metric` whatever the project.
+    keys = resolve(metric, "value", entities=bool(entity_ids))
+    return await service.metric(access, project_id, query, keys, entity_ids)
 
 
 @router.get(
@@ -260,18 +262,19 @@ async def metric_value(
     "`month` granularities are refused (`422`, code `not_built`). A series has no compare "
     "parameters: a previous window drawn over it is a second read with `from` and `to` shifted.",
 )
-@not_built
 async def metric_series(
     project_id: UUID,
     access: ReadData,
     query: Scoped,
+    service: Metrics,
     metric: Metric,
     entity_ids: EntityIds = None,
     granularity: Annotated[
         Granularity, Query(description="`week`: the only granularity.")
     ] = "week",
 ) -> AiSeriesResponse:
-    raise not_built_yet()
+    (key,) = resolve(metric, "series", entities=bool(entity_ids))
+    return await service.series(access, project_id, query, key, entity_ids)
 
 
 @router.get(

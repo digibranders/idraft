@@ -38,7 +38,8 @@ from tests.conftest import PostgresServer
 NOT_BUILT = (501, "not_implemented")
 OK = (200, "ok")
 # The routes WP-32 has built: a good request answers 200 and no longer 501.
-BUILT = {OVERVIEW.name, OVERVIEW_AI.name, COMPETITORS.name}
+BUILT = {OVERVIEW.name, OVERVIEW_AI.name, METRIC.name, SERIES.name, COMPETITORS.name}
+UNKNOWN = (404, "unknown_metric")
 FORBIDDEN = (403, "forbidden")
 NOT_FOUND = (404, "not_found")
 INVALID = (422, "validation_failed")
@@ -203,7 +204,7 @@ async def test_granularity_day_and_month_are_422_with_the_field_code_not_built(
 
 
 async def test_granularity_week_is_the_only_value(world: World) -> None:
-    assert problem(await world.read(SERIES, granularity="week")) == NOT_BUILT
+    assert (await world.read(SERIES, granularity="week")).status_code == 200
     other = await world.read(SERIES, granularity="hour")
     assert problem(other) == INVALID
     assert ("granularity", "not_built") not in _codes(other)
@@ -261,10 +262,19 @@ def _routes_of(key: str) -> list[Route]:
     ]
 
 
-async def test_a_metric_key_of_the_right_form_reaches_the_stub(world: World) -> None:
-    for key in ("ai.mention_rate", "ai.outcome_mix.neither", "a", "x" * 64):
-        for route in _routes_of(key):
-            assert problem(await world.read(route)) == NOT_BUILT, (key, route.tail)
+async def test_a_metric_key_of_the_right_form_reaches_the_route_body(world: World) -> None:
+    """The value and series routes answer for the key (a value, the 501 of a key that has no
+    weekly data, the 404 of a key that is none); the breakdown is a stub still."""
+    for key, value, series in (
+        ("ai.mention_rate", OK, OK),
+        ("ai.outcome_mix.neither", OK, NOT_BUILT),
+        ("a", UNKNOWN, UNKNOWN),
+        ("x" * 64, UNKNOWN, UNKNOWN),
+    ):
+        on_value, on_series, on_breakdown = _routes_of(key)
+        assert _answer(await world.read(on_value)) == value, key
+        assert _answer(await world.read(on_series)) == series, key
+        assert problem(await world.read(on_breakdown)) == NOT_BUILT, key
 
 
 async def test_entity_ids_are_at_most_twenty_uuids_on_the_value_series_and_competitors(
@@ -273,11 +283,8 @@ async def test_entity_ids_are_at_most_twenty_uuids_on_the_value_series_and_compe
     ids = [f"{n:08x}-7c1e-4a52-9b3d-{n:012x}" for n in range(21)]
     for route in (METRIC, SERIES, *COMPETITOR_ROUTES[:1]):
         at_most = await world.read(route, entity_ids=",".join(ids[:20]))
-        # The competitors read is built: twenty ids that name no entity answer 200
-        if route.name in BUILT:
-            assert at_most.status_code == 200, route.name
-        else:
-            assert problem(at_most) == NOT_BUILT, route.name
+        # Twenty ids that name no tracked entity are left out: 200
+        assert at_most.status_code == 200, route.name
         assert problem(await world.read(route, entity_ids=",".join(ids))) == INVALID, route.name
         assert problem(await world.read(route, entity_ids="nope")) == INVALID, route.name
     for route in (OVERVIEW, BREAKDOWN, COMPETITOR_ROUTES[1]):

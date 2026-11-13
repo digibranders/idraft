@@ -12,7 +12,7 @@ import httpx
 
 from idraft.api.resources import Resources
 from tests.api.ai import summary_support
-from tests.api.ai.metrics_support import OVERVIEW, OVERVIEW_AI, Route, get_overview
+from tests.api.ai.metrics_support import OVERVIEW, OVERVIEW_AI, Route, get_metric, get_overview
 from tests.api.ai.summary_support import Summary, full_project, get_summary, statements
 from tests.conftest import PostgresServer
 
@@ -74,6 +74,127 @@ async def test_the_overview_adds_a_fixed_number_of_statements_to_its_summary_req
             assert compared - plain == 1, params
         for params in ({"include_branded": "true"}, {"filter[engine_code_in]": "chatgpt_web"}):
             assert await _extra(each, api, resources, **params) == OVERVIEW_EXTRA, params
+
+
+# A value or a series reads, in a second transaction after its summary request, the scope of the
+# transaction and the day each entity configuration took effect (the meta names them, C-21); the
+# citation share of a value also reads the citation units by engine and role.
+METRIC_EXTRA = 2
+CITATION_SHARE_EXTRA = 3
+# (key, route tail, what its summary request asks for, what the route is asked besides, extra reads)
+ENTITIES = {"entity_ids": "{own},{rival}"}
+CASES = [
+    ("ai.mention_rate", (), {"rows": "none", "include": "total"}, {}, METRIC_EXTRA),
+    ("ai.citation_rate", (), {"rows": "none", "include": "total"}, {}, METRIC_EXTRA),
+    ("ai.outcome_mix", (), {"rows": "none", "include": "total"}, {}, METRIC_EXTRA),
+    ("ai.share_of_voice", (), {"rows": "none", "include": "total"}, {}, METRIC_EXTRA),
+    ("ai.valid_answers", (), {"rows": "none", "include": "total"}, {}, METRIC_EXTRA),
+    ("ai.prompts_in_scope", (), {"rows": "none", "include": "total"}, {}, METRIC_EXTRA),
+    ("ai.recommendation_rate", (), {"rows": "none", "include": "total"}, {}, METRIC_EXTRA),
+    ("ai.first_mention_rate", (), {"rows": "none", "include": "total,cells"}, {}, METRIC_EXTRA),
+    ("ai.fanout_mean_queries", (), {"rows": "none", "include": "total,cells"}, {}, METRIC_EXTRA),
+    ("ai.mention_rate", (), {"rows": "none", "include": "total,entities"}, ENTITIES, METRIC_EXTRA),
+    (
+        "ai.share_of_voice",
+        (),
+        {"rows": "none", "include": "total,entities"},
+        ENTITIES,
+        METRIC_EXTRA,
+    ),
+    ("ai.citation_share", (), {"include": "total"}, {}, CITATION_SHARE_EXTRA),
+    ("ai.mention_rate", ("series",), {"rows": "none", "include": "total,series"}, {}, METRIC_EXTRA),
+    (
+        "ai.share_of_voice",
+        ("series",),
+        {"rows": "none", "include": "total,series,entities"},
+        ENTITIES,
+        METRIC_EXTRA,
+    ),
+]
+
+
+async def _metric(
+    world: Summary,
+    api: httpx.AsyncClient,
+    resources: Resources,
+    key: str,
+    tail: tuple[str, ...],
+    **params: Any,
+) -> int:
+    with statements(resources) as seen:
+        response = await get_metric(world, api, key, *tail, **params)
+    assert response.status_code == 200, response.text
+    return len(seen)
+
+
+def _asked(world: Summary, case: tuple[Any, ...], **params: Any) -> dict[str, Any]:
+    """What the route is asked, with the ids of the entities of the world written in."""
+    ids = {"own": world.own, "rival": world.rival}
+    return {**{k: v.format(**ids) for k, v in case[3].items()}, **params}
+
+
+async def _metric_extra(
+    world: Summary,
+    api: httpx.AsyncClient,
+    resources: Resources,
+    case: tuple[Any, ...],
+    **scope: Any,
+) -> int:
+    """The statements a value or a series adds to the summary request it makes, same scope."""
+    key, tail, summary, _, _ = case
+    asked = _asked(world, case, **scope)
+    await get_metric(world, api, key, *tail, **asked)
+    both = await _metric(world, api, resources, key, tail, **asked)
+    with statements(resources) as seen:
+        response = await get_summary(world, api, **summary, **scope)
+    assert response.status_code == 200, response.text
+    return both - len(seen)
+
+
+async def test_a_value_or_a_series_adds_a_fixed_number_of_statements_to_its_summary_request(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, seeded: Summary
+) -> None:
+    """Over a small world (14 answers) and over the base plan (150 prompts, three engines, 3,600
+    answers) a route adds the same reads to the summary request it makes: whatever the number of
+    prompts, answers or engines, and whichever scope."""
+    world = await full_project(resources, migrated)
+
+    for case in CASES:
+        extra = case[-1]
+        for each in (seeded, world):
+            assert await _metric_extra(each, api, resources, case) == extra, case[:2]
+            for scope in ({"include_branded": "true"}, {"filter[engine_code_in]": "chatgpt_web"}):
+                assert await _metric_extra(each, api, resources, case, **scope) == extra, (
+                    case[:2],
+                    scope,
+                )
+
+
+async def test_compare_adds_the_summarys_own_read_to_a_value_and_nothing_else(
+    api: httpx.AsyncClient, resources: Resources, seeded: Summary
+) -> None:
+    """A series has no compare, so only the value routes are asked for one."""
+    compared = {"compare": "previous_period"}
+
+    for case in [case for case in CASES if not case[1]]:
+        key, tail, _, _, extra = case
+        assert await _metric_extra(seeded, api, resources, case, **compared) == extra, case[:2]
+        asked = _asked(seeded, case)
+        await _metric(seeded, api, resources, key, tail, **asked)
+        base = await _metric(seeded, api, resources, key, tail, **asked)
+        more = await _metric(seeded, api, resources, key, tail, **asked, **compared) - base
+        # The summary's own read of the window compared with, and one more for the entities'.
+        assert more == (2 if "entities" in case[2]["include"] else 1), case[:2]
+
+
+async def test_a_value_or_a_series_of_no_prompt_reads_nothing_of_its_own(
+    api: httpx.AsyncClient, resources: Resources, seeded: Summary
+) -> None:
+    """No prompt in scope: the cells are empty and there is no citation or configuration to read."""
+    for case in CASES:
+        extra = await _metric_extra(seeded, api, resources, case, **{"filter[country_iso]": "FR"})
+
+        assert extra == 0, case[:2]
 
 
 async def test_an_overview_of_no_prompt_reads_nothing_of_its_own(

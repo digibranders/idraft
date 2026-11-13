@@ -6,20 +6,28 @@ and needs two, and `previous` has three states. Pure: nothing here reads a datab
 from __future__ import annotations
 
 import re
+import uuid
+from datetime import date
 from pathlib import Path
 
 import pytest
+from fastapi.exceptions import RequestValidationError
 
 from idraft.api.ai import metrics
 from idraft.api.ai.metrics import Frame
+from idraft.api.problems import NotImplementedProblemError
 from idraft.api.schemas.ai import (
     NOT_ASKED,
     EngineCells,
     EngineDetailCells,
     EngineSummary,
+    EntityCells,
+    EntityPreviousCells,
     MetricCell,
     OutcomeCells,
+    PointPool,
     Pooled,
+    WeekCells,
 )
 from idraft.api.schemas.ai_metrics import AiFilters, AiMetricValue
 from idraft.api.schemas.metrics import MetricWindow
@@ -359,3 +367,344 @@ def test_previous_is_the_cell_of_the_window_before_on_the_keys_that_compare() ->
         "ai.fanout_mean_queries",
     ):
         assert key not in tiles or tiles[key].previous is NOT_ASKED, key
+
+
+# The key resolution and the value and series builders of routes 3 and 4.
+
+SENTIMENT = tuple(f"ai.sentiment.{name}" for name in ("positive", "neutral", "negative", "mixed"))
+
+
+def _note_keys(paragraph_start: str, paragraph_end: str) -> set[str]:
+    text = NOTE.read_text(encoding="utf-8").split("## Registry matrix")[1]
+    paragraph = text.split(paragraph_start)[1].split(paragraph_end)[0]
+    return set(re.findall(r"`(ai\.[a-z0-9_.]+)`", paragraph))
+
+
+def test_the_unbuilt_keys_are_the_known_keys_of_the_note_and_none_is_built() -> None:
+    """The note names the known keys that are not built (and says `ai.sentiment` has four `.x`
+    keys: doc 19 names them); the code has exactly those, and none is also a built key."""
+    named = _note_keys("Known registry keys that are not built", "Any other\nkey")
+
+    assert "ai.sentiment" in named
+    assert named | set(SENTIMENT) == metrics.UNBUILT
+    assert not metrics.UNBUILT & (set(metrics.METRICS) | {"ai.outcome_mix"})
+    assert len(metrics.UNBUILT) == len(named) + 4
+
+
+def test_a_built_key_resolves_to_its_registry_keys() -> None:
+    assert metrics.resolve("ai.mention_rate", "value") == ("ai.mention_rate",)
+    assert metrics.resolve("ai.prompts_in_scope", "value") == ("ai.prompts_in_scope",)
+    # The outcome mix is four keys, in the order of the note; a sub key is its own.
+    assert metrics.resolve("ai.outcome_mix", "value") == OUTCOMES
+    assert metrics.resolve(OUTCOMES[3], "value") == (OUTCOMES[3],)
+    assert metrics.resolve("ai.recommendation_rate", "value") == ("ai.recommendation_rate",)
+
+
+def test_an_unknown_key_is_not_found_and_names_the_key() -> None:
+    for key in ("ai.nope", "seo.top3_count", "fp.sessions", "ai.outcome_mix.x", "ai.sentiment.x"):
+        for route in ("value", "series"):
+            with pytest.raises(metrics.UnknownMetricError) as raised:
+                metrics.resolve(key, route)
+
+            assert (raised.value.status, raised.value.problem_code) == (404, "unknown_metric")
+            assert key in str(raised.value.detail)
+
+
+def test_a_known_key_that_is_not_built_is_not_implemented_and_names_the_key() -> None:
+    for key in (*metrics.UNBUILT, *SENTIMENT):
+        for route in ("value", "series"):
+            with pytest.raises(NotImplementedProblemError) as raised:
+                metrics.resolve(key, route)
+
+            assert raised.value.detail == f"Not built yet: {key}."
+
+
+def test_an_unknown_key_and_an_unbuilt_one_are_told_apart() -> None:
+    with pytest.raises(metrics.UnknownMetricError):
+        metrics.resolve("ai.sentimental", "value")
+    with pytest.raises(NotImplementedProblemError):
+        metrics.resolve("ai.sentiment", "value")
+
+
+def test_a_key_without_weekly_data_is_not_built_on_the_series_route() -> None:
+    for key in metrics.SERIES_KEYS:
+        assert metrics.resolve(key, "series") == (key,)
+    for key in (*metrics.METRICS, "ai.outcome_mix"):
+        if key in metrics.SERIES_KEYS:
+            continue
+        with pytest.raises(NotImplementedProblemError) as raised:
+            metrics.resolve(key, "series")
+
+        assert raised.value.detail == f"Not built yet: {key} on series."
+        # The same key is built for a value.
+        assert metrics.resolve(key, "value")
+
+
+def test_entity_ids_are_for_mention_rate_and_share_of_voice_only() -> None:
+    for key in metrics.ENTITY_KEYS:
+        assert metrics.resolve(key, "value", entities=True) == (key,)
+        assert metrics.resolve(key, "series", entities=True) == (key,)
+    assert set(metrics.ENTITY_KEYS) == {"ai.mention_rate", "ai.share_of_voice"}
+    for key in (*metrics.METRICS, "ai.outcome_mix"):
+        if key in metrics.ENTITY_KEYS:
+            continue
+        with pytest.raises(RequestValidationError) as raised:
+            metrics.resolve(key, "value", entities=True)
+
+        assert [(error["loc"], error["type"]) for error in raised.value.errors()] == [
+            (("query", "entity_ids"), "not_supported")
+        ]
+    # The key is checked first: a key that is not built is not told it cannot have entities.
+    with pytest.raises(metrics.UnknownMetricError):
+        metrics.resolve("ai.nope", "value", entities=True)
+    with pytest.raises(NotImplementedProblemError):
+        metrics.resolve("ai.sentiment", "value", entities=True)
+
+
+def test_an_engine_value_is_a_cell_a_count_a_suppressed_value_or_nothing() -> None:
+    chatgpt = engine(CHATGPT, fanout=True)
+    gemini = engine(GEMINI)
+
+    mention = metrics.engine_value("ai.mention_rate", chatgpt, FRAME, (3, 7))
+    valid = metrics.engine_value("ai.valid_answers", chatgpt, FRAME, (3, 7))
+    recommended = metrics.engine_value("ai.recommended_given_mentioned", chatgpt, FRAME, (3, 7))
+    share = metrics.engine_value("ai.citation_share", chatgpt, FRAME, (3, 7))
+
+    assert mention is not None
+    assert mention.numerator == 1.4
+    assert valid is not None
+    assert (valid.value, valid.n_observations) == (7, 8)
+    assert recommended is not None
+    assert recommended.suppressed_reason == "not_classified"
+    assert share is not None
+    assert (share.numerator, share.denominator) == (3, 7)
+    # Not exposed by the engine: no value, which is not a value of 0.
+    assert metrics.engine_value("ai.fanout_mean_queries", gemini, FRAME, (0, 0)) is None
+    assert metrics.engine_value("ai.fanout_presence_rate", gemini, FRAME, (0, 0)) is None
+    assert metrics.engine_value("ai.fanout_presence_rate", chatgpt, FRAME, (3, 7)) is not None
+
+
+def test_engine_values_are_by_engine_then_by_key_with_an_average_of_the_averaged_keys() -> None:
+    engines = [engine(CHATGPT, fanout=True), engine(GEMINI)]
+
+    mix = metrics.engine_values(OUTCOMES, engines, FRAME, {})
+    mention = metrics.engine_values(("ai.mention_rate",), engines, FRAME, {})
+    fanout = metrics.engine_values(("ai.fanout_mean_queries",), engines, FRAME, {})
+
+    # Four values per engine, no average: the outcome keys are not averaged.
+    assert [(v.metric, v.engine_code) for v in mix] == [
+        (key, code) for code in (CHATGPT, GEMINI) for key in OUTCOMES
+    ]
+    assert [(v.metric, v.engine_code) for v in mention] == [
+        ("ai.mention_rate", CHATGPT),
+        ("ai.mention_rate", GEMINI),
+        ("ai.mention_rate.engine_average", None),
+    ]
+    assert [v.engine_code for v in fanout] == [CHATGPT]
+
+
+def _entity(number: int, mentioned: MetricCell, share: MetricCell, previous: object) -> EntityCells:
+    return EntityCells.model_validate(
+        {
+            "entity_id": uuid.UUID(int=number),
+            "mentioned": mentioned,
+            "share_of_voice": share,
+            "previous": previous,
+        }
+    )
+
+
+def test_an_entity_value_is_its_cell_for_the_engine_with_its_id_and_previous() -> None:
+    cells = _entity(
+        1,
+        cell(0.4, 3, 8, (2, 7)),
+        cell(1.5, 4, 8),
+        EntityPreviousCells(mentioned=cell(0, 1, 1, (0, 1)), share_of_voice=cell(0, 1, 1)),
+    )
+
+    mention = metrics.entity_value("ai.mention_rate", CHATGPT, cells, FRAME)
+    share = metrics.entity_value("ai.share_of_voice", CHATGPT, cells, FRAME)
+
+    assert (mention.entity_id, mention.engine_code) == (uuid.UUID(int=1), CHATGPT)
+    assert (mention.numerator, mention.denominator, mention.pooled) == (
+        0.4,
+        3,
+        Pooled(successes=2, trials=7),
+    )
+    assert mention.aggregation == "prompt_weighted"
+    assert mention.previous == cell(0, 1, 1, (0, 1))
+    assert (share.numerator, share.denominator, share.pooled) == (1.5, 4, None)
+    assert share.previous == cell(0, 1, 1)
+    assert share.aggregation == "observation_weighted"
+    # The words are the entity's, not the own brand's.
+    assert "entity" in mention.method
+    assert "entity" in share.method
+
+
+def test_an_entity_previous_has_the_three_states() -> None:
+    plain = _entity(1, cell(0.4, 3, 8, (2, 7)), cell(1.5, 4, 8), NOT_ASKED)
+    none = _entity(1, cell(0.4, 3, 8, (2, 7)), cell(1.5, 4, 8), None)
+
+    assert metrics.entity_value("ai.mention_rate", CHATGPT, plain, FRAME).previous is NOT_ASKED
+    assert metrics.entity_value("ai.share_of_voice", CHATGPT, none, FRAME).previous is None
+    assert (
+        '"previous"'
+        not in metrics.entity_value("ai.mention_rate", CHATGPT, plain, FRAME).model_dump_json()
+    )
+
+
+def test_entity_values_follow_the_cell_order_of_each_engine_and_have_one_average_each() -> None:
+    def with_entities(code: str) -> EngineSummary:
+        cells = [
+            _entity(n, cell(0.1 * n, 1, 1, (1, 1)), cell(0.5, 1, 1), NOT_ASKED) for n in (3, 1, 2)
+        ]
+        return engine(code).model_copy(update={"entities": cells})
+
+    engines = [with_entities(CHATGPT), with_entities(GEMINI)]
+
+    values = metrics.entity_values(
+        "ai.mention_rate", engines, {uuid.UUID(int=2), uuid.UUID(int=3)}, FRAME
+    )
+
+    # The engine's own order (the summary's: own first), not the order asked, one average each.
+    assert [(v.metric, v.engine_code, v.entity_id.int) for v in values if v.entity_id] == [
+        ("ai.mention_rate", CHATGPT, 3),
+        ("ai.mention_rate", CHATGPT, 2),
+        ("ai.mention_rate", GEMINI, 3),
+        ("ai.mention_rate", GEMINI, 2),
+        ("ai.mention_rate.engine_average", None, 3),
+        ("ai.mention_rate.engine_average", None, 2),
+    ]
+    assert metrics.entity_values("ai.mention_rate", engines, set(), FRAME) == []
+    only = metrics.entity_values("ai.mention_rate", engines[:1], {uuid.UUID(int=1)}, FRAME)
+    # One engine is no average.
+    assert [v.metric for v in only] == ["ai.mention_rate"]
+
+
+def test_an_engine_average_of_an_entity_carries_its_id() -> None:
+    key = "ai.share_of_voice"
+    values = [value(key, 0.3, CHATGPT), value(key, 0.5, GEMINI)]
+
+    average = metrics.engine_average(key, values, FRAME, entity_id=uuid.UUID(int=7))
+
+    assert average is not None
+    assert average.entity_id == uuid.UUID(int=7)
+    plain = metrics.engine_average(key, values, FRAME)
+    assert plain is not None
+    assert plain.entity_id is None
+
+
+def test_a_week_is_partial_when_a_window_bound_cuts_it_or_it_holds_today() -> None:
+    first, last, today = date(2026, 10, 14), date(2026, 11, 3), date(2026, 12, 25)  # Wed, Tue
+
+    def partial(week_start: date, *, now: date = today) -> bool:
+        return metrics.is_partial(week_start, first, last, now)
+
+    assert partial(date(2026, 10, 12))  # starts before `from`
+    assert not partial(date(2026, 10, 19))
+    assert not partial(date(2026, 10, 26))  # its Sunday, 1 November, is inside
+    assert partial(date(2026, 11, 2))  # its Sunday, 8 November, is after `to`
+    # The Sunday of a week on the last day of the window cuts nothing.
+    assert not metrics.is_partial(date(2026, 10, 26), first, date(2026, 11, 1), today)
+    assert metrics.is_partial(date(2026, 10, 26), first, date(2026, 10, 31), today)
+    # Holding today makes a whole week partial: Monday, Wednesday and Sunday of it.
+    for now in (date(2026, 10, 19), date(2026, 10, 21), date(2026, 10, 25)):
+        assert partial(date(2026, 10, 19), now=now)
+    for now in (date(2026, 10, 18), date(2026, 10, 26)):
+        assert not partial(date(2026, 10, 19), now=now)
+
+
+def _week(
+    start: date,
+    prompts: int,
+    mentioned: MetricCell,
+    pooled: bool,
+    entities: list[EntityCells] | None,
+) -> WeekCells:
+    pool = (
+        PointPool(
+            weeks=2,
+            window=MetricWindow(from_="2026-10-17", to="2026-10-25", timezone="Europe/Berlin"),
+            reason="few_prompts",
+            below_prompts=10,
+        )
+        if pooled
+        else None
+    )
+    return WeekCells(
+        week_start=start,
+        prompts=prompts,
+        is_pooled=pooled,
+        pool=pool,
+        mentioned=mentioned,
+        cited=cell(0.5, 2, 3, (1, 3)),
+        share_of_voice=cell(1, 2, 3),
+        entities=entities,
+    )
+
+
+def test_a_series_is_its_weeks_mapped_with_the_pooling_the_summary_gave() -> None:
+    weeks = [
+        _week(date(2026, 10, 12), 2, cell(1.0, 2, 3, (2, 3)), True, None),
+        _week(date(2026, 10, 19), 12, cell(6.0, 12, 12, (6, 12)), False, None),
+    ]
+    row = engine(CHATGPT).model_copy(update={"series": weeks})
+
+    series = metrics.series_of("ai.mention_rate", row, FRAME, date(2026, 12, 25))
+
+    assert (series.metric, series.engine_code, series.entity_id) == (
+        "ai.mention_rate",
+        CHATGPT,
+        None,
+    )
+    assert (series.unit, series.aggregation, series.granularity) == (
+        "ratio",
+        "prompt_weighted",
+        "week",
+    )
+    assert (series.window, series.filters) == (FRAME.window, FRAME.filters)
+    assert (series.is_estimate, series.method_version) == (False, 1)
+    first, second = series.points
+    assert (first.t, first.value, first.numerator, first.denominator) == (
+        date(2026, 10, 12),
+        0.5,
+        1.0,
+        2,
+    )
+    assert (first.n_observations, first.n_prompts, first.is_pooled) == (3, 2, True)
+    assert first.pool == weeks[0].pool
+    assert first.pooled == Pooled(successes=2, trials=3)
+    # An unpooled point has no pool, and its prompts are its own.
+    assert (second.is_pooled, second.pool, second.n_prompts) == (False, None, 12)
+    assert second.is_partial is False
+    assert first.is_partial is True  # before the window opens on the 17th
+    # The same weeks for the other keys, each its own cell.
+    cited = metrics.series_of("ai.citation_rate", row, FRAME, date(2026, 12, 25))
+    share = metrics.series_of("ai.share_of_voice", row, FRAME, date(2026, 12, 25))
+    assert cited.points[0].numerator == 0.5
+    assert (share.points[0].numerator, share.points[0].pooled, share.aggregation) == (
+        1,
+        None,
+        "observation_weighted",
+    )
+
+
+def test_an_entity_series_is_the_weeks_of_its_cells() -> None:
+    ours = _entity(1, cell(0.5, 2, 3, (1, 3)), cell(1.0, 2, 3), NOT_ASKED)
+    theirs = _entity(2, cell(0.25, 2, 3, (1, 3)), cell(0.5, 2, 3), NOT_ASKED)
+    weeks = [_week(date(2026, 10, 19), 2, cell(1.0, 2, 3, (2, 3)), True, [ours, theirs])]
+    row = engine(CHATGPT).model_copy(update={"series": weeks, "entities": [ours, theirs]})
+
+    series = metrics.series_of(
+        "ai.mention_rate", row, FRAME, date(2026, 12, 25), entity_id=theirs.entity_id
+    )
+
+    assert series.entity_id == theirs.entity_id
+    assert series.points[0].numerator == 0.25
+    assert series.points[0].pooled == Pooled(successes=1, trials=3)
+    assert series.points[0].n_prompts == 2
+    assert "entity" in series.method
+    share = metrics.series_of(
+        "ai.share_of_voice", row, FRAME, date(2026, 12, 25), entity_id=theirs.entity_id
+    )
+    assert share.points[0].numerator == 0.5

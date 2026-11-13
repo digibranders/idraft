@@ -70,6 +70,27 @@ async def overview_data(world: Summary, api: httpx.AsyncClient, **params: Any) -
     return data
 
 
+async def get_metric(
+    world: Summary, api: httpx.AsyncClient, key: str, *tail: str, **params: Any
+) -> httpx.Response:
+    """`ai/metrics/{key}` (with `tail="series"`, its series) of the seeded world, as its owner."""
+    return await api.get(
+        project_url(world.workspace, world.project.id, "ai", "metrics", key, *tail),
+        params=params,
+        headers=world.owner.headers,
+    )
+
+
+async def metric_body(
+    world: Summary, api: httpx.AsyncClient, key: str, *tail: str, **params: Any
+) -> dict[str, Any]:
+    """The body of a metric read that answered 200."""
+    response = await get_metric(world, api, key, *tail, **params)
+    assert response.status_code == 200, response.text
+    body: dict[str, Any] = response.json()
+    return body
+
+
 def engine_tiles(data: dict[str, Any], engine: str) -> dict[str, dict[str, Any]]:
     """The tiles of one engine of an Overview by metric key."""
     found = next(entry for entry in data["engines"] if entry["engine_code"] == engine)

@@ -330,11 +330,11 @@ test is the contract after that.
 |---|---|---|---|
 | `ai/metrics/overview`, `overview/ai` | `S(rows left out, include=total,cells)` | +3 (measured) | transaction scope, `role_engine_totals`, `version_starts` |
 | overview with `compare` | same | `compare` +1 (the summary's own), extras unchanged | |
-| `{metric}` for `ai.mention_rate`, `ai.citation_rate`, outcomes, `ai.share_of_voice`, `ai.valid_answers` | `S(rows=none, include=total)` (`entity_ids`: plus `include=entities`) | 0 | none |
-| `{metric}` for the small-cell keys | `S(rows=none, include=total,cells)` | 0 | none |
-| `{metric}` for `ai.prompts_in_scope` | `S(rows=none, include=total)` | 0 | none |
-| `{metric}` for `ai.citation_share` | `S(rows left out, include=total)` | +3 | transaction scope, `role_engine_totals`, `version_starts` (the overview's own reads) |
-| series | `S(rows=none, include=total,series)` (`entity_ids`: plus `entities`) | 0 | none |
+| `{metric}` for `ai.mention_rate`, `ai.citation_rate`, outcomes, `ai.share_of_voice`, `ai.valid_answers`, the recommendation keys | `S(rows=none, include=total)` (`entity_ids`: plus `include=entities`) | +2 (measured) | transaction scope, `version_starts` |
+| `{metric}` for the small-cell keys | `S(rows=none, include=total,cells)` | +2 (measured) | transaction scope, `version_starts` |
+| `{metric}` for `ai.prompts_in_scope` | `S(rows=none, include=total)` | +2 (measured) | transaction scope, `version_starts` |
+| `{metric}` for `ai.citation_share` | `S(rows left out, include=total)` | +3 (measured) | transaction scope, `role_engine_totals`, `version_starts` (the overview's own reads) |
+| series | `S(rows=none, include=total,series)` (`entity_ids`: plus `entities`) | +2 (measured) | transaction scope, `version_starts` |
 | breakdown `topic` | `S(rows=topics)` | 0 | none |
 | breakdown `country` | `S(rows=none, group_by=country)` | 0 | none |
 | breakdown `engine` | `S(rows=none, include=total)` | 0 | none |
@@ -675,3 +675,5 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-32: C-23 engine filter: these routes are stricter than the summary: a code outside `chatgpt_web`, `gemini_web` and `google_ai_mode` is `422` (`EngineCode`, as the sources routes); a listed engine that is neither enabled nor answering is left out of `engines` and `meta.engine_codes`.
 2026-11-13 WP-32: C-24 recorded, not built: strip deltas for `ai.citation_share`, `ai.fanout_presence_rate` and the valid answers per engine, and a `previous` on `engine_average`: WP-58, additive later.
 2026-11-13 WP-32: C-25 `meta.entity_config_changes[].from` as built: the project-local day of the earliest `ai.derivations.created_at` under the version, that is the day the version first derived an answer, not the day the configuration was edited (nothing stores that moment). It is read in the project's timezone, for every request with a prompt in scope, whatever the number of versions (so the statement count does not depend on the data). `aggregation` of an engine average is its inputs' (the value model table says so as the engine average section does).
+2026-11-14 WP-32: C-26 value and series built (routes 3 and 4): measured statements are the summary request plus 2 (transaction scope, `version_starts`: the meta names the days each entity configuration took effect on these routes too, C-21), `ai.citation_share` plus 3; none when no prompt is in scope; the same on 14 answers and on the full project. `compare` adds the summary's own read (+1, and +1 more with `entity_ids`, for the entities' previous cells). The table above had 0 for the value and series rows.
+2026-11-14 WP-32: C-27 reading of the contract where the note was silent: with `entity_ids` the values (and series) are per engine in code order and, within an engine, the entities in the summary's cell order (own first), in place of the engine's own cells, then one `engine_average` per entity in that order (value route only); the entity values say "the entity" in `method`; an empty `entity_ids` is no `entity_ids`. A series point is `is_partial` for a week cut by a window bound or holding today in the project's zone. The four `ai.sentiment` sub keys are `positive`, `neutral`, `negative` and `mixed` (doc 19 names them; this note said "four `.x` keys"). The detail of `501` for a key that is built but not for the series route is `Not built yet: <key> on series.`; a known key that is not built is `Not built yet: <key>.`. `entity_ids` on a key that does not take it is `422` at `entity_ids` with code `not_supported`.
