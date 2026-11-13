@@ -439,6 +439,23 @@ async def test_a_prompt_without_a_type_gets_the_rule_and_says_so(
     assert json.loads(entry["after"])["prompt_type_source"] == "rule"
 
 
+async def test_a_null_type_is_the_same_as_none_sent(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+
+    # The documented lenient reading: null is "no type", so the rule answers.
+    response = await add_prompt(
+        api, workspace, project, editor, "Asana versus Trello?", prompt_type=None
+    )
+
+    assert response.status_code == 201, response.text
+    data = response.json()["data"]
+    assert (data["prompt_type"], data["prompt_type_source"]) == ("comparison", "rule")
+
+
 async def test_a_type_sent_is_kept_and_marked_person(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -486,6 +503,50 @@ async def test_a_type_changed_by_patch_becomes_person(
     last = entries[-1]
     assert json.loads(last["before"])["prompt_type_source"] == "rule"
     assert json.loads(last["after"])["prompt_type_source"] == "person"
+
+
+async def test_a_patch_to_the_type_the_rule_gave_still_says_person(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    prompt_id = await added(api, workspace, project, editor, "Asana versus Trello?")
+    url = project_url(workspace, project, "prompts", prompt_id)
+
+    same = await api.patch(url, json={"prompt_type": "comparison"}, headers=editor.headers)
+
+    assert same.status_code == 200, same.text
+    data = same.json()["data"]
+    assert (data["prompt_type"], data["prompt_type_source"]) == ("comparison", "person")
+
+
+async def test_a_cursor_does_not_cross_to_another_type_filter(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    await added(api, workspace, project, editor, "Asana versus Trello?")
+    await added(api, workspace, project, editor, "Asana versus Monday?")
+    await added(api, workspace, project, editor, "How to pick a CRM")
+    url = project_url(workspace, project, "prompts")
+
+    first = await api.get(
+        url, params={"filter[prompt_type_in]": "comparison", "limit": "1"}, headers=editor.headers
+    )
+    crossed = await api.get(
+        url,
+        params={
+            "filter[prompt_type_in]": "how_to",
+            "limit": "1",
+            "cursor": first.json()["page"]["next_cursor"],
+        },
+        headers=editor.headers,
+    )
+
+    assert first.json()["page"]["has_more"] is True
+    assert problem(crossed) == (400, "invalid_cursor")
 
 
 async def test_the_list_filters_by_prompt_type(

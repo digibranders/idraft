@@ -18,10 +18,14 @@ from __future__ import annotations
 
 from alembic import op
 
+from idraft.db.ddl import column_grant
+
 revision: str = "0021"
 down_revision: str | None = "0020"
 branch_labels: str | tuple[str, ...] | None = None
 depends_on: str | tuple[str, ...] | None = None
+
+_SOURCE_COLUMNS = ("prompt_type_source", "is_branded_source")
 
 
 def upgrade() -> None:
@@ -32,11 +36,13 @@ def upgrade() -> None:
         "ADD COLUMN is_branded_source text NOT NULL DEFAULT 'computed' "
         "CHECK (is_branded_source IN ('computed','override'))"
     )
-    op.execute("GRANT UPDATE (prompt_type_source, is_branded_source) ON ai.prompts TO app_api")
+    op.execute(
+        column_grant("ai.prompts", role="app_api", privilege="UPDATE", columns=_SOURCE_COLUMNS)
+    )
 
 
 def downgrade() -> None:
-    op.execute("REVOKE UPDATE (prompt_type_source, is_branded_source) ON ai.prompts FROM app_api")
+    op.execute(f"REVOKE UPDATE ({', '.join(_SOURCE_COLUMNS)}) ON ai.prompts FROM app_api")
     op.execute(
         "ALTER TABLE ai.prompts DROP COLUMN prompt_type_source, DROP COLUMN is_branded_source"
     )

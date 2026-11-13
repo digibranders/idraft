@@ -402,6 +402,13 @@ async def write(
     rules = await matcher_rules(db, access.workspace_id, project_id)
     own = own_entities(rules)
     results = await matched(rules, [item.text for item in items])
+    # A type left out (absent or null) takes the wording rule; one sent is a person's.
+    types: list[tuple[PromptType, str]] = [
+        (suggest_prompt_type(item.text), "rule")
+        if item.prompt_type is None
+        else (item.prompt_type, "person")
+        for item in items
+    ]
     ids = await prompts.insert_prompts(
         db,
         workspace_id=access.workspace_id,
@@ -414,13 +421,13 @@ async def write(
                 country_iso=item.country_iso,
                 intent=item.intent,
                 funnel_stage=item.funnel_stage,
-                prompt_type=item.prompt_type or suggest_prompt_type(item.text),
-                prompt_type_source="rule" if item.prompt_type is None else "person",
+                prompt_type=typed[0],
+                prompt_type_source=typed[1],
                 importance=item.importance,
                 is_branded=names_own(result, own),
                 term_ids=tuple(sorted(set(item.term_ids))),
             )
-            for item, result in zip(items, results, strict=True)
+            for item, result, typed in zip(items, results, types, strict=True)
         ],
         created_by=access.user_id,
         now=datetime.now(UTC),
