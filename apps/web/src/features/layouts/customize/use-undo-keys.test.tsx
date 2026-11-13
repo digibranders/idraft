@@ -7,6 +7,9 @@ import { ScreenUnderTest, box, serveLayouts, startCustomizing, stateOf, stubView
 import { gate } from '@/test/gate';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
 
+// The screen's leave guard reads the router and the address
+vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
+
 /** Lets one test change what the screen's context says (the actions), the rest read it as it is. */
 const patch: { current: ((value: LayoutContextValue) => LayoutContextValue) | null } = { current: null };
 vi.mock('../layout-provider', async (importOriginal) => {

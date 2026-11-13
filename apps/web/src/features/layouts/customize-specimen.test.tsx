@@ -7,6 +7,8 @@ import { SESSION_COOKIE } from '@/mocks/session';
 import { renderWithProviders } from '@/test/render';
 
 // The canvas stub of the test setup cannot draw: the gallery cards hold a real chart, so the canvas is stood in for
+// The screen's leave guard reads the router and the address
+vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
 vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 
 beforeEach(() => {

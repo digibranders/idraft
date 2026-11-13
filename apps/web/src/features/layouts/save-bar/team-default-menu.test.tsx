@@ -16,6 +16,9 @@ import {
 import { gate } from '@/test/gate';
 import { renderWithProviders } from '@/test/render';
 
+// The screen's leave guard reads the router and the address
+vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
+
 const SET_TITLE = 'Set this as the default for everyone in Acme?';
 const REMOVE_TITLE = 'Remove the team default?';
 const COUNT = /^(No changes|\d+ changes?)$/;

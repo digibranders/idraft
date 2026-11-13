@@ -17,6 +17,9 @@ import {
 import { gate } from '@/test/gate';
 import { renderWithProviders } from '@/test/render';
 
+// The screen's leave guard reads the router and the address
+vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
+
 const TITLE = 'This layout was changed somewhere else.';
 const FAILED = 'Could not save. Try again.';
 

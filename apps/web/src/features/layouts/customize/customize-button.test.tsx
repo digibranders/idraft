@@ -16,6 +16,9 @@ import {
 } from '@/test/customize-harness';
 import { renderWithProviders } from '@/test/render';
 
+// The screen's leave guard reads the router and the address
+vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
+
 beforeEach(() => {
   stubViewport();
 });

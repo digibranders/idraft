@@ -16,6 +16,9 @@ import {
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
+// The screen's leave guard reads the router and the address
+vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
+
 const SEO_ONLY = { channels: ['seo'], permissions: [], integrations: [] } as const;
 
 let viewport: ReturnType<typeof stubViewport>;

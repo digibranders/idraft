@@ -12,6 +12,7 @@ import {
   use,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -23,6 +24,7 @@ import {
 import { CardCatalogDialog } from '../catalog/card-catalog-dialog';
 import { useLayoutScreen } from '../layout-provider';
 import { MEDIUM_MEDIA } from '../use-breakpoint';
+import { useLayoutLeaveGuard } from './use-layout-leave-guard';
 import { DiscardChangesDialog } from '@/components/ui/alert-dialog';
 import { useShortcut } from '@/lib/a11y/use-shortcut';
 import { useMediaQuery } from '@/lib/dom/use-media-query';
@@ -154,6 +156,16 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
     firstTarget(rootRef.current)?.focus({ preventScroll: true });
     setDiscard({ then });
   }, []);
+
+  const exitNow = useCallback((): void => {
+    live.current.actions.exit();
+  }, []);
+  // A link, a guarded push, Back, Forward and a reload ask through the same dialog as Cancel and Escape
+  const leaveGuard = useLayoutLeaveGuard({ customizing, dirty, saving, exit: exitNow });
+  // The dialog gives focus back to what held it when it opened, so "Keep editing" lands on the first handle
+  useLayoutEffect(() => {
+    if (leaveGuard.asking) firstTarget(rootRef.current)?.focus({ preventScroll: true });
+  }, [leaveGuard.asking]);
 
   const self = useMemo<ActiveScreen>(
     () => ({
@@ -298,17 +310,23 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
         }}
       />
       <DiscardChangesDialog
-        open={customizing && discard !== null}
+        open={customizing && (discard !== null || leaveGuard.asking)}
         title={t('discardTitle')}
         description={t('discardBody')}
         keepEditingLabel={t('keepEditing')}
         discardLabel={t('discard')}
         onKeepEditing={() => {
           setDiscard(null);
+          leaveGuard.stay();
         }}
         onDiscard={() => {
-          const then = discard?.then;
+          if (discard === null) {
+            leaveGuard.leave();
+            return;
+          }
+          const then = discard.then;
           setDiscard(null);
+          leaveGuard.stay();
           live.current.actions.exit();
           then?.();
         }}

@@ -16,6 +16,9 @@ import {
 import { gate } from '@/test/gate';
 import { renderWithProviders } from '@/test/render';
 
+// The screen's leave guard reads the router and the address
+vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
+
 const DISCARD_TITLE = 'Discard unsaved changes?';
 
 let viewport: ReturnType<typeof stubViewport>;
