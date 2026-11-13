@@ -24,6 +24,7 @@ from tests.api.ai.metrics_support import (
     METRIC,
     METRIC_ROUTES,
     OVERVIEW,
+    OVERVIEW_AI,
     ROUTES,
     SERIES,
     TOO_LONG,
@@ -34,6 +35,9 @@ from tests.api.entities.support import problem
 from tests.conftest import PostgresServer
 
 NOT_BUILT = (501, "not_implemented")
+OK = (200, "ok")
+# The routes WP-32 has built: a good request answers 200 and no longer 501.
+BUILT = {OVERVIEW.name, OVERVIEW_AI.name}
 FORBIDDEN = (403, "forbidden")
 NOT_FOUND = (404, "not_found")
 INVALID = (422, "validation_failed")
@@ -51,6 +55,16 @@ async def world(api: httpx.AsyncClient, resources: Resources, migrated: Postgres
     return await World(api).build(resources, migrated)
 
 
+def _answer(response: httpx.Response) -> tuple[int, str]:
+    """The (status, code) of a problem; a success is `OK`."""
+    return OK if response.status_code == 200 else problem(response)
+
+
+def _reached(route: Route) -> tuple[int, str]:
+    """What a good request answers: 200 on a built route, 501 on a stub."""
+    return OK if route.name in BUILT else NOT_BUILT
+
+
 def _codes(response: httpx.Response) -> set[tuple[str, str]]:
     """The (parameter, code) of every item of a 422."""
     return {(item["path"], item["code"]) for item in response.json()["errors"]}
@@ -62,7 +76,7 @@ async def test_every_route_checks_access_in_order(world: World) -> None:
     value, and 501 for a good one."""
     for route in ROUTES:
         bad = {"compare": "previous_decade"} if route.compares else {"include_branded": "maybe"}
-        for params, answer in ((bad, INVALID), (TOO_LONG, TOO_LARGE), ({}, NOT_BUILT)):
+        for params, answer in ((bad, INVALID), (TOO_LONG, TOO_LARGE), ({}, _reached(route))):
             asked = {**route.needs, **params}
             url = world.url(route)
 
@@ -74,7 +88,7 @@ async def test_every_route_checks_access_in_order(world: World) -> None:
             assert problem(anonymous) == (401, "unauthenticated"), route.name
             assert problem(unseen) == NOT_FOUND, route.name
             assert problem(refused) == FORBIDDEN, route.name
-            assert problem(read) == answer, (route.name, params)
+            assert _answer(read) == answer, (route.name, params)
 
 
 @pytest.mark.parametrize("name", ["window", "panel_id", "tz", "subject", "prompt_ids", "engines"])
@@ -104,7 +118,10 @@ async def test_compare_is_accepted_by_the_other_five(world: World) -> None:
             {"compare": "none"},
             {"compare_from": "2025-12-01", "compare_to": "2025-12-28"},
         ):
-            assert problem(await world.read(route, **params)) == NOT_BUILT, (route.name, params)
+            assert _answer(await world.read(route, **params)) == _reached(route), (
+                route.name,
+                params,
+            )
 
 
 @pytest.mark.parametrize(
@@ -130,7 +147,7 @@ async def test_a_window_is_at_most_92_days_and_in_order(world: World) -> None:
         backwards = await world.read(route, **{"from": "2026-01-10", "to": "2026-01-01"})
         nonsense = await world.read(route, **{"from": "2026-13-01"})
 
-        assert problem(longest) == NOT_BUILT, route.name
+        assert _answer(longest) == _reached(route), route.name
         assert problem(too_long) == TOO_LARGE, route.name
         assert too_long.json()["limit_days"] == 92, route.name
         assert problem(backwards) == INVALID, route.name
@@ -150,7 +167,7 @@ async def test_the_scope_parameters_are_accepted_by_all_seven(world: World) -> N
         "filter[term]": ENTITY_ID,
     }
     for route in ROUTES:
-        assert problem(await world.read(route, **scope)) == NOT_BUILT, route.name
+        assert _answer(await world.read(route, **scope)) == _reached(route), route.name
 
 
 @pytest.mark.parametrize(

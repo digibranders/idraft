@@ -19,9 +19,11 @@ from fastapi import APIRouter, Depends, Path, Query
 from pydantic import BeforeValidator
 from pydantic_core import PydanticCustomError
 
+from idraft.api.ai.metrics import MetricsService
 from idraft.api.ai.summary import SummaryQuery, compare_dates, summary_dates
 from idraft.api.pagination import Commas
 from idraft.api.permissions import Permission
+from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai import SummaryCompare
 from idraft.api.schemas.ai_metrics import (
     AiBreakdownResponse,
@@ -39,6 +41,13 @@ PROJECT = "/api/v1/workspaces/{workspace_id}/projects/{project_id}"
 router = APIRouter(tags=["ai"])
 
 ReadData = Annotated[WorkspaceAccess, Depends(require_permission(Permission.DATA_READ))]
+
+
+def get_metrics_service(resources: Annotated[Resources, Depends(get_resources)]) -> MetricsService:
+    return MetricsService(sessions=resources.sessions, summaries=resources.ai_summary)
+
+
+Metrics = Annotated[MetricsService, Depends(get_metrics_service)]
 
 SCOPE = (
     "Over `from` to `to`, project-local days both included (default the 28 days ending today; at "
@@ -200,11 +209,10 @@ EntityIds = Annotated[
     "two engines have a value. `prompts_in_scope`, `topics_in_scope`, `last_observed_at` and "
     "`last_valid_at` sit beside the engines. " + COMPARE + "`overview/ai` answers the same body.",
 )
-@not_built
 async def metrics_overview(
-    project_id: UUID, access: ReadData, query: Compared
+    project_id: UUID, access: ReadData, query: Compared, service: Metrics
 ) -> AiOverviewResponse:
-    raise not_built_yet()
+    return await service.overview(access, project_id, query)
 
 
 @router.get(
@@ -213,9 +221,10 @@ async def metrics_overview(
     description="The same body, parameters and errors as `GET .../ai/metrics/overview`, under the "
     "path the Overview report reads. " + SCOPE + COMPARE,
 )
-@not_built
-async def overview_ai(project_id: UUID, access: ReadData, query: Compared) -> AiOverviewResponse:
-    raise not_built_yet()
+async def overview_ai(
+    project_id: UUID, access: ReadData, query: Compared, service: Metrics
+) -> AiOverviewResponse:
+    return await service.overview(access, project_id, query)
 
 
 @router.get(

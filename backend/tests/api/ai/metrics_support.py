@@ -4,10 +4,12 @@ c5-competitors.md): the seven routes, each with the query it needs to be a valid
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import httpx
 
 from idraft.api.resources import Resources
+from tests.api.ai.summary_support import Summary
 from tests.api.ai.support import ai_project
 from tests.api.auth.support import make_workspace
 from tests.api.entities.support import member
@@ -47,6 +49,37 @@ ROUTES = [*METRIC_ROUTES, *COMPETITOR_ROUTES]
 # The date windows of the contract: 92 days is the longest, 93 is `window_too_large`.
 LONGEST = {"from": "2026-01-01", "to": "2026-04-02"}
 TOO_LONG = {"from": "2026-01-01", "to": "2026-04-03"}
+
+
+async def get_overview(
+    world: Summary, api: httpx.AsyncClient, route: Route = OVERVIEW, /, **params: Any
+) -> httpx.Response:
+    """The Overview of the seeded world of the summary tests, as its owner."""
+    return await api.get(
+        project_url(world.workspace, world.project.id, *route.tail),
+        params=params,
+        headers=world.owner.headers,
+    )
+
+
+async def overview_data(world: Summary, api: httpx.AsyncClient, **params: Any) -> dict[str, Any]:
+    """The `data` of an Overview that answered 200."""
+    response = await get_overview(world, api, **params)
+    assert response.status_code == 200, response.text
+    data: dict[str, Any] = response.json()["data"]
+    return data
+
+
+def engine_tiles(data: dict[str, Any], engine: str) -> dict[str, dict[str, Any]]:
+    """The tiles of one engine of an Overview by metric key."""
+    found = next(entry for entry in data["engines"] if entry["engine_code"] == engine)
+    tiles: dict[str, dict[str, Any]] = {tile["metric"]: tile for tile in found["tiles"]}
+    return tiles
+
+
+def counts(tile: dict[str, Any]) -> tuple[Any, Any, Any]:
+    """(numerator, denominator, n_observations) of a tile."""
+    return tile["numerator"], tile["denominator"], tile["n_observations"]
 
 
 class World:
