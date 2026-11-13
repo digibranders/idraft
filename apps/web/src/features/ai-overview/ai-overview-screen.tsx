@@ -2,12 +2,13 @@
 
 import { Ban } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { ReactElement, ReactNode } from 'react';
+import { useMemo, type ReactElement, type ReactNode } from 'react';
 
 import { AI_OVERVIEW_CARDS } from './cards/registry';
 import { OverviewHeader } from './header/overview-header';
 import { OverviewProvider, useOverview, type OverviewProject } from './overview-context';
 import { GridPlaceholder, ScopeBarPlaceholder, StripPlaceholder } from './overview-placeholders';
+import { buildOverviewPresets } from './presets/presets';
 import { EnginesError } from './states/engines-error';
 import { NoEngineState } from './states/no-engine-state';
 import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
@@ -25,7 +26,7 @@ export interface AiOverviewScreenProps {
   workspaceId: string;
   workspaceSlug: string;
   project: OverviewProject;
-  /** What the Start from menu of the save bar offers besides the built-in layout (the presets of T6). */
+  /** What the Start from menu offers besides the built-in layout; the page's own four presets when omitted (tests set it). */
   presets?: readonly LayoutPreset[];
 }
 
@@ -34,8 +35,6 @@ export interface AiOverviewScreenProps {
  * the header and 16 px between the blocks. `PAGE_CLASS` is the table pages' rhythm (12 px, 12 px).
  */
 const OVERVIEW_PAGE_CLASS = 'flex flex-col gap-4 px-3 pt-5 pb-8 md:px-4 lg:px-5';
-
-const NO_PRESETS: readonly LayoutPreset[] = [];
 
 /**
  * The page's body in each of its states. The engines decide what the page can say, so until they are read it holds
@@ -79,8 +78,19 @@ function OverviewBody(): ReactElement {
   );
 }
 
-function CustomizableOverview({ presets }: { presets: readonly LayoutPreset[] }): ReactElement {
+function CustomizableOverview({ presets }: { presets: readonly LayoutPreset[] | undefined }): ReactElement {
+  const t = useTranslations('aiOverview');
   const { workspaceId, project } = useOverview();
+  const ownPresets = useMemo(
+    () =>
+      buildOverviewPresets({
+        executive: t('presets.executive'),
+        seo_analyst: t('presets.seoAnalyst'),
+        competitive: t('presets.competitive'),
+        topic_owner: t('presets.topicOwner'),
+      }),
+    [t],
+  );
   const { workspace } = useMembership();
   const { capabilities } = useLayoutCapabilities({ workspaceId, projectId: project.id });
   return (
@@ -90,7 +100,7 @@ function CustomizableOverview({ presets }: { presets: readonly LayoutPreset[] })
       workspaceName={workspace.name}
       capabilities={capabilities}
       registry={AI_OVERVIEW_CARDS}
-      presets={presets}
+      presets={presets ?? ownPresets}
     >
       <OverviewBody />
     </CustomizableScreen>
@@ -102,7 +112,7 @@ function CustomizableOverview({ presets }: { presets: readonly LayoutPreset[] })
  * `data:read` is told so and nothing is read. The cards are the card packages' (WP-34 to 37); until a package lists
  * its cards in `cards/*`, each shows its pending placeholder.
  */
-export function AiOverviewScreen({ presets = NO_PRESETS, ...props }: AiOverviewScreenProps): ReactElement {
+export function AiOverviewScreen({ presets, ...props }: AiOverviewScreenProps): ReactElement {
   const t = useTranslations('aiOverview');
   const canRead = useCan('data:read');
   if (!canRead) {

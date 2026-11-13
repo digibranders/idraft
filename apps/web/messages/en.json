@@ -4337,6 +4337,12 @@
       "title": "This card is not built yet",
       "reason": "It will show here as soon as its data is ready. You can keep it in your layout."
     },
+    "presets": {
+      "executive": "Executive summary",
+      "seoAnalyst": "SEO analyst",
+      "competitive": "Competitive",
+      "topicOwner": "Topic owner"
+    },
     "engines": {},
     "competitors": {},
     "topics": {},

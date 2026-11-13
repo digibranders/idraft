@@ -2,15 +2,17 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { getResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { LIVE_REGION_ID } from '@/lib/a11y/announcer';
 import { cardName, SCREENS } from '@/lib/layouts';
 import { handlers } from '@/mocks/handlers';
 import { mswPath } from '@/mocks/respond';
 import { CARD_ID, cardInOverview, overviewAs } from '@/test/ai-overview-harness';
-import { stubViewport } from '@/test/customize-harness';
+import { serveLayouts, stubViewport } from '@/test/customize-harness';
 import { gate } from '@/test/gate';
 import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
 import { useOverview } from './overview-context';
+import { buildOverviewPresets, EXECUTIVE_LAYOUT } from './presets/presets';
 import type { ReactElement } from 'react';
 
 // The screen's leave guard reads the router and the address
@@ -175,6 +177,110 @@ describe('the AI visibility page of a project with AI off', () => {
       expect(region.querySelectorAll('[data-slot="unavailable-card"]').length).toBeGreaterThan(0);
     });
     expect(screen.queryByRole('heading', { name: 'No AI engine is on' })).not.toBeInTheDocument();
+  });
+});
+
+describe('the presets of the AI visibility page', () => {
+  type User = ReturnType<typeof renderWithProviders>['user'];
+
+  const polite = (): HTMLElement | null => document.getElementById(LIVE_REGION_ID.polite);
+  const cardTitles = (): string[] =>
+    within(cardsRegion())
+      .queryAllByRole('heading', { level: 2 })
+      .map((heading) => heading.textContent ?? '');
+
+  async function startCustomizing(user: User): Promise<void> {
+    const button = await screen.findByRole('button', { name: 'Customize' });
+    await waitFor(() => {
+      expect(button).not.toHaveAttribute('aria-disabled', 'true');
+    });
+    await user.click(button);
+    await screen.findByRole('button', { name: 'Start from' });
+  }
+
+  /** Opens the Start from menu and waits for focus to move into it before any key is pressed. */
+  async function openMenu(user: User): Promise<HTMLElement> {
+    await user.click(screen.getByRole('button', { name: 'Start from' }));
+    const menu = await screen.findByRole('menu');
+    await waitFor(() => {
+      expect(menu.contains(document.activeElement)).toBe(true);
+    });
+    return menu;
+  }
+
+  const items = (menu: HTMLElement): string[] =>
+    within(menu)
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent ?? '');
+
+  it('lists Built-in default, then the four presets in order', async () => {
+    const { user } = renderWithProviders(overviewAs('admin'));
+    await startCustomizing(user);
+    expect(items(await openMenu(user))).toEqual([
+      'Built-in default',
+      'Executive summary',
+      'SEO analyst',
+      'Competitive',
+      'Topic owner',
+    ]);
+  });
+
+  it('offers the presets it is given instead of its own', async () => {
+    const presets = buildOverviewPresets({
+      executive: 'Alpha',
+      seo_analyst: 'Beta',
+      competitive: 'Gamma',
+      topic_owner: 'Delta',
+    });
+    const { user } = renderWithProviders(overviewAs('admin', { presets }));
+    await startCustomizing(user);
+    expect(items(await openMenu(user))).toEqual(['Built-in default', 'Alpha', 'Beta', 'Gamma', 'Delta']);
+  });
+
+  it('replaces the draft with a preset, counts the change, announces it and writes nothing', async () => {
+    const served = serveLayouts();
+    const writes: string[] = [];
+    const listener = ({ request }: { request: Request }): void => {
+      if (request.method !== 'GET') writes.push(`${request.method} ${new URL(request.url).pathname}`);
+    };
+    server.events.on('request:start', listener);
+    const { user } = renderWithProviders(overviewAs('admin'));
+    await startCustomizing(user);
+    const menu = await openMenu(user);
+    await user.click(within(menu).getByRole('menuitem', { name: 'Executive summary' }));
+    const names = EXECUTIVE_LAYOUT.cards?.map(cardName) ?? [];
+    await waitFor(() => {
+      expect(cardTitles()).toEqual(names);
+    });
+    expect(screen.getByRole('group', { name: /^[1-9]\d* changes?$/ })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(polite()).toHaveTextContent('Executive summary applied. Save to keep it.');
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    server.events.removeListener('request:start', listener);
+    expect(writes).toEqual([]);
+    expect(served.puts).toEqual([]);
+    expect(served.deletes).toEqual([]);
+  });
+
+  it('restores the layout from before the preset on Undo', async () => {
+    const { user } = renderWithProviders(overviewAs('admin'));
+    await startCustomizing(user);
+    await waitFor(() => {
+      expect(cardTitles()).toHaveLength(9);
+    });
+    const before = cardTitles();
+    await user.click(within(await openMenu(user)).getByRole('menuitem', { name: 'Executive summary' }));
+    await waitFor(() => {
+      expect(cardTitles()).toHaveLength(6);
+    });
+    await user.click(
+      within(screen.getByRole('group', { name: /^[1-9]\d* changes?$/ })).getByRole('button', { name: 'Undo' }),
+    );
+    await waitFor(() => {
+      expect(cardTitles()).toEqual(before);
+    });
+    expect(screen.getByRole('group', { name: 'No changes' })).toBeInTheDocument();
   });
 });
 
