@@ -30,6 +30,7 @@ const ENGINE = z.object({
   location_ids: z.array(z.number()),
   active_prompts: z.number(),
   estimated_monthly_cost_usd: z.string().nullable(),
+  provider_params: z.object({ device: z.enum(['desktop', 'mobile']).nullable() }),
 });
 const PROMPT = z.object({
   prompt_id: z.string(),
@@ -197,6 +198,79 @@ describe('engines', () => {
     expect(engines[1]).toMatchObject({ is_configured: false, is_enabled: false, location_ids: [] });
     expect((await editor.call('DELETE', `${FYNIX}/engines/gemini_web`)).code).toBe('not_found');
     expect((await editor.as('viewer').call('DELETE', `${FYNIX}/engines/chatgpt_web`)).code).toBe('forbidden');
+  });
+
+  it('says which device each engine asks from: desktop for AI Mode until one is saved, none for the others', async () => {
+    const engines = dataOf(await mockBrowser('viewer').call('GET', `${FYNIX}/engines`), z.array(ENGINE));
+    expect(engines.map((engine) => [engine.engine.engine_code, engine.provider_params.device])).toEqual([
+      ['chatgpt_web', null],
+      ['gemini_web', null],
+      ['google_ai_mode', 'desktop'],
+    ]);
+  });
+
+  it('saves the device of AI Mode and keeps it through a save without provider_params, on or off', async () => {
+    const editor = mockBrowser('editor');
+    const path = `${CLEANSTART}/engines/google_ai_mode`;
+    const mobile = await editor.call('PUT', path, {
+      location_ids: [2840],
+      is_enabled: true,
+      provider_params: { device: 'mobile' },
+    });
+    expect(dataOf(mobile, ENGINE).provider_params).toEqual({ device: 'mobile' });
+    // Saving the countries, then turning the engine off, never resets the device
+    expect(dataOf(await editor.call('PUT', path, { location_ids: [2276, 2840] }), ENGINE).provider_params).toEqual({
+      device: 'mobile',
+    });
+    expect(
+      dataOf(await editor.call('PUT', path, { location_ids: [2840], is_enabled: false }), ENGINE).provider_params,
+    ).toEqual({ device: 'mobile' });
+    // A device sent with `null` provider_params is a save without one
+    expect(
+      dataOf(await editor.call('PUT', path, { location_ids: [2840], provider_params: null }), ENGINE).provider_params,
+    ).toEqual({ device: 'mobile' });
+    // The list reads what the saves left, and a device can change while the engine is off
+    const off = await editor.call('PUT', path, {
+      location_ids: [2840],
+      is_enabled: false,
+      provider_params: { device: 'desktop' },
+    });
+    expect(dataOf(off, ENGINE)).toMatchObject({ is_enabled: false, provider_params: { device: 'desktop' } });
+    const listed = dataOf(await editor.call('GET', `${CLEANSTART}/engines`), z.array(ENGINE));
+    expect(listed[2]?.provider_params).toEqual({ device: 'desktop' });
+  });
+
+  it('refuses a device for ChatGPT and Gemini with device_not_supported at provider_params.device, saving nothing', async () => {
+    const editor = mockBrowser('editor');
+    for (const code of ['chatgpt_web', 'gemini_web']) {
+      const refused = await editor.call('PUT', `${CLEANSTART}/engines/${code}`, {
+        location_ids: [2840],
+        provider_params: { device: 'mobile' },
+      });
+      expect(refused.code).toBe('validation_failed');
+      expect(fieldCodes(refused)).toEqual(['provider_params.device:device_not_supported']);
+    }
+    const engines = dataOf(await editor.call('GET', `${CLEANSTART}/engines`), z.array(ENGINE));
+    expect(engines.map((engine) => [engine.is_configured, engine.provider_params.device])).toEqual([
+      [false, null],
+      [false, null],
+      [false, 'desktop'],
+    ]);
+  });
+
+  it('takes only desktop or mobile, as an object with a device and no other member', async () => {
+    const editor = mockBrowser('editor');
+    const path = `${CLEANSTART}/engines/google_ai_mode`;
+    const refusals = async (provider_params: unknown): Promise<string[]> =>
+      fieldCodes(await editor.call('PUT', path, { location_ids: [2840], provider_params }));
+    expect(await refusals({ device: 'tablet' })).toEqual(['provider_params.device:enum']);
+    expect(await refusals({ device: null })).toEqual(['provider_params.device:enum']);
+    expect(await refusals({ device: '' })).toEqual(['provider_params.device:enum']);
+    expect(await refusals({})).toEqual(['provider_params.device:missing']);
+    expect(await refusals({ device: 'mobile', os: 'android' })).toEqual(['provider_params.os:extra_forbidden']);
+    expect(await refusals('mobile')).toEqual(['provider_params:model_attributes_type']);
+    const engines = dataOf(await editor.call('GET', `${CLEANSTART}/engines`), z.array(ENGINE));
+    expect(engines[2]).toMatchObject({ is_configured: false, provider_params: { device: 'desktop' } });
   });
 });
 

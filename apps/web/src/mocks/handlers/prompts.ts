@@ -38,6 +38,7 @@ import {
   PROMPT_TEXT_MAX,
   promptId,
   versionId,
+  type EngineDevice,
   type StoredEngine,
   type StoredPrompt,
 } from '../prompt-fixtures';
@@ -246,7 +247,27 @@ function engineView(projectId: string, code: EngineCode): ProjectEngine {
     provider_code: 'dataforseo',
     active_prompts: fits,
     estimated_monthly_cost_usd: monthlyCostUsd(fits),
+    provider_params: { device: takesDevice(code) ? (configured?.device ?? 'desktop') : null },
   };
+}
+
+const DEVICES = ['desktop', 'mobile'] as const satisfies readonly EngineDevice[];
+
+/** Only Google AI Mode takes a device (`Engine.supports_device`). */
+const takesDevice = (code: EngineCode): boolean => code === 'google_ai_mode';
+
+/**
+ * The device of a body's `provider_params`, or the errors of a malformed one. Left out and `null` both mean
+ * "keep the saved device"; inside the object the device is required and must be `desktop` or `mobile`.
+ */
+function deviceOfBody(params: unknown): { device: EngineDevice | undefined; errors: ValidationItem[] } {
+  if (params === undefined || params === null) return { device: undefined, errors: [] };
+  if (!isRecord(params)) return { device: undefined, errors: [notAnObject('provider_params')] };
+  const errors = extraMembers(params, ['device'], 'provider_params');
+  const device = params.device;
+  if (device === undefined) errors.push(bodyError('provider_params.device', 'missing', 'Field required'));
+  else errors.push(...enumError(device, 'provider_params.device', DEVICES));
+  return { device: isOneOf(device, DEVICES) ? device : undefined, errors };
 }
 
 interface PromptItem {
@@ -453,7 +474,14 @@ export const promptHandlers: HttpHandler[] = [
     }
     const body: unknown = await request.json();
     if (!isRecord(body)) return invalid(request, [notAnObject()]);
-    const errors = extraMembers(body, ['location_ids', 'is_enabled']);
+    const errors = extraMembers(body, ['location_ids', 'is_enabled', 'provider_params']);
+    const { device, errors: deviceErrors } = deviceOfBody(body.provider_params);
+    errors.push(...deviceErrors);
+    if (device !== undefined && !takesDevice(code)) {
+      errors.push(
+        bodyError('provider_params.device', 'device_not_supported', `${ENGINE_FACTS[code].label} takes no device.`),
+      );
+    }
     const ids = body.location_ids;
     if (!Array.isArray(ids))
       errors.push(bodyError('location_ids', ids === undefined ? 'missing' : 'list_type', 'A list of location ids.'));
@@ -480,10 +508,13 @@ export const promptHandlers: HttpHandler[] = [
     }
     const state = promptsOf(caller.project.project_id);
     const before = state.engines.find((engine) => engine.engine_code === code);
+    // A save without `provider_params` keeps the saved device: the countries and the switch never reset it
+    const kept = takesDevice(code) ? (device ?? before?.device) : undefined;
     const next: StoredEngine = {
       engine_code: code,
       is_enabled: body.is_enabled !== false,
       location_ids: locationIds,
+      ...(kept === undefined ? {} : { device: kept }),
     };
     // Only an engine going from off to on makes the schedules; saving the countries of one that is on makes none
     const turnedOn = next.is_enabled && (before === undefined || !before.is_enabled);

@@ -94,10 +94,15 @@ export interface StoredPrompt {
   created_by: { user_id: string; name: string; email: string } | null;
 }
 
+/** The devices Google AI Mode asks from (`EngineProviderParams.device`, without the `null` of the other engines). */
+export type EngineDevice = NonNullable<NonNullable<ProjectEngine['provider_params']>['device']>;
+
 export interface StoredEngine {
   engine_code: EngineCode;
   is_enabled: boolean;
   location_ids: number[];
+  /** Google AI Mode only; left out reads as `desktop`, the API's default for a row that holds no device. */
+  device?: EngineDevice;
 }
 
 const VERSION_OFFSET = 500_000;

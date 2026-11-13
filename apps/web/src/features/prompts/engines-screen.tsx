@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import { engineCostChange, type EngineCostChange } from './engine-cost-model';
 import { enginesQuery, PUT_ENGINE, refreshPrompts, type PromptScope } from './prompt-queries';
@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { MultiSelect } from '@/components/ui/multi-select';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { SettingRow } from '@/components/ui/setting-row';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
@@ -41,6 +42,9 @@ export interface EnginesScreenProps {
 }
 
 const SKELETON_ROWS = [0, 1, 2] as const;
+
+/** The devices Google AI Mode asks from (`provider_params.device`); the other engines send `null`. */
+type Device = NonNullable<NonNullable<ProjectEngine['provider_params']>['device']>;
 
 /** The class of the Perplexity API: an official API, never pooled with the other classes (spec 2026-11-11). */
 const PERPLEXITY_CLASS = 'official_api';
@@ -242,6 +246,13 @@ function EngineRow({
   const [error, setError] = useState<string | null>(null);
   // The field is only said to be missing a country once it was changed, or turning the engine on was tried
   const [touched, setTouched] = useState(false);
+  // The device chosen for an engine that is off: it waits for the switch and goes with the turn-on
+  const [held, setHeld] = useState<Device | null>(null);
+  // A save of this engine is under way, from its start until the list has been read again
+  const saving = useRef(false);
+  // A string is the API's signal that the engine takes a device (Google AI Mode); ChatGPT and Gemini send null
+  const savedDevice = engine.provider_params?.device ?? null;
+  const shownDevice = engine.is_enabled ? savedDevice : (held ?? savedDevice);
   const byId = new Map(countries.map((country) => [country.location_id, country]));
   const saved = engine.location_ids.flatMap((id) => byId.get(id) ?? []);
   const projectCountry = countries.filter((country) => country.country_iso === defaultCountryIso).slice(0, 1);
@@ -257,13 +268,18 @@ function EngineRow({
     setError(message);
     announce(message, { politeness: 'assertive' });
   };
-  const save = async (isEnabled: boolean, locationIds: readonly number[]): Promise<void> => {
+  // `device` is sent only when the person chose one: every other save leaves it out, and the API keeps the saved one
+  const saveNow = async (isEnabled: boolean, locationIds: readonly number[], device?: Device): Promise<void> => {
     setError(null);
     onSaveStart();
     try {
       await put.mutateAsync({
         params: { path: { workspace_id: scope.workspaceId, project_id: scope.projectId, engine_code: code } },
-        body: { location_ids: [...locationIds], is_enabled: isEnabled },
+        body: {
+          location_ids: [...locationIds],
+          is_enabled: isEnabled,
+          ...(device === undefined ? {} : { provider_params: { device } }),
+        },
       });
     } catch (failure) {
       if (refusedCountry(failure)) fail(t('countriesRefused'));
@@ -273,12 +289,24 @@ function EngineRow({
     }
     setDraft(null);
     setTouched(false);
+    setHeld(null);
     // The first engine on makes the project's AI schedules. The key is the Schedules screen's (project-settings
     // keeps it, and features do not import each other), so it is spelled out here as the runs key is elsewhere
     void queryClient.invalidateQueries({ queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'schedules'] });
     // Only a switch changes the cost: the price of an engine does not depend on its countries
     if (isEnabled !== engine.is_enabled) onSwitched(code, isEnabled);
     await refreshPrompts(queryClient, scope);
+  };
+  // Until the list is read again after a save, `engine` is the row from before it. A device change made from that
+  // row would send its old switch and countries and undo the save (turn the engine back on without the question),
+  // so the device control does nothing meanwhile. The control stays enabled: a disabled one drops keyboard focus.
+  const save = async (isEnabled: boolean, locationIds: readonly number[], device?: Device): Promise<void> => {
+    saving.current = true;
+    try {
+      await saveNow(isEnabled, locationIds, device);
+    } finally {
+      saving.current = false;
+    }
   };
 
   const turn = (on: boolean): void => {
@@ -306,13 +334,28 @@ function EngineRow({
       ).catch(() => undefined);
     }
   };
+  const changeDevice = (next: Device): void => {
+    if (saving.current) return;
+    const device = t(next === 'mobile' ? 'deviceMobile' : 'deviceDesktop');
+    if (!engine.is_enabled) {
+      setHeld(next);
+      announce(t('deviceHeld', { engine: label, device }), { politeness: 'polite', key: `device-${code}` });
+      return;
+    }
+    // An engine that is on saves at once, with the countries it holds: a field the person left empty must not block it
+    save(true, engine.location_ids, next).then(
+      () => announce(t('deviceChanged', { engine: label, device }), { politeness: 'polite', key: `device-${code}` }),
+      // The row says why, and the control still shows the device the engine holds
+      () => undefined,
+    );
+  };
   const turnOn = async (): Promise<void> => {
     if (ids.length === 0) {
       setTouched(true);
       fail(t('countriesRequired'));
       throw new Error('An engine needs a country before it is turned on');
     }
-    await save(true, ids);
+    await save(true, ids, held ?? undefined);
     toast({ type: 'success', title: t('turnedOn', { engine: label }), description: t('turnedOnHint') });
   };
 
@@ -329,6 +372,22 @@ function EngineRow({
           </div>
         }
       />
+      {shownDevice === null ? null : (
+        <div className="flex flex-col gap-1.5">
+          <SegmentedControl<Device>
+            semantics="radio"
+            label={t('deviceLabel', { engine: label })}
+            value={shownDevice}
+            onValueChange={changeDevice}
+            disabled={!canWrite}
+            items={[
+              { value: 'desktop', label: t('deviceDesktop') },
+              { value: 'mobile', label: t('deviceMobile') },
+            ]}
+          />
+          <p className="type-meta">{t('deviceHint')}</p>
+        </div>
+      )}
       <Field invalid={missingCountry} disabled={!canWrite}>
         <FieldLabel>{t('countriesLabel', { engine: label })}</FieldLabel>
         <MultiSelect<Country>

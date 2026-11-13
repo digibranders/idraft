@@ -2,8 +2,10 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 import { EnginesScreen } from './engines-screen';
+import { LIVE_REGION_ID } from '@/lib/a11y/announcer';
 import type { EngineCode, ProjectEngine, Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
@@ -66,17 +68,22 @@ interface StubEngine {
   on: boolean;
   /** `undefined` is the price of 150 active prompts, `null` is no price on record. */
   price?: string | null;
+  /** The device Google AI Mode holds; the other engines take none. `undefined` is desktop. */
+  device?: 'desktop' | 'mobile';
+  /** The countries of an engine that is on; `undefined` is the United States. */
+  locations?: number[];
 }
 
-const engineOf = ({ code, on, price }: StubEngine): ProjectEngine => ({
+const engineOf = ({ code, on, price, device, locations }: StubEngine): ProjectEngine => ({
   engine: ENGINE_FACTS[code],
   is_configured: on,
   is_enabled: on,
-  location_ids: on ? [2840] : [],
+  location_ids: on ? (locations ?? [2840]) : [],
   replicates: 1,
   provider_code: 'dataforseo',
   active_prompts: 150,
   estimated_monthly_cost_usd: price === undefined ? PRICE_150 : price,
+  provider_params: { device: code === 'google_ai_mode' ? (device ?? 'desktop') : null },
 });
 
 /**
@@ -89,24 +96,25 @@ function stubEngines(project: MockProject, stubs: readonly StubEngine[], hold?: 
     http.get(enginesPath(project), () => HttpResponse.json({ data: list })),
     http.put(enginePath(project), async ({ request, params }) => {
       if (hold !== undefined) await hold;
-      const body: unknown = await request.json();
+      const body = SAVE.safeParse(await request.json());
       const index = list.findIndex((item) => item.engine.engine_code === params.engine_code);
       const current = list[index];
-      if (current === undefined || !isSave(body)) return new HttpResponse(null, { status: 400 });
-      const next = { ...current, is_configured: true, is_enabled: body.is_enabled, location_ids: body.location_ids };
+      if (current === undefined || !body.success) return new HttpResponse(null, { status: 400 });
+      const { location_ids, is_enabled, provider_params } = body.data;
+      // A save without provider_params keeps the saved device, as the API does
+      const device = provider_params?.device ?? current.provider_params?.device ?? null;
+      const next = { ...current, is_configured: true, is_enabled, location_ids, provider_params: { device } };
       list[index] = next;
       return HttpResponse.json({ data: next });
     }),
   );
 }
 
-const isSave = (body: unknown): body is { location_ids: number[]; is_enabled: boolean } =>
-  typeof body === 'object' &&
-  body !== null &&
-  'location_ids' in body &&
-  Array.isArray(body.location_ids) &&
-  'is_enabled' in body &&
-  typeof body.is_enabled === 'boolean';
+const SAVE = z.object({
+  location_ids: z.array(z.number()),
+  is_enabled: z.boolean(),
+  provider_params: z.object({ device: z.enum(['desktop', 'mobile']) }).optional(),
+});
 
 /** The cost change banner, or `null` while the screen shows none. */
 const costSummary = (): HTMLElement | null => {
@@ -550,6 +558,259 @@ describe('Project settings > Engines: class, Perplexity row and cost change summ
     await user.click(await screen.findByRole('switch', { name: 'ChatGPT' }));
     await user.click(await screen.findByRole('button', { name: 'Turn on ChatGPT' }));
     await waitFor(() => expect(costSummary()).not.toBeNull());
+    expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+const DEVICE_LABEL = 'Device of Google AI Mode';
+
+/** The device control of an engine, the group named for it, or `null` while the row shows none. */
+const deviceGroup = (engine = 'Google AI Mode'): HTMLElement | null =>
+  screen.queryByRole('group', { name: `Device of ${engine}` });
+
+/** The segment of the device control that is chosen is the one named `name`. */
+const expectDevice = (name: string): void => {
+  const group = deviceGroup();
+  if (group === null) throw new Error('No device control');
+  expect(within(group).getByRole('radio', { checked: true })).toHaveAccessibleName(name);
+};
+
+const stubAiMode = (on: boolean, device?: 'desktop' | 'mobile', locations?: number[], hold?: Promise<void>): void =>
+  stubEngines(
+    fynix,
+    [
+      { code: 'chatgpt_web', on: true },
+      { code: 'gemini_web', on: true },
+      {
+        code: 'google_ai_mode',
+        on,
+        ...(device === undefined ? {} : { device }),
+        ...(locations === undefined ? {} : { locations }),
+      },
+    ],
+    hold,
+  );
+
+/** A promise that settles when `release` is called: the API's answer to a save the test holds back. */
+function held(): { hold: Promise<void>; release: () => void } {
+  let release: () => void = () => undefined;
+  const hold = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { hold, release };
+}
+
+/*
+ * States of the device control: it reads the engine list the screen already holds, so it has no loading, empty
+ * or error state of its own (those are the screen's, above). Partial: an engine that takes no device (no
+ * `provider_params.device`) shows no control. Stale: a refetch keeps the control on screen with what the list
+ * says. A save that fails keeps the old value and says so on the row. Phone width is not asserted here (class
+ * checks prove nothing about overflow): the reviewer opens the page at 390 px.
+ */
+describe('Project settings > Engines: device of Google AI Mode', () => {
+  it('shows the control on Google AI Mode only, with the device it holds and what the choice changes', async () => {
+    stubAiMode(true, 'mobile');
+    renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    await screen.findByRole('switch', { name: 'Google AI Mode' });
+    expect(await screen.findByRole('group', { name: DEVICE_LABEL })).toBeInTheDocument();
+    expect(screen.getAllByRole('group', { name: /^Device of / })).toHaveLength(1);
+    expect(deviceGroup('ChatGPT')).toBeNull();
+    expect(deviceGroup('Gemini')).toBeNull();
+    expectDevice('Mobile');
+    expect(
+      screen.getByText('Applies from the next run. Answers already collected keep the device they were collected on.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows desktop for an engine that was never set up, and also while it is off', async () => {
+    renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    await screen.findByRole('group', { name: DEVICE_LABEL });
+    expect(screen.getByRole('switch', { name: 'Google AI Mode' })).not.toBeChecked();
+    expectDevice('Desktop');
+  });
+
+  it('shows no control for an engine whose row carries no device', async () => {
+    const gemini = engineOf({ code: 'gemini_web', on: true });
+    server.use(
+      http.get(enginesPath(cleanstart), () =>
+        HttpResponse.json({ data: [{ ...gemini, provider_params: { device: null } }] }),
+      ),
+    );
+    renderWithProviders(enginesAs('editor', cleanstart, 'US'));
+    await screen.findByRole('switch', { name: 'Gemini' });
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+  });
+
+  it('saves a change of an engine that is on at once, once, with its countries and the switch on', async () => {
+    stubAiMode(true, 'desktop', [2276, 2356]);
+    const puts = recordPuts();
+    const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    const group = await screen.findByRole('group', { name: DEVICE_LABEL });
+    await user.click(within(group).getByRole('radio', { name: 'Mobile' }));
+    await waitFor(() => expectDevice('Mobile'));
+    expect(puts).toEqual([{ location_ids: [2276, 2356], is_enabled: true, provider_params: { device: 'mobile' } }]);
+    // The save did not move the engine: it is on, and no cost summary says otherwise
+    expect(screen.getByRole('switch', { name: 'Google AI Mode' })).toBeChecked();
+    expect(costSummary()).toBeNull();
+    // Said once the save has landed, not before
+    await waitFor(() =>
+      expect(document.getElementById(LIVE_REGION_ID.polite)).toHaveTextContent(
+        'Device of Google AI Mode set to Mobile.',
+      ),
+    );
+  });
+
+  it('holds the choice of an engine that is off and sends nothing until it is turned on, then sends it once', async () => {
+    const puts = recordPuts();
+    const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    const group = await screen.findByRole('group', { name: DEVICE_LABEL });
+    await user.click(within(group).getByRole('radio', { name: 'Mobile' }));
+    expectDevice('Mobile');
+    expect(document.getElementById(LIVE_REGION_ID.polite)).toHaveTextContent(
+      'Device of Google AI Mode set to Mobile. It applies once the engine is turned on.',
+    );
+    expect(puts).toEqual([]);
+    await user.click(screen.getByRole('switch', { name: 'Google AI Mode' }));
+    await user.click(await screen.findByRole('button', { name: 'Turn on Google AI Mode' }));
+    expect(await screen.findByText('Google AI Mode is on')).toBeInTheDocument();
+    await waitFor(() => expectDevice('Mobile'));
+    expect(puts).toEqual([{ location_ids: [2276], is_enabled: true, provider_params: { device: 'mobile' } }]);
+  });
+
+  it('turns an engine on without provider_params when the device was not touched', async () => {
+    const puts = recordPuts();
+    const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    await screen.findByRole('group', { name: DEVICE_LABEL });
+    await user.click(screen.getByRole('switch', { name: 'Google AI Mode' }));
+    await user.click(await screen.findByRole('button', { name: 'Turn on Google AI Mode' }));
+    expect(await screen.findByText('Google AI Mode is on')).toBeInTheDocument();
+    expect(puts).toEqual([{ location_ids: [2276], is_enabled: true }]);
+  });
+
+  it('sends no provider_params when the countries change or the engine is turned off, and keeps the device', async () => {
+    stubAiMode(true, 'mobile', [2276, 2356]);
+    const puts = recordPuts();
+    const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    const countries = await screen.findByRole('toolbar', { name: 'Countries of Google AI Mode' });
+    await user.click(await within(countries).findByRole('button', { name: 'Remove Germany' }));
+    await waitFor(() => expect(puts).toEqual([{ location_ids: [2356], is_enabled: true }]));
+    await waitFor(() =>
+      expect(screen.getByRole('switch', { name: 'Google AI Mode' })).not.toHaveAttribute('aria-busy'),
+    );
+    expectDevice('Mobile');
+    await user.click(screen.getByRole('switch', { name: 'Google AI Mode' }));
+    expect(await screen.findByText('Google AI Mode is off')).toBeInTheDocument();
+    expect(puts).toEqual([
+      { location_ids: [2356], is_enabled: true },
+      { location_ids: [2356], is_enabled: false },
+    ]);
+    expectDevice('Mobile');
+  });
+
+  it('keeps the old device and says the change was not saved when the save fails', async () => {
+    stubAiMode(true, 'desktop');
+    server.use(
+      http.put(enginePath(fynix), ({ request }) =>
+        invalidField(request, 'provider_params.device', 'device_not_supported', 'Google AI Mode takes no device.'),
+      ),
+    );
+    const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    const group = await screen.findByRole('group', { name: DEVICE_LABEL });
+    await user.click(within(group).getByRole('radio', { name: 'Mobile' }));
+    expect(await screen.findByText('The change was not saved. Try again in a moment.')).toBeInTheDocument();
+    expectDevice('Desktop');
+    expect(screen.getByRole('switch', { name: 'Google AI Mode' })).toBeChecked();
+  });
+
+  it('is disabled without projects:write and sends nothing when it is clicked', async () => {
+    stubAiMode(true, 'desktop');
+    const puts = recordPuts();
+    const { user } = renderWithProviders(enginesAs('viewer', fynix, 'DE'));
+    const group = await screen.findByRole('group', { name: DEVICE_LABEL });
+    for (const radio of within(group).getAllByRole('radio')) {
+      expect(radio).toHaveAttribute('aria-disabled', 'true');
+      await user.click(radio);
+    }
+    expectDevice('Desktop');
+    expect(puts).toEqual([]);
+  });
+
+  it('moves with the arrow keys, saves once for the change and announces it', async () => {
+    stubAiMode(true, 'desktop');
+    const puts = recordPuts();
+    const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    const group = await screen.findByRole('group', { name: DEVICE_LABEL });
+    within(group).getByRole('radio', { name: 'Desktop' }).focus();
+    await user.keyboard('{ArrowRight}');
+    await waitFor(() => expectDevice('Mobile'));
+    expect(puts).toEqual([{ location_ids: [2840], is_enabled: true, provider_params: { device: 'mobile' } }]);
+    expect(within(group).getByRole('radio', { name: 'Mobile' })).toHaveFocus();
+    await waitFor(() =>
+      expect(document.getElementById(LIVE_REGION_ID.polite)).toHaveTextContent(
+        'Device of Google AI Mode set to Mobile.',
+      ),
+    );
+    await user.keyboard('{ArrowLeft}');
+    await waitFor(() => expectDevice('Desktop'));
+    expect(puts).toHaveLength(2);
+  });
+
+  it('ignores a device click while a switch-off is still being saved, so it cannot turn the engine back on', async () => {
+    const { hold, release } = held();
+    stubAiMode(true, 'desktop', undefined, hold);
+    const puts = recordPuts();
+    const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    const group = await screen.findByRole('group', { name: DEVICE_LABEL });
+    await user.click(screen.getByRole('switch', { name: 'Google AI Mode' }));
+    await waitFor(() => expect(puts).toHaveLength(1));
+    // The list still says the engine is on: the click must not save from that stale row
+    await user.click(within(group).getByRole('radio', { name: 'Mobile' }));
+    expectDevice('Desktop');
+    release();
+    expect(await screen.findByText('Google AI Mode is off')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Google AI Mode' })).not.toBeChecked());
+    expect(screen.getByRole('switch', { name: 'Google AI Mode' })).not.toBeChecked();
+    expectDevice('Desktop');
+    expect(puts).toEqual([{ location_ids: [2840], is_enabled: false }]);
+  });
+
+  it('ignores a device click while a change of countries is still being saved, and keeps those countries', async () => {
+    const { hold, release } = held();
+    stubAiMode(true, 'desktop', [2276, 2356], hold);
+    const puts = recordPuts();
+    const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    const countries = await screen.findByRole('toolbar', { name: 'Countries of Google AI Mode' });
+    const group = screen.getByRole('group', { name: DEVICE_LABEL });
+    await user.click(await within(countries).findByRole('button', { name: 'Remove Germany' }));
+    await waitFor(() => expect(puts).toHaveLength(1));
+    await user.click(within(group).getByRole('radio', { name: 'Mobile' }));
+    expectDevice('Desktop');
+    release();
+    await waitFor(() =>
+      expect(screen.getByRole('switch', { name: 'Google AI Mode' })).not.toHaveAttribute('aria-busy'),
+    );
+    expect(puts).toEqual([{ location_ids: [2356], is_enabled: true }]);
+    expectDevice('Desktop');
+    // Once the save has landed the control works again, from the countries it saved
+    await user.click(within(group).getByRole('radio', { name: 'Mobile' }));
+    await waitFor(() => expectDevice('Mobile'));
+    expect(puts).toEqual([
+      { location_ids: [2356], is_enabled: true },
+      { location_ids: [2356], is_enabled: true, provider_params: { device: 'mobile' } },
+    ]);
+  });
+
+  it('has no axe violations with the device control on screen, the engine off', async () => {
+    stubAiMode(false);
+    const { container } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    await screen.findByRole('group', { name: DEVICE_LABEL });
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('has no axe violations with the device control on screen, the engine on', async () => {
+    stubAiMode(true, 'mobile');
+    const { container } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    await screen.findByRole('group', { name: DEVICE_LABEL });
     expect(await axe(container)).toHaveNoViolations();
   });
 });
