@@ -219,6 +219,16 @@ describe('TopicTrellis', () => {
     }
   });
 
+  it('each figure is a two row subgrid, so captions of different length keep the plots of a row level', async () => {
+    const { container } = renderTrellis();
+    await screen.findAllByTestId('echart-canvas');
+    const figures = Array.from(container.querySelectorAll('figure'));
+    expect(figures.length).toBeGreaterThan(0);
+    for (const figure of figures) {
+      expect(figure).toHaveClass('row-span-2', 'grid', 'grid-rows-subgrid');
+    }
+  });
+
   it('panels of one row share a group, rows differ', async () => {
     renderTrellis();
     await screen.findAllByTestId('echart-canvas');

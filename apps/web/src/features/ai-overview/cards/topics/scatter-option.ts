@@ -26,7 +26,7 @@ export interface ScatterInput {
   ceiling: number;
 }
 
-const POINT_OPACITY = 0.6;
+const POINT_OPACITY = 0.75;
 
 /**
  * The option of the scatter (CH-15): mention rate across, citation rate up, both on one 0 to `ceiling` axis, so the
@@ -90,7 +90,8 @@ export function scatterOption(
         name: words.series,
         data: points.map((point) => ({ name: point.row.node.name, value: [point.x, point.y], symbolSize: point.size })),
         itemStyle: {
-          color: tokens.reference,
+          // The points are the data, so they need 3:1 against the card (WCAG 1.4.11); the guide line is a hint
+          color: tokens.foregroundSecondary,
           borderColor: tokens.surfaceElevated,
           borderWidth: 1,
           opacity: POINT_OPACITY,

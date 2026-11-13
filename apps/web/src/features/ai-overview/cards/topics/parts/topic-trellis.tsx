@@ -168,7 +168,9 @@ export function TopicTrellis({
                 {row.meta === null ? null : <span className="type-meta">{row.meta}</span>}
               </div>
             )}
-            <div className={cn('grid grid-cols-1 gap-3', GRID[columns])}>
+            {/* Each figure spans two rows of this grid (caption, plot) as a subgrid, so a caption that wraps to more
+                lines in one cell pushes the plots of its whole row down together and the axes stay level */}
+            <div className={cn('grid grid-cols-1 gap-x-3 gap-y-1', GRID[columns])}>
               {cells.map((cell) => {
                 const { panel } = cell;
                 const latest = latestIndex(panel);
@@ -176,7 +178,7 @@ export function TopicTrellis({
                 return (
                   <figure
                     key={panel.id}
-                    className="flex min-w-0 flex-col gap-1"
+                    className="row-span-2 mb-2 grid min-w-0 grid-rows-subgrid gap-y-1"
                     onPointerEnter={() => {
                       hovered.current = panel.id;
                     }}

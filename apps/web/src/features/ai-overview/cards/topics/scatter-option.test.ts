@@ -113,10 +113,10 @@ describe('scatterOption', () => {
   it('colours come from the tokens', () => {
     const [series] = seriesOf(build());
     expect(series?.itemStyle).toMatchObject({
-      color: '#reference',
+      color: '#fg2',
       borderColor: '#elevated',
       borderWidth: 1,
-      opacity: 0.6,
+      opacity: 0.75,
     });
     expect(series?.emphasis.itemStyle).toMatchObject({ color: '#c1', opacity: 1 });
     expect(JSON.stringify(build())).toContain('#grid');
