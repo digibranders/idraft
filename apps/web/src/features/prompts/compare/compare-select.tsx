@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import type { ReactElement } from 'react';
+import { useId, type ReactElement } from 'react';
 
 import { useCompare } from './use-compare';
 import { Select } from '@/components/ui/select';
@@ -23,16 +23,19 @@ export interface CompareSelectProps {
 export function CompareSelect({ window }: CompareSelectProps): ReactElement {
   const t = useTranslations('prompts.compare');
   const { compare, setCompare } = useCompare();
+  const describedBy = useId();
   const tip = compare
     ? window === null
       ? null
       : t('windowTip', { range: formatDateRange(window.from, window.to) })
     : t('offTip');
   return (
-    <Tooltip content={tip ?? t('label')} disabled={tip === null} side="bottom">
+    // The tooltip is for the eye; the combobox itself is described by the hidden text, so a screen reader hears it
+    <Tooltip content={tip ?? t('label')} purpose="label" disabled={tip === null} side="bottom">
       <div className="w-48 shrink-0">
         <Select<Choice>
           aria-label={t('label')}
+          {...(tip === null ? {} : { 'aria-describedby': describedBy })}
           size="sm"
           value={compare ? 'previous' : 'off'}
           onValueChange={(next) => setCompare(next === 'previous')}
@@ -42,6 +45,11 @@ export function CompareSelect({ window }: CompareSelectProps): ReactElement {
             { value: 'off', label: t('off') },
           ]}
         />
+        {tip === null ? null : (
+          <span id={describedBy} hidden>
+            {tip}
+          </span>
+        )}
       </div>
     </Tooltip>
   );

@@ -4357,6 +4357,7 @@
         "offTitle": "No comparison to read changes from",
         "offReason": "Comparison is off, so no change can be detected. Turn it on or clear the filter.",
         "noPreviousReason": "The previous period has no answers, so no change can be told.",
+        "tooFewReason": "No row has enough answers in both periods to tell a change.",
         "turnOn": "Compare with previous period"
       },
       "change": {

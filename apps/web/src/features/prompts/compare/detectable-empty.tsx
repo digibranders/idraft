@@ -9,8 +9,10 @@ import { Button } from '@/components/ui/button';
 export interface DetectableEmptyProps {
   /** The comparison is on. Off, no row can have a change, and the state says so. */
   compare: boolean;
-  /** How many rows had a change to read at all; 0 means the previous period had nothing to compare with. */
+  /** How many rows had a change to read at all. */
   compared: number;
+  /** The valid answers of the previous period (`previous_answers`); `null` when the response does not say. */
+  previousAnswers: number | null;
   /** The filters that narrowed the rows, as read-only chips. */
   details?: ReactNode;
   /** Turns the comparison on. */
@@ -21,20 +23,29 @@ export interface DetectableEmptyProps {
 /**
  * What "Detectable changes only" leaves when it leaves no row (WB-TPF-07): the reason, and the action that changes it.
  * Never blank and never a failure: with comparison off the change cannot be told, and with it on the rows may all be
- * within normal variation.
+ * within normal variation, have too few answers in a period, or the previous period may have no answers at all.
  */
-export function DetectableEmpty({ compare, compared, details, onTurnOn, onClear }: DetectableEmptyProps): ReactElement {
+export function DetectableEmpty({
+  compare,
+  compared,
+  previousAnswers,
+  details,
+  onTurnOn,
+  onClear,
+}: DetectableEmptyProps): ReactElement {
   const t = useTranslations('prompts.compare.empty');
   const root = useTranslations('prompts');
-  const clear = (
-    <Button variant="link" onClick={onClear}>
-      {root('clearFilters')}
-    </Button>
-  );
+  const reason = !compare
+    ? t('offReason')
+    : compared > 0
+      ? t('noneReason', { count: compared })
+      : previousAnswers === 0
+        ? t('noPreviousReason')
+        : t('tooFewReason');
   return (
     <EmptyState
       title={compare ? t('noneTitle') : t('offTitle')}
-      reason={!compare ? t('offReason') : compared === 0 ? t('noPreviousReason') : t('noneReason', { count: compared })}
+      reason={reason}
       headingLevel={2}
       details={details}
       primaryAction={
@@ -48,7 +59,13 @@ export function DetectableEmpty({ compare, compared, details, onTurnOn, onClear 
           </Button>
         )
       }
-      secondaryAction={compare ? undefined : clear}
+      secondaryAction={
+        compare ? undefined : (
+          <Button variant="link" onClick={onClear}>
+            {root('clearFilters')}
+          </Button>
+        )
+      }
     />
   );
 }

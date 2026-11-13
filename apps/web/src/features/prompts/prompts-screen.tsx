@@ -98,13 +98,13 @@ import { toast } from '@/components/ui/toast';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { SummaryEntity } from '@/lib/api/types';
 import { useErrorId } from '@/lib/api/use-error-id';
+import { comparedWindow, isCompared } from '@/lib/compare/compare-model';
 import { copyText } from '@/lib/dom/clipboard';
 import { useZoneDay } from '@/lib/dom/use-zone-day';
 import { enumValuesOf } from '@/lib/filters/filter-values';
 import { formatBusinessDate, formatInteger, formatList, formatRelative } from '@/lib/format';
 import { formatInspectTarget } from '@/lib/inspector/placement';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
-import { comparedWindow, isCompared } from '@/lib/compare/compare-model';
 import { useCountries } from '@/lib/locations/countries';
 import { useCan, useMembership } from '@/lib/permissions';
 import type { StripPrompt } from '@/lib/rates/strip-model';
@@ -335,14 +335,16 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const summaryData = summary.data?.data;
   const codes = useMemo(() => shown.map((engine) => engine.engine.engine_code), [shown]);
   // Counts held from a read made without the comparison carry no `previous`: while the new read is on its way the chip
-  // waits for it, so it does not empty the table for a moment
+  // waits for it, so it does not empty the table for a moment. A read that failed has no counts to judge by either:
+  // the rows stay and the banner says so, rather than the chip claiming there is nothing to compare
   const detectableHeld = detectableOnly && compare && !isCompared(summaryData) && summary.isFetching;
+  const readFailed = summary.isError && summaryData === undefined;
   const detectableIds = useMemo(
     (): ReadonlySet<string> | null =>
-      detectableOnly && !detectableHeld
+      detectableOnly && !detectableHeld && !readFailed
         ? new Set(keepPromptRows(summaryData?.prompts ?? [], codes, compare).map((row) => row.prompt_id))
         : null,
-    [detectableOnly, detectableHeld, summaryData, codes, compare],
+    [detectableOnly, detectableHeld, readFailed, summaryData, codes, compare],
   );
   const summaryById = useMemo(
     () => new Map((summary.data?.data.prompts ?? []).map((row) => [row.prompt_id, row])),
@@ -799,6 +801,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       <DetectableEmpty
         compare={compare}
         compared={comparedRowCount(summaryData, tab, topicIds.length > 0 ? kept : null, codes)}
+        previousAnswers={summaryData?.previous_answers ?? null}
         details={<ReadOnlyFilterChips fields={emptyFields} values={emptyValues} />}
         onTurnOn={() => setCompare(true)}
         onClear={clearFilters}

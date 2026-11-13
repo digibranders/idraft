@@ -123,6 +123,20 @@ describe('the keys of the AI prompt queries', () => {
     expect(summaryQuery(scope, RANGE, false, { include: [] }).queryKey).toEqual(plain);
   });
 
+  it('send compare=previous_period only when a summary asks for the comparison, and tell it apart in the key', () => {
+    const plain = summaryQuery(scope, RANGE, false).queryKey;
+    const compared = summaryQuery(scope, RANGE, false, { compare: true }).queryKey;
+    expect(compared.at(-1)).toEqual({
+      from: RANGE.from,
+      to: RANGE.to,
+      include_branded: false,
+      compare: 'previous_period',
+    });
+    expect(compared).not.toEqual(plain);
+    // Off sends nothing (the API default is none), so the key is the one of a caller that never asked
+    expect(summaryQuery(scope, RANGE, false, { compare: false }).queryKey).toEqual(plain);
+  });
+
   it('keep the entities of the project out of the prefixes a prompt change refreshes', () => {
     const key = projectEntitiesQuery(scope).queryKey;
     for (const prefix of [promptsKey(scope), aiKey(scope), enginesKey(scope)]) {
@@ -376,6 +390,15 @@ describe('the summary', () => {
     for (const engine of [...engines(asked.data.prompts), ...asked.data.topics.flatMap((row) => row.engines)]) {
       expect(engine.entities).toHaveLength(asked.data.entities.length);
     }
+  });
+
+  it('answers the comparison with the window before when it is asked, and without it when it is not', async () => {
+    const range = lastMonth();
+    const plain = await client.fetchQuery(summaryQuery(scope, range, false));
+    expect(plain.data.compare_window).toBeUndefined();
+    const compared = await client.fetchQuery(summaryQuery(scope, range, false, { compare: true }));
+    const before = compared.data.compare_window;
+    expect(before !== null && before !== undefined && before.to < range.from).toBe(true);
   });
 
   it('gives each prompt and topic the times of its newest answer and its newest valid answer', async () => {

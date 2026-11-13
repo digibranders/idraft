@@ -58,7 +58,7 @@ describe('CompareSelect', () => {
   it('names the previous window in a tooltip when the response has one', async () => {
     const { user } = render('', WINDOW);
     const trigger = screen.getByRole('combobox', { name: 'Compare with' });
-    expect(trigger.parentElement).toHaveAccessibleDescription('Previous period: Sep 18 to Oct 15, 2026');
+    expect(trigger).toHaveAccessibleDescription('Previous period: Sep 18 to Oct 15, 2026');
     await user.hover(trigger);
     // The hidden description and the popup both carry it
     await waitFor(() => expect(screen.getAllByText('Previous period: Sep 18 to Oct 15, 2026')).toHaveLength(2));
@@ -66,12 +66,12 @@ describe('CompareSelect', () => {
 
   it('has no tooltip while the response has no window', () => {
     render();
-    expect(screen.getByRole('combobox', { name: 'Compare with' }).parentElement).not.toHaveAccessibleDescription();
+    expect(screen.getByRole('combobox', { name: 'Compare with' })).not.toHaveAccessibleDescription();
   });
 
   it('says in the tooltip that no change is read while comparison is off', () => {
     render('?cmp=off', WINDOW);
-    expect(screen.getByRole('combobox', { name: 'Compare with' }).parentElement).toHaveAccessibleDescription(
+    expect(screen.getByRole('combobox', { name: 'Compare with' })).toHaveAccessibleDescription(
       'No change is read while comparison is off',
     );
   });

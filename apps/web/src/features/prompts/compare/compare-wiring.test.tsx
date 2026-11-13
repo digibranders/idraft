@@ -139,7 +139,7 @@ const withPrevious = (now: EngineSummary, before: EngineSummary | null): EngineS
 });
 
 /** The answer of the summary: with `previous` and the window only for a read that asked to compare. */
-function summaryAnswer(compared: boolean): { data: Schemas['PromptsSummary'] } {
+function summaryAnswer(compared: boolean, only: readonly number[] = [0, 1, 2]): { data: Schemas['PromptsSummary'] } {
   const prompt = (index: number): object => {
     const before = BEFORE_COUNTS[index];
     return {
@@ -186,7 +186,7 @@ function summaryAnswer(compared: boolean): { data: Schemas['PromptsSummary'] } {
       window: { from: '2026-10-16', to: '2026-11-12', timezone: 'Europe/Berlin' },
       include_branded: false,
       engine_codes: [ENGINE],
-      prompts: [prompt(0), prompt(1), prompt(2)],
+      prompts: only.map(prompt),
       topics: [
         topic(idOf(5, 1), 'Detectable topic', [0]),
         topic(idOf(5, 2), 'Quiet topic', [1]),
@@ -262,9 +262,7 @@ describe('Topics & Prompts: compare, the read and the address', () => {
     render('?tab=prompts');
     await grid();
     const trigger = screen.getByRole('combobox', { name: 'Compare with' });
-    await waitFor(() =>
-      expect(trigger.parentElement).toHaveAccessibleDescription('Previous period: Sep 18 to Oct 15, 2026'),
-    );
+    await waitFor(() => expect(trigger).toHaveAccessibleDescription('Previous period: Sep 18 to Oct 15, 2026'));
   });
 
   it('writes cmp=off for No comparison with history replace, and reads again without compare', async () => {
@@ -368,11 +366,98 @@ describe('Topics & Prompts: the Detectable changes only chip', () => {
         HttpResponse.json({ data: [promptOf(2)], page: { has_more: false, next_cursor: null } }),
       ),
       http.get(SUMMARY_PATH, ({ request }) =>
-        HttpResponse.json(summaryAnswer(new URL(request.url).searchParams.get('compare') === 'previous_period')),
+        HttpResponse.json(summaryAnswer(new URL(request.url).searchParams.get('compare') === 'previous_period', [1])),
       ),
     );
     render('?tab=prompts&detectable=only');
     expect(await screen.findByRole('heading', { name: 'No detectable change in these rows' })).toBeInTheDocument();
+    expect(
+      screen.getByText('1 row was compared with the previous period and none changed by more than normal variation.'),
+    ).toBeInTheDocument();
+  });
+
+  it('says the previous period has no answers only when it has none', async () => {
+    server.use(
+      http.get(LIST_PATH, () =>
+        HttpResponse.json({ data: [promptOf(3)], page: { has_more: false, next_cursor: null } }),
+      ),
+      http.get(SUMMARY_PATH, ({ request }) => {
+        const compared = new URL(request.url).searchParams.get('compare') === 'previous_period';
+        const answer = summaryAnswer(compared, [2]);
+        return HttpResponse.json(compared ? { data: { ...answer.data, previous_answers: 0 } } : answer);
+      }),
+    );
+    render('?tab=prompts&detectable=only');
+    expect(await screen.findByRole('heading', { name: 'No detectable change in these rows' })).toBeInTheDocument();
+    expect(screen.getByText('The previous period has no answers, so no change can be told.')).toBeInTheDocument();
+  });
+
+  it('says no row has enough answers in both periods when the previous period has answers but not for the rows', async () => {
+    server.use(
+      http.get(LIST_PATH, () =>
+        HttpResponse.json({ data: [promptOf(3)], page: { has_more: false, next_cursor: null } }),
+      ),
+      http.get(SUMMARY_PATH, ({ request }) =>
+        HttpResponse.json(summaryAnswer(new URL(request.url).searchParams.get('compare') === 'previous_period', [2])),
+      ),
+    );
+    render('?tab=prompts&detectable=only');
+    expect(await screen.findByRole('heading', { name: 'No detectable change in these rows' })).toBeInTheDocument();
+    expect(screen.getByText('No row has enough answers in both periods to tell a change.')).toBeInTheDocument();
+    expect(screen.queryByText(/previous period has no answers/)).toBeNull();
+  });
+
+  it('leaves the rows and the banner when the read fails, and does not say there is nothing to compare', async () => {
+    server.use(
+      http.get(LIST_PATH, () =>
+        HttpResponse.json({
+          data: [promptOf(1), promptOf(2), promptOf(3)],
+          page: { has_more: false, next_cursor: null },
+        }),
+      ),
+      http.get(SUMMARY_PATH, () => HttpResponse.json({ code: 'boom' }, { status: 500 })),
+    );
+    render('?tab=prompts&detectable=only');
+    expect(
+      await screen.findByText('The answer counts could not be loaded. The prompts are listed without them.'),
+    ).toBeInTheDocument();
+    expect(promptTexts(await grid())).toHaveLength(3);
+    expect(screen.queryByRole('heading', { name: 'No detectable change in these rows' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'No comparison to read changes from' })).toBeNull();
+  });
+
+  it('keeps the rows on screen between turning the comparison on and the new read, and then narrows them', async () => {
+    let held = false;
+    let release = (): void => undefined;
+    const opened = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    serve();
+    server.use(
+      http.get(SUMMARY_PATH, async ({ request }) => {
+        const compared = new URL(request.url).searchParams.get('compare') === 'previous_period';
+        if (compared && held) await opened;
+        return HttpResponse.json(summaryAnswer(compared));
+      }),
+    );
+    const { user } = render('?tab=prompts&detectable=only&cmp=off');
+    expect(await screen.findByRole('heading', { name: 'No comparison to read changes from' })).toBeInTheDocument();
+    held = true;
+    await user.click(screen.getByRole('button', { name: 'Compare with previous period' }));
+    // Synchronously after the click: the new read is held, and the table is neither empty nor an empty state
+    expect(screen.queryByRole('heading', { name: /^No (detectable change|comparison)/ })).toBeNull();
+    expect(promptTexts(await grid())).toHaveLength(3);
+    release();
+    await waitFor(() =>
+      expect(promptTexts(screen.getByRole('grid', { name: 'Prompts' }))).toEqual(['Question number 1?']),
+    );
+  });
+
+  it('says No prompts match, not that no change was detected, for a search that finds nothing', async () => {
+    serve();
+    render('?tab=prompts&detectable=only&q=zzzznothing');
+    expect(await screen.findByRole('heading', { name: 'No prompts match' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'No detectable change in these rows' })).toBeNull();
   });
 
   it('keeps the compare choice when Clear filters clears the chip', async () => {

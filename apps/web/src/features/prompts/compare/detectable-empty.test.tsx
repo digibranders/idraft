@@ -6,10 +6,10 @@ import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
 const render = (
-  props: { compare: boolean; compared: number },
+  props: { compare: boolean; compared: number; previousAnswers?: number | null },
   handlers = { onTurnOn: vi.fn(), onClear: vi.fn() },
 ): ReturnType<typeof renderWithProviders> & typeof handlers =>
-  Object.assign(renderWithProviders(<DetectableEmpty {...props} {...handlers} />), handlers);
+  Object.assign(renderWithProviders(<DetectableEmpty previousAnswers={null} {...props} {...handlers} />), handlers);
 
 describe('DetectableEmpty', () => {
   it('says how many rows were compared and that none changed by more than normal variation', () => {
@@ -28,9 +28,20 @@ describe('DetectableEmpty', () => {
     expect(screen.getByText(/^1 row was compared/)).toBeInTheDocument();
   });
 
-  it('says the previous period has no answers when no row could be compared', () => {
-    render({ compare: true, compared: 0 });
+  it('says the previous period has no answers when it has none', () => {
+    render({ compare: true, compared: 0, previousAnswers: 0 });
     expect(screen.getByText('The previous period has no answers, so no change can be told.')).toBeInTheDocument();
+  });
+
+  it('says no row has enough answers in both periods when the previous period has answers', () => {
+    render({ compare: true, compared: 0, previousAnswers: 40 });
+    expect(screen.getByText('No row has enough answers in both periods to tell a change.')).toBeInTheDocument();
+    expect(screen.queryByText(/previous period has no answers/)).toBeNull();
+  });
+
+  it('does not claim the previous period is empty when the response does not say', () => {
+    render({ compare: true, compared: 0, previousAnswers: null });
+    expect(screen.getByText('No row has enough answers in both periods to tell a change.')).toBeInTheDocument();
   });
 
   it('says comparison is off and turns it on', async () => {
