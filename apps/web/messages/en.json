@@ -4655,7 +4655,7 @@
     },
     "notices": {
       "firstAnswers": "First answers arrive after {time}",
-      "firstAnswersGeneric": "No AI answers have been collected yet. The first arrive after the next scheduled run.",
+      "firstAnswersGeneric": "No AI answers have been collected yet. The first ones arrive after the next scheduled run.",
       "paused": "Scheduled AI runs are paused for this project",
       "invalid": "{count, number} of {total, number} answers were not valid on {engine} {days, plural, one {on this day} other {in these # days}}",
       "stale": "The newest valid answer is {days, plural, one {# day} other {# days}} old",
@@ -4663,7 +4663,7 @@
     },
     "freshness": {
       "none": "No AI answers yet",
-      "stale": "Last answer {days, plural, one {# day} other {# days}} ago",
+      "stale": "Last valid answer {days, plural, one {# day} other {# days}} ago",
       "newest": "Newest answer {time}"
     },
     "pending": {
@@ -4679,6 +4679,8 @@
       "unavailable": "The numbers could not be read",
       "noEngine": "No AI engine is on",
       "partial": "{count, plural, one {# card was} other {# cards were}} still loading and left out.",
+      "citationShareFailed": "Citation share could not be read, so its rows have no value.",
+      "fanoutFailed": "Fan-out presence could not be read, so its rows have no value.",
       "notes": {
         "unknownIsEmpty": "An empty value means unknown, never zero. The status column says why a value is empty.",
         "pooledCounts": "For prompt weighted rates the value is the mean of each prompt’s rate; numerator and denominator are the pooled answer counts."

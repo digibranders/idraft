@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PageShortcutsProvider, usePageShortcutEntries } from '@/components/app/shell/page-shortcuts';
 import { SingleKeysContext } from '@/lib/a11y/use-shortcut';
 import { overviewAs } from '@/test/ai-overview-harness';
-import { stubViewport } from '@/test/customize-harness';
+import { serveLayouts, stubViewport } from '@/test/customize-harness';
+import { gate } from '@/test/gate';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
@@ -107,6 +108,30 @@ describe('the shortcuts of the AI visibility page', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     input.remove();
     combobox.remove();
+  });
+
+  it('does nothing while the layout is being saved: c neither leaves the mode nor asks to discard', async () => {
+    const release = gate();
+    serveLayouts({ holdSave: release.promise });
+    const { user } = renderWithProviders(page());
+    const button = await customize();
+    await waitFor(() => {
+      expect(button).toBeEnabled();
+    });
+    await user.click(button);
+    await user.click((await screen.findAllByRole('button', { name: /^Hide / }))[0] as HTMLElement);
+    await user.click(await screen.findByRole('button', { name: 'Save layout' }));
+    await waitFor(() => {
+      expect(button).toHaveAttribute('aria-disabled', 'true');
+    });
+    press('c');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(button).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    release.open();
+    await waitFor(() => {
+      expect(button).toHaveAttribute('aria-pressed', 'false');
+    });
   });
 
   it('does nothing when single key shortcuts are turned off', async () => {

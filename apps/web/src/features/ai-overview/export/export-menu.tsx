@@ -6,6 +6,7 @@ import { useMemo, useState, type ReactElement } from 'react';
 
 import { buildAggregates, type OverviewAggregates } from '../data/aggregates';
 import { askedEngines } from '../data/overview-queries';
+import type { Read } from '../data/read-state';
 import { useOverview, useOverviewFanout, useOverviewSources, useOverviewSummary } from '../overview-context';
 import { buildNumbersTable, exportFileName, numbersCsv } from './export-model';
 import { useExportBlocks } from './export-registry';
@@ -21,21 +22,31 @@ const NUMBERS_ITEM = 'numbers';
 const EXPORT_SHORTCUT = 'ai-overview-export';
 
 type Unavailable = 'waiting' | 'unavailable' | 'noEngine';
+/** The words of the note for a read that failed: its rows are `unread` and empty, and the note says why. */
+type FailedRead = 'citationShareFailed' | 'fanoutFailed';
+
+/** The data of a read for this scope: not what the last scope left behind while this one is read. */
+const dataOf = <T,>(read: Read<T>): T | null => (read.placeholder ? null : (read.data ?? null));
+const pending = (read: Read<unknown>): boolean => read.status === 'loading' || read.placeholder;
 
 /**
  * The aggregates the strip is made from, for the file: the same summary read (one request), and the sources and the
- * fan-out as the strip has them. Those two are only read while the layout has a number that needs them, so here
- * they are not asked (`subscribed: false`): the cache answers when the strip asked, and a number nobody sees is
- * `unread` in the file, never a figure the page does not show.
+ * fan-out. The strip only reads those two while the layout has a number that needs them, so the menu reads them
+ * itself once it is open (`subscribed: open`; the cache answers when the strip asked): the item waits until they
+ * have settled, and a read that failed leaves its rows `unread` and empty with a note that says so, so a person
+ * can tell a number that failed from one that was not loaded.
  */
-function useExportAggregates(): {
+function useExportAggregates(open: boolean): {
   aggregates: OverviewAggregates | null;
   unavailable: Unavailable | null;
+  failed: readonly FailedRead[];
 } {
   const { scope, engines, enabledEngines } = useOverview();
   const summary = useOverviewSummary();
-  const sources = useOverviewSources({ subscribed: false });
-  const fanout = useOverviewFanout({ subscribed: false });
+  const sources = useOverviewSources({ subscribed: open });
+  const fanout = useOverviewFanout({ subscribed: open });
+  const sourcesData = dataOf(sources);
+  const fanoutData = dataOf(fanout);
   const aggregates = useMemo(
     () =>
       summary.data === undefined || engines.data === undefined
@@ -47,10 +58,10 @@ function useExportAggregates(): {
             chosenEngines: scope.engines,
             // Only the count of topics depends on it, and the file has no count of topics
             topicsKept: null,
-            sources: sources.data ?? null,
-            fanout: fanout.data ?? null,
+            sources: sourcesData,
+            fanout: fanoutData,
           }),
-    [summary.data, engines.data, scope.engines, sources.data, fanout.data],
+    [summary.data, engines.data, scope.engines, sourcesData, fanoutData],
   );
   let unavailable: Unavailable | null = null;
   if (engines.status === 'error') unavailable = 'unavailable';
@@ -59,7 +70,11 @@ function useExportAggregates(): {
   else if (summary.status === 'error') unavailable = 'unavailable';
   // The last scope's figures are kept on screen while this one is read: they are not this scope's numbers
   else if (aggregates === null || summary.placeholder || !aggregates.rowsRead) unavailable = 'waiting';
-  return { aggregates, unavailable };
+  else if (open && (pending(sources) || pending(fanout))) unavailable = 'waiting';
+  const failed: FailedRead[] = [];
+  if (sources.status === 'error') failed.push('citationShareFailed');
+  if (fanout.status === 'error') failed.push('fanoutFailed');
+  return { aggregates, unavailable, failed };
 }
 
 /**
@@ -74,8 +89,8 @@ export function ExportMenu(): ReactElement {
   const shortcuts = useTranslations('aiOverview.shortcuts');
   const { project, scope } = useOverview();
   const readBlocks = useExportBlocks();
-  const { aggregates, unavailable } = useExportAggregates();
   const [open, setOpen] = useState(false);
+  const { aggregates, unavailable, failed } = useExportAggregates(open);
   useShortcut('e', () => setOpen(true), { kind: 'single-key' });
   const shortcutEntries = useMemo(
     () => [{ id: EXPORT_SHORTCUT, label: shortcuts('export'), keys: ['e'] }],
@@ -90,7 +105,7 @@ export function ExportMenu(): ReactElement {
       const table = numbersCsv(aggregates, scope, project, {
         notes: { unknownIsEmpty: t('notes.unknownIsEmpty'), pooledCounts: t('notes.pooledCounts') },
         blocks,
-        extraNotes: loading > 0 ? [t('partial', { count: loading })] : [],
+        extraNotes: [...failed.map((key) => t(key)), ...(loading > 0 ? [t('partial', { count: loading })] : [])],
       });
       downloadBlob(csvBlob(table), exportFileName(project, scope));
       const rows =

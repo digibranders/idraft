@@ -190,7 +190,11 @@ describe('the notice region and the freshness of the AI visibility page', () => 
   it('says so without a time when no run is scheduled', async () => {
     freshnessIs({ last_observed_at: null, last_valid_at: null });
     renderWithProviders(overviewAs('admin'));
-    expect(await screen.findByText(/^No AI answers have been collected yet/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        'No AI answers have been collected yet. The first ones arrive after the next scheduled run.',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('leaves a healthy project alone: about 10% of answers not valid is no banner', async () => {
@@ -217,7 +221,7 @@ describe('the notice region and the freshness of the AI visibility page', () => 
     freshnessIs({ last_observed_at: '2026-11-06T02:10:00Z', last_valid_at: '2026-11-06T02:10:00Z' });
     renderWithProviders(overviewAs('admin'));
     expect(await screen.findByText('The newest valid answer is 6 days old')).toBeInTheDocument();
-    expect(screen.getByText('Last answer 6 days ago')).toBeInTheDocument();
+    expect(screen.getByText('Last valid answer 6 days ago')).toBeInTheDocument();
     expect(document.querySelectorAll('[data-slot="banner"]')).toHaveLength(1);
   });
 
@@ -228,7 +232,7 @@ describe('the notice region and the freshness of the AI visibility page', () => 
       expect(screen.getByText(/^AI updated Nov 7, /)).toBeInTheDocument();
     });
     expect(screen.queryByText(/newest valid answer/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/^Last answer/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Last valid answer/)).not.toBeInTheDocument();
   });
 
   it('keeps "AI updated" a fact of the project: an older window does not move it', async () => {

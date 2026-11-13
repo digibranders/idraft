@@ -1,5 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { getResponse, http } from 'msw';
+import { getResponse, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExportBlock } from './export-model';
@@ -215,6 +215,73 @@ describe('the Export menu of the AI visibility page', () => {
       NOTE_UNKNOWN,
       NOTE_POOLED,
       '8 cards were still loading and left out.',
+    ]);
+  });
+
+  it('reads the sources and the fan-out when the menu opens, once, and the file then carries their figures', async () => {
+    const asked: string[] = [];
+    const listener = ({ request }: { request: Request }): void => {
+      const path = new URL(request.url).pathname;
+      if (/\/ai\/(sources\/domains|fanout-queries)$/.test(path)) asked.push(path.split('/ai/')[1] ?? path);
+    };
+    server.events.on('request:start', listener);
+    const { user } = renderWithProviders(overviewAs('admin'));
+    const strip = await screen.findByRole('group', { name: /AI visibility numbers/ });
+    await waitFor(() => {
+      expect(strip).not.toHaveAttribute('aria-busy');
+    });
+    // The default strip needs neither read, so nothing asked them yet
+    expect(asked).toEqual([]);
+    await exportNumbers(user);
+    server.events.removeListener('request:start', listener);
+    expect([...asked].sort()).toEqual(['fanout-queries', 'sources/domains']);
+    const { rows } = await downloaded();
+    const status = (metric: string): string | undefined =>
+      rows.find((row) => row[2] === metric && row[3] === 'chatgpt_web')?.[10];
+    expect(status('ai.citation_share')).not.toBe('unread');
+    expect(status('ai.fanout_presence_rate')).not.toBe('unread');
+    expect(rows.filter((row) => row[0] === 'note')).toHaveLength(2);
+  });
+
+  it('is disabled with the waiting reason while the sources and the fan-out are being read', async () => {
+    const release = gate();
+    server.use(
+      http.get(mswPath('/api/v1/workspaces/:w/projects/:p/ai/sources/domains'), async ({ request }) => {
+        await release.promise;
+        return getResponse([...handlers], new Request(request.url, { headers: request.headers }));
+      }),
+    );
+    const { user } = renderWithProviders(overviewAs('admin'));
+    const strip = await screen.findByRole('group', { name: /AI visibility numbers/ });
+    await waitFor(() => {
+      expect(strip).not.toHaveAttribute('aria-busy');
+    });
+    await user.click(await exportButton());
+    const item = await screen.findByRole('menuitem', { name: 'Numbers (CSV)' });
+    expect(item).toHaveAttribute('aria-disabled', 'true');
+    expect(item).toHaveAccessibleDescription('Available once the numbers have loaded');
+    release.open();
+    await waitFor(() => {
+      expect(screen.getByRole('menuitem', { name: 'Numbers (CSV)' })).not.toHaveAttribute('aria-disabled', 'true');
+    });
+  });
+
+  it('says in a note which read failed, and leaves its rows unread with no value', async () => {
+    server.use(
+      http.get(mswPath('/api/v1/workspaces/:w/projects/:p/ai/sources/domains'), () =>
+        HttpResponse.json({ type: 'about:blank', title: 'Internal', status: 500, code: 'internal' }, { status: 500 }),
+      ),
+    );
+    const { user } = renderWithProviders(overviewAs('admin'));
+    await exportNumbers(user);
+    const { rows } = await downloaded();
+    const share = rows.find((row) => row[2] === 'ai.citation_share' && row[3] === 'chatgpt_web');
+    expect(share?.[4]).toBe('');
+    expect(share?.[10]).toBe('unread');
+    expect(rows.filter((row) => row[0] === 'note').map((row) => row[1])).toEqual([
+      NOTE_UNKNOWN,
+      NOTE_POOLED,
+      'Citation share could not be read, so its rows have no value.',
     ]);
   });
 

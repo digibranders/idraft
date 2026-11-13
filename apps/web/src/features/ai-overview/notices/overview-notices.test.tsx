@@ -86,7 +86,9 @@ describe('OverviewNotices', () => {
     first.unmount();
 
     const generic = renderWithProviders(page({ kind: 'firstAnswers', nextRunAt: null }, true));
-    expect(screen.getByText(/^No AI answers have been collected yet/)).toBeInTheDocument();
+    expect(
+      screen.getByText('No AI answers have been collected yet. The first ones arrive after the next scheduled run.'),
+    ).toBeInTheDocument();
     expect(banners(generic.container)).toHaveLength(1);
   });
 
