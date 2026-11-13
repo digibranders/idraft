@@ -245,9 +245,48 @@ describe('the numbers strip of the AI visibility page', () => {
     expect(chatgpt).toHaveAccessibleDescription(/Window: Oct 16 to Nov 12, 2026 \(branded prompts excluded\)/);
   });
 
-  it('is a plain cell until the links of the drill-down exist: no number is a link', async () => {
+  it('links each number that was read to its destination, named by the number, and leaves AI Mode (off) plain', async () => {
     renderWithProviders(overviewAs('admin'));
     const strip = await stripOf();
+    await waitFor(() => {
+      expect(strip).not.toHaveAttribute('aria-busy');
+    });
+    const links = within(strip).getAllByRole('link');
+    expect(links.map((link) => link.textContent)).toEqual([
+      'Prompts',
+      expect.stringMatching(/^Mention rate.*ChatGPT$/) as unknown,
+      expect.stringMatching(/^Mention rate.*Gemini$/) as unknown,
+    ]);
+    const hrefs = links.map((link) => new URL(link.getAttribute('href') ?? '', 'http://localhost'));
+    for (const url of hrefs) expect(url.pathname).toMatch(/\/ai\/prompts$/);
+    expect(hrefs[0]?.searchParams.get('engine')).toBeNull();
+    expect(hrefs[1]?.searchParams.get('engine')).toBe('chatgpt_web');
+    expect(hrefs[2]?.searchParams.get('engine')).toBe('gemini_web');
+    expect(hrefs[2]?.searchParams.get('sort')).toBe('-gemini_web_rate');
+    const aiMode = within(strip)
+      .getAllByRole('term')
+      .find((term) => /^Mention rate.*AI Mode$/.test(term.textContent ?? ''));
+    expect(aiMode).toBeDefined();
+    expect(aiMode?.querySelector('a')).toBeNull();
+  });
+
+  it('carries the window and the engine filter of the page into the links', async () => {
+    renderWithProviders(overviewAs('admin'), { searchParams: '?win=7d&engine=gemini_web' });
+    const strip = await screen.findByRole('group', { name: /AI visibility numbers for Nov 6 to Nov 12, 2026/ });
+    await waitFor(() => {
+      expect(strip).not.toHaveAttribute('aria-busy');
+    });
+    const gemini = within(strip).getByRole('link', { name: /Gemini$/ });
+    const url = new URL(gemini.getAttribute('href') ?? '', 'http://localhost');
+    expect(url.searchParams.get('win')).toBe('7d');
+    expect(url.searchParams.get('engine')).toBe('gemini_web');
+    // ChatGPT is outside the filter: not asked, so plain text
+    expect(within(strip).queryByRole('link', { name: /ChatGPT$/ })).toBeNull();
+  });
+
+  it('shows plain cells where the destination cannot show the number: branded prompts only', async () => {
+    renderWithProviders(overviewAs('admin'), { searchParams: '?branded=only' });
+    const strip = await screen.findByRole('group', { name: /AI visibility numbers/ });
     await waitFor(() => {
       expect(strip).not.toHaveAttribute('aria-busy');
     });
@@ -329,6 +368,10 @@ describe('the numbers strip of the AI visibility page', () => {
     const button = await screen.findByRole('button', { name: 'Customize' });
     await waitFor(() => {
       expect(button).not.toHaveAttribute('aria-disabled', 'true');
+    });
+    // The numbers are links outside customize mode, so the absence below is the mode's doing
+    await waitFor(() => {
+      expect(within(screen.getByRole('group', { name: STRIP })).queryAllByRole('link')).toHaveLength(3);
     });
     await user.click(button);
     const strip = await stripOf();

@@ -11,6 +11,7 @@ import { useOverviewFanout, useOverviewSources, type OverviewReadInput } from '.
 import { useOverview, useOverviewPeriods } from '../overview-context';
 import type { Branded } from '../scope/scope-model';
 import { useTopicsKept } from '../scope/use-topic-tree';
+import { numberHref } from './number-links';
 import { numberDisplay, type NumberContext, type Say, type UnreadWhy } from './number-model';
 import { Delta } from '@/components/app/metric/delta';
 import { useLayoutScreen, type NumberStripProps, type NumberValue } from '@/features/layouts';
@@ -72,7 +73,7 @@ function readingOf(
  */
 export function useNumberValues(): NumberValues {
   const say = useTranslations('aiOverview.numbers') as Say;
-  const { workspaceId, project, scope, enabledEngines, engines } = useOverview();
+  const { workspaceId, workspaceSlug, project, scope, enabledEngines, engines } = useOverview();
   const { document } = useLayoutScreen();
   const periods = useOverviewPeriods();
   const topicsKept = useTopicsKept();
@@ -169,19 +170,25 @@ export function useNumberValues(): NumberValues {
   );
 
   const engineList = engines.data;
+  const drillProject = useMemo(
+    () => ({ workspace: workspaceSlug, project: project.slug }),
+    [workspaceSlug, project.slug],
+  );
   const valueOf = useCallback(
     (item: NumberItem): NumberValue => {
       const reading = readingOf(shown, nothingAsked ? (engineList ?? []) : null, item);
       const display = numberDisplay(reading, item, context, say);
+      const href = numberHref(item, reading, scope, drillProject, enabledEngines);
       return {
         value: display.value,
         unknown: display.unknown,
         delta: display.change === null ? undefined : <Delta input={display.change} test="interim" tip={false} />,
         context: display.context,
         tip: display.tip,
+        ...(href === null ? {} : { href }),
       };
     },
-    [shown, nothingAsked, engineList, context, say],
+    [shown, nothingAsked, engineList, context, say, scope, drillProject, enabledEngines],
   );
 
   // Every read the numbers wait on is read again, so a number that failed on its own read gets its chance too

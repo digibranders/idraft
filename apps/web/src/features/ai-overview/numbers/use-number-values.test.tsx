@@ -91,6 +91,7 @@ function Probe({ items, seen }: { items: readonly NumberItem[]; seen: Seen }): R
             <span data-slot="context">{value.context ?? ''}</span>
             <span data-slot="delta">{value.delta}</span>
             <span data-slot="tip">{value.tip ?? ''}</span>
+            <span data-slot="href">{value.href ?? ''}</span>
           </div>
         );
       })}
@@ -281,6 +282,36 @@ describe('useNumberValues', () => {
       expect(slot('citation-share-chatgpt', 'value')).not.toBe('Reading');
     });
     expect(slot('citation-share-chatgpt', 'context')).toMatch(/citation units$/);
+  });
+
+  it('gives each number that was read the link of its destination, and none to a number that is not read or has no destination', async () => {
+    const items: NumberItem[] = [
+      ...MENTION,
+      { id: 'both-chatgpt', metric: 'ai.mention_and_citation_rate', engine: 'chatgpt_web' },
+      { id: 'sov-gemini', metric: 'ai.share_of_voice', engine: 'gemini_web' },
+    ];
+    renderWithProviders(tree(items, <Probe items={items} seen={{ values: [] }} />));
+    await waitFor(() => {
+      expect(slot('mention-chatgpt', 'value')).toMatch(/%$/);
+    });
+    const url = (id: string): URL => new URL(slot(id, 'href'), 'http://localhost');
+    expect(url('prompts').pathname).toMatch(/\/ai\/prompts$/);
+    expect(url('mention-chatgpt').searchParams.get('engine')).toBe('chatgpt_web');
+    expect(url('sov-gemini').searchParams.get('metric')).toBe('sov');
+    expect(url('sov-gemini').searchParams.get('sort')).toBe('-gemini_web_rate');
+    // AI Mode is off in Fynix: not asked, so no link; a rate with no column on a destination is plain text
+    expect(slot('mention-ai-mode', 'href')).toBe('');
+    expect(slot('both-chatgpt', 'href')).toBe('');
+  });
+
+  it('gives no link while the scope holds an engine that is off in the project', async () => {
+    renderWithProviders(tree(MENTION, <Probe items={MENTION} seen={{ values: [] }} />), {
+      searchParams: '?engine=chatgpt_web,google_ai_mode',
+    });
+    await waitFor(() => {
+      expect(slot('mention-chatgpt', 'value')).toMatch(/%$/);
+    });
+    for (const item of MENTION) expect(slot(item.id, 'href')).toBe('');
   });
 
   it('asks the sources and the fan-out only when the layout has a number that needs them', async () => {
