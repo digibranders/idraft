@@ -162,15 +162,20 @@ function AnswerInspectorBody({
   // The source inspector's "Open evidence" link names the citation to come to: it is the active one until the reader
   // uses another, and is scrolled to and focused once, when the answer is first drawn. A repeated key (`cite=1&cite=2`)
   // reads as its first value, which is what `useQueryState` returns.
-  const [cite] = useQueryState('cite', parseAsString);
+  const [cite, setCite] = useQueryState('cite', parseAsString);
   const cited = answer === null ? null : citedIndex(cite, answer.citations);
   const shownCitation = activeCitation ?? cited;
   const citeRevealed = useRef(false);
   useEffect(() => {
     if (citeRevealed.current || answer === null) return;
     citeRevealed.current = true;
-    if (cited !== null) reveal(document.getElementById(citationItemId(idPrefix, cited)));
-  }, [answer, cited, idPrefix]);
+    if (cited === null) return;
+    reveal(document.getElementById(citationItemId(idPrefix, cited)));
+    // The key is spent: kept in the address it would point at a citation of the next answer opened. The citation
+    // stays active through the state, and a refresh does not come back to it.
+    setActiveCitation(cited);
+    void setCite(null);
+  }, [answer, cited, idPrefix, setCite]);
 
   useEffect(() => {
     const index = pendingMarker.current;

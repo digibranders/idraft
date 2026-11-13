@@ -942,6 +942,19 @@ describe('the answer viewer: the evidence view, markers and entity toggles', () 
       }
     });
 
+    it('spends the key: the address drops cite and the citation stays active', async () => {
+      serve(cited1());
+      const urls: string[] = [];
+      renderOn('viewer', withCite('1'), urls);
+      await waitFor(() => {
+        expect(itemOf('Source 1')).toHaveFocus();
+      });
+      await waitFor(() => {
+        expect(urls.some((url) => !url.includes('cite') && url.includes('inspect'))).toBe(true);
+      });
+      expect(itemOf('Source 1')).toHaveAttribute('aria-current', 'true');
+    });
+
     it('takes a citation the text has no marker for', async () => {
       serve(cited1());
       renderOn('viewer', withCite('2'));
