@@ -13,7 +13,7 @@ from typing import Any
 import httpx
 
 from idraft.api.resources import Resources
-from idraft.domain.ai_engines import ENGINES, EngineCode
+from idraft.domain.ai_engines import _WEEKS_PER_YEAR, BASE_PLAN, ENGINES, EngineCode
 from tests.api.ai.sources_support import statements
 from tests.api.ai.support import ai_project, enable_engine, seed_prompts
 from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
@@ -162,6 +162,46 @@ async def test_150_prompts_on_three_engines_cost_4_68(
         "google_ai_mode",
     ]
     assert Decimal(body["estimate"]["total_monthly_cost_usd"]) == Decimal("4.68")
+
+
+async def test_the_total_adds_the_engines_costs_as_rounded_to_the_cent(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+    for code in EngineCode:
+        await enable_engine(migrated, workspace, project, code.value)
+
+    body = await _lint(
+        api, workspace, project, viewer.headers, [_item(f"question {n}?") for n in range(5)]
+    )
+
+    # 5 x 2 x 52 / 12 x 0.0012 = 0.052 an engine, 0.05 to the cent. The three cents add to
+    # 0.15 (PD-QC-03); the unrounded 0.156 would round to 0.16.
+    assert [row[2] for row in _rows(body["estimate"]).values()] == [Decimal("0.05")] * 3
+    assert body["estimate"]["total_monthly_cost_usd"] == "0.15"
+
+
+async def test_the_answers_follow_the_domains_weeks_in_a_year(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+    await enable_engine(migrated, workspace, project, "chatgpt_web")
+
+    for count in (1, 3, 150):
+        body = await _lint(
+            api, workspace, project, viewer.headers, [_item(f"question {n}?") for n in range(count)]
+        )
+
+        # The same 52 weeks over 12 months the cost uses (`monthly_cost`), rounded down. The
+        # service keeps its own literal, so a change to the domain's figure fails here.
+        expected = (
+            count * BASE_PLAN.runs_per_week * BASE_PLAN.answers_per_engine * _WEEKS_PER_YEAR // 12
+        )
+        assert _rows(body["estimate"])["chatgpt_web"][1] == expected
 
 
 async def test_ai_mode_leaves_out_a_prompt_over_700_characters(

@@ -398,21 +398,21 @@ The other new shape, `texts` with a language (`501` too until built):
       {
         "engine_code": "chatgpt_web",
         "prompts_fit": 1,
-        "answers_per_month": 9,
-        "monthly_cost_usd": "0.010800",
+        "answers_per_month": 8,
+        "monthly_cost_usd": "0.01",
         "run_now_answers": 1,
         "run_now_cost_usd": "0.001200"
       },
       {
         "engine_code": "gemini_web",
         "prompts_fit": 1,
-        "answers_per_month": 9,
+        "answers_per_month": 8,
         "monthly_cost_usd": null,
         "run_now_answers": 1,
         "run_now_cost_usd": null
       }
     ],
-    "total_monthly_cost_usd": "0.010800"
+    "total_monthly_cost_usd": "0.01"
   }
 }
 ```
