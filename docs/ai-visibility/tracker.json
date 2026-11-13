@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T05:39:53+05:30",
+ "updated": "2026-11-13T05:48:25+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -4038,8 +4038,8 @@
   {
    "path": "apps/web/e2e/flows/rankings.spec.ts",
    "wp": "WP-10",
-   "granted": "2026-11-13T05:39:53+05:30",
-   "scope": "only the two date-dependent tests (lines ~156 and ~717): pin the clock; no other rankings e2e changes",
+   "granted": "2026-11-13T05:48:25+05:30",
+   "scope": "two assertion lines only: ~172 getByText(/^>\\d+$/) -> /^not in top \\d+$/ and ~755 regex to /^(\\d+|-not in top \\d+)(first check)?$/; separate small commit",
    "until": "WP-10 merged"
   }
  ],
@@ -4069,7 +4069,7 @@
    "found": "2026-11-13T04:37:55+05:30",
    "by": "WP-09",
    "title": "10 e2e tests already fail on plain develop",
-   "detail": "costs-runs x2, keyword-detail-snapshots, keyword-detail, rankings 'Rank shows' and 'keywords are added', schedules x2, shell x2. Cause: the /rankings URL moved to /keywords and rank text drifted; not table related. Release does not run e2e (ship.sh), so this did not block shipping, but the specs need updating. Update 05:3x: WP-08 verified rankings.spec.ts:156 and :717 fail on clean develop because the mock rank state reads the clock (commit 0897a1fa), so the test is date dependent; the cell shows 'not in top 20 first check' where '>20' is expected.",
+   "detail": "CORRECTED by WP-10 (05:4x): not date dependent. Commit 058c7eab (5 Nov) changed rank-cells.tsx so a beyond-depth Rank cell renders '-' plus sr-only 'not in top 20', never '>20'; two rankings e2e assertions (lines ~172 and ~755) were not updated. Other failing specs: costs-runs.spec.ts:27,:98 expect URL /seo/rankings but the page is /seo/keywords; keyword-detail.spec.ts:390 rowheader not found in Tracked keywords grid (probably same route change); schedules.spec.ts:81 option /^Deep/ and :98 'Keyword defaults' text 'Standard' (UI changed); shell.spec.ts:126 /seo/keywords is 87 px wider than 375 px (REAL DEFECT, see F-06); shell.spec.ts:156 expects 404 on /seo/keywords but the route exists. Release does not run e2e (ship.sh).",
    "owner": "web (rankings and shell owners); schedule in the quality sweep at wave end",
    "severity": "test debt",
    "status": "open"
@@ -4092,6 +4092,16 @@
    "detail": "data-table.test.tsx right-click context menu test fails once under load, passes alone 185/185; also rankings and prompts DOM-timeout tests under uncapped load; backend test_five_thousand_keywords; prompt-inspector counts test. Harden with fake timers or longer waits in the quality sweep.",
    "owner": "quality sweep at wave end",
    "severity": "test debt",
+   "status": "open"
+  },
+  {
+   "id": "F-06",
+   "found": "2026-11-13T05:48:25+05:30",
+   "by": "WP-10 (via shell.spec.ts:126)",
+   "title": "Keywords page overflows horizontally at 375 px",
+   "detail": "/seo/keywords is 87 px wider than a 375 px screen: toolbar div.order-2 ml-auto flex h-control-sm with its icon buttons. Real phone-layout defect (owner requirement R-05 phone layouts).",
+   "owner": "web; small fix, schedule early in Wave 3 or the quality sweep",
+   "severity": "user-visible defect",
    "status": "open"
   }
  ],
