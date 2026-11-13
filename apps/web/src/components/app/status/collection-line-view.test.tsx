@@ -66,6 +66,14 @@ describe('CollectionLineView', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it('spins the icon of a running line, which is also how a planned run is drawn', () => {
+    const { container } = renderWithProviders(<CollectionLineView line={{ kind: 'running', status: 'running' }} />);
+    expect(screen.getByText('Running now')).toBeVisible();
+    expect(container.querySelector('[data-slot="collection-line"] [data-slot="icon"]')).toHaveClass(
+      'motion-safe:animate-spin',
+    );
+  });
+
   it('tints the icon by what happened, so a failed run and a warning are not read as success', () => {
     const tones: readonly [LineDescription, string][] = [
       [finished({ status: 'completed' }), 'text-positive-text'],

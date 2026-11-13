@@ -36,8 +36,8 @@ const NOUNS: Readonly<Partial<Record<Run['workload'], RunNoun>>> = {
 export type LineDescription =
   | { kind: 'none' }
   | { kind: 'unavailable' }
-  /** `status` is what the icon shows: a queued run and a running one both read "Running now". */
-  | { kind: 'running'; status: QueuedOrStatus }
+  /** `status` is what the icon shows: always `running`, for a planned run too, as both read "Running now". */
+  | { kind: 'running'; status: 'running' }
   | {
       kind: 'finished';
       status: QueuedOrStatus;
@@ -55,8 +55,9 @@ export function lineOf(read: NewestRunRead, timeZone: string, now: Date = new Da
   if (read.state === 'failed') return { kind: 'unavailable' };
   const { run } = read;
   if (run === null) return { kind: 'none' };
+  // A planned run reads "Running now" too, so it shows the spinning icon and not the static queued one (D13)
+  if (isOpenRun(run)) return { kind: 'running', status: 'running' };
   const status = collectionStatusOf(run.status);
-  if (isOpenRun(run)) return { kind: 'running', status };
   const ended = run.completed_at ?? run.created_at;
   const today = formatIsoDate(ended, timeZone) === formatIsoDate(now, timeZone);
   return {

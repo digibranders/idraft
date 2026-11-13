@@ -294,7 +294,8 @@ describe('the topic drawer: topics without a row, and a topic without a topic', 
     expect(within(panel).getByText('2 prompts')).toBeInTheDocument();
     release();
     await user.click(await within(panel).findByRole('tab', { name: 'Prompts' }));
-    expect(await within(panel).findAllByRole('listitem')).toHaveLength(2);
+    // The Rates panel goes when the Prompts tab opens: wait for it, so the count is the Prompts list's alone
+    await waitFor(() => expect(within(panel).getAllByRole('listitem')).toHaveLength(2));
   });
 });
 

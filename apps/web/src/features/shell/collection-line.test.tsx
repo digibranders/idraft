@@ -77,6 +77,13 @@ describe('CollectionLine', () => {
     expect(served.queries).toHaveLength(2);
   });
 
+  it('reads Running now with the same spinning icon for a run that is only planned', async () => {
+    serveRuns(() => [runFixture({ status: 'planned', completed_at: null })]);
+    const { container } = renderWithProviders(lineAs('viewer'));
+    expect(await screen.findByText('Running now')).toBeVisible();
+    expect(container.querySelector(ICON)).toHaveClass('motion-safe:animate-spin');
+  });
+
   it('says No runs yet for a project that never ran, and Run status unavailable when the read failed', async () => {
     serveRuns(() => []);
     const none = renderWithProviders(lineAs('viewer'));

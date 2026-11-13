@@ -48,7 +48,8 @@ describe('lineOf', () => {
 
   it('an open run reads Running now', () => {
     expect(finished({ status: 'running', completed_at: null })).toEqual({ kind: 'running', status: 'running' });
-    expect(finished({ status: 'planned', completed_at: null })).toEqual({ kind: 'running', status: 'queued' });
+    // A planned run reads the same words, so it gets the same spinning icon, not the static queued one (D13)
+    expect(finished({ status: 'planned', completed_at: null })).toEqual({ kind: 'running', status: 'running' });
   });
 
   it('no run reads No runs yet', () => {

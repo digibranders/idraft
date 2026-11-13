@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   Ban,
   Download,
+  History,
   Link2,
   ListTree,
   MessageSquare,
@@ -66,7 +67,7 @@ import { PromptsCountryControl } from './prompts-scope';
 import { PromptsStrip } from './prompts-strip';
 import { PROMPT_ACTION_ENTRIES, withActionEntries } from './seams/actions';
 import { PROMPTS_TOOLBAR_ENTRIES, promptsToolbarItems } from './seams/toolbar';
-import { UpdatedRunLink } from './updated-run-link';
+import { UpdatedRunLink, useUpdatedRunHref } from './updated-run-link';
 import { usePromptActions } from './use-prompt-actions';
 import { TopicInspector } from './topic-inspector';
 import { selectionKeyOf } from './selection-model';
@@ -91,7 +92,7 @@ import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
-import { Menu } from '@/components/ui/menu';
+import { Menu, type MenuItemDef } from '@/components/ui/menu';
 import type { FocusHandle } from '@/components/ui/radio-group';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Select } from '@/components/ui/select';
@@ -165,6 +166,8 @@ const NO_PROMPTS: ReadonlySet<string> = new Set();
 const nothing = (): void => undefined;
 /** The id of the More actions item that copies the link. */
 const COPY_LINK = 'copy-link';
+/** The id of the More actions item that opens the newest AI run. */
+const OPEN_RUN = 'open-run';
 
 /**
  * AI > Topics & Prompts (spec 2026-11-11 section 4.6, ADR-DS-022): the project's prompts over a window of
@@ -740,6 +743,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // (its container's width) and a tooltip carries the second, a narrower toolbar has both in the More actions menu
   const updatedAt = lastObservedAt(summary.data?.data);
   const updatedText = updatedAt === null ? null : t('updated', { time: formatRelative(updatedAt, project.timeZone) });
+  const runHref = useUpdatedRunHref(scope, workspaceSlug, project.slug);
   const windowCaption = t('meta', {
     from: formatBusinessDate(range.from, { withYear: false }),
     to: formatBusinessDate(range.to),
@@ -761,19 +765,30 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // What later packages add to the header: items of the More actions menu, and controls before it
   const extras = promptsToolbarItems(PROMPTS_TOOLBAR_ENTRIES, { scope, project, t: root }, permissions);
   const extraControls = extras.actions.map(({ id, node }) => <Fragment key={id}>{node}</Fragment>);
+  // A menu item, not a link in the header: a header link would take the menu's first focus
+  const openRun: MenuItemDef[] =
+    runHref === null
+      ? []
+      : [
+          {
+            id: OPEN_RUN,
+            kind: 'link',
+            label: root('runs.openLatestRun'),
+            icon: History,
+            link: <Link href={runHref} />,
+          },
+        ];
   const moreMenu = (
     <Menu
       align="end"
       trigger={<IconButton icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}
       header={
         <div className="flex flex-col gap-0.5 type-meta">
-          {updatedText === null ? null : (
-            <UpdatedRunLink scope={scope} workspaceSlug={workspaceSlug} projectSlug={project.slug} text={updatedText} />
-          )}
+          {updatedText === null ? null : <span>{updatedText}</span>}
           <span>{windowCaption}</span>
         </div>
       }
-      items={[{ id: COPY_LINK, label: t('copyLink'), icon: Link2, onSelect: copyLink }, ...extras.more]}
+      items={[{ id: COPY_LINK, label: t('copyLink'), icon: Link2, onSelect: copyLink }, ...openRun, ...extras.more]}
     />
   );
 

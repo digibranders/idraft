@@ -26,8 +26,8 @@ export function UpdatedLink({ text, href }: UpdatedLinkProps): ReactElement {
       render={<Link href={href} />}
       tone="inherit"
       aria-label={t('updatedLink', { updated: text })}
-      // The 2 px above and below take the hit area of a 20 px line of meta text to the 24 px target (WCAG 2.5.8)
-      className="py-0.5"
+      // A box of at least 24 px, which an inline anchor's line height does not guarantee (WCAG 2.5.8)
+      className="inline-flex min-h-6 items-center"
     >
       {text}
     </TextLink>

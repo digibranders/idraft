@@ -2035,6 +2035,7 @@
       "loading": "Loading run status"
     },
     "updatedLink": "{updated}. Open the run that collected these answers.",
+    "openLatestRun": "Open latest run",
     "inspector": {
       "type": "Run",
       "noun": "run",

@@ -13,6 +13,8 @@ describe('UpdatedLink', () => {
     const link = screen.getByRole('link', { name: 'Updated 5m ago. Open the run that collected these answers.' });
     expect(link).toHaveTextContent('Updated 5m ago');
     expect(link).toHaveAttribute('href', href);
+    // A box of its own of at least 24 px: an inline anchor's height is only its line
+    expect(link).toHaveClass('inline-flex', 'min-h-6');
     expect(await axe(container)).toHaveNoViolations();
   });
 
