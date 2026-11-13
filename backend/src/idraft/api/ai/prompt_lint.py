@@ -15,7 +15,7 @@ from bisect import bisect_right
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from functools import cache
+from functools import lru_cache
 from typing import Final
 
 from idraft.api.schemas.ai import LintRule, LintSeverity
@@ -38,9 +38,12 @@ _COMPARISON: Final = re.compile(r"(?<!\w)(?:vs\.?|versus)(?!\w)", re.IGNORECASE)
 _SUPERLATIVE: Final = re.compile(
     r"(?<![\w#])(?:best|top|leading|greatest|number\s+one|#1)(?!\w)", re.IGNORECASE
 )
-# The group is the superlative.
+# Sentence ending punctuation: ASCII, fullwidth, ideographic and Arabic.
+_SENTENCE_END: Final = ".?!\U0000ff1f\U0000ff01\U00003002\U0000061f"
+# "why is <words> the best" inside one sentence; the group is the superlative.
 _WHY_IS_BEST: Final = re.compile(
-    r"(?<!\w)why\s+is\s+\S+(?:\s+\S+)*?\s+the\s+(best)(?!\w)", re.IGNORECASE
+    rf"(?<!\w)why\s+is\s+[^\s{_SENTENCE_END}][^{_SENTENCE_END}]*?\s+the\s+(best)(?!\w)",
+    re.IGNORECASE,
 )
 _LETTERS: Final = re.compile(r"[^\W\d_]+")
 _NAME_WORDS: Final = re.compile(r"[A-Z]+")
@@ -100,14 +103,14 @@ _FUNCTION_WORDS: Final[Mapping[str, frozenset[str]]] = {
         "kann wird",
         "fr": "le la les un une des du de et est sont pas pour dans que qui quoi quel quelle "
         "quels quelles comment pourquoi avec sur par au aux ce cette ces vous nous je il elle "
-        "ou o\U000000f9",
-        "es": "el la los las un una unos unas es son para por con que qu\U000000e9 "
-        "cu\U000000e1l cu\U000000e1les c\U000000f3mo qui\U000000e9n d\U000000f3nde "
+        "ou o\U000000f9 en",
+        "es": "de y en lo mi el la los las un una unos unas es son para por con que "
+        "qu\U000000e9 cu\U000000e1l cu\U000000e1les c\U000000f3mo qui\U000000e9n d\U000000f3nde "
         "cu\U000000e1ndo del al se su sus esta este",
-        "it": "il lo la le gli un una uno di del della dei che per con non sono come quale quali "
-        "cosa \U000000e8 nel nella sul anche questo questa perch\U000000e9 dove quando chi",
-        "pt": "o os um uma de do da dos das que para com n\U000000e3o por em mais como qual quais "
-        "voc\U000000ea \U000000e9 s\U000000e3o ao na nos ele ela",
+        "it": "e il lo la le gli un una uno di del della dei che per con non sono come quale "
+        "quali cosa \U000000e8 nel nella sul anche questo questa perch\U000000e9 dove quando chi",
+        "pt": "e a o os um uma de do da dos das que para com n\U000000e3o por em mais como qual "
+        "quais voc\U000000ea \U000000e9 s\U000000e3o ao na nos ele ela",
         "nl": "de het een en van voor niet met op dat die wat welke hoe waarom wie waar zijn ik je "
         "jij wij ook naar bij aan uit kan wordt deze",
     }.items()
@@ -133,7 +136,7 @@ class Finding:
     span: tuple[int, int] | None
 
 
-@cache
+@lru_cache(maxsize=4096)
 def _script(char: str) -> str | None:
     """The script a character belongs to: the first word of its Unicode name."""
     words = _NAME_WORDS.findall(unicodedata.name(char, ""))

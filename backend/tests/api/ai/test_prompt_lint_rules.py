@@ -134,9 +134,61 @@ NEGATIVE = [
         "de",
         own=["Acme"],
     ),
+    # Text in the set language, heavy in the words (of, and, in) that several languages share.
+    _case(
+        "spanish_with_de_and_que",
+        "Qu\U000000e9 software de gesti\U000000f3n de facturaci\U000000f3n de clientes",
+        [],
+        "es",
+    ),
+    _case(
+        "spanish_with_de_and_para",
+        "Mejor software de facturaci\U000000f3n de Espa\U000000f1a para aut\U000000f3nomos "
+        "de la zona",
+        [],
+        "es",
+    ),
+    _case(
+        "spanish_with_lo_mi_en",
+        "Lo mejor de mi software es que se usa en cualquier equipo de ventas",
+        [],
+        "es",
+    ),
+    _case(
+        "italian_with_di_and_e",
+        "Il miglior software di fatturazione di Roma per le aziende di grandi dimensioni "
+        "e per i professionisti",
+        [],
+        "it",
+    ),
+    _case(
+        "italian_with_di_e_di",
+        "Software di gestione e di fatturazione e di contabilit\U000000e0 per le piccole imprese",
+        [],
+        "it",
+    ),
+    _case(
+        "portuguese_with_de_e_a",
+        "O melhor software de fatura\U000000e7\U000000e3o e gest\U000000e3o para a sua empresa "
+        "e a equipe de vendas",
+        [],
+        "pt",
+    ),
+    _case(
+        "portuguese_with_de_e_o",
+        "Qual \U000000e9 o melhor software de gest\U000000e3o e de faturamento para a minha equipe",
+        [],
+        "pt",
+    ),
+    _case("french_with_en", "Le meilleur outil en ligne pour la gestion en entreprise", [], "fr"),
     _case("no_language_no_mismatch", "Quelle est la meilleure solution de facturation ?", [], None),
     _case("unknown_language_skips_the_script_table", RU_QUESTION, [], "xx"),
     _case("best_inside_a_word", "Is Acme a bestseller in agencies", [], own=["Acme"]),
+    # "why is" and "the best" in two sentences are no pattern.
+    _case("why_is_and_the_best_in_two_sentences", "Why is it slow? Reviews say the best tools", []),
+    _case(
+        "why_is_and_the_best_after_a_full_stop", "Why is it slow. Reviews say the best tools", []
+    ),
     _case(
         "alias_that_holds_the_superlative", "Is Top Tools good for agencies", [], own=["Top Tools"]
     ),
