@@ -89,9 +89,20 @@ describe('the entities read of the Topics tab', () => {
   });
 
   it('reads a body with no entity blocks as no entities, never as a failure', async () => {
-    server.use(http.get(SUMMARY_PATH, () => HttpResponse.json(body(['Technical SEO']))));
+    // A body that carries neither the `entities` list nor the `engines` of a row, as an older API sends it
+    const bare = {
+      data: {
+        window: { from: '2026-10-16', to: '2026-11-12', timezone: 'UTC' },
+        include_branded: false,
+        engine_codes: ['chatgpt_web'],
+        prompts: [],
+        topics: [{ term_id: '33333333-0000-4000-8000-000000000001', name: 'Technical SEO', prompt_count: 2 }],
+      },
+    };
+    server.use(http.get(SUMMARY_PATH, () => HttpResponse.json(bare)));
     const { result } = renderHook(() => useTopicEntities(READ, true), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('ready'));
+    // Without the fallback of the hook `tracked` would be undefined here, which no list reads as empty
     expect(result.current.tracked).toEqual([]);
     expect(result.current.rows.size).toBe(1);
   });

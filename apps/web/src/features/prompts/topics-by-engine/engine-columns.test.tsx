@@ -258,7 +258,9 @@ describe('useByEngineColumns: the columns of the chooser', () => {
     const row = topic('t7', 'Trended', [engine('chatgpt_web', { mentioned: weighted(9, 24, 2), series: weeks })]);
     renderWithProviders(<Harness rows={[row]} />);
     const trend = cellIn('Trended', 'trend_chatgpt_web');
-    expect(within(trend).getByRole('img', { name: 'Mention on ChatGPT by week: 25%, 38%, 50%' })).toBeInTheDocument();
+    expect(
+      within(trend).getByRole('img', { name: 'Mention on ChatGPT by week: 25%, 38%, and 50%' }),
+    ).toBeInTheDocument();
     const tip = tipOf(columnsOf({ rows: [] }), 'trend_chatgpt_web', row);
     expect(tip).toContain('2 of 3 weekly points show several weeks together.');
     expect(tip).toContain(

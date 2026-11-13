@@ -20,7 +20,8 @@ export function MetricSelect({
 }): ReactElement {
   const t = useTranslations('prompts');
   return (
-    <div className="w-44">
+    // Narrower on a phone, where the value is cut to an ellipsis; 176 px from 640 px as the Prompts tab has it
+    <div className="w-32 min-w-0 sm:w-44">
       <Select<RateMetric>
         aria-label={t('metric.label')}
         size="sm"

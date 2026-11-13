@@ -11,6 +11,7 @@ import { MOCK_TERM_IDS } from '@/mocks/entity-fixtures';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { mswPath } from '@/mocks/respond';
+import { NO_COUNTS, topicCells, type Counts } from '@/mocks/prompt-summary';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
@@ -155,6 +156,61 @@ describe('the Topics tab: the views', () => {
       'aria-sort',
       'ascending',
     );
+  });
+
+  it('puts a topic with no Gemini answer last in both directions, and its cell says so and not 0', async () => {
+    const counted = (valid: number, mentioned: number): Counts => ({
+      ...NO_COUNTS,
+      n_valid: valid,
+      n_observations: valid,
+      mentioned,
+    });
+    const topic = (termId: string, name: string, chatgpt: Counts, gemini: readonly Counts[]): object => ({
+      term_id: termId,
+      name,
+      prompt_count: 2,
+      engines: [topicCells('chatgpt_web', [chatgpt, chatgpt]), topicCells('gemini_web', gemini)],
+    });
+    server.use(
+      http.get(SUMMARY_PATH, () =>
+        HttpResponse.json({
+          data: {
+            window: { from: '2026-10-16', to: '2026-11-12', timezone: 'Europe/Berlin' },
+            include_branded: false,
+            engine_codes: ['chatgpt_web', 'gemini_web'],
+            entities: [],
+            entity_config_versions: [],
+            prompts: [],
+            topics: [
+              topic(MOCK_TERM_IDS.seo, 'SEO', counted(4, 2), [counted(4, 2), counted(4, 2)]),
+              topic(MOCK_TERM_IDS.contentMarketing, 'Content Marketing', counted(4, 2), [counted(4, 4), counted(4, 4)]),
+              // Answered on ChatGPT, never on Gemini
+              topic(MOCK_TERM_IDS.paidSearch, 'Paid Search', counted(4, 2), []),
+            ],
+          },
+        }),
+      ),
+    );
+    const order = (table: HTMLElement): string[] =>
+      within(table)
+        .getAllByRole('button', { name: /^Open the topic / })
+        .map((button) => (button.getAttribute('aria-label') ?? '').replace('Open the topic ', ''));
+    for (const [sort, expected] of [
+      ['gemini_web_rate', ['SEO', 'Content Marketing', 'Paid Search']],
+      ['-gemini_web_rate', ['Content Marketing', 'SEO', 'Paid Search']],
+    ] as const) {
+      const { unmount } = renderOn(`?view=engines&sort=${sort}`);
+      const table = await treegrid();
+      await waitFor(() => expect(order(table)).toEqual(expected));
+      // The unknown cell reads as no answers, never as a rate of 0
+      const row = within(table).getByRole('button', { name: 'Open the topic Paid Search' }).closest('[role="row"]');
+      if (row === null) throw new Error('The row of Paid Search is missing');
+      const column = headers(table).findIndex((header) => header.startsWith('Gemini mention'));
+      const cells = [...row.querySelectorAll('[role="gridcell"], [role="rowheader"]')].map((cell) => cell.textContent);
+      expect(cells).toHaveLength(headers(table).length);
+      expect(cells[column]).toBe('No answers');
+      unmount();
+    }
   });
 
   it('sorts by the engine gap from ?sort=-engine_gap', async () => {

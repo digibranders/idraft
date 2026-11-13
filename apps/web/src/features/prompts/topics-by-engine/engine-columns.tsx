@@ -63,6 +63,7 @@ function EngineTrendCell({
   engine: string;
 }): ReactElement | null {
   const t = useTranslations('prompts');
+  const locale = useLocale();
   const shown = useMemo(() => {
     const points = enginePoints(
       cells?.find((cell) => cell.engine_code === code),
@@ -77,13 +78,14 @@ function EngineTrendCell({
       label: values.some((value) => value !== null)
         ? t('topicDrawer.byEngineView.trendLabel', {
             ...params,
-            rates: values
-              .map((value) => (value === null ? t('columns.trendGap') : formatPercent(value, { decimals: 0 })))
-              .join(', '),
+            rates: formatList(
+              values.map((value) => (value === null ? t('columns.trendGap') : formatPercent(value, { decimals: 0 }))),
+              locale,
+            ),
           })
         : t('topicDrawer.byEngineView.trendLabelNone', params),
     };
-  }, [cells, code, metric, engine, t]);
+  }, [cells, code, metric, engine, t, locale]);
   // Never red or green: the line is the reference gray, and the words say how it went
   return shown === null ? null : (
     <SparklineCell values={shown.values} label={shown.label} tone="reference" minSpan={RATE_MIN_SPAN} />

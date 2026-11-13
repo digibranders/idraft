@@ -90,11 +90,14 @@ export function TopicsView({ scope, range, includeBranded, country, ...table }: 
         viewColumns={columns}
         viewSwitch={
           <>
-            <MetricSelect
-              value={metric}
-              onValueChange={(next) => void setMetricText(next === 'mention' ? null : next)}
-            />
-            {switcher}
+            {/* The two controls of this view may wrap on a phone, where the toolbar's end has little room */}
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              <MetricSelect
+                value={metric}
+                onValueChange={(next) => void setMetricText(next === 'mention' ? null : next)}
+              />
+              {switcher}
+            </div>
             {table.viewSwitch}
           </>
         }
