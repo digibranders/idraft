@@ -1,9 +1,10 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import { buildAggregates } from '../../data/aggregates';
-import { askedEngines, type SummaryOptions } from '../../data/overview-queries';
+import { askedEngines, overviewSummaryQuery, type SummaryOptions } from '../../data/overview-queries';
 import type { Read } from '../../data/read-state';
 import { promptRowsRead } from '../../data/topics-in-scope';
 import { useOverview, useOverviewPeriods, useOverviewSummary } from '../../overview-context';
@@ -160,5 +161,20 @@ export function useTopicSummary(options?: SummaryOptions): TopicData {
  */
 export function useTopicPeriods(options?: SummaryOptions): TopicData {
   const { current, previous, paired, settled } = useOverviewPeriods(options);
-  return useTopicData({ current, previous, paired, settled });
+  const { workspaceId, project, scope, enabledEngines } = useOverview();
+  const queryClient = useQueryClient();
+  // The shell's `paired` needs both reads `ready`, so a background refetch of the SAME scope unpairs the windows and
+  // the change would vanish under a skeleton. Data cached under this scope's own keys is of this scope whatever the
+  // reads are doing (a scope change shows the last scope's data as placeholder, which is not cached under the new key),
+  // so while both windows have it the pair stands and the refetch is only `settled: false`.
+  const cached = (period: 'current' | 'previous'): boolean =>
+    queryClient.getQueryData(
+      overviewSummaryQuery({ workspaceId, projectId: project.id }, { scope, enabledEngines }, { ...options, period })
+        .queryKey,
+    ) !== undefined;
+  const sameScope =
+    current.data !== undefined &&
+    cached('current') &&
+    (previous === null || (previous.data !== undefined && cached('previous')));
+  return useTopicData({ current, previous, paired: paired || sameScope, settled });
 }

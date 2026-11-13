@@ -230,6 +230,164 @@ describe('what the hooks ask', () => {
   });
 });
 
+/** Serves every summary request after `release` opens, as the mock would. */
+function holdSummaries(release: ReturnType<typeof gate>): void {
+  server.use(
+    http.get(SUMMARY, async ({ request }) => {
+      await release.promise;
+      return getResponse([...handlers], new Request(request.url, { headers: request.headers }));
+    }),
+  );
+}
+
+describe('a refetch of the same scope', () => {
+  it('keeps the previous window, stays paired and is refetching, never loading', async () => {
+    const { queryClient } = renderProbe(() => useTopicPeriods());
+    await waitFor(() => {
+      expect(current().compared).toBe(true);
+    });
+    const before = current().previous;
+    const release = gate();
+    holdSummaries(release);
+    act(() => {
+      void queryClient.invalidateQueries();
+    });
+    await waitFor(() => {
+      expect(current().settled).toBe(false);
+    });
+    expect(current()).toMatchObject({ phase: 'refetching', paired: true, compared: true });
+    expect(current().previous).toBe(before);
+    expect(current().previousNodes).not.toBeNull();
+    expect(current().previousPrompts).not.toBeNull();
+    release.open();
+    await waitFor(() => {
+      expect(current().settled).toBe(true);
+    });
+    expect(current()).toMatchObject({ phase: 'ready', paired: true, compared: true });
+  });
+
+  it('a refetch of the previous window alone keeps it paired while settled is false', async () => {
+    const { queryClient } = renderProbe(() => useTopicPeriods());
+    await waitFor(() => {
+      expect(current().compared).toBe(true);
+    });
+    const release = gate();
+    server.use(
+      http.get(SUMMARY, async ({ request }) => {
+        if (new URL(request.url).searchParams.get('to') === '2026-10-15') await release.promise;
+        return getResponse([...handlers], new Request(request.url, { headers: request.headers }));
+      }),
+    );
+    act(() => {
+      void queryClient.invalidateQueries();
+    });
+    await waitFor(() => {
+      expect(current().settled).toBe(false);
+    });
+    expect(current()).toMatchObject({ paired: true, compared: true });
+    expect(current().previous).not.toBeNull();
+    release.open();
+    await waitFor(() => {
+      expect(current().settled).toBe(true);
+    });
+  });
+
+  it('the first read is loading, and no previous is made up while it runs', async () => {
+    const release = gate();
+    holdSummaries(release);
+    renderProbe(() => useTopicPeriods());
+    await waitFor(() => {
+      expect(seen.data).not.toBeNull();
+    });
+    expect(current()).toMatchObject({ phase: 'loading', paired: false, compared: false, previous: null });
+    release.open();
+    await waitFor(() => {
+      expect(current().compared).toBe(true);
+    });
+  });
+
+  it('a scope change while the old previous is cached never pairs the old window with the new data', async () => {
+    renderProbe(() => useTopicPeriods());
+    await waitFor(() => {
+      expect(current().compared).toBe(true);
+    });
+    const old = current().previous;
+    expect(old).not.toBeNull();
+    const release = gate();
+    holdSummaries(release);
+    act(() => {
+      seen.setScope?.({ engines: ['chatgpt_web'] });
+    });
+    await waitFor(() => {
+      expect(current().settled).toBe(false);
+    });
+    expect(current()).toMatchObject({ paired: false, compared: false, previous: null, previousNodes: null });
+    expect(current().previous).not.toBe(old);
+    release.open();
+    await waitFor(() => {
+      expect(current()).toMatchObject({ paired: true, compared: true, settled: true });
+    });
+    expect(current().previous).not.toBe(old);
+  });
+
+  /**
+   * After a scope change, only one window's read has settled under the new key. `held` is the window whose requests
+   * wait; the other is served at once and the test waits until it has been served and has reached the hook.
+   */
+  async function settleOnlyOne(
+    held: 'current' | 'previous',
+  ): Promise<{ old: TopicData['previous']; release: () => void }> {
+    renderProbe(() => useTopicPeriods());
+    await waitFor(() => {
+      expect(current().compared).toBe(true);
+    });
+    const old = current().previous;
+    const release = gate();
+    let served = false;
+    server.use(
+      http.get(SUMMARY, async ({ request }) => {
+        const isPrevious = new URL(request.url).searchParams.get('to') === '2026-10-15';
+        if (isPrevious === (held === 'previous')) await release.promise;
+        else served = true;
+        return getResponse([...handlers], new Request(request.url, { headers: request.headers }));
+      }),
+    );
+    act(() => {
+      seen.setScope?.({ engines: ['chatgpt_web'] });
+    });
+    await waitFor(() => {
+      expect(served).toBe(true);
+    });
+    // The served window's data reaches the hook: its own read is no longer fetching, the other still is
+    await waitFor(() => {
+      expect(current().phase).toBe(held === 'previous' ? 'ready' : 'refetching');
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    return { old, release: release.open };
+  }
+
+  it('with only the current window settled under the new scope the old previous is not paired', async () => {
+    const { old, release } = await settleOnlyOne('previous');
+    expect(current()).toMatchObject({ paired: false, compared: false, previous: null, previousNodes: null });
+    expect(current().previous).not.toBe(old);
+    release();
+    await waitFor(() => {
+      expect(current()).toMatchObject({ paired: true, compared: true, settled: true });
+    });
+  });
+
+  it('with only the previous window settled under the new scope the old current is not paired', async () => {
+    const { release } = await settleOnlyOne('current');
+    expect(current()).toMatchObject({ paired: false, compared: false, previous: null, previousNodes: null });
+    release();
+    await waitFor(() => {
+      expect(current()).toMatchObject({ paired: true, compared: true, settled: true });
+    });
+  });
+});
+
 describe('the engines asked', () => {
   it('no asked engine is idle and asks nothing', async () => {
     const urls = recordRequests();
