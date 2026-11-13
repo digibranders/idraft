@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, type UseQueryResult } from '@tanstack/react-query';
 
 import { apiAllPagesQuery, apiQuery, type ApiQueryOptions, type ApiResponse } from '@/lib/api/query';
 import type { paths } from '@/lib/api/schema';
@@ -17,6 +17,7 @@ import { monthDays, type MonthKey } from '@/lib/format/month';
 const COSTS = '/api/v1/workspaces/{workspace_id}/costs';
 const BUDGETS = '/api/v1/workspaces/{workspace_id}/budgets/status';
 const PRICE_BOOK = '/api/v1/workspaces/{workspace_id}/price-book';
+const UNIT_COSTS = '/api/v1/workspaces/{workspace_id}/costs/unit-costs';
 
 /** One `group_by` choice of the costs route. */
 export type CostGroup = NonNullable<paths[typeof COSTS]['get']['parameters']['query']['group_by']>[number];
@@ -78,4 +79,26 @@ export function usePriceBook(
   now: Date,
 ): UseQueryResult<ApiResponse<'get', typeof PRICE_BOOK>> {
   return useQuery(priceBookQuery(workspaceId, month, now));
+}
+
+/** The request for what one unit of work cost in the month: a row per visible project, or the one the filter names. */
+export function unitCostsQuery(scope: CostScope): ApiQueryOptions<typeof UNIT_COSTS> {
+  return apiQuery(UNIT_COSTS, {
+    params: {
+      path: { workspace_id: scope.workspaceId },
+      query: {
+        month: scope.month,
+        ...(scope.projectId === undefined ? {} : { 'filter[project_id]': scope.projectId }),
+      },
+    },
+  });
+}
+
+/**
+ * `GET {W}/costs/unit-costs` for the month and the Project filter. The other filters of the page do not apply:
+ * unit costs are of a project's AI answers and SEO checks, not of a workload or a provider. A change of month
+ * or project keeps the rows on screen until the new ones arrive.
+ */
+export function useUnitCosts(scope: CostScope): UseQueryResult<ApiResponse<'get', typeof UNIT_COSTS>> {
+  return useQuery({ ...unitCostsQuery(scope), placeholderData: keepPreviousData });
 }

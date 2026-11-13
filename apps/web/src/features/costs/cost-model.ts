@@ -1,6 +1,10 @@
+import { byEngineOrder } from '@/components/app/engine/order';
 import type { CategorySeries, SeriesRole } from '@/lib/charts/category-chart';
-import type { BudgetStatus, CostRow } from '@/lib/api/types';
+import type { BudgetStatus, CostRow, Price, Schemas } from '@/lib/api/types';
 import { money } from '@/lib/format/money';
+
+/** What one unit of work cost a project in a month (`GET {W}/costs/unit-costs`). */
+export type UnitCostRow = Schemas['UnitCostRow'];
 
 /** The catalog key of a budget state under `costs.states`. */
 export const STATE_KEYS = {
@@ -97,6 +101,53 @@ export function projectBudget(
   return (
     own.find((row) => row.budget.workload === 'all') ??
     own.reduce<BudgetStatus | null>((most, row) => (most === null || row.pct_used > most.pct_used ? row : most), null)
+  );
+}
+
+/** The cost of one AI answer on one engine of one project. */
+export interface UnitCostLine {
+  projectId: string;
+  /** The API engine code. */
+  engine: string;
+  /** Mean cost of an answer as the API's money string; `null` when no answer has a cost, which is not zero. */
+  perAnswer: string | null;
+  /** The answers with a cost that the mean is taken over. */
+  answers: number;
+}
+
+/**
+ * One line per project and engine from the unit costs: the projects as the API sent them, each project's
+ * engines in the fixed engine order. An engine is listed when the row has a figure or a count for it.
+ */
+export function unitCostRows(rows: readonly UnitCostRow[]): UnitCostLine[] {
+  return rows.flatMap((row) => {
+    const engines = [...new Set([...Object.keys(row.per_engine), ...Object.keys(row.ai_answers_by_engine)])];
+    return byEngineOrder(engines, (code) => code).map((engine): UnitCostLine => ({
+      projectId: row.project_id,
+      engine,
+      perAnswer: row.per_engine[engine] ?? null,
+      answers: row.ai_answers_by_engine[engine] ?? 0,
+    }));
+  });
+}
+
+/** The price book endpoint each AI engine is asked through (`idraft.domain.ai_engines.ENGINES`). */
+const AI_ENDPOINTS: Readonly<Record<string, string>> = {
+  chatgpt_web: 'ai_optimization/chat_gpt/llm_scraper',
+  gemini_web: 'ai_optimization/gemini/llm_scraper',
+  google_ai_mode: 'serp/google/ai_mode',
+};
+
+/**
+ * The price of one task on an AI engine: the standard queue price of its endpoint, which is the queue the base
+ * plan collects on. `null` when the engine has no known endpoint or the book holds no such price, so the table
+ * says so rather than guessing.
+ */
+export function aiEnginePrice(prices: readonly Price[], engine: string): string | null {
+  const endpoint = AI_ENDPOINTS[engine];
+  if (endpoint === undefined) return null;
+  return (
+    prices.find((price) => price.endpoint === endpoint && price.conditions.queue === 'standard')?.unit_price_usd ?? null
   );
 }
 

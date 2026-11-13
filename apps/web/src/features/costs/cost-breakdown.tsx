@@ -4,6 +4,7 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
+import { AiUnitCosts } from './ai-unit-costs';
 import { BudgetMeter } from './budget-meter';
 import { BudgetStatusBadge } from './budget-status-badge';
 import { budgetRows, money, projectBudget, shareOf } from './cost-model';
@@ -91,7 +92,7 @@ export function CostBreakdown({
         <ProjectPanel scope={scope} now={now} projects={projects} budgets={budgets} emptyText={emptyText} />
       </TabsPanel>
       <TabsPanel value="units">
-        <UnitsPanel scope={scope} month={month} now={now} />
+        <UnitsPanel scope={scope} month={month} now={now} projects={projects} />
       </TabsPanel>
       <TabsPanel value="budgets">
         <BudgetsPanel projects={projects} budgets={budgets} />
@@ -219,9 +220,22 @@ function BudgetUse({ status, showWorkload = false }: { status: BudgetStatus; sho
   );
 }
 
-function UnitsPanel({ scope, month, now }: Pick<CostBreakdownProps, 'scope' | 'month' | 'now'>): ReactElement {
+function UnitsPanel({
+  scope,
+  month,
+  now,
+  projects,
+}: Pick<CostBreakdownProps, 'scope' | 'month' | 'now' | 'projects'>): ReactElement {
   const t = useTranslations('costs');
+  const projectLabel = useProjectLabel();
   const query = usePriceBook(scope.workspaceId, month, now);
+  const projectName = (id: string): string => {
+    if (id === '') return t('noProject');
+    const known = projects.find((project) => project.id === id);
+    return known === undefined ? t('deletedProject') : projectLabel(known);
+  };
+  // The engines are named alike in every project: the one in the filter, else the first that is not archived
+  const engineProjectId = scope.projectId ?? (projects.find((project) => project.archived !== true) ?? projects[0])?.id;
   const columns: PlainColumn<Price>[] = [
     { id: 'provider', header: t('provider'), cell: (row) => row.provider_code },
     { id: 'endpoint', header: t('endpoint'), cell: (row) => row.endpoint },
@@ -235,20 +249,28 @@ function UnitsPanel({ scope, month, now }: Pick<CostBreakdownProps, 'scope' | 'm
     { id: 'verified', header: t('verified'), cell: (row) => formatBusinessDate(row.verified_at) },
   ];
   return (
-    <div className="flex flex-col gap-3">
-      <p className="flex flex-wrap items-center gap-2 type-meta">
-        <Badge variant="outline">{t('estimate')}</Badge>
-        {t('unitCostsNote')}
-      </p>
-      <PlainTable
-        caption={t('tabs.units')}
-        columns={columns}
-        rows={query.data?.data ?? []}
-        rowKey={(row) => row.price_id}
-        status={statusOf(query)}
-        errorState={<CostsError error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} />}
-        emptyText={t('noPrices')}
-      />
+    <div className="flex flex-col gap-6">
+      <AiUnitCosts scope={scope} projectName={projectName} engineProjectId={engineProjectId} prices={query} />
+      <section aria-labelledby="costs-price-book" className="flex flex-col gap-2">
+        <h2 id="costs-price-book" className="type-section-title">
+          {t('priceBook')}
+        </h2>
+        <p className="flex flex-wrap items-center gap-2 type-meta">
+          <Badge variant="outline">{t('estimate')}</Badge>
+          {t('unitCostsNote')}
+        </p>
+        <PlainTable
+          caption={t('tabs.units')}
+          columns={columns}
+          rows={query.data?.data ?? []}
+          rowKey={(row) => row.price_id}
+          status={statusOf(query)}
+          errorState={
+            <CostsError error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} />
+          }
+          emptyText={t('noPrices')}
+        />
+      </section>
     </div>
   );
 }
