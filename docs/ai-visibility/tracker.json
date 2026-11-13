@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T15:31:00+05:30",
+ "updated": "2026-11-13T16:07:34+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -693,10 +693,10 @@
    },
    "counts": {
     "total": 24,
-    "done": 1
+    "done": 8
    },
    "owner": "",
-   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 6/15 (T0-T2 on develop; T3 number strip, T4 number catalog, T5 save bar committed locally in the WP-16 worktree, not yet pushed); rows built 1/24 until the e2e closes them (25, 29, 30, 35, 36 and more built); metric-strip columnsFor lease extension granted"
+   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 7/15 (T0-T6 on develop, aab83cb7): provider, controller/button/badge, catalog dialog, number strip, number catalog, save bar, team default menu + conflict dialog; T6 review found and fixed a real bug (Load the other version loaded the personal layout after a team 412); T7 leave guard next; rows 8/24 built"
   },
   {
    "id": "WP-17",
@@ -1016,7 +1016,7 @@
     "done": 9
    },
    "owner": "",
-   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | tasks 1/7, rows 9/37; plan, message keys, per engine model and History copy on develop; Task 2 Topics tab By engine view in progress"
+   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | tasks 2/7, rows 9/37; Task 1 on develop; Task 2 (By engine view) committed with review fixes (8cf82303), Task 3 (heat map, export, phone rows) committed (0fb0bbfe) and in review; push of 2+3 after fixes"
   },
   {
    "id": "WP-21",
@@ -1078,7 +1078,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | plan committed (8 tasks, 15 commits, 3 pushes), steps 1/8; creates lib/citations/, mocks/handlers/citations-model.ts, e2e/support/ai-citations.ts; Q1,Q2,Q3,Q6,Q14 defaults accepted"
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | plan committed (8 tasks, 15 commits, 3 pushes); T1 mocks committed (67c8d34c, 9408005f, 4c966b49: message keys, shared mock model, six citation routes) in review; not pushed"
   },
   {
    "id": "WP-22",
