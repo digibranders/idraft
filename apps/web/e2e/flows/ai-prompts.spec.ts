@@ -217,7 +217,14 @@ for (const theme of ['light', 'dark'] as const) {
         await page.setViewportSize({ width, height: 900 });
         await signIn(page, EDITOR);
         await page.goto(FYNIX_PROMPTS);
-        await expect(page.getByRole('treegrid', { name: 'Topics' })).toBeVisible();
+        // Under 768 px the topics are a list of rows (the best engine and the engine count on each), not a grid
+        if (width < 768) {
+          const topics = page.getByRole('list', { name: /^Topics, \d+ results/ });
+          await expect(topics).toBeVisible();
+          await expect(topics.getByRole('button').first()).toBeVisible();
+        } else {
+          await expect(page.getByRole('treegrid', { name: 'Topics' })).toBeVisible();
+        }
         await expectAccessible(page);
         await noSidewaysScroll();
 
