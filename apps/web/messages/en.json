@@ -4311,6 +4311,32 @@
     "evidence": {}
   },
   "aiOverview": {
+    "title": "AI visibility",
+    "noAccessTitle": "You cannot see AI visibility for this project",
+    "noAccessReason": "Viewing it needs read access to the project’s data. Ask an admin of this workspace.",
+    "moreActions": "More actions",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied",
+    "cards": "AI visibility cards",
+    "loading": "Loading AI visibility",
+    "enginesFailedTitle": "The engines of this project could not be read",
+    "enginesFailedReason": "The server did not answer. Try again in a moment.",
+    "meta": {
+      "updated": "AI updated {time}",
+      "prompts": "{count, plural, one {# prompt} other {# prompts}}",
+      "engines": "{count, plural, one {# engine} other {# engines}}"
+    },
+    "empty": {
+      "noEngineTitle": "No AI engine is on",
+      "noEngineReason": "Turn on ChatGPT, Gemini or Google AI Mode in the project settings to start asking your prompts.",
+      "toEngines": "Turn on engines",
+      "askAdmin": "Ask a workspace admin to turn on an engine"
+    },
+    "pending": {
+      "summary": "A placeholder for the card {name}, which is not built yet.",
+      "title": "This card is not built yet",
+      "reason": "It will show here as soon as its data is ready. You can keep it in your layout."
+    },
     "engines": {},
     "competitors": {},
     "topics": {},
