@@ -148,6 +148,25 @@ describe('Unit costs tab, cost per AI answer', () => {
     expect(asked.every((query) => query.get('month') === '2026-09')).toBe(true);
   });
 
+  it('lists the engines in the fixed order whatever order the API sent them', async () => {
+    serveUnitCosts(() => [
+      unitRow(fynix.id, {
+        google_ai_mode: ['0.002000', 5],
+        gemini_web: ['0.000900', 40],
+        chatgpt_web: ['0.001500', 148],
+      }),
+    ]);
+    renderWithProviders(costsAs(), { searchParams: `?tab=units&project=${fynix.id}` });
+    const table = await openTable();
+    await within(table).findByRole('row', { name: /ChatGPT/ });
+    expect(
+      within(table)
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => cells(row)[0]),
+    ).toEqual(['ChatGPT', 'Gemini', 'Google AI Mode']);
+  });
+
   it('a project filter narrows the rows and no filter lists one row per project and engine', async () => {
     const asked = serveUnitCosts((query) =>
       [unitRow(fynix.id, EVENTUS_LIKE), unitRow(cleanstart.id, EVENTUS_LIKE)].filter(
