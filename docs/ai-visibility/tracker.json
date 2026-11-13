@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T16:15:14+05:30",
+ "updated": "2026-11-13T16:41:15+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1075,10 +1075,10 @@
    },
    "counts": {
     "total": 31,
-    "done": 0
+    "done": 14
    },
    "owner": "",
-   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | plan committed (8 tasks, 15 commits, 3 pushes); T1 mocks committed (67c8d34c, 9408005f, 4c966b49: message keys, shared mock model, six citation routes) in review; not pushed"
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | steps 3/8, rows 14/31 (WB-PIC-01..10, WB-PI-13, WB-PI-21, CF-02, CF-03); T1 mocks, T2 shared reads/tables/answers/banner/tab seam committed locally, review then push P1; prompt Citations tab browser checked (20 runs, axe 0 serious/critical, light/dark, 4 widths); z-order defect F-19 fix assigned"
   },
   {
    "id": "WP-22",
@@ -4132,6 +4132,41 @@
    "granted": "2026-11-13T15:31:00+05:30",
    "scope": "append-only As built note for 9.7",
    "until": "WP-21 merged"
+  },
+  {
+   "path": "apps/web/src/components/ui/popover.tsx",
+   "wp": "WP-21 (z-order fix)",
+   "granted": "2026-11-13T16:41:15+05:30",
+   "scope": "smallest fix so popups (popover, select, menus) open ABOVE the prompt inspector drawer; wherever the smallest fix is: popup z token or portal layer; dialogs must stay above everything; run every consumer's tests and axe",
+   "until": "WP-21 merged"
+  },
+  {
+   "path": "apps/web/src/components/ui/select.tsx",
+   "wp": "WP-21 (z-order fix, only if the fix needs it)",
+   "granted": "2026-11-13T16:41:15+05:30",
+   "scope": "same",
+   "until": "WP-21 merged"
+  },
+  {
+   "path": "apps/web/src/styles/tokens.css",
+   "wp": "WP-21 (z-order fix, only if the fix needs it)",
+   "granted": "2026-11-13T16:41:15+05:30",
+   "scope": "z tokens only (popup above drawer)",
+   "until": "WP-21 merged"
+  },
+  {
+   "path": "apps/web/src/styles/globals.css",
+   "wp": "WP-21 (z-order fix, only if the fix needs it)",
+   "granted": "2026-11-13T16:41:15+05:30",
+   "scope": "z utility only",
+   "until": "WP-21 merged"
+  },
+  {
+   "path": "apps/web/e2e/flows/ai-prompts.spec.ts",
+   "wp": "WP-21 (T6)",
+   "granted": "2026-11-13T16:41:15+05:30",
+   "scope": "the width test (~231) that clicks the Stats tab at every width (Stats is under More tabs at 390 px) and lines 137-139 (Competitors, Stats at 1280); WP-17 owns the file in wave 2 and rebases",
+   "until": "WP-21 merged"
   }
  ],
  "followups": [
@@ -4313,6 +4348,26 @@
    "detail": "Citations share change needs the previous period total; the web does two reads for now (WP-21 plan Q5). Small additive backend field.",
    "owner": "backend, next free session",
    "severity": "optimization",
+   "status": "open"
+  },
+  {
+   "id": "F-19",
+   "found": "2026-11-13T16:41:15+05:30",
+   "by": "WP-21",
+   "title": "SHARED DEFECT: popovers and selects inside the prompt inspector open BEHIND it between 768 and about 1280 px",
+   "detail": "The inspector is a fixed overlay at --z-drawer (70) while popups use --z-dropdown (60). Affects every popover and Select in the inspector (WP-25 CountPopover, WP-21 count popover and min_support Select, other tabs). Fine at 390 and 1600+. Fix in the shared layer by WP-21 (lease granted): popup layer above the drawer.",
+   "owner": "WP-21 session",
+   "severity": "user-visible defect",
+   "status": "assigned"
+  },
+  {
+   "id": "F-20",
+   "found": "2026-11-13T16:41:15+05:30",
+   "by": "WP-21",
+   "title": "PlainTable header is string only: engine count headers (CHATGPT, GEMINI) are text and partly off the right edge at 358 and 440 px",
+   "detail": "The plan wanted EngineLogo headers: needs PlainTable support for node headers (shared file). Also: one 404 resource in the console per run (to be traced in T3); the existing message key domains.unitsOf reads '1 units for 1'.",
+   "owner": "later, shared-parts quality sweep",
+   "severity": "low",
    "status": "open"
   }
  ],
