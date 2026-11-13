@@ -80,7 +80,7 @@ export interface CustomizeControllerProps {
 /** Inside a `LayoutProvider`. */
 export function CustomizeController({ workspaceName, children }: CustomizeControllerProps): ReactElement {
   const t = useTranslations('layouts.customize.mode');
-  const { mode, dirty, canCustomize, actions } = useLayoutScreen();
+  const { mode, dirty, saving, canCustomize, actions } = useLayoutScreen();
   const customizing = mode === 'customize';
   const wide = useMediaQuery(MEDIUM_MEDIA);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -89,16 +89,18 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
   const [discard, setDiscard] = useState<{ then: (() => void) | undefined } | null>(null);
 
   // What the callbacks below read: the state of the last render, so they can stay the same function
-  const live = useRef({ customizing, dirty, canCustomize, actions });
+  const live = useRef({ customizing, dirty, saving, canCustomize, actions });
   useEffect(() => {
-    live.current = { customizing, dirty, canCustomize, actions };
+    live.current = { customizing, dirty, saving, canCustomize, actions };
   });
 
   // The question belongs to the mode: it goes with it
   if (!customizing && discard !== null) setDiscard(null);
 
   const requestExit = useCallback((then?: () => void): void => {
-    const { dirty: changed, actions: current } = live.current;
+    const { dirty: changed, saving: writing, actions: current } = live.current;
+    // A save is under way: leaving now would drop the draft the write is putting
+    if (writing) return;
     if (!changed) {
       current.exit();
       then?.();
@@ -155,7 +157,7 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
         focusFirstOnEnter.current = true;
         live.current.actions.enter();
       };
-      if (!live.current.canCustomize || live.current.customizing) return;
+      if (!live.current.canCustomize || live.current.customizing || live.current.saving) return;
       const other = active;
       if (other === null || other === self) {
         begin();
@@ -188,11 +190,8 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
 
   // Customize mode needs 768 px. A window narrowed below it leaves the mode, unless there are changes: those
   // stay, with their controls, until the person saves or cancels
-  const wasWide = useRef(wide);
   useEffect(() => {
-    const narrowed = wasWide.current && !wide;
-    wasWide.current = wide;
-    if (narrowed && live.current.customizing && !live.current.dirty) live.current.actions.exit();
+    if (!wide && live.current.customizing && !live.current.dirty) live.current.actions.exit();
   }, [wide]);
 
   const value = useMemo<CustomizeContextValue>(

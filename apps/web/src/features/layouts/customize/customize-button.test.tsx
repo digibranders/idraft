@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useCustomizeMenuItem } from './customize-button';
@@ -132,6 +132,74 @@ describe('CustomizeButton', () => {
     renderWithProviders(<ScreenUnderTest extra={<Probe />} />);
     await screen.findByText('Your layout could not be loaded. Showing the default.');
     expect(picked.at(-1)?.disabledReason).toBe('Available once your layout has loaded');
+  });
+
+  describe('the menu item when it is chosen', () => {
+    const picked: (MenuItemDef | null)[] = [];
+    const returnFocus: { current: HTMLElement | null } = { current: null };
+    function Probe(): null {
+      picked.push(useCustomizeMenuItem('customize', returnFocus));
+      return null;
+    }
+    const choose = (): void => {
+      act(() => {
+        picked.at(-1)?.onSelect?.();
+      });
+    };
+    beforeEach(() => {
+      picked.length = 0;
+      returnFocus.current = null;
+    });
+
+    it('starts the mode, and gives focus back to the menu trigger when the mode ends', async () => {
+      serveLayouts();
+      const { user } = renderWithProviders(<ScreenUnderTest extra={<Probe />} />);
+      await loaded();
+      returnFocus.current = screen.getByRole('button', { name: 'Menu entry' });
+      choose();
+      await waitFor(() => {
+        expect(stateOf()).toBe('customize 0');
+      });
+      await user.click(screen.getByRole('button', { name: 'Leave' }));
+      expect(returnFocus.current).toHaveFocus();
+    });
+
+    it('leaves the mode when it is on, and asks first with changes', async () => {
+      serveLayouts();
+      const { user } = renderWithProviders(<ScreenUnderTest extra={<Probe />} />);
+      await startCustomizing(user);
+      await user.click(within(box()).getByRole('button', { name: 'Edit' }));
+      choose();
+      expect(await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Discard changes' }));
+      await waitFor(() => {
+        expect(stateOf()).toBe('view 0');
+      });
+      await startCustomizing(user);
+      choose();
+      await waitFor(() => {
+        expect(stateOf()).toBe('view 0');
+      });
+    });
+
+    it('is ignored while a save is under way', async () => {
+      const release = gate();
+      serveLayouts({ holdSave: release.promise });
+      const { user } = renderWithProviders(<ScreenUnderTest extra={<Probe />} />);
+      await startCustomizing(user);
+      await user.click(within(box()).getByRole('button', { name: 'Edit' }));
+      await user.click(within(box()).getByRole('button', { name: 'Save now' }));
+      await waitFor(() => {
+        expect(customizeButton()).toHaveAttribute('aria-disabled', 'true');
+      });
+      choose();
+      expect(stateOf()).toBe('customize 1');
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      release.open();
+      await waitFor(() => {
+        expect(stateOf()).toBe('view 0');
+      });
+    });
   });
 
   it.each([

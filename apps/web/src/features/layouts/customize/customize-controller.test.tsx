@@ -1,7 +1,7 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useCustomize } from './customize-controller';
+import { useCustomize, type CustomizeContextValue } from './customize-controller';
 import {
   ScreenUnderTest,
   box,
@@ -13,6 +13,7 @@ import {
   stateOf,
   stubViewport,
 } from '@/test/customize-harness';
+import { gate } from '@/test/gate';
 import { renderWithProviders } from '@/test/render';
 
 const DISCARD_TITLE = 'Discard unsaved changes?';
@@ -227,7 +228,10 @@ describe('Escape', () => {
     const { user } = renderWithProviders(<ScreenUnderTest />);
     await startCustomizing(user);
     await user.click(within(box()).getAllByRole('button', { name: /^Move / })[0] as HTMLElement);
-    expect(await screen.findByRole('menu')).toBeInTheDocument();
+    const menu = await screen.findByRole('menu');
+    await waitFor(() => {
+      expect(menu).toContainElement(document.activeElement as HTMLElement);
+    });
     await user.keyboard('{Escape}');
     await waitFor(() => {
       expect(screen.queryByRole('menu')).not.toBeInTheDocument();
@@ -242,11 +246,139 @@ describe('Escape', () => {
     within(box()).getByRole('button', { name: 'Edit' }).focus();
     await user.keyboard('{Escape}');
     await screen.findByRole('alertdialog', { name: DISCARD_TITLE });
+    // The dialog takes focus when it has opened: a key sent before that goes to the page behind it
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Keep editing' })).toHaveFocus();
+    });
     await user.keyboard('{Escape}');
     await waitFor(() => {
       expect(discardDialog()).toBeNull();
     });
     expect(stateOf()).toBe('customize 1');
+  });
+});
+
+describe('while a save is under way', () => {
+  /** Customize mode with one change and a save that has been sent and not answered. */
+  async function saving(): Promise<{ user: ReturnType<typeof renderWithProviders>['user']; release: () => void }> {
+    const held = gate();
+    serveLayouts({ holdSave: held.promise });
+    const { user } = renderWithProviders(<ScreenUnderTest />);
+    await startCustomizing(user);
+    await edit(user);
+    await user.click(within(box()).getByRole('button', { name: 'Save now' }));
+    await waitFor(() => {
+      expect(customizeButton()).toHaveAttribute('aria-disabled', 'true');
+    });
+    return { user, release: held.open };
+  }
+
+  it('Escape does nothing: the mode stays and no question is asked', async () => {
+    const { user, release } = await saving();
+    within(box()).getByRole('button', { name: 'Edit' }).focus();
+    await user.keyboard('{Escape}');
+    expect(stateOf()).toBe('customize 1');
+    expect(discardDialog()).toBeNull();
+    release();
+    await waitFor(() => {
+      expect(stateOf()).toBe('view 0');
+    });
+  });
+
+  it('leaving by a button does nothing either, and does not run what waits on it', async () => {
+    const then = vi.fn();
+    const held = gate();
+    serveLayouts({ holdSave: held.promise });
+    const { user } = renderWithProviders(<ScreenUnderTest onThen={then} />);
+    await startCustomizing(user);
+    await edit(user);
+    await user.click(within(box()).getByRole('button', { name: 'Save now' }));
+    await waitFor(() => {
+      expect(customizeButton()).toHaveAttribute('aria-disabled', 'true');
+    });
+    await user.click(within(box()).getByRole('button', { name: 'Leave and run' }));
+    expect(stateOf()).toBe('customize 1');
+    expect(discardDialog()).toBeNull();
+    expect(then).not.toHaveBeenCalled();
+    held.open();
+    await waitFor(() => {
+      expect(stateOf()).toBe('view 0');
+    });
+  });
+
+  it('entering does nothing', async () => {
+    const held = gate();
+    serveLayouts({ holdSave: held.promise });
+    const { user } = renderWithProviders(<ScreenUnderTest />);
+    await loaded();
+    // A write that is not a save of the draft: it can be under way while the screen is in view mode
+    await user.click(screen.getByRole('button', { name: 'Remove default' }));
+    await waitFor(() => {
+      expect(customizeButton()).toHaveAttribute('aria-disabled', 'true');
+    });
+    await user.click(screen.getByRole('button', { name: 'Menu entry' }));
+    expect(stateOf()).toBe('view 0');
+    held.open();
+    await waitFor(() => {
+      expect(customizeButton()).not.toHaveAttribute('aria-disabled', 'true');
+    });
+    await user.click(screen.getByRole('button', { name: 'Menu entry' }));
+    await waitFor(() => {
+      expect(stateOf()).toBe('customize 0');
+    });
+  });
+});
+
+describe('focus', () => {
+  it('goes to the first handle when the mode starts with focus on nothing', async () => {
+    const captured: { current: CustomizeContextValue | null } = { current: null };
+    function Capture(): null {
+      captured.current = useCustomize();
+      return null;
+    }
+    renderWithProviders(<ScreenUnderTest extra={<Capture />} />);
+    await loaded();
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    expect(document.activeElement).toBe(document.body);
+    act(() => {
+      captured.current?.enter();
+    });
+    await waitFor(() => {
+      expect(firstHandle()).toHaveFocus();
+    });
+  });
+
+  it('stays where the person is when the mode starts with focus somewhere', async () => {
+    const captured: { current: CustomizeContextValue | null } = { current: null };
+    function Capture(): null {
+      captured.current = useCustomize();
+      return null;
+    }
+    renderWithProviders(<ScreenUnderTest extra={<Capture />} />);
+    await loaded();
+    const note = screen.getByRole('textbox', { name: 'Note' });
+    note.focus();
+    act(() => {
+      captured.current?.enter();
+    });
+    await waitFor(() => {
+      expect(stateOf()).toBe('customize 0');
+    });
+    expect(note).toHaveFocus();
+  });
+
+  it('goes back to the Customize button after Discard', async () => {
+    const { user } = renderWithProviders(<ScreenUnderTest />);
+    await startCustomizing(user);
+    await edit(user);
+    await user.click(screen.getByRole('button', { name: 'Leave' }));
+    await user.click(await screen.findByRole('button', { name: 'Discard changes' }));
+    await waitFor(() => {
+      expect(stateOf()).toBe('view 0');
+    });
+    await waitFor(() => {
+      expect(customizeButton()).toHaveFocus();
+    });
   });
 });
 

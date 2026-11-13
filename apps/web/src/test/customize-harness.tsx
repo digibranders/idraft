@@ -79,6 +79,11 @@ export function serveLayouts({ read = 'ok', holdSave }: ServeOptions = {}): void
       );
     }),
     http.delete(mswPath(PERSONAL), () => new HttpResponse(null, { status: 204 })),
+    // Removing the team default is a write that can be under way while the screen is in view mode
+    http.delete(mswPath(`${LAYOUTS}/default`), async () => {
+      if (holdSave !== undefined) await holdSave;
+      return new HttpResponse(null, { status: 204 });
+    }),
   );
 }
 
@@ -125,6 +130,14 @@ function Controls({ onThen }: { onThen: () => void }): ReactElement {
         Menu entry
       </button>
       <input aria-label="Note" />
+      <button
+        type="button"
+        onClick={() => {
+          void actions.removeTeamDefault();
+        }}
+      >
+        Remove default
+      </button>
       {customizing ? (
         <>
           <button

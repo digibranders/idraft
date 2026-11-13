@@ -1,11 +1,27 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { gate } from '@/test/gate';
+import type * as LayoutProviderModule from '../layout-provider';
+import type { LayoutContextValue } from '../layout-provider';
 import { ScreenUnderTest, box, serveLayouts, startCustomizing, stateOf, stubViewport } from '@/test/customize-harness';
+import { gate } from '@/test/gate';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
 
+/** Lets one test change what the screen's context says (the actions), the rest read it as it is. */
+const patch: { current: ((value: LayoutContextValue) => LayoutContextValue) | null } = { current: null };
+vi.mock('../layout-provider', async (importOriginal) => {
+  const original = await importOriginal<typeof LayoutProviderModule>();
+  return {
+    ...original,
+    useLayoutScreen: (): LayoutContextValue => {
+      const value = original.useLayoutScreen();
+      return patch.current === null ? value : patch.current(value);
+    },
+  };
+});
+
 beforeEach(() => {
+  patch.current = null;
   stubViewport();
 });
 afterEach(() => {
@@ -87,11 +103,18 @@ describe('Undo and Redo keys', () => {
     expect(stateOf()).toBe('customize 1');
   });
 
-  it('does nothing in view mode', async () => {
+  it('does not call undo or redo in view mode, even when the provider has history to give', async () => {
     serveLayouts();
+    const undo = vi.fn(() => true);
+    const redo = vi.fn(() => true);
+    patch.current = (value) => ({ ...value, actions: { ...value.actions, undo, redo } });
     renderWithProviders(<ScreenUnderTest />);
-    const note = await screen.findByRole('textbox', { name: 'Note' });
-    expect(fireEvent.keyDown(note, { key: 'z', ctrlKey: true })).toBe(true);
+    // Not the text field: a key there is ignored for another reason
+    const target = await screen.findByRole('button', { name: 'Menu entry' });
+    expect(fireEvent.keyDown(target, { key: 'z', ctrlKey: true })).toBe(true);
+    expect(fireEvent.keyDown(target, { key: 'z', ctrlKey: true, shiftKey: true })).toBe(true);
+    expect(undo).not.toHaveBeenCalled();
+    expect(redo).not.toHaveBeenCalled();
     expect(stateOf()).toBe('view 0');
   });
 
