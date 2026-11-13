@@ -18,10 +18,17 @@ export const ALL_ENGINES = 'all';
 export const FAVICON: FaviconMode = 'show';
 
 /**
- * The widest the first cell of a row grows (a class, so the table's other columns stay in view): a table cell does
- * not shrink its text by itself, and the inspector holds 376 px of table (326 in the sheet of a phone).
+ * The widest the identity cell of a row grows (a class, so the table's other columns stay in view): a table cell does
+ * not shrink its text by itself, and the inspector holds 370 px of table (322 in the sheet of a phone) whatever the
+ * window, so there is no wider step for a wide window.
  */
-export const IDENTITY_WIDTH = 'max-w-32 md:max-w-44';
+export const IDENTITY_WIDTH = 'max-w-32';
+
+/**
+ * The cited page of an answer shares 322 px with the date and the Others count, and its path keeps 16 characters
+ * in view whatever the width, so on a phone it is capped under `IDENTITY_WIDTH` (the path is whole in its tooltip).
+ */
+export const ANSWER_PAGE_WIDTH = 'max-w-20 sm:max-w-32';
 
 /** The lists name the five most cited. */
 export const TOP_LIMIT = 5;

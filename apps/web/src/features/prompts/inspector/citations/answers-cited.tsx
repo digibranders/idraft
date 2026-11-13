@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import { answerRows, type AnswerCitedRow } from './answer-rows';
-import { FAVICON, IDENTITY_WIDTH } from './citations-model';
+import { ANSWER_PAGE_WIDTH, FAVICON } from './citations-model';
 import type { CitationRead } from './citations-reads';
 import { CountPopover } from '@/components/app/cells/count-popover';
 import { URLCell } from '@/components/app/cells/url-cell';
@@ -16,6 +16,7 @@ import { InlineError } from '@/components/app/status/inline-error';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip } from '@/components/ui/tooltip';
 import type { Schemas } from '@/lib/api/types';
 import { groupByAnswer } from '@/lib/citations/group-answers';
 import type { CitationPage } from '@/lib/citations/types';
@@ -35,8 +36,13 @@ export interface AnswersCitedProps {
 }
 
 /** The cell of a value that waits for the citations: a skeleton while they load, n/a, never 0, when they failed. */
-function Pending({ loading }: { loading: boolean }): ReactElement {
-  return loading ? <Skeleton shape="text-12" widthPct={48} /> : <span>{EMPTY_VALUE}</span>;
+function Pending({ loading, reason }: { loading: boolean; reason: string }): ReactElement {
+  if (loading) return <Skeleton shape="text-12" widthPct={48} />;
+  return (
+    <Tooltip content={reason}>
+      <span>{EMPTY_VALUE}</span>
+    </Tooltip>
+  );
 }
 
 /**
@@ -55,6 +61,9 @@ export function AnswersCited({ answers, citations, labelOf, timeZone, onOpenAnsw
   const groups = loaded === undefined ? null : groupByAnswer(loaded.data, loaded.page.has_more);
   const rows = answers.data === undefined ? [] : answerRows(answers.data.data, groups);
   const citationsLoading = citations.status === 'loading';
+  // Why a cell is n/a: the list failed, or the answer lies past the rows the first page holds
+  const pendingReason =
+    citations.status === 'error' ? t('notLoaded') : t('pastLoaded', { rows: loaded?.data.length ?? 0 });
 
   const columns: PlainColumn<AnswerCitedRow>[] = [
     {
@@ -88,11 +97,11 @@ export function AnswersCited({ answers, citations, labelOf, timeZone, onOpenAnsw
       header: t('citedPage'),
       wrap: true,
       cell: ({ state, ownPage, moreOwn }) => {
-        if (state === 'unknown') return <Pending loading={citationsLoading} />;
+        if (state === 'unknown') return <Pending loading={citationsLoading} reason={pendingReason} />;
         if (state === 'noSource') return <span>{t('noSources')}</span>;
         if (ownPage === null) return <span>{t('notCited')}</span>;
         return (
-          <span className={cn('flex min-w-0 flex-col', IDENTITY_WIDTH)}>
+          <span className={cn('flex min-w-0 flex-col', ANSWER_PAGE_WIDTH)}>
             <URLCell
               url={ownPage.row.url}
               hostDisplay="hide"
@@ -112,8 +121,11 @@ export function AnswersCited({ answers, citations, labelOf, timeZone, onOpenAnsw
     {
       id: 'other',
       header: t('other'),
+      description: t('otherDescription'),
       cell: ({ state, ownPage, others }) => {
-        if (state === 'unknown') return <Pending loading={citationsLoading} />;
+        if (state === 'unknown') return <Pending loading={citationsLoading} reason={pendingReason} />;
+        // An answer that cites only the own page has no other domain: a bare 0 beside a button would read as a count of nothing
+        if (others.length === 0) return <span>{t('noOthers')}</span>;
         return (
           <CountPopover
             context="list"
@@ -173,7 +185,11 @@ export function AnswersCited({ answers, citations, labelOf, timeZone, onOpenAnsw
           </p>
         ) : null}
         {groups !== null && loaded?.page.has_more === true ? (
-          <p className="num type-meta">{tab('basedOn', { count: groups.length })}</p>
+          <p className="num type-meta">
+            {groups.length === 0
+              ? tab('basedOnNone', { rows: loaded.data.length })
+              : tab('basedOn', { count: groups.length })}
+          </p>
         ) : null}
         <PlainTable<AnswerCitedRow>
           caption={t('caption')}

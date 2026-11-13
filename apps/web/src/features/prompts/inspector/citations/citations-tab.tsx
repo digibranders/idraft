@@ -44,7 +44,11 @@ export function CitationsTab({ context }: CitationsTabProps): ReactElement {
   const notes = [
     meta === undefined || meta.citation_units === 0
       ? null
-      : t('scope', { units: meta.citation_units, answers: meta.answers }),
+      : t('scope', {
+          units: meta.citation_units,
+          answers: meta.answers,
+          engines: engine === ALL_ENGINES ? 'all' : 'one',
+        }),
     engine === ALL_ENGINES ? null : t('scopeEngine', { engine: context.labelOf(engine) }),
     meta !== undefined && (meta.previous_answers ?? 0) === 0 ? t('noPrevious') : null,
     staleAt === null ? null : t('stale', { date: formatTableDateTime(staleAt, context.timeZone) }),

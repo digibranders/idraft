@@ -187,6 +187,30 @@ describe('Top domains', () => {
     expect(screen.queryByText('example.org')).toBeNull();
   });
 
+  it('puts the role badge under the domain, so the domain keeps the width of its line', () => {
+    renderDomains();
+    const rows = bodyRows(screen.getByRole('table', { name: 'Most cited domains for this prompt' }));
+    const [own, , competitor] = rows as [HTMLElement, HTMLElement, HTMLElement];
+    for (const [row, domain, role] of [
+      [own, 'fynix.digital', 'Own'],
+      [competitor, 'rival.io', 'Competitor'],
+    ] as const) {
+      const line = within(row).getByText(domain).closest('[data-slot="domain-line"]');
+      if (line === null) throw new Error(`The line of ${domain} is missing`);
+      expect(within(line as HTMLElement).queryByText(role)).toBeNull();
+      expect(within(row).getByText(role)).toBeInTheDocument();
+    }
+  });
+
+  it('says the unit in the singular for a share of one unit', () => {
+    renderDomains({
+      domains: read(pageOf([domainRow('g2.com', 'third_party', 1, { source_share: cell(1, 1) })], metaOf())),
+    });
+    const [first] = bodyRows(screen.getByRole('table')) as [HTMLElement];
+    expect(first).toHaveTextContent('100.0% of 1 unit');
+    expect(first).not.toHaveTextContent('1 units');
+  });
+
   it('names the own row with the Own badge and primary text', () => {
     renderDomains();
     expect(screen.getByText('fynix.digital')).toHaveClass('text-primary-text');

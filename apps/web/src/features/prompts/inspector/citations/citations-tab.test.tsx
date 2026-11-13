@@ -308,9 +308,13 @@ describe('the choices of the tab', () => {
     const served = serve();
     const { user } = renderTab();
     await domainsTable();
-    expect(screen.queryByText('Only Gemini is read.')).toBeNull();
+    expect(screen.queryByText(/^Only Gemini is read/)).toBeNull();
     await user.click(screen.getByRole('radio', { name: 'Gemini' }));
-    expect(await screen.findByText('Only Gemini is read.')).toBeInTheDocument();
+    // The last answer in the banner is of any engine, and the line says so
+    expect(
+      await screen.findByText('Only Gemini is read. The last answer date above covers all engines.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Shares are of 48 citation units in 8 answers.')).toBeInTheDocument();
     await waitFor(() => {
       expect(served.domains.at(-1)?.searchParams.get('filter[engine_code_in]')).toBe('gemini_web');
     });
@@ -353,7 +357,9 @@ describe('the scope line', () => {
     serve();
     renderTab();
     await domainsTable();
-    expect(screen.getByText('Shares are of 48 citation units in 8 answers.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Shares are of 48 citation units in 8 answers, counted over all engines.'),
+    ).toBeInTheDocument();
   });
 
   it('says the previous period has no answers, so nothing is marked', async () => {

@@ -16,8 +16,9 @@ import {
 } from './citations-model';
 import type { CitationRead } from './citations-reads';
 import type { PromptCounts } from '../../inspector-reads';
-import { DomainCell } from '@/components/app/cells/domain-cell';
+import { DomainRoleBadge, Favicon } from '@/components/app/cells/domain-cell';
 import { URLCell } from '@/components/app/cells/url-cell';
+import { visibleUrlText } from '@/components/app/cells/visible-text';
 import { InspectorSection, type InspectorSectionStatus } from '@/components/app/inspector/inspector-section';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
@@ -27,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
 import { unitShare, type UnitShare } from '@/lib/citations/share-model';
 import type {
+  DomainRole,
   SourceChangePage,
   SourceDomainPage,
   SourceDomainRow,
@@ -34,18 +36,82 @@ import type {
   SourcePageRow,
   SourcesMeta,
 } from '@/lib/citations/types';
-import { EMPTY_VALUE, formatInteger, formatList, formatPercent } from '@/lib/format';
+import { displayDomain, EMPTY_VALUE, formatInteger, formatList, formatPercent } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
-/** A cell's two lines: the units, then the share with the units it is a share of ("25.0% of 48 units"). */
-function UnitsCell({ units, share }: { units: number; share: UnitShare }): ReactElement {
+/**
+ * A cell's two lines: the units, then the share with the units it is a share of ("25.0% of 48"). The unit noun is
+ * for a screen reader only, since the column is Units. `compact` (the domains, whose count columns leave the
+ * domain little width) and a phone keep "of 48" for a screen reader too: the scope line above the lists names the
+ * 48 for every share.
+ */
+function UnitsCell({
+  units,
+  share,
+  compact = false,
+}: {
+  units: number;
+  share: UnitShare;
+  compact?: boolean;
+}): ReactElement {
   const t = useTranslations('prompts.citationsTab.domains');
   return (
     <span className="flex flex-col whitespace-nowrap">
       <span className="num type-body-strong">{formatInteger(units)}</span>
       <span className="num type-meta">
-        {share.value === null ? EMPTY_VALUE : t('unitsOf', { share: formatPercent(share.value), units: share.total })}
+        {share.value === null ? (
+          EMPTY_VALUE
+        ) : (
+          <>
+            {formatPercent(share.value)}
+            <span className={compact ? 'sr-only' : 'max-md:sr-only'}> {t('unitsOf', { units: share.total })}</span>
+            <span className="sr-only"> {t('unitsNoun', { units: share.total })}</span>
+          </>
+        )}
       </span>
+    </span>
+  );
+}
+
+/**
+ * A domain and its role: the domain on a line of its own (icon, then the registrable domain, which gives way with
+ * an ellipsis and is whole in its tooltip), and the role and New badges under it. Beside the domain the badge of a
+ * competitor took 80 px of a 322 px table and left the domain one character.
+ */
+function DomainIdentity({
+  domain,
+  role,
+  isNew,
+  previousAnswers,
+}: {
+  domain: string;
+  role: DomainRole;
+  isNew: boolean;
+  previousAnswers: number;
+}): ReactElement {
+  const text = visibleUrlText(displayDomain(domain));
+  const own = role === 'own';
+  return (
+    // A one-track grid (`minmax(0, 1fr)`) has no minimum width of its own, so the table gives the domain what the
+    // count columns leave, down to `min-w-18` (a role badge); a flex box would hold its whole text as its minimum
+    <span data-slot="domain-identity" className={cn('grid min-w-18 grid-cols-1 gap-1 py-1', IDENTITY_WIDTH)}>
+      <span data-slot="domain-line" className="flex min-w-0 items-center gap-1.5 font-mono type-table">
+        <Favicon host={domain} mode={FAVICON} />
+        <Tooltip content={text} purpose="label">
+          <span
+            dir="ltr"
+            className={cn('min-w-0 truncate', own ? 'type-table-strong text-primary-text' : 'text-foreground')}
+          >
+            {text}
+          </span>
+        </Tooltip>
+      </span>
+      {role === 'third_party' && !isNew ? null : (
+        <span className="flex flex-wrap items-center gap-1">
+          {role === 'third_party' ? null : <DomainRoleBadge role={role} />}
+          {isNew ? <NewMarker previousAnswers={previousAnswers} /> : null}
+        </span>
+      )}
     </span>
   );
 }
@@ -217,23 +283,19 @@ export function TopDomains({ read, lost, columns, counts, minSupport }: TopDomai
       id: 'domain',
       header: t('domain'),
       cell: ({ row, isNew }) => (
-        <span className={cn('flex min-w-0 items-center gap-2', IDENTITY_WIDTH)}>
-          <DomainCell
-            host={row.registrable_domain}
-            registrable={row.registrable_domain}
-            role={row.domain_role}
-            favicon={FAVICON}
-            context="list"
-          />
-          {isNew ? <NewMarker previousAnswers={meta.previous_answers ?? 0} /> : null}
-        </span>
+        <DomainIdentity
+          domain={row.registrable_domain}
+          role={row.domain_role}
+          isNew={isNew}
+          previousAnswers={meta.previous_answers ?? 0}
+        />
       ),
     },
     {
       id: 'units',
       header: t('units'),
       wrap: true,
-      cell: ({ row }) => <UnitsCell units={row.citation_units} share={unitShare(row.source_share)} />,
+      cell: ({ row }) => <UnitsCell compact units={row.citation_units} share={unitShare(row.source_share)} />,
     },
     ...columns.map((column): PlainColumn<TopRow<SourceDomainRow>> => ({
       id: `engine-${column.code}`,

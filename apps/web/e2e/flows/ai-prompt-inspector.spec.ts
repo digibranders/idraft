@@ -100,7 +100,9 @@ for (const theme of ['light', 'dark'] as const) {
     });
 
     for (const width of [1280, 390]) {
-      test(`has no accessibility violation on Latest, History and Stats at ${String(width)} px`, async ({ page }) => {
+      test(`has no accessibility violation on Latest, History, Citations and Stats at ${String(width)} px`, async ({
+        page,
+      }) => {
         const inspector = await openFirstPrompt(page, width);
         await expectAccessible(page);
         for (const tab of ['History', 'Citations', 'Stats']) {

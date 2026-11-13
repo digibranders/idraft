@@ -228,7 +228,13 @@ for (const theme of ['light', 'dark'] as const) {
         await noSidewaysScroll();
         // Every tab keeps the inspector inside the window, and the answers are on History
         for (const tab of ['Competitors', 'Stats']) {
-          await inspector.getByRole('tab', { name: tab }).click();
+          // On a phone Stats is under More tabs, and choosing it puts it in the row
+          if ((await inspector.getByRole('tab', { name: tab }).count()) === 0) {
+            await inspector.getByRole('button', { name: 'More tabs' }).click();
+            await page.getByRole('menuitem', { name: tab }).click();
+          } else {
+            await inspector.getByRole('tab', { name: tab }).click();
+          }
           await noSidewaysScroll();
         }
         await openHistory(inspector);

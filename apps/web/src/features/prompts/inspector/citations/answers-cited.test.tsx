@@ -110,9 +110,10 @@ describe('the answers section', () => {
     expect(within(rows[2] as HTMLElement).getByText('Nov 9, 09:05')).toBeInTheDocument();
   });
 
-  it('has the Answer, Cited page and Other domains columns', () => {
+  it('has the Answer, Cited page and Others columns, the last one described as the other domains', () => {
     renderSection();
-    for (const name of ['Answer', 'Cited page', 'Other domains']) {
+    expect(screen.getByText('Other domains cited in this answer')).toBeInTheDocument();
+    for (const name of ['Answer', 'Cited page', 'Others']) {
       expect(within(tableOf()).getByRole('columnheader', { name })).toBeInTheDocument();
     }
   });
@@ -225,6 +226,36 @@ describe('the answers section', () => {
     expect(screen.getByText('Based on the latest 1 answer.')).toBeInTheDocument();
   });
 
+  it('does not say "latest 0 answers" when one answer fills the rows, and says why no citation shows', () => {
+    // One answer with more rows than the list holds: it is left out as incomplete, and no answer is left to count
+    const rows = [citation('o1', 1, 'g2.com', 'third_party'), citation('o1', 2, 'g2.com', 'third_party')];
+    renderSection({ citations: readOf(citationPage(rows, true)) });
+    expect(screen.queryByText(/Based on the latest/)).toBeNull();
+    expect(
+      screen.getByText(
+        'The first 2 citation rows do not hold one whole answer, so no answer below shows its citations.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('gives the n/a of an answer past the loaded rows a reason', () => {
+    const rows = [citation('o1', 1, 'g2.com', 'third_party'), citation('o2', 1, 'g2.com', 'third_party')];
+    renderSection({
+      answers: readOf(observationPage([observation('o1'), observation('o2', { at: '2026-11-09T09:05:00Z' })])),
+      citations: readOf(citationPage(rows, true)),
+    });
+    const row = rowOf('Nov 9, 09:05');
+    expect(within(row).getAllByText('n/a')).toHaveLength(2);
+    expect(screen.getAllByText('Not among the 2 citation rows read for this tab.').length).toBeGreaterThan(0);
+  });
+
+  it('says None, not 0, for an answer that cites only the own page', () => {
+    renderSection({ citations: readOf(citationPage([citation('o1', 1, 'fynix.io', 'own')])) });
+    const row = rowOf('Nov 11, 09:05');
+    expect(within(row).getByText('None')).toBeInTheDocument();
+    expect(within(row).queryByText('0')).toBeNull();
+  });
+
   it('does not say it when the list holds every row', () => {
     renderSection();
     expect(screen.queryByText(/Based on the latest/)).toBeNull();
@@ -251,6 +282,8 @@ describe('the states of the answers section', () => {
     expect(within(row).getAllByText('n/a')).toHaveLength(2);
     expect(within(row).queryByText('0')).toBeNull();
     expect(screen.getByText('The citations of the answers could not be loaded.')).toBeInTheDocument();
+    // Each n/a says why, too
+    expect(screen.getAllByText('The citations of this answer could not be loaded.').length).toBeGreaterThan(0);
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(retry).toHaveBeenCalledTimes(1);
   });
