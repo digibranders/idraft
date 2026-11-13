@@ -1737,6 +1737,8 @@ interface DateRangePickerProps {
 - **Use:** the top-bar date range on every page where it applies (hidden on Settings, Integrations and the screens 13 §4 lists without it); first section of the filter sheet on phones.
 - **Not for:** month scopes on Costs (`Select` of months).
 
+> As built (WP-10): `apps/web/src/components/app/date-range/date-range-picker.tsx`, not `ui/`. Props are `value`, `onChange`, `today`, `timeZone`, `maxDays`, `earliest`, `latest` and `size`; the value is a preset (`7d`, `28d`, `90d`) or a custom `from` and `to` of `YYYY-MM-DD` strings. The longest range is 91 days (`MAX_RANGE_DAYS`: the backend refuses 92 project days across a fall-back clock change), shown as a message with Apply disabled, never clamped. The trigger name includes the short form ("Date range: Last 28 days (28d), Oct 17 to Nov 13, 2026"); the label is short below 640 px; one month below 768 px, two from 768 px; presets longer than `maxDays` are `aria-disabled`; every applied change is announced politely. `useDateRangeParams` reads and writes `win` or `from` and `to` and still reads the legacy `window` key.
+
 ### 4.19 NumberInput
 `ui/number-field.tsx` · V1 · [10 §11](10-forms.md)
 
@@ -2661,6 +2663,8 @@ interface SavedViewMenuProps {
 - **Variants:** none (32 px secondary `sm`). **States:** default view, named view, edited, missing references.
 - **A11y:** menu button with the view name in its name; applying announces "View CRM keywords applied, 3 filters". **Use:** T2, T6, Matrix, Competitors. **Not for:** Overview, detail pages, settings, the table toolbar.
 
+> As built (WP-10): the file is `apps/web/src/components/app/views/saved-view-menu.tsx`, with `useSavedView` and `views-model.ts` beside it, not `data-table/`. It shows preset views (`kind: 'preset'`, params for the keys the screen governs) and Default; `view=<id>` is the URL key and `view`, `inspect`, `itab`, `win`, `from` and `to` are never view keys. "Edited" compares the governed keys as sets, except `sort`, which is ordered. A missing Default degrades to the first view instead of throwing. Reset announces and replaces history. `extraItems` (`SavedViewExtraItem`) is the seam for the stored, workspace and personal views of WP-49; nothing else calls it yet.
+
 ### 7.8 TableFooter
 `app/data-table/table-footer.tsx` · V1 · [12 §1](12-tables.md), [24 §4](24-page-templates.md)
 
@@ -2702,6 +2706,8 @@ interface DataTableListProps<TRow> {
 
 - **Variants:** none (56 px rows). **States:** as DataTable minus selection and row actions.
 - **A11y:** `ul` with `aria-setsize` and `aria-posinset`; each row one link read as identity, value with label, context, delta. **Use:** below 768 px. **Not for:** desktop.
+
+> As built (WP-10): `apps/web/src/components/app/data-table/data-table-list.tsx`. `DataTableList` is generic over `TRow extends RowData`; rows are exactly 56 px (`LIST_ROW_HEIGHT`, the divider is drawn inside the box) and windowed with an aria-hidden spacer; a server-mode pager replaces windowing when the table pages on the server. `DataTableListSort` is the sort button and sheet, and announces each change ("Sorted by Rank, ascending"); `ListTableSwitch` and `useListMode` offer the List and Table switch when the device is not touch-primary. J and K step rows only from a grid, not from the list. A phone hard load shows the table for one frame before the list.
 
 ### 7.11 SimpleTable
 `app/data-table/simple-table.tsx` · V1 · [12 §15](12-tables.md), [20 §6.1](20-accessibility.md)
