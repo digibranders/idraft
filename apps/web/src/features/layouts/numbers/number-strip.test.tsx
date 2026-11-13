@@ -1,3 +1,5 @@
+import type * as DndKit from '@dnd-kit/core';
+import type { DragOverlayProps } from '@dnd-kit/core';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { useEffect, type ReactElement } from 'react';
@@ -15,6 +17,20 @@ import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
+
+/** What the overlay was given for `dropAnimation`, render by render. */
+const overlay = vi.hoisted(() => ({ dropAnimations: new Array<unknown>() }));
+vi.mock('@dnd-kit/core', async (importOriginal) => {
+  const original = await importOriginal<typeof DndKit>();
+  const { createElement } = await import('react');
+  return {
+    ...original,
+    DragOverlay: (props: DragOverlayProps): ReactElement => {
+      overlay.dropAnimations.push(props.dropAnimation);
+      return createElement(original.DragOverlay, props);
+    },
+  };
+});
 
 const WORKSPACE = MOCK_WORKSPACE.workspace_id;
 const READ = mswPath(`/api/v1/workspaces/${WORKSPACE}/layouts/overview`);
@@ -486,5 +502,91 @@ describe('moving a number with the keyboard', () => {
       expect(orderOf()).toEqual(['top10', 'mention-chatgpt', 'visibility']);
     });
     expect(document.querySelector('[data-slot="layout-drop-line"]')).toBeNull();
+  });
+});
+
+describe('the number strip with reduced motion', () => {
+  const scrolled = vi.fn();
+  const dragOverlay = (): HTMLElement | null =>
+    document.querySelector<HTMLElement>('[data-slot="layout-drag-overlay"]');
+
+  function reduceMotion(): void {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)',
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+  }
+
+  beforeEach(async () => {
+    // The mouse drag of the test before ends with a mouse up and no click: dnd-kit keeps swallowing the next click
+    // for 50 ms, which would be this test's click on Customize
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    overlay.dropAnimations.length = 0;
+    scrolled.mockClear();
+    // jsdom has no scrollIntoView
+    window.HTMLElement.prototype.scrollIntoView = scrolled;
+  });
+  afterEach(() => {
+    Reflect.deleteProperty(window.HTMLElement.prototype, 'scrollIntoView');
+    delete document.documentElement.dataset.motion;
+  });
+
+  it('the number strip drop animation is off with reduced motion, and the keyboard drag does not glide', async () => {
+    reduceMotion();
+    const view = mount({ numbers: [VISIBILITY, TOP10, CHATGPT] });
+    await customize(view);
+    stubCellRects();
+    expect(overlay.dropAnimations.length).toBeGreaterThan(0);
+    expect(overlay.dropAnimations.at(-1)).toBeNull();
+    await pickUp(view, 'Top 10', 'top10');
+    expect(dragOverlay()?.parentElement?.style.transition).toBe('none');
+  });
+
+  it('the number strip drop animation is off when the person turned reduced motion on in the app', async () => {
+    document.documentElement.dataset.motion = 'reduced';
+    const view = mount({ numbers: [VISIBILITY, TOP10, CHATGPT] });
+    await customize(view);
+    stubCellRects();
+    expect(overlay.dropAnimations.at(-1)).toBeNull();
+    await pickUp(view, 'Top 10', 'top10');
+    expect(dragOverlay()?.parentElement?.style.transition).toBe('none');
+  });
+
+  it('settles the dropped number in 150 ms, and lets dnd-kit glide a keyboard drag, when motion is allowed', async () => {
+    const view = mount({ numbers: [VISIBILITY, TOP10, CHATGPT] });
+    await customize(view);
+    stubCellRects();
+    expect(overlay.dropAnimations.at(-1)).toEqual({ duration: 150 });
+    await pickUp(view, 'Top 10', 'top10');
+    expect(dragOverlay()?.parentElement?.style.transition).toBe('transform 250ms ease');
+  });
+
+  it('scrolls to the number that takes focus with behavior auto, and smoothly when motion is allowed', async () => {
+    reduceMotion();
+    const reduced = mount({ numbers: [VISIBILITY, TOP10, CHATGPT] });
+    await customize(reduced);
+    await reduced.user.click(screen.getByRole('button', { name: 'Remove Top 10' }));
+    await waitFor(() => {
+      expect(handleOf('Mention rate ChatGPT')).toHaveFocus();
+    });
+    expect(scrolled).toHaveBeenLastCalledWith({ block: 'nearest', behavior: 'auto' });
+    reduced.unmount();
+
+    vi.unstubAllGlobals();
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    const allowed = mount({ numbers: [VISIBILITY, TOP10, CHATGPT] });
+    await customize(allowed);
+    await allowed.user.click(screen.getByRole('button', { name: 'Remove Top 10' }));
+    await waitFor(() => {
+      expect(handleOf('Mention rate ChatGPT')).toHaveFocus();
+    });
+    expect(scrolled).toHaveBeenLastCalledWith({ block: 'nearest', behavior: 'smooth' });
   });
 });

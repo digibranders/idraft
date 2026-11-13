@@ -33,6 +33,7 @@ import {
 } from '../dnd';
 import { DropLine, columnGapOf, lineRect, sameLine, type LineRect } from '../drop-line';
 import { useLayoutScreen } from '../layout-provider';
+import { useReducedMotion } from '../use-reduced-motion';
 import { AddNumberSlot } from './number-catalog';
 import { numberCoordinateGetter, useNumberAnnouncements } from './number-dnd';
 import {
@@ -49,7 +50,6 @@ import {
   type MetricStripItem,
   type MetricStripProps,
 } from '@/components/app/metric/metric-strip';
-import { useMediaQuery } from '@/lib/dom/use-media-query';
 import { LIMITS, numberName, numberType, type NumberItem } from '@/lib/layouts';
 import { cn } from '@/lib/utils';
 
@@ -70,7 +70,6 @@ export interface NumberStripProps {
 
 const renderAddNumberSlot = (): ReactNode => <AddNumberSlot />;
 
-const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
 /** The CSS value that turns dnd-kit's glide off. */
 const NO_TRANSITION = 'none';
 // Columns of the customize grid by what the strip's own width allows (the preview's rule): two, then three from 576 px,
@@ -110,7 +109,7 @@ function groupsOf(numbers: readonly NumberItem[], valueOf: NumberStripProps['val
 /** Moves focus where the provider asked (after a remove, a move, an add), then says it was done. */
 function useNumberFocusRequests(root: RefObject<HTMLElement | null>): void {
   const { focus, actions } = useLayoutScreen();
-  const reduced = useMediaQuery(REDUCED_MOTION);
+  const reduced = useReducedMotion();
   useEffect(() => {
     // A request without a zone is the card grid's
     if (focus?.zone !== 'numbers' || root.current === null) return;
@@ -148,7 +147,7 @@ function CustomizeStrip({
   const { actions, document } = useLayoutScreen();
   const say = useLayoutAnnouncer();
   const tCore = useTranslations('layouts.core');
-  const reduced = useMediaQuery(REDUCED_MOTION);
+  const reduced = useReducedMotion();
   const numbers = useMemo(() => document.numbers ?? [], [document.numbers]);
   const announcements = useNumberAnnouncements(numbers);
   const root = useRef<HTMLDivElement>(null);

@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -31,11 +31,15 @@ class AreaObserver {
 }
 
 const onClose = vi.fn();
+/** The `menuItem` each render of the drawer was given. */
+const menuItems: (MenuItemDef | null)[] = [];
+let viewport: ReturnType<typeof stubViewport>;
 
 beforeEach(() => {
   onClose.mockReset();
+  menuItems.length = 0;
   serveLayouts();
-  stubViewport();
+  viewport = stubViewport();
   vi.stubGlobal('ResizeObserver', AreaObserver);
   vi.stubGlobal('innerWidth', 1440);
   Object.defineProperty(Element.prototype, 'getAnimations', { configurable: true, value: () => [] });
@@ -48,6 +52,7 @@ afterEach(() => {
 /** What a drawer writes: the real Inspector with the three parts of `useDrawerCustomize`. */
 function Drawer(): ReactElement {
   const drawer = useDrawerCustomize();
+  menuItems.push(drawer.menuItem);
   const moreActions: MenuItemDef[] = drawer.menuItem === null ? [] : [drawer.menuItem];
   return (
     <InspectorLayout
@@ -224,6 +229,54 @@ describe('DrawerCustomizer', () => {
     await hideFirstCard(user);
     within(aside()).getByRole('heading', { name: 'best crm for startups' }).focus();
     await user.keyboard('{Escape}');
+    await user.click(await screen.findByRole('button', { name: 'Discard changes' }));
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('exposes no menuItem below 768 px, in the sheet the drawer becomes there', async () => {
+    vi.stubGlobal('innerWidth', 600);
+    viewport.setWidth(37.5);
+    renderWithProviders(<Page />);
+    const sheet = await screen.findByRole('dialog', { name: 'best crm for startups' });
+    await waitFor(() => {
+      expect(menuItems.length).toBeGreaterThan(0);
+    });
+    expect(menuItems.every((item) => item === null)).toBe(true);
+    expect(within(sheet).queryByRole('menuitem', { name: 'Customize cards' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'No changes' })).toBeNull();
+  });
+
+  it('exposes the menuItem from 768 px', async () => {
+    renderWithProviders(<Page />);
+    await waitFor(() => {
+      expect(menuItems.at(-1)).toMatchObject({ id: 'customize', label: 'Customize cards' });
+    });
+  });
+
+  it('asks before the sheet closes when the window narrowed below 768 px with changes, and keeps the bar', async () => {
+    const { user } = renderWithProviders(<Page />);
+    await startCustomizing(user);
+    await hideFirstCard(user);
+    act(() => {
+      vi.stubGlobal('innerWidth', 600);
+      viewport.setWidth(37.5);
+      window.dispatchEvent(new Event('resize'));
+    });
+    const sheet = await screen.findByRole('dialog', { name: 'best crm for startups' });
+    // A resize never discards work: the mode and its bar stay
+    expect(within(sheet).getByRole('group', { name: '1 change' })).toBeInTheDocument();
+    await user.click(within(sheet).getByRole('button', { name: 'Back to Keywords' }));
+    const question = await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' });
+    expect(onClose).not.toHaveBeenCalled();
+    await user.click(within(question).getByRole('button', { name: 'Keep editing' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('group', { name: '1 change' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back to Keywords' }));
     await user.click(await screen.findByRole('button', { name: 'Discard changes' }));
     await waitFor(() => {
       expect(onClose).toHaveBeenCalledTimes(1);

@@ -24,10 +24,10 @@ import { useLayoutScreen, type LayoutContextValue } from './layout-provider';
 import { CardSkeleton, type CardRegistry, type RegisteredCard } from './registry';
 import { SortableGrid } from './sortable-grid';
 import { useNearViewport } from './use-near-viewport';
+import { useReducedMotion } from './use-reduced-motion';
 import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { Button } from '@/components/ui/button';
-import { useMediaQuery } from '@/lib/dom/use-media-query';
 import { LIMITS, cardType, type CardItem, type Width } from '@/lib/layouts';
 import { cn } from '@/lib/utils';
 
@@ -56,8 +56,6 @@ export const SPAN_CLASS: Readonly<Record<Width, string>> = {
   two_thirds: 'col-span-12 xl:col-span-8',
   full: 'col-span-12',
 };
-
-const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
 
 /** `Object.hasOwn`: a type named `constructor` must not find a property of Object.prototype. */
 function registeredCard(registry: CardRegistry, type: string): RegisteredCard | undefined {
@@ -117,7 +115,7 @@ function CardBody({ item, CardBoundary }: CardBodyProps): ReactElement | null {
 /** Moves focus where the provider asked (after a hide, a move, an add), then says it was done. */
 function useFocusRequests(root: RefObject<HTMLElement | null>, value: LayoutContextValue): void {
   const { focus, actions } = value;
-  const reduced = useMediaQuery(REDUCED_MOTION);
+  const reduced = useReducedMotion();
   useEffect(() => {
     // A request for the numbers zone is answered (and cleared) by the number strip
     if (focus === null || focus.zone === 'numbers' || root.current === null) return;

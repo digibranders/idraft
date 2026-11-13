@@ -25,7 +25,7 @@ const REDO_KEYS = ['mod', 'shift', 'z'];
 
 /** The look of the form save bar (`components/ui/save-bar`), which cannot hold these controls. */
 const BAR_CLASS =
-  'flex min-h-save-bar flex-wrap items-center gap-x-3 gap-y-2 border-t border-border bg-surface py-2 transition-opacity duration-(--duration-base) ease-standard starting:opacity-0';
+  'flex min-h-save-bar flex-wrap items-center gap-x-3 gap-y-2 border-t border-border bg-surface py-2 transition-opacity duration-(--duration-base) ease-standard starting:opacity-0 motion-reduce:transition-none';
 const VARIANT_CLASS = {
   page: 'sticky bottom-0 z-(--z-sticky) px-3 md:px-4 lg:px-5',
   // A footer keeps its height when the body is short. At 400 px the actions do not fit beside the count: they

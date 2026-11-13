@@ -112,9 +112,13 @@ describe('CustomizeButton', () => {
     expect(item?.disabledReason).toBeUndefined();
   });
 
-  it('has no menu item on a window narrower than 768 px, where there is no customize mode', async () => {
+  it.each([
+    ['useCustomizeMenuItem is null below 768 px (767)', 47.9375, null],
+    ['useCustomizeMenuItem is null below 768 px (390)', 24.375, null],
+    ['useCustomizeMenuItem is there at 768 px', 48, 'customize'],
+  ] as const)('%s', async (_name, widthRem, expected) => {
     serveLayouts();
-    stubViewport(47);
+    stubViewport(widthRem);
     const picked: (MenuItemDef | null)[] = [];
     function Probe(): null {
       picked.push(useCustomizeMenuItem());
@@ -122,7 +126,7 @@ describe('CustomizeButton', () => {
     }
     renderWithProviders(<ScreenUnderTest extra={<Probe />} />);
     await loaded();
-    expect(picked.at(-1)).toBeNull();
+    expect(picked.at(-1)?.id ?? null).toBe(expected);
   });
 
   it('gives the menu item the reason when the layout has not loaded', async () => {

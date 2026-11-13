@@ -166,12 +166,16 @@ export function serveLayouts({
   return served;
 }
 
-/** A window of `widthRem` rem that a test can resize: `matchMedia` answers `(width >= Nrem)` from it. */
-export function stubViewport(widthRem = 90): { setWidth: (rem: number) => void } {
+/**
+ * A window of `widthRem` rem that a test can resize: `matchMedia` answers `(width >= Nrem)` from it, and
+ * `(prefers-reduced-motion: reduce)` with `reducedMotion`.
+ */
+export function stubViewport(widthRem = 90, reducedMotion = false): { setWidth: (rem: number) => void } {
   let width = widthRem;
   const listeners = new Set<() => void>();
   vi.stubGlobal('matchMedia', (query: string) => ({
     get matches(): boolean {
+      if (query === '(prefers-reduced-motion: reduce)') return reducedMotion;
       const wanted = /\(width >= ([0-9.]+)rem\)/.exec(query);
       return wanted !== null && width >= Number(wanted[1]);
     },

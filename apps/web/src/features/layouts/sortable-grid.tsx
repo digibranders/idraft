@@ -45,8 +45,8 @@ import { DragHandle } from './drag-handle';
 import { DropLine, columnGapOf, lineRect, sameLine, type LineRect } from './drop-line';
 import { useLayoutScreen } from './layout-provider';
 import { ResizeGrip } from './resize-grip';
+import { useReducedMotion } from './use-reduced-motion';
 import { Icon } from '@/components/ui/icon';
-import { useMediaQuery } from '@/lib/dom/use-media-query';
 import { cardName, packRows, type CardItem } from '@/lib/layouts';
 import { cn } from '@/lib/utils';
 
@@ -63,7 +63,6 @@ export interface SortableGridProps {
   columns?: 'grid' | 'one' | undefined;
 }
 
-const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
 const COLUMNS = 12;
 /** The CSS value that turns dnd-kit's glide off. */
 const NO_TRANSITION = 'none';
@@ -170,7 +169,7 @@ export function SortableGrid({ cards, renderBody, renderNotice, cellClass, colum
   const t = useTranslations('layouts.core');
   const { actions, document } = useLayoutScreen();
   const breakpoint = useDragBreakpoint(columns);
-  const reduced = useMediaQuery(REDUCED_MOTION);
+  const reduced = useReducedMotion();
   const say = useLayoutAnnouncer();
   const announcements = useDragAnnouncements('cards', { columns });
   const [active, setActive] = useState<ActiveDrag | null>(null);

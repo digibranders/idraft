@@ -328,3 +328,47 @@ describe('CardCatalogDialog', () => {
     expect(await axe(document.body)).toHaveNoViolations();
   });
 });
+
+describe('the scroll to a card added from the catalog', () => {
+  // jsdom has no scrollIntoView
+  const scrolled = vi.fn();
+  beforeEach(() => {
+    scrolled.mockClear();
+    window.HTMLElement.prototype.scrollIntoView = scrolled;
+  });
+  afterEach(() => {
+    Reflect.deleteProperty(window.HTMLElement.prototype, 'scrollIntoView');
+    delete document.documentElement.dataset.motion;
+  });
+
+  /** Adds Top movers, and waits until the new card has been scrolled to: the last scroll belongs to its handle. */
+  async function addTopMovers(user: UserEvent): Promise<void> {
+    const dialog = await openCatalog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Add Top movers' }));
+    await closed();
+    await waitFor(() => {
+      const target = scrolled.mock.contexts.at(-1) as HTMLElement | undefined;
+      expect(target).toBe(screen.getByRole('button', { name: 'Reorder Top movers' }));
+    });
+  }
+
+  it('scrolls smoothly when motion is allowed', async () => {
+    const user = await customizing();
+    await addTopMovers(user);
+    expect(scrolled).toHaveBeenLastCalledWith({ block: 'nearest', behavior: 'smooth' });
+  });
+
+  it('scrolls with behavior auto under reduced motion', async () => {
+    viewport = stubViewport(90, true);
+    const user = await customizing();
+    await addTopMovers(user);
+    expect(scrolled).toHaveBeenLastCalledWith({ block: 'nearest', behavior: 'auto' });
+  });
+
+  it('scrolls with behavior auto when the person turned reduced motion on in the app', async () => {
+    document.documentElement.dataset.motion = 'reduced';
+    const user = await customizing();
+    await addTopMovers(user);
+    expect(scrolled).toHaveBeenLastCalledWith({ block: 'nearest', behavior: 'auto' });
+  });
+});
