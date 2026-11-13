@@ -4279,6 +4279,7 @@
   "citations": {
     "title": "Citations",
     "meta": "Updated {time}; {units, plural, one {# citation unit} other {# citation units}} in {answers, plural, one {# answer} other {# answers}}",
+    "metaCounts": "{units, plural, one {# citation unit} other {# citation units}} in {answers, plural, one {# answer} other {# answers}}",
     "metaStale": "No new citation since {date}",
     "metaNone": "No citation in this window",
     "noAccessTitle": "You cannot open citations",
@@ -4304,7 +4305,14 @@
       "domain": "Domain",
       "clear": "Clear filters",
       "empty": "No domain or page matches these filters",
-      "emptyReason": "Change or clear a filter to see sources again."
+      "emptyReason": "Change or clear a filter to see sources again.",
+      "roles": {
+        "own": "Own",
+        "competitor": "Competitor",
+        "thirdParty": "Third party"
+      },
+      "droppedTitle": "{count, plural, one {A filter from the link was left out} other {# filters from the link were left out}}",
+      "droppedDescription": "{fields}: the link holds a value this project has nothing for."
     },
     "compare": {
       "label": "Compare with",
