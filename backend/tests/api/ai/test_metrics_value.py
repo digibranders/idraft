@@ -529,6 +529,23 @@ async def test_entity_ids_are_for_mention_rate_and_share_of_voice_only(
         assert response.status_code == 200, key
 
 
+async def test_an_empty_entity_ids_is_no_entity_ids(
+    api: httpx.AsyncClient, seeded: Summary
+) -> None:
+    """`entity_ids=` is not asked: the engines' own values, also on a key that does not take
+    `entity_ids` (C-27), and on the series route."""
+    for key in ("ai.mention_rate", "ai.share_of_voice", "ai.citation_rate", "ai.valid_answers"):
+        empty = await get_metric(seeded, api, key, entity_ids="")
+        plain = await get_metric(seeded, api, key)
+
+        assert empty.status_code == 200, key
+        assert empty.json() == plain.json(), key
+        assert all("entity_id" not in value for value in empty.json()["data"]), key
+    series = await get_metric(seeded, api, "ai.citation_rate", "series", entity_ids="")
+    assert series.status_code == 200
+    assert series.json() == (await get_metric(seeded, api, "ai.citation_rate", "series")).json()
+
+
 async def test_an_entity_that_is_not_tracked_is_left_out_and_is_200(
     api: httpx.AsyncClient, migrated: PostgresServer, seeded: Summary
 ) -> None:

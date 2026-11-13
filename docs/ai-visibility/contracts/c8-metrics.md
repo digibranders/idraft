@@ -323,8 +323,10 @@ Each metric route costs the statements of the summary request it makes plus a fi
 one second transaction (one scope statement, so extras are "reads + 1"). The tests assert the differences, never
 absolute counts, and that doubling the data changes nothing. `S(...)` is the summary request. `rows left out`
 means the `rows` parameter is not sent, which builds the prompt rows (and reads the topic rollup and names): it is
-how a route gets the ids of the prompts in scope. These are design figures until each task measures them; the
-test is the contract after that.
+how a route gets the ids of the prompts in scope. Routes 1 to 4 are measured (marked "measured" below; the test
+is the contract). The breakdown rows (route 5) are still design figures until its task measures them; the competitor
+rows are in [c5-competitors.md](c5-competitors.md). `compare` adds the summary's own read of the window compared
+with (+1), and one more with `entity_ids` (the entities' previous cells, +2 in all); a series has no compare.
 
 | Request | Summary request | Extra statements | Extra reads |
 |---|---|---|---|
@@ -355,9 +357,9 @@ project (150 prompts, 3,600 answers): the Overview 195 ms, its summary request a
 | 401 | `unauthenticated` | No session. |
 | 404 | `not_found` | Not a member of the workspace; a project outside the member's scope; a deleted or unknown project (never `200` with empty data). |
 | 403 | `forbidden` | The role lacks `data:read`. |
-| 422 | `validation_failed` | A value outside its bounds: `compare=previous_decade`, `dimension=bogus` or missing, `granularity=day` or `month` (field code `not_built`), `entity_ids` over 20 or on a key that does not take it, `{metric}` of the wrong form (`AI.Mention`, over 64 characters), an engine code outside the three, `extra_forbidden` for any other parameter; `from` after `to` (`range_invalid`); `compare_from` or `compare_to` alone; a date outside the calendar (`out_of_range`). |
+| 422 | `validation_failed` | A value outside its bounds: `compare=previous_decade`, `dimension=bogus` or missing, `granularity=day` or `month` (field code `not_built`), `entity_ids` over 20 or on a key that does not take it (field code `not_supported`; an empty `entity_ids=` is no `entity_ids`), `{metric}` of the wrong form (`AI.Mention`, over 64 characters), an engine code outside the three, `extra_forbidden` for any other parameter; `from` after `to` (`range_invalid`); `compare_from` or `compare_to` alone; a date outside the calendar (`out_of_range`). |
 | 404 | `unknown_metric` | A key outside the AI keys of doc 16 section 2.1 (`seo.top3_count`, `ai.nope`). A request with a bad key and a missing project answers `unknown_metric`: the key is checked in the route body, before any read. |
-| 501 | `not_implemented` | A known key not built (`ai.sentiment`) or not built for that route (series of `ai.first_mention_rate`), naming the key. |
+| 501 | `not_implemented` | A known key not built (`ai.sentiment`) or not built for that route (series of `ai.first_mention_rate`), naming the key. Raised in the route body with the key check, before any read: a deleted project and a known unbuilt key answer `501`, not `404 not_found`. |
 | 422 | `window_too_large` | `from` to `to`, or `compare_from` to `compare_to`, over 92 days (carries `limit_days`). |
 | 503 | `query_timeout` | The house statement timeout. |
 
@@ -366,9 +368,12 @@ all, because it is raised in the session dependency (`api/auth/dependencies.py`)
 permission checks, and says nothing to an anonymous caller. Then 401 (no session), 404 `not_found`, 403, then
 the 422 of a value outside its bounds, of a lone `compare_from` or `compare_to`, and of an explicit window
 (`from` with `to`, `compare_from` with `compare_to`): `range_invalid` and `window_too_large` are checked with
-the other values, so they come before `404 unknown_metric`, which is raised in the route body. Then the service
-(`404 not_found` for a deleted or unknown project, `501` for a known key not built on the route,
-`422 window_too_large` of a window with `from` or `to` left out, `503`). Not used: `422 engine_not_enabled`
+the other values, so they come before `404 unknown_metric`, which is raised in the route body. The key check
+(`resolve()`: `404 unknown_metric` for an unknown key, `501` for a known key not built on the route, `422` at
+`entity_ids` for a key that does not take it) reads nothing and runs in the route body before the service, so
+`501` for a known unbuilt key comes before the project `404`: a deleted project with `ai.sentiment` answers
+`501 not_implemented`, with `ai.nope` `404 unknown_metric`. Then the service (`404 not_found` for a deleted or
+unknown project, `422 window_too_large` of a window with `from` or `to` left out, `503`). Not used: `422 engine_not_enabled`
 (a listed engine that is neither enabled nor answering is left out of the engines shown: no data is not an
 error; a code outside the three engines is `422`, as on the sources routes) and
 `422 observation_classes_not_poolable` (no pooling option exists).
@@ -635,8 +640,8 @@ Each row can be tightened by WP-32 through the change log. The rows Q8 to Q10 ar
    both files in its own commit).
 2. Task 3 (overview): `api/ai/metrics.py` with the registry, the mapping and `MetricsService.overview`;
    routes 1 and 2 drop `@not_built`. One summary read, then the sources lane's role totals for citation share.
-3. Task 4 (value and series): `resolve(key, route)` in the route body (`404 unknown_metric` before any read, `501`
-   for a key not built); `MetricsService.metric` and `series`; routes 3 and 4 drop `@not_built`.
+3. Task 4 (value and series): `resolve(key, route)` in the route body (`404 unknown_metric` and `501` for a key not
+   built, both before any read and so before the project `404`); `MetricsService.metric` and `series`; routes 3 and 4 drop `@not_built`.
 4. Task 5 (breakdown): `api/ai/metrics_repository.py` (`prompt_attributes`), `reduce_cells`,
    `MetricsService.breakdown`, `BREAKDOWN_MAX = 300`; route 5 drops `@not_built`. Second push: the five routes built.
 5. Task 8: the card read test over the map above, the scope guards, the statement table measured, this note's status
@@ -677,3 +682,4 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-32: C-25 `meta.entity_config_changes[].from` as built: the project-local day of the earliest `ai.derivations.created_at` under the version, that is the day the version first derived an answer, not the day the configuration was edited (nothing stores that moment). It is read in the project's timezone, for every request with a prompt in scope, whatever the number of versions (so the statement count does not depend on the data). `aggregation` of an engine average is its inputs' (the value model table says so as the engine average section does).
 2026-11-14 WP-32: C-26 value and series built (routes 3 and 4): measured statements are the summary request plus 2 (transaction scope, `version_starts`: the meta names the days each entity configuration took effect on these routes too, C-21), `ai.citation_share` plus 3; none when no prompt is in scope; the same on 14 answers and on the full project. `compare` adds the summary's own read (+1, and +1 more with `entity_ids`, for the entities' previous cells). The table above had 0 for the value and series rows.
 2026-11-14 WP-32: C-27 reading of the contract where the note was silent: with `entity_ids` the values (and series) are per engine in code order and, within an engine, the entities in the summary's cell order (own first), in place of the engine's own cells, then one `engine_average` per entity in that order (value route only); the entity values say "the entity" in `method`; an empty `entity_ids` is no `entity_ids`. A series point is `is_partial` for a week cut by a window bound or holding today in the project's zone. The four `ai.sentiment` sub keys are `positive`, `neutral`, `negative` and `mixed` (doc 19 names them; this note said "four `.x` keys"). The detail of `501` for a key that is built but not for the series route is `Not built yet: <key> on series.`; a known key that is not built is `Not built yet: <key>.`. `entity_ids` on a key that does not take it is `422` at `entity_ids` with code `not_supported`.
+2026-11-14 WP-32: C-28 order of the key checks: `resolve()` runs in the route body, before any read, and raises `404 unknown_metric` for an unknown key, `501` naming the key for a known key not built (on the route), and `422` at `entity_ids` for a key that does not take it, in that order. So `501` for a known unbuilt key comes before the project `404 not_found` (a deleted project with `ai.sentiment` answers `501 not_implemented`; with `ai.nope`, `404 unknown_metric`); the service's `404 not_found` follows. An empty `entity_ids=` is no `entity_ids`: `200` with the engines' own values, also on a key that does not take `entity_ids`.
