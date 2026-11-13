@@ -6250,6 +6250,20 @@
       "note": "Only the prompts set in {country} are read.",
       "noteUnset": "Prompts with no country are left out."
     },
+    "mobile": {
+      "domainsCaption": "Cited domains",
+      "pagesCaption": "Cited pages",
+      "newCaption": "New sources",
+      "lostCaption": "Lost sources",
+      "shareLabel": "Source share",
+      "unitsLabel": "Citation units",
+      "unitsBeforeLabel": "Units before it went quiet",
+      "domainContext": "{role}, {units, number} of {total, number} units",
+      "pageContext": "{role}, {units, number} of {total, number} units",
+      "newContext": "{role}, first cited {date}",
+      "lostContext": "{role}, quiet for 2 windows",
+      "shareUnknown": "Share n/a"
+    },
     "inspectors": {
       "domain": {
         "type": "Domain",
