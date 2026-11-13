@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
  */
 export function PendingSkeleton(): ReactElement {
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4">
       <Skeleton shape="text-14" widthPct={48} />
       <Skeleton shape="block" height="chart-180" />
     </div>

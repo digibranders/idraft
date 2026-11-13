@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import { metaLine } from './meta-line';
 
+// Built from code points, so this file does not contain the characters it looks for.
+const DASHES = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`);
+
 describe('metaLine', () => {
   it('joins the facts with a middle dot, freshness first', () => {
     expect(metaLine(['AI updated Nov 12, 02:10', '250 prompts', '3 engines'])).toBe(
@@ -25,6 +28,6 @@ describe('metaLine', () => {
   });
 
   it('writes no em-dash or en-dash', () => {
-    expect(metaLine(['a', 'b', 'c'])).not.toMatch(/[–—]/);
+    expect(metaLine(['a', 'b', 'c'])).not.toMatch(DASHES);
   });
 });

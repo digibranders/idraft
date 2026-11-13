@@ -11,6 +11,31 @@ import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { overviewProject } from '@/test/ai-overview-harness';
 import { renderWithProviders } from '@/test/render';
+// A card imports these from the feature's entry, so the entry must export them (plan section 5, items 4 and 5)
+import type {
+  OverviewEngines,
+  OverviewFanoutMeta,
+  OverviewPeriods,
+  OverviewSchedule,
+  OverviewSourcesMeta,
+  Read,
+  ReadStatus,
+  SourcesOptions,
+  SummaryOptions,
+} from '.';
+
+/** Type level only: it fails the typecheck when the entry stops exporting a type a card needs. */
+export type EntryTypes = [
+  OverviewEngines,
+  OverviewFanoutMeta,
+  OverviewPeriods,
+  OverviewSchedule,
+  OverviewSourcesMeta,
+  Read<string>,
+  ReadStatus,
+  SourcesOptions,
+  SummaryOptions,
+];
 
 beforeEach(() => {
   vi.setSystemTime(new Date('2026-11-12T12:00:00Z'));

@@ -90,12 +90,16 @@ describe('the AI visibility page of a project with engines on', () => {
         .getAllByRole('heading', { level: 2 })
         .map((heading) => heading.textContent),
     ).toEqual(names);
-    expect(within(cardsRegion()).getAllByText('This card is not built yet')).toHaveLength(9);
-    expect(
-      within(cardsRegion()).getAllByText(
-        'It will show here as soon as its data is ready. You can keep it in your layout.',
-      ),
-    ).toHaveLength(9);
+    const reason = 'This card is being built. You can keep it in your layout.';
+    const bodies = cardsRegion().querySelectorAll('[data-slot="pending-card"]');
+    expect(bodies).toHaveLength(9);
+    for (const body of bodies) {
+      expect(body.querySelector('p.type-subsection-title')).toHaveTextContent('This card is not built yet');
+      expect(body.querySelector('p.type-body')).toHaveTextContent(reason);
+      // No Table view or menu on a card with nothing to show
+      expect(within(body as HTMLElement).queryAllByRole('button')).toHaveLength(0);
+    }
+    expect(within(cardsRegion()).getAllByText(reason)).toHaveLength(9);
   });
 
   it('does not offer Customize while the engines load, and offers it once they are read', async () => {

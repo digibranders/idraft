@@ -4333,9 +4333,8 @@
       "askAdmin": "Ask a workspace admin to turn on an engine"
     },
     "pending": {
-      "summary": "A placeholder for the card {name}, which is not built yet.",
       "title": "This card is not built yet",
-      "reason": "It will show here as soon as its data is ready. You can keep it in your layout."
+      "reason": "This card is being built. You can keep it in your layout."
     },
     "presets": {
       "executive": "Executive summary",

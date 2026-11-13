@@ -40,9 +40,12 @@ describe('the card registry of the AI visibility Overview', () => {
     );
   });
 
-  it('starts with the five family maps empty, each a record of registrations', () => {
+  it('has family maps whose keys are active card types of the screen and whose values can load', () => {
     for (const family of [ENGINE_CARDS, COMPETITOR_CARDS, TOPIC_CARDS, SOURCE_CARDS, ACTIVITY_CARDS]) {
-      expect(family).toEqual({});
+      for (const [key, registration] of Object.entries(family)) {
+        expect(ACTIVE_TYPES).toContain(key);
+        expect(registration.load).toBeTypeOf('function');
+      }
     }
   });
 });

@@ -26,7 +26,7 @@ export function EnginesError(): ReactElement {
           : { id, label: status('errorId', { id }), copyLabel: status('copyErrorId'), copiedLabel: status('copied') }
       }
       onRetry={engines.refetch}
-      retrying={engines.status === 'loading'}
+      retrying={false}
       retryLabel={common('retry')}
     />
   );

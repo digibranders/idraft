@@ -17,5 +17,13 @@ export {
 export type { OverviewContextValue, OverviewProject, OverviewProviderProps } from './overview-context';
 export type { OverviewScope, ScopePatch } from './scope/scope-model';
 export type { Read, ReadStatus } from './data/read-state';
+export type { SourcesOptions, SummaryOptions } from './data/overview-queries';
+export type {
+  OverviewEngines,
+  OverviewFanoutMeta,
+  OverviewPeriods,
+  OverviewSchedule,
+  OverviewSourcesMeta,
+} from './data/use-overview-reads';
 export { buildAggregates } from './data/aggregates';
 export type { OverviewAggregates } from './data/aggregates';

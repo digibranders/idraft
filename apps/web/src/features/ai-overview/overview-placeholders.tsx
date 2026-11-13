@@ -42,8 +42,8 @@ export function StripPlaceholder(): ReactElement {
 export function ScopeBarPlaceholder(): ReactElement {
   return (
     <div aria-hidden="true" className="flex h-control items-center gap-2">
-      <span className="h-control w-44 animate-skeleton-pulse rounded-md bg-surface-subtle" />
-      <span className="h-control w-32 animate-skeleton-pulse rounded-md bg-surface-subtle" />
+      <span className="h-control w-44 animate-skeleton-pulse rounded-md border border-border bg-surface" />
+      <span className="h-control w-32 animate-skeleton-pulse rounded-md border border-border bg-surface" />
     </div>
   );
 }
