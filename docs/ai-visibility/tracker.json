@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T12:09:13+05:30",
+ "updated": "2026-11-13T12:12:38+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -587,7 +587,7 @@
     "done": 5
    },
    "owner": "",
-   "notes": "file work-packages/WP-14-sources-lane.md; estimate 8 tasks; decisions D-41 | steps 6/10: T1 contract on develop; T2-T5 + T8b committed and backed up (origin/ai/wp-14-sources-lane); T5 in review"
+   "notes": "file work-packages/WP-14-sources-lane.md; estimate 8 tasks; decisions D-41 | steps 8/10, rows 18/21; T1-T7 incl O1 committed (backup on origin/ai/wp-14-sources-lane); next T8 fan-out topics, T9, T10 regeneration on top of WP-12 and WP-13"
   },
   {
    "id": "WP-15",
@@ -4173,7 +4173,7 @@
    "date": "2026-11-13T06:49:17+05:30",
    "title": "Flagged citations (unresolved redirects, engine-internal) excluded from shares by default with two toggles",
    "reason": "doc 14 section 9 and doc 19 say so; today Gemini grounding links rank google.com as a source",
-   "effect": "changes numbers of existing source reads; its own commit T7; flipping back is one line; owner to confirm in the morning",
+   "effect": "Built as its own commit d13a793b; default is ONE constant FLAGGED_COUNTED_BY_DEFAULT = False in source_routes.py (flip back = that line plus default-pin tests). Numbers that move (toggles off): Gemini grounding-redirect rows (vertexaisearch.cloud.google.com/grounding-api-redirect) leave the counts, so the google.com third-party row on Gemini disappears and source_share denominators, citation_units, answers_citing, by_role, series, previous, engines[] units fall (shares rise); pages redirect rows leave; changes: google.com no longer new or lost because of redirects; diversity values for Gemini change; domain detail where flagged citations exist. NOT moving: citations list, fanout-queries, meta.answers, ads presence, prompts summary. engine_internal is never set by ingest today. Owner confirms in the morning.",
    "status": "approved by coordinator, owner to confirm"
   }
  ],
