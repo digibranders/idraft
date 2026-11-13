@@ -199,6 +199,8 @@ describe('the weeks of a series', () => {
     const cells = promptCells('chatgpt_web', COUNTS);
     expect(weekCells('2026-11-09', cells)).toEqual({
       week_start: '2026-11-09',
+      prompts: 1,
+      is_pooled: false,
       mentioned: cells.mentioned,
       cited: cells.cited,
       share_of_voice: cells.share_of_voice,

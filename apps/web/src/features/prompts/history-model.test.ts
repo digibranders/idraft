@@ -22,6 +22,8 @@ const cell = (k: number, n: number): MetricCell => ({
 });
 const week = (weekStart: string, k: number, n: number): WeekCells => ({
   week_start: weekStart,
+  prompts: 1,
+  is_pooled: false,
   mentioned: cell(k, n),
   cited: cell(0, n),
   share_of_voice: cell(0, 0),

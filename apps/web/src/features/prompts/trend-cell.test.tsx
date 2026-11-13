@@ -22,6 +22,8 @@ vi.mock('@/components/app/sparkline/sparkline-cell', () => ({
 const cell = (value: number): MetricCell => ({ value, numerator: value * 8, denominator: 8, n_observations: 8 });
 const week = (weekStart: string, value: number): WeekCells => ({
   week_start: weekStart,
+  prompts: 1,
+  is_pooled: false,
   mentioned: cell(value),
   cited: cell(0),
   share_of_voice: cell(0),

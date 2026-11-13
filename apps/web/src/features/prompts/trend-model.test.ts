@@ -14,6 +14,8 @@ const cell = (value: number | null, denominator = MIN_OBSERVATIONS, pooledTrials
 });
 const week = (weekStart: string, value: number | null, denominator = MIN_OBSERVATIONS): WeekCells => ({
   week_start: weekStart,
+  prompts: 1,
+  is_pooled: false,
   mentioned: cell(value, denominator),
   cited: cell(null),
   share_of_voice: cell(null),

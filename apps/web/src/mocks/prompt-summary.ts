@@ -158,9 +158,16 @@ export function summaryWeeks(first: string, last: string): string[] {
   return weeks;
 }
 
-/** One point of a series: the week, and the cells of the engine row over the week's answers. */
+/**
+ * One point of a series: the week, and the cells of the engine row over the week's answers. `prompts` is the row's
+ * prompts with a valid answer that week: a prompt cell (`pooled` null) holds answers, so it is 1 or 0; a topic cell
+ * is prompt weighted, so its denominator is the count. The mock never pools (`is_pooled` false, no `pool`: the API
+ * pools prompt points and topic points under 10 prompts, contract C2 C-11).
+ */
 export const weekCells = (weekStart: string, cells: EngineSummary): WeekCells => ({
   week_start: weekStart,
+  prompts: cells.mentioned.pooled === null ? Number(cells.mentioned.denominator > 0) : cells.mentioned.denominator,
+  is_pooled: false,
   mentioned: cells.mentioned,
   cited: cells.cited,
   share_of_voice: cells.share_of_voice,

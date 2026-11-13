@@ -1169,7 +1169,7 @@ export interface paths {
         };
         /**
          * Mentioned, Cited, outcomes and Share of voice per prompt, engine and topic
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came. `include=series` adds a point for each week the window touches (weeks start on Monday in the project's timezone), with Mentioned, Cited and Share of voice over the week's answers. The first and last points may be partial weeks (cut at the window bounds; the first `week_start` can precede `window.from`). On a prompt row the weeks' numerators, denominators and n_observations add up to the window cell. On a topic row the weekly Mentioned and Cited are prompt weighted per week, so their numerators and denominators (sums of per-week prompt rates and prompt counts) do not add up to the window cell, while `pooled`, Share of voice and n_observations do. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most 20); across all the entities an answer names, its shares add up to 1. Blocks not asked for are left out. `compare`, `include=total`, `include=co_mentions`, `rows`, `filter[outcome]`, `filter[opportunity]` and `group_by` are published and not built yet (`501`).
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came. `include=series` adds a point for each week the window touches (weeks start on Monday in the project's timezone), with Mentioned, Cited and Share of voice over the week's answers. The first and last weeks may be partial (cut at the window bounds; the first `week_start` can precede `window.from`). A point of a prompt row always holds the trailing four weeks to its week, and one of a topic, total or country row does when fewer than 10 of its prompts answered that week (`is_pooled`, `pool`, `prompts`): a pooled point never reaches outside the window, so the first points hold fewer weeks, and the points of a prompt row do not add up to its window cell. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most 20); across all the entities an answer names, its shares add up to 1. With `include=series` too, each point also holds those cells over the very weeks the point holds (its own week, or the weeks it pools), as `entities`, without `previous`. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier; 29 February becomes the 28th) or `compare_from` with `compare_to` (both or neither, at most 92 days, any position; they win over `compare`) add `compare_window` and `previous_answers` (the valid answers in scope there), and `previous` beside each engine's cells, and beside each entity's with `include=entities`: null when none of the row's prompts has an answer of the engine in that window, cells with a denominator of 0 when it has answers and none valid. `include=total` adds `total`: every prompt in scope as one row, aggregated as a topic row is, with the `previous`, `series` and `entities` blocks when asked. `rows=topics` leaves the prompt rows out and `rows=none` both row lists; `total` does not depend on `rows`. `include=co_mentions` adds `co_mentions`: per engine shown, the valid answers in scope and, for each pair of the tracked entities (the own ones first, at most 20) named in the same valid answer, how many answers name both; it does not depend on `rows`. `include=cells` adds `detail` to every engine of the rows, `total` and `by_country`: Cited among the answers with citations, the own share of the citation units, First mention (the own brand named before any other tracked entity, of the answers that name it) and the fan-out presence and mean (null on an engine that does not expose fan-out), over the window alone, with `metric_context.detail`. Blocks not asked for are left out. `filter[outcome]=O` keeps a prompt row when at least one of its valid answers in the window, on the engines shown, had outcome O; `filter[opportunity]` keeps it by the same rule: `named_not_cited` is outcome `mentioned_only`, `cited_not_named` is `cited_only`, `nobody_named` is no tracked entity named, `lost_to:<entity_id>` is that competitor named and the own brand not (an id that is not a competitor of the project keeps no row and is not an error). With both, a row must pass each. They narrow `prompts` only: cells, topic rows, `total`, `co_mentions` and `prompt_count` still count every prompt in scope. `group_by=country` adds `by_country`: one entry per market of the prompts in scope (the prompt's own, sorted by code), with the engines built as a topic row of those prompts and the blocks the rows carry when asked; a prompt without a market is in no entry, and the block does not depend on `rows`, the outcome or opportunity filters.
          */
         get: operations["prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get"];
         put?: never;
@@ -3800,6 +3800,25 @@ export interface components {
          * @enum {string}
          */
         EngineCode: "chatgpt_web" | "gemini_web" | "google_ai_mode";
+        /**
+         * EngineDetailCells
+         * @description The small cells of one engine over the window (contract C2, change log C-9): each is a
+         *     count of answers over another, with `value` null when the denominator is 0. In a topic, total
+         *     or country row the three rates are prompt weighted (`pooled` holds the answers) and the
+         *     share and the mean are sums over sums.
+         */
+        EngineDetailCells: {
+            /** @description The own domain's citation units over all the citation units of the valid answers (docs/16 A8): a unit is a distinct canonical URL of an answer. */
+            citation_share: components["schemas"]["MetricCell"];
+            /** @description Valid answers that cite the own domain over valid answers with at least one citation (docs/16 A2 variant). */
+            cited_given_citations: components["schemas"]["MetricCell"];
+            /** @description Fan-out queries over the valid answers that have some (docs/16 F2). Null on an engine that does not expose fan-out, never 0. */
+            fanout_mean: components["schemas"]["MetricCell"] | null;
+            /** @description Valid answers with at least one fan-out query over valid answers (docs/16 F1). Null on an engine that does not expose fan-out, never a rate of 0. */
+            fanout_presence: components["schemas"]["MetricCell"] | null;
+            /** @description Valid answers that name the own brand before any other tracked entity over valid answers that name it (docs/16 A12). */
+            first_mention: components["schemas"]["MetricCell"];
+        };
         /** EngineEstimate */
         EngineEstimate: {
             /** Answers Per Month */
@@ -3830,6 +3849,8 @@ export interface components {
         /** EngineSummary */
         EngineSummary: {
             cited: components["schemas"]["MetricCell"];
+            /** @description With `include=cells`: the small cells of the engine over the window, weighted as the row's cells are. Never in `previous` or in a week. Left out otherwise. */
+            detail?: components["schemas"]["EngineDetailCells"] | null;
             /** Engine Code */
             engine_code: string;
             /**
@@ -3839,11 +3860,14 @@ export interface components {
             entities?: components["schemas"]["EntityCells"][] | null;
             mentioned: components["schemas"]["MetricCell"];
             outcomes: components["schemas"]["OutcomeCells"];
-            /** @description With `compare=previous_period`: the same cells over `compare_window`, null when the engine had no answer of the row's prompts there (no data is not a rate of 0). Not returned yet: absent from every response until it is built. */
+            /**
+             * Previous
+             * @description With a compare window: the same cells over `compare_window`. Null when none of the row's prompts has an answer of any status on the engine there (no data is not a rate of 0); with answers but no valid one, cells with a denominator of 0 and no value. Left out when no compare window was asked for.
+             */
             previous?: components["schemas"]["EngineCells"] | null;
             /**
              * Series
-             * @description With `include=series`: a point for each week the window touches, oldest first, at most 14; a week without answers has counts of 0. The first and last points may be partial weeks (cut at the window bounds). On a prompt row the weeks add up to the window cell; on a topic row only `pooled`, share of voice and `n_observations` do, as `mentioned` and `cited` are prompt weighted per week. Left out otherwise.
+             * @description With `include=series`: a point for each week the window touches, oldest first, at most 14; a week without answers has counts of 0. The first and last weeks may be partial (cut at the window bounds). The points of a prompt row are always pooled over the trailing four weeks; those of a topic, total or country row are when fewer than 10 of its prompts answered that week (`is_pooled`, `pool`). A pool stays inside the window. Left out otherwise.
              */
             series?: components["schemas"]["WeekCells"][] | null;
             share_of_voice: components["schemas"]["MetricCell"];
@@ -3920,7 +3944,10 @@ export interface components {
             entity_id: string;
             /** @description Valid answers whose share of voice set names the entity. */
             mentioned: components["schemas"]["MetricCell"];
-            /** @description With `compare=previous_period`: the cells over `compare_window`, null when the entity had no answer there; never set inside a week. Not returned yet: absent from every response until it is built. */
+            /**
+             * Previous
+             * @description With a compare window and `include=entities`: Mentioned and Share of voice over `compare_window`. Null exactly when the engine's `previous` is null, that is, when none of the row's prompts has an answer of the engine there; otherwise cells, an entity not named in the valid answers being 0 of their number. Never set inside a week. Left out when no compare window was asked for.
+             */
             previous?: components["schemas"]["EntityPreviousCells"] | null;
             /** @description The entity's share of each answer that names a tracked entity: 1 / the tracked entities the answer names. */
             share_of_voice: components["schemas"]["MetricCell"];
@@ -5967,6 +5994,31 @@ export interface components {
             token: string;
         };
         /**
+         * PointPool
+         * @description What a pooled point holds: the answers of its own week and of the weeks before it, inside
+         *     the window (contract C2, change log C-11).
+         */
+        PointPool: {
+            /**
+             * Below Prompts
+             * @description The number of prompts under which a topic, total or country point pools.
+             */
+            below_prompts: number;
+            /**
+             * Reason
+             * @description `prompt_point`: the point is of a prompt row, which always pools. `few_prompts`: the point is of a topic, total or country row and fewer than `below_prompts` of its prompts answered that week.
+             * @enum {string}
+             */
+            reason: "prompt_point" | "few_prompts";
+            /**
+             * Weeks
+             * @description The weeks pooled, 1 to 4: fewer than 4 when the window opens inside the four weeks before the point.
+             */
+            weeks: number;
+            /** @description The first and last day the pool covers, never outside the response's `window`. */
+            window: components["schemas"]["MetricWindow"];
+        };
+        /**
          * Pooled
          * @description The raw counts behind a prompt weighted rate: "2 of 5 answers".
          */
@@ -6935,15 +6987,15 @@ export interface components {
             branded_only: boolean;
             /**
              * By Country
-             * @description With `group_by=country`: the engine cells per prompt country. Not returned yet: absent from every response until it is built.
+             * @description With `group_by=country`: one entry per market (`country_iso`) of the prompts in scope, sorted by code, each with the engines built as a topic row of those prompts (the same blocks the rows carry when asked). The market is the prompt's, not the location of its answers; a prompt without a market is in no entry, and a market with prompts and no answer has an entry of zero cells. `filter[country_iso]` leaves that one entry. It does not depend on `rows`. Left out otherwise.
              */
             by_country?: components["schemas"]["CountrySummary"][] | null;
             /**
              * Co Mentions
-             * @description With `include=co_mentions`: per engine, how often two tracked entities are named in one valid answer. Not returned yet: absent from every response until it is built.
+             * @description With `include=co_mentions`: one entry per engine shown, with how often two tracked entities are named in one valid answer. It does not depend on `rows`. Left out otherwise.
              */
             co_mentions?: components["schemas"]["EngineCoMentions"][] | null;
-            /** @description With `compare=previous_period`: as many days just before `window`. Not returned yet: absent from every response until it is built. */
+            /** @description With a compare window (`compare`, or `compare_from` and `compare_to`): the days compared with. The window before `window`, as many days, for `previous_period`; the same dates a year earlier for `previous_year`; the two dates given, which win over `compare`. */
             compare_window?: components["schemas"]["MetricWindow"] | null;
             /** Engine Codes */
             engine_codes: string[];
@@ -6965,14 +7017,14 @@ export interface components {
             metric_context: components["schemas"]["SummaryMetricContext"];
             /**
              * Previous Answers
-             * @description With `compare`: the valid answers in scope in that window; 0 means it has no data. Not returned yet: absent from every response until it is built.
+             * @description With a compare window: the valid answers in scope in that window, on the engines shown; 0 means it has no data.
              */
             previous_answers?: number | null;
             /** Prompts */
             prompts: components["schemas"]["PromptSummaryRow"][];
             /** Topics */
             topics: components["schemas"]["TopicSummaryRow"][];
-            /** @description With `include=total`. Not returned yet: absent from every response until it is built. */
+            /** @description With `include=total`: every prompt in scope as one row, aggregated as a topic row is, and carrying the blocks the rows carry when asked. It does not depend on `rows`. Left out otherwise. */
             total?: components["schemas"]["SummaryTotal"] | null;
             window: components["schemas"]["MetricWindow"];
         };
@@ -8466,6 +8518,17 @@ export interface components {
              */
             t: string;
         };
+        /**
+         * SummaryDetailContext
+         * @description What is true of every cell of `EngineSummary.detail` in the response.
+         */
+        SummaryDetailContext: {
+            citation_share: components["schemas"]["MetricContext"];
+            cited_given_citations: components["schemas"]["MetricContext"];
+            fanout_mean: components["schemas"]["MetricContext"];
+            fanout_presence: components["schemas"]["MetricContext"];
+            first_mention: components["schemas"]["MetricContext"];
+        };
         /** SummaryEntity */
         SummaryEntity: {
             /**
@@ -8484,6 +8547,8 @@ export interface components {
         /** SummaryMetricContext */
         SummaryMetricContext: {
             cited: components["schemas"]["MetricContext"];
+            /** @description With `include=cells`: how the cells of `detail` are weighted. Left out otherwise. */
+            detail?: components["schemas"]["SummaryDetailContext"] | null;
             mentioned: components["schemas"]["MetricContext"];
             outcomes: components["schemas"]["MetricContext"];
             share_of_voice: components["schemas"]["MetricContext"];
@@ -8505,7 +8570,10 @@ export interface components {
              * @description The newest valid answer counted in the window, on the engines shown; null if none.
              */
             last_valid_at: string | null;
-            /** Prompt Count */
+            /**
+             * Prompt Count
+             * @description The prompts in scope, whatever the engines shown.
+             */
             prompt_count: number;
         };
         /** Term */
@@ -9539,21 +9607,35 @@ export interface components {
         };
         /**
          * WeekCells
-         * @description One week of a series: the week's answers inside the window, weighted as the window's. The
-         *     first and last weeks may be partial (cut at the window bounds), so the first `week_start` can
-         *     precede `window.from`. On a prompt row the weeks add up to the window cell. On a topic row
-         *     the weekly `mentioned` and `cited` are prompt weighted per week, so their numerators and
-         *     denominators do not add up to the window cell, while `pooled`, share of voice and
-         *     `n_observations` do.
+         * @description One point of a series, for the week starting `week_start`. It holds the answers of that
+         *     week alone when `is_pooled` is false (a topic, total or country row with enough prompts
+         *     answering). Otherwise it holds the trailing four weeks to that week, inside the window, and
+         *     `pool` says which days (a prompt row always pools: one prompt answers once or twice a week).
+         *     A pooled prompt cell is answers over answers. A pooled topic, total or country cell sums
+         *     each prompt's counts over the pooled weeks first and is then prompt weighted, as the window
+         *     cell is. The points of a prompt row therefore do not add up to its window cell. Weeks before
+         *     the window are never read, so the first points of a window pool fewer weeks.
          */
         WeekCells: {
             cited: components["schemas"]["MetricCell"];
             /**
              * Entities
-             * @description With `include=series,entities`: the week's cells per tracked entity, weighted as the week's own (at most 20). Not returned yet: absent from every response until it is built.
+             * @description With `include=series,entities`: the cells of each tracked entity of the engine's `entities` (the own ones first, at most 20) over the weeks the point holds: its own week, or, when `is_pooled`, the weeks of `pool`. Weighted as the point's own cells are: Mentioned prompt weighted in a topic, total or country row. Has no `previous`. Left out otherwise.
              */
             entities?: components["schemas"]["EntityCells"][] | null;
+            /**
+             * Is Pooled
+             * @description Whether the cells hold more than the week's own answers.
+             */
+            is_pooled: boolean;
             mentioned: components["schemas"]["MetricCell"];
+            /** @description Present exactly when `is_pooled`: the weeks and days the cells hold, and why. */
+            pool?: components["schemas"]["PointPool"] | null;
+            /**
+             * Prompts
+             * @description The prompts of the row with a valid answer on the engine in that week alone, whether the point is pooled or not.
+             */
+            prompts: number;
             share_of_voice: components["schemas"]["MetricCell"];
             /**
              * Week Start
@@ -12161,17 +12243,21 @@ export interface operations {
                 "filter[country_iso]"?: string | null;
                 /** @description The prompts given the term or one under it. */
                 "filter[term]"?: string | null;
-                /** @description Blocks to add: `series`, `entities`; `total` and `co_mentions` are not built yet (`501`). */
-                include?: ("series" | "entities" | "total" | "co_mentions")[] | null;
-                /** @description `previous_period` adds `previous` cells. Not built yet: `501`. */
-                compare?: "none" | "previous_period";
-                /** @description `topics` leaves the prompt rows out, `none` both row lists (with `include=total`). Left out: every row. Not built yet: `501`. */
+                /** @description Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`. */
+                include?: ("series" | "entities" | "total" | "co_mentions" | "cells")[] | null;
+                /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. Adds `compare_window`, `previous_answers` and `previous` cells. */
+                compare?: "none" | "previous_period" | "previous_year";
+                /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
+                compare_from?: string | null;
+                /** @description Last day of the window to compare with, included; at most 92 days from `compare_from`. */
+                compare_to?: string | null;
+                /** @description `topics` leaves the prompt rows out, `none` both row lists (with `include=total`). Left out: every row. `total`, `co_mentions` and `by_country` do not depend on it. */
                 rows?: ("topics" | "none") | null;
-                /** @description Prompt rows by outcome. Not built yet: `501`. */
+                /** @description Prompt rows with at least one valid answer of this outcome, on the engines shown. Narrows `prompts` only. */
                 "filter[outcome]"?: ("mentioned_and_cited" | "mentioned_only" | "cited_only" | "neither") | null;
-                /** @description `named_not_cited`, `cited_not_named`, `nobody_named` or `lost_to:<entity_id>`. Not built yet: `501`. */
+                /** @description Prompt rows with at least one valid answer that is `named_not_cited`, `cited_not_named`, `nobody_named` or `lost_to:<entity_id>` (a competitor named, the own brand not), on the engines shown. Narrows `prompts` only. */
                 "filter[opportunity]"?: string | null;
-                /** @description `country` adds `by_country`. Not built yet: `501`. */
+                /** @description `country` adds `by_country`. `language` is not built (the language half of BE-METRICS-22 is not in contract C2): `422`, as any other value. */
                 group_by?: "country" | null;
             };
             header?: never;
@@ -15677,8 +15763,8 @@ export const pathsApiV1WorkspacesWorkspace_idKeywordsKeyword_idMetricsHistoryGet
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCitationsGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["complete", "partial", "empty", "refused", "error"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["include"]> = ["series", "entities", "total", "co_mentions"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["include"]> = ["series", "entities", "total", "co_mentions", "cells"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryRowsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["rows"]> = ["topics", "none"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryFilterOutcomeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["filter[outcome]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesChangesGetParametersQueryKindValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/changes"]["get"]["parameters"]["query"]["kind"]> = ["new", "lost"];
@@ -15798,6 +15884,7 @@ export const observationFactsOutcomeAnyOf0Values: ReadonlyArray<FlattenedDeepReq
 export const observationSummaryStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationSummary"]["status"]> = ["complete", "partial", "empty", "refused", "error"];
 export const operationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["kind"]> = ["collection_run", "keyword_import"];
 export const operationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["status"]> = ["queued", "running", "waiting_for_input", "succeeded", "succeeded_with_errors", "failed", "cancelled", "blocked"];
+export const pointPoolReasonValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PointPool"]["reason"]> = ["prompt_point", "few_prompts"];
 export const progressUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Progress"]["unit"]> = ["tasks", "rows", "observations", "days", "items"];
 export const projectStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Project"]["status"]> = ["active", "paused", "archived"];
 export const projectDomainMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectDomain"]["match_scope"]> = ["path_prefix", "host", "registrable"];

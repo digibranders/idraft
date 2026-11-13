@@ -43,6 +43,8 @@ const cell = (value: number | null, answers = 4): MetricCell => ({
 });
 const week = (weekStart: string, value: number | null, answers = 4): WeekCells => ({
   week_start: weekStart,
+  prompts: 1,
+  is_pooled: false,
   mentioned: cell(value, answers),
   cited: cell(null),
   share_of_voice: cell(null),
