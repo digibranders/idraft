@@ -77,7 +77,9 @@ function serveChanges(previousAnswers = 5000): void {
       return HttpResponse.json(changePage(kind, [changeRow({ domain: 'a.com', now: 4, before: 0 })], { total: 37 }));
     }),
     http.get(DOMAINS, () =>
-      HttpResponse.json(domainPage([], sourcesMeta({ units: 900, answers: previousAnswers, engines: ['chatgpt_web'] }))),
+      HttpResponse.json(
+        domainPage([], sourcesMeta({ units: 900, answers: previousAnswers, engines: ['chatgpt_web'] })),
+      ),
     ),
   );
 }

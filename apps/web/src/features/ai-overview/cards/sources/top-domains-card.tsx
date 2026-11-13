@@ -1,13 +1,15 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 
 import { MIN_DOMAIN_UNITS } from './data/source-filters';
 import { useSourceDomains } from './data/source-reads';
 import { domainRows, type DomainFigures } from './model/domain-rows';
+import { roleGroups } from './model/role-groups';
 import { useCitationsDrill } from './parts/drill';
 import { useFrameState, type DataSituation } from './parts/frame-state';
+import { RoleGroupedList, RoleGroupedTable, type RoleLine, type RoleSectionView } from './parts/role-grouped-list';
 import { footnoteLines, metaLine } from './parts/source-meta';
 import { engineLabel } from '../engines/engine-role';
 import { useCardDensity } from '../engines/use-card-density';
@@ -25,9 +27,12 @@ import { DomainRoleBadge } from '@/components/app/cells/domain-cell';
 import { visibleUrlText } from '@/components/app/cells/visible-text';
 import { MetricInfo } from '@/components/app/metric/metric-info';
 import { SampleCount } from '@/components/app/metric/sample-count';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import type { CardProps } from '@/features/layouts';
+import { announce } from '@/lib/a11y/announcer';
 import { METHODOLOGY_HREF } from '@/lib/citations/methodology';
 import type { DomainRole } from '@/lib/citations/types';
+import { safeText, type CsvCell, type CsvTable } from '@/lib/csv/csv-write';
 import { displayDomain, formatInteger, formatList, formatPercent, formatPointsDelta } from '@/lib/format';
 
 /** The `rows` option (catalog 5, 8 or 10, default 8). */
@@ -50,6 +55,10 @@ const ROLE_KEY = { own: 'own', competitor: 'competitor', third_party: 'thirdPart
 /** How many leaders the summary names. */
 const SUMMARY_LEADERS = 3;
 
+/** The views of the card: the ranked bars, or the same domains grouped under their role (CH-34). */
+type View = 'bars' | 'roles';
+const VIEWS = ['bars', 'roles'] as const satisfies readonly View[];
+
 /**
  * CH-07: the domains answers cite most, by citation units, yours in `chart-1`. The units of every engine in scope are
  * one pool (the API aggregates them), so the meta line and the footnote name the engines and each row's tooltip and
@@ -65,6 +74,9 @@ export default function TopDomainsCard({ item, options }: CardProps): ReactEleme
   const citations = useCitationsDrill();
   const limit = rowsOf(options.rows);
   const roles = options.role === undefined ? NO_ROLES : (ROLE_FILTERS[options.role] ?? NO_ROLES);
+  // Viewer state, as on the other cards: not in the address, and the same read serves both views (`meta.by_role` is in it)
+  const [view, setView] = useState<View>('bars');
+  const byRole = view === 'roles';
   const reads = useSourceDomains({ limit, roles, compare: true });
   const page = reads.current.data;
   const previousMeta = reads.previous?.data ?? null;
@@ -78,6 +90,7 @@ export default function TopDomainsCard({ item, options }: CardProps): ReactEleme
     if (page.meta.citation_units === 0) return { kind: 'no_citations', answers: page.meta.answers };
     return figures.length === 0 ? { kind: 'none_listed' } : { kind: 'ready' };
   })();
+  // Both views draw the change of each row, so a missing comparison is said in both
   const frame = useFrameState({
     subject: t('subject'),
     read: reads.current,
@@ -85,6 +98,12 @@ export default function TopDomainsCard({ item, options }: CardProps): ReactEleme
     previousEmpty,
     situation,
   });
+  const changeView = (next: View): void => {
+    setView(next);
+    announce(t('viewAnnounce', { view: next === 'roles' ? t('viewByRole') : t('viewRanked') }), {
+      key: `${item.id}-view`,
+    });
+  };
 
   // A role filter on the card is the filter of the page it opens, so the list behind the inspector matches
   const roleFilter = roles[0];
@@ -152,21 +171,100 @@ export default function TopDomainsCard({ item, options }: CardProps): ReactEleme
     limit: rows.length,
     density,
   };
-  const csv = barListCsv(list, (count) => insufficient('answers', { count }));
+  const barsCsv = barListCsv(list, (count) => insufficient('answers', { count }));
+  const barsTable: CsvTable = {
+    header: [...barsCsv.header, t('roleHeader'), t('enginesHeader')],
+    rows: barsCsv.rows.map((row, index) => {
+      const figure = figures[index];
+      return [
+        ...row,
+        figure === undefined ? null : roleWords(ROLE_KEY[figure.role]),
+        figure === undefined ? null : engineText(figure),
+      ];
+    }),
+  };
+
+  // The By role view: the roles the card shows (all three, or the one its role option asks for) with their listed domains
+  const groups =
+    page === undefined
+      ? []
+      : roleGroups(figures, page.meta).groups.filter((group) => roles.length === 0 || roles.includes(group.role));
+  const countsOf = (units: number, total: number): string => t('unitsOf', { units: formatInteger(units), total });
+  const sections = groups.map((group): RoleSectionView => {
+    const share = formatPercent(group.share.value);
+    const counts = countsOf(group.units, group.share.total);
+    return {
+      role: group.role,
+      title: roleWords(ROLE_KEY[group.role]),
+      totalText: t(group.atLeast ? 'roleTotalAtLeast' : 'roleTotal', { share, counts }),
+      caption: t('roleListCaption', { role: roleWords(ROLE_KEY[group.role]) }),
+      rows: group.rows.map(rowOf),
+      emptyText: t(group.units === 0 && !group.atLeast ? 'roleEmptyNone' : 'roleEmptyCut'),
+      remainderText:
+        group.remainderUnits > 0
+          ? t('roleRemainder', { count: group.remainderUnits, units: formatInteger(group.remainderUnits) })
+          : null,
+    };
+  });
+  const roleScale = Math.max(
+    0,
+    ...sections.flatMap((section) => section.rows.map((row) => (row.value.kind === 'value' ? row.value.value : 0))),
+  );
+  // One line for each listed domain, then the units of its role that the listed domains leave: the Table view and the
+  // export read these, so both cover every unit of the scope that the read tells
+  const roleEntries = groups.flatMap((group) => {
+    const role = roleWords(ROLE_KEY[group.role]);
+    const listed = group.rows.map((figure) => {
+      const row = rowOf(figure);
+      const value = row.value;
+      const line: RoleLine = {
+        id: figure.id,
+        role,
+        label: row.label,
+        share:
+          value.kind === 'value'
+            ? value.valueText
+            : value.kind === 'thin'
+              ? insufficient('answers', { count: value.answers })
+              : '',
+        counts: value.kind === 'value' ? (value.contextText ?? '') : '',
+      };
+      return { line, engines: engineText(figure) };
+    });
+    const rest: { line: RoleLine; engines: string | null }[] =
+      group.remainderUnits > 0
+        ? [
+            {
+              line: {
+                id: `${group.role}|rest`,
+                role,
+                label: t('roleRemainderLabel'),
+                share: '',
+                counts: t('roleRemainderUnits', {
+                  count: group.remainderUnits,
+                  units: formatInteger(group.remainderUnits),
+                }),
+              },
+              engines: null,
+            },
+          ]
+        : [];
+    return [...listed, ...rest];
+  });
+  const rolesTable: CsvTable = {
+    header: [t('roleHeader'), t('labelHeader'), t('valueHeader'), t('contextHeader'), t('enginesHeader')],
+    rows: roleEntries.map(({ line, engines }): CsvCell[] => [
+      line.role,
+      safeText(line.label),
+      line.share === '' ? null : line.share,
+      line.counts,
+      engines,
+    ]),
+  };
+  const exported = byRole ? rolesTable : barsTable;
   useCardExport(item.id, () => {
     if (frame.status === 'loading' || frame.status === 'error') return null;
-    return {
-      id: item.id,
-      header: [...csv.header, t('roleHeader'), t('enginesHeader')],
-      rows: csv.rows.map((row, index) => {
-        const figure = figures[index];
-        return [
-          ...row,
-          figure === undefined ? null : roleWords(ROLE_KEY[figure.role]),
-          figure === undefined ? null : engineText(figure),
-        ];
-      }),
-    };
+    return { id: item.id, header: exported.header, rows: exported.rows };
   });
 
   const shown = frame.status === 'ready' || frame.status === 'refetching';
@@ -177,6 +275,14 @@ export default function TopDomainsCard({ item, options }: CardProps): ReactEleme
       .slice(0, SUMMARY_LEADERS)
       .map((row) => (row.value.kind === 'value' ? `${row.label} ${row.value.valueText}` : row.label)),
   );
+  const roleLeaders = formatList(
+    groups.map((group) =>
+      t(group.atLeast ? 'summaryRoleAtLeast' : 'summaryRolePart', {
+        role: roleWords(ROLE_KEY[group.role]),
+        share: formatPercent(group.share.value),
+      }),
+    ),
+  );
   return (
     <ChartFrame
       kind="html"
@@ -184,10 +290,24 @@ export default function TopDomainsCard({ item, options }: CardProps): ReactEleme
       height={280}
       title={t('title')}
       meta={meta}
+      controls={
+        <SegmentedControl<View>
+          semantics="view"
+          size="sm"
+          label={t('viewLabel')}
+          value={view}
+          onValueChange={changeView}
+          items={VIEWS.map((entry) => ({ value: entry, label: t(entry === 'roles' ? 'viewByRole' : 'viewRanked') }))}
+        />
+      }
       summary={
         page === undefined || rows.length === 0
           ? t('summaryNone')
-          : t('summary', { units: page.meta.citation_units, answers: page.meta.answers, list: leaders })
+          : t(byRole ? 'summaryRoles' : 'summary', {
+              units: page.meta.citation_units,
+              answers: page.meta.answers,
+              list: byRole ? roleLeaders : leaders,
+            })
       }
       footnote={
         page === undefined ? undefined : (
@@ -221,11 +341,36 @@ export default function TopDomainsCard({ item, options }: CardProps): ReactEleme
               <SampleCount k={page.meta.answers_citing} n={page.meta.answers} noun="answers" />
             </p>
           )}
-          <BarList {...list} />
+          {byRole ? (
+            <RoleGroupedList
+              sections={sections}
+              max={roleScale > 0 ? roleScale : undefined}
+              headers={{ label: t('labelHeader'), value: t('valueHeader'), context: t('contextHeader') }}
+              density={density}
+            />
+          ) : (
+            <BarList {...list} />
+          )}
         </div>
       }
-      table={<BarListTable {...list} />}
-      menu={{ fileName: t('fileName'), csv }}
+      table={
+        byRole ? (
+          <RoleGroupedTable
+            caption={t('roleCaption')}
+            headers={{
+              role: t('roleHeader'),
+              label: t('labelHeader'),
+              share: t('valueHeader'),
+              counts: t('contextHeader'),
+            }}
+            lines={roleEntries.map((entry) => entry.line)}
+            emptyText={t('summaryNone')}
+          />
+        ) : (
+          <BarListTable {...list} />
+        )
+      }
+      menu={{ fileName: t('fileName'), csv: exported }}
       {...frame}
     />
   );
