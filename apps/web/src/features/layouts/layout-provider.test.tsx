@@ -589,30 +589,142 @@ describe('editing cards', () => {
   });
 });
 
-describe('editing numbers', () => {
-  it('adds, moves and removes a number without a word of its own', async () => {
+describe('duplicating a card', () => {
+  it('duplicateCard adds the copy after the source, announces it and focuses its handle', async () => {
     serve();
     mount();
     await customizing();
-    const before = polite();
-    expect(run(() => current().actions.removeNumber('visibility'))).toBe(true);
+    const source = run(() => current().actions.addCard('ai.mention_trend', 0));
+    if (source === null) throw new Error('The card was refused');
+    const copy = run(() => current().actions.duplicateCard(source));
+    expect(copy).toMatch(/^c-[0-9a-f]{8}$/);
+    expect(cardIds().slice(0, 2)).toEqual([source, copy]);
+    expect(current().document.cards?.[1]?.options).toEqual({ engine: 'gemini_web' });
+    expect(current().focus).toEqual({ id: copy, part: 'handle' });
+    await waitFor(() => {
+      expect(polite()).toBe('Mention rate trend: Gemini duplicated, position 2 of 10');
+    });
+  });
+
+  it('duplicateCard returns null when duplicateCard refuses', async () => {
+    serve();
+    mount();
+    await customizing();
+    const changes = current().changes;
+    expectSilent(() => {
+      expect(current().actions.duplicateCard('trend')).toBeNull();
+      expect(current().actions.duplicateCard('nothing')).toBeNull();
+    });
+    expect(current().changes).toBe(changes);
+    expect(current().focus).toBeNull();
+  });
+
+  it('refuses outside customize mode', async () => {
+    serve();
+    mount();
+    await ready();
+    expectSilent(() => {
+      expect(current().actions.duplicateCard('trend')).toBeNull();
+    });
+  });
+});
+
+describe('editing numbers', () => {
+  const numberIds = (): string[] => (current().document.numbers ?? []).map((number) => number.id);
+
+  it('addNumber announces the number and asks focus for its handle in the numbers zone', async () => {
+    serve();
+    mount();
+    await customizing();
+    run(() => current().actions.removeNumber('visibility'));
     const id = run(() => current().actions.addNumber('seo.top3_count'));
     expect(id).toMatch(/^n-[0-9a-f]{8}$/);
     if (id === null) throw new Error('The number was refused');
-    expect(run(() => current().actions.moveNumber(id, 0))).toBe(true);
-    expect(current().document.numbers?.[0]?.id).toBe(id);
-    expect(polite()).toBe(before);
+    expect(numberIds().at(-1)).toBe(id);
+    expect(current().focus).toEqual({ id, part: 'handle', zone: 'numbers' });
+    await waitFor(() => {
+      expect(polite()).toBe('Top 3 added');
+    });
   });
 
-  it('adds a number for one engine and refuses one without its engine', async () => {
+  it('adds a number for one engine, names the engine, and refuses one without its engine', async () => {
     serve();
     mount();
     await customizing();
     run(() => current().actions.removeNumber('mention-chatgpt'));
-    expect(run(() => current().actions.addNumber('ai.mention_rate'))).toBeNull();
+    expectSilent(() => {
+      expect(current().actions.addNumber('ai.mention_rate')).toBeNull();
+    });
     const id = run(() => current().actions.addNumber('ai.mention_rate', 'chatgpt_web', 0));
     expect(id).not.toBeNull();
     expect(current().document.numbers?.[0]).toMatchObject({ metric: 'ai.mention_rate', engine: 'chatgpt_web' });
+    await waitFor(() => {
+      expect(polite()).toBe('Mention rate ChatGPT added');
+    });
+  });
+
+  it('removeNumber announces and asks focus for the next number, else the previous, else the Add number slot', async () => {
+    serve(
+      stored(
+        'personal',
+        {
+          schema: 1,
+          numbers: [
+            { id: 'a', metric: 'seo.top3_count' },
+            { id: 'b', metric: 'seo.top10_count' },
+            { id: 'c', metric: 'ai.mention_rate', engine: 'gemini_web' },
+          ],
+          cards: [],
+        },
+        null,
+      ),
+    );
+    mount();
+    await customizing();
+    expect(run(() => current().actions.removeNumber('b'))).toBe(true);
+    expect(current().focus).toEqual({ id: 'c', part: 'handle', zone: 'numbers' });
+    await waitFor(() => {
+      expect(polite()).toBe('Top 10 removed');
+    });
+    run(() => current().actions.removeNumber('c'));
+    expect(current().focus).toEqual({ id: 'a', part: 'handle', zone: 'numbers' });
+    await waitFor(() => {
+      expect(polite()).toBe('Mention rate Gemini removed');
+    });
+    run(() => current().actions.removeNumber('a'));
+    expect(current().focus).toEqual({ id: null, part: 'handle', zone: 'numbers' });
+    await waitFor(() => {
+      expect(polite()).toBe('Top 3 removed');
+    });
+  });
+
+  it('moveNumber announces the new position and asks focus for the part that moved it', async () => {
+    serve();
+    mount();
+    await customizing();
+    expect(run(() => current().actions.moveNumber('top10', 3))).toBe(true);
+    expect(numberIds()[3]).toBe('top10');
+    expect(current().focus).toEqual({ id: 'top10', part: 'handle', zone: 'numbers' });
+    await waitFor(() => {
+      expect(polite()).toBe('Top 10, position 4 of 6');
+    });
+    run(() => current().actions.moveNumber('top10', 0, 'more'));
+    expect(current().focus).toEqual({ id: 'top10', part: 'more', zone: 'numbers' });
+    await waitFor(() => {
+      expect(polite()).toBe('Top 10, position 1 of 6');
+    });
+  });
+
+  it('refuses a number edit that does nothing, without a word and without a focus request', async () => {
+    serve();
+    mount();
+    await customizing();
+    expectSilent(() => {
+      expect(current().actions.removeNumber('nothing')).toBe(false);
+      expect(current().actions.moveNumber('top10', 1)).toBe(false);
+      expect(current().actions.moveNumber('nothing', 0)).toBe(false);
+    });
+    expect(current().focus).toBeNull();
   });
 
   it('refuses a sixth number too many', async () => {

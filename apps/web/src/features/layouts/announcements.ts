@@ -2,7 +2,8 @@
 
 /**
  * Every word the layout screens say to a screen reader (docs/superpowers/plans/2026-11-13-ai-wp-15-layouts-core.md,
- * section 2.8): one function per key of `layouts.core.announce`, all through the one polite live region and under
+ * section 2.8): one function per key of `layouts.core.announce` and of `layouts.customize.announce` (the
+ * customize UI's: numbers, duplicates), all through the one polite live region and under
  * one key, so a newer message replaces an older one that is still waiting.
  */
 import { useTranslations } from 'next-intl';
@@ -39,6 +40,11 @@ export interface LayoutAnnouncer {
   width(change: { card: string; width: Width }): void;
   option(change: { card: string; option: string; value: string }): void;
   added(place: Place): void;
+  /** A copy of a card, said with where it went. */
+  duplicated(place: Place): void;
+  numberAdded(number: string): void;
+  numberRemoved(number: string): void;
+  numberMoved(place: { number: string; position: number; total: number }): void;
   entered(screen: string): void;
   undone(): void;
   redone(): void;
@@ -49,6 +55,7 @@ export interface LayoutAnnouncer {
 
 export function useLayoutAnnouncer(): LayoutAnnouncer {
   const t = useTranslations('layouts.core');
+  const tCustomize = useTranslations('layouts.customize');
   return useMemo(() => {
     const say = (message: string): void => {
       announce(message, { key: ANNOUNCE_KEY });
@@ -91,6 +98,18 @@ export function useLayoutAnnouncer(): LayoutAnnouncer {
       added: ({ card, position, total }) => {
         say(t('announce.added', { card, position, total }));
       },
+      duplicated: ({ card, position, total }) => {
+        say(tCustomize('announce.duplicated', { card, position, total }));
+      },
+      numberAdded: (number) => {
+        say(tCustomize('announce.numberAdded', { number }));
+      },
+      numberRemoved: (number) => {
+        say(tCustomize('announce.numberRemoved', { number }));
+      },
+      numberMoved: ({ number, position, total }) => {
+        say(tCustomize('announce.numberMoved', { number, position, total }));
+      },
       entered: (screen) => {
         say(t('announce.entered', { screen }));
       },
@@ -104,5 +123,5 @@ export function useLayoutAnnouncer(): LayoutAnnouncer {
         say(t('announce.saved'));
       },
     };
-  }, [t]);
+  }, [t, tCustomize]);
 }

@@ -4030,7 +4030,14 @@
   "competitors": {},
   "discover": {},
   "layouts": {
-    "customize": {},
+    "customize": {
+      "announce": {
+        "numberAdded": "{number} added",
+        "numberRemoved": "{number} removed",
+        "numberMoved": "{number}, position {position, number} of {total, number}",
+        "duplicated": "{card} duplicated, position {position, number} of {total, number}"
+      }
+    },
     "core": {
       "region": "{screen} cards",
       "toolbar": "{card} card",

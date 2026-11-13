@@ -82,6 +82,28 @@ export function addCard(doc: LayoutDocument, typeKey: string, id: string, index?
   return { ...doc, cards: insertAt(cardsOf(doc), card, index) };
 }
 
+/**
+ * A copy of a card right after it: the same width and options, and for a reusable type the first identity value
+ * no instance shows yet. The document itself when the type cannot be placed again (one instance only, a full
+ * page), no identity value is left, the card is not there or `newId` is already used.
+ */
+export function duplicateCard(doc: LayoutDocument, id: string, newId: string): LayoutDocument {
+  const cards = cardsOf(doc);
+  const source = cards.find((card) => card.id === id);
+  const type = source ? cardType(source.type) : undefined;
+  if (!source || !canPlace(doc, type) || cards.some((card) => card.id === newId)) return doc;
+  const copy: CardItem = { ...source, id: newId };
+  if (source.options) copy.options = { ...source.options };
+  const key = identityOption(type);
+  if (key) {
+    const taken = takenIdentityValues(doc, type);
+    const free = type.options[key]?.values.find((candidate) => !taken.has(candidate.value));
+    if (!free) return doc;
+    copy.options = { ...copy.options, [key]: free.value };
+  }
+  return { ...doc, cards: insertAt(cards, copy, cards.indexOf(source) + 1) };
+}
+
 export function hideCard(doc: LayoutDocument, id: string): LayoutDocument {
   const cards = cardsOf(doc);
   if (!cards.some((card) => card.id === id)) return doc;

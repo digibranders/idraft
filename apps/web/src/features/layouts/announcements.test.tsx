@@ -128,6 +128,34 @@ const CASES: ReadonlyArray<readonly [string, (announcer: LayoutAnnouncer) => voi
     'Top movers added, position 9 of 9',
   ],
   [
+    'numberAdded',
+    (a) => {
+      a.numberAdded('Mention rate ChatGPT');
+    },
+    'Mention rate ChatGPT added',
+  ],
+  [
+    'numberRemoved',
+    (a) => {
+      a.numberRemoved('Top 10');
+    },
+    'Top 10 removed',
+  ],
+  [
+    'numberMoved',
+    (a) => {
+      a.numberMoved({ number: 'Top 10', position: 4, total: 6 });
+    },
+    'Top 10, position 4 of 6',
+  ],
+  [
+    'duplicated',
+    (a) => {
+      a.duplicated({ card: 'Mention rate trend: Gemini', position: 10, total: 10 });
+    },
+    'Mention rate trend: Gemini duplicated, position 10 of 10',
+  ],
+  [
     'entered',
     (a) => {
       a.entered('Overview');

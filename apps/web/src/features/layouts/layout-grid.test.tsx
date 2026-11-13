@@ -601,6 +601,22 @@ describe('LayoutGrid in customize mode', () => {
       });
     });
 
+    it('leaves a request for the numbers zone alone, for the number strip to answer', async () => {
+      serve();
+      const view = mount({ grid: { onAddCard: () => undefined } });
+      await customize(view);
+      const before = document.activeElement;
+      act(() => {
+        actions().removeNumber('top10');
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(focusRequest()).toEqual({ id: 'aio-citation', part: 'handle', zone: 'numbers' });
+      expect(document.activeElement).toBe(before);
+      expect(scrolled).not.toHaveBeenCalled();
+    });
+
     it('sends focus to the Add card slot when the last card goes', async () => {
       serve({ schema: 1, numbers: [], cards: [{ id: 'solo', type: 'seo.rank_distribution', width: 'third' }] });
       const view = mount({ grid: { onAddCard: () => undefined } });

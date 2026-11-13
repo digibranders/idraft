@@ -12,10 +12,15 @@ export const HISTORY_LIMIT = 50;
 
 export type CardPart = 'handle' | 'width' | 'options' | 'more';
 
-/** What should hold focus after the next render; id null means the Add card slot. */
+/**
+ * What should hold focus after the next render. The cards zone answers a request without a zone: id null is the
+ * Add card slot. The numbers zone answers `zone: 'numbers'`, with `part` 'handle' or 'more' and id null for the
+ * Add number slot; the card grid leaves such a request alone.
+ */
 export interface FocusRequest {
   id: string | null;
   part: CardPart;
+  zone?: 'cards' | 'numbers';
 }
 
 export interface LayoutState {

@@ -47,9 +47,11 @@ import {
   cardName,
   cardType,
   changeCount,
+  duplicateCard as draftDuplicateCard,
   hideCard as draftHideCard,
   moveCard as draftMoveCard,
   moveNumber as draftMoveNumber,
+  numberName,
   removeNumber as draftRemoveNumber,
   sameLayout,
   setCardOption as draftSetCardOption,
@@ -59,6 +61,7 @@ import {
   type CardItem,
   type EngineCode,
   type LayoutDocument,
+  type NumberItem,
   type ScreenDefinition,
   type ScreenKey,
   type Width,
@@ -94,9 +97,14 @@ export interface LayoutActions {
   moveCard(id: string, toIndex: number, part?: CardPart): boolean;
   setCardWidth(id: string, width: Width): boolean;
   setCardOption(id: string, key: string, value: string): boolean;
+  /** A copy right after the card, on the next free identity value; the id of the copy, null when refused. Focus goes to its handle. */
+  duplicateCard(id: string): string | null;
+  /** Says the number and asks focus for its handle in the numbers zone (`FocusRequest.zone`). */
   addNumber(metric: string, engine?: EngineCode, index?: number): string | null;
+  /** Focus goes to the next number, else the previous, else the Add number slot (id null). */
   removeNumber(id: string): boolean;
-  moveNumber(id: string, toIndex: number): boolean;
+  /** Says the new position; focus goes back to `part` of the number (the handle, or the More menu that moved it). */
+  moveNumber(id: string, toIndex: number, part?: CardPart): boolean;
   /** Reset to default and presets. A draft that already shows `document` is left alone (no history entry). */
   replaceDraft(document: LayoutDocument, message: string): boolean;
   undo(): boolean;
@@ -159,6 +167,7 @@ const CONFLICT: SaveOutcome = { kind: 'conflict' };
 const AVAILABLE: Availability = { state: 'available' };
 
 const cardsOf = (document: LayoutDocument): readonly CardItem[] => document.cards ?? [];
+const numbersOf = (document: LayoutDocument): readonly NumberItem[] => document.numbers ?? [];
 
 const builtinAnswer = (screen: ScreenKey): ApiResolvedLayout => ({
   screen,
@@ -355,21 +364,51 @@ function ScreenProvider({ screen, workspaceId, capabilities, registry, children 
         }
         return true;
       },
+      duplicateCard: (id) => {
+        const { draft } = live.current;
+        if (draft === null) return null;
+        const copyId = newId('c', draft);
+        const next = draftDuplicateCard(draft, id, copyId);
+        const cards = cardsOf(next);
+        const copy = cards.find((candidate) => candidate.id === copyId);
+        if (copy === undefined || !edit(next, { id: copyId, part: 'handle' })) return null;
+        say.duplicated({ card: cardName(copy), position: cards.indexOf(copy) + 1, total: cards.length });
+        return copyId;
+      },
       addNumber: (metric, engine, index) => {
         const { draft } = live.current;
         if (draft === null) return null;
         const id = newId('n', draft);
-        return edit(draftAddNumber(draft, engine === undefined ? { id, metric } : { id, metric, engine }, index))
-          ? id
-          : null;
+        const next = draftAddNumber(draft, engine === undefined ? { id, metric } : { id, metric, engine }, index);
+        const added = numbersOf(next).find((candidate) => candidate.id === id);
+        if (added === undefined || !edit(next, { id, part: 'handle', zone: 'numbers' })) return null;
+        say.numberAdded(numberName(added));
+        return id;
       },
       removeNumber: (id) => {
         const { draft } = live.current;
-        return draft !== null && edit(draftRemoveNumber(draft, id));
+        const numbers = draft === null ? [] : numbersOf(draft);
+        const at = numbers.findIndex((candidate) => candidate.id === id);
+        const removed = numbers[at];
+        if (draft === null || removed === undefined) return false;
+        const neighbour = numbers[at + 1] ?? numbers[at - 1];
+        if (!edit(draftRemoveNumber(draft, id), { id: neighbour?.id ?? null, part: 'handle', zone: 'numbers' })) {
+          return false;
+        }
+        say.numberRemoved(numberName(removed));
+        return true;
       },
-      moveNumber: (id, toIndex) => {
+      moveNumber: (id, toIndex, part = 'handle') => {
         const { draft } = live.current;
-        return draft !== null && edit(draftMoveNumber(draft, id, toIndex));
+        if (draft === null) return false;
+        const next = draftMoveNumber(draft, id, toIndex);
+        if (!edit(next, { id, part, zone: 'numbers' })) return false;
+        const numbers = numbersOf(next);
+        const moved = numbers.find((candidate) => candidate.id === id);
+        if (moved !== undefined) {
+          say.numberMoved({ number: numberName(moved), position: numbers.indexOf(moved) + 1, total: numbers.length });
+        }
+        return true;
       },
       replaceDraft: (replacement, message) => {
         const { draft } = live.current;

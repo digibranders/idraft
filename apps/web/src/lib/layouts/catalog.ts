@@ -9,6 +9,7 @@ import type {
   Channel,
   EngineCode,
   NumberDefinition,
+  NumberItem,
   OptionDefinition,
   ScreenDefinition,
   ScreenKey,
@@ -428,6 +429,31 @@ export function cardName(item: CardItem): string {
   if (!type) return item.type;
   const engine = type.options.engine !== undefined ? item.options?.engine : undefined;
   return engine === undefined ? type.title : `${type.title}: ${engineLabel(engine)}`;
+}
+
+/**
+ * What a headline number is called in announcements and labels: its label, plus the engine for a per engine
+ * metric ("Mention rate Gemini"). A metric the catalog does not know is called by its key.
+ */
+export function numberName(item: NumberItem): string {
+  const type = numberType(item.metric);
+  if (!type) return item.metric;
+  return item.engine === undefined ? type.label : `${type.label} ${engineLabel(item.engine)}`;
+}
+
+/** How long the catalog shows "New" on a card type that was released. */
+export const NEW_FOR_DAYS = 30;
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * Whether the catalog marks this card type "New" on `today`: released on `type.addedOn` or in the 29 days
+ * after it, so false from day 30. Both are ISO business dates (YYYY-MM-DD), read as UTC dates so that no
+ * time zone or daylight saving shift moves a day. A date that is not one, or one before the release, is false.
+ */
+export function isNewCardType(type: CardTypeDefinition, today: string): boolean {
+  const days = (Date.parse(today) - Date.parse(type.addedOn)) / MS_PER_DAY;
+  return days >= 0 && days < NEW_FOR_DAYS;
 }
 
 /**

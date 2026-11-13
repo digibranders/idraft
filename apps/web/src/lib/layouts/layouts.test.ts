@@ -7,6 +7,7 @@ import {
   CARD_TYPES,
   ENGINES,
   LIMITS,
+  NEW_FOR_DAYS,
   NUMBER_TYPES,
   SCREENS,
   WIDTHS,
@@ -18,10 +19,13 @@ import {
   cardType,
   changeCount,
   defaultLayout,
+  duplicateCard,
   hideCard,
   identityOption,
+  isNewCardType,
   moveCard,
   moveNumber,
+  numberName,
   packRows,
   removeNumber,
   resolveLayout,
@@ -578,5 +582,100 @@ describe('draft edits', () => {
     expect(changeCount(before, moved)).toBe(1);
     expect(sameLayout(before, readded)).toBe(true);
     expect(sameLayout(before, moved)).toBe(false);
+  });
+});
+
+describe('numberName', () => {
+  it('names an SEO number by its label', () => {
+    expect(numberName({ id: 'a', metric: 'seo.top10_count' })).toBe('Top 10');
+  });
+
+  it('adds the engine label to an AI number', () => {
+    expect(numberName({ id: 'a', metric: 'ai.mention_rate', engine: 'gemini_web' })).toBe('Mention rate Gemini');
+  });
+
+  it('calls a metric the catalog does not know by its key', () => {
+    expect(numberName({ id: 'a', metric: 'nothing.like_it' })).toBe('nothing.like_it');
+  });
+});
+
+describe('isNewCardType', () => {
+  const released = (addedOn: string): NonNullable<ReturnType<typeof cardType>> => {
+    const type = cardType('seo.top_movers');
+    if (!type) throw new Error('missing card type');
+    return { ...type, addedOn };
+  };
+
+  it('is true for 29 days after addedOn and false on day 30', () => {
+    const type = released('2026-09-30');
+    expect(NEW_FOR_DAYS).toBe(30);
+    expect(isNewCardType(type, '2026-09-30')).toBe(true);
+    expect(isNewCardType(type, '2026-10-29')).toBe(true);
+    expect(isNewCardType(type, '2026-10-30')).toBe(false);
+    expect(isNewCardType(type, '2027-03-01')).toBe(false);
+  });
+
+  it('is false before the release date and for a date that is not one', () => {
+    const type = released('2026-09-30');
+    expect(isNewCardType(type, '2026-09-29')).toBe(false);
+    expect(isNewCardType(type, 'not a date')).toBe(false);
+    expect(isNewCardType(released('also not a date'), '2026-09-30')).toBe(false);
+  });
+
+  it('counts across a leap day', () => {
+    expect(isNewCardType(released('2028-02-01'), '2028-03-01')).toBe(true);
+    expect(isNewCardType(released('2028-02-01'), '2028-03-02')).toBe(false);
+  });
+});
+
+describe('duplicateCard', () => {
+  const withTrend = (): LayoutDocument => addCard(overview(), 'ai.mention_trend', 't1', 0);
+
+  it('inserts after the source with the next free identity value', () => {
+    const doc = withTrend();
+    const copy = duplicateCard(doc, 't1', 't2');
+    expect(copy.cards?.slice(0, 3).map((item) => `${item.id}:${item.options?.engine}`)).toEqual([
+      't1:chatgpt_web',
+      't2:gemini_web',
+      'trend:undefined',
+    ]);
+    expect(copy.cards).toHaveLength((doc.cards?.length ?? 0) + 1);
+    expect(doc.cards).toHaveLength(9);
+  });
+
+  it('copies width and other options without sharing them with the source', () => {
+    const doc = setCardWidth(withTrend(), 't1', 'full');
+    const copy = duplicateCard(doc, 't1', 't2');
+    const [source, duplicate] = copy.cards ?? [];
+    expect(duplicate).toMatchObject({ id: 't2', type: 'ai.mention_trend', width: 'full' });
+    expect(duplicate?.options).toEqual({ engine: 'gemini_web' });
+    expect(duplicate?.options).not.toBe(source?.options);
+    expect(source?.options).toEqual({ engine: 'chatgpt_web' });
+  });
+
+  it('refuses a single use type, a full page and a type with no free identity value', () => {
+    const doc = overview();
+    expect(duplicateCard(doc, 'trend', 'x')).toBe(doc);
+
+    let full = withTrend();
+    for (const [index, type] of ['seo.serp_features', 'seo.top_movers', 'ai.citation_share_by_domain_type'].entries()) {
+      full = addCard(full, type, `filler-${String(index)}`);
+    }
+    expect(full.cards).toHaveLength(LIMITS.cards);
+    expect(duplicateCard(full, 't1', 'x')).toBe(full);
+
+    let engines = withTrend();
+    engines = duplicateCard(engines, 't1', 't2');
+    engines = duplicateCard(engines, 't2', 't3');
+    expect(
+      engines.cards?.filter((item) => item.type === 'ai.mention_trend').map((item) => item.options?.engine),
+    ).toEqual(['chatgpt_web', 'gemini_web', 'google_ai_mode']);
+    expect(duplicateCard(engines, 't3', 't4')).toBe(engines);
+  });
+
+  it('refuses a card that is not there and an id that is already used', () => {
+    const doc = withTrend();
+    expect(duplicateCard(doc, 'nothing', 'x')).toBe(doc);
+    expect(duplicateCard(doc, 't1', 'trend')).toBe(doc);
   });
 });

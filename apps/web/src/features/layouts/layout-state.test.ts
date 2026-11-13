@@ -88,6 +88,16 @@ describe('layoutReducer', () => {
       expect(state.baseline).toBe(first.baseline);
     });
 
+    it('a focus request keeps its zone', () => {
+      const focus: FocusRequest = { id: 'top10', part: 'handle', zone: 'numbers' };
+      const state = run(customizing(), { type: 'edit', next: hideCard(builtin(), 'matrix'), focus });
+      expect(state.focus).toEqual({ id: 'top10', part: 'handle', zone: 'numbers' });
+      const slot: FocusRequest = { id: null, part: 'handle', zone: 'numbers' };
+      expect(run(customizing(), { type: 'edit', next: hideCard(builtin(), 'matrix'), focus: slot }).focus).toEqual(
+        slot,
+      );
+    });
+
     it('sets no focus when the edit names none', () => {
       const state = run(customizing(), { type: 'edit', next: hideCard(builtin(), 'matrix') });
       expect(state.focus).toBeNull();

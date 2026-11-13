@@ -117,7 +117,8 @@ function useFocusRequests(root: RefObject<HTMLElement | null>, value: LayoutCont
   const { focus, actions } = value;
   const reduced = useMediaQuery(REDUCED_MOTION);
   useEffect(() => {
-    if (focus === null || root.current === null) return;
+    // A request for the numbers zone is answered (and cleared) by the number strip
+    if (focus === null || focus.zone === 'numbers' || root.current === null) return;
     const scope = root.current;
     const frame = [...scope.querySelectorAll<HTMLElement>('[data-layout-card]')].find(
       (candidate) => candidate.dataset.layoutCard === focus.id,
