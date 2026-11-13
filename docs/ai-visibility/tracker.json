@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T06:24:23+05:30",
+ "updated": "2026-11-13T06:31:54+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -4102,10 +4102,10 @@
    "found": "2026-11-13T06:24:23+05:30",
    "by": "WP-11",
    "title": "Backend test failing on develop: test_rank_end_to_end::test_a_due_daily_schedule_checks_each_keyword_once_even_when_the_provider_relists_them (6 sent, expected 3)",
-   "detail": "Reproduced alone on a clean develop checkout inside the Colima mount; it passed in the WP-03 full run about 3 hours earlier, so it is probably clock or schedule-window dependent. The release check (ship.sh runs the whole backend suite) will hit it. Also test_five_thousand_keywords_from_a_csv_get_their_metrics_and_a_cost (cancelled under load, passes alone; see F-05).",
+   "detail": "Reproduced alone on a clean develop checkout inside the Colima mount; it passed in the WP-03 full run about 3 hours earlier, so it is probably clock or schedule-window dependent. The release check (ship.sh runs the whole backend suite) will hit it. Also test_five_thousand_keywords_from_a_csv_get_their_metrics_and_a_cost (cancelled under load, passes alone; see F-05). ROOT CAUSE: test opened its schedule window at now-2h UTC; between 00:00 and 02:00 UTC (05:30 to 07:30 IST) that is yesterday, so schedule and check-now runs fall on different project-local days and each keyword is legitimately planned twice. Source is correct; test now uses max(now-2h, start of today UTC).",
    "owner": "WP-11 session as a small side task before WP-14",
    "severity": "blocks a release",
-   "status": "assigned"
+   "status": "fixed cfac6ddc"
   },
   {
    "id": "F-08",
@@ -4115,7 +4115,17 @@
    "detail": "Other per-user routes send private, no-store. About 3 lines plus a test in api/layouts.",
    "owner": "WP-11 session",
    "severity": "hardening",
-   "status": "assigned"
+   "status": "fixed fb956fc0"
+  },
+  {
+   "id": "F-09",
+   "found": "2026-11-13T06:31:54+05:30",
+   "by": "WP-11 session",
+   "title": "Same 'now minus 2h' pattern in other worker tests",
+   "detail": "tests/worker/test_end_to_end.py:65 and tests/worker/test_assembly.py:82,116 use now-2h; they passed in the 00:xx UTC run (no day dedupe), so left alone. Latent risk only in the 05:30 to 07:30 IST window.",
+   "owner": "quality sweep",
+   "severity": "low, latent",
+   "status": "open"
   }
  ],
  "migrations": [
