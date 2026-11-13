@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T22:44:39+05:30",
+ "updated": "2026-11-13T22:46:37+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1736,10 +1736,10 @@
    },
    "counts": {
     "total": 19,
-    "done": 12
+    "done": 15
    },
    "owner": "",
-   "notes": "file work-packages/WP-31-settings-engines.md; estimate 5 tasks; decisions none | plan pushed (8 tasks); Task 1 device contract (backend, no migration); Data retention page read-only by default; SetupChecklist built in features/onboarding for WP-33 or WP-40 to mount on the Overview"
+   "notes": "file work-packages/WP-31-settings-engines.md; estimate 5 tasks; decisions none | rows 15/19 pending push; Task 4 engines page extras reviewed PASS (browser 4 widths x 2 themes) committed locally (005338a4); Task 1 device contract needs ONE grant-only migration for provider_params; Task 6 entities Added column and retention page in progress"
   },
   {
    "id": "WP-32",
@@ -4468,6 +4468,20 @@
    "granted": "2026-11-13T22:31:16+05:30",
    "scope": "add one mock cookie (e.g. mock-compare-detectable) to MOCK_COOKIES so an e2e can see one coloured delta; additive",
    "until": "WP-19 merged"
+  },
+  {
+   "path": "backend/src/idraft/db/migrations/versions/",
+   "wp": "WP-31",
+   "granted": "2026-11-13T22:46:37+05:30",
+   "scope": "ONE new grant-only migration (no table, no data change); number = next free at push time",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "backend/tests/db/test_grants.py",
+   "wp": "SHARED WP-31 with WP-26",
+   "granted": "2026-11-13T22:46:37+05:30",
+   "scope": "expected column grant line for ai.project_engines provider_params; a test that app_api still cannot update any other column; additive",
+   "until": "WP-31 merged"
   }
  ],
  "followups": [
@@ -4757,6 +4771,11 @@
    "wp": "WP-26",
    "name": "ai.citations.quote nullable column (0023 or higher)",
    "status": "queued; first to push takes 0023, the others renumber"
+  },
+  {
+   "wp": "WP-31",
+   "name": "grant-only: GRANT UPDATE (provider_params) ON ai.project_engines TO app_api (0018 granted only location_ids and is_enabled; saving provider_params.device failed with a 500)",
+   "status": "queued; takes the next free number at push time (0023 if still free)"
   }
  ],
  "decisions_made": [
