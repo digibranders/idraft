@@ -78,7 +78,7 @@ export function NoOwnPage({ context }: NoOwnPageProps): ReactElement | null {
 
   const promptCell = (row: PromptOwnPagesRow): ReactNode => {
     const text = promptTexts.get(row.prompt_id);
-    if (text !== undefined) return <Truncate text={text} className="max-w-48 sm:max-w-80" />;
+    if (text !== undefined) return <Truncate text={text} className="max-w-40 sm:max-w-48 lg:max-w-80" />;
     if (texts.isPending) return <Skeleton shape="text-12" widthPct={48} />;
     return (
       <>
@@ -129,7 +129,15 @@ export function NoOwnPage({ context }: NoOwnPageProps): ReactElement | null {
       header: t('engine'),
       cell: (row) => <EngineLogo engine={row.engine_code} name={labelOf(row.engine_code)} />,
     },
-    { id: 'result', header: t('result'), cell: (row) => t('finding', { answers: row.answers }) },
+    {
+      id: 'result',
+      header: t('result'),
+      wrap: true,
+      // From a tablet up the finding wraps, so the Cited instead column stays in view; a phone scrolls the list sideways instead of tripling its rows
+      cell: (row) => (
+        <span className="whitespace-nowrap sm:whitespace-normal">{t('finding', { answers: row.answers })}</span>
+      ),
+    },
     { id: 'instead', header: t('insteadTitle'), cell: (row) => insteadCell(instead.get(citedInsteadId(pairOf(row)))) },
   ];
 

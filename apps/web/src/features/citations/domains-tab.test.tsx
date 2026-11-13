@@ -299,6 +299,15 @@ describe('DomainsTab', () => {
     expect(names(table)).toEqual([expect.stringContaining('hubspot.com'), expect.stringContaining('g2.com')]);
   });
 
+  it('keeps the table at least 20rem high and lets the tab scroll instead of squeezing it on a short window', async () => {
+    serveDomains([HUBSPOT, G2]);
+    renderTab();
+    const table = await loaded();
+    const held = table.closest('.min-h-80');
+    expect(held).not.toBeNull();
+    expect(held?.parentElement).toHaveClass('overflow-y-auto');
+  });
+
   it('takes the domains back from the export while another order is read, and hands over the new ones when they arrive', async () => {
     const second = gate();
     let calls = 0;

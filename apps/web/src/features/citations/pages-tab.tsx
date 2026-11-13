@@ -109,9 +109,15 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
     [scope.engines, enabledEngines, labelOf],
   );
   const entities = useQuery({ ...entitiesQuery(source), placeholderData: keepPreviousData }).data?.data;
+  // The pages route returns no engine totals (its `include` takes `series` alone): the scope read has them
+  const scopeEngines = context.meta.data?.meta.by_role_by_engine;
+  const columnMeta = useMemo(
+    () => (meta === undefined || scopeEngines === undefined ? meta : { ...meta, by_role_by_engine: scopeEngines }),
+    [meta, scopeEngines],
+  );
   const columns = usePageColumns({
     engines,
-    meta,
+    meta: columnMeta,
     previousMeta: previousMeta.data?.meta,
     entities,
     citedWith: { rows: cited.data?.data, failed: cited.isError },

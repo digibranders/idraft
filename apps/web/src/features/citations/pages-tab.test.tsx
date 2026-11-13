@@ -442,6 +442,14 @@ describe('PagesTab', () => {
     expect(within(table).getByRole('columnheader', { name: 'Cited with (domain)' })).toBeInTheDocument();
   });
 
+  it('reads the engine totals of the share by engine from the scope read, for the pages route returns none', async () => {
+    servePages([ONE], { meta: { ...META, by_role_by_engine: null } });
+    renderTab();
+    const table = await loaded();
+    // 300 of the 7,000 units of ChatGPT
+    expect(rowOf(table, 'Page 1')).toHaveTextContent('4.3%');
+  });
+
   it('shows first and last seen in the time zone of the project', async () => {
     renderTab('', {}, { timeZone: 'Asia/Kolkata' });
     const table = await loaded();
