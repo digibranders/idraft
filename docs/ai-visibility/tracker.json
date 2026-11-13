@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T15:11:52+05:30",
+ "updated": "2026-11-13T15:31:00+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1078,7 +1078,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | from WP-25: add tabs through features/prompts seams/inspector-tabs.ts (More tabs absorbs overflow); the e2e phone test hard-codes 4 tabs and no More button: update it when your tab lands; domain chips take href once the domain inspector route exists | from WP-16: adopt NumberStrip inside CustomizableScreen yourself and add Customize numbers to the page More menu (plan docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5); WP-16 does not edit your strip files | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current"
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | plan committed (8 tasks, 15 commits, 3 pushes), steps 1/8; creates lib/citations/, mocks/handlers/citations-model.ts, e2e/support/ai-citations.ts; Q1,Q2,Q3,Q6,Q14 defaults accepted"
   },
   {
    "id": "WP-22",
@@ -1123,7 +1123,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-22-citations-inspectors.md; estimate 6 tasks; decisions none | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current"
+   "notes": "file work-packages/WP-22-citations-inspectors.md; estimate 6 tasks; decisions none | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current | from WP-21: WP-21 builds the MSW mocks for sources/changes, sources/diversity and sources/prompts and the shared reads in apps/web/src/lib/citations/; reuse them, do not rebuild"
   },
   {
    "id": "WP-23",
@@ -1204,7 +1204,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-24-fanout-views.md; estimate 5 tasks; decisions D-02 | from WP-25: add tabs through features/prompts seams/inspector-tabs.ts (More tabs absorbs overflow); the e2e phone test hard-codes 4 tabs and no More button: update it when your tab lands; domain chips take href once the domain inspector route exists | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current"
+   "notes": "file work-packages/WP-24-fanout-views.md; estimate 5 tasks; decisions D-02 | from WP-25: add tabs through features/prompts seams/inspector-tabs.ts (More tabs absorbs overflow); the e2e phone test hard-codes 4 tabs and no More button: update it when your tab lands; domain chips take href once the domain inspector route exists | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current | from WP-21: WP-21 builds the MSW mocks for sources/changes, sources/diversity and sources/prompts and the shared reads in apps/web/src/lib/citations/; reuse them, do not rebuild"
   },
   {
    "id": "WP-25",
@@ -4069,6 +4069,69 @@
    "granted": "2026-11-13T14:46:05+05:30",
    "scope": "append-only As built under 9.5",
    "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/messages/en.json",
+   "wp": "WP-21 (T1a first)",
+   "granted": "2026-11-13T15:31:00+05:30",
+   "scope": "additive, ONLY prompts.citationsTab and citations namespaces",
+   "until": "WP-21 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/seams/inspector-tabs.ts",
+   "wp": "WP-21 (T2c)",
+   "granted": "2026-11-13T15:31:00+05:30",
+   "scope": "the Citations tab entry",
+   "until": "WP-21 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/inspector-tabs.test.tsx",
+   "wp": "WP-21 (T2c)",
+   "granted": "2026-11-13T15:31:00+05:30",
+   "scope": "tab list test",
+   "until": "WP-21 merged"
+  },
+  {
+   "path": "apps/web/e2e/flows/ai-prompt-inspector.spec.ts",
+   "wp": "WP-21 (T2c)",
+   "granted": "2026-11-13T15:31:00+05:30",
+   "scope": "the phone test hard-codes 4 tabs and no More button: update",
+   "until": "WP-21 merged"
+  },
+  {
+   "path": "apps/web/src/lib/navigation/registry.ts",
+   "wp": "WP-21 (T5c)",
+   "granted": "2026-11-13T15:31:00+05:30",
+   "scope": "flip /ai/citations to live",
+   "until": "WP-21 merged"
+  },
+  {
+   "path": "apps/web/src/lib/navigation/registry.test.ts",
+   "wp": "WP-21 (T5c)",
+   "granted": "2026-11-13T15:31:00+05:30",
+   "scope": "nav tests",
+   "until": "WP-21 merged"
+  },
+  {
+   "path": "apps/web/src/features/shell/project-shell.test.tsx",
+   "wp": "WP-21 (T5c)",
+   "granted": "2026-11-13T15:31:00+05:30",
+   "scope": "4 tests hard-code nav lists",
+   "until": "WP-21 merged"
+  },
+  {
+   "path": "apps/web/e2e/flows/shell.spec.ts",
+   "wp": "WP-21 (T5c)",
+   "granted": "2026-11-13T15:31:00+05:30",
+   "scope": "nav list in e2e",
+   "until": "WP-21 merged"
+  },
+  {
+   "path": "docs/design-system/24-page-templates.md",
+   "wp": "WP-21 (T7)",
+   "granted": "2026-11-13T15:31:00+05:30",
+   "scope": "append-only As built note for 9.7",
+   "until": "WP-21 merged"
   }
  ],
  "followups": [
@@ -4240,6 +4303,16 @@
    "detail": "(1) O1 moves numbers, owner confirms; reverse = FLAGGED_COUNTED_BY_DEFAULT in api/ai/source_routes.py plus default-pin tests. (2) engine_internal never set at ingest. (3) diversity scans ai.citations twice (speed only). (4) A domain whose role changes shows lost under the old role and new under the new one. (5) kind=lost reads three windows (276 days for a 92 day ask), the heaviest read. (6) Fan-out cut: docs/ops/ai-fanout-cut-measure.md read-only SQL for the ops session NOT run; real share of cut answers unknown; WP-57 rebases onto the _bounded fix. (7) fan-out topics include workspace-wide vocabularies. (10) diversity and detail lack an explicit same-workspace other-project test.",
    "owner": "owner and ops session",
    "severity": "info and one decision (O1)",
+   "status": "open"
+  },
+  {
+   "id": "F-18",
+   "found": "2026-11-13T15:31:00+05:30",
+   "by": "WP-21",
+   "title": "Backend: meta.previous_citation_units on the sources reads would save a second read for the share change",
+   "detail": "Citations share change needs the previous period total; the web does two reads for now (WP-21 plan Q5). Small additive backend field.",
+   "owner": "backend, next free session",
+   "severity": "optimization",
    "status": "open"
   }
  ],
