@@ -48,6 +48,12 @@ import {
   type StepGroup,
   type StepShare,
 } from '@/components/app/chart/step-bars';
+import {
+  TopicEnginePanel,
+  TopicEnginePanelTable,
+  type EnginePanelRow,
+  type TopicEnginePanelProps,
+} from '@/components/app/chart/topic-engine-panel';
 import { useRateTipWords } from '@/components/app/chart/use-rate-tip-words';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { Badge } from '@/components/ui/badge';
@@ -352,6 +358,72 @@ function MentionRateSpecimen({ density }: DensityProps): ReactElement {
         body={<BarList {...bars} />}
         table={<BarListTable {...bars} />}
         menu={{ fileName: 'mention-rate-by-engine', link: menuLink('mention-rate'), csv: barListCsv(bars, thin) }}
+      />
+    </div>
+  );
+}
+
+/* ---------- 3b. TopicEnginePanel, the engines of one topic (SC-26, WB-TI-10, WB-TI-11) ---------- */
+
+const PANEL_PROMPTS = 12;
+/** The same engines a window earlier, as the compared window of the page reads them. */
+const PANEL_BEFORE: Readonly<Record<string, Counts>> = { chatgpt: { k: 80, n: 200 }, gemini: { k: 75, n: 190 } };
+
+function panelRow({ id, name, k, n }: EngineWindow): EnginePanelRow {
+  const state = rateState(n);
+  const before = PANEL_BEFORE[id];
+  const input: MetricDeltaInput | null =
+    state === 'ok' && before !== undefined
+      ? {
+          value: k / n - before.k / before.n,
+          unit: 'points',
+          polarity: 'higher_is_better',
+          isDetectable: isDetectableChange({ k, n }, before),
+        }
+      : null;
+  return {
+    code: id === 'chatgpt' ? 'chatgpt_web' : id === 'gemini' ? 'gemini_web' : 'google_ai_mode',
+    label: name,
+    state,
+    value: state === 'ok' ? k / n : null,
+    valueText: state === 'ok' ? rate(k / n) : '',
+    contextText: state === 'ok' ? `${answersText(k, n)}, ${String(PANEL_PROMPTS)} prompts` : null,
+    answers: n,
+    noneText: 'No answers',
+    accessibleText:
+      state === 'ok'
+        ? `${name}: ${rate(k / n)}, ${answersText(k, n)}`
+        : state === 'insufficient'
+          ? `${name}: too few answers (${String(n)}), ${answersText(k, n)}`
+          : `${name}: No answers`,
+    href: state === 'none' ? undefined : anchor('topic-engine-panel'),
+    delta: input === null ? undefined : { input, test: 'interim', text: formatMetricDelta(input).text },
+  };
+}
+
+function TopicEnginePanelSpecimen({ density }: DensityProps): ReactElement {
+  const panel: TopicEnginePanelProps = {
+    caption: 'Mention by engine',
+    labelHeader: 'Engine',
+    valueHeader: 'Mention',
+    contextHeader: 'Answers',
+    changeHeader: 'Change',
+    rows: ENGINE_WINDOWS.map(panelRow),
+    density,
+  };
+  return (
+    <div id="topic-engine-panel">
+      <ChartFrame
+        kind="html"
+        variant="panel"
+        title="By engine"
+        meta="Topic: CRM for startups, last 28 days, 12 prompts"
+        footnote="Each prompt counts once, whatever the number of its answers. Each engine is shown by itself and never pooled."
+        height={180}
+        summary="ChatGPT names your brand in 100 of 212 answers and Gemini in 77 of 198. AI Mode has 3 answers, too few for a rate, and AI Overview has no answers."
+        status="ready"
+        body={<TopicEnginePanel {...panel} />}
+        table={<TopicEnginePanelTable {...panel} />}
       />
     </div>
   );
@@ -1046,6 +1118,12 @@ export function ChartPartsSection(): ReactNode {
         note="WB-TI-11, WB-TPE-09. Fewer than 4 answers says its answers and draws no bar (R2). No answers says why and is never a zero (R6). The long reason is cut and kept in the row's title."
       >
         <MentionRateSpecimen density={density} />
+      </SpecimenGroup>
+      <SpecimenGroup
+        title="TopicEnginePanel"
+        note="SC-26, WB-TI-10, WB-TI-11. The engines of one topic: the mark and name, a bar and the percent, the answers and prompts behind it. Fewer than 4 answers says its answers and draws no bar (R2); no answers says so and is never a zero (R6). A change is coloured only when it is detectable. A row is a link to the topic's prompts on that engine; the Table view repeats every row."
+      >
+        <TopicEnginePanelSpecimen density={density} />
       </SpecimenGroup>
       <SpecimenGroup
         title="BarList, distribution"

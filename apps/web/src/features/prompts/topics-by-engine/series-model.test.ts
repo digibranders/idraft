@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { cell, competitor, engine, entityCells, own, pool, week, weighted } from './cells-fixtures';
-import { averagePoints, enginePoints, entityLines, poolNote, type TopicPoint } from './series-model';
+import { averagePoints, enginePoints, entityLines, isStale, poolNote, type TopicPoint } from './series-model';
 import { wilsonInterval } from '@/lib/stats';
 
 const POOL = pool(4, '2026-10-05', '2026-11-01');
@@ -212,5 +212,24 @@ describe('entityLines: the own brand and the most mentioned competitors week by 
     );
     // With a series but no entity cells there is nothing to draw
     expect(entityLines(engine('chatgpt_web', { series }), tracked, 3)).toEqual([]);
+  });
+});
+
+describe('isStale: a topic with no valid answer for a week', () => {
+  const NOW = new Date('2026-11-12T12:00:00Z');
+
+  it('is stale from 7 days after the last valid answer', () => {
+    expect(isStale('2026-11-05T12:00:00Z', NOW)).toBe(true);
+    expect(isStale('2026-10-01T02:00:00Z', NOW)).toBe(true);
+  });
+
+  it('is not stale inside the week', () => {
+    expect(isStale('2026-11-05T12:00:01Z', NOW)).toBe(false);
+    expect(isStale('2026-11-12T02:00:00Z', NOW)).toBe(false);
+  });
+
+  it('says nothing for a topic with no last valid answer or one that cannot be read', () => {
+    expect(isStale(null, NOW)).toBe(false);
+    expect(isStale('not a date', NOW)).toBe(false);
   });
 });

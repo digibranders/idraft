@@ -1,4 +1,5 @@
 import { topCompetitors } from './leaders';
+import { STALE_AFTER_DAYS } from '@/features/prompts/history-model';
 import type { EngineSummary, MetricCell, PointPool, SummaryEntity, WeekCells } from '@/lib/api/types';
 import type { CellMetric } from '@/lib/rates/rate-model';
 import { rateState, wilsonInterval, type Interval } from '@/lib/stats';
@@ -106,6 +107,17 @@ export function averagePoints(series: readonly TopicPoint[][]): TopicPoint[] {
       thin: false,
     };
   });
+}
+
+/**
+ * Whether a topic has had no valid answer for `STALE_AFTER_DAYS` days, by its row's `last_valid_at` (F20: the interim
+ * stale rule of the prompt History tab, until WP-18 settles one). A topic with no last valid answer says nothing here:
+ * its engines already say "No answers".
+ */
+export function isStale(lastValidAt: string | null, now: Date): boolean {
+  if (lastValidAt === null) return false;
+  const at = Date.parse(lastValidAt);
+  return Number.isFinite(at) && now.getTime() - at >= STALE_AFTER_DAYS * 86_400_000;
 }
 
 /** How many of the points that show a value hold several weeks (the words of C-18 need it: "3 of 12"). */

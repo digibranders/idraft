@@ -14,16 +14,19 @@ import { Select } from '@/components/ui/select';
 export function MetricSelect({
   value,
   onValueChange,
+  label,
 }: {
   value: RateMetric;
   onValueChange: (metric: RateMetric) => void;
+  /** What the control is named by; the drawer's panel names itself, as it can sit beside the table's own control. */
+  label?: string | undefined;
 }): ReactElement {
   const t = useTranslations('prompts');
   return (
     // Narrower on a phone, where the value is cut to an ellipsis; 176 px from 640 px as the Prompts tab has it
     <div className="w-32 min-w-0 sm:w-44">
       <Select<RateMetric>
-        aria-label={t('metric.label')}
+        aria-label={label ?? t('metric.label')}
         size="sm"
         value={value}
         onValueChange={onValueChange}

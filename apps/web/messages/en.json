@@ -3824,6 +3824,7 @@
         "shareContext": "{answers, plural, one {# answer} other {# answers}} naming a brand, {prompts, plural, one {# prompt} other {# prompts}}",
         "noAnswers": "No answers",
         "rowName": "{engine}: {value}, {basis}",
+        "rowNone": "{engine}: {reason}",
         "rowTip": "Opens the prompts of this topic on {engine}.",
         "stale": "No valid answer since {date}."
       },
@@ -3845,6 +3846,7 @@
         "cell": "{value}, {basis}, {prompts, plural, one {# prompt} other {# prompts}}",
         "cellThin": "{basis}, {prompts, plural, one {# prompt} other {# prompts}}, too few answers for a rate",
         "cellNone": "No valid answer",
+        "cellPooled": "{cell} ({span})",
         "footnote": "The band is the 95% interval of the pooled answers. A hollow point has fewer than {min, number} answers.",
         "summary": "{metric} of the topic on each engine, week by week.",
         "noSeriesTitle": "No weekly points yet",

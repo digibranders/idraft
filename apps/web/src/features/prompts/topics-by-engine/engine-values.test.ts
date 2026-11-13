@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { cell, engine, weighted } from './cells-fixtures';
-import { bestEngine, bestWorst, engineGapOf, engineValue, type EngineValue } from './engine-values';
+import { bestEngine, bestWorst, engineChange, engineGapOf, engineValue, type EngineValue } from './engine-values';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 const CODES = ['chatgpt_web', 'gemini_web', 'google_ai_mode'] as const;
@@ -177,5 +177,45 @@ describe('bestEngine: the one engine a row points to', () => {
   it('names none when the best rate is 0, and none when no engine has a rate', () => {
     expect(bestEngine([valued('a', 0), valued('b', 0)])).toBeNull();
     expect(bestEngine([])).toBeNull();
+  });
+});
+
+describe('engineChange: the move of an engine since the compared window', () => {
+  const withPrevious = (now: ReturnType<typeof weighted>, before: ReturnType<typeof weighted>, metric = 'mentioned') =>
+    [engine('chatgpt_web', { [metric]: now, previous: { [metric]: before } })] as const;
+
+  it('gives the move as a ratio and calls it detectable when the unpaired test on the pooled answers says so', () => {
+    const change = engineChange(withPrevious(weighted(40, 80, 6), weighted(20, 80, 6)), 'chatgpt_web', 'mentioned');
+    expect(change?.points).toBeCloseTo(0.25, 10);
+    expect(change?.detectable).toBe(true);
+  });
+
+  it('calls a small move over few answers within normal variation', () => {
+    const change = engineChange(withPrevious(weighted(5, 10, 2), weighted(4, 10, 2)), 'chatgpt_web', 'mentioned');
+    expect(change?.points).toBeCloseTo(0.1, 10);
+    expect(change?.detectable).toBe(false);
+  });
+
+  it('gives no test for share of voice, whose numerator is not a count', () => {
+    const change = engineChange(
+      withPrevious(weighted(40, 80, 6), weighted(20, 80, 6), 'share_of_voice'),
+      'chatgpt_web',
+      'share_of_voice',
+    );
+    expect(change?.detectable).toBeNull();
+    expect(change?.points).toBeCloseTo(0.25, 10);
+  });
+
+  it('has no change without a compared window, or when the compared window has no answer on the engine', () => {
+    const plain = [engine('chatgpt_web', { mentioned: weighted(4, 8, 2) })];
+    expect(engineChange(plain, 'chatgpt_web', 'mentioned')).toBeNull();
+    const none = [engine('chatgpt_web', { mentioned: weighted(4, 8, 2), previous: null })];
+    expect(engineChange(none, 'chatgpt_web', 'mentioned')).toBeNull();
+    expect(engineChange(undefined, 'chatgpt_web', 'mentioned')).toBeNull();
+  });
+
+  it('has no change when either side has too few answers for a rate, never a move from or to 0', () => {
+    expect(engineChange(withPrevious(weighted(1, 3, 2), weighted(4, 10, 2)), 'chatgpt_web', 'mentioned')).toBeNull();
+    expect(engineChange(withPrevious(weighted(4, 10, 2), weighted(0, 0, 0)), 'chatgpt_web', 'mentioned')).toBeNull();
   });
 });

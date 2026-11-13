@@ -1,7 +1,7 @@
 import type { EngineSummary } from '@/lib/api/types';
 import { cellFigure, type CellMetric } from '@/lib/rates/rate-model';
 import type { RateReason } from '@/lib/rates/strip-model';
-import type { RateState } from '@/lib/stats';
+import { isDetectableChange, type RateState } from '@/lib/stats';
 
 /** Two rates on the 0 to 1 scale are one when they differ by no more than the float noise of the sums that made them. */
 export const SAME_RATE = 1e-9;
@@ -106,3 +106,32 @@ export function bestWorst(values: readonly EngineValue[]): BestWorst | null {
 
 /** What the engine gap column sorts by: the spread in points, `null` (last in both directions) under 2 engines with a rate. */
 export const engineGapOf = (values: readonly EngineValue[]): number | null => bestWorst(values)?.spread ?? null;
+
+export interface EngineChange {
+  /** The rate now minus the rate over the compared window, on the 0 to 1 scale (`formatMetricDelta` writes it in points). */
+  points: number;
+  /** The unpaired test on the pooled answers of both windows; `null` for share of voice (no count) and for counts that cannot be tested. */
+  detectable: boolean | null;
+}
+
+/**
+ * How an engine moved since the compared window (a cell's `previous`), or `null` when there is nothing to compare: the
+ * window was not compared, the engine had no answer there, or either side has too few answers for a rate. A rate that is
+ * not there is never read as 0, so a move from or to it is not drawn.
+ */
+export function engineChange(
+  cells: readonly EngineSummary[] | undefined,
+  code: string,
+  metric: CellMetric,
+): EngineChange | null {
+  const previous = cells?.find((cell) => cell.engine_code === code)?.previous;
+  if (previous == null) return null;
+  const now = engineValue(cells, code, metric);
+  const before = engineValue([{ ...previous, engine_code: code }], code, metric);
+  if (now.value === null || before.value === null) return null;
+  const counted =
+    metric === 'share_of_voice' || now.successes === null || before.successes === null
+      ? null
+      : isDetectableChange({ k: now.successes, n: now.answers }, { k: before.successes, n: before.answers });
+  return { points: now.value - before.value, detectable: counted };
+}
