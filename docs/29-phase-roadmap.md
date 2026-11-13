@@ -323,6 +323,24 @@ by filter; ETag and `If-Match` on `PATCH`; term assignments and `prompt_count` f
 docs/19-api-specification.md sections 3.5 and 3.7.1; plan
 `docs/superpowers/plans/2026-11-13-ai-wp-13-prompts-lane.md`).
 
+**As built (AI visibility WP-14, 2026-11-13): sources lane.** The source reads of doc 19 section 3.7.7 are filled
+(weekly series, `cited_with`, the role split per engine, `min_support`, the market filter `filter[country_iso]`), new and
+lost sources are built (`GET {P}/ai/sources/changes`, docs/16 C5 and C6), and three routes are new:
+`GET {P}/ai/sources/diversity`, `GET {P}/ai/sources/domains/{registrable_domain}` and `GET {P}/ai/sources/prompts`;
+fan-out queries can be read by topic (`include=topics`) and the 16 KB cut of the stored extras now spares the queries
+(the other lists are cut first). No migration of its own and no new table: every read is a grouped
+query over the existing tables. Rows built: BE-SOURCES-05, 06, 07, 11, 20, 22 and 25, BE-FANOUT-03 (the cut order is
+narrowed and the cut is measured by a read only query for the ops session; the truly unbounded storage of the queries
+is WP-57's BE-FANOUT-02), BE-TOPICS-12, CF-05, CF-07 to CF-10, OV-N6 and OV-N7. Rows confirmed (behaviour kept, tests
+unchanged): BE-SOURCES-01 to 04 and BE-FANOUT-01. Flagged citations (`unresolved_redirect`, `engine_internal`) are now
+left out of the aggregate source reads by default, with the toggles `include_unresolved_redirects` and
+`include_engine_internal` to count them again: the default is the one constant `FLAGGED_COUNTED_BY_DEFAULT`
+(`backend/src/idraft/api/ai/source_routes.py`), so reversing it is one line. This changes the numbers of requests that were
+already answered: the coordinator approved it and the owner confirms it in the morning (open question O1 of the plan).
+Not built: categories (WP-60), the `-trend` sort and the marking of `engine_internal` at ingest (plan
+`docs/superpowers/plans/2026-11-13-ai-wp-14-sources-lane.md`; contract note
+docs/ai-visibility/contracts/sources-additions.md; measurement docs/ops/ai-fanout-cut-measure.md).
+
 ### Phase 10: SEO and AI integration
 
 **10a (MVP):** keyword-prompt links with suggestions (cluster, semantic, fan-out), AI Overview vs organic rank (same-check), AIO citation rate by rank bucket, SEO/AI matrix (keyword level) with thresholds, page intelligence (SEO + AI citations), `core.xch_keyword_weekly`.

@@ -1334,6 +1334,82 @@ interface Publisher { publisher_id: Uuid; name: string; publisher_type: string; 
 
 Not built: `filter[category_in]`, `include_engine_internal`, `include_unresolved_redirects`, `filter[citation_kind_in]`, `filter[referral_tag]`, `filter[role_entity_id]`, `filter[domain_id]`, fan-out `group_by` and `filter[matched]`, `ai.daily_domain_citations` (the reads aggregate `ai.citations` by query; a full project's 28 days is about 3,600 answers), domain detail, categories, changes, diversity, overlap, retrieved-not-cited and influential pages.
 
+**As built (AI visibility WP-14, 2026-11-13): sources lane.** The source reads above gained the
+additions WP-03 published, and three routes are new; no table, no migration (code `backend/src/idraft/api/ai/source_routes.py`,
+`sources.py`, `source_repository.py`, `schemas/ai_sources.py`; contract note
+docs/ai-visibility/contracts/sources-additions.md; plan `docs/superpowers/plans/2026-11-13-ai-wp-14-sources-lane.md`).
+Every aggregate is one grouped statement over `ai.citations`, with a statement count test, and a block nobody asks for
+is absent from the JSON. Built: `include=series` on `sources/domains` and `sources/pages` (a point per Monday of the
+window in the project zone, oldest first, zero filled, at most 14, the first and last week counting only the window's
+days): each row gets `series` (`week_start`, `citation_units`, `observations`) and `meta.series` holds the weekly
+denominators (`week_start`, `answers`, `citation_units`, `distinct_domains`, the role filter not narrowing them);
+`include=cited_with` on domain rows (per row, so per registrable domain, role and entity: the tracked entity named in
+the most counted answers that cite the row, current and accepted mentions of the answer's counted derivation, ties by
+entity id, as `{ entity_id, observations }`, absent when no answer names one); `include=by_role_by_engine` on domains
+(`meta.by_role_by_engine`: every engine of `meta.engine_codes`, in that order, with `own`, `competitor` and
+`third_party` each as `{ citation_units, answers_citing }` over every citation in scope, whatever
+`filter[domain_role_in]` says); `min_support` (1 to 1,000, citation units in the window) on domains and pages, which
+narrows the rows and `page.total` and never `meta` or a share (no default there; the fan-out `min_support` still counts
+answers); and `filter[country_iso]` (`^[A-Z]{2}$`, capitals, a lower case value is `422`) on domains, pages, citations,
+fan-out and the new routes, which keeps the answers of the prompts of that market (`ai.prompts.country_iso`; a prompt
+with no market is left out), narrows `meta` and every share, and binds the citation cursor only when it is set, so an
+old cursor keeps its hash. `GET {P}/ai/sources/changes` (`kind=new` default or `lost`, `min_support` default 2 counting
+units): new is at least `min_support` units in the window and none in as many days before (doc 16 C5); lost (C6) is at
+least `min_support` units in a support window and none in each of the 2 windows after it, so `meta.window` is the asked
+window and the one before it, `meta.compare_window` the support window before those (a 92 day ask reads 276 days),
+`current_units` is 0 and `first_seen_at` and `last_seen_at` are null for lost; one row per registrable domain, role and
+entity, the most units first, with `registrable_domain`, `domain_role`, `role_entity_id`, `current_units`,
+`previous_units`, `first_seen_at` and `last_seen_at` (not the `domain: DomainRef` of the table above), offset pages (not
+a cursor), `filter[domain_role_in]` and no `compare` or `sort`. `GET {P}/ai/sources/diversity` per engine (engines are
+never pooled): `answers`, `answers_citing`, `citation_units`, `distinct_domains` (registrable domains, roles merged) and
+`effective_sources`, a `MetricCell` of doc 16 C3 with the value `(sum of units)^2 / sum of squared units per domain`, the
+numerator and denominator visible and a null value without a unit; `meta.distinct_domains` is a count over every engine
+in scope and `meta.effective_sources_engine_average` the equal-weight mean of the engines that have units;
+`include=series` adds a weekly point per engine (`week_start`, `citation_units`, `distinct_domains`,
+`effective_sources` as a plain number, null without a unit) and `include=ads` the answers that showed an ad
+(`ads: { answers_with_ads: MetricCell, ads }`, read from `provider_extras.ads`; extras the 16 KB bound emptied count as
+no ad). `GET {P}/ai/sources/domains/{registrable_domain}` (the name is read in lower case): `data` holds
+`registrable_domain`, `rows` (one per role and entity, at most 10, shaped as the domain rows), `engines` (per engine a
+weekly series of `citation_units`, `observations`, `all_citation_units`, the share's denominator, and `answers`),
+`top_pages` (at most 10), `prompts` (at most 20, as `{ prompt_id, citation_units, observations }`) and `cited_with` (at
+most 5 entities), and `meta` is the scope's totals; a domain that is not cited in scope answers `200` with empty lists
+(`engines` included), and an unknown or deleted project is `404`. `GET {P}/ai/sources/prompts` (BE-SOURCES-20): one row
+per prompt and engine with a counted answer (an engine with none has no row) with `answers`, `answers_citing_own`,
+`own_citation_units`, `own_pages` and `top_own_page` (`{ url_id, url }`, the own page with the most units, ties by the
+lowest url id, null when none); `filter[own_cited]` keeps the pairs that cite an own page (`true`) or none (`false`);
+keyset pages `(prompt_id, engine_code)` with a cursor bound to the project, every filter and the two toggles below
+(`400 invalid_cursor` otherwise). Deviations from the doc 19 rows above: the domain detail is keyed by
+`{registrable_domain}`, not `{domain_id}` (domain rows carry no id); it has no `publisher`, no top-level `source_share`
+or `series` (the shares are in `rows`, the series per engine in `engines`) and no prompt `text`; `co_mentioned_entities`
+is `cited_with` and an entry carries `entity_id` and `observations`, not an `EntityRef`; in diversity `distinct_domains`
+is an integer, not a `MetricValue`, and there is no `granularity` parameter (the series is weekly only). A NUL or other
+control character (categories Cc, Cf, Zl and Zp) in `filter[registrable_domain]` (pages, citations) or in the
+`{registrable_domain}` path value is `422 validation_failed`, never a `500`. Flagged citations: citations flagged
+`unresolved_redirect` (a redirect link ingest could not unwrap, such as Gemini's grounding links) or `engine_internal`
+(links into the engine's own product) are left out of the citation units, citing answers, shares, series, `meta`
+numbers, diversity, change rules and own pages of `sources/domains`, `sources/pages`, `sources/changes`,
+`sources/diversity`, the domain detail and `sources/prompts` by default (doc 14 section 9, BE-SOURCES-22); their
+answers still count in `meta.answers`. The toggles `include_unresolved_redirects` and `include_engine_internal`
+(default false) count them again, and a citation that carries both flags counts only when both toggles are on. This
+default changes the numbers of requests that were already answered (before, every flag counted) and is the one constant
+`FLAGGED_COUNTED_BY_DEFAULT` in `source_routes.py`; it is open question O1 of the plan, approved by the coordinator and
+for the owner to confirm. `citations` and `fanout-queries` keep every citation whatever its flags and take no toggle.
+Ingest never sets `engine_internal` today, so `include_engine_internal` changes no number until it does; only
+`unresolved_redirect` moves them. Fan-out: `include=topics` adds to each row `topics`, `[{ term_id, observations }]`
+(BE-TOPICS-12), the topic terms tagged directly on the prompts whose counted answers issued the query (terms of a
+`topic` vocabulary of the project or of the whole workspace, so workspace-wide topic vocabularies count; a term of
+another kind or of another project never), the most answers first, then by term id, at most 10, read in one statement
+for the page (an empty list when none is tagged, the key absent without `include`). The 16 KB bound of
+`provider_extras` (BE-FANOUT-03) now cuts the other lists (ads, brand entities) before the fan-out queries: the queries
+are cut only when the other lists are empty, for answers collected from now on (stored answers are not rewritten); how
+many stored answers were cut is `meta.answers_truncated`, and the read only query that counts them in production is in
+`docs/ops/ai-fanout-cut-measure.md` (not run yet). Not built: the `-trend` sort, categories (`filter[category_in]`,
+`category` and `category_source` on rows, `sources/categories`: WP-60), the unbounded fan-out table (WP-57; the 16 KB
+bound still limits the list), the marking of `engine_internal` at ingest, `ai.daily_domain_citations`, fan-out
+`group_by` and `filter[matched]`, `filter[citation_kind_in]`, `filter[referral_tag]`, `filter[role_entity_id]`,
+`filter[domain_id]`, overlap, retrieved-not-cited and influential pages. This supersedes the Not built statements of
+sections 3.7.7 to 3.7.9 about the source reads, changes, diversity, domain detail and the include and toggle parameters.
+
 #### 3.7.8 Extraction and re-derivation (Phase 8)
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |

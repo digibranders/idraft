@@ -24,6 +24,10 @@ until their owners build them. Owners follow MASTER-PLAN 3.3 (modules)
 and 3.6 (ownership). WP-03 edited the summary, prompt, lint and source models of other packages
 only additively (plan decision D4).
 
+Update 2026-11-13 (WP-14): the sources note ([sources-additions.md](sources-additions.md)) is built by WP-14. Its
+additions and `GET {P}/ai/sources/changes` no longer answer `501`, and WP-14 added three routes (`sources/diversity`,
+`sources/domains/{registrable_domain}`, `sources/prompts`); only `category` and `category_source` stay unreturned (WP-60).
+
 ## Conventions
 
 - `{W}` is `/api/v1/workspaces/{workspace_id}`; `{P}` is `{W}/projects/{project_id}`.
