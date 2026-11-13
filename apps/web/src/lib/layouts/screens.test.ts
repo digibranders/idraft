@@ -70,16 +70,16 @@ describe('SCREENS', () => {
     }
   });
 
-  it('keeps the AI visibility and the new screens empty until their pages add entries', () => {
-    expect(SCREENS.ai_overview.builtin).toEqual({ schema: 1, numbers: [], cards: [] });
+  it('keeps the screens whose pages are not built empty until their pages add entries', () => {
+    // ai_overview is filled by WP-33: its built-in layout is pinned in ai-overview-catalog.test.ts
     for (const key of ['rankings', 'prompts', 'citations', 'sources', 'pages'] as const)
       expect(SCREENS[key].builtin).toEqual({ schema: 1, numbers: [] });
     for (const key of ['inspector.prompt', 'inspector.page', 'inspector.citation', 'inspector.topic'] as const)
       expect(SCREENS[key].builtin).toEqual({ schema: 1, cards: [] });
   });
 
-  it('gives no card or number type to a screen this package adds', () => {
-    const touched = new Set<ScreenKey>(['overview', 'inspector.keyword']);
+  it('gives no card or number type to a screen whose page is not built', () => {
+    const touched = new Set<ScreenKey>(['overview', 'ai_overview', 'inspector.keyword']);
     for (const type of CARD_TYPES) for (const screen of type.screens) expect(touched.has(screen)).toBe(true);
     for (const type of NUMBER_TYPES) for (const screen of type.screens) expect(touched.has(screen)).toBe(true);
   });
