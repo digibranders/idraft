@@ -6,6 +6,7 @@ set, so a cursor made without it still works. The numbers are worked out by hand
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -23,11 +24,13 @@ from tests.api.ai.sources_support import (
     make_world,
     statements,
 )
+from tests.api.auth.support import execute
 from tests.api.entities.support import problem
 from tests.collectors.ai_support import OWN_HOST, Prompt, add_prompt
 from tests.conftest import PostgresServer
 
-EXAMPLE, WIKIPEDIA = "example.org", "wikipedia.org"
+EXAMPLE, WIKIPEDIA, EXAMPLE_COM = "example.org", "wikipedia.org", "example.com"
+NO_MARKET = "https://news.example.com/no-market"
 ENGINES = ["chatgpt_web", "gemini_web", "google_ai_mode"]
 COUNTRY = "filter[country_iso]"
 INVALID = (422, "validation_failed")
@@ -38,6 +41,10 @@ READS = [
     ("citations",),
     ("fanout-queries",),
 ]
+
+
+def _day(days: int) -> str:
+    return (datetime.now(UTC).date() - timedelta(days=days)).isoformat()
 
 
 @dataclass(frozen=True)
@@ -250,6 +257,83 @@ async def test_a_country_keeps_branded_prompts_out_unless_asked(
     assert plain["meta"]["answers"] == 2
     assert {row["registrable_domain"] for row in asked["data"]} == {EXAMPLE, OWN_HOST}
     assert asked["meta"]["answers"] == 3
+
+
+async def test_a_prompt_without_a_country_answers_in_no_country(
+    api: httpx.AsyncClient, migrated: PostgresServer, scene: Scene
+) -> None:
+    """`ai.prompts.country_iso` may be NULL: such a prompt belongs to no market, so a country
+    filter leaves it out, and the read without a filter still counts it."""
+    prompt = await add_prompt(migrated, scene.world.project, "Which SOC fits a small firm?")
+    await execute(migrated, "UPDATE ai.prompts SET country_iso = NULL WHERE id = $1", prompt.id)
+    await answer(migrated, scene.world, prompt, days_ago=1, cites=[Cite(NO_MARKET)])
+
+    for country, answers in (("US", 2), ("DE", 1)):
+        domains = (await _get(scene, api, "sources", "domains", **{COUNTRY: country})).json()
+        pages = (await _get(scene, api, "sources", "pages", **{COUNTRY: country})).json()
+        citations = (await _get(scene, api, "citations", **{COUNTRY: country})).json()
+
+        assert EXAMPLE_COM not in {row["registrable_domain"] for row in domains["data"]}, country
+        assert domains["meta"]["answers"] == pages["meta"]["answers"] == answers, country
+        assert NO_MARKET not in {row["url"] for row in pages["data"]}, country
+        assert str(prompt.id) not in {row["prompt_id"] for row in citations["data"]}, country
+    everyone = (await _get(scene, api, "sources", "domains")).json()
+    assert EXAMPLE_COM in {row["registrable_domain"] for row in everyone["data"]}
+    assert everyone["meta"]["answers"] == 4
+
+
+@pytest.fixture
+async def earlier(scene: Scene, migrated: PostgresServer) -> Scene:
+    """The scene with answers in the window before the last 5 days (9 to 5 days ago), citing the
+    guide and the wiki for both markets:
+
+      us (6)  guide, wiki      us (7)  guide
+      de (6)  wiki             de (8)  guide, wiki
+
+    So the guide was cited in 3 earlier answers (2 of the US) and the wiki in 3 (2 of Germany);
+    each market's earlier answers number 2 and all of them 4."""
+    for name, days, cites in (
+        ("us", 6, [Cite(GUIDE), Cite(WIKI)]),
+        ("us", 7, [Cite(GUIDE)]),
+        ("de", 6, [Cite(WIKI)]),
+        ("de", 8, [Cite(GUIDE), Cite(WIKI)]),
+    ):
+        await answer(migrated, scene.world, scene.prompts[name], days_ago=days, cites=cites)
+    return scene
+
+
+@pytest.mark.parametrize(
+    ("path", "key", "country", "row_key"),
+    [
+        ("domains", "registrable_domain", "US", EXAMPLE),
+        ("domains", "registrable_domain", "DE", WIKIPEDIA),
+        ("pages", "url", "US", GUIDE),
+        ("pages", "url", "DE", WIKI),
+    ],
+)
+async def test_the_previous_period_counts_the_countrys_answers_only(
+    path: str, key: str, country: str, row_key: str, api: httpx.AsyncClient, earlier: Scene
+) -> None:
+    """`compare=previous_period` is read over the same prompts: a row's `previous` and
+    `meta.previous_answers` hold the market's earlier answers (2 each), not all four."""
+    window = {"from": _day(4), "to": _day(0)}
+
+    response = await _get(
+        earlier, api, "sources", path, compare="previous_period", **window, **{COUNTRY: country}
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    [row] = body["data"]
+    assert row[key] == row_key
+    assert row["previous"] == {"citation_units": 2, "observations": 2}
+    assert body["meta"]["previous_answers"] == 2
+    assert body["meta"]["answers"] == (2 if country == "US" else 1)
+    unfiltered = (
+        await _get(earlier, api, "sources", path, compare="previous_period", **window)
+    ).json()
+    assert unfiltered["meta"]["previous_answers"] == 4
+    assert {r[key]: r["previous"]["citation_units"] for r in unfiltered["data"]}[row_key] == 3
 
 
 @pytest.mark.parametrize("path", READS)
