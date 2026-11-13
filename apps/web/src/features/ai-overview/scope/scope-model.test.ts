@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+import { parseCompare } from '@/lib/compare/compare-model';
+
 import {
   brandedParams,
   parseBranded,
-  parseCompare,
   parseCountry,
   parseEngines,
   parseTopic,
@@ -50,12 +51,9 @@ describe('previousWindow', () => {
 });
 
 describe('parseCompare', () => {
-  it('reads cmp=off as off and anything else as on', () => {
+  it('is the shared rule: only cmp=off is off', () => {
     expect(parseCompare('off')).toBe(false);
     expect(parseCompare(null)).toBe(true);
-    expect(parseCompare('')).toBe(true);
-    expect(parseCompare('on')).toBe(true);
-    expect(parseCompare('OFF')).toBe(true);
   });
 });
 

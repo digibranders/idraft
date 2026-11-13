@@ -1,6 +1,7 @@
 import { isBeforeFirstDay } from '@/components/app/date-range/business-date';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import type { EngineCode } from '@/lib/api/types';
+import { compareParams } from '@/lib/compare/compare-model';
 import { brandedParams, type DateWindow, type OverviewScope } from '../scope/scope-model';
 
 /**
@@ -138,7 +139,7 @@ export function overviewSourcesQuery(
         limit: 1,
         ...engineFilter(read),
         ...scopeFilters(scope),
-        ...(comparisonWindow(scope) === null ? {} : { compare: 'previous_period' as const }),
+        ...compareParams(comparisonWindow(scope) !== null),
         ...(include.length === 0 ? {} : { include: [...include].sort() }),
       },
     },

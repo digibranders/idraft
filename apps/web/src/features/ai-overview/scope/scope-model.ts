@@ -58,9 +58,6 @@ export function previousWindow(from: BusinessDate, to: BusinessDate): DateWindow
   return { from: addDays(from, -days), to: addDays(from, -1) };
 }
 
-/** `cmp=off` is off; the comparison is on for anything else. */
-export const parseCompare = (value: string | null): boolean => value !== 'off';
-
 /** Two capital letters, the form `filter[country_iso]` takes. Anything else reads as every country. */
 export const parseCountry = (value: string | null): string | null =>
   value !== null && /^[A-Z]{2}$/.test(value) ? value : null;
