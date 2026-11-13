@@ -4260,15 +4260,80 @@
         "branded": "Line {line} names {brand}, so it counts as branded and stays out of the rates unless branded prompts are included.",
         "engineLimit": "Line {line} is too long for {engine}, which skips it.",
         "tooLong": "Line {line} is longer than {max} characters and cannot be added.",
-        "unsupported": "Line {line} has a character that cannot be saved."
+        "unsupported": "Line {line} has a character that cannot be saved.",
+        "neverBranded": "Line {line} names {brand} but is marked not branded. Its answers will count in the rates."
       },
+      "descriptionEngines": "Asked on {engines} twice a week (Monday and Thursday).",
+      "descriptionNoEngine": "No engine is on, so these prompts are not asked yet.",
       "topic": "Topic",
+      "topics": "Topics",
       "noTopic": "No topic",
       "language": "Language",
       "languageRequired": "Choose a language.",
       "country": "Country",
       "countryHint": "The market the prompts stand for. Only countries every enabled engine asks in are offered.",
       "countryRequired": "Choose a country.",
+      "countryHintEngines": "Only countries every enabled engine asks in. {reach}.",
+      "engineReach": "{engine} asks in {count, plural, one {# country} other {# countries}}",
+      "engineSettings": "Engine settings",
+      "newTab": "(opens in a new tab)",
+      "noEngineWarning": "No engine is on, so these prompts will not be asked until one is.",
+      "countriesFailed": "Countries could not be loaded.",
+      "details": {
+        "title": "Details",
+        "type": "Type",
+        "typeAuto": "Set from wording",
+        "types": {
+          "question": "Question",
+          "comparison": "Comparison",
+          "recommendation": "Recommendation",
+          "howTo": "How to",
+          "definition": "Definition",
+          "local": "Local",
+          "transactional": "Transactional",
+          "other": "Other"
+        },
+        "intent": "Intent",
+        "intents": {
+          "unknown": "Not set",
+          "informational": "Informational",
+          "commercial": "Commercial",
+          "transactional": "Transactional",
+          "navigational": "Navigational",
+          "local": "Local"
+        },
+        "stage": "Stage",
+        "stages": {
+          "unknown": "Not set",
+          "tofu": "Top (tofu)",
+          "mofu": "Middle (mofu)",
+          "bofu": "Bottom (bofu)",
+          "retention": "Retention"
+        },
+        "importance": "Importance",
+        "importances": {
+          "level1": "1, highest",
+          "level2": "2",
+          "level3": "3, default",
+          "level4": "4",
+          "level5": "5, lowest"
+        },
+        "branded": "Branded",
+        "brandedChoices": {
+          "auto": "Set from brand names (recommended)",
+          "always": "Always branded",
+          "never": "Never branded"
+        },
+        "summary": {
+          "typeAuto": "Type: set from wording",
+          "type": "Type: {value}",
+          "intent": "Intent: {value}",
+          "stage": "Stage: {value}",
+          "importance": "Importance: {value}",
+          "always": "Branded: always",
+          "never": "Branded: never"
+        }
+      },
       "quota": "Adds {count, plural, one {# prompt} other {# prompts}} of your remaining {remaining, number}.",
       "quotaOver": "That is {count, plural, one {# prompt} other {# prompts}}, and the workspace has room for {remaining, number}. Remove lines or archive prompts you no longer need.",
       "fixLines": "Some lines cannot be added. Fix or remove them first.",

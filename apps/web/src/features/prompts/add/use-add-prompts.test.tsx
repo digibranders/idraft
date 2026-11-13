@@ -203,20 +203,24 @@ describe('useAddPrompts: openAdd', () => {
     await within(header()).findByRole('button', { name: 'Add prompts' });
     await user.click(screen.getByRole('button', { name: 'Topic menu' }));
     let dialog = await addDialog();
-    expect(within(dialog).getByRole('combobox', { name: /^Topic/ })).toHaveTextContent('SEO');
+    // The topic is a chip of the topic picker
+    expect(await within(dialog).findByText('SEO')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     // A new topic is a new form
     await user.click(screen.getByRole('button', { name: 'Topic drawer' }));
     dialog = await addDialog();
-    expect(within(dialog).getByRole('combobox', { name: /^Topic/ })).toHaveTextContent('Content Marketing');
+    expect(await within(dialog).findByText('Content Marketing')).toBeInTheDocument();
   });
 
   it('starts the header add with no topic', async () => {
     const { user } = renderWithProviders(as('editor'));
     await user.click(await within(header()).findByRole('button', { name: 'Add prompts' }));
     const dialog = await addDialog();
-    expect(within(dialog).getByRole('combobox', { name: /^Topic/ })).toHaveTextContent('No topic');
+    // No chip: the picker is an empty field
+    expect(within(dialog).getByRole('combobox', { name: /^Topic/ })).toHaveValue('');
+    expect(within(dialog).queryByText('SEO')).toBeNull();
+    expect(within(dialog).queryByText('Content Marketing')).toBeNull();
   });
 });
 

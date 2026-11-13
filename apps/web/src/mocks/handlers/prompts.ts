@@ -888,10 +888,7 @@ export const promptHandlers: HttpHandler[] = [
     }
     if (errors.length > 0 || !Array.isArray(codes)) return invalid(request, errors);
     const engines = codes.filter((code): code is EngineCode => isOneOf(code, ENGINE_CODES));
-    // The rules that read the text run for the `items` shape and for a `texts` body that names a language; a body
-    // that sends neither is the one the first dialog sent, and it keeps its two rules
     const textsLanguage = typeof bodyLanguage === 'string' ? bodyLanguage : null;
-    const rules = withItems || textsLanguage !== null;
     const projectId = caller.project.project_id;
     const state = promptsOf(projectId);
     const matches = withItems
@@ -915,9 +912,7 @@ export const promptHandlers: HttpHandler[] = [
       data = entries.map(({ text, language }, position): PromptLint => {
         const found = ownMentions(caller.world, projectId, text);
         const length = textLength(text);
-        const checked = rules
-          ? checkText(text, namedOf(caller.world, projectId, text), withItems ? language : textsLanguage)
-          : [];
+        const checked = checkText(text, namedOf(caller.world, projectId, text), withItems ? language : textsLanguage);
         return {
           text,
           is_branded: found.length > 0,

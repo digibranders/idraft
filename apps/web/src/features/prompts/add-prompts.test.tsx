@@ -24,6 +24,12 @@ if (fynix === undefined) throw new Error('The Fynix project fixture is missing')
 const SCOPE: PromptScope = { workspaceId: MOCK_WORKSPACE.workspace_id, projectId: fynix.project_id };
 const TRACKED = 'Which SEO agency is best for a SaaS startup in Germany?';
 const CONTENT_MARKETING = MOCK_TERMS.find((term) => term.name === 'Content Marketing')?.term_id ?? '';
+/** One line of the lint's `items` body: the market the dialog starts on. */
+const LINTED = (text: string): { text: string; language_code: string; country_iso: string } => ({
+  text,
+  language_code: 'en',
+  country_iso: 'DE',
+});
 const TAB = String.fromCharCode(9);
 const ZERO_WIDTH_JOINER = String.fromCodePoint(0x200d);
 
@@ -137,10 +143,9 @@ describe('Add prompts', () => {
             language_code: 'en',
             country_iso: 'DE',
             term_ids: [],
-            // What the API fills in for a prompt added by hand
+            // What the API fills in for a prompt added by hand; no prompt_type, so the server rule sets it
             intent: 'unknown',
             funnel_stage: 'unknown',
-            prompt_type: 'question',
             importance: 3,
           },
         ],
@@ -161,7 +166,7 @@ describe('Add prompts', () => {
       ),
     ).toBeInTheDocument();
     // AI Mode is off for Fynix: its length limit is not asked about
-    expect(linted).toEqual([{ texts: ['Is Fynix any good?'], engine_codes: ['chatgpt_web', 'gemini_web'] }]);
+    expect(linted).toEqual([{ items: [LINTED('Is Fynix any good?')], engine_codes: ['chatgpt_web', 'gemini_web'] }]);
   });
 
   it('refuses a line over the limit before it sends anything, and keeps it out of the lint', async () => {
@@ -175,7 +180,7 @@ describe('Add prompts', () => {
       await within(dialog).findByText('Line 2 is longer than 2,000 characters and cannot be added.'),
     ).toBeInTheDocument();
     await waitFor(() => expect(linted).toHaveLength(1));
-    expect(linted).toEqual([{ texts: ['Is Fynix any good?'], engine_codes: ['chatgpt_web', 'gemini_web'] }]);
+    expect(linted).toEqual([{ items: [LINTED('Is Fynix any good?')], engine_codes: ['chatgpt_web', 'gemini_web'] }]);
     await user.click(within(dialog).getByRole('button', { name: 'Add 2 prompts' }));
     expect(
       await within(dialog).findByText('Some lines cannot be added. Fix or remove them first.'),
@@ -191,7 +196,7 @@ describe('Add prompts', () => {
     await user.paste(`Joined${ZERO_WIDTH_JOINER}words?\nA plain question?`);
     expect(await within(dialog).findByText('Line 1 has a character that cannot be saved.')).toBeInTheDocument();
     expect(await within(dialog).findByText('Adds 2 prompts of your remaining 126.')).toBeInTheDocument();
-    expect(linted).toEqual([{ texts: ['A plain question?'], engine_codes: ['chatgpt_web', 'gemini_web'] }]);
+    expect(linted).toEqual([{ items: [LINTED('A plain question?')], engine_codes: ['chatgpt_web', 'gemini_web'] }]);
   });
 
   it('cleans a list pasted from a spreadsheet before it checks and adds it', async () => {
@@ -209,7 +214,7 @@ describe('Add prompts', () => {
     expect(linted.length).toBeGreaterThan(0);
     for (const body of linted) {
       expect(body).toEqual({
-        texts: ['Which agency audits shop sites?', 'Second question?'],
+        items: [LINTED('Which agency audits shop sites?'), LINTED('Second question?')],
         engine_codes: ['chatgpt_web', 'gemini_web'],
       });
     }
@@ -221,9 +226,9 @@ describe('Add prompts', () => {
   it('says what the list would take of the quota and that it does not fit, then lets the API refuse it', async () => {
     server.use(
       http.post(lintRoute, async ({ request }) => {
-        const body = (await request.json()) as { texts: string[] };
+        const body = (await request.json()) as { items: { text: string }[] };
         return HttpResponse.json({
-          data: body.texts.map((text) => ({ text, is_branded: false, matched_aliases: [], warnings: [] })),
+          data: body.items.map(({ text }) => ({ text, is_branded: false, matched_aliases: [], warnings: [] })),
           quota: { limit: 150, used: 149 },
         });
       }),
@@ -416,6 +421,8 @@ describe('Add prompts', () => {
     await user.click(await screen.findByRole('option', { name: 'India' }));
     await user.click(within(dialog).getByRole('combobox', { name: /Topic/ }));
     await user.click(await screen.findByRole('option', { name: 'Content Marketing' }));
+    // The topic list stays open after a pick, so that several can be chosen in a row: Escape closes it
+    await user.keyboard('{Escape}');
     await user.click(await within(dialog).findByRole('button', { name: 'Add 1 prompt' }));
     expect(await screen.findByText('1 prompt added')).toBeInTheDocument();
     expect(created).toMatchObject([
