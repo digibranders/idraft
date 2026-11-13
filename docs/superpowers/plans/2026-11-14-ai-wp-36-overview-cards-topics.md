@@ -876,3 +876,86 @@ Not touched: `lib/layouts/catalog.ts` (the 11 keys exist), `lib/navigation/regis
 - The e2e spec lives in `apps/web/e2e/flows/ai-overview-topics.spec.ts`.
 - Drill links and export blocks: `drillHref` and `useExportBlock` are not on develop; cards use the local `links.ts` and no export block until they land.
 - WP-35 owns `include=total` and `include=co_mentions` in the summary query and mock; no local copy here.
+
+## 11. As built (2026-11-14)
+
+Branch `ai/wp-36-cards-topics`, cut from `origin/develop` at `9216e710`. The eleven card tasks (T1 to T11) are committed, and ten of the
+commits are on `origin/develop`; the browser pass fixes (`f7cb5967`) were not pushed yet when this was written. Everything below was read
+from the code and from `git log`, not from memory.
+
+### 11.1 What was built, per task, with its commit
+
+| Task | Commit | Built |
+|---|---|---|
+| plan | `632ff71c` | this plan |
+| T1 | `e805b577` | `model-types.ts`, `card-heights.ts`, `TOPIC_CARDS` in `index.ts` with the eleven keys (stubs of the pending card), the `aiOverview.topics` skeleton in `en.json` |
+| T2 | `7c55b0d9` | `options`, `topic-nodes`, `engine-values`, `topic-change`, `topic-points`, `engine-role`, `topic-rows`, `prompt-rows`, `use-topic-reads` (`useTopicSummary`, `useTopicPeriods`, `READ`), `links`, and `parity.test.ts` against the WP-20 originals |
+| T3 | `699a86c8` | `TopicCardFrame` and `phaseOf` (`card-frame.tsx`), `topicSkeleton`, `useTopicWords`, `TopicFootnote`, `topic-card-test-kit.tsx` |
+| T4 | `dbd34782`, test added in `e98e76d6` | heat map (CH-04, CH-40, WB-TPE-01) and `heatmap-model.ts`; `e98e76d6` adds the test that the card holds while the vocabulary loads |
+| T5 | `2e62a5dc` | strongest and weakest topics (CH-41), where engines disagree (CH-43) with `parts/engine-range-plot.tsx` |
+| T6 | `d32c007d` | named by one engine, not another (CH-44) and `disagreement-model.ts` |
+| T7 | `dcc908ed` | topic movers (CH-42) and topic contribution (CH-46, both views) |
+| T8 | `7ef399fe` | topic trends (CH-45) with `parts/topic-trellis.tsx`, topic small multiples (CH-33) |
+| T9 | `6828c87f` | prompt heat map (CH-11) and prompts to look at (`top-prompts-card.tsx`) |
+| T10 | `0392801d` | prompt by week (CH-12): `prompt-week/` model and heat map, `prompt-week-card.tsx`; not registered |
+| T11 | `1bc1004b` | citation rate vs mention rate (CH-15): `scatter-model.ts`, `scatter-option.ts`, the card with a dynamic import of `echart-scatter` |
+| rules | `60a12223` | every card reads with `subscribed: live`; `useTopicPeriods` and the card gates follow WP-33's paired and settled rules; `subscribed.test.tsx` |
+| T12 | not committed when written | `e2e/flows/ai-overview-topics.spec.ts` and `e2e/support/ai-overview-topics.ts`, written by another subagent; 12 `test(` blocks were in the file |
+| browser pass | `f7cb5967` | trellis captions share a row height, scatter points read on both themes |
+| T13 | this note | As built notes in `docs/20-frontend-specification.md` (4.6) and `docs/design-system/25-component-inventory.md` (10), and this section |
+
+Files that exist beyond the plan's list: `compare-gate.ts` (`gateComparison`: rows wait while the vocabulary tree is pending, and a card that
+needs both windows waits until they are paired), `subscribed.test.tsx`, `parity.test.ts` (one file for the four parity guards) and
+`topic-card-test-kit.test.tsx`. `CARD_HEIGHT` kept the plan's first guess for all eleven cards.
+
+### 11.2 Deviations from the plan
+
+- D12 changed: `links.ts` wraps WP-33's `drillHref` (it reached `develop` before the cards were finished) and adds the topic drawer's `itab` and
+  `eng` and the Topics tab `view` and `sort`; a link is `null` where the Prompts page cannot show the scope, and the number is then plain
+  text. `promptsTabHref` takes `engine`, `topic` and `metric` (no `sort`); the plan's signature had a `sort`.
+- Export: every card passes an `exportBlock` and `TopicCardFrame` registers it with `useExportBlock`; section 10 said no export block until
+  WP-33 lands, and it had landed. The frame also gained a `link` prop (the "Show all" line under the body). The menu has CSV and no PNG.
+- D16 changed: WP-33 added `subscribed` to the read options, so cards pass `subscribed: live` and a card in customize mode asks nothing; lease
+  L-C was not needed.
+- L-B: WP-34 changed the screen test's pending count first (`adc1b6cf`, section 10); two small follow-up edits to the same file were
+  still needed here (11.3).
+- CH-12 is not exported from `index.ts`: the plan's one export line for `PromptWeekHeatmapCard` was not added, since the card is not
+  registered and no screen imports it (follow-up F1 stands).
+- Decisions kept as planned and visible in the code: D3 (leaf topics for extremes, gap, disagreement, movers and the scatter; top level
+  topics for trends, small multiples and contribution; the heat map follows its `level` option), D5 (no dot under 4 answers), D6 (flat
+  prompt rows), D7 (`ai.prompt_movers` is WP-34's, T9b not built), D8 (CH-12 unregistered), D9, D14 (contribution `view=change` built, neutral
+  bars), D18.
+- Sections 9 and 10 follow-ups, plus the ones found in the build, are listed in the spec note; the new ones are: `TopicCardFrame` has no
+  `onLegendToggle` and `CARD_HEIGHT` accepts only the eleven keys; a skeleton cannot match a list sized body, so list cards grow when the data
+  arrives; no PNG entry on the html frame; `IntervalBar` and `BarList` truncate long labels; a prompt level CH-12 version boundary; the
+  "Show all" links of the prompt heat map and top prompts carry no sort.
+
+### 11.3 Leases
+
+Granted: changes to `apps/web/src/features/ai-overview/ai-overview-screen.test.tsx`, pushed as `a1d3788a` (the screen test reads the strip error
+id inside the strip) and `31e25c47` (the screen test tells cards by item id and mocks the chart canvas). No lease was refused. The optional
+leases L-A (move the WP-20 pure parts), L-C (an `enabled` read option), L-E (a `columns` prop on `SmallMultiples`) were not needed or are
+deferred (the local copies with parity tests and the card local trellis are the fallbacks, and `subscribed` replaced L-C); L-D (wiring
+CH-12) is deferred to the coordinator. The additive `en.json` objects (L-G) were used as planned, and the docs appends (L-F) are T13 under the
+brief's authorisation.
+
+### 11.4 Tests
+
+Counts of cases from `grep` of `it(` and `test(` at the start of a line in the 47 test files of `cards/topics` (not a test run; the 4
+`.each` declarations expand to more cases at run time), 708 in all: T1 7, T2 109, T3 58, T4 64, T5 78, T6 34, T7 72, T8 77, T9 108, T10 56,
+T11 43, and 2 in `subscribed.test.tsx`. The e2e spec was not counted as committed. The results of the final checks (lint, typecheck, format,
+the full test run, the build and the e2e run, section 2.8 C4 and C5) belong to the session lead and are not recorded here.
+
+### 11.5 Review process
+
+Each task had one implementer and then one fresh Sonnet reviewer who read the task, the diff and the guards table, ran the task's tests and broke
+every guard on purpose (section 2.10). The fixes the reviews led to are in the git history under each task's commit and the follow-up commits;
+the ones that can be named from the log are `e98e76d6` (the heat map test that holds the card while the vocabulary loads) and `60a12223` (every
+card on `subscribed: live` and the paired and settled gates, with `subscribed.test.tsx`). No other finding is summarised here.
+
+### 11.6 Browser pass findings
+
+Fixed in `f7cb5967`: the captions of the trellis cells of one row share a row height, so the plots stay level when a caption wraps; the scatter
+points got a contrast that reads on both themes. Not fixed, recorded as follow-ups: label truncation in `IntervalBar` and `BarList` (the label
+column is too narrow for long topic and prompt names); the frame height jumps when data replaces the skeleton on list sized cards; the html
+frame has no PNG export entry.
