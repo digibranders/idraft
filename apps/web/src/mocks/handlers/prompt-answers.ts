@@ -2,7 +2,7 @@ import { TZDate } from '@date-fns/tz';
 import { HttpResponse, type HttpHandler } from 'msw';
 
 import { projectCaller, type ProjectCaller } from './access';
-import { attachPrevious, compareWindowOf } from './compare';
+import { attachPrevious, compareWindowOf, previousEngineOf } from './compare';
 import { countryOf, enabledEngines, isoOf } from './prompts';
 import { booleanQuery, cursorPage, pageRequest, queryError, uuidError } from './rules';
 import { isActiveRole } from '../entities-state';
@@ -819,7 +819,11 @@ export const promptAnswerHandlers: HttpHandler[] = [
         ? engine
         : attachPrevious(
             engine,
-            ids.some((id) => before.get(id)?.has(engine.engine_code) === true) ? build(before) : null,
+            previousEngineOf(
+              ids,
+              (id) => before.get(id)?.has(engine.engine_code) === true,
+              () => build(before),
+            ),
           );
     const topicRow = (termId: string | null, members: ReadonlySet<string>): TopicSummaryRow => ({
       term_id: termId,

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import { attachPrevious, compareWindowOf } from './compare';
+import { attachPrevious, compareWindowOf, previousEngineOf } from './compare';
 import { setAiSeeded } from '../ai-seed';
 import { MOCK_PROJECTS, MOCK_WORKSPACE } from '../fixtures';
 import type { EngineSummary, MetricCell, Schemas } from '@/lib/api/types';
@@ -241,6 +241,52 @@ describe('compareWindowOf', () => {
       ],
     });
   });
+
+  it('refuses a value outside the contract even when compare_from and compare_to are given, and ignores their dates', () => {
+    const decade = 'compare=previous_decade';
+    for (const dates of ['compare_from=2026-09-01&compare_to=2026-09-10', 'compare_from=soon&compare_to=2026-09-10']) {
+      const answer = plan(`${decade}&${dates}`);
+      expect(answer).toMatchObject({ kind: 'invalid', errors: [{ path: 'compare', code: 'literal_error' }] });
+      expect(answer.kind === 'invalid' ? answer.errors : []).toHaveLength(1);
+    }
+    // Custom dates win over a valid compare value only
+    expect(plan('compare=previous_year&compare_from=2026-09-01&compare_to=2026-09-10')).toMatchObject({
+      kind: 'window',
+      window: { from: '2026-09-01', to: '2026-09-10' },
+    });
+  });
+});
+
+describe('previousEngineOf', () => {
+  const engine: EngineSummary = {
+    engine_code: 'a',
+    mentioned: { value: null, numerator: 0, denominator: 0, n_observations: 2 },
+    cited: { value: null, numerator: 0, denominator: 0, n_observations: 2 },
+    outcomes: {
+      cited_only: { value: null, numerator: 0, denominator: 0, n_observations: 2 },
+      mentioned_and_cited: { value: null, numerator: 0, denominator: 0, n_observations: 2 },
+      mentioned_only: { value: null, numerator: 0, denominator: 0, n_observations: 2 },
+      neither: { value: null, numerator: 0, denominator: 0, n_observations: 2 },
+    },
+    share_of_voice: { value: null, numerator: 0, denominator: 0, n_observations: 2 },
+  };
+  // Of the prompts p1, p2 and p3 only p2 has an answer of the engine in the compared window
+  const answered = (id: string): boolean => id === 'p2';
+
+  it('builds the previous engine for a row of which some prompt answered, and only then', () => {
+    const build = vi.fn(() => engine);
+    expect(previousEngineOf(['p2'], answered, build)).toBe(engine);
+    expect(previousEngineOf(['p1', 'p2', 'p3'], answered, build)).toBe(engine);
+    expect(build).toHaveBeenCalledTimes(2);
+  });
+
+  it('is null for a row of which no prompt answered, without building anything', () => {
+    const build = vi.fn(() => engine);
+    expect(previousEngineOf(['p1'], answered, build)).toBeNull();
+    expect(previousEngineOf(['p1', 'p3'], answered, build)).toBeNull();
+    expect(previousEngineOf([], answered, build)).toBeNull();
+    expect(build).not.toHaveBeenCalled();
+  });
 });
 
 describe('attachPrevious', () => {
@@ -417,6 +463,50 @@ describe('the prompts summary with compare', () => {
     const decade = await get(`${FYNIX}?compare=previous_decade`);
     expect(decade.status).toBe(422);
     expect(fieldCodes(decade)).toEqual(['compare:literal_error']);
+  });
+
+  it('compare=previous_decade is 422 even with compare_from and compare_to, whatever their dates', async () => {
+    for (const dates of [
+      'compare_from=2026-09-18&compare_to=2026-10-15',
+      'compare_from=2026-05-01&compare_to=2026-09-01',
+    ]) {
+      const answer = await get(`${FYNIX}?compare=previous_decade&${dates}`);
+      expect(answer.status).toBe(422);
+      expect(fieldCodes(answer)).toEqual(['compare:literal_error']);
+    }
+  });
+
+  it('a one day compare window reads null exactly where the row has no answer of any status that day, and cells otherwise', async () => {
+    // Thursday 15 October holds a run: every prompt answered on every engine, but some answers are not valid
+    for (const path of [FYNIX, EVENTUS]) {
+      setAiSeeded(path === EVENTUS);
+      for (const [day, answeredThatDay] of [
+        ['2026-10-15', true],
+        ['2026-10-16', false],
+      ] as const) {
+        const compared = await summaryOf(`${path}?compare_from=${day}&compare_to=${day}&include=entities`);
+        const direct = await summaryOf(`${path}?from=${day}&to=${day}&include=entities`);
+        const rows = [
+          ...compared.prompts.map(
+            (row) => [row.engines, direct.prompts.find((r) => r.prompt_id === row.prompt_id)] as const,
+          ),
+          ...compared.topics.map((row) => [row.engines, direct.topics.find((r) => r.term_id === row.term_id)] as const),
+        ];
+        let notValid = 0;
+        for (const [engines, earlier] of rows) {
+          for (const engine of engines) {
+            const then = earlier?.engines.find((candidate) => candidate.engine_code === engine.engine_code);
+            // A fact row of any status is counted in n_observations; valid ones alone in the denominator
+            const hasFactRow = then !== undefined && then.mentioned.n_observations > 0;
+            expect(hasFactRow).toBe(answeredThatDay);
+            expect(engine.previous).toEqual(hasFactRow && then !== undefined ? cellsOf(then) : null);
+            if (hasFactRow && then?.mentioned.denominator === 0) notValid += 1;
+          }
+        }
+        // The rows with answers and none valid keep cells with a denominator of 0: they are not null
+        if (answeredThatDay) expect(notValid).toBeGreaterThan(0);
+      }
+    }
   });
 
   it('a compare window over 92 days is 422 window_too_large', async () => {
