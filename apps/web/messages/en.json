@@ -171,6 +171,63 @@
     "inspectorStepping": {
       "position": "{index} of {count}",
       "announce": "{type}, {index} of {count}"
+    },
+    "dataTableList": {
+      "label": "{caption}, {count, plural, one {# result} other {# results}}",
+      "loading": "Loading {caption}",
+      "layout": "Layout",
+      "list": "List",
+      "table": "Table",
+      "sort": "Sort: {column}",
+      "sortNone": "Sort",
+      "sortBy": "Sort by",
+      "direction": "Direction"
+    },
+    "savedViewMenu": {
+      "view": "View",
+      "edited": "(edited)",
+      "name": "Saved view: {name}",
+      "nameEdited": "Saved view: {name}, edited",
+      "default": "Default",
+      "presets": "Presets",
+      "workspace": "Workspace views",
+      "personal": "Your views",
+      "reset": "Reset to {name}",
+      "applied": "View {name} applied, {count, plural, =0 {no filters} one {# filter} other {# filters}}"
+    },
+    "dateRange": {
+      "label": "Date range",
+      "namePrefix": "Date range:",
+      "presets": "Presets",
+      "lastDays": "Last {days, number} days",
+      "short": "{days, number}d",
+      "custom": "Custom range",
+      "from": "Start date",
+      "to": "End date",
+      "placeholder": "YYYY-MM-DD",
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month",
+      "zone": "Dates in {zone}",
+      "apply": "Apply",
+      "limit": "A range is at most {max, number} days.",
+      "endLimited": "End dates after {date} are not available, because a range is at most {max, number} days.",
+      "tooLong": "{days, number} days is longer than the {max, number} day limit. Pick a later start date or an earlier end date.",
+      "beforeStart": "Data starts on {date}, so earlier dates are not available.",
+      "future": "Dates after today, {date}, are not available.",
+      "invalid": "Enter the date as YYYY-MM-DD.",
+      "order": "The start date is after the end date.",
+      "droppedTooLong": "The link asked for more than {max, number} days, so the last 28 days are shown.",
+      "droppedInvalid": "The dates in the link could not be read, so the last 28 days are shown.",
+      "day": "{weekday}, {date}",
+      "weekdaysShort": {
+        "monday": "Mo",
+        "tuesday": "Tu",
+        "wednesday": "We",
+        "thursday": "Th",
+        "friday": "Fr",
+        "saturday": "Sa",
+        "sunday": "Su"
+      }
     }
   },
   "auth": {

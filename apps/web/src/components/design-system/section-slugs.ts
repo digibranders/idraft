@@ -22,6 +22,7 @@ export const PREVIEW_SECTION_SLUGS = [
   'metric-parts',
   'chart-grids',
   'domains-feeds',
+  'controls',
 ] as const;
 
 export type PreviewSectionSlug = (typeof PREVIEW_SECTION_SLUGS)[number];

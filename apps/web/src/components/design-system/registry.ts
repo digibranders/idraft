@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { BadgesSection } from './badges-section';
 import { ButtonsSection } from './buttons-section';
 import { ChartGridsSection } from './chart-grids-section';
+import { ControlsSection } from './controls-section';
 import { DomainsFeedsSection } from './domains-feeds-section';
 import { ChartPartsSection } from './chart-parts-section';
 import { ChartsSection } from './charts-section';
@@ -46,6 +47,7 @@ export const PREVIEW_SECTIONS: readonly PreviewSection[] = [
   { slug: 'metric-parts', title: 'Metrics and engines', render: MetricPartsSection },
   { slug: 'chart-grids', title: 'Chart grids', render: ChartGridsSection },
   { slug: 'domains-feeds', title: 'Domains, feeds and stepping', render: DomainsFeedsSection },
+  { slug: 'controls', title: 'Lists, views and dates', render: ControlsSection },
 ];
 
 export const previewSection = (slug: string): PreviewSection | undefined =>
