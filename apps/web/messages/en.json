@@ -4363,7 +4363,7 @@
       "change": {
         "header": "Change",
         "engineHeader": "{engine} change",
-        "engineHeaderTip": "Change in points of this engine's {metric} since the previous period. Coloured only when the change is detectable.",
+        "engineHeaderTip": "Change in points of this engine's {metric, select, mention {mention rate} citation {citation rate} other {share of voice}} since the previous period. {metric, select, sov {No test exists for share of voice, so its change is never coloured.} other {Coloured only when the change is detectable.}}",
         "off": "Comparison is off",
         "noPrevious": "No answers in the previous period",
         "tooFew": "Too few answers in one of the periods for a rate",

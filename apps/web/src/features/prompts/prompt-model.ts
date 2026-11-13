@@ -1,4 +1,6 @@
+import type { PromptRow } from './prompt-columns';
 import type {
+  EngineSummary,
   MetricCell,
   ObservationSummary,
   ProjectEngine,
@@ -57,6 +59,10 @@ export const CELL_OF_METRIC = {
   citation: 'cited',
   sov: 'share_of_voice',
 } as const satisfies Record<RateMetric, string>;
+
+/** The engine cells of a Prompts row: no row in counts that have arrived is no answers; no counts yet is not knowing. */
+export const cellsOfPrompt = (row: PromptRow): readonly EngineSummary[] | undefined =>
+  row.summary?.engines ?? (row.countsLoaded ? [] : undefined);
 
 /**
  * The ids `?sort=` names (`-id` for descending, two keys at most). A value a column does not have, or a rate

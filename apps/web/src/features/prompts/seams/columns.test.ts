@@ -10,7 +10,15 @@ import messages from '../../../../messages/en.json';
 
 const translate = createTranslator({ locale: 'en', messages });
 
-const context: PromptColumnContext = { engines: [], metric: 'mention', t: translate, locale: 'en' };
+const context: PromptColumnContext = {
+  engines: [],
+  metric: 'mention',
+  t: translate,
+  locale: 'en',
+  compare: true,
+  comparedWindow: null,
+  changeWords: { tip: () => '', label: () => '', gap: () => '' },
+};
 
 const column = (id: string): DataTableColumn<PromptRow> =>
   col.text<PromptRow>(id, () => id, { header: id, defaultVisible: false });

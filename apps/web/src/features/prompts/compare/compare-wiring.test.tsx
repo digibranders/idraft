@@ -401,6 +401,26 @@ describe('Topics & Prompts: the change column of an engine', () => {
     expect(within(row).getAllByText('+30.0 pts')).toHaveLength(2);
   });
 
+  it('gives its tip to the focused cell of the table and adds no tab stop inside it', async () => {
+    serve();
+    render('?tab=prompts&cols=prompt,mention,change_chatgpt_web');
+    const table = await grid();
+    expect(await within(table).findByRole('columnheader', { name: /ChatGPT change/ })).toBeInTheDocument();
+    const row = (await within(table).findByText('Question number 1?')).closest('[role="row"]');
+    if (!(row instanceof HTMLElement)) throw new Error('The first prompt row is missing');
+    // The Mention rate cell says "1 engine"; the change column is the other cell with this prompt's 30 points
+    const changeCell = (): HTMLElement | undefined =>
+      within(row)
+        .getAllByRole('gridcell')
+        .find((node) => node.textContent?.includes('30.0 pts') && !node.textContent.includes('engine'));
+    await waitFor(() => expect(changeCell()).toBeDefined());
+    const cell = changeCell();
+    if (cell === undefined) throw new Error('The change cell is missing');
+    expect(cell).toHaveAccessibleDescription(/Previous 20%, 12 of 60 answers.*Previous period: Sep 18 to Oct 15, 2026/);
+    expect(cell).toHaveAccessibleDescription(/Detectable change/);
+    expect(cell.querySelectorAll('[tabindex]')).toHaveLength(0);
+  });
+
   it('can be shown from the address, and says Comparison is off with cmp=off', async () => {
     serve();
     const on = render('?tab=prompts&cols=prompt,mention,change_chatgpt_web');

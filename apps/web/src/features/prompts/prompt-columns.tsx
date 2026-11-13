@@ -3,8 +3,8 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
-import type { ComparedWindow } from './compare';
-import { countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
+import { useChangeWords, useComparedWindow, useCompare, type ComparedWindow } from './compare';
+import { cellsOfPrompt, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
 import { ENGINE_COLUMN_WIDTH, useEngineRateColumns, useRateColumns } from './rate-columns';
 import { PROMPT_COLUMN_ENTRIES, withColumnEntries } from './seams/columns';
 import { useTrendColumn } from './trend-column';
@@ -108,10 +108,6 @@ export interface PromptColumns {
   rowName: (row: PromptRow) => string;
 }
 
-/** No row in counts that have arrived is no answers; no counts yet is not knowing. */
-const cellsOfPrompt = (row: PromptRow): readonly EngineSummary[] | undefined =>
-  row.summary?.engines ?? (row.countsLoaded ? [] : undefined);
-
 /**
  * The columns of the Prompts tab (ADR-DS-022 decision 9): Prompt, Topic, Country, Mention rate and Citation
  * rate (the average of the engines shown), Trend (the weekly mention rate), then each engine shown with the
@@ -127,7 +123,11 @@ export function usePromptColumns(
   const t = useTranslations('prompts');
   const root = useTranslations();
   const locale = useLocale();
-  const { mention, citation } = useRateColumns(engines, cellsOfPrompt, { window: comparedWindow });
+  const { compare } = useCompare();
+  const changeWords = useChangeWords();
+  const contextWindow = useComparedWindow();
+  const compared = comparedWindow ?? contextWindow;
+  const { mention, citation } = useRateColumns(engines, cellsOfPrompt, { window: compared });
   const trend = useTrendColumn(engines, cellsOfPrompt);
   const engineRateColumns = useEngineRateColumns(engines, cellsOfPrompt, metric);
   const countColumns = useEngineColumns(engines, cellsOfPrompt, { sortable: true, defaultVisible: false });
@@ -182,12 +182,34 @@ export function usePromptColumns(
       ...countColumns,
     ];
     // Before the sort fields are read, so a sortable column of an entry is a valid `?sort=` id
-    const columns = withColumnEntries(builtIn, PROMPT_COLUMN_ENTRIES, { engines, metric, t: root, locale });
+    const columns = withColumnEntries(builtIn, PROMPT_COLUMN_ENTRIES, {
+      engines,
+      metric,
+      t: root,
+      locale,
+      compare,
+      comparedWindow: compared,
+      changeWords,
+    });
     return {
       columns,
       sortFields: new Set(columns.flatMap((column) => (column.sortValue === undefined ? [] : [column.id]))),
       searchText: (row) => `${row.prompt.current_version.text} ${row.topics ?? ''}`.toLocaleLowerCase(locale),
       rowName: (row) => row.prompt.current_version.text,
     };
-  }, [t, root, locale, engines, metric, mention, citation, trend, engineRateColumns, countColumns]);
+  }, [
+    t,
+    root,
+    locale,
+    engines,
+    metric,
+    compare,
+    compared,
+    changeWords,
+    mention,
+    citation,
+    trend,
+    engineRateColumns,
+    countColumns,
+  ]);
 }

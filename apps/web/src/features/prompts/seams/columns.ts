@@ -1,3 +1,4 @@
+import type { ChangeWords, ComparedWindow } from '../compare';
 import type { PromptRow } from '../prompt-columns';
 import type { RateMetric } from '../prompt-model';
 import { placeAfter, type Translate } from './shared';
@@ -41,6 +42,12 @@ export interface PromptColumnContext {
   metric: RateMetric;
   t: Translate;
   locale: string;
+  /** The comparison with the previous period is on (`?cmp=`); added for WP-19, the columns that read it need no hook. */
+  compare: boolean;
+  /** The window the summary was compared with; `null` for a read that was not compared. */
+  comparedWindow: ComparedWindow;
+  /** The words of a change, from the one translator the screen holds: a pure `cellTip` cannot call the hook. */
+  changeWords: ChangeWords;
 }
 
 export interface PromptColumnEntry {

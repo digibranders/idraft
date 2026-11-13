@@ -119,6 +119,11 @@ describe('the Mention rate cell change', () => {
     expect(screen.getByTestId('tip').textContent).not.toMatch(/Previous|Average of|Detectable/);
   });
 
+  it('names no window in the tooltip while comparison is off, even when the page holds one', () => {
+    render({ cells: [chat(DETECTABLE), gemini(cell(20, 40), cell(8, 40))] }, '?cmp=off', undefined, WINDOW);
+    expect(screen.getByTestId('tip').textContent).not.toMatch(/Previous period|Sep 18|Oct 15/);
+  });
+
   it('says nothing in the cell and why in the tooltip when no engine has a previous period', () => {
     render({ cells: [engineOf('chatgpt_web', cell(30, 60), null), gemini(cell(20, 40), null)] });
     expect(screen.getByTestId('cell').textContent).not.toMatch(/pts/);
