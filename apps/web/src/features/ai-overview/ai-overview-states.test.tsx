@@ -54,10 +54,10 @@ function freshnessIs(patch: { last_observed_at: string | null; last_valid_at: st
 }
 
 /**
- * The summary of the window with every answer valid, so the notice for answers that are not valid has nothing to
- * say (the Fynix world has some, as a real project does).
+ * The summary of the window with half of every engine's answers not valid (the Fynix world has about 10%, a
+ * healthy project, which the notice leaves alone): the notice for answers that are not valid has something to say.
  */
-function withoutInvalidAnswers(): void {
+function withManyInvalidAnswers(): void {
   server.use(
     http.get(SUMMARY, async ({ request }) => {
       if (new URL(request.url).searchParams.get('rows') === 'none') return undefined;
@@ -67,7 +67,7 @@ function withoutInvalidAnswers(): void {
         ...prompt,
         engines: prompt.engines.map((engine) => ({
           ...engine,
-          mentioned: { ...engine.mentioned, n_observations: engine.mentioned.denominator },
+          mentioned: { ...engine.mentioned, n_observations: engine.mentioned.denominator * 2 },
         })),
       }));
       return HttpResponse.json({ ...body, data: { ...data, prompts } });
@@ -193,7 +193,18 @@ describe('the notice region and the freshness of the AI visibility page', () => 
     expect(await screen.findByText(/^No AI answers have been collected yet/)).toBeInTheDocument();
   });
 
-  it('names the engine with the most answers not valid, once, with its counts', async () => {
+  it('leaves a healthy project alone: about 10% of answers not valid is no banner', async () => {
+    renderWithProviders(overviewAs('admin'));
+    await screen.findByRole('group', { name: STRIP });
+    await waitFor(() => {
+      expect(screen.getByText(/^AI updated /)).toBeInTheDocument();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(document.querySelectorAll('[data-slot="banner"]')).toHaveLength(0);
+  });
+
+  it('names the engine with the larger share of answers not valid, once, with its counts', async () => {
+    withManyInvalidAnswers();
     renderWithProviders(overviewAs('admin'));
     expect(
       await screen.findByText(/^\d+ of \d+ answers were not valid on (ChatGPT|Gemini) in these 28 days$/),
@@ -203,7 +214,6 @@ describe('the notice region and the freshness of the AI visibility page', () => 
   });
 
   it('warns that the newest valid answer is stale, in the header and in one banner', async () => {
-    withoutInvalidAnswers();
     freshnessIs({ last_observed_at: '2026-11-06T02:10:00Z', last_valid_at: '2026-11-06T02:10:00Z' });
     renderWithProviders(overviewAs('admin'));
     expect(await screen.findByText('The newest valid answer is 6 days old')).toBeInTheDocument();

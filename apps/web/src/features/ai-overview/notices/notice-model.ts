@@ -64,12 +64,23 @@ export function staleDaysOf(lastValidAt: string | null, now: Date): number | nul
   return Number.isNaN(age) || age <= STALE_AFTER_DAYS * DAY_MS ? null : Math.floor(age / DAY_MS);
 }
 
-/** The asked engine with the largest share of its answers not valid, or `null` when none has any. */
+// threshold chosen by the WP-33 shell, owner to confirm: a few answers not valid are normal for a healthy project
+/** The share of an engine's answers that must be not valid before the page says so. */
+export const INVALID_SHARE_THRESHOLD = 0.2;
+/** And the fewest answers not valid, so a small sample does not raise it. */
+export const INVALID_COUNT_MINIMUM = 5;
+
+/**
+ * The asked engine with the largest share of its answers not valid, among those at or over both thresholds; `null`
+ * when none is. The counts stay in every number's tip, so a project under the thresholds hides nothing.
+ */
 function worstEngine(engines: readonly EngineCounts[], days: number): Notice | null {
   let worst: { engine: EngineCounts; invalid: number } | null = null;
   for (const engine of engines) {
     const invalid = engine.allAnswers - engine.validAnswers;
-    if (!engine.asked || invalid <= 0) continue;
+    if (!engine.asked || invalid < INVALID_COUNT_MINIMUM || invalid / engine.allAnswers < INVALID_SHARE_THRESHOLD) {
+      continue;
+    }
     if (worst === null || invalid / engine.allAnswers > worst.invalid / worst.engine.allAnswers) {
       worst = { engine, invalid };
     }
