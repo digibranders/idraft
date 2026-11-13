@@ -10,7 +10,6 @@ sections 3.7.1 and 3.7.4).
 from __future__ import annotations
 
 from datetime import date, datetime
-from enum import Enum
 from typing import Annotated, Final, Literal
 from uuid import UUID
 
@@ -20,13 +19,14 @@ from pydantic import (
     BeforeValidator,
     Discriminator,
     Field,
+    GetCoreSchemaHandler,
     StringConstraints,
     Tag,
     field_validator,
     model_validator,
 )
 from pydantic.json_schema import SkipJsonSchema
-from pydantic_core import PydanticCustomError
+from pydantic_core import PydanticCustomError, core_schema
 
 from idraft.ai.text import normalize
 from idraft.api.pagination import CursorPageInfo
@@ -633,15 +633,22 @@ class OutcomeCells(BaseModel):
     neither: MetricCell
 
 
-class NotAsked(Enum):
+class _NotAsked:
     """The default of `previous`, which tells "compare was not asked" (the key is left out)
     from None, "asked, and the window has no answer" (the key is null): the contract keeps
-    them apart (C2 change log, C-2)."""
+    them apart (C2 change log, C-2). Only `NOT_ASKED` is ever an instance."""
 
-    NOT_ASKED = "not_asked"
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source: type[object], handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        # Serialized as null, which is how its default reads in the JSON schema.
+        return core_schema.is_instance_schema(
+            cls, serialization=core_schema.plain_serializer_function_ser_schema(lambda _: None)
+        )
 
 
-NOT_ASKED: Final = NotAsked.NOT_ASKED
+NOT_ASKED: Final = _NotAsked()
 
 
 def _not_asked(value: object) -> bool:
@@ -676,7 +683,7 @@ class EntityCells(BaseModel):
         description="The entity's share of each answer that names a tracked entity: 1 / the "
         "tracked entities the answer names."
     )
-    previous: EntityPreviousCells | SkipJsonSchema[NotAsked] | None = Field(
+    previous: EntityPreviousCells | SkipJsonSchema[_NotAsked] | None = Field(
         default=NOT_ASKED,
         exclude_if=_not_asked,
         json_schema_extra={"default": None},
@@ -714,7 +721,7 @@ class EngineSummary(BaseModel):
     cited: MetricCell
     outcomes: OutcomeCells
     share_of_voice: MetricCell
-    previous: EngineCells | SkipJsonSchema[NotAsked] | None = Field(
+    previous: EngineCells | SkipJsonSchema[_NotAsked] | None = Field(
         default=NOT_ASKED,
         exclude_if=_not_asked,
         json_schema_extra={"default": None},

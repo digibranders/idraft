@@ -27,7 +27,6 @@ from idraft.api.schemas.ai import (
     EntityPreviousCells,
     MetricCell,
     MetricContext,
-    NotAsked,
     OutcomeCells,
     Pooled,
     PromptsSummary,
@@ -38,6 +37,7 @@ from idraft.api.schemas.ai import (
     SummaryMetricContext,
     TopicSummaryRow,
     WeekCells,
+    _NotAsked,
 )
 from idraft.api.schemas.metrics import MetricWindow
 from idraft.api.workspaces.access import WorkspaceAccess
@@ -330,7 +330,7 @@ def _engine_row(
         return _engine(members[0] if members else _NONE)
 
     row = cells(found(read.counts))
-    previous: EngineCells | NotAsked | None = NOT_ASKED
+    previous: EngineCells | _NotAsked | None = NOT_ASKED
     if read.previous is not None:
         # No answer of the row's prompts in the window before is null, so that no data is never
         # read as a rate of 0; answers that are none valid are cells with a denominator of 0.
@@ -339,7 +339,7 @@ def _engine_row(
 
     def entity(entity_id: UUID) -> EntityCells:
         current = _entity_cells(code, entity_id, prompt_ids, read.counts, read.named, topic=topic)
-        earlier: EntityPreviousCells | NotAsked | None = NOT_ASKED
+        earlier: EntityPreviousCells | _NotAsked | None = NOT_ASKED
         if read.previous is not None:
             # Null exactly when the engine's `previous` is null (C-2).
             earlier = (

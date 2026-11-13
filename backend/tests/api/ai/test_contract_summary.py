@@ -309,6 +309,21 @@ def test_a_summary_without_the_additions_is_a_valid_summary() -> None:
     assert "previous" not in EntityCells.model_validate(entity).model_dump(mode="json")
 
 
+def test_the_api_document_has_no_trace_of_the_not_asked_default() -> None:
+    """`previous` is left out when no compare was asked and null when there is no data; the
+    sentinel that tells them apart stays out of the document: no component of its own, and the
+    property is an optional `Inner or null`."""
+    schemas = build_openapi()["components"]["schemas"]
+
+    assert not [name for name in schemas if "asked" in name.lower()]
+    for model, inner in (("EngineSummary", "EngineCells"), ("EntityCells", "EntityPreviousCells")):
+        assert schemas[model]["properties"]["previous"]["anyOf"] == [
+            {"$ref": f"#/components/schemas/{inner}"},
+            {"type": "null"},
+        ]
+        assert "previous" not in schemas[model].get("required", [])
+
+
 def test_the_api_document_has_the_summary_additions() -> None:
     document = build_openapi()
     schemas = document["components"]["schemas"]

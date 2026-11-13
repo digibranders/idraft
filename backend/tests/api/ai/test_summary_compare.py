@@ -6,6 +6,7 @@ window before the default one is answer 9, 28 days old, on ChatGPT for `provider
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -14,6 +15,7 @@ from idraft.api.resources import Resources
 from idraft.collectors.ai_prompt_ingest import ingest
 from tests.api.ai import summary_support
 from tests.api.ai.summary_support import (
+    CHATGPT,
     GEMINI,
     OWN_ONLY,
     REFUSAL,
@@ -36,8 +38,10 @@ from tests.api.ai.summary_support import (
 from tests.api.auth.support import execute, make_workspace
 from tests.api.entities.support import problem
 from tests.api.keywords.test_tracked_keyword_ranks import Ledger
+from tests.collectors.ai_support import at_now, fetched_ai_task
 from tests.collectors.test_fetching import MemoryStore
 from tests.conftest import PostgresServer
+from tests.providers.dataforseo.support import FIXTURES
 
 seeded = summary_support.seeded
 
@@ -85,6 +89,52 @@ async def test_previous_answers_is_the_valid_answers_of_the_window_before(
     # Counted over the engines shown: Gemini had no answer in the window before.
     assert gemini_only["previous_answers"] == 0
     assert gemini_only["compare_window"] == data["compare_window"]
+
+
+async def test_previous_answers_leave_out_an_engine_that_is_not_shown(
+    api: httpx.AsyncClient,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+    seeded: Summary,
+) -> None:
+    """A valid Gemini answer in the window before, and Gemini turned off with no current answer
+    left: the engine is not one of those shown, so its answer is not in `previous_answers`, as
+    it is in no cell (C-2)."""
+    when = datetime.now(UTC).replace(microsecond=0) - timedelta(days=28)
+    await fetched_ai_task(
+        worker_db,
+        migrated,
+        seeded.project,
+        seeded.prompts["providers"],
+        at_now(FIXTURES / "captured" / "gemini_scraper_answer.json", when),
+        import_store,
+        engine_code=GEMINI,
+        fetched_at=when,
+    )
+    await ingest(worker_db, import_store)
+    shown = await summary_data(seeded, api, compare="previous_period")
+    assert shown["engine_codes"] == [CHATGPT, GEMINI]
+    assert shown["previous_answers"] == 2
+    await execute(
+        migrated,
+        "UPDATE ai.project_engines SET is_enabled = false "
+        "WHERE project_id = $1 AND engine_code = $2",
+        seeded.project.id,
+        GEMINI,
+    )
+    await execute(
+        migrated,
+        "UPDATE ai.observation_facts SET is_current = false "
+        "WHERE project_id = $1 AND engine_code = $2 AND observed_at > now() - interval '27 days'",
+        seeded.project.id,
+        GEMINI,
+    )
+
+    data = await summary_data(seeded, api, compare="previous_period")
+
+    assert data["engine_codes"] == [CHATGPT]
+    assert data["previous_answers"] == 1
 
 
 async def test_an_explicit_window_is_compared_with_as_many_days_before_it(
