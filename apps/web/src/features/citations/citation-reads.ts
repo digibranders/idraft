@@ -37,7 +37,7 @@ export interface CitationRead<TPage> {
 }
 
 /** `idle`: the read has nothing to ask (a comparison that is off), so it is ready with no data and no request. */
-function useRead<TPage>(query: UseQueryResult<TPage>, idle = false): CitationRead<TPage> {
+export function useRead<TPage>(query: UseQueryResult<TPage>, idle = false): CitationRead<TPage> {
   const errorId = useErrorId(query.error);
   return {
     // An error with data in hand keeps the data: a failed refetch is not an empty strip

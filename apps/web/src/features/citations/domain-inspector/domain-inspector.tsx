@@ -8,6 +8,8 @@ import { useMemo, type ReactElement, type ReactNode } from 'react';
 import { CitedWithSection } from './cited-with';
 import { DomainBadges, LastCited } from './domain-header';
 import { domainFigures, type DomainFigures } from './domain-model';
+import { DomainPagesTab } from './domain-pages-tab';
+import { DomainPromptsTab } from './domain-prompts-tab';
 import { useDomainDetail, type DomainDetailRead } from './domain-reads';
 import { DomainSeoShare } from './domain-seo-share';
 import { DomainStrip } from './domain-strip';
@@ -35,6 +37,12 @@ export interface DomainTabContext {
   timeZone: string;
   /** The Rankings of the project, which the search share of voice card points to. */
   rankingsHref: Route;
+  /** The Pages tab of the page filtered to this domain, which "View all pages" leads to. */
+  pagesHref: Route;
+  /** The source inspector of a cited page, as a real link. */
+  sourceHrefOf: (urlId: number) => Route;
+  /** The prompt inspector on the prompts page, as a real link. */
+  promptHrefOf: (promptId: string) => Route;
   /** The engines in scope with their names, in the order the project lists them. */
   engines: readonly { code: EngineCode; label: string }[];
   /** The domain's read; `null` data while it has nothing yet. */
@@ -53,9 +61,8 @@ export interface DomainTab {
 }
 
 /**
- * The tabs, in order: Overview first (the address leaves it out). The Pages and Prompts tabs are added here. The
- * Overview is the trend by engine, the breakdown by engine, the entities named when the domain is cited, and the
- * search share of voice.
+ * The tabs, in order: Overview first (the address leaves it out), then Pages and Prompts. The Overview is the trend
+ * by engine, the breakdown by engine, the entities named when the domain is cited, and the search share of voice.
  */
 const DOMAIN_TABS: readonly DomainTab[] = [
   {
@@ -77,6 +84,38 @@ const DOMAIN_TABS: readonly DomainTab[] = [
       </>
     ),
   },
+  {
+    id: 'pages',
+    label: (t) => t('tabPages'),
+    render: ({ registrable, data, read, refetching, pagesHref, sourceHrefOf }) => (
+      <DomainPagesTab
+        domain={registrable}
+        data={data}
+        read={read}
+        refetching={refetching}
+        pagesHref={pagesHref}
+        sourceHrefOf={sourceHrefOf}
+      />
+    ),
+  },
+  {
+    id: 'prompts',
+    label: (t) => t('tabPrompts'),
+    render: ({ source, filters, registrable, data, read, refetching, engines, promptHrefOf }) => (
+      // Keyed by the domain: stepping to the next one starts its reads, and never shows the engines of the last
+      <DomainPromptsTab
+        key={registrable}
+        source={source}
+        filters={filters}
+        domain={registrable}
+        data={data}
+        read={read}
+        refetching={refetching}
+        engines={engines}
+        promptHrefOf={promptHrefOf}
+      />
+    ),
+  },
 ];
 
 /** The tab the address asks for when it is one of `tabs`, else the first one. */
@@ -96,6 +135,10 @@ export interface DomainInspectorProps {
   pagesHref: Route;
   /** The project's Rankings page, for the search share of voice card. */
   rankingsHref: Route;
+  /** The source inspector of a cited page, as a real link. */
+  sourceHrefOf: (urlId: number) => Route;
+  /** The prompt inspector on the prompts page, as a real link. */
+  promptHrefOf: (promptId: string) => Route;
   /** "3 of 12"; `null` when the domain is not in the list on screen. */
   positionText: string | null;
   navigation: InspectorNavigation | null;
@@ -122,6 +165,8 @@ export function DomainInspector({
   engines,
   pagesHref,
   rankingsHref,
+  sourceHrefOf,
+  promptHrefOf,
   positionText,
   navigation,
   onStep,
@@ -152,6 +197,9 @@ export function DomainInspector({
     registrable,
     timeZone,
     rankingsHref,
+    pagesHref,
+    sourceHrefOf,
+    promptHrefOf,
     engines,
     read,
     data,

@@ -1,12 +1,13 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
-import type { CitationRead } from '../citation-reads';
+import { useRead, type CitationRead } from '../citation-reads';
 import { isApiProblem } from '@/lib/api/problem';
 import { useErrorId } from '@/lib/api/use-error-id';
-import { sourceDomainDetailQuery, type SourceFilters } from '@/lib/citations/source-queries';
-import type { SourceDomainDetail, SourceScope } from '@/lib/citations/types';
+import { promptTextsById, promptTextsQuery } from '@/lib/citations/prompt-texts-query';
+import { citationListQuery, sourceDomainDetailQuery, type SourceFilters } from '@/lib/citations/source-queries';
+import type { CitationPage, SourceDomainDetail, SourceScope } from '@/lib/citations/types';
 
 /** The read of one domain: the shape of the Citations strip's reads, and whether the API says it is not there. */
 export interface DomainDetailRead extends CitationRead<SourceDomainDetail> {
@@ -38,4 +39,34 @@ export function useDomainDetail(source: SourceScope, registrable: string, filter
       query.data === undefined &&
       (isApiProblem(query.error, 'not_found') || isApiProblem(query.error, 'validation_failed')),
   };
+}
+
+/** The most citations the Prompts tab reads to name each prompt's engines: one page, the most the route gives. */
+export const DOMAIN_CITATIONS_LIMIT = 100;
+
+/**
+ * The latest citations of one domain, one page, whatever role the page filters to (the detail is of the whole
+ * domain). Another window keeps the last rows on screen; the Prompts tab is keyed by the domain, so another domain
+ * never shows these. It takes neither flag: the citation list keeps what the aggregates leave out.
+ */
+export function useDomainCitations(
+  source: SourceScope,
+  filters: SourceFilters,
+  registrable: string,
+): CitationRead<CitationPage> {
+  return useRead(
+    useQuery({
+      ...citationListQuery(
+        source,
+        { ...filters, roles: [] },
+        { limit: DOMAIN_CITATIONS_LIMIT, registrableDomain: registrable.toLowerCase() },
+      ),
+      placeholderData: keepPreviousData,
+    }),
+  );
+}
+
+/** The text of the project's prompts by id, from the prompts read (one page of 200); empty while there is none. */
+export function usePromptTexts(source: SourceScope): CitationRead<ReadonlyMap<string, string>> {
+  return useRead(useQuery({ ...promptTextsQuery(source), placeholderData: keepPreviousData, select: promptTextsById }));
 }

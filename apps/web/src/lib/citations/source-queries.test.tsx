@@ -239,6 +239,36 @@ describe('the builders', () => {
     expect(queryOf(citationListQuery(scope, flagged).queryKey)).not.toHaveProperty('include_engine_internal');
   });
 
+  it('the citation list takes registrableDomain and urlId as filters, and leaves them out when not set', () => {
+    expect(queryOf(citationListQuery(scope, FILTERS, { limit: 100, registrableDomain: 'g2.com' }).queryKey)).toEqual({
+      from: FILTERS.from,
+      to: FILTERS.to,
+      limit: 100,
+      'filter[registrable_domain]': 'g2.com',
+    });
+    expect(queryOf(citationListQuery(scope, FILTERS, { urlId: 42 }).queryKey)).toEqual({
+      from: FILTERS.from,
+      to: FILTERS.to,
+      'filter[url_id]': 42,
+    });
+    expect(queryOf(citationListQuery(scope, FILTERS, { limit: 100 }).queryKey)).not.toHaveProperty(
+      'filter[registrable_domain]',
+    );
+    expect(queryOf(citationListQuery(scope, FILTERS).queryKey)).not.toHaveProperty('filter[url_id]');
+    expect(citationListQuery(scope, FILTERS, { registrableDomain: 'g2.com' }).queryKey).not.toEqual(
+      citationListQuery(scope, FILTERS, { registrableDomain: 'g2.org' }).queryKey,
+    );
+  });
+
+  it('the citation list by domain or url still sends no flag', () => {
+    const flagged = { ...FILTERS, includeUnresolvedRedirects: true, includeEngineInternal: true };
+    for (const options of [{ registrableDomain: 'g2.com' }, { urlId: 7 }]) {
+      const asked = queryOf(citationListQuery(scope, flagged, options).queryKey);
+      expect(asked).not.toHaveProperty('include_unresolved_redirects');
+      expect(asked).not.toHaveProperty('include_engine_internal');
+    }
+  });
+
   it('sourcePromptsQuery keeps ownCited false, which is a filter and not an absence', () => {
     expect(queryOf(sourcePromptsQuery(scope, FILTERS, { ownCited: false }).queryKey)).toHaveProperty(
       'filter[own_cited]',
@@ -375,6 +405,32 @@ describe('a read answers the typed page through the mock', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.data).toHaveLength(4);
     expect(result.current.data?.page.has_more).toBe(true);
+  });
+
+  it('citationListQuery by registrable domain and by url id narrows the list', async () => {
+    const all = renderHook(() => useQuery(citationListQuery(scope, FILTERS, { limit: 100 })), { wrapper });
+    await waitFor(() => expect(all.result.current.isSuccess).toBe(true));
+    const first = all.result.current.data?.data[0];
+    expect(first).toBeDefined();
+    const byDomain = renderHook(
+      () =>
+        useQuery(citationListQuery(scope, FILTERS, { limit: 100, registrableDomain: first?.registrable_domain ?? '' })),
+      { wrapper },
+    );
+    await waitFor(() => expect(byDomain.result.current.isSuccess).toBe(true));
+    const domainRows = byDomain.result.current.data?.data ?? [];
+    expect(domainRows.length).toBeGreaterThan(0);
+    expect(domainRows.every((row) => row.registrable_domain === first?.registrable_domain)).toBe(true);
+    const byUrl = renderHook(
+      () => useQuery(citationListQuery(scope, FILTERS, { limit: 100, urlId: first?.url_id ?? 1 })),
+      {
+        wrapper,
+      },
+    );
+    await waitFor(() => expect(byUrl.result.current.isSuccess).toBe(true));
+    const urlRows = byUrl.result.current.data?.data ?? [];
+    expect(urlRows.length).toBeGreaterThan(0);
+    expect(urlRows.every((row) => row.url_id === first?.url_id)).toBe(true);
   });
 
   it('sourcePromptsQuery', async () => {

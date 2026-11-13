@@ -5162,8 +5162,7 @@
         "promptsEmptyTitle": "No prompt cites this domain",
         "promptsEmptyReason": "No answer read in this window cites it.",
         "promptsFailed": "The prompts could not be loaded.",
-        "enginesPartial": "The engines of the prompts could not be loaded, so they read n/a.",
-        "openPrompt": "Open prompt"
+        "enginesPartial": "The engines of the prompts could not be loaded, so they read n/a."
       }
     }
   },

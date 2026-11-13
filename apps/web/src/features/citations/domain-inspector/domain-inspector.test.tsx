@@ -6,7 +6,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DomainInspector, type DomainInspectorProps } from './domain-inspector';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
-import type { EngineCode, SourceDomainDetail, SourceDomainRow, SourcesMeta, SourceScope } from '@/lib/citations/types';
+import type {
+  EngineCode,
+  SourceDomainDetail,
+  SourcePageRow,
+  SourceDomainRow,
+  SourcesMeta,
+  SourceScope,
+} from '@/lib/citations/types';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { mswPath, problem } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
@@ -111,6 +118,8 @@ function Harness(props: Partial<DomainInspectorProps> = {}): ReactElement {
           engines={ENGINES}
           pagesHref={PAGES_HREF}
           rankingsHref={RANKINGS_HREF}
+          sourceHrefOf={(urlId) => `/digibranders/fynix/ai/citations?inspect=source%3A${urlId}` as Route}
+          promptHrefOf={(id) => `/digibranders/fynix/ai/prompts?inspect=prompt%3A${id}` as Route}
           positionText="3 of 12"
           navigation={{
             onPrevious: () => onStep('previous'),
@@ -505,6 +514,123 @@ describe('the domain inspector states', () => {
     expect(await screen.findByRole('heading', { level: 2, name: 'hubspot.com' })).toBeInTheDocument();
     expect(within(await strip()).queryByText('1,912')).toBeNull();
     held.open();
+  });
+});
+
+describe('the tabs', () => {
+  const PROMPT_ID = '0c1f4e7b-0000-4000-8000-000000000001';
+  const TOP_PAGE = {
+    url: 'https://g2.com/categories/crm',
+    url_id: 77,
+    title: 'Best CRM software',
+    host: 'g2.com',
+    registrable_domain: 'g2.com',
+    domain_role: 'third_party',
+    role_entity_id: null,
+    citation_units: 640,
+    observations: 300,
+    prompts: 12,
+    engines: [],
+    first_seen_at: '2026-10-20T08:00:00Z',
+    last_seen_at: '2026-11-10T08:00:00Z',
+    source_share: { value: 0.03, numerator: 640, denominator: 18420, n_observations: 4812 },
+  } satisfies SourcePageRow;
+  const serveTabs = (): void => {
+    serve(
+      detailOf({
+        top_pages: [TOP_PAGE],
+        prompts: [{ prompt_id: PROMPT_ID, citation_units: 90, observations: 30 }],
+      }),
+    );
+    server.use(
+      http.get(mswPath(`${P}/prompts`), () =>
+        HttpResponse.json({ data: [{ prompt_id: PROMPT_ID, current_version: { text: 'Which CRM should we buy?' } }] }),
+      ),
+      http.get(mswPath(`${P}/ai/citations`), () =>
+        HttpResponse.json({
+          data: [{ prompt_id: PROMPT_ID, engine_code: 'gemini_web' }],
+          page: { has_more: false, limit: 100, next_cursor: null },
+        }),
+      ),
+    );
+  };
+
+  it('has Overview, Pages and Prompts, in that order', async () => {
+    renderWithProviders(<Harness />);
+    const inspector = await panel();
+    const tabs = await within(inspector).findAllByRole('tab');
+    expect(tabs).toHaveLength(3);
+    ['Overview', 'Pages', 'Prompts'].forEach((name, place) => expect(tabs[place]).toHaveAccessibleName(name));
+  });
+
+  it('asks for the Pages tab and the Prompts tab by their ids', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    const inspector = await panel();
+    await user.click(await within(inspector).findByRole('tab', { name: 'Pages' }));
+    expect(onTabChange).toHaveBeenLastCalledWith('pages');
+    await user.click(within(inspector).getByRole('tab', { name: 'Prompts' }));
+    expect(onTabChange).toHaveBeenLastCalledWith('prompts');
+  });
+
+  it('shows the top pages on the Pages tab, with the strip still above', async () => {
+    serveTabs();
+    renderWithProviders(<Harness tab="pages" />);
+    const inspector = await panel();
+    expect(await within(inspector).findByRole('table', { name: 'Most cited pages of g2.com' })).toBeInTheDocument();
+    expect(within(inspector).getByRole('link', { name: 'g2.com/categories/crm' })).toHaveAttribute(
+      'href',
+      '/digibranders/fynix/ai/citations?inspect=source%3A77',
+    );
+    expect(within(inspector).getByRole('group', { name: 'Domain summary' })).toBeInTheDocument();
+    expect(within(inspector).queryByRole('table', { name: 'Citations of g2.com by engine' })).toBeNull();
+  });
+
+  it('shows the top prompts on the Prompts tab, with the text and the engine', async () => {
+    serveTabs();
+    renderWithProviders(<Harness tab="prompts" />);
+    const inspector = await panel();
+    const link = await within(inspector).findByRole('link', { name: 'Which CRM should we buy?' });
+    expect(link).toHaveAttribute('href', `/digibranders/fynix/ai/prompts?inspect=prompt%3A${PROMPT_ID}`);
+    expect(await within(inspector).findByText('Gemini')).toBeInTheDocument();
+  });
+
+  it('does not show the engines of the last domain on the Prompts tab of the next one while they read', async () => {
+    serveTabs();
+    const held = gate();
+    server.use(
+      http.get(mswPath(`${P}/ai/citations`), async ({ request }) => {
+        const asked = new URL(request.url).searchParams.get('filter[registrable_domain]');
+        if (asked === 'hubspot.com') await held.opened;
+        return HttpResponse.json({
+          data: [{ prompt_id: PROMPT_ID, engine_code: 'gemini_web' }],
+          page: { has_more: false, limit: 100, next_cursor: null },
+        });
+      }),
+    );
+    const view = renderWithProviders(<Harness tab="prompts" />);
+    expect(await within(await panel()).findByText('Gemini')).toBeInTheDocument();
+    view.rerender(<Harness tab="prompts" registrable="hubspot.com" />);
+    expect(await screen.findByRole('heading', { level: 2, name: 'hubspot.com' })).toBeInTheDocument();
+    await screen.findByRole('link', { name: 'Which CRM should we buy?' });
+    expect(screen.queryByText('Gemini')).toBeNull();
+    held.open();
+  });
+
+  it('reads neither the prompts nor the citations while another tab is shown', async () => {
+    serveTabs();
+    const asked: string[] = [];
+    server.events.on('request:start', ({ request }) => {
+      asked.push(new URL(request.url).pathname);
+    });
+    renderWithProviders(<Harness tab="overview" />);
+    await within(await panel()).findByTestId('echart-canvas');
+    expect(asked.some((path) => path.endsWith('/ai/citations') || path.endsWith('/prompts'))).toBe(false);
+  });
+
+  it('shows Overview for a tab the inspector does not have', async () => {
+    renderWithProviders(<Harness tab="answers" />);
+    const inspector = await panel();
+    expect(await within(inspector).findByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
   });
 });
 

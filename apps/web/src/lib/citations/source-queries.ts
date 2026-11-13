@@ -205,15 +205,24 @@ export const sourceChangesQuery = (
 
 /**
  * `GET {P}/ai/citations`: the first page of the citation list, newest answer first. It keeps the flagged citations
- * the aggregates leave out, so it takes no flag: the route answers 422 for both.
+ * the aggregates leave out, so it takes no flag: the route answers 422 for both. `registrableDomain` and `urlId`
+ * narrow it to one domain or one cited page.
  */
 export const citationListQuery = (
   scope: SourceScope,
   filters: SourceFilters,
-  { limit }: { limit?: number } = {},
+  { limit, registrableDomain, urlId }: { limit?: number; registrableDomain?: string; urlId?: number } = {},
 ): ApiQueryOptions<typeof CITATIONS> =>
   apiQuery(CITATIONS, {
-    params: { path: pathOf(scope), query: { ...filterParams(filters), ...(limit === undefined ? {} : { limit }) } },
+    params: {
+      path: pathOf(scope),
+      query: {
+        ...filterParams(filters),
+        ...(limit === undefined ? {} : { limit }),
+        ...(registrableDomain === undefined ? {} : { 'filter[registrable_domain]': registrableDomain }),
+        ...(urlId === undefined ? {} : { 'filter[url_id]': urlId }),
+      },
+    },
   });
 
 /** `GET {P}/ai/sources/prompts`: each prompt and engine pair with the own pages it cites; `ownCited: false` keeps the pairs that cite none. It has no role filter. */
