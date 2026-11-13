@@ -49,6 +49,8 @@ interface BarListRowBase {
   delta?: { input: MetricDeltaInput; test: DeltaTest; text: string } | undefined;
   /** Opens the entity, domain or filtered list. */
   href?: Route | undefined;
+  /** The link replaces the history entry instead of adding one: a link that moves a drawer that is already open. */
+  replace?: boolean | undefined;
 }
 
 export interface ComparisonRow extends BarListRowBase {
@@ -242,6 +244,7 @@ function BarRow({ item, max, density, trailing }: BarRowProps): ReactElement {
     ) : (
       <Link
         href={row.href}
+        {...(row.replace === true ? { replace: true } : {})}
         className={cn(box, 'rounded-sm outline-none hover:bg-surface-hover focus-visible:focus-ring')}
       >
         {content}

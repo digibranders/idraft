@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { EngineFilteredPrompts } from './engine-filter';
 import { useInspector } from '@/components/app/inspector/use-inspector';
 import { cell, engine, promptRow } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { DRAWER_ENTRY_KEYS } from '@/features/prompts/topics-by-engine/drill';
 import type { PromptSummaryRow } from '@/lib/api/types';
 import { DRAWER_TOPIC_ID, renderDrawerPart } from '@/test/topic-drawer-harness';
 
@@ -121,7 +122,7 @@ describe('EngineFilteredPrompts: the Prompts tab of a topic', () => {
   it('drops eng with the drawer, so a close removes the chip and the key in one write', async () => {
     const writes: string[] = [];
     function Probe(): ReactElement {
-      const inspector = useInspector();
+      const inspector = useInspector({ entryKeys: DRAWER_ENTRY_KEYS });
       return (
         <button type="button" onClick={() => inspector.close()}>
           Close the drawer

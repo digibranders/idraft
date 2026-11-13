@@ -10,6 +10,9 @@ import { formatInspectTarget } from '@/lib/inspector/placement';
 /** The query key of the engine the topic drawer's Prompts tab is filtered to. */
 export const ENGINE_PARAM = 'eng';
 
+/** What the topic drawer tells `useInspector` belongs to its entry: the engine goes with the drawer, on every page. */
+export const DRAWER_ENTRY_KEYS = [ENGINE_PARAM] as const;
+
 export type TopicsView = 'list' | 'engines' | 'heatmap';
 
 /** The view an address names: the List when it names none or one this build does not know. */

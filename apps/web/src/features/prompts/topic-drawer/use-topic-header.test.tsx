@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { setTopicOrder } from './topic-order-store';
 import { useTopicHeader } from './use-topic-header';
+import { announce } from '@/lib/a11y/announcer';
 import { NO_TOPIC } from '@/features/prompts/prompt-model';
 import {
   cell,
@@ -15,6 +16,11 @@ import {
 } from '@/features/prompts/topics-by-engine/cells-fixtures';
 import type { PromptSummaryRow, TopicSummaryRow } from '@/lib/api/types';
 import { DRAWER_TOPIC_ID, drawerExtras, renderDrawerPart } from '@/test/topic-drawer-harness';
+
+vi.mock('@/lib/a11y/announcer', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/a11y/announcer')>();
+  return { ...actual, announce: vi.fn(actual.announce) };
+});
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
@@ -169,6 +175,29 @@ describe('useTopicHeader', () => {
     );
   });
 
+  it('Run now gives the reason of the screen first, then that the prompts are loading, then that the topic is empty', () => {
+    const blocked = { onRun: vi.fn(), blockedReason: 'A run is already on its way.' };
+    const { unmount } = renderDrawerPart(<Probe prompts={null} />, { extras: { run: blocked } });
+    expect(screen.getByRole('button', { name: 'Run now' })).toHaveAccessibleDescription('A run is already on its way.');
+    unmount();
+
+    const empty = renderDrawerPart(<Probe prompts={[]} />, { extras: { run: blocked } });
+    expect(screen.getByRole('button', { name: 'Run now' })).toHaveAccessibleDescription('A run is already on its way.');
+    empty.unmount();
+
+    // With no reason of the screen, the prompts not being known comes first, then an empty topic
+    const free = { onRun: vi.fn(), blockedReason: null };
+    const loading = renderDrawerPart(<Probe prompts={null} />, { extras: { run: free } });
+    expect(screen.getByRole('button', { name: 'Run now' })).toHaveAccessibleDescription(
+      'The prompts are still loading.',
+    );
+    loading.unmount();
+    renderDrawerPart(<Probe prompts={[]} />, { extras: { run: free } });
+    expect(screen.getByRole('button', { name: 'Run now' })).toHaveAccessibleDescription(
+      'This topic holds no prompt to run.',
+    );
+  });
+
   it('says 3 of 13 and steps with the buttons', async () => {
     setTopicOrder(PROJECT_ID, ORDER);
     const writes: string[] = [];
@@ -203,6 +232,8 @@ describe('useTopicHeader', () => {
     });
     await last.user.click(screen.getByRole('button', { name: 'Key J' }));
     expect(writes).toEqual([]);
+    // The shared stepping says so, for a screen reader, instead of doing nothing
+    expect(announce).toHaveBeenLastCalledWith('Last topic in this list', expect.anything());
     expect(screen.getByRole('button', { name: 'Next topic' })).toBeDisabled();
     last.unmount();
 
@@ -213,6 +244,14 @@ describe('useTopicHeader', () => {
     });
     await first.user.click(screen.getByRole('button', { name: 'Key K' }));
     expect(writes).toEqual([]);
+    expect(announce).toHaveBeenLastCalledWith('First topic in this list', expect.anything());
+  });
+
+  it('announces the topic and its place after a step', async () => {
+    setTopicOrder(PROJECT_ID, ['a', DRAWER_TOPIC_ID, 'c']);
+    const { user } = renderDrawerPart(<Probe />, { searchParams: `inspect=topic:${DRAWER_TOPIC_ID}` });
+    await user.click(screen.getByRole('button', { name: 'Key J' }));
+    expect(announce).toHaveBeenLastCalledWith('Topic, 3 of 3', expect.anything());
   });
 
   it('has no counter or steps when the topic is not in the list', () => {

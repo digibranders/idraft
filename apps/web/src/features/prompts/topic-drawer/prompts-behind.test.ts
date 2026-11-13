@@ -30,8 +30,27 @@ describe('promptsBehindCell', () => {
       'low',
       'thin',
     ]);
-    // Cited is 1 of 5 for every prompt that has 5 answers: the order follows the chosen metric, then the text
-    expect(promptsBehindCell([low, high], 'chatgpt_web', 'cited').map((row) => row.prompt_id)).toEqual(['high', 'low']);
+  });
+
+  it('follows the chosen metric and not the Mentioned rate or the text', () => {
+    // Alpha is mentioned most and first by text; Beta is cited most: only the cited rate puts Beta first
+    const alpha = promptRow(
+      'alpha',
+      'Alpha',
+      [],
+      [engine('chatgpt_web', { mentioned: cell(5, 5), cited: cell(1, 5), share_of_voice: cell(1, 5) })],
+    );
+    const beta = promptRow(
+      'beta',
+      'Beta',
+      [],
+      [engine('chatgpt_web', { mentioned: cell(1, 5), cited: cell(4, 5), share_of_voice: cell(4, 5) })],
+    );
+    const ids = (metric: 'mentioned' | 'cited' | 'share_of_voice'): string[] =>
+      promptsBehindCell([alpha, beta], 'chatgpt_web', metric).map((row) => row.prompt_id);
+    expect(ids('mentioned')).toEqual(['alpha', 'beta']);
+    expect(ids('cited')).toEqual(['beta', 'alpha']);
+    expect(ids('share_of_voice')).toEqual(['beta', 'alpha']);
   });
 
   it('breaks a tie by text', () => {

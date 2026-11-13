@@ -13,8 +13,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
 import { NO_TOPIC } from '@/features/prompts/prompt-model';
+import { DRAWER_ENTRY_KEYS } from '@/features/prompts/topics-by-engine/drill';
 import type { PromptSummaryRow, TopicSummaryRow } from '@/lib/api/types';
-import { formatInteger, formatList, formatRelative } from '@/lib/format';
+import { formatList, formatRelative } from '@/lib/format';
+import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
+
+/** The order of a table that has drawn none: no topic is in it. */
+const NO_ORDER: readonly string[] = [];
 
 export interface TopicHeader {
   /** The category, the prompt count and the scope of the counts: at most 3, under the title. */
@@ -54,14 +59,17 @@ export function useTopicHeader({
   const words = useTranslations('prompts');
   const locale = useLocale();
   const timeZone = useTimeZone() ?? 'UTC';
-  const inspector = useInspector();
+  const inspector = useInspector({ entryKeys: DRAWER_ENTRY_KEYS });
   const order = useTopicOrder(extras.scope.projectId);
-
-  const at = order === null ? null : inspector.position(order);
-  const step = (direction: 'next' | 'previous'): void => {
-    if (order === null || at === null || (direction === 'next' ? at.index === at.count - 1 : at.index === 0)) return;
-    inspector.step(direction, order);
-  };
+  // The shared stepping hook: "3 of 13", Previous, Next, J and K, and the announcement at both ends. A topic that is not
+  // in the order the Topics tab drew (or no order at all) gets none of them
+  const stepping = useInspectorStepping({
+    inspector,
+    type: 'topic',
+    order: order ?? NO_ORDER,
+    typeLabel: t('type'),
+    typeNoun: t('noun'),
+  });
 
   const category = categoryOf(topicKey, extras.tree);
   const parts = scopeParts({ engines, country: extras.country, includeBranded: extras.includeBranded });
@@ -126,23 +134,12 @@ export function useTopicHeader({
   return {
     badges,
     frequentAction,
-    navigation:
-      at === null
-        ? null
-        : {
-            onPrevious: () => step('previous'),
-            onNext: () => step('next'),
-            atFirst: at.index === 0,
-            atLast: at.index === at.count - 1,
-          },
-    positionText:
-      at === null
-        ? null
-        : words('inspector.position', { index: formatInteger(at.index + 1), count: formatInteger(at.count) }),
+    navigation: stepping.navigation,
+    positionText: stepping.positionText,
     freshness:
       row?.last_observed_at == null ? null : (
         <span>{words('inspector.updated', { time: formatRelative(row.last_observed_at, timeZone) })}</span>
       ),
-    onStep: at === null ? undefined : step,
+    onStep: stepping.onStep,
   };
 }

@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
 import { countText } from '@/features/prompts/prompt-model';
 import { useRateWords } from '@/features/prompts/rate-view';
+import { DRAWER_ENTRY_KEYS } from '@/features/prompts/topics-by-engine/drill';
 import type { TopicInspectorTab } from '@/features/prompts/seams/topic-tabs';
 import { EMPTY_VALUE, formatInteger, formatList } from '@/lib/format';
 
@@ -34,7 +35,7 @@ export function RelatedTab(): ReactElement {
   const columnWords = useTranslations('prompts.columns');
   const locale = useLocale();
   const words = useRateWords();
-  const inspector = useInspector();
+  const inspector = useInspector({ entryKeys: DRAWER_ENTRY_KEYS });
   const labels = useMemo(
     () => new Map<string, string>(engines.map(({ engine }) => [engine.engine_code, engine.label])),
     [engines],

@@ -84,6 +84,8 @@ export function EnginePanel(): ReactElement {
           : panel('rowName', { engine: label, value: words.inline(value), basis }),
       tip: href === undefined ? undefined : panel('rowTip', { engine: label }),
       href,
+      // The drawer is already open: its rows move it on, so Close still takes it away in one step
+      replace: true,
       delta: input === null ? undefined : { input, test: 'interim', text: formatMetricDelta(input).text },
     };
   });

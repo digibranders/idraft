@@ -152,11 +152,14 @@ describe('useInspector', () => {
     });
   });
 
-  describe('with the engine of a topic drawer beside it (eng)', () => {
+  describe('with the engine of a topic drawer beside it (entryKeys: eng)', () => {
     // The topic drawer's drill-down opens the inspector and writes `eng` in the same tick, as `useDrill` does
     const wrapper = ({ children }: { children: ReactNode }): ReactNode => <NuqsAdapter>{children}</NuqsAdapter>;
     const hooks = () =>
-      renderHook(() => ({ inspector: useInspector(), engine: useQueryState('eng', parseAsString) }), { wrapper });
+      renderHook(
+        () => ({ inspector: useInspector({ entryKeys: ['eng'] }), engine: useQueryState('eng', parseAsString) }),
+        { wrapper },
+      );
     const search = (): URLSearchParams => new URLSearchParams(window.location.search);
 
     beforeEach(() => {
@@ -224,6 +227,46 @@ describe('useInspector', () => {
       const { result } = hooks();
       act(() => result.current.inspector.step('next', ['t1', 't2']));
       await waitFor(() => expect(window.location.search).toBe('?inspect=topic:t2&itab=prompts&eng=chatgpt_web'));
+    });
+  });
+
+  describe('by default (no entryKeys)', () => {
+    // `eng` is a documented scope key of other pages: an inspector that was not told it owns it leaves it alone
+    const wrapper = ({ children }: { children: ReactNode }): ReactNode => <NuqsAdapter>{children}</NuqsAdapter>;
+    const OPEN = '/?inspect=topic:t1&itab=prompts&eng=chatgpt_web';
+    afterEach(() => {
+      window.history.replaceState(null, '', '/');
+    });
+
+    it('leaves eng alone on open, setTab and close', async () => {
+      window.history.replaceState(null, '', OPEN);
+      const { result } = renderHook(() => useInspector(), { wrapper });
+      act(() => result.current.open({ type: 'prompt', id: 'p1' }));
+      await waitFor(() => expect(window.location.search).toBe('?inspect=prompt:p1&itab=prompts&eng=chatgpt_web'));
+      act(() => result.current.setTab('history'));
+      await waitFor(() => expect(window.location.search).toBe('?inspect=prompt:p1&itab=history&eng=chatgpt_web'));
+      act(() => result.current.close());
+      await waitFor(() => expect(window.location.search).toBe('?eng=chatgpt_web'));
+    });
+
+    it('counts eng as page query: a close after it changed replaces, like after any filter', async () => {
+      window.history.replaceState(null, '', '/?metric=citation');
+      const back = vi.spyOn(window.history, 'back');
+      const { result } = renderHook(
+        () => ({ inspector: useInspector(), engine: useQueryState('eng', parseAsString) }),
+        {
+          wrapper,
+        },
+      );
+      act(() => {
+        result.current.inspector.open({ type: 'topic', id: 't1' });
+        void result.current.engine[1]('chatgpt_web');
+      });
+      await waitFor(() => expect(window.location.search).toContain('eng=chatgpt_web'));
+      act(() => result.current.inspector.close());
+      // The page's query changed while the inspector was open (eng is a page key here): close replaces, as for any filter
+      expect(back).not.toHaveBeenCalled();
+      back.mockRestore();
     });
   });
 

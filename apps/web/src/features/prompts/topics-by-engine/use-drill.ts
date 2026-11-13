@@ -2,7 +2,7 @@
 
 import { parseAsString, useQueryState } from 'nuqs';
 
-import { ENGINE_PARAM } from './drill';
+import { DRAWER_ENTRY_KEYS, ENGINE_PARAM } from './drill';
 import { useInspector } from '@/components/app/inspector/use-inspector';
 import { TOPIC_TAB } from '@/features/prompts/prompt-model';
 
@@ -11,7 +11,7 @@ import { TOPIC_TAB } from '@/features/prompts/prompt-model';
  * in `eng`, one address update (nuqs writes the two together), every other key kept.
  */
 export function useDrill(): (topicKey: string, engineCode: string) => void {
-  const inspector = useInspector();
+  const inspector = useInspector({ entryKeys: DRAWER_ENTRY_KEYS });
   const [, setEngine] = useQueryState(ENGINE_PARAM, parseAsString);
   return (topicKey, engineCode) => {
     inspector.open({ type: 'topic', id: topicKey }, { tab: TOPIC_TAB.prompts });
