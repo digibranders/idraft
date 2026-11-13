@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T14:23:53+05:30",
+ "updated": "2026-11-13T14:46:05+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -907,7 +907,7 @@
     "done": 46
    },
    "owner": "",
-   "notes": "file work-packages/WP-18-tp-tables.md; estimate 7 tasks; decisions D-36, D-37, D-38"
+   "notes": "file work-packages/WP-18-tp-tables.md; estimate 7 tasks; decisions D-36, D-37, D-38 | from WP-20: WP-20 owns WB-TPE-17 (phone rows for topics by engine); the list-view Trend column ignores is_pooled: add the C-18 sentence; rebase onto WP-20 edits in topics-table.tsx"
   },
   {
    "id": "WP-19",
@@ -1016,7 +1016,7 @@
     "done": 9
    },
    "owner": "",
-   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | planning; F-14 fix on develop (e5ea65d0); steps 0/6, rows 9/37"
+   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | plan committed (7 tasks, about 10 h); steps 0/7, rows 9/37; History copy lease then Task 1"
   },
   {
    "id": "WP-21",
@@ -1161,7 +1161,7 @@
     "done": 2
    },
    "owner": "",
-   "notes": "file work-packages/WP-23-competitor-views.md; estimate 5 tasks; decisions none"
+   "notes": "file work-packages/WP-23-competitor-views.md; estimate 5 tasks; decisions none | from WP-20: WP-20 builds the drawer Competitors tab and the entity by engine table (WB-TI-18); WP-23 decorates it"
   },
   {
    "id": "WP-24",
@@ -3999,6 +3999,76 @@
    "granted": "2026-11-13T14:23:53+05:30",
    "scope": "edit ONLY the History tab copy keys chartFootnote, chartSummary and weekColumn so they no longer say '4 weeks' (use the pool weeks); additive otherwise",
    "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/topics-table.tsx",
+   "wp": "WP-20 (Task 2)",
+   "granted": "2026-11-13T14:46:05+05:30",
+   "scope": "export TopicRow, optional props viewColumns and onTopicOrderChange, one columns line, one effect; WP-18 (not started) rebases onto it",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompts-screen.tsx",
+   "wp": "WP-20 (Task 2 and Task 7)",
+   "granted": "2026-11-13T14:46:05+05:30",
+   "scope": "hunk 1 swaps TopicsTable for TopicsView; hunk 2 passes an extras prop (Add prompt, Run now) to TopicInspector; WP-17 (not started) rebases",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/topic-inspector.tsx",
+   "wp": "WP-20 (Task 7 only, AFTER WP-16 merges)",
+   "granted": "2026-11-13T14:46:05+05:30",
+   "scope": "WP-16 T10 edits it first; WP-20 rebases onto WP-16, not the reverse",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/handlers/prompt-answers.ts",
+   "wp": "WP-20",
+   "granted": "2026-11-13T14:46:05+05:30",
+   "scope": "add rows=topics|none (Task 2) and entity cells per weekly point (Task 5)",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/prompt-summary.ts",
+   "wp": "WP-20",
+   "granted": "2026-11-13T14:46:05+05:30",
+   "scope": "same",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/handlers/prompt-series.test.ts",
+   "wp": "WP-20",
+   "granted": "2026-11-13T14:46:05+05:30",
+   "scope": "tests for the mock changes",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/prompt-summary.test.ts",
+   "wp": "WP-20",
+   "granted": "2026-11-13T14:46:05+05:30",
+   "scope": "tests for the mock changes",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/seams/topic-tabs.ts",
+   "wp": "WP-20 (Task 7)",
+   "granted": "2026-11-13T14:46:05+05:30",
+   "scope": "uncomment its two tab entries",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/components/design-system/chart-parts-section.tsx",
+   "wp": "WP-20 (Task 4)",
+   "granted": "2026-11-13T14:46:05+05:30",
+   "scope": "one TopicEnginePanel specimen inside the existing section, no new section",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "docs/design-system/24-page-templates.md",
+   "wp": "WP-20 (Task 7)",
+   "granted": "2026-11-13T14:46:05+05:30",
+   "scope": "append-only As built under 9.5",
+   "until": "WP-20 merged"
   }
  ],
  "followups": [
@@ -4194,6 +4264,14 @@
    "reason": "doc 14 section 9 and doc 19 say so; today Gemini grounding links rank google.com as a source",
    "effect": "Built as its own commit d13a793b; default is ONE constant FLAGGED_COUNTED_BY_DEFAULT = False in source_routes.py (flip back = that line plus default-pin tests). Numbers that move (toggles off): Gemini grounding-redirect rows (vertexaisearch.cloud.google.com/grounding-api-redirect) leave the counts, so the google.com third-party row on Gemini disappears and source_share denominators, citation_units, answers_citing, by_role, series, previous, engines[] units fall (shares rise); pages redirect rows leave; changes: google.com no longer new or lost because of redirects; diversity values for Gemini change; domain detail where flagged citations exist. NOT moving: citations list, fanout-queries, meta.answers, ads presence, prompts summary. engine_internal is never set by ingest today. Owner confirms in the morning.",
    "status": "approved by coordinator, owner to confirm"
+  },
+  {
+   "id": "WP-20-defaults",
+   "by": "coordinator",
+   "date": "2026-11-13T14:46:05+05:30",
+   "title": "Nine owner choices taken with defaults in WP-20 plan section 7",
+   "effect": "default view stays the List; leader per engine = highest share of voice among tracked competitors; spread unsigned 1 decimal; engine comparison by the interim unpaired Newcombe test; pooled points marked in words; Add prompt and Run now in the drawer header; In search from tracked keywords by filter[term]; heat map ignores ?q; interim 7 day stale rule",
+   "status": "accepted by coordinator, owner to confirm"
   }
  ],
  "policy": {
