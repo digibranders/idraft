@@ -8,7 +8,7 @@ import type { ProjectEngine } from '@/lib/api/types';
 // edits nothing else in this file; the "WP-NN" line above each stays as it is.
 
 // WP-19 compare-deltas
-// import { compareColumns } from '../columns/compare-columns';
+import { compareColumns } from '../columns/compare-columns';
 
 // WP-23 competitor-views
 // import { topCompetitorColumn } from '../columns/top-competitor-column';
@@ -54,7 +54,7 @@ export interface PromptColumnEntry {
 
 export const PROMPT_COLUMN_ENTRIES: readonly PromptColumnEntry[] = [
   // WP-19 compare-deltas (WB-PRM-12)
-  // compareColumns,
+  compareColumns,
   // WP-23 competitor-views (WB-PRM-13)
   // topCompetitorColumn,
   // WP-24 fanout-views (WB-PRM-18)

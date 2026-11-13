@@ -384,6 +384,40 @@ describe('Topics & Prompts: compare, the read and the address', () => {
   });
 });
 
+describe('Topics & Prompts: the change column of an engine', () => {
+  it('waits in the column chooser, off by default, and shows its change once chosen', async () => {
+    serve();
+    const { user } = render('?tab=prompts');
+    const table = await grid();
+    expect(within(table).queryByRole('columnheader', { name: /ChatGPT change/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    const choice = screen.getByRole('checkbox', { name: 'ChatGPT change' });
+    expect(choice).not.toBeChecked();
+    await user.click(choice);
+    expect(within(table).getByRole('columnheader', { name: /ChatGPT change/ })).toBeInTheDocument();
+    const row = (await within(table).findByText('Question number 1?')).closest('[role="row"]');
+    if (!(row instanceof HTMLElement)) throw new Error('The first prompt row is missing');
+    // The Mention rate cell and the new column both show this prompt's rise of 30 points on ChatGPT
+    expect(within(row).getAllByText('+30.0 pts')).toHaveLength(2);
+  });
+
+  it('can be shown from the address, and says Comparison is off with cmp=off', async () => {
+    serve();
+    const on = render('?tab=prompts&cols=prompt,mention,change_chatgpt_web');
+    const table = await grid();
+    // The engines load after the table: the column appears with them
+    expect(await within(table).findByRole('columnheader', { name: /ChatGPT change/ })).toBeInTheDocument();
+    await waitFor(() => expect(within(table).getAllByText('+30.0 pts').length).toBeGreaterThan(0));
+    on.unmount();
+
+    render('?tab=prompts&cmp=off&cols=prompt,mention,change_chatgpt_web');
+    const off = await grid();
+    expect(await within(off).findByRole('columnheader', { name: /ChatGPT change/ })).toBeInTheDocument();
+    await waitFor(() => expect(within(off).getAllByText('n/a').length).toBeGreaterThan(0));
+    expect(within(off).queryByText('+30.0 pts')).toBeNull();
+  });
+});
+
 describe('Topics & Prompts: the Detectable changes only chip', () => {
   it('is in the address as detectable=only and narrows the Prompts rows and the strip', async () => {
     serve();
