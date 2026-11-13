@@ -52,6 +52,7 @@ const LABELS = new Map<EngineCode, string>([
   ['gemini_web', 'Gemini'],
   ['google_ai_mode', 'AI Mode'],
 ]);
+const NO_ENGINES: readonly EngineCode[] = [];
 const labelOf = (code: EngineCode): string => LABELS.get(code) ?? code;
 const SOURCE = { workspaceId: MOCK_WORKSPACE.workspace_id, projectId: 'p-fynix' };
 
@@ -204,15 +205,16 @@ const FIELDS = citationFilterFields({
   topicsLoading: false,
 });
 
-/** The tab as the page gives it its context: the real scope from the address, and the strip's reads. */
-function Harness({
-  values = {},
-  onClear = () => undefined,
-}: {
+interface HarnessProps {
   values?: FilterValues;
   onClear?: () => void;
-}): ReactElement {
-  const { scope, range, setSearch } = useCitationScope('UTC', ENABLED);
+  /** The engines that are on; keep it stable between renders. */
+  engines?: readonly EngineCode[];
+}
+
+/** The tab as the page gives it its context: the real scope from the address, and the strip's reads. */
+function Harness({ values = {}, onClear = () => undefined, engines = ENABLED }: HarnessProps): ReactElement {
+  const { scope, range, setSearch } = useCitationScope('UTC', engines);
   const filters = useMemo(() => toFilters(scope, range), [scope, range]);
   const strip = useMemo(() => read(domainPage([], META)), []);
   const previous = useMemo(() => read(domainPage([], { ...META, citation_units: 13280 })), []);
@@ -224,7 +226,7 @@ function Harness({
     scope,
     filters,
     range,
-    enabledEngines: ENABLED,
+    enabledEngines: engines,
     labelOf,
     meta: strip,
     previousMeta: previous,
@@ -244,7 +246,7 @@ function Harness({
 function renderTab(
   searchParams = '',
   options: ProvidedRenderOptions = {},
-  props: { values?: FilterValues; onClear?: () => void } = {},
+  props: HarnessProps = {},
 ): ReturnType<typeof renderWithProviders> {
   address.search = searchParams;
   return renderWithProviders(<Harness {...props} />, { searchParams, ...options });
@@ -334,6 +336,17 @@ describe('DomainsTab', () => {
     expect(rowOf(table, 'g2.com')).toHaveAttribute('aria-expanded', 'false');
   });
 
+  it('opens a row with Right Arrow from its first cell', async () => {
+    const { user } = renderTab();
+    const table = await loaded();
+    within(table).getByRole('rowheader', { name: 'g2.com' }).focus();
+    await user.keyboard('{ArrowRight}');
+    expect(rowOf(table, 'g2.com')).toHaveAttribute('aria-expanded', 'true');
+    expect(
+      await within(table).findByRole('link', { name: 'Open g2.com/products/p1 in a new tab' }),
+    ).toBeInTheDocument();
+  });
+
   it('reads the pages of a domain only while it is expanded, in its role and the scope of the page', async () => {
     const seen = watch('/sources/pages');
     const { user } = renderTab('engine=chatgpt_web&min=3');
@@ -361,7 +374,7 @@ describe('DomainsTab', () => {
       48,
     );
     const { user } = renderTab(
-      'engine=gemini_web,chatgpt_web&role=third_party&min=3&win=7d&cols=domain,answers&density=default',
+      'engine=gemini_web,chatgpt_web&role=third_party&topic=t-security&branded=include&cmp=off&sort=-observations&min=3&win=7d&cols=domain,answers&density=default',
     );
     const table = await loaded();
     await user.click(within(table).getByRole('rowheader', { name: 'g2.com' }));
@@ -376,6 +389,10 @@ describe('DomainsTab', () => {
     expect(href.searchParams.get('min')).toBe('3');
     expect(href.searchParams.get('win')).toBe('7d');
     expect(href.searchParams.get('density')).toBe('default');
+    expect(href.searchParams.get('topic')).toBe('t-security');
+    expect(href.searchParams.get('branded')).toBe('include');
+    expect(href.searchParams.get('cmp')).toBe('off');
+    expect(href.searchParams.get('sort')).toBe('-observations');
     // the Domains columns are not the Pages columns
     expect(href.searchParams.has('cols')).toBe(false);
   });
@@ -534,6 +551,37 @@ describe('DomainsTab', () => {
     expect(onClear).toHaveBeenCalledOnce();
   });
 
+  it('a filter that leaves no answer is not "No citations yet": it names the filter and offers Clear filters', async () => {
+    serveDomains([], { meta: { ...META, answers: 0, answers_citing: 0, citation_units: 0, by_role: [] } });
+    const onClear = vi.fn();
+    const { user } = renderTab('', {}, { values: { topic: { kind: 'enum', values: ['t-security'] } }, onClear });
+    expect(await screen.findByRole('heading', { name: 'No domain or page matches these filters' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'No citations yet' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'The answers cite no source' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(onClear).toHaveBeenCalledOnce();
+  });
+
+  it('a minimum that leaves no row says so and Clear filters puts it back to the default', async () => {
+    // 800 units: above the default minimum, below 1,000
+    serveDomains([HUBSPOT]);
+    const updates: string[] = [];
+    const { user } = renderTab('min=1000', { onUrlUpdate: ({ queryString }) => updates.push(queryString) });
+    expect(await screen.findByRole('heading', { name: 'No domain or page matches these filters' })).toBeInTheDocument();
+    expect(screen.getByText('Lower the fewest citation units to see more rows.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(updates.length).toBeGreaterThan(0));
+    expect(updates.at(-1)).not.toContain('min=');
+    expect((await loaded()).querySelectorAll('[role="rowheader"]').length).toBeGreaterThan(0);
+  });
+
+  it('says nothing of the minimum when the default leaves no row because nothing was cited', async () => {
+    serveDomains([], { meta: { ...META, answers: 12, answers_citing: 0, citation_units: 0, by_role: [] } });
+    renderTab();
+    expect(await screen.findByRole('heading', { name: 'The answers cite no source' })).toBeInTheDocument();
+    expect(screen.queryByText('Lower the fewest citation units to see more rows.')).toBeNull();
+  });
+
   it('says there are no citations yet, with a way to the prompts, when no answer was read', async () => {
     serveDomains([], { meta: { ...META, answers: 0, answers_citing: 0, citation_units: 0, by_role: [] } });
     renderTab();
@@ -607,6 +655,30 @@ describe('DomainsTab', () => {
     expect(screen.queryByText('Citations could not be loaded')).toBeNull();
   });
 
+  it('a refresh that fails keeps the rows, says they are from the last read and offers Retry', async () => {
+    let calls = 0;
+    server.use(
+      http.get(DOMAINS, ({ request }) => {
+        calls += 1;
+        if (calls === 2) return problem(request, 'not_found');
+        return HttpResponse.json(domainPage([G2, HUBSPOT]));
+      }),
+    );
+    const { user, queryClient } = renderTab();
+    const table = await loaded();
+    expect(screen.queryByText('The list could not be refreshed. The rows shown are from the last read.')).toBeNull();
+    await act(() => queryClient.refetchQueries());
+    expect(
+      await screen.findByText('The list could not be refreshed. The rows shown are from the last read.'),
+    ).toBeInTheDocument();
+    expect(names(table)).toHaveLength(2);
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() =>
+      expect(screen.queryByText('The list could not be refreshed. The rows shown are from the last read.')).toBeNull(),
+    );
+    expect(names(table)).toHaveLength(2);
+  });
+
   it('a failed child read shows the failure in its row with Retry, and the rest stays', async () => {
     let failing = true;
     server.use(
@@ -637,12 +709,23 @@ describe('DomainsTab', () => {
     expect(rowOf(table, 'g2.com')).not.toHaveAttribute('data-tone');
   });
 
+  /** Nothing in flight, so a read that was going to start has started: the log then says whether it did. */
+  const idle = (client: ReturnType<typeof renderTab>['queryClient']): Promise<void> =>
+    waitFor(() => expect(client.isFetching()).toBe(0));
+
   it('reads nothing while another tab is the one shown', async () => {
     const seen = watch('/sources/domains');
-    renderTab('tab=pages');
-    // Lets a request that was going to start start: a read that never happens is told from one that has not yet
-    await act(() => new Promise<void>((resolve) => setTimeout(resolve, 50)));
+    const { queryClient } = renderTab('tab=pages');
+    await idle(queryClient);
     expect(seen).toHaveLength(0);
+  });
+
+  it('reads nothing while the engines are not known: an empty list would mean every engine', async () => {
+    const domains = watch('/sources/domains');
+    const { queryClient } = renderTab('engine=chatgpt_web', {}, { engines: NO_ENGINES });
+    await idle(queryClient);
+    expect(domains).toHaveLength(0);
+    expect(screen.queryByRole('treegrid', { name: 'Cited domains' })?.getAttribute('aria-busy')).toBe('true');
   });
 
   it.each(['default', 'compact'])('is axe clean at %s density', async (density) => {

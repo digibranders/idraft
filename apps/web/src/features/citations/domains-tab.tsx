@@ -8,7 +8,7 @@ import { useSearchParams } from 'next/navigation';
 import type { Route } from 'next';
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
 
-import { DEFAULT_SORT } from './citation-scope';
+import { DEFAULT_MIN_SUPPORT, DEFAULT_SORT } from './citation-scope';
 import type { CitationTabContext } from './citation-tabs';
 import { rowNameOf, useDomainColumns } from './domain-columns';
 import { buildRows, domainRowId, type CitationTableRow } from './domain-rows';
@@ -63,8 +63,9 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
   const tt = useTranslations('citations.table');
   const common = useTranslations('common');
   const locale = useLocale();
-  // The tab asks nothing while another one is shown
-  const active = scope.tab === 'domains';
+  // The tab asks nothing while another one is shown, or before the engines are known: with none listed the scope
+  // drops the link's `engine`, and the read would be of every engine
+  const active = scope.tab === 'domains' && enabledEngines.length > 0;
 
   const read = useQuery({
     ...sourceDomainsQuery(source, filters, {
@@ -159,21 +160,27 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
   }, []);
 
   const filtering = Object.keys(filterBar.values).length > 0 || query !== '';
+  // A minimum above the default can be what left no row: Clear filters puts it back
+  const minimumRaised = scope.minSupport > DEFAULT_MIN_SUPPORT;
   const clearFilters = (): void => {
     filterBar.onClear();
     setQuery('');
+    if (scope.minSupport !== DEFAULT_MIN_SUPPORT) setSearch({ min: null });
   };
 
   let status: TableStatus = 'ready';
   if (read.isError && read.data === undefined) status = 'error';
   else if (read.isPending) status = 'loading';
   else if (read.isFetching) status = 'refetching';
-  // Nothing to list: no answer, answers that name no source, or a filter (or the minimum, or a search) that left none
+  // Nothing to list: no answer or answers that name no source, only when no filter (engine, topic, branded, a search)
+  // changed what was read; otherwise a filter, a search or the minimum left none
   const settled = status === 'ready' || status === 'refetching';
   if (settled && listed.length === 0) {
-    const noSource = query === '' && meta !== undefined && meta.citation_units === 0;
+    const noSource = !filtering && meta !== undefined && meta.citation_units === 0;
     status = noSource ? 'empty' : 'filtered-empty';
   }
+  // A refresh that failed leaves the rows of the last read on screen: say so, with a way to ask again
+  const refreshFailed = read.isError && read.data !== undefined;
 
   const emptyState =
     meta !== undefined && meta.answers === 0 ? (
@@ -200,9 +207,14 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
       title={t('filters.empty')}
       reason={t('filters.emptyReason')}
       headingLevel={2}
-      details={<ReadOnlyFilterChips fields={filterBar.fields} values={filterBar.values} />}
+      details={
+        <>
+          <ReadOnlyFilterChips fields={filterBar.fields} values={filterBar.values} />
+          {minimumRaised ? <p className="type-meta">{tt('emptyMinimum')}</p> : null}
+        </>
+      }
       primaryAction={
-        filtering ? (
+        filtering || scope.minSupport !== DEFAULT_MIN_SUPPORT ? (
           <Button variant="secondary" onClick={clearFilters}>
             {t('filters.clear')}
           </Button>
@@ -227,6 +239,19 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
       {meta === undefined ? null : (
         <p className="type-meta">{tt('shareScope', { units: meta.citation_units, answers: meta.answers })}</p>
       )}
+      {refreshFailed ? (
+        <Banner
+          tone="warning"
+          placement="region"
+          live
+          message={tt('refreshFailed')}
+          actions={
+            <Button variant="secondary" size="sm" loading={read.isFetching} onClick={() => void read.refetch()}>
+              {common('retry')}
+            </Button>
+          }
+        />
+      ) : null}
       {read.data !== undefined && total > domains.length ? (
         <Banner tone="warning" placement="region" live message={tt('truncated', { shown: domains.length, total })} />
       ) : null}

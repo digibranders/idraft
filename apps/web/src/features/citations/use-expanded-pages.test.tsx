@@ -118,8 +118,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** Lets a request that was going to start start: a read that never happens is told from one that has not yet. */
-const settle = (): Promise<void> => act(() => new Promise<void>((resolve) => setTimeout(resolve, 50)));
+/** Nothing in flight, so a read that was going to start has started: the log then says whether it did. */
+const idle = (): Promise<void> => waitFor(() => expect(client.isFetching()).toBe(0));
 
 const hookWith = (
   initial: ExpandedPagesOptions,
@@ -130,7 +130,7 @@ describe('useExpandedPages', () => {
   it('reads nothing while no domain is open', async () => {
     const seen = watch();
     const { result } = hookWith(OPTIONS);
-    await settle();
+    await idle();
     expect(result.current.reads.size).toBe(0);
     expect(seen).toHaveLength(0);
   });
@@ -198,19 +198,22 @@ describe('useExpandedPages', () => {
     await waitFor(() => expect(result.current.reads.get(domainRowId(G2))?.status).toBe('ready'));
   });
 
-  it('keeps the pages it has while the same read is fetched again', async () => {
-    const { result } = hookWith({ ...OPTIONS, open: [G2] });
+  it('keeps one retry function whatever opens or closes, so the columns that hold it are not rebuilt', async () => {
+    const { result, rerender } = hookWith({ ...OPTIONS, open: [G2] });
+    const first = result.current.retry;
     await waitFor(() => expect(result.current.reads.get(domainRowId(G2))?.status).toBe('ready'));
-    const first = result.current.reads.get(domainRowId(G2))?.data;
-    act(() => result.current.retry(domainRowId(G2)));
-    expect(result.current.reads.get(domainRowId(G2))?.data).toBe(first);
-    expect(result.current.reads.get(domainRowId(G2))?.status).toBe('ready');
+    expect(result.current.retry).toBe(first);
+    rerender({ ...OPTIONS, open: [G2, HUBSPOT] });
+    await waitFor(() => expect(result.current.reads.get(domainRowId(HUBSPOT))?.status).toBe('ready'));
+    expect(result.current.retry).toBe(first);
+    rerender({ ...OPTIONS, open: [] });
+    expect(result.current.retry).toBe(first);
   });
 
   it('reads nothing while it is turned off', async () => {
     const seen = watch();
     const { result } = hookWith({ ...OPTIONS, open: [G2], enabled: false });
-    await settle();
+    await idle();
     expect(seen).toHaveLength(0);
     expect(result.current.reads.get(domainRowId(G2))?.data).toBeUndefined();
   });

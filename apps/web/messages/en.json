@@ -4423,7 +4423,9 @@
         "other": "pages"
       },
       "truncated": "The {shown, number} most cited domains are listed of {total, number}. Raise the minimum or narrow the filters.",
-      "noPrevious": "The previous period has no answers, so nothing is marked New."
+      "noPrevious": "The previous period has no answers, so nothing is marked New.",
+      "emptyMinimum": "Lower the fewest citation units to see more rows.",
+      "refreshFailed": "The list could not be refreshed. The rows shown are from the last read."
     },
     "empty": {
       "noEngineTitle": "No engine is on",

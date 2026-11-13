@@ -1,6 +1,6 @@
 'use client';
 
-import { keepPreviousData, useQueries } from '@tanstack/react-query';
+import { useQueries } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { domainRowId, PAGES_PER_DOMAIN, type ChildPagesRead } from './domain-rows';
@@ -73,7 +73,9 @@ export function useExpandedPages({
           include: ['series'],
         },
       ),
-      placeholderData: keepPreviousData,
+      // No `keepPreviousData`: `useQueries` gives each key its own observer, so it has nothing to carry over when
+      // the scope changes (a row says "Loading pages" until its new read lands). A read of the same key that is
+      // fetched again keeps its pages without it.
       enabled,
     })),
     combine: combineReads,
