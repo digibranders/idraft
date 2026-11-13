@@ -341,6 +341,19 @@ Not built: categories (WP-60), the `-trend` sort and the marking of `engine_inte
 `docs/superpowers/plans/2026-11-13-ai-wp-14-sources-lane.md`; contract note
 docs/ai-visibility/contracts/sources-additions.md; measurement docs/ops/ai-fanout-cut-measure.md).
 
+**As built (AI visibility WP-31, 2026-11-14): settings and engines.** The device of Google AI Mode is built end to end:
+`provider_params.device` on the engine routes (doc 19 section 3.7.4), migration `0023` (a column grant of
+`UPDATE (provider_params)` on `ai.project_engines` to `app_api`, no data change), the collector sending the saved
+device, and a device control on the Engines page. The Engines page gains a class badge per engine, a Perplexity API row
+that reads "Not available yet" and cannot be switched, and a cost change summary after a switch; Settings gains a read
+only Data retention page and an Added column on Entities; `features/onboarding` exports the setup checklist with its
+three AI steps. Rows built: BE-ENGINES-10, WB-SET-06, 07, 08, 11, 14 and 17 (the steps and the component; nothing mounts
+it until Overview is live, WP-33 and WP-40). Rows confirmed (behaviour kept, tests added or named): BE-ENGINES-01 to 04
+and 12, WB-SET-01 to 03, 09, 10 and 12, WB-IA-09. Not built: a dismissal that is kept per project (no stored flag
+exists), "Show setup checklist" in Settings > General, and any editable retention. Mobile sends os `android`, which no
+live call has confirmed (plan open question 4). The end to end flow is `apps/web/e2e/flows/ai-settings.spec.ts`
+(plan `docs/superpowers/plans/2026-11-14-ai-wp-31-settings.md`; contract docs/ai-visibility/contracts/wp-31-engines-device.md).
+
 ### Phase 10: SEO and AI integration
 
 **10a (MVP):** keyword-prompt links with suggestions (cluster, semantic, fan-out), AI Overview vs organic rank (same-check), AIO citation rate by rank bucket, SEO/AI matrix (keyword level) with thresholds, page intelligence (SEO + AI citations), `core.xch_keyword_weekly`.

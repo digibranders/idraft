@@ -116,3 +116,7 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-14 WP-31: contract published and built (setting and API); the collector change is Task 2
 2026-11-14 WP-31: migration 0023 grants `UPDATE (provider_params)` on `ai.project_engines` to `app_api`; no shape change
 2026-11-14 WP-31: the AI Mode request sends the saved device (desktop request unchanged, mobile is os android, unverified live)
+2026-11-14 WP-31: Task 2 collector done: `AiAnswerParams.device`, `ai_mode_body` sends `device` and `os`, `build_requests` reads the saved device once per batch through `device_of`; `ADAPTER_VERSION` stays 1
+2026-11-14 WP-31: migration 0023 final: `UPDATE (provider_params)` on `ai.project_engines` to `app_api`, column grant only; a database that ran 0022 needs `alembic upgrade head`
+2026-11-14 WP-31: web consumer built: a device radio on the Engines page for Google AI Mode (saves at once when the engine is on, held until the turn-on when it is off, ignored while a save of that engine is under way), the mock engines carry `provider_params` and refuse a device for ChatGPT and Gemini with `device_not_supported`
+2026-11-14 WP-31: final status: built and consumed, no shape change since publication; the only open choice is the os value `android` for mobile, not confirmed by a live call (see Open choices)
