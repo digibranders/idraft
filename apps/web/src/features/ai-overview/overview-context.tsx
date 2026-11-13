@@ -20,7 +20,7 @@ import {
   type SourcesReadOptions,
   type SummaryReadOptions,
 } from './data/use-overview-reads';
-import type { OverviewScope, ScopePatch } from './scope/scope-model';
+import { normalizeEngines, type OverviewScope, type ScopePatch } from './scope/scope-model';
 import { useOverviewScope } from './scope/use-overview-scope';
 import type { RangeProblem } from '@/components/app/date-range/range-model';
 import type { EngineCode, PromptsSummary } from '@/lib/api/types';
@@ -73,9 +73,15 @@ export function OverviewProvider({
   project,
   children,
 }: OverviewProviderProps): ReactElement {
-  const { scope, dropped, setScope } = useOverviewScope({ project });
+  const { scope: urlScope, dropped, setScope } = useOverviewScope({ project });
   const ref = useMemo(() => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const engines = readEngines(ref);
+  // Every engine that is on, chosen in any order, is no filter: the numbers and the scope bar see `null`, as the
+  // address with no engine key says, so the same scope is never two scopes
+  const scope = useMemo((): OverviewScope => {
+    const normalized = normalizeEngines(urlScope.engines, engines.enabled);
+    return normalized === urlScope.engines ? urlScope : { ...urlScope, engines: normalized };
+  }, [urlScope, engines.enabled]);
   const canManageEngines = useCan('projects:write');
   const canTriggerRuns = useCan('runs:trigger');
   const canReadData = useCan('data:read');

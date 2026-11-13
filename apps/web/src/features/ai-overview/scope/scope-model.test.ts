@@ -5,6 +5,7 @@ import { parseCompare } from '@/lib/compare/compare-model';
 import {
   brandedParams,
   changedFilterCount,
+  normalizeEngines,
   RESET_PATCH,
   parseBranded,
   parseCountry,
@@ -145,6 +146,28 @@ describe('scopeKey', () => {
     const a = scopeOf({ compare: false });
     const b = scopeOf({ compare: false, previous: { from: '2000-01-01', to: '2000-01-02' } });
     expect(scopeKey(a)).toBe(scopeKey(b));
+  });
+});
+
+describe('normalizeEngines', () => {
+  const ON = ['chatgpt_web', 'gemini_web'];
+
+  it('reads every enabled engine, in any order, as no filter', () => {
+    expect(normalizeEngines(['chatgpt_web', 'gemini_web'], ON)).toBeNull();
+    expect(normalizeEngines(['gemini_web', 'chatgpt_web'], ON)).toBeNull();
+  });
+
+  it('keeps a choice that leaves an enabled engine out, and leaves no filter alone', () => {
+    expect(normalizeEngines(['gemini_web'], ON)).toEqual(['gemini_web']);
+    expect(normalizeEngines(null, ON)).toBeNull();
+  });
+
+  it('ignores an engine that is off: the enabled engines all chosen is still no filter', () => {
+    expect(normalizeEngines(['google_ai_mode', 'gemini_web', 'chatgpt_web'], ON)).toBeNull();
+  });
+
+  it('keeps the choice while no engine is known to be on', () => {
+    expect(normalizeEngines(['gemini_web'], [])).toEqual(['gemini_web']);
   });
 });
 

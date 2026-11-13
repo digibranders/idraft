@@ -7,17 +7,17 @@ import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
  * topics its prompts carry; the Overview offers the whole tree, as a card of the topics may be asked of any of them.
  */
 
-/** The choices for `tree`; two topics of one name are told apart by their paths, written by `withPath`. */
-export function topicOptions(
-  tree: readonly NamedTerm[],
-  withPath: (name: string, path: string) => string,
-): FilterOption[] {
-  const counts = new Map<string, number>();
-  for (const term of tree) counts.set(term.name, (counts.get(term.name) ?? 0) + 1);
-  return tree.map((term) => ({
-    value: term.termId,
-    label: (counts.get(term.name) ?? 0) > 1 ? withPath(term.name, term.path) : term.name,
-  }));
+/**
+ * The choices for `tree`. A topic below another is named by its path ("SEO / Technical SEO", the tree's own
+ * rendering), so where it sits is never a guess and two topics of one name differ; a topic that has topics below it
+ * says so through `below`, because choosing it counts them too.
+ */
+export function topicOptions(tree: readonly NamedTerm[], below: (label: string) => string): FilterOption[] {
+  const parents = new Set(tree.flatMap((term) => (term.parentId === null ? [] : [term.parentId])));
+  return tree.map((term) => {
+    const label = term.parentId === null ? term.name : term.path;
+    return { value: term.termId, label: parents.has(term.termId) ? below(label) : label };
+  });
 }
 
 export interface TopicFieldInput {
@@ -25,18 +25,19 @@ export interface TopicFieldInput {
   /** The trees are not all read (loading, or failed): a topic of a link is kept until they are. */
   pending: boolean;
   label: string;
-  withPath: (name: string, path: string) => string;
+  /** The words for a topic that includes the topics below it. */
+  below: (label: string) => string;
 }
 
 /** The `topic` field of the filter bar: a single choice. While the tree is pending a link's topic is not dropped as unknown. */
-export function topicField({ tree, pending, label, withPath }: TopicFieldInput): EnumFilterField {
+export function topicField({ tree, pending, label, below }: TopicFieldInput): EnumFilterField {
   return {
     id: 'topic',
     kind: 'enum',
     label,
     multi: false,
     optionsLoading: pending,
-    options: topicOptions(tree, withPath),
+    options: topicOptions(tree, below),
   };
 }
 

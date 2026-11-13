@@ -1569,7 +1569,7 @@ Purpose: a boolean that takes effect on save, "I agree", or row selection.
 interface CheckboxProps {
   checked: boolean | 'indeterminate';
   onCheckedChange?: (checked: boolean) => void;
-  label: string;                    // the visible label, or the name in a table cell ("Select crm pricing")
+  label: ReactNode;                 // the visible label, or the name in a table cell ("Select crm pricing"); an element (an engine's mark and name) is named by its text
   labelDisplay?: 'visible' | 'visually-hidden';
   description?: string;             // describes the box; not part of its name
   disabled?: boolean;
@@ -2399,6 +2399,7 @@ interface FilterBarProps {
   notice?: string | null;           // "1 filter does not apply here"
   activeCount: number;              // badge on the "Filters" button below 768 px
   onOpenSheet: () => void;
+  hideClear?: boolean;              // leaves out "Clear filters" for a screen whose defaults are chips (the AI Overview's "Branded: Excluded"); the screen draws its own reset
 }
 ```
 

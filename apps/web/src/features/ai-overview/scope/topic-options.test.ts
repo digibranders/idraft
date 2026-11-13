@@ -15,36 +15,44 @@ const TECHNICAL = term('technical', 'Technical SEO', 'seo', 'SEO / Technical SEO
 const CRAWLING = term('crawling', 'Crawling', 'technical', 'SEO / Technical SEO / Crawling');
 const PAID = term('paid', 'Paid search', null, 'Paid search');
 const TREE = [SEO, TECHNICAL, CRAWLING, PAID];
-const withPath = (name: string, path: string): string => `${name}, ${path}`;
+const below = (label: string): string => `${label} (includes subtopics)`;
 
 describe('topicOptions', () => {
-  it('flattens the topic vocabulary to options with their paths, in the tree order', () => {
-    expect(topicOptions(TREE, withPath)).toEqual([
-      { value: 'seo', label: 'SEO' },
-      { value: 'technical', label: 'Technical SEO' },
-      { value: 'crawling', label: 'Crawling' },
+  it('flattens the topic vocabulary to options, a topic below another named by its path', () => {
+    expect(topicOptions(TREE, below)).toEqual([
+      { value: 'seo', label: 'SEO (includes subtopics)' },
+      { value: 'technical', label: 'SEO / Technical SEO (includes subtopics)' },
+      { value: 'crawling', label: 'SEO / Technical SEO / Crawling' },
       { value: 'paid', label: 'Paid search' },
     ]);
   });
 
-  it('tells two topics of one name apart by their paths and leaves the others alone', () => {
+  it('says which topics include others, so choosing a parent is no surprise', () => {
+    const labels = topicOptions(TREE, below).map((option) => option.label);
+    expect(labels.filter((label) => label.endsWith('(includes subtopics)'))).toHaveLength(2);
+  });
+
+  it('tells two topics of one name apart by their paths and writes no dash', () => {
     const tree = [
       SEO,
       term('seo-local', 'Local', 'seo', 'SEO / Local'),
       term('svc', 'Services', null, 'Services'),
       term('svc-local', 'Local', 'svc', 'Services / Local'),
     ];
-    expect(topicOptions(tree, withPath).map((option) => option.label)).toEqual([
-      'SEO',
-      'Local, SEO / Local',
-      'Services',
-      'Local, Services / Local',
+    const labels = topicOptions(tree, below).map((option) => option.label);
+    expect(labels).toEqual([
+      'SEO (includes subtopics)',
+      'SEO / Local',
+      'Services (includes subtopics)',
+      'Services / Local',
     ]);
+    // Letters, spaces, slashes and brackets only: no dash of any kind
+    expect(labels.join('')).toMatch(/^[A-Za-z /()]*$/);
   });
 });
 
 describe('topicField', () => {
-  const words = { label: 'Topic', withPath };
+  const words = { label: 'Topic', below };
 
   it('is a single choice enum named Topic whose options are the tree', () => {
     const field = topicField({ ...words, tree: TREE, pending: false });

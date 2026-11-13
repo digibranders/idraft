@@ -52,8 +52,8 @@ export function ScopeBar(): ReactElement {
       ).map((engine) => ({ code: engine.engine.engine_code, label: engine.engine.label })),
     [engines.data],
   );
-  const withPath = useCallback((name: string, path: string): string => t('topicWithPath', { name, path }), [t]);
-  const topic = useMemo(() => topicField({ tree, pending, label: t('topic'), withPath }), [tree, pending, t, withPath]);
+  const below = useCallback((label: string): string => t('topicIncludesBelow', { topic: label }), [t]);
+  const topic = useMemo(() => topicField({ tree, pending, label: t('topic'), below }), [tree, pending, t, below]);
   const branded = useMemo(
     () =>
       brandedField({

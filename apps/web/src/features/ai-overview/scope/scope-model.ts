@@ -96,6 +96,19 @@ export function brandedParams(branded: Branded): { include_branded: boolean; bra
   return { include_branded: branded === 'included' };
 }
 
+/**
+ * The engines of a scope once the engines that are on are known: a choice that holds every one of them, in any
+ * order (and perhaps an engine that is off), is no filter, which is `null`. `enabled` empty means they are not
+ * known yet: the choice is kept as it is.
+ */
+export function normalizeEngines(
+  engines: readonly string[] | null,
+  enabled: readonly string[],
+): readonly string[] | null {
+  if (engines === null || enabled.length === 0) return engines;
+  return enabled.every((code) => engines.includes(code)) ? null : engines;
+}
+
 /** What "Reset filters" puts back: the comparison, the engines, the topic and the branded choice; never the window or the country. */
 export const RESET_PATCH = {
   compare: true,

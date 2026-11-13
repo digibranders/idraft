@@ -59,6 +59,30 @@ describe('the scope bar', () => {
     expect(screen.queryByRole('button', { name: 'Reset filters' })).not.toBeInTheDocument();
   });
 
+  it('draws the compare and engines triggers in the type of the chips beside them', async () => {
+    await page();
+    for (const name of ['vs previous period', 'Engines: 2 of 2']) {
+      const trigger = screen.getByRole('button', { name });
+      expect(trigger).toHaveClass('type-body');
+      expect(trigger).not.toHaveClass('type-body-strong');
+    }
+  });
+
+  it.each(['?engine=chatgpt_web,gemini_web', '?engine=gemini_web,chatgpt_web'])(
+    'treats %s, every engine in any order, as no filter',
+    async (searchParams) => {
+      await page(searchParams);
+      expect(screen.getByRole('button', { name: 'Engines: 2 of 2' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Reset filters' })).not.toBeInTheDocument();
+    },
+  );
+
+  it('does not count every engine as an active filter on a phone', async () => {
+    stubViewport(NARROW);
+    renderWithProviders(overviewAs('admin'), { searchParams: '?engine=gemini_web,chatgpt_web' });
+    expect(await screen.findByRole('button', { name: 'Filters' })).toBeInTheDocument();
+  });
+
   it('never writes the default Branded choice to the URL', async () => {
     const { user, urls } = await page('?branded=included');
     await user.click(screen.getByRole('button', { name: 'Add a filter' }));
@@ -95,16 +119,19 @@ describe('the scope bar', () => {
     const { user, urls } = await page();
     await user.click(screen.getByRole('button', { name: 'Add a filter' }));
     await user.click(await screen.findByRole('button', { name: 'Topic' }));
-    await user.click(await screen.findByRole('radio', { name: 'Technical SEO' }));
+    // A topic below another is named by its path; the parent says it includes its subtopics
+    expect(await screen.findByRole('radio', { name: 'SEO (includes subtopics)' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Paid Search' })).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'SEO / Technical SEO' }));
     await waitFor(() => {
       expect(new URLSearchParams(urls.at(-1)).get('topic')).toBe(MOCK_TERM_IDS.technicalSeo);
     });
-    expect(await chip('Topic: Technical SEO. Edit filter')).toBeInTheDocument();
+    expect(await chip('Topic: SEO / Technical SEO. Edit filter')).toBeInTheDocument();
   });
 
   it('keeps a topic of the link while the vocabulary loads, and counts the topics below it once it has', async () => {
     renderWithProviders(overviewAs('admin'), { searchParams: `?topic=${SEO}` });
-    expect(await chip('Topic: SEO. Edit filter')).toBeInTheDocument();
+    expect(await chip('Topic: SEO (includes subtopics). Edit filter')).toBeInTheDocument();
     // SEO, Technical SEO and Local SEO: the count of the Prompts number is of the chosen subtree
     await waitFor(() => {
       expect(screen.getAllByRole('definition')[0]).toHaveTextContent('in 3 topics');

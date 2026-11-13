@@ -4492,7 +4492,7 @@
       "enginesCount": "{count, number} of {total, number}",
       "enginesMin": "At least one engine stays on",
       "topic": "Topic",
-      "topicWithPath": "{name}, {path}",
+      "topicIncludesBelow": "{topic} (includes subtopics)",
       "branded": "Branded",
       "brandedExcluded": "Excluded",
       "brandedOnly": "Only",

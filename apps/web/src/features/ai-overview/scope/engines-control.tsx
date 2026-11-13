@@ -49,7 +49,7 @@ export function EnginesControl({ engines, selected, onChange }: EnginesControlPr
       title={t('engines')}
       width="min"
       trigger={
-        <Button variant="secondary" aria-label={`${t('engines')}: ${t('enginesCount', counts)}`}>
+        <Button variant="secondary" className="type-body" aria-label={`${t('engines')}: ${t('enginesCount', counts)}`}>
           {t('engines')}
           <Badge>{formatInteger(chosen.length)}</Badge>
           <Icon icon={ChevronDown} size="sm" className="text-foreground-tertiary" />
