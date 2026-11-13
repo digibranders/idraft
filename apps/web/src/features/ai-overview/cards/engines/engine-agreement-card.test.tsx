@@ -97,6 +97,14 @@ describe('EngineAgreementCard', () => {
     ]);
   });
 
+  it('writes "2 of 4 prompts" at the end of the row, with no lone "of 4" line under the bar', async () => {
+    serve();
+    renderCard();
+    const list = await screen.findByRole('list', { name: LIST });
+    expect(within(list).getAllByRole('listitem')[1]).toHaveTextContent('2 of 4 prompts');
+    expect(within(list).queryByText('of 4')).not.toBeInTheDocument();
+  });
+
   it('colours the steps with the sequential scale from seq-3, and none is chart-1', async () => {
     serve();
     renderCard();

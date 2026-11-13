@@ -106,7 +106,8 @@ export default function SampleCoverageCard({ item, live }: CardProps): ReactElem
       status: 'ok',
       valueText: t('prompts', { count }),
       contextText: t('of', { total }),
-      value: { kind: 'value', value: count, valueText: t('prompts', { count }), contextText: t('of', { total }) },
+      // One phrase at the end of the row: a lone "of 65" under the bar read as a cut off line and doubled the row
+      value: { kind: 'value', value: count, valueText: t('promptsOf', { count, total }), contextText: null },
       accessibleText: t('accessible', { label, count, total }),
     });
     const words = (id: string, group: string, label: string, status: Line['status'], text: string): Line => ({

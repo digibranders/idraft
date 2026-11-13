@@ -54,6 +54,26 @@ describe('skeletonOf', () => {
     expect(blockHeight(container)).toBe(height);
   });
 
+  // A card is taller than its chart: legends, tables and footnotes follow it, and the stand-in says so
+  it('draws a block under the first for each extra height, in order', () => {
+    const Skeleton = skeletonOf(140, ['chart-180', 'row']);
+    const { container } = renderWithProviders(<Skeleton />);
+    const blocks = [...container.querySelectorAll<HTMLElement>('[data-slot="skeleton"]:not(.flex)')];
+    expect(blocks.map((block) => /(?:^|\s)h-(\w+)(?:\s|$)/.exec(block.className)?.[1])).toEqual(['35', '45', 'row']);
+  });
+
+  it('is taller for the cards whose body is followed by more than a footnote', () => {
+    const Rate = ENGINE_CARDS['ai.rate_trend_by_engine']?.skeleton;
+    const Summary = ENGINE_CARDS['ai.change_summary']?.skeleton;
+    if (Rate === undefined || Summary === undefined) throw new Error('A card has no registered skeleton');
+    const rate = renderWithProviders(<Rate />);
+    const rateBlocks = rate.container.querySelectorAll('[data-slot="skeleton"]:not(.flex)').length;
+    rate.unmount();
+    const summary = renderWithProviders(<Summary />);
+    expect(rateBlocks).toBeGreaterThan(1);
+    expect(summary.container.querySelectorAll('[data-slot="skeleton"]:not(.flex)').length).toBeGreaterThan(1);
+  });
+
   it('is hidden from assistive technology, as the registry skeletons are', () => {
     const Skeleton = skeletonOf(180);
     const { container } = renderWithProviders(<Skeleton />);

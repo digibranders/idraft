@@ -77,7 +77,8 @@ function WaterfallRowView({
           >
             <div className="flex min-w-0 flex-col @md:w-40 @md:shrink-0">
               <span className="truncate type-body text-foreground">{row.label}</span>
-              <span className="truncate type-meta text-foreground-tertiary">{row.detailText}</span>
+              {/* Wraps: the counts are only here (the tooltip names the label), so they are never cut */}
+              <span className="type-meta text-foreground-tertiary">{row.detailText}</span>
             </div>
             <div className="flex items-center gap-2 @md:flex-1">
               <div className={cn('relative min-w-0 flex-1', compact ? 'h-4' : 'h-6')}>

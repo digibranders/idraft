@@ -83,7 +83,8 @@ function RateCellView({ cell, kind, t }: { cell: RateCell; kind: RateKind; t: Tr
         : t('previousText', { value: formatPercent(before.value), k: before.successes, n: before.answers });
   return (
     <div className="flex flex-col">
-      <span className="flex items-center gap-2">
+      {/* The rate and its change stay on one line; the counts under them are what wraps */}
+      <span className="flex items-center gap-2 whitespace-nowrap">
         <span className="num type-table text-foreground">{formatPercent(cell.value)}</span>
         <DeltaCell
           input={cell.change}

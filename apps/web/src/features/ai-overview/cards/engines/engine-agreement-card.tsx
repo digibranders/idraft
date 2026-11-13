@@ -108,7 +108,13 @@ export default function EngineAgreementCard({ item, live }: CardProps): ReactEle
         status: 'ok',
         valueText,
         contextText,
-        value: { kind: 'value', value: step.prompts, valueText, contextText },
+        // One phrase at the end of the row: a lone "of 65" under the bar read as a cut off line and doubled the row
+        value: {
+          kind: 'value',
+          value: step.prompts,
+          valueText: t('promptsOf', { count: step.prompts, total: model.compared }),
+          contextText: null,
+        },
         accessibleText: t('accessible', { label, count: step.prompts, total: model.compared }),
       };
     });

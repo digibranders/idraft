@@ -112,6 +112,15 @@ describe('SampleCoverageCard', () => {
     expect(screen.queryByRole('list', { name: 'Prompts by valid answers on AI Mode' })).not.toBeInTheDocument();
   });
 
+  it('writes "2 of 3 prompts" at the end of the row, with no lone "of 3" line under the bar', async () => {
+    serve();
+    renderCard();
+    const chatgpt = await screen.findByRole('list', { name: 'Prompts by valid answers on ChatGPT' });
+    const rows = within(chatgpt).getAllByRole('listitem');
+    expect(rows[0]).toHaveTextContent('2 of 3 prompts');
+    expect(within(chatgpt).queryByText('of 3')).not.toBeInTheDocument();
+  });
+
   it('colours the rows by the scale of the rows, and none is chart-1', async () => {
     serve();
     renderCard();
