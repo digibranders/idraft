@@ -30,76 +30,98 @@ SUMMARY_PATH = "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/promp
 seeded = test_prompts_summary.summary
 
 
-async def test_the_summary_checks_access_before_it_reads_the_project(
+# Every value outside the contract (c2-summary.md, error codes) and the code of its 422.
+OUT_OF_THE_CONTRACT: list[tuple[dict[str, str], str]] = [
+    ({"compare": "previous_decade"}, "validation_failed"),
+    ({"compare_from": "2026-01-01"}, "validation_failed"),
+    ({"compare_to": "2026-01-10"}, "validation_failed"),
+    ({"compare_from": "2026-01-10", "compare_to": "2026-01-01"}, "validation_failed"),
+    ({"compare_from": "2026-01-01", "compare_to": "nope"}, "validation_failed"),
+    ({"compare_from": "2026-01-01", "compare_to": "2026-04-03"}, "window_too_large"),
+    ({"rows": "all"}, "validation_failed"),
+    ({"group_by": "language"}, "validation_failed"),
+    ({"group_by": "region"}, "validation_failed"),
+    ({"group_by": "country", "rows": "all"}, "validation_failed"),
+    ({"filter[outcome]": "lost"}, "validation_failed"),
+    ({"filter[opportunity]": "lost_to:nope"}, "validation_failed"),
+    ({"filter[opportunity]": "bogus"}, "validation_failed"),
+    ({"include": "bogus"}, "validation_failed"),
+    ({"include": "series,bogus"}, "validation_failed"),
+    ({"from": "2026-01-10", "to": "2026-01-01"}, "validation_failed"),
+    ({"from": "2026-01-01", "to": "2026-04-03"}, "window_too_large"),
+]
+# One request of each new parameter and value that the contract allows, and all of them at once.
+ALLOWED = [
+    {"compare": "previous_period"},
+    {"compare": "previous_year"},
+    {"compare_from": "2026-01-05", "compare_to": "2026-01-10"},
+    {"include": "total"},
+    {"include": "co_mentions"},
+    {"include": "cells"},
+    {"rows": "topics"},
+    {"rows": "none"},
+    {"filter[outcome]": "neither"},
+    {"filter[opportunity]": "nobody_named"},
+    {"filter[opportunity]": f"lost_to:{uuid.UUID(int=75)}"},
+    {"group_by": "country"},
+    {
+        "include": "series,entities,total,co_mentions,cells",
+        "compare": "previous_period",
+        "group_by": "country",
+        "rows": "none",
+        "filter[outcome]": "neither",
+        "filter[opportunity]": "nobody_named",
+    },
+]
+
+
+async def test_error_order_is_401_404_403_422(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
-    """Order of the answers, now that no option answers 501: 401 (no session), 404 (not a member
-    of the workspace), 403 (a role without `data:read`), then 422 for a value, then the 404 of a
-    project the service cannot read; the last two are tested with the values below."""
+    """Whatever the parameter and its value, a caller without a session gets 401, a member of
+    another workspace 404 (the workspace is not theirs to learn about: a bad value does not
+    turn it into a 422), a role without `data:read` 403, and only a caller who may read the route
+    gets the 422 of a bad value (or the 200 of a good one)."""
     workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
     billing = await member(resources, migrated, workspace, "billing")
     outsider = await member(resources, migrated, await make_workspace(migrated), "owner")
     project = await ai_project(migrated, workspace)
     url = project_url(workspace, project, "ai", "prompts-summary")
-    params = {"group_by": "country"}
+    cases = [(params, (200, "")) for params in ALLOWED] + [
+        (params, (422, code)) for params, code in OUT_OF_THE_CONTRACT
+    ]
 
-    anonymous = await api.get(url, params=params)
-    refused = await api.get(url, params=params, headers=billing.headers)
-    unseen = await api.get(url, params=params, headers=outsider.headers)
+    for params, answer in cases:
+        anonymous = await api.get(url, params=params)
+        unseen = await api.get(url, params=params, headers=outsider.headers)
+        refused = await api.get(url, params=params, headers=billing.headers)
+        read = await api.get(url, params=params, headers=viewer.headers)
 
-    assert problem(anonymous) == (401, "unauthenticated")
-    assert problem(refused) == FORBIDDEN
-    assert problem(unseen) == NOT_FOUND
+        assert problem(anonymous) == (401, "unauthenticated"), params
+        assert problem(unseen) == NOT_FOUND, params
+        assert problem(refused) == FORBIDDEN, params
+        if answer[0] == 200:
+            assert read.status_code == 200, (params, read.text)
+        else:
+            assert problem(read) == answer, params
 
 
-async def test_the_summary_checks_access_before_it_checks_a_value(
+async def test_every_422_value(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
-    workspace = await make_workspace(migrated)
-    billing = await member(resources, migrated, workspace, "billing")
-    project = await ai_project(migrated, workspace)
-
-    response = await api.get(
-        project_url(workspace, project, "ai", "prompts-summary"),
-        params={"compare": "previous_decade"},
-        headers=billing.headers,
-    )
-
-    assert problem(response) == FORBIDDEN
-
-
-@pytest.mark.parametrize(
-    "params",
-    [
-        {"compare": "previous_decade"},
-        {"compare_from": "2026-01-01"},
-        {"compare_to": "2026-01-10"},
-        {"compare_from": "2026-01-10", "compare_to": "2026-01-01"},
-        {"compare_from": "2026-01-01", "compare_to": "nope"},
-        {"rows": "all"},
-        {"group_by": "language"},
-        {"group_by": "region"},
-        {"group_by": "country", "rows": "all"},
-    ],
-    ids=str,
-)
-async def test_an_option_value_out_of_the_contract_is_refused(
-    api: httpx.AsyncClient,
-    resources: Resources,
-    migrated: PostgresServer,
-    params: dict[str, str],
-) -> None:
+    """The values of the error table, each with its code: a window over 92 days says its limit."""
     workspace = await make_workspace(migrated)
     viewer = await member(resources, migrated, workspace, "viewer")
     project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "ai", "prompts-summary")
 
-    response = await api.get(
-        project_url(workspace, project, "ai", "prompts-summary"),
-        params=params,
-        headers=viewer.headers,
-    )
+    for params, code in OUT_OF_THE_CONTRACT:
+        response = await api.get(url, params=params, headers=viewer.headers)
 
-    assert problem(response) == INVALID
+        assert problem(response) == (422, code), params
+        if code == "window_too_large":
+            assert response.json()["limit_days"] == 92
 
 
 async def test_a_compare_window_is_at_most_92_days(

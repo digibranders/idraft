@@ -302,7 +302,14 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     },
     ("GET", _W + "/costs"): {"from": "2026-01-01", "to": "2026-12-31", "group_by": "project"},
     # Every option, so the opt-in reads are scanned too.
-    ("GET", _W + "/projects/{project_id}/ai/prompts-summary"): {"include": "entities"},
+    ("GET", _W + "/projects/{project_id}/ai/prompts-summary"): {
+        "include": "series,entities,total,co_mentions,cells",
+        "compare": "previous_period",
+        "group_by": "country",
+        "rows": "none",
+        "filter[outcome]": "neither",
+        "filter[opportunity]": "nobody_named",
+    },
     # A tenant's answer issued one query; the default needs two answers.
     ("GET", _W + "/projects/{project_id}/ai/fanout-queries"): {"min_support": "1"},
     # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
