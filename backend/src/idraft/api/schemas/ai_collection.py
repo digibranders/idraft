@@ -32,7 +32,9 @@ TaskStatus = Literal[
 
 
 class InvalidByStatus(BaseModel):
-    partial: int
+    """The stored answers that are not valid. A partial answer counts as valid (doc 07 section
+    5.5), so it is not here."""
+
     empty: int
     refused: int
     error: int
@@ -41,8 +43,11 @@ class InvalidByStatus(BaseModel):
 class AiCoverageEngine(BaseModel):
     engine_code: EngineCode
     planned: int = Field(description="Tasks the run planned on the engine.")
-    observed: int = Field(description="Answers stored, of any status.")
-    valid: int
+    observed: int = Field(
+        description="Answers stored, of any status: `valid` plus `invalid_by_status`."
+    )
+    valid: int = Field(description="Answers stored with status `complete` or `partial`.")
+    partial: int = Field(description="Of the valid answers, the ones flagged `partial`.")
     invalid_by_status: InvalidByStatus
     valid_rate: MetricCell = Field(description="`valid` of `planned`.")
 
@@ -85,7 +90,7 @@ class CollectionDay(BaseModel):
     )
     answers: int
     by_status: AnswerStatusCounts
-    valid: int
+    valid: int = Field(description="Answers with status `complete` or `partial`.")
     budget_blocked: int = Field(description="Runs of the day a budget blocked.")
     runs: list[UUID] = Field(description="The runs whose answers the day holds.")
 

@@ -129,3 +129,25 @@ def test_the_api_document_has_coverage_and_daily() -> None:
     assert schemas["AiCoverage"]["properties"]["by_engine"]["maxItems"] == 3
     assert schemas["CollectionDailyMeta"]["properties"]["engine_codes"]["maxItems"] == 3
     assert schemas["CollectionDailyResponse"]["properties"]["data"]["maxItems"] == 276
+
+
+def test_the_coverage_schema_has_partial_and_no_invalid_partial() -> None:
+    """A partial answer counts as valid (doc 07 section 5.5), so it is not an invalid status; the
+    engine says how many of its valid answers were partial."""
+    schemas = build_openapi()["components"]["schemas"]
+
+    assert set(schemas["InvalidByStatus"]["properties"]) == {"empty", "refused", "error"}
+    assert set(schemas["InvalidByStatus"]["required"]) == {"empty", "refused", "error"}
+    engine = schemas["AiCoverageEngine"]["properties"]
+    assert set(engine) == {
+        "engine_code",
+        "planned",
+        "observed",
+        "valid",
+        "partial",
+        "invalid_by_status",
+        "valid_rate",
+    }
+    assert "partial" in schemas["AiCoverageEngine"]["required"]
+    assert engine["partial"]["type"] == "integer"
+    assert "valid" in engine["partial"]["description"]

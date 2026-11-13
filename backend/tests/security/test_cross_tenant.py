@@ -260,6 +260,12 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     # WP-14 sources-lane
     # WP-26 evidence-viewer
     # WP-30 runs-costs-health
+    ("POST", _W + "/budgets"): {
+        "project_id": "{project_id}",
+        "workload": "seo_rank",
+        "limit_usd": "10.00",
+    },
+    ("PATCH", _W + "/budgets/{budget_id}"): {"limit_usd": "9999.00"},
     # WP-31 settings-engines
     # WP-32 overview-aggregates
     # WP-38 notes-annotations

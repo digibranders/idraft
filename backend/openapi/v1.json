@@ -464,8 +464,13 @@
             "$ref": "#/components/schemas/InvalidByStatus"
           },
           "observed": {
-            "description": "Answers stored, of any status.",
+            "description": "Answers stored, of any status: `valid` plus `invalid_by_status`.",
             "title": "Observed",
+            "type": "integer"
+          },
+          "partial": {
+            "description": "Of the valid answers, the ones flagged `partial`.",
+            "title": "Partial",
             "type": "integer"
           },
           "planned": {
@@ -474,6 +479,7 @@
             "type": "integer"
           },
           "valid": {
+            "description": "Answers stored with status `complete` or `partial`.",
             "title": "Valid",
             "type": "integer"
           },
@@ -487,6 +493,7 @@
           "planned",
           "observed",
           "valid",
+          "partial",
           "invalid_by_status",
           "valid_rate"
         ],
@@ -2398,6 +2405,115 @@
         "title": "Budget",
         "type": "object"
       },
+      "BudgetCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "action_on_hard": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pause",
+                  "alert_only"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What reaching the limit does; `pause` when left out.",
+            "title": "Action On Hard"
+          },
+          "limit_usd": {
+            "description": "Per month, UTC. 0 blocks every run of the group.",
+            "examples": [
+              "0.012000"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Limit Usd",
+            "type": "string"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Left out, the budget covers the whole workspace.",
+            "title": "Project Id"
+          },
+          "soft_limit_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The soft share of the limit; 80 when left out.",
+            "title": "Soft Limit Pct"
+          },
+          "workload": {
+            "enum": [
+              "seo_rank",
+              "ai_prompt",
+              "keyword_research",
+              "ai_benchmark",
+              "extraction_llm",
+              "first_party",
+              "all"
+            ],
+            "title": "Workload",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workload",
+          "limit_usd"
+        ],
+        "title": "BudgetCreate",
+        "type": "object"
+      },
+      "BudgetPage": {
+        "properties": {
+          "data": {
+            "description": "Oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/Budget"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/OffsetPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "BudgetPage",
+        "type": "object"
+      },
+      "BudgetResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Budget"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "BudgetResponse",
+        "type": "object"
+      },
       "BudgetStatus": {
         "properties": {
           "blocked_runs": {
@@ -2462,6 +2578,36 @@
           "data"
         ],
         "title": "BudgetStatusList",
+        "type": "object"
+      },
+      "BudgetUpdate": {
+        "additionalProperties": false,
+        "description": "At least one member; the scope and the group cannot change.",
+        "properties": {
+          "action_on_hard": {
+            "enum": [
+              "pause",
+              "alert_only"
+            ],
+            "title": "Action On Hard",
+            "type": "string"
+          },
+          "limit_usd": {
+            "examples": [
+              "0.012000"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Limit Usd",
+            "type": "string"
+          },
+          "soft_limit_pct": {
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Soft Limit Pct",
+            "type": "integer"
+          }
+        },
+        "title": "BudgetUpdate",
         "type": "object"
       },
       "BulkArchiveResponse": {
@@ -3162,6 +3308,7 @@
             "title": "Scheduled"
           },
           "valid": {
+            "description": "Answers with status `complete` or `partial`.",
             "title": "Valid",
             "type": "integer"
           }
@@ -5707,6 +5854,65 @@
         "minItems": 1,
         "type": "array"
       },
+      "ForecastResponse": {
+        "properties": {
+          "data": {
+            "description": "A row per visible project with live AI schedules and a price; a project with no price is left out, not shown as 0.",
+            "items": {
+              "$ref": "#/components/schemas/ForecastRow"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ForecastResponse",
+        "type": "object"
+      },
+      "ForecastRow": {
+        "properties": {
+          "estimated_cost_usd": {
+            "description": "What the project's live schedules are expected to cost in the month.",
+            "examples": [
+              "0.012000"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Estimated Cost Usd",
+            "type": "string"
+          },
+          "is_estimate": {
+            "const": true,
+            "title": "Is Estimate",
+            "type": "boolean"
+          },
+          "method": {
+            "const": "price_book_x_schedules",
+            "title": "Method",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "workload": {
+            "const": "ai_prompt",
+            "title": "Workload",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "workload",
+          "estimated_cost_usd",
+          "method",
+          "is_estimate"
+        ],
+        "title": "ForecastRow",
+        "type": "object"
+      },
       "GeneratedFrom": {
         "additionalProperties": false,
         "properties": {
@@ -7037,6 +7243,7 @@
         "type": "object"
       },
       "InvalidByStatus": {
+        "description": "The stored answers that are not valid. A partial answer counts as valid (doc 07 section\n5.5), so it is not here.",
         "properties": {
           "empty": {
             "title": "Empty",
@@ -7046,17 +7253,12 @@
             "title": "Error",
             "type": "integer"
           },
-          "partial": {
-            "title": "Partial",
-            "type": "integer"
-          },
           "refused": {
             "title": "Refused",
             "type": "integer"
           }
         },
         "required": [
-          "partial",
           "empty",
           "refused",
           "error"
@@ -20226,6 +20428,156 @@
         "title": "TrackedVariant",
         "type": "object"
       },
+      "UnitCostResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/UnitCostRow"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "UnitCostResponse",
+        "type": "object"
+      },
+      "UnitCostRow": {
+        "properties": {
+          "ai_answers_by_engine": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "The costed answers behind `per_engine`.",
+            "propertyNames": {
+              "$ref": "#/components/schemas/EngineCode"
+            },
+            "title": "Ai Answers By Engine",
+            "type": "object"
+          },
+          "extraction_llm_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Extraction spend of the month; null when none was recorded.",
+            "title": "Extraction Llm Usd"
+          },
+          "per_active_prompt_month": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "AI spend of the month per active prompt; null with none.",
+            "title": "Per Active Prompt Month"
+          },
+          "per_ai_observation": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean cost of the month's AI answers that have a cost; null with none.",
+            "title": "Per Ai Observation"
+          },
+          "per_engine": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "0.012000"
+                  ],
+                  "pattern": "^-?\\d+(\\.\\d+)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "`per_ai_observation` by engine; null for an engine with no costed answer.",
+            "propertyNames": {
+              "$ref": "#/components/schemas/EngineCode"
+            },
+            "title": "Per Engine",
+            "type": "object"
+          },
+          "per_serp_check": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rank spend of the month per provider request; null with none.",
+            "title": "Per Serp Check"
+          },
+          "per_tracked_keyword_month": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rank spend of the month per active tracked keyword; null with none.",
+            "title": "Per Tracked Keyword Month"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "per_tracked_keyword_month",
+          "per_serp_check",
+          "per_active_prompt_month",
+          "per_ai_observation",
+          "extraction_llm_usd",
+          "per_engine",
+          "ai_answers_by_engine"
+        ],
+        "title": "UnitCostRow",
+        "type": "object"
+      },
       "UrlRef": {
         "properties": {
           "canonical_url": {
@@ -22011,6 +22363,143 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/budgets": {
+      "get": {
+        "description": "Oldest first, in pages. A member limited to some projects sees those projects' budgets only, not the workspace's. Not built yet: `501 not_implemented`.",
+        "operationId": "list_budgets_api_v1_workspaces__workspace_id__budgets_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[project_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Project Id]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The workspace's budgets",
+        "tags": [
+          "operations"
+        ]
+      },
+      "post": {
+        "description": "One per project (or the workspace), group and month. `limit_usd` is from 0 to 99999999999.99 with two places; a limit of 0 blocks every run of the group. `soft_limit_pct` is 1 to 100 (80 when left out) and `action_on_hard` `pause` when left out. `409 duplicate` when the budget exists; `422 validation_failed` with field code `project_unknown` at `project_id` for a project the workspace does not have. Not built yet: `501 not_implemented`.",
+        "operationId": "create_budget_api_v1_workspaces__workspace_id__budgets_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Add a budget",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/budgets/status": {
       "get": {
         "description": "`month` is `YYYY-MM` (UTC; this month when left out). `spent_usd` is read from the cost events; `committed_estimate_usd` is what runs under way are still expected to spend, this month only. `state` is `hard_exceeded` from the limit and `soft_exceeded` from its soft share. A member limited to some projects sees their budgets only.",
@@ -22069,6 +22558,115 @@
           }
         },
         "summary": "Each budget's spend in a month",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}": {
+      "delete": {
+        "description": "Runs it blocked stay blocked; nothing else changes. Not built yet: `501 not_implemented`.",
+        "operationId": "delete_budget_api_v1_workspaces__workspace_id__budgets__budget_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Delete a budget",
+        "tags": [
+          "operations"
+        ]
+      },
+      "patch": {
+        "description": "The limit, its soft share and the action at the hard limit. The scope and the group cannot change: delete the budget and add another. Not built yet: `501 not_implemented`.",
+        "operationId": "update_budget_api_v1_workspaces__workspace_id__budgets__budget_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budget_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Budget Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change a budget's limit",
         "tags": [
           "operations"
         ]
@@ -22489,6 +23087,166 @@
           }
         },
         "summary": "Costs grouped by the given keys",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/costs/forecast": {
+      "get": {
+        "description": "`month` is `YYYY-MM` (UTC; this month when left out). A row per visible project with live AI schedules: the windows its schedules open in the month times the price book's price of one full run. An estimate, never what is charged. Not built yet: `501 not_implemented`.",
+        "operationId": "cost_forecast_api_v1_workspaces__workspace_id__costs_forecast_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`YYYY-MM`, 2000 to 2100.",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(20\\d{2}|2100)-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`YYYY-MM`, 2000 to 2100.",
+              "title": "Month"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[project_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Project Id]"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "What the live schedules are expected to cost in a month",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/costs/unit-costs": {
+      "get": {
+        "description": "`month` is `YYYY-MM` (UTC; this month when left out). A row per visible project: the cost of a tracked keyword, a provider request, an active prompt and an AI answer, the last by engine with the answers counted. A figure with nothing to divide by is `null`, never 0. Not built yet: `501 not_implemented`.",
+        "operationId": "unit_costs_api_v1_workspaces__workspace_id__costs_unit_costs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`YYYY-MM`, 2000 to 2100.",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(20\\d{2}|2100)-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`YYYY-MM`, 2000 to 2100.",
+              "title": "Month"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[project_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Project Id]"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitCostResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "What one unit of work cost in a month",
         "tags": [
           "operations"
         ]

@@ -471,6 +471,12 @@ EXPECTED: dict[tuple[str, str], str] = {
         "{observation_id}/compare",
     ): "data:read",
     # WP-30 runs-costs-health
+    ("GET", "/api/v1/workspaces/{workspace_id}/budgets"): "costs:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/budgets"): "budgets:manage",
+    ("PATCH", "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}"): "budgets:manage",
+    ("DELETE", "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}"): "budgets:manage",
+    ("GET", "/api/v1/workspaces/{workspace_id}/costs/forecast"): "costs:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/costs/unit-costs"): "costs:read",
     # WP-31 settings-engines
     # WP-32 overview-aggregates
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/overview"): (
@@ -603,6 +609,9 @@ PATH_PARAMETERS = {
     "registrable_domain",
     # WP-26 evidence-viewer
     # WP-30 runs-costs-health
+    # A budget of the workspace; the service finds it within the workspace, and within the
+    # caller's projects for a member limited to some.
+    "budget_id",
     # WP-31 settings-engines
     # WP-32 overview-aggregates
     # A registry key (`ai.mention_rate`), a word and not an id, after `{project_id}`.

@@ -500,6 +500,30 @@ export interface paths {
         patch: operations["update_workspace_api_v1_workspaces__workspace_id__patch"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/budgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The workspace's budgets
+         * @description Oldest first, in pages. A member limited to some projects sees those projects' budgets only, not the workspace's. Not built yet: `501 not_implemented`.
+         */
+        get: operations["list_budgets_api_v1_workspaces__workspace_id__budgets_get"];
+        put?: never;
+        /**
+         * Add a budget
+         * @description One per project (or the workspace), group and month. `limit_usd` is from 0 to 99999999999.99 with two places; a limit of 0 blocks every run of the group. `soft_limit_pct` is 1 to 100 (80 when left out) and `action_on_hard` `pause` when left out. `409 duplicate` when the budget exists; `422 validation_failed` with field code `project_unknown` at `project_id` for a project the workspace does not have. Not built yet: `501 not_implemented`.
+         */
+        post: operations["create_budget_api_v1_workspaces__workspace_id__budgets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/budgets/status": {
         parameters: {
             query?: never;
@@ -518,6 +542,30 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a budget
+         * @description Runs it blocked stay blocked; nothing else changes. Not built yet: `501 not_implemented`.
+         */
+        delete: operations["delete_budget_api_v1_workspaces__workspace_id__budgets__budget_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a budget's limit
+         * @description The limit, its soft share and the action at the hard limit. The scope and the group cannot change: delete the budget and add another. Not built yet: `501 not_implemented`.
+         */
+        patch: operations["update_budget_api_v1_workspaces__workspace_id__budgets__budget_id__patch"];
         trace?: never;
     };
     "/api/v1/workspaces/{workspace_id}/connections": {
@@ -609,6 +657,46 @@ export interface paths {
          * @description From `from` to `to`, both included (UTC days, at most 366). `group_by` is a comma list of `project`, `workload`, `provider`, `endpoint`, `engine`, `day`, `channel`; without it there is one total row. Rows are most expensive first. Read from the hourly rollup, so up to an hour behind; `meta.cost_sources` is read from the cost events. Money has six decimal places.
          */
         get: operations["list_costs_api_v1_workspaces__workspace_id__costs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/costs/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the live schedules are expected to cost in a month
+         * @description `month` is `YYYY-MM` (UTC; this month when left out). A row per visible project with live AI schedules: the windows its schedules open in the month times the price book's price of one full run. An estimate, never what is charged. Not built yet: `501 not_implemented`.
+         */
+        get: operations["cost_forecast_api_v1_workspaces__workspace_id__costs_forecast_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/costs/unit-costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What one unit of work cost in a month
+         * @description `month` is `YYYY-MM` (UTC; this month when left out). A row per visible project: the cost of a tracked keyword, a provider request, an active prompt and an AI answer, the last by engine with the answers counted. A figure with nothing to divide by is `null`, never 0. Not built yet: `501 not_implemented`.
+         */
+        get: operations["unit_costs_api_v1_workspaces__workspace_id__costs_unit_costs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3017,15 +3105,23 @@ export interface components {
             invalid_by_status: components["schemas"]["InvalidByStatus"];
             /**
              * Observed
-             * @description Answers stored, of any status.
+             * @description Answers stored, of any status: `valid` plus `invalid_by_status`.
              */
             observed: number;
+            /**
+             * Partial
+             * @description Of the valid answers, the ones flagged `partial`.
+             */
+            partial: number;
             /**
              * Planned
              * @description Tasks the run planned on the engine.
              */
             planned: number;
-            /** Valid */
+            /**
+             * Valid
+             * @description Answers stored with status `complete` or `partial`.
+             */
             valid: number;
             /** @description `valid` of `planned`. */
             valid_rate: components["schemas"]["MetricCell"];
@@ -3866,6 +3962,48 @@ export interface components {
              */
             workload: "seo_rank" | "ai_prompt" | "keyword_research" | "ai_benchmark" | "extraction_llm" | "first_party" | "all";
         };
+        /** BudgetCreate */
+        BudgetCreate: {
+            /**
+             * Action On Hard
+             * @description What reaching the limit does; `pause` when left out.
+             */
+            action_on_hard?: ("pause" | "alert_only") | null;
+            /**
+             * Limit Usd
+             * @description Per month, UTC. 0 blocks every run of the group.
+             * @example 0.012000
+             */
+            limit_usd: string;
+            /**
+             * Project Id
+             * @description Left out, the budget covers the whole workspace.
+             */
+            project_id?: string | null;
+            /**
+             * Soft Limit Pct
+             * @description The soft share of the limit; 80 when left out.
+             */
+            soft_limit_pct?: number | null;
+            /**
+             * Workload
+             * @enum {string}
+             */
+            workload: "seo_rank" | "ai_prompt" | "keyword_research" | "ai_benchmark" | "extraction_llm" | "first_party" | "all";
+        };
+        /** BudgetPage */
+        BudgetPage: {
+            /**
+             * Data
+             * @description Oldest first.
+             */
+            data: components["schemas"]["Budget"][];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** BudgetResponse */
+        BudgetResponse: {
+            data: components["schemas"]["Budget"];
+        };
         /** BudgetStatus */
         BudgetStatus: {
             /** Blocked Runs */
@@ -3893,6 +4031,24 @@ export interface components {
         BudgetStatusList: {
             /** Data */
             data: components["schemas"]["BudgetStatus"][];
+        };
+        /**
+         * BudgetUpdate
+         * @description At least one member; the scope and the group cannot change.
+         */
+        BudgetUpdate: {
+            /**
+             * Action On Hard
+             * @enum {string}
+             */
+            action_on_hard?: "pause" | "alert_only";
+            /**
+             * Limit Usd
+             * @example 0.012000
+             */
+            limit_usd?: string;
+            /** Soft Limit Pct */
+            soft_limit_pct?: number;
         };
         /** BulkArchiveResponse */
         BulkArchiveResponse: {
@@ -4175,7 +4331,10 @@ export interface components {
              * @description Answers the schedules active that day planned; null when unknown, never 0 for unknown.
              */
             scheduled: number | null;
-            /** Valid */
+            /**
+             * Valid
+             * @description Answers with status `complete` or `partial`.
+             */
             valid: number;
         };
         /** CompareEntities */
@@ -5169,6 +5328,43 @@ export interface components {
         FilterList_Literal__question____comparison____recommendation____how_to____definition____local____transactional____other___: ("question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other")[];
         FilterList_Literal__tofu____mofu____bofu____retention____unknown___: ("tofu" | "mofu" | "bofu" | "retention" | "unknown")[];
         FilterList_UUID_: string[];
+        /** ForecastResponse */
+        ForecastResponse: {
+            /**
+             * Data
+             * @description A row per visible project with live AI schedules and a price; a project with no price is left out, not shown as 0.
+             */
+            data: components["schemas"]["ForecastRow"][];
+        };
+        /** ForecastRow */
+        ForecastRow: {
+            /**
+             * Estimated Cost Usd
+             * @description What the project's live schedules are expected to cost in the month.
+             * @example 0.012000
+             */
+            estimated_cost_usd: string;
+            /**
+             * Is Estimate
+             * @constant
+             */
+            is_estimate: true;
+            /**
+             * Method
+             * @constant
+             */
+            method: "price_book_x_schedules";
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Workload
+             * @constant
+             */
+            workload: "ai_prompt";
+        };
         /** GeneratedFrom */
         GeneratedFrom: {
             /**
@@ -5630,14 +5826,16 @@ export interface components {
              */
             window_start: string | null;
         };
-        /** InvalidByStatus */
+        /**
+         * InvalidByStatus
+         * @description The stored answers that are not valid. A partial answer counts as valid (doc 07 section
+         *     5.5), so it is not here.
+         */
         InvalidByStatus: {
             /** Empty */
             empty: number;
             /** Error */
             error: number;
-            /** Partial */
-            partial: number;
             /** Refused */
             refused: number;
         };
@@ -10445,6 +10643,58 @@ export interface components {
              */
             tracked_keyword_id: string;
         };
+        /** UnitCostResponse */
+        UnitCostResponse: {
+            /** Data */
+            data: components["schemas"]["UnitCostRow"][];
+        };
+        /** UnitCostRow */
+        UnitCostRow: {
+            /**
+             * Ai Answers By Engine
+             * @description The costed answers behind `per_engine`.
+             */
+            ai_answers_by_engine: {
+                [key: string]: number;
+            };
+            /**
+             * Extraction Llm Usd
+             * @description Extraction spend of the month; null when none was recorded.
+             */
+            extraction_llm_usd: string | null;
+            /**
+             * Per Active Prompt Month
+             * @description AI spend of the month per active prompt; null with none.
+             */
+            per_active_prompt_month: string | null;
+            /**
+             * Per Ai Observation
+             * @description Mean cost of the month's AI answers that have a cost; null with none.
+             */
+            per_ai_observation: string | null;
+            /**
+             * Per Engine
+             * @description `per_ai_observation` by engine; null for an engine with no costed answer.
+             */
+            per_engine: {
+                [key: string]: string | null;
+            };
+            /**
+             * Per Serp Check
+             * @description Rank spend of the month per provider request; null with none.
+             */
+            per_serp_check: string | null;
+            /**
+             * Per Tracked Keyword Month
+             * @description Rank spend of the month per active tracked keyword; null with none.
+             */
+            per_tracked_keyword_month: string | null;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+        };
         /** UrlRef */
         UrlRef: {
             /** Canonical Url */
@@ -11610,6 +11860,76 @@ export interface operations {
             };
         };
     };
+    list_budgets_api_v1_workspaces__workspace_id__budgets_get: {
+        parameters: {
+            query?: {
+                "filter[project_id]"?: string | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_budget_api_v1_workspaces__workspace_id__budgets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     budget_status_api_v1_workspaces__workspace_id__budgets_status_get: {
         parameters: {
             query?: {
@@ -11631,6 +11951,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BudgetStatusList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_budget_api_v1_workspaces__workspace_id__budgets__budget_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                budget_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_budget_api_v1_workspaces__workspace_id__budgets__budget_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                budget_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -11801,6 +12187,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CostList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cost_forecast_api_v1_workspaces__workspace_id__costs_forecast_get: {
+        parameters: {
+            query?: {
+                /** @description `YYYY-MM`, 2000 to 2100. */
+                month?: string | null;
+                "filter[project_id]"?: string | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    unit_costs_api_v1_workspaces__workspace_id__costs_unit_costs_get: {
+        parameters: {
+            query?: {
+                /** @description `YYYY-MM`, 2000 to 2100. */
+                month?: string | null;
+                "filter[project_id]"?: string | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnitCostResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -17216,7 +17672,10 @@ export const analyticsPropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRe
 export const annotationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Annotation"]["kind"]> = ["model_changed", "entity_set_changed", "extractor_changed", "prompt_set_changed"];
 export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["action_on_hard"]> = ["pause", "alert_only"];
 export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
+export const budgetCreateAction_on_hardAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetCreate"]["action_on_hard"]> = ["pause", "alert_only"];
+export const budgetCreateWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetCreate"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
+export const budgetUpdateAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetUpdate"]["action_on_hard"]> = ["pause", "alert_only"];
 export const cardItemWidthAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CardItem"]["width"]> = ["third", "half", "two_thirds", "full"];
 export const citationOutDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationOut"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const citationRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationRow"]["domain_role"]> = ["own", "competitor", "third_party"];

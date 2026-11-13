@@ -27,9 +27,10 @@ planned task with no stored answer.
 | `by_engine[]` | `AiCoverageEngine` | at most 3 (one per engine) | One entry per engine of the run. |
 | `by_engine[].engine_code` | `EngineCode` (`chatgpt_web`, `gemini_web`, `google_ai_mode`) | | |
 | `by_engine[].planned` | integer | | Tasks the run planned on the engine. |
-| `by_engine[].observed` | integer | | Answers stored, of any status. |
-| `by_engine[].valid` | integer | | |
-| `by_engine[].invalid_by_status` | `{ partial, empty, refused, error }` integers | | The others by status. |
+| `by_engine[].observed` | integer | | Answers stored, of any status: `valid` plus `invalid_by_status`. |
+| `by_engine[].valid` | integer | | Answers with status `complete` or `partial`. |
+| `by_engine[].partial` | integer | | Of the valid answers, the ones flagged `partial` (2026-11-14, WP-30). |
+| `by_engine[].invalid_by_status` | `{ empty, refused, error }` integers | | The stored answers that are not valid, by status. `partial` is not here (2026-11-14, WP-30). |
 | `by_engine[].valid_rate` | `MetricCell` | | `valid` of `planned`: `numerator` valid, `denominator` planned. |
 | `missing[]` | `AiCoverageMissing` | unbounded (the run's tasks) | Every planned task with no stored answer. |
 | `missing[].prompt_id` | uuid | | |
@@ -56,7 +57,7 @@ Response:
 | `data[].scheduled` | integer or null | | Answers the schedules active that day planned; null when unknown, never 0 for unknown. |
 | `data[].answers` | integer | | Answers stored that day. |
 | `data[].by_status` | `{ complete, partial, empty, refused, error }` integers | | The answers stored by status. |
-| `data[].valid` | integer | | |
+| `data[].valid` | integer | | Answers with status `complete` or `partial`. |
 | `data[].budget_blocked` | integer | | Runs of the day a budget blocked. |
 | `data[].runs[]` | uuid | unbounded (the day's runs) | The runs whose answers the day holds. |
 | `meta.window` | `{ from, to, timezone }` | | The window answered. |
@@ -71,7 +72,7 @@ Response:
 | 403 | `forbidden` | The role lacks `data:read`. |
 | 422 | `validation_failed` | A bad `run_id` (not a uuid), an engine outside `EngineCode` (`filter[engine_code_in]=perplexity_web`), a value that is not a date. |
 | 422 | `validation_failed` with field code `range_invalid` | A later body: `from` after `to`, at `from` (as the built AI reads). |
-| 422 | `not_an_ai_run` | A later body: the run's workload is not `ai_prompt` (ai-coverage). WP-30 adds the problem class when it raises it (plan decision D8). |
+| 422 | `not_an_ai_run` | A later body: the run's workload is not `ai_prompt` (ai-coverage). WP-30 adds the problem class when it raises it (`NotAnAiRunError`, WP-30 plan decision D5). |
 | 422 | `window_too_large` | A later body: `to` more than 92 days after `from` (carries `limit_days`; the class exists). |
 | 501 | `not_implemented` | Both routes, until WP-30 builds them. |
 
@@ -95,11 +96,12 @@ GET {P}/runs/0000006a-7c1e-4a52-9b3d-00000000006a/ai-coverage
     "by_engine": [
       {
         "engine_code": "chatgpt_web",
-        "planned": 150,
-        "observed": 148,
+        "planned": 147,
+        "observed": 145,
         "valid": 141,
-        "invalid_by_status": {"partial": 3, "empty": 2, "refused": 1, "error": 1},
-        "valid_rate": {"value": 0.94, "numerator": 141.0, "denominator": 150, "n_observations": 150, "pooled": null}
+        "partial": 3,
+        "invalid_by_status": {"empty": 2, "refused": 1, "error": 1},
+        "valid_rate": {"value": 0.96, "numerator": 141.0, "denominator": 147, "n_observations": 147, "pooled": null}
       }
     ],
     "missing": [
@@ -134,9 +136,9 @@ GET {P}/ai/collection/daily?from=2026-11-12&to=2026-11-13&filter[engine_code_in]
     {
       "date": "2026-11-12",
       "engine_code": "chatgpt_web",
-      "scheduled": 150,
-      "answers": 148,
-      "by_status": {"complete": 141, "partial": 3, "empty": 2, "refused": 1, "error": 1},
+      "scheduled": 147,
+      "answers": 145,
+      "by_status": {"complete": 138, "partial": 3, "empty": 2, "refused": 1, "error": 1},
       "valid": 141,
       "budget_blocked": 0,
       "runs": ["0000006a-7c1e-4a52-9b3d-00000000006a"]
@@ -186,3 +188,13 @@ Each row can be tightened by WP-30 through the change log.
 Newest last; one line per change, in the form `date package: change`.
 
 2026-11-13 WP-03: contract published
+2026-11-14 WP-30: `valid` is answers with status `complete` or `partial` (what every rate counts, doc 07 section 5.5); it was ambiguous because `InvalidByStatus` listed `partial` as invalid
+2026-11-14 WP-30: `InvalidByStatus` is `{ empty, refused, error }`; `partial` is removed from it
+2026-11-14 WP-30: `AiCoverageEngine.partial` added (required): of the valid answers, the ones flagged `partial`
+2026-11-14 WP-30: example corrected so it adds up: observed is valid plus empty, refused and error (147 planned, 145 observed, 141 valid of which 3 partial, 2 empty, 1 refused, 1 error, 2 missing)
+2026-11-14 WP-30: `not_an_ai_run` is `422`, checked after 401, 404 (workspace, project, run outside the project), 403 and the 422 of path and query values (D5)
+2026-11-14 WP-30: `planned` is the run's tasks that are not `cancelled` or `skipped_cached`; `observed` is the tasks with a current answer; `missing` is the planned tasks with no current answer in any task status, ordered by prompt, engine, location (nulls last) and replicate (D2, D3)
+2026-11-14 WP-30: `valid_rate.value` is null when `planned` is 0, never 0 (D4)
+2026-11-14 WP-30: a day is the project's local day; the default window is the 28 days ending today, at most 92 (`window_too_large` with `limit_days`), `from` after `to` is `range_invalid`; rows are dense (a row per day and engine, zero filled); `meta.engine_codes` is the filter, else the engines enabled on the project plus any engine with a row in the window (D6)
+2026-11-14 WP-30: `scheduled` counts the tasks (not cancelled, not skipped) of `ai_prompt` runs whose `scheduled_for` falls on the day; null when the day has none and no blocked run (D7)
+2026-11-14 WP-30: `budget_blocked` counts `ai_prompt` runs with status `budget_blocked` by the local day of `completed_at`, on each engine the run asked for, else on every engine of the response; it counts runs, so it is never summed across engines; `runs[]` is the distinct runs of the day's answers on that engine plus the blocked runs of the day, oldest first (D8)

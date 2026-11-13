@@ -9,7 +9,7 @@ from datetime import date
 from typing import Annotated, Final
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from fastapi.exceptions import RequestValidationError
 from pydantic import AfterValidator
 
@@ -18,6 +18,14 @@ from idraft.api.operations.costs_repository import BudgetRecord, PriceRecord
 from idraft.api.pagination import Commas, Offset, OffsetPageInfo
 from idraft.api.permissions import Permission
 from idraft.api.resources import Resources, get_resources
+from idraft.api.schemas.budgets import (
+    BudgetCreate,
+    BudgetPage,
+    BudgetResponse,
+    BudgetUpdate,
+    ForecastResponse,
+    UnitCostResponse,
+)
 from idraft.api.schemas.operations import (
     Budget,
     BudgetStatus,
@@ -30,6 +38,7 @@ from idraft.api.schemas.operations import (
     Price,
     PricePage,
 )
+from idraft.api.stubs import not_built, not_built_yet
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 from idraft.domain.workloads import CostWorkload
@@ -37,6 +46,8 @@ from idraft.domain.workloads import CostWorkload
 router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}", tags=["operations"])
 
 ReadCosts = Annotated[WorkspaceAccess, Depends(require_permission(Permission.COSTS_READ))]
+ManageBudgets = Annotated[WorkspaceAccess, Depends(require_permission(Permission.BUDGETS_MANAGE))]
+_NOT_BUILT = " Not built yet: `501 not_implemented`."
 
 # A leap year's whole period.
 PERIOD_DAYS_MAX: Final = 366
@@ -161,6 +172,97 @@ async def budget_status(
     first = None if month is None else date.fromisoformat(f"{month}-01")
     lines = await costs.budget_status(access, first)
     return BudgetStatusList(data=[_status(line) for line in lines])
+
+
+@router.get(
+    "/budgets",
+    summary="The workspace's budgets",
+    description="Oldest first, in pages. A member limited to some projects sees those "
+    "projects' budgets only, not the workspace's." + _NOT_BUILT,
+)
+@not_built
+async def list_budgets(
+    access: ReadCosts,
+    page: Offset,
+    project_id: Annotated[UUID | None, Query(alias="filter[project_id]")] = None,
+) -> BudgetPage:
+    raise not_built_yet()
+
+
+@router.post(
+    "/budgets",
+    status_code=201,
+    summary="Add a budget",
+    description="One per project (or the workspace), group and month. `limit_usd` is from 0 to "
+    "99999999999.99 with two places; a limit of 0 blocks every run of the group. "
+    "`soft_limit_pct` is 1 to 100 (80 when left out) and `action_on_hard` `pause` when left "
+    "out. `409 duplicate` when the budget exists; `422 validation_failed` with field code "
+    "`project_unknown` at `project_id` for a project the workspace does not have." + _NOT_BUILT,
+)
+@not_built
+async def create_budget(body: BudgetCreate, access: ManageBudgets) -> BudgetResponse:
+    raise not_built_yet()
+
+
+@router.patch(
+    "/budgets/{budget_id}",
+    summary="Change a budget's limit",
+    description="The limit, its soft share and the action at the hard limit. The scope and the "
+    "group cannot change: delete the budget and add another." + _NOT_BUILT,
+)
+@not_built
+async def update_budget(
+    budget_id: UUID, body: BudgetUpdate, access: ManageBudgets
+) -> BudgetResponse:
+    raise not_built_yet()
+
+
+@router.delete(
+    "/budgets/{budget_id}",
+    status_code=204,
+    summary="Delete a budget",
+    description="Runs it blocked stay blocked; nothing else changes." + _NOT_BUILT,
+)
+@not_built
+async def delete_budget(budget_id: UUID, access: ManageBudgets) -> Response:
+    raise not_built_yet()
+
+
+@router.get(
+    "/costs/forecast",
+    summary="What the live schedules are expected to cost in a month",
+    description="`month` is `YYYY-MM` (UTC; this month when left out). A row per visible "
+    "project with live AI schedules: the windows its schedules open in the month times the "
+    "price book's price of one full run. An estimate, never what is charged." + _NOT_BUILT,
+)
+@not_built
+async def cost_forecast(
+    access: ReadCosts,
+    month: Annotated[
+        str | None, Query(pattern=_MONTH_PATTERN, description="`YYYY-MM`, 2000 to 2100.")
+    ] = None,
+    project_id: Annotated[UUID | None, Query(alias="filter[project_id]")] = None,
+) -> ForecastResponse:
+    raise not_built_yet()
+
+
+@router.get(
+    "/costs/unit-costs",
+    summary="What one unit of work cost in a month",
+    description="`month` is `YYYY-MM` (UTC; this month when left out). A row per visible "
+    "project: the cost of a tracked keyword, a provider request, an active prompt and an AI "
+    "answer, the last by engine with the answers counted. A figure with nothing to divide by "
+    "is `null`, never 0." + _NOT_BUILT,
+)
+@not_built
+async def unit_costs(
+    access: ReadCosts,
+    month: Annotated[
+        str | None, Query(pattern=_MONTH_PATTERN, description="`YYYY-MM`, 2000 to 2100.")
+    ] = None,
+    project_id: Annotated[UUID | None, Query(alias="filter[project_id]")] = None,
+) -> UnitCostResponse:
+    raise not_built_yet()
 
 
 def _price(record: PriceRecord) -> Price:
