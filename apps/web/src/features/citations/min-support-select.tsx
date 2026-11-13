@@ -34,7 +34,7 @@ export function MinSupportSelect({ minSupport, onMinSupportChange }: MinSupportS
       <Select<string>
         aria-label={t('label')}
         size="sm"
-        className="w-44"
+        className="w-32 sm:w-44"
         value={String(minSupport)}
         onValueChange={(next) => {
           const count = Number(next);

@@ -29,7 +29,7 @@ export function SortSelect({ sort, onSortChange }: SortSelectProps): ReactElemen
     <Select<SourceSort>
       aria-label={t('label')}
       size="sm"
-      className="w-44"
+      className="w-32 sm:w-44"
       value={sort}
       onValueChange={onSortChange}
       placeholder={t('label')}
