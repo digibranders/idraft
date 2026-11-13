@@ -29,9 +29,6 @@ INVALID = (422, "validation_failed")
 @pytest.mark.parametrize(
     ("path", "params"),
     [
-        ("sources/domains", {"include": "cited_with"}),
-        ("sources/domains", {"include": "by_role_by_engine"}),
-        ("sources/domains", {"include": "series,cited_with"}),
         ("sources/domains", {"include_unresolved_redirects": "true"}),
         ("sources/pages", {"include_engine_internal": "true"}),
         ("sources/changes", {"include_unresolved_redirects": "true"}),
@@ -128,7 +125,11 @@ async def test_a_registrable_domain_longer_than_253_is_refused(
 
 @pytest.mark.parametrize(
     ("path", "params"),
-    [("sources/changes", {}), ("sources/domains", {"include": "series"})],
+    [
+        ("sources/changes", {}),
+        ("sources/domains", {"include": "series"}),
+        ("sources/domains", {"include": "series,cited_with,by_role_by_engine"}),
+    ],
 )
 async def test_the_source_reads_check_access_first(
     path: str,

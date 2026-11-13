@@ -55,12 +55,14 @@ from idraft.api.schemas.ai_sources import (
     DomainEngineWeek,
     DomainPrompt,
     DomainRole,
+    EngineRoleUnits,
     EngineUnits,
     FanoutCitedDomain,
     FanoutMeta,
     FanoutQueryPage,
     FanoutQueryRow,
     PreviousUnits,
+    RoleAnswers,
     RoleUnits,
     SourceChangeKind,
     SourceChangePage,
@@ -287,6 +289,7 @@ def domain_row(
     *,
     previous: PreviousUnits | None = None,
     series: list[SourceWeekUnits] | None = None,
+    cited_with: CitedWith | None = None,
 ) -> SourceDomainRow:
     return SourceDomainRow(
         registrable_domain=row.registrable_domain,
@@ -301,7 +304,33 @@ def domain_row(
         last_seen_at=row.counted.last_seen_at,
         previous=previous,
         series=series,
+        cited_with=cited_with,
     )
+
+
+def top_entity(found: list[tuple[UUID, int]] | None) -> CitedWith | None:
+    """The entity a row is cited with; none when no counted answer citing it names one."""
+    return CitedWith(entity_id=found[0][0], observations=found[0][1]) if found else None
+
+
+def role_split(
+    engines: Sequence[str], counted: dict[tuple[str, str], tuple[int, int]]
+) -> list[EngineRoleUnits]:
+    """Every engine of the scope with the three roles, zero where nothing was cited."""
+
+    def role(engine: str, name: str) -> RoleAnswers:
+        units, seen = counted.get((engine, name), (0, 0))
+        return RoleAnswers(citation_units=units, answers_citing=seen)
+
+    return [
+        EngineRoleUnits(
+            engine_code=EngineCode(engine),
+            own=role(engine, "own"),
+            competitor=role(engine, "competitor"),
+            third_party=role(engine, "third_party"),
+        )
+        for engine in engines
+    ]
 
 
 def page_row(
@@ -387,9 +416,11 @@ def sources_meta(
     engines: Sequence[str],
     totals: Totals,
     series: Series | None = None,
+    by_role_by_engine: list[EngineRoleUnits] | None = None,
 ) -> SourcesMeta:
     return SourcesMeta(
         series=None if series is None else series.meta(),
+        by_role_by_engine=by_role_by_engine,
         window=now.window,
         include_branded=query.include_branded,
         engine_codes=[EngineCode(code) for code in engines],
@@ -522,6 +553,8 @@ class SourceService:
         found: dict[tuple[str, str, UUID | None], tuple[int, int]] = {}
         prior_answers: int | None = None
         series: Series | None = None
+        named: dict[tuple[str, str | None, UUID | None], list[tuple[UUID, int]]] = {}
+        split: list[EngineRoleUnits] | None = None
         async with self._transaction(access) as db:
             now = await scoped(db, access, project_id, query, engines)
             rows, total = await repository.domain_counts(
@@ -538,6 +571,12 @@ class SourceService:
                 series = await weekly(
                     db, now, by_page=False, names={row.registrable_domain for row in rows}
                 )
+            if "cited_with" in include:
+                named = await repository.cited_with(
+                    db, now.scope, {row.registrable_domain for row in rows}, top=1, by_row=True
+                )
+            if "by_role_by_engine" in include:
+                split = role_split(engines, await repository.role_engine_totals(db, now.scope))
             if compare == "previous_period":
                 prior = before(now)
                 found = await repository.previous_domains(
@@ -560,11 +599,16 @@ class SourceService:
                     else series.points(
                         (row.registrable_domain, row.domain_role, row.role_entity_id)
                     ),
+                    cited_with=top_entity(
+                        named.get((row.registrable_domain, row.domain_role, row.role_entity_id))
+                    ),
                 )
                 for row in rows
             ],
             page=OffsetPageInfo(offset=page.offset, limit=page.limit, total=total),
-            meta=compared(sources_meta(now, query, engines, whole, series), prior, prior_answers),
+            meta=compared(
+                sources_meta(now, query, engines, whole, series, split), prior, prior_answers
+            ),
         )
 
     async def pages(
@@ -791,7 +835,7 @@ class SourceService:
                 ],
                 cited_with=[
                     CitedWith(entity_id=entity_id, observations=seen)
-                    for entity_id, seen in named.get(name, [])
+                    for entity_id, seen in named.get((name, None, None), [])
                 ],
             ),
             meta=sources_meta(now, query, engines, whole),

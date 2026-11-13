@@ -834,30 +834,40 @@ async def domain_engine_weeks(
 
 
 async def cited_with(
-    db: AsyncSession, scope: SourceScope, names: Collection[str], *, top: int
-) -> dict[str, list[tuple[UUID, int]]]:
+    db: AsyncSession,
+    scope: SourceScope,
+    names: Collection[str],
+    *,
+    top: int,
+    by_row: bool = False,
+) -> dict[tuple[str, str | None, UUID | None], list[tuple[UUID, int]]]:
     """For each registrable domain, the `top` tracked entities named in the most answers that
-    cite it, as (entity id, answers), the most first, then the entity id. A mention counts when
-    it is current, accepted and of the derivation the answer's counted facts are (an older
-    extraction's mention is not what the counted answer says). One statement."""
+    cite it, as (entity id, answers), the most first, then the entity id. The key is
+    `(domain, None, None)`; with `by_row` it is the list row's, `(domain, role, role entity)`, and
+    the answers are those citing the domain in that role. A mention counts when it is current,
+    accepted and of the derivation the answer's counted facts are (an older extraction's
+    mention is not what the counted answer says). One statement."""
     if not names:
         return {}
     answers, source = _cited(scope)
+    row_keys = [_C.domain_role.label("role"), _C.role_entity_id.label("role_entity_id")]
     cites = (
         select(
             answers.c.observation_id,
             answers.c.observed_at,
             answers.c.derivation_id,
             _D.registrable_domain.label("domain"),
+            *(row_keys if by_row else ()),
         )
         .select_from(source)
         .where(*citation_bounds(scope), _D.registrable_domain.in_(sorted(names)))
         .distinct()
         .subquery("cites")
     )
+    keys = [cites.c.domain, *((cites.c.role, cites.c.role_entity_id) if by_row else ())]
     m = ai_entity_mentions.c
     named = (
-        select(cites.c.domain, m.entity_id, func.count().label("seen"))
+        select(*keys, m.entity_id, func.count().label("seen"))
         .select_from(
             cites.join(
                 ai_entity_mentions,
@@ -876,25 +886,32 @@ async def cited_with(
             m.is_current,
             m.mention_status == "accepted",
         )
-        .group_by(cites.c.domain, m.entity_id)
+        .group_by(*keys, m.entity_id)
         .subquery("named")
     )
+    row_cols = [named.c[key.name] for key in keys]
     ranked = select(
-        named.c.domain,
+        *row_cols,
         named.c.entity_id,
         named.c.seen,
         func.row_number()
-        .over(partition_by=named.c.domain, order_by=(desc(named.c.seen), named.c.entity_id))
+        .over(partition_by=row_cols, order_by=(desc(named.c.seen), named.c.entity_id))
         .label("place"),
     ).subquery("ranked")
     rows = await db.execute(
-        select(ranked.c.domain, ranked.c.entity_id, ranked.c.seen)
+        select(*(ranked.c[col.name] for col in row_cols), ranked.c.entity_id, ranked.c.seen)
         .where(ranked.c.place <= top)
-        .order_by(ranked.c.domain, ranked.c.place)
+        .order_by(*(ranked.c[col.name] for col in row_cols), ranked.c.place)
     )
-    found: dict[str, list[tuple[UUID, int]]] = {}
+    found: dict[tuple[str, str | None, UUID | None], list[tuple[UUID, int]]] = {}
     for row in rows:
-        found.setdefault(row.domain, []).append((row.entity_id, row.seen))
+        mapping = row._mapping
+        key = (
+            (row.domain, mapping["role"], mapping["role_entity_id"])
+            if by_row
+            else (row.domain, None, None)
+        )
+        found.setdefault(key, []).append((row.entity_id, row.seen))
     return found
 
 
@@ -1255,3 +1272,24 @@ async def totals(db: AsyncSession, scope: SourceScope) -> Totals:
     return Totals(
         answers=answers_in_scope, answers_citing=citing, citation_units=units, by_role=by_role
     )
+
+
+async def role_engine_totals(
+    db: AsyncSession, scope: SourceScope
+) -> dict[tuple[str, str], tuple[int, int]]:
+    """The citation units and citing answers per (engine, role) over every citation in scope: the
+    role filter of a list does not narrow it. One statement; a pair with no citation has no
+    entry."""
+    answers, source = _cited(scope)
+    rows = await db.execute(
+        select(
+            answers.c.engine_code,
+            _C.domain_role,
+            func.count(unit()).label("units"),
+            func.count(_C.observation_id.distinct()).label("observations"),
+        )
+        .select_from(source)
+        .where(*citation_bounds(scope))
+        .group_by(answers.c.engine_code, _C.domain_role)
+    )
+    return {(row.engine_code, row.domain_role): (row.units, row.observations) for row in rows}

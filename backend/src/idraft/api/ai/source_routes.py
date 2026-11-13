@@ -188,8 +188,10 @@ async def source_domains(
         Query(
             max_length=3,
             description="Blocks to add: `series` (a point per week of the window), "
-            "`cited_with` and `by_role_by_engine`. `series` is built; `cited_with` and "
-            "`by_role_by_engine` are not built yet (`501 not_implemented`).",
+            "`cited_with` (on each row, the tracked entity named in the most answers that cite "
+            "it, ties by entity id; absent when none is named) and `by_role_by_engine` "
+            "(`meta`: per engine the units and citing answers of each role, whatever "
+            "`filter[domain_role_in]` says).",
         ),
     ] = None,
     min_support: MinSupport = None,
@@ -197,7 +199,6 @@ async def source_domains(
 ) -> SourceDomainPage:
     refuse_unbuilt(
         {
-            "include": bool(set(include or ()) - {"series"}),
             "include_unresolved_redirects": "unresolved_redirect" not in flags,
             "include_engine_internal": "engine_internal" not in flags,
         }

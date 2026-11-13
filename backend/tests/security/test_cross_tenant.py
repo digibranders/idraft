@@ -321,7 +321,7 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     ("GET", _W + "/vocabularies/{vocabulary_id}/terms"): {"include": "prompt_count"},
     # WP-14 sources-lane
     ("GET", _W + "/projects/{project_id}/ai/sources/domains"): {
-        "include": "series",
+        "include": "series,cited_with,by_role_by_engine",
         "compare": "previous_period",
         "min_support": "1",
         "filter[country_iso]": "US",

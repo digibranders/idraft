@@ -132,7 +132,11 @@ class SourceDomainRow(BaseModel):
         "most 14, zero filled.",
     )
     cited_with: CitedWith | None = Field(
-        default=None, exclude_if=_absent, description="With `include=cited_with`. " + _NOT_RETURNED
+        default=None,
+        exclude_if=_absent,
+        description="With `include=cited_with`: the tracked entity named in the most answers "
+        "that cite this row (this role and entity), ties by entity id, with the answers citing "
+        "it that name the entity. Absent when no counted answer citing it names one.",
     )
     category: str | None = Field(
         default=None,
@@ -206,7 +210,10 @@ class SourcesMeta(BaseModel):
         default=None,
         exclude_if=_absent,
         max_length=ENGINES_MAX,
-        description="With `include=by_role_by_engine` on domains. " + _NOT_RETURNED,
+        description="With `include=by_role_by_engine` on domains: every engine of "
+        "`engine_codes`, in that order, with the units and citing answers of each role over "
+        "every citation in scope; `filter[domain_role_in]` does not narrow it. Per role the "
+        "units over the engines add up to `by_role`.",
     )
 
 
