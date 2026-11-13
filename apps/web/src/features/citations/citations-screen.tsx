@@ -1,9 +1,8 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Ban, Link2, MoreHorizontal, Power } from 'lucide-react';
+import { Ban, Link2, MoreHorizontal } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import Link from 'next/link';
 import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 
 import { CompareSelect } from './compare-select';
@@ -13,6 +12,7 @@ import { activeCitationTab, CITATION_TABS, type CitationTabContext } from './cit
 import { CITATION_VIEW_KEYS, citationViews } from './citation-views';
 import type { ExportSource } from './citations-export';
 import { citationFilterFields } from './citations-filters';
+import { LoadFailed, NoEngine } from './citations-states';
 import { CitationsStrip } from './citations-strip';
 import { ExportButton } from './export-button';
 import type { StripReads } from './strip-model';
@@ -25,14 +25,12 @@ import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
 import { TopBarPortal } from '@/components/app/shell/top-bar-slot';
 import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
-import { InlineError } from '@/components/app/status/inline-error';
 import { SavedViewMenu } from '@/components/app/views/saved-view-menu';
 import { useSavedView } from '@/components/app/views/use-saved-view';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { Menu } from '@/components/ui/menu';
 import { Tabs, TabsPanel } from '@/components/ui/tabs';
-import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { apiQuery } from '@/lib/api/query';
 import { roleUnits } from '@/lib/citations/share-model';
@@ -49,7 +47,6 @@ import {
 } from '@/lib/format';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { useCan } from '@/lib/permissions';
-import { projectPath } from '@/lib/routes/paths';
 
 export interface CitationsProject {
   id: string;
@@ -265,30 +262,9 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
   let body: ReactNode;
   if (engines.isError && engines.data === undefined) {
     // Never an empty list: that would read as every engine
-    body = (
-      <InlineError
-        title={t('empty.failedTitle')}
-        reason={t('empty.failedReason')}
-        errorId={null}
-        onRetry={() => void engines.refetch()}
-        retrying={engines.isFetching}
-        retryLabel={common('retry')}
-      />
-    );
+    body = <LoadFailed errorId={null} onRetry={() => void engines.refetch()} retrying={engines.isFetching} />;
   } else if (engines.data !== undefined && enabledEngines.length === 0) {
-    body = (
-      <EmptyState
-        icon={Power}
-        title={t('empty.noEngineTitle')}
-        reason={t('empty.noEngineReason')}
-        headingLevel={2}
-        secondaryAction={
-          <TextLink render={<Link href={projectPath(workspaceSlug, project.slug, '/settings/engines')} />}>
-            {t('empty.toEngines')}
-          </TextLink>
-        }
-      />
-    );
+    body = <NoEngine workspaceSlug={workspaceSlug} projectSlug={project.slug} />;
   } else {
     const context: CitationTabContext = {
       source,
@@ -323,15 +299,7 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
         className="min-h-0 flex-1 gap-3"
       >
         {scopeFailed ? (
-          <InlineError
-            title={t('empty.failedTitle')}
-            reason={t('empty.failedReason')}
-            errorId={scopeMeta.errorId}
-            onRetry={scopeMeta.retry}
-            retrying={scopeMeta.retrying}
-            retryLabel={common('retry')}
-            live
-          />
+          <LoadFailed errorId={scopeMeta.errorId} onRetry={scopeMeta.retry} retrying={scopeMeta.retrying} />
         ) : (
           <CitationsStrip reads={stripReads} scope={scope} labelOf={labelOf} />
         )}

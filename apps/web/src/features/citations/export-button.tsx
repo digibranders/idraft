@@ -68,7 +68,7 @@ export function ExportButton({ source, scope, previousMeta, engines, range }: Ex
       : source.rows.rows.length === 0
         ? t('exportNone')
         : namesPending
-          ? t('exportLoading')
+          ? t('exportNamesLoading')
           : null;
 
   const exportRows = (): void => {

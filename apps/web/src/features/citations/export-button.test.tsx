@@ -166,7 +166,8 @@ describe('ExportButton', () => {
     );
     const { user } = renderButton(domains([domain('g2.com', 1912)]));
     expect(button()).toHaveAttribute('aria-disabled', 'true');
-    expect(button()).toHaveAccessibleDescription('The rows are not loaded');
+    // The rows are loaded here; it is the names that are not
+    expect(button()).toHaveAccessibleDescription('The names are still loading');
     await user.click(button());
     expect(csv.downloadBlob).not.toHaveBeenCalled();
     act(() => held.open());

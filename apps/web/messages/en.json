@@ -4292,6 +4292,7 @@
     "exportNone": "Nothing to export",
     "exportFailed": "The file could not be made",
     "exportLoading": "The rows are not loaded",
+    "exportNamesLoading": "The names are still loading",
     "tabs": {
       "label": "Citation views",
       "domains": "Domains",

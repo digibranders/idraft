@@ -11,6 +11,7 @@ import {
   CitationTableNotes,
   resolveTableStatus,
 } from './citation-table-states';
+import { LoadFailed } from './citations-states';
 import type { CitationTabContext } from './citation-tabs';
 import type { ExportSource } from './citations-export';
 import { useRegisterExport } from './export-button';
@@ -20,7 +21,6 @@ import { pageRowId, usePageColumns } from './page-columns';
 import { SortSelect } from './sort-select';
 import { DataTable } from '@/components/app/data-table/data-table';
 import { Banner } from '@/components/app/status/banner';
-import { InlineError } from '@/components/app/status/inline-error';
 import { Button } from '@/components/ui/button';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { entitiesQuery } from '@/lib/citations/entities-query';
@@ -65,7 +65,6 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
   } = context;
   const { filterBar } = context;
   const tt = useTranslations('citations.table');
-  const t = useTranslations('citations');
   const common = useTranslations('common');
   const locale = useLocale();
   // The tab asks nothing while another one is shown, or before the engines are known: with none listed the scope
@@ -218,17 +217,7 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
           rowName={rowName}
           rowTone={ownRow}
           status={status}
-          errorState={
-            <InlineError
-              title={t('empty.failedTitle')}
-              reason={t('empty.failedReason')}
-              errorId={errorId}
-              onRetry={() => void read.refetch()}
-              retrying={read.isFetching}
-              retryLabel={common('retry')}
-              live
-            />
-          }
+          errorState={<LoadFailed errorId={errorId} onRetry={() => void read.refetch()} retrying={read.isFetching} />}
           emptyState={<CitationEmptyState meta={meta} workspaceSlug={workspaceSlug} projectSlug={projectSlug} />}
           filteredEmptyState={
             <CitationFilteredEmptyState

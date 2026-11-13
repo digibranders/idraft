@@ -58,38 +58,57 @@ export function resolveTableStatus({
   return read.isFetching ? 'refetching' : 'ready';
 }
 
-/** No answer was read, or answers were read and none names a source. */
-export function CitationEmptyState({
-  meta,
-  workspaceSlug,
-  projectSlug,
-}: {
-  meta: SourcesMeta | undefined;
+interface ProjectLinkProps {
   workspaceSlug: string;
   projectSlug: string;
-}): ReactElement {
+}
+
+/** The way on from an empty table: the prompts, whose answers the citations come from. */
+function ToPrompts({ workspaceSlug, projectSlug }: ProjectLinkProps): ReactElement {
   const t = useTranslations('citations');
-  if (meta !== undefined && meta.answers === 0) {
-    return (
-      <EmptyState
-        icon={MessageSquare}
-        title={t('empty.noAnswersTitle')}
-        reason={t('empty.noAnswersReason')}
-        headingLevel={2}
-        secondaryAction={
-          <TextLink render={<Link href={projectPath(workspaceSlug, projectSlug, '/ai/prompts')} />}>
-            {t('empty.toPrompts')}
-          </TextLink>
-        }
-      />
-    );
-  }
+  return (
+    <TextLink render={<Link href={projectPath(workspaceSlug, projectSlug, '/ai/prompts')} />}>
+      {t('empty.toPrompts')}
+    </TextLink>
+  );
+}
+
+/** No answer was read in the window. */
+export function NoAnswers(props: ProjectLinkProps): ReactElement {
+  const t = useTranslations('citations');
+  return (
+    <EmptyState
+      icon={MessageSquare}
+      title={t('empty.noAnswersTitle')}
+      reason={t('empty.noAnswersReason')}
+      headingLevel={2}
+      secondaryAction={<ToPrompts {...props} />}
+    />
+  );
+}
+
+/** Answers were read and none names a source. */
+export function NoCiting({ answers, ...link }: ProjectLinkProps & { answers: number }): ReactElement {
+  const t = useTranslations('citations');
   return (
     <EmptyState
       title={t('empty.noCitingTitle')}
-      reason={t('empty.noCitingReason', { answers: meta?.answers ?? 0 })}
+      reason={t('empty.noCitingReason', { answers })}
       headingLevel={2}
+      secondaryAction={<ToPrompts {...link} />}
     />
+  );
+}
+
+/** No answer was read, or answers were read and none names a source. */
+export function CitationEmptyState({
+  meta,
+  ...link
+}: { meta: SourcesMeta | undefined } & ProjectLinkProps): ReactElement {
+  return meta !== undefined && meta.answers === 0 ? (
+    <NoAnswers {...link} />
+  ) : (
+    <NoCiting answers={meta?.answers ?? 0} {...link} />
   );
 }
 

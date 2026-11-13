@@ -15,6 +15,7 @@ import {
 } from './citation-table-states';
 import type { CitationTabContext } from './citation-tabs';
 import type { ExportSource } from './citations-export';
+import { LoadFailed } from './citations-states';
 import { rowNameOf, useDomainColumns } from './domain-columns';
 import { buildRows, domainRowId, type CitationTableRow } from './domain-rows';
 import { useRegisterExport } from './export-button';
@@ -23,7 +24,6 @@ import { SortSelect } from './sort-select';
 import { useExpandedPages } from './use-expanded-pages';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { RowTree } from '@/components/app/data-table/types';
-import { InlineError } from '@/components/app/status/inline-error';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { entitiesQuery } from '@/lib/citations/entities-query';
 import { sourceDomainsQuery, type DomainInclude } from '@/lib/citations/source-queries';
@@ -60,9 +60,7 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
   const { source, workspaceSlug, projectSlug, scope, filters, enabledEngines, labelOf, previousMeta, setSearch } =
     context;
   const { filterBar } = context;
-  const t = useTranslations('citations');
   const tt = useTranslations('citations.table');
-  const common = useTranslations('common');
   const locale = useLocale();
   // The tab asks nothing while another one is shown, or before the engines are known: with none listed the scope
   // drops the link's `engine`, and the read would be of every engine
@@ -190,17 +188,7 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
   );
   useRegisterExport(context.registerExport, exportSource);
 
-  const errorState = (
-    <InlineError
-      title={t('empty.failedTitle')}
-      reason={t('empty.failedReason')}
-      errorId={errorId}
-      onRetry={() => void read.refetch()}
-      retrying={read.isFetching}
-      retryLabel={common('retry')}
-      live
-    />
-  );
+  const errorState = <LoadFailed errorId={errorId} onRetry={() => void read.refetch()} retrying={read.isFetching} />;
 
   return (
     <>
