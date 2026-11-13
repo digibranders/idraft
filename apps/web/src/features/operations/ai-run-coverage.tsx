@@ -14,7 +14,13 @@ import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table
 import { Button } from '@/components/ui/button';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { formatList, formatPercent } from '@/lib/format';
-import { coverageRows, missingShown, type CoverageMissing, type CoverageRow } from '@/lib/runs/ai-health-model';
+import {
+  coverageRows,
+  DEGRADED_BELOW,
+  missingShown,
+  type CoverageMissing,
+  type CoverageRow,
+} from '@/lib/runs/ai-health-model';
 import { useAiCoverage, useEngineNames, usePromptTexts, type AiRunsScope } from '@/lib/runs/ai-reads';
 import { cn } from '@/lib/utils';
 
@@ -176,6 +182,10 @@ function EngineLine({ row }: { row: CoverageRow }): ReactElement {
               percent: formatPercent(row.rate, { decimals: 0 }),
             })}
       </p>
+      {row.degraded ? (
+        // The warning colour is never the only marker (WCAG 1.4.1)
+        <p className="type-meta">{t('degraded', { threshold: formatPercent(DEGRADED_BELOW, { decimals: 0 }) })}</p>
+      ) : null}
       {row.kind === 'thin' ? <p className="type-meta">{t('thin', { planned: row.planned })}</p> : null}
       {row.parts.length === 0 ? null : (
         <p className="num type-meta">

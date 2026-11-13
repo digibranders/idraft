@@ -2066,6 +2066,7 @@
       "validRated": "{valid, number} of {planned, number} {planned, plural, one {answer} other {answers}} valid, {percent}",
       "validCounts": "{valid, number} of {planned, number} {planned, plural, one {answer} other {answers}} valid",
       "thin": "{planned, number} planned, too few for a rate",
+      "degraded": "Below {threshold}, so this engine is degraded in this run.",
       "none": "n/a",
       "noneReason": "No answers were planned on this engine in this run.",
       "invalid": {

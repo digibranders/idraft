@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AiRunCoverage } from './ai-run-coverage';
 import { RunInspector } from './run-inspector';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
+import { queryKey } from '@/lib/api/keys';
 import type { Schemas } from '@/lib/api/types';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { mswPath, problem } from '@/mocks/respond';
@@ -20,6 +21,7 @@ const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const COVERAGE = mswPath(`${P}/runs/{run_id}/ai-coverage`);
 const ENGINES = mswPath(`${P}/engines`);
 const RUN = mswPath(`${P}/runs/{run_id}`);
+const SUMMARY = `${P}/ai/prompts-summary`;
 
 const RUN_ID = '0192d1a8-aaaa-7b44-8c2d-1f0e9d8c7b01';
 const NAMES: Readonly<Record<string, string>> = {
@@ -219,6 +221,10 @@ describe('Answers by engine', () => {
     const degraded = await engineCard('Gemini');
     expect(healthy.querySelector('[class*="warning"]')).toBeNull();
     expect(degraded.querySelector('[class*="warning"]')).not.toBeNull();
+    // The colour is never the only marker: words say it too (WCAG 1.4.1)
+    const cue = 'Below 90%, so this engine is degraded in this run.';
+    expect(within(degraded).getByText(cue)).toBeInTheDocument();
+    expect(within(healthy).queryByText(cue)).toBeNull();
   });
 
   it('engines are listed one by one and no total pools them', async () => {
@@ -262,15 +268,12 @@ describe('Missing answers', () => {
     const view = renderWithProviders(coverageUi());
     // The prompts page was open before: its summary holds the text of the first prompt
     view.queryClient.setQueryData(
-      [
-        'ws',
-        MOCK_WORKSPACE.workspace_id,
-        'p',
-        RUNS_SCOPE.projectId,
-        'ai',
-        'prompts-summary',
+      // The key the prompts page's own read has, from the shared key helper, so a change of its shape is noticed here
+      queryKey(
+        SUMMARY,
+        { workspace_id: MOCK_WORKSPACE.workspace_id, project_id: RUNS_SCOPE.projectId },
         { from: '2026-10-17', to: '2026-11-13' },
-      ],
+      ),
       { data: { prompts: [{ prompt_id: missing[0]?.prompt_id, text: 'Best CRM for a small agency' }] } },
     );
     const table = await screen.findByRole('table', { name: 'Planned answers that have not arrived' });
@@ -343,6 +346,21 @@ describe('the read', () => {
       expect(served.asked()).toBe(1);
       await vi.advanceTimersByTimeAsync(10_000);
       await waitFor(() => expect(served.asked()).toBe(2));
+    });
+
+    it('reads once more when the run ends, so the last figures are the final ones, and then stops', async () => {
+      const served = serveCoverage({ by_engine: [engineRow('chatgpt_web')], missing: [] });
+      const view = renderWithProviders(coverageUi(true));
+      await engineCard('ChatGPT');
+      expect(served.asked()).toBe(1);
+
+      // The run's detail poll saw it end, a moment after tasks arrived: the figures are newer than the last read
+      served.answer({ by_engine: [engineRow('chatgpt_web', { valid: 150, partial: 0 })], missing: [] });
+      view.rerender(coverageUi(false));
+      expect(await screen.findByText('150 of 150 answers valid, 100%')).toBeInTheDocument();
+      expect(served.asked()).toBe(2);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(served.asked()).toBe(2);
     });
 
     it('reads a run that has ended once and leaves it', async () => {

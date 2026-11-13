@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { AiCoverage, NewestRunRead } from './ai-health-model';
 import { projectKey } from '@/lib/api/keys';
@@ -89,11 +89,20 @@ export function useAiCoverage(
   enabled: boolean,
   open: boolean,
 ): UseQueryResult<{ data: AiCoverage }> {
-  return useQuery({
+  const query = useQuery({
     ...apiQuery(COVERAGE, { params: { path: { ...pathOf(scope), run_id: runId } } }),
     enabled,
     refetchInterval: open ? COVERAGE_MS : false,
   });
+  // The run's own poll learns it ended up to 10 s after its last task: one more read, so the figures left on
+  // screen are the run's final ones and not those of the last tick
+  const wasOpen = useRef(open);
+  const { refetch } = query;
+  useEffect(() => {
+    if (wasOpen.current && !open && enabled) void refetch();
+    wasOpen.current = open;
+  }, [open, enabled, refetch]);
+  return query;
 }
 
 /** The part of a cached prompts summary this file reads: a prompt's id and its current text. */
