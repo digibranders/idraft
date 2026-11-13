@@ -38,6 +38,10 @@ for seven new routes (`ai/metrics/overview`, `overview/ai`, `ai/metrics/{metric}
 `ai/metrics/{metric}/breakdown`, `ai/competitors`, `overview/competitors`). They answer `501 not_implemented` after
 their access checks until WP-32 builds them, and they are not in the count above.
 
+Update 2026-11-14 (WP-32): all seven routes are built. A known registry key that is not built, or not built for
+the route, answers `501` naming it; every other request answers its body. `ci`, `version_boundaries`, `delta`,
+`seo` and `seo_other_domains` stay unreturned (c8 C-11, c5 C-20).
+
 ## Conventions
 
 - `{W}` is `/api/v1/workspaces/{workspace_id}`; `{P}` is `{W}/projects/{project_id}`.

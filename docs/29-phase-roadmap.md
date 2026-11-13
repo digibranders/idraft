@@ -384,6 +384,23 @@ citation has a quote (ChatGPT gives none) instead of showing an empty state; the
 marker (it had none before this package; only the compare panel keeps its data under a refetch bar); a flagged
 citation states its reason as visible text instead of a tooltip.
 
+**As built (AI visibility WP-32, 2026-11-14): overview aggregates and competitors.** The seven routes the AI
+Overview reads are built: `GET {P}/ai/metrics/overview` and `GET {P}/overview/ai` (one body), `GET
+{P}/ai/metrics/{metric}` with its `series` (weekly, the summary's pooling reused) and `breakdown` (eight dimensions),
+`GET {P}/ai/competitors` (mention rate, share of voice, citation share, a suppressed recommendation rate and the top
+competitor per engine; opt-in lost prompts and top sources) and `GET {P}/overview/competitors`. They are thin
+adapters over the prompts summary, so every figure equals the Topics & Prompts number; only the citation units, the
+prompt attributes, the lost counts and the top domains are new reads, each one grouped statement with a fixed count
+(overview +3, value and series +2, breakdown +2 or +3, competitors +5 with a planner guard, overview competitors +3).
+No table, no migration. Built rows: CF-16, BE-METRICS-08 to 11, BE-METRICS-24 (the card read map, tested row by row),
+BE-REPORTS-01, BE-REPORTS-03, BE-COMPETITORS-03 and 05; confirmed, not rebuilt: BE-COMPETITORS-01 and 02. Not built:
+the SEO half of the Overview competitor table (SEO share of voice needs the CTR model of doc 09 section 7; decision
+D13), the recommendation, structured rank, prominence and sentiment keys (S2, WP-54: recommendation answers `200`
+suppressed, the others `501`), `ci` and `delta` (WP-58), version boundaries (WP-38), day and month series, source
+categories (WP-60). Plan `docs/superpowers/plans/2026-11-13-ai-wp-32-overview-aggregates.md`; contract notes
+docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; the spec note is in docs/19-api-specification.md
+section 3.7.9.
+
 ### Phase 10: SEO and AI integration
 
 **10a (MVP):** keyword-prompt links with suggestions (cluster, semantic, fan-out), AI Overview vs organic rank (same-check), AIO citation rate by rank bucket, SEO/AI matrix (keyword level) with thresholds, page intelligence (SEO + AI citations), `core.xch_keyword_weekly`.

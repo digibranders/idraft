@@ -2,7 +2,7 @@
 
 ## Status
 
-Published by WP-32 on 2026-11-13. Owner package: [WP-32 overview-aggregates](../work-packages/WP-32-overview-aggregates.md)
+Published by WP-32 on 2026-11-13, built by WP-32 on 2026-11-14. Owner package: [WP-32 overview-aggregates](../work-packages/WP-32-overview-aggregates.md)
 (MASTER-PLAN 3.6: `api/ai/competitor_routes.py`, `api/ai/competitors.py` and `api/schemas/ai_metrics.py` belong to
 WP-32). Plan: [docs/superpowers/plans/2026-11-13-ai-wp-32-overview-aggregates.md](../../superpowers/plans/2026-11-13-ai-wp-32-overview-aggregates.md).
 
@@ -153,7 +153,7 @@ optional in the shape so that a later package adds it without a second shape (de
 
 As in c8: each route costs the statements of its summary request plus a fixed number of extra reads in one second
 transaction (one scope statement), asserted as differences on a full project, and independent of the data size.
-Design figures until measured, then the test.
+Every figure is measured; the test (`tests/api/ai/test_competitors_statements.py`) is the contract.
 
 | Request | Summary request | Extra statements | Extra reads |
 |---|---|---|---|
@@ -186,8 +186,8 @@ Order, as built: for an authenticated caller `422 extra_forbidden` (an unknown q
 the session dependency raises it before the membership and permission checks; then 401, 404, 403, the 422 of a value
 outside its bounds, of a lone `compare_from` or `compare_to` and of an explicit window (`range_invalid`,
 `window_too_large`), then the service. A code outside the three engines is `422` (stricter than the summary, as c8
-C-23). There is no `501` once the routes are built (while a route
-is a stub every request that passes the access checks and the 422 checks answers `501`).
+C-23). There is no `501` on these routes: both are built (while a route was a stub every request that passed the
+access checks and the 422 checks answered `501`).
 
 ## Example
 
@@ -345,8 +345,9 @@ Each row can be tightened by WP-32 through the change log. The rows Q1 to Q7 are
    `CompetitorService.overview` (as built: one `lost_counts` read, the prompt text, valid and all answers from the
    summary's prompt rows instead of `prompt_cards`); the `include` refusal is removed; route 7 drops `@not_built`; the cross-tenant
    entry of route 6 gains `include=lost_prompts,top_sources`.
-4. Task 8: the scope guards on both routes, the measured statement counts, this note's status "built by WP-32",
-   and the As built paragraphs of docs 19 and 29.
+4. Task 8 (done): the scope guards on both routes (`test_metrics_scope_guards.py`, with the card read test
+   `test_metrics_card_reads.py`), the measured statement counts, this note's status "built by WP-32", and the As
+   built paragraphs of docs 19 and 29.
 5. House rules: aggregates in the summary's grouped queries with a statement count test, an absent block when it
    was not asked for, branded prompts excluded by default, a foreign or deleted project is `404`.
 
@@ -361,13 +362,13 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-32: C-4 lost prompts: `include=lost_prompts`, its rule, sort and `lost_limit`; the same prompts `filter[opportunity]=lost_to:<id>` keeps on the summary.
 2026-11-13 WP-32: C-5 top sources: `include=top_sources`, `sources_limit`, over all engines, with the sources lane's flag default.
 2026-11-13 WP-32: C-6 overview competitors: the AI half; `seo` and `seo_other_domains` declared and absent (D13).
-2026-11-13 WP-32: C-7 statement counts: the statement table above (design figures until measured, then the test).
+2026-11-13 WP-32: C-7 statement counts: the statement table above (design figures when written; C-13, C-19 and C-22 give the measured counts).
 2026-11-13 WP-32: C-8 errors: the error table above (401, 404, 403, 422, then the service).
 2026-11-13 WP-32: C-9 differences from the specs, written once: doc 19 3.7.9 lists `top_sources: DomainRef[]` and `MetricValue` members only; this contract returns `CompetitorSource` (domain, citation units, answers) and adds `is_top_competitor` and the opt-in `lost_prompts`; doc 20 5.2 puts SEO share of voice and visibility in the competitor overview, and they are not built (Q10); doc 19's `entity_ids` is the same name here and its `entity_id` is not accepted; `previous` replaces `MetricComparison` as in c8 (Q2); recommendation is suppressed `not_classified` against doc 16 A5 (see c8 C-15).
 2026-11-13 WP-32: C-10 reading of the contract where the plan was silent: with `include=top_sources` the own rows list their domains as well; `lost` of a `LostPrompt` has `pooled` null (it is a count of answers of one prompt); an engine entry whose engine has no answer has null values and zero counts and no top competitor; `meta.entities` lists the whole tracked set in the summary's order (competitors by name, then the own entities).
 2026-11-13 WP-32: C-11 lost prompt context: `lost_prompts_total` (every prompt lost to the competitor on the engine, before the `lost_limit` cap) and `lost_prompts_with_min_answers` (prompts in scope with at least 4 answers on the engine, the "of N prompts" context) are optional integers on `AiCompetitorEngine`, present exactly when `lost_prompts` is, absent otherwise.
 2026-11-13 WP-32: C-12 `top_sources` is `[]` for an entity with no cited domain, absent without `include=top_sources`. The `meta` of every body gains the optional `entity_config_changes` and the shared text of c8 C-17 to C-23 (value text, engine filter, order as built) applies.
-2026-11-13 WP-32: C-13 measured: `ai/competitors` is its summary request plus 4 (transaction scope, `entity_refs`, `entity_units`, `version_starts`), the same on a 14 answer world and on the full project; with no prompt in scope `entity_units` is not run (plus 3, the rows still need `entity_refs`); `compare` adds the summary's own 2 and nothing else. The other rows are design figures until measured.
+2026-11-13 WP-32: C-13 measured: `ai/competitors` is its summary request plus 4 (transaction scope, `entity_refs`, `entity_units`, `version_starts`), the same on a 14 answer world and on the full project; with no prompt in scope `entity_units` is not run (plus 3, the rows still need `entity_refs`); `compare` adds the summary's own 2 and nothing else. The other rows were design figures when this line was written; C-19 and C-22 replace them (plus 5 for the plain read once the planner setting of C-22 is counted).
 2026-11-13 WP-32: C-14 top competitor and narrowing: `is_top_competitor` is read over the tracked set before `entity_ids` narrows the rows; when the top competitor is narrowed away, no row of that engine carries the flag, so the flag is true on at most one competitor of an engine, and under narrowing possibly none. An id cut by the 20 entity cap is left out of `entity_ids` like any id that is not a tracked entity.
 2026-11-13 WP-32: C-15 tie rule: ties are compared at 9 decimals, name case-folded, then the id.
 2026-11-14 WP-32: C-16 built: `include=lost_prompts`, `include=top_sources` and `overview/competitors` (no shape changes; the `501` of an `include` is gone). Lost prompts rank by importance descending, lost answers descending, text, id; `lost` is lost answers over the prompt's valid answers on the engine with every answer in `n_observations` and `pooled` null; the valid answers, all answers and text of each prompt are the summary prompt rows'; an own row has no lost block.
@@ -380,3 +381,4 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-14 WP-32: C-23 lost numerator: the lost answers and the valid answers are read in two transactions, so `lost.numerator` is held to `lost.denominator` (an answer ingested between the reads cannot make a lost count exceed the valid ones).
 2026-11-14 WP-32: C-24 `lost_prompts_clear_total` (one optional integer on `AiCompetitorEngine`, additive, present and absent exactly as `lost_prompts`): per competitor and engine, the prompts where the competitor is named in at least one valid answer, the own brand in none of the prompt's valid answers (the prompt row's Mentioned numerator is 0) and the prompt has at least 4 valid answers; uncapped, no `lost_limit`. `lost_prompts_total` stays the per-answer rule (the summary's `lost_to`) and can exceed `lost_prompts_with_min_answers`, so the card's "of N" is `lost_prompts_clear_total` of `lost_prompts_with_min_answers` (clear is never larger than the judged count). Example: providers on ChatGPT in the seeded test world has the own brand named in 2 of 5 valid answers, so total 1, judged 1, clear 0. WP-35's CH-05 card reads this field.
 2026-11-14 WP-32: C-25 published wording (descriptions only, no shape change besides C-24): `lost_prompts_with_min_answers` says 4 valid answers; `lost_prompts_total` says it is the per-answer rule and may exceed the judged count; `is_top_competitor` says true for at most one competitor, read over the tracked set before `entity_ids` narrows the rows, none when no competitor was named or the top one is narrowed away; `entity_config_changes` and `AiEntityConfigChange.from` say the project-local day the version first derived an answer, not "took effect"; the route 6 description names the three lost counts.
+2026-11-14 WP-32: C-26 built, guards and card reads: both routes are built and the status says so; the stale "design figures" sentences of the statement counts are replaced by the measured ones (C-13, C-19, C-22 and `test_competitors_statements.py`). The scope guards of both routes are tested with the five metric routes in `tests/api/ai/test_metrics_scope_guards.py` (another project and another workspace never counted, branded prompts left out by default and back with `include_branded`, the term subtree, a foreign or deleted project `404`; the 92 day cap is `test_a_window_is_at_most_92_days_and_in_order`). The cards that read these routes (`ai.share_of_voice`, `ai.competitor_table`, `competitors.share_of_voice`, `competitors.summary`, `ai.lost_to_competitor`) are rows of the card read map of c8 C-14 and are sent by `tests/api/ai/test_metrics_card_reads.py`.

@@ -2,25 +2,30 @@
 
 ## Status
 
-Published by WP-32 on 2026-11-13. Owner package: [WP-32 overview-aggregates](../work-packages/WP-32-overview-aggregates.md)
+Published by WP-32 on 2026-11-13, built by WP-32 on 2026-11-14. Owner package: [WP-32 overview-aggregates](../work-packages/WP-32-overview-aggregates.md)
 (MASTER-PLAN 3.6: `api/ai/metrics_routes.py`, `api/ai/metrics.py` and `api/schemas/ai_metrics.py` belong to WP-32).
 Plan: [docs/superpowers/plans/2026-11-13-ai-wp-32-overview-aggregates.md](../../superpowers/plans/2026-11-13-ai-wp-32-overview-aggregates.md).
 
 This note is the contract the Overview web packages ([WP-33](../work-packages/WP-33-overview-shell.md) to
 [WP-37](../work-packages/WP-37-overview-cards-sources.md)) mock against. Everything below is settled; the
 change log at the end holds the rules and the places where this contract differs from docs 16, 19 and 20.
-The five routes are new. Until WP-32 builds them each answers `501 not_implemented` after its access checks
-(the stub mechanism of the [README](README.md)), and a field the model declares but this package does not return
-is absent from every response. Every block of the Example section is a body the Pydantic models write back
-unchanged (`tests/api/ai/test_metrics_contract.py` validates and re-writes each one). The rows closed are CF-16,
-BE-METRICS-08 to 11, BE-METRICS-24 (the card read map) and BE-REPORTS-01. The competitors read is
-[c5-competitors.md](c5-competitors.md).
+All five routes are built (WP-32, 2026-11-14): each answers its body after the access checks, and a field the
+model declares but this package does not return (`ci`, `version_boundaries` and the other members of the change
+log C-11) is absent from every response. Before they were built each answered `501 not_implemented` after its
+access checks (the stub mechanism of the [README](README.md)); `501` is now answered only for a known registry
+key that is not built, or not built for the route (the registry matrix). Every block of the Example section is a
+body the Pydantic models write back unchanged (`tests/api/ai/test_metrics_contract.py` validates and re-writes
+each one). The rows closed are CF-16, BE-METRICS-08 to 11, BE-METRICS-24 (the card read map, tested by
+`tests/api/ai/test_metrics_card_reads.py`) and BE-REPORTS-01. The competitors read is
+[c5-competitors.md](c5-competitors.md). The As built notes are in docs 19 and 29.
 
 Every number comes from the prompts summary ([c2-summary.md](c2-summary.md)): each route reads
 `GET {P}/ai/prompts-summary` once for the same scope and relabels its cells, so a figure is the same on the
 Overview, on the Topics & Prompts page and in a topic row (rule R12 of
 [overview-and-charts.md](../inventory/overview-and-charts.md) section 2). The only reads that are not the
-summary's are the prompt attributes of the breakdown and the citation units of the sources lane.
+summary's are the prompt attributes of the breakdown (which also give the `country` rows), the citation units of
+the sources lane (the citation share) and the day each entity configuration first derived an answer
+(`version_starts`, in every route's meta).
 
 ## Routes and parameters
 
@@ -310,21 +315,25 @@ Overview "AI by engine" table has its column and shows "not classified".
 
 ## Card read map (BE-METRICS-24)
 
-Every card of the Overview has a read. The catalog keys are those of the Overview layout.
+Every card of the Overview has a read. The catalog keys are those of the Overview layout. `{P}` is the project
+path and `{W}` is `/api/v1/workspaces/{workspace_id}`. Each request is written as the card sends it, in code
+(`GET {P}/...`), so the table is machine readable: `tests/api/ai/test_metrics_card_reads.py` parses it, sends
+every request of every row against the seeded world and checks the fields the card shows. A row added here
+without a test fails it.
 
 | Card or number (layout catalog key) | Read |
 |---|---|
-| numbers strip: `ai.prompts_in_scope`, `ai.valid_answers`, mention, citation, named and cited, SOV, own citation share, fan-out presence | `GET {P}/ai/metrics/overview` (or `{P}/overview/ai`) |
-| `ai.by_engine`, `ai.outcome_mix`, `ai.answer_funnel`, `ai.sample_coverage` (coverage also needs prompt rows) | the same overview |
-| `ai.mention_trend`, `ai.rate_trend_by_engine` (CH-01) | `GET {P}/ai/metrics/ai.mention_rate/series` (also `ai.citation_rate`, `ai.share_of_voice`) |
-| `ai.competitor_trend` (CH-06), `ai.sov_over_time` (CH-19) | `GET {P}/ai/metrics/ai.mention_rate/series?entity_ids=` and `.../ai.share_of_voice/series?entity_ids=` |
-| `ai.share_of_voice` (CH-02), `ai.competitor_table`, `competitors.share_of_voice`, `competitors.summary` | `GET {P}/ai/competitors` (or `{P}/overview/competitors` for the SOV columns) |
+| numbers strip: `ai.prompts_in_scope`, `ai.valid_answers`, mention, citation, named and cited, SOV, own citation share, fan-out presence | `GET {P}/ai/metrics/overview` or `GET {P}/overview/ai` |
+| `ai.by_engine`, `ai.outcome_mix`, `ai.answer_funnel`, `ai.sample_coverage` (coverage also needs prompt rows) | `GET {P}/ai/metrics/overview`: the same overview |
+| `ai.mention_trend`, `ai.rate_trend_by_engine` (CH-01) | `GET {P}/ai/metrics/ai.mention_rate/series`, and for the rate trend `GET {P}/ai/metrics/ai.citation_rate/series` and `GET {P}/ai/metrics/ai.share_of_voice/series` |
+| `ai.competitor_trend` (CH-06), `ai.sov_over_time` (CH-19) | `GET {P}/ai/metrics/ai.mention_rate/series?entity_ids=` and `GET {P}/ai/metrics/ai.share_of_voice/series?entity_ids=` |
+| `ai.share_of_voice` (CH-02), `ai.competitor_table`, `competitors.share_of_voice`, `competitors.summary` | `GET {P}/ai/competitors`, or `GET {P}/overview/competitors` for the SOV columns |
 | `ai.lost_to_competitor` (CH-05) | `GET {P}/ai/competitors?include=lost_prompts` |
 | `ai.country_breakdown` (CH-23) | `GET {P}/ai/metrics/ai.mention_rate/breakdown?dimension=country` |
-| `ai.topic_heatmap` and the topic family, `ai.topic_trends` | the summary (`rows=topics`, `include=series`): unchanged, WP-12; `breakdown?dimension=topic` is the same numbers |
-| `ai.co_mentions` | the summary `include=co_mentions` (WP-12) |
-| `sources.top_domains`, `sources.own_pages`, `ai.citation_share_by_domain_type`, `sources.new_lost`, `sources.diversity`, `ai.fanout_top` | the sources and fan-out reads (WP-14); categories on rows wait for WP-60 |
-| `activity.collection_status`, `ops.answer_calendar`, `ops.answer_status`, `ops.engines`, `ops.ai_spend` | `GET {P}/runs`, `GET {P}/ai/collection/daily`, `GET {P}/engines`, budgets (WP-30, built) |
+| `ai.topic_heatmap` and the topic family, `ai.topic_trends` | `GET {P}/ai/prompts-summary?rows=topics&include=series`: unchanged, WP-12; `GET {P}/ai/metrics/ai.mention_rate/breakdown?dimension=topic` is the same numbers |
+| `ai.co_mentions` | `GET {P}/ai/prompts-summary?include=co_mentions` (WP-12) |
+| `sources.top_domains`, `sources.own_pages`, `ai.citation_share_by_domain_type`, `sources.new_lost`, `sources.diversity`, `ai.fanout_top` | `GET {P}/ai/sources/domains`, `GET {P}/ai/sources/pages`, `GET {P}/ai/sources/changes`, `GET {P}/ai/sources/diversity` and `GET {P}/ai/fanout-queries` (WP-14); categories on rows wait for WP-60 |
+| `activity.collection_status`, `ops.answer_calendar`, `ops.answer_status`, `ops.engines`, `ops.ai_spend` | `GET {P}/runs`, `GET {P}/engines` and `GET {W}/budgets/status` (built); `GET {P}/ai/collection/daily` (WP-30: a `501 not_implemented` stub until WP-30 builds it, so the card reads the run list meanwhile) |
 | `activity.key_changes` | not built: overview changes need STATS-06 (WP-58) |
 
 ## Statement counts
@@ -629,13 +638,13 @@ Each row can be tightened by WP-32 through the change log. The rows Q8 to Q10 ar
 
 | Q | Question | Choice | Why |
 |---|---|---|---|
-| Q1 | New aggregation SQL or the summary's cells (D1, D9) | Thin adapters: each route calls the summary once and relabels its cells; series pooling is the summary's (C2 C-11) | One scope implementation, so every Overview number equals the Topics & Prompts number (R12); no new SQL for overview, value, series, topic, country and engine breakdown. |
+| Q1 | New aggregation SQL or the summary's cells (D1, D9) | Thin adapters: each route calls the summary once and relabels its cells; series pooling is the summary's (C2 C-11) | One scope implementation, so every Overview number equals the Topics & Prompts number (R12); no new aggregation SQL for overview, value, series and the topic and engine breakdown. The reads that are new are the citation units of the citation share, the prompt attributes of the attribute breakdowns (country included: it is grouped from the prompt rows by the prompt's market, C-30) and `version_starts`. |
 | Q2 | Model and comparison shape (D2, D3) | `AiMetricValue` is a model of its own; `previous` beside the current value, no `delta`, no `ci` | `MetricValue` of `schemas/metrics.py` is the SEO side's and shared. The web computes the detectable change from the counts (R5) and the Wilson interval (R8) until WP-58 adds both additively. |
 | Q3 | Series granularity (D4) | `week` only; `day` and `month` are `422 not_built` | No card reads them; collection per day is `ai/collection/daily` (WP-30). |
 | Q4 | Unknown, unbuilt and suppressed keys; new keys (D5, D12) | Known keys not built answer `501`, unknown keys `404 unknown_metric`, recommendation answers `200` suppressed; `ai.prompts_in_scope` and `ai.valid_answers` are registered (D-17) | Honest and uniform; the Overview "AI by engine" table needs the recommendation column to exist. |
 | Q5 | Overview parameter names and the other doc 19 scope (D6, D7) | `overview/ai` is the same body as `ai/metrics/overview` and takes `filter[engine_code_in]`, not `engines=`; the scope parameters are the summary's and doc 19's other ones are `422` | Every built AI read uses `filter[engine_code_in]`; one name, one body. Panel membership is WP-42; the attribute filters are in no built read. |
 | Q6 | Window cap and citation share source (D8, D10) | 92 days, not doc 19 2.5's 400 days and 25 months; `ai.citation_share` reads the sources lane with its flag default | Same cap as every built AI read (a full project is 3,600 answers a month); one number across the Overview and the Sources page (R12). |
-| Q7 | Breakdown dimensions (D14) | All eight of doc 19 | Five of them are one attribute statement and one reduce function. |
+| Q7 | Breakdown dimensions (D14) | All eight of doc 19 | Six of them (`intent`, `funnel_stage`, `prompt_type`, `language`, `country`, `persona`) are one attribute statement and one reduce function; `topic` and `engine` map the summary's rows. |
 
 ## How the owner package fills it
 
@@ -651,9 +660,9 @@ Each row can be tightened by WP-32 through the change log. The rows Q8 to Q10 ar
    built, both before any read and so before the project `404`); `MetricsService.metric` and `series`; routes 3 and 4 drop `@not_built`.
 4. Task 5 (breakdown): `api/ai/metrics_repository.py` (`prompt_attributes`), `reduce_cells`,
    `MetricsService.breakdown`, `BREAKDOWN_MAX = 300`; route 5 drops `@not_built`. Second push: the five routes built.
-5. Task 8: the card read test over the map above, the scope guards, the statement table measured, this note's status
-   "built by WP-32", the measured payload sizes and timings in the change log, and the As built paragraphs of docs
-   19 and 29.
+5. Task 8 (done): the card read test over the map above (`test_metrics_card_reads.py`), the scope guards of all
+   seven routes (`test_metrics_scope_guards.py`), the statement table measured, this note's status "built by WP-32",
+   the measured payload sizes and timings in the change log (C-31), and the As built paragraphs of docs 19 and 29.
 6. House rules: aggregates in the summary's grouped queries with a statement count test, an absent block when it
    was not asked for, branded prompts excluded by default, a foreign or deleted project is `404`.
 
@@ -674,7 +683,7 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-32: C-10 citation share: `numerator` own citation units, `denominator` all citation units of the engine, from the sources read with the sources flag default (`engine_internal` and `unresolved_redirect` left out), so it equals `sources/domains` `meta.by_role` (R12). `n_observations` is the engine's valid answers. It is read in a second transaction after the summary, so it is not one snapshot with the valid answers beside it (a difference of one answer is possible if an answer is ingested between the two).
 2026-11-13 WP-32: C-11 not returned: `ci`, `delta`, `MetricComparison`, `version_boundaries`, `granularity` day and month, `vocabulary_id`, `depth`; the topic count is returned as `AiOverview.topics_in_scope` (C-20); each with its owner (WP-58 for `ci`, `delta` and `MetricComparison`; WP-38 for `version_boundaries`; none yet for the rest: they are not in any card read).
 2026-11-13 WP-32: C-12 errors and order: the error table above (401, 404 `not_found`, 403, 422, `404 unknown_metric` in the route body, then the service); as built, `extra_forbidden` comes first for an authenticated caller and explicit-window errors come before `unknown_metric` (C-17).
-2026-11-13 WP-32: C-13 statement counts: the statement table above. The Overview is measured at its summary request plus 3 (transaction scope, `role_engine_totals`, `version_starts`; `compare` adds the summary's own 1 and nothing else), the same on a 14 answer world and on the full project; `ai.citation_share` on route 3 reuses the same reads, so it is +3 too. The other rows are design figures until measured.
+2026-11-13 WP-32: C-13 statement counts: the statement table above. The Overview is measured at its summary request plus 3 (transaction scope, `role_engine_totals`, `version_starts`; `compare` adds the summary's own 1 and nothing else), the same on a 14 answer world and on the full project; `ai.citation_share` on route 3 reuses the same reads, so it is +3 too. The other rows were design figures when this line was written; C-26 and C-29 give their measured counts, and the statement table above holds them.
 2026-11-13 WP-32: C-14 card reads: the card read map above (BE-METRICS-24). Remainders named: categories on source rows (WP-60) and `activity.key_changes` (WP-58).
 2026-11-13 WP-32: C-15 differences from the specs, written once: doc 19 3.7.9 and 2.6 `MetricComparison` with `delta` and `ci` is replaced by `previous` beside the value (Q2); `granularity` is `week` only against doc 19's day, week and month (Q3); the overview takes `filter[engine_code_in]` against doc 19's `engine_codes` and doc 20 5.2's `engines=` (Q5); the scope has no `window`, `panel_id`, `subject`, `prompt_ids`, attribute filters, `aggregation` or `entity_id`, and no `vocabulary_id` or `depth` (Q5); the cap is 92 days against doc 19 2.5's 400 days and 25 months (Q6); the overview tiles A9 and A11 of doc 19 are not returned (S2, WP-54); `422 engine_not_enabled` and `422 observation_classes_not_poolable` are not used; doc 16 A5 counts a not mentioned answer as not recommended, but nothing classifies a recommendation yet, so the recommendation keys are suppressed `not_classified` rather than a rate that would read 0.
 2026-11-13 WP-32: C-16 reading of the contract where the plan was silent: `engine_average` exists only for the five overview keys, on routes 1, 2 and 3, and with `entity_ids` one entry per listed entity; `meta.entities` lists the whole tracked set in the summary's order (competitors by name, then the own entities) while the values and rows follow the cell order (own first); `ai.fanout_mean_queries` has `unit` `count`; the labels of `intent`, `funnel_stage` and `prompt_type` rows equal their ids; `is_partial` is true for a week cut by a window bound and for the week that holds today (the plan's mapping formula names the window bound alone; the field text of the contract wins).
@@ -687,8 +696,9 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-32: C-23 engine filter: these routes are stricter than the summary: a code outside `chatgpt_web`, `gemini_web` and `google_ai_mode` is `422` (`EngineCode`, as the sources routes); a listed engine that is neither enabled nor answering is left out of `engines` and `meta.engine_codes`.
 2026-11-13 WP-32: C-24 recorded, not built: strip deltas for `ai.citation_share`, `ai.fanout_presence_rate` and the valid answers per engine, and a `previous` on `engine_average`: WP-58, additive later.
 2026-11-13 WP-32: C-25 `meta.entity_config_changes[].from` as built: the project-local day of the earliest `ai.derivations.created_at` under the version, that is the day the version first derived an answer, not the day the configuration was edited (nothing stores that moment). It is read in the project's timezone, for every request with a prompt in scope, whatever the number of versions (so the statement count does not depend on the data). `aggregation` of an engine average is its inputs' (the value model table says so as the engine average section does).
-2026-11-14 WP-32: C-26 value and series built (routes 3 and 4): measured statements are the summary request plus 2 (transaction scope, `version_starts`: the meta names the days each entity configuration took effect on these routes too, C-21), `ai.citation_share` plus 3; none when no prompt is in scope; the same on 14 answers and on the full project. `compare` adds the summary's own read (+1, and +1 more with `entity_ids`, for the entities' previous cells). The table above had 0 for the value and series rows.
+2026-11-14 WP-32: C-26 value and series built (routes 3 and 4): measured statements are the summary request plus 2 (transaction scope, `version_starts`: the meta names the day each entity configuration first derived an answer on these routes too, C-21), `ai.citation_share` plus 3; none when no prompt is in scope; the same on 14 answers and on the full project. `compare` adds the summary's own read (+1, and +1 more with `entity_ids`, for the entities' previous cells). The table above had 0 for the value and series rows.
 2026-11-14 WP-32: C-27 reading of the contract where the note was silent: with `entity_ids` the values (and series) are per engine in code order and, within an engine, the entities in the summary's cell order (own first), in place of the engine's own cells, then one `engine_average` per entity in that order (value route only); the entity values say "the entity" in `method`; an empty `entity_ids` is no `entity_ids`. A series point is `is_partial` for a week cut by a window bound or holding today in the project's zone. The four `ai.sentiment` sub keys are `positive`, `neutral`, `negative` and `mixed` (doc 19 names them; this note said "four `.x` keys"). The detail of `501` for a key that is built but not for the series route is `Not built yet: <key> on series.`; a known key that is not built is `Not built yet: <key>.`. `entity_ids` on a key that does not take it is `422` at `entity_ids` with code `not_supported`.
 2026-11-14 WP-32: C-28 order of the key checks: `resolve()` runs in the route body, before any read, and raises `404 unknown_metric` for an unknown key, `501` naming the key for a known key not built (on the route), and `422` at `entity_ids` for a key that does not take it, in that order. So `501` for a known unbuilt key comes before the project `404 not_found` (a deleted project with `ai.sentiment` answers `501 not_implemented`; with `ai.nope`, `404 unknown_metric`); the service's `404 not_found` follows. An empty `entity_ids=` is no `entity_ids`: `200` with the engines' own values, also on a key that does not take `entity_ids`.
-2026-11-14 WP-32: C-29 breakdown built (route 5): measured statements are the summary request plus 2 for `topic` and `engine` (transaction scope, `version_starts`: the meta names the days each entity configuration took effect here too, C-21) and plus 3 for `intent`, `funnel_stage`, `prompt_type`, `language`, `country` and `persona` (transaction scope, `prompt_attributes`, `version_starts`); none when no prompt is in scope; the same on 14 answers and on the full project, with or without a persona. The table above had 0 for `topic`, `country` and `engine`, and 3 for `persona` (`topic_names`): the persona's name is now joined in `prompt_attributes`, so it costs what the other attributes cost. The summary request is `S(rows=topics, include=total)`, `S(rows=none, include=total)` or, for an attribute, `S(rows left out, include=total)`; `include=cells` is added for the small-cell keys.
+2026-11-14 WP-32: C-29 breakdown built (route 5): measured statements are the summary request plus 2 for `topic` and `engine` (transaction scope, `version_starts`: the meta names the day each entity configuration first derived an answer here too, C-21) and plus 3 for `intent`, `funnel_stage`, `prompt_type`, `language`, `country` and `persona` (transaction scope, `prompt_attributes`, `version_starts`); none when no prompt is in scope; the same on 14 answers and on the full project, with or without a persona. The table above had 0 for `topic`, `country` and `engine`, and 3 for `persona` (`topic_names`): the persona's name is now joined in `prompt_attributes`, so it costs what the other attributes cost. The summary request is `S(rows=topics, include=total)`, `S(rows=none, include=total)` or, for an attribute, `S(rows left out, include=total)`; `include=cells` is added for the small-cell keys.
 2026-11-14 WP-32: C-30 reading of the contract where the note was silent: the `country` rows are grouped from the summary's prompt rows by the prompt's market (one reduce for every attribute) rather than read from `by_country`, because the row needs its prompt count and a prompt with no market is a row with `id` null; the market group equals the `by_country` entry (tested). The `engine` row holds the prompts in scope as `prompts`, and is kept with `values` empty for a fan-out key on an engine that does not expose fan-out (not exposed is not 0). With no prompt in scope no row is returned, whatever the dimension. A key built for other routes (`ai.prompts_in_scope`, `ai.valid_answers`, `ai.citation_share`, the two recommendation keys) is `501`, `Not built yet: <key> on breakdown.`, and never `422`. A prompt archived or deleted between the summary read and the attribute read is left out of every group. `reduce_cells` takes the prompts' cells (counts of answers) and a weighting: prompt weighted is the sum of each prompt's rate over the prompts with a valid answer, over their number, `pooled` the answers behind them; observation weighted is the sum over the sum; `n_observations` is every answer of every prompt.
+2026-11-14 WP-32: C-31 built, card reads and measures: all five routes are built and the status says so. The card read map (C-14) is written as `GET` requests and tested row by row (`tests/api/ai/test_metrics_card_reads.py` sends every request of every row against the seeded world and checks the members the card draws; a row added to the map without a check fails it). Two corrections to C-14: `GET {P}/ai/collection/daily` is a `501 not_implemented` stub until WP-30 builds it (the map said "built"; the card reads `GET {P}/runs` meanwhile), and the budgets read is `GET {W}/budgets/status`. Q1 and Q7 now name the reads that are new (the country rows come from `prompt_attributes`, six dimensions are attribute groups). Measured on the full project (150 prompts, 3,600 answers; single warm local runs on a loaded Mac, so a guide and not a limit): overview 25,183 B in 151 to 165 ms (with `compare` 25,662 B in 193 to 244 ms), `{metric}` 2,392 B in 31 ms, series 4,619 B in 54 to 57 ms (with `entity_ids` 4,715 B in 62 to 66 ms), breakdown 2,041 to 2,250 B in 32 to 48 ms. The statement counts of the table above are the ones `test_metrics_statements.py` asserts.
