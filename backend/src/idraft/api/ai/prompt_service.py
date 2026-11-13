@@ -31,7 +31,7 @@ from idraft.api.ai import engine_repository as engines
 from idraft.api.ai import prompt_repository as prompts
 from idraft.api.ai import run_repository as ai_runs
 from idraft.api.ai.engine_service import live_project
-from idraft.api.ai.prompt_lint import Named, check
+from idraft.api.ai.prompt_lint import Named, check, suggest_prompt_type
 from idraft.api.ai.prompt_repository import (
     LintRow,
     NewPrompt,
@@ -63,6 +63,7 @@ from idraft.api.schemas.ai import (
     PromptLintItems,
     PromptLintRequest,
     PromptPatch,
+    PromptType,
 )
 from idraft.api.schemas.ai_bulk import PromptBulkArchive
 from idraft.api.workspaces.access import WorkspaceAccess
@@ -121,6 +122,8 @@ class LintedPrompt:
     is_branded: bool
     aliases: list[LintedAlias]
     notes: list[LintNote]
+    # What the type rule gives the text, as `write` would set it when the caller names none.
+    suggested_prompt_type: PromptType
     # The prompt with this identity: its id and whether it is active (`items` shape only).
     tracked: tuple[UUID, bool] | None = None
     # A prompt of the market that differs only in case and spacing: its id and text.
@@ -350,7 +353,13 @@ def _lint(
                 span=None,
             )
         )
-    return LintedPrompt(text=text, is_branded=names_own(result, own), aliases=aliases, notes=notes)
+    return LintedPrompt(
+        text=text,
+        is_branded=names_own(result, own),
+        aliases=aliases,
+        notes=notes,
+        suggested_prompt_type=suggest_prompt_type(text),
+    )
 
 
 async def checks_for(
@@ -372,6 +381,7 @@ def _snapshot(record: PromptRecord) -> audit.Snapshot:
         "intent": record.intent,
         "funnel_stage": record.funnel_stage,
         "prompt_type": record.prompt_type,
+        "prompt_type_source": record.prompt_type_source,
         "importance": record.importance,
         "is_branded": record.is_branded,
         "is_active": record.is_active,
@@ -404,7 +414,8 @@ async def write(
                 country_iso=item.country_iso,
                 intent=item.intent,
                 funnel_stage=item.funnel_stage,
-                prompt_type=item.prompt_type,
+                prompt_type=item.prompt_type or suggest_prompt_type(item.text),
+                prompt_type_source="rule" if item.prompt_type is None else "person",
                 importance=item.importance,
                 is_branded=names_own(result, own),
                 term_ids=tuple(sorted(set(item.term_ids))),
@@ -428,8 +439,9 @@ async def write(
 
 
 def _scope(project_id: UUID, given: PromptFilter) -> dict[str, object]:
-    """What a cursor is bound to: the project and the filters."""
-    return {
+    """What a cursor is bound to: the project and the filters. A filter joins the scope only
+    when it is used, so a cursor issued before the filter existed still decodes."""
+    scope: dict[str, object] = {
         "project_id": str(project_id),
         "q": given.q,
         "term": None if given.term is None else str(given.term),
@@ -438,6 +450,9 @@ def _scope(project_id: UUID, given: PromptFilter) -> dict[str, object]:
         "language_code": given.language_code,
         "is_active": given.is_active,
     }
+    if given.prompt_types:
+        scope["prompt_types"] = sorted(given.prompt_types)
+    return scope
 
 
 def _after(cursor: str, scope: dict[str, object]) -> UUID:
@@ -649,6 +664,8 @@ class PromptService:
                     db, access.workspace_id, prompt_id, sorted(set(body.term_ids))
                 )
             values = {name: getattr(body, name) for name in given & _COLUMNS}
+            if "prompt_type" in values:
+                values["prompt_type_source"] = "person"
             if values.get("is_active") is True and not current.is_active:
                 limit, used = await prompts.quota_usage(db, access.workspace_id)
                 if used + 1 > limit:

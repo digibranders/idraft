@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Final
 
-from idraft.api.schemas.ai import LintRule, LintSeverity
+from idraft.api.schemas.ai import LintRule, LintSeverity, PromptType
 
 WORDS_MIN: Final = 5
 WORDS_MAX: Final = 60
@@ -33,7 +33,33 @@ FOREIGN_LETTERS_PERCENT: Final = 60
 FUNCTION_WORD_MARGIN: Final = 2
 
 _TOKEN: Final = re.compile(r"\S+")
+_QUESTION_MARKS: Final = ("?", "\U0000ff1f", "\U0000061f")
 _QUESTION_RUN: Final = re.compile("[?\U0000ff1f\U0000061f]+")
+_HOW_TO: Final = re.compile(r"(?<!\w)how\s+to(?!\w)")
+_LEADING_WORD: Final = re.compile(r"\W*(\w+)")
+_INTERROGATIVES: Final = frozenset(
+    {
+        "what",
+        "which",
+        "who",
+        "whom",
+        "whose",
+        "where",
+        "when",
+        "why",
+        "how",
+        "is",
+        "are",
+        "can",
+        "could",
+        "should",
+        "does",
+        "do",
+        "did",
+        "will",
+        "would",
+    }
+)
 _COMPARISON: Final = re.compile(r"(?<!\w)(?:vs\.?|versus)(?!\w)", re.IGNORECASE)
 _SUPERLATIVE: Final = re.compile(
     r"(?<![\w#])(?:best|top|leading|greatest|number\s+one|#1)(?!\w)", re.IGNORECASE
@@ -159,6 +185,25 @@ def count_words(text: str) -> int:
 def is_comparison(text: str) -> bool:
     """A word bounded `vs`, `vs.` or `versus`."""
     return _COMPARISON.search(text) is not None
+
+
+def suggest_prompt_type(text: str) -> PromptType:
+    """The type the server gives a prompt when the caller names none (the owner's rule, docs/19
+    section 3.7.1): case folded, first match wins. A word bounded `vs`, `vs.` or `versus` is a
+    `comparison`; the words `how to` anywhere are `how_to`; a leading interrogative, or a text
+    ending in a question mark (ASCII, fullwidth or Arabic), is a `question`; anything else is
+    `other`. No model is asked."""
+    folded = text.casefold()
+    if is_comparison(folded):
+        return "comparison"
+    if _HOW_TO.search(folded):
+        return "how_to"
+    leading = _LEADING_WORD.match(folded)
+    if (leading is not None and leading.group(1) in _INTERROGATIVES) or folded.rstrip().endswith(
+        _QUESTION_MARKS
+    ):
+        return "question"
+    return "other"
 
 
 def _utf16(text: str, start: int, end: int) -> tuple[int, int]:

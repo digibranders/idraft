@@ -14,7 +14,19 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Row, Select, and_, delete, func, insert, literal, select, tuple_, update
+from sqlalchemy import (
+    ColumnElement,
+    Row,
+    Select,
+    and_,
+    delete,
+    func,
+    insert,
+    literal,
+    select,
+    tuple_,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.api.keywords.repository import UserRecord
@@ -59,8 +71,10 @@ class PromptRecord:
     intent: str
     funnel_stage: str
     prompt_type: str
+    prompt_type_source: str
     importance: int
     is_branded: bool
+    is_branded_source: str
     source: str
     creation_method: str
     is_active: bool
@@ -76,6 +90,7 @@ class PromptFilter:
     # The term or one under it.
     term: UUID | None = None
     intents: frozenset[str] = frozenset()
+    prompt_types: frozenset[str] = frozenset()
     country_iso: str | None = None
     language_code: str | None = None
     is_active: bool | None = True
@@ -92,6 +107,8 @@ class NewPrompt:
     intent: str
     funnel_stage: str
     prompt_type: str
+    # `rule` when the server's wording rule chose the type, `person` when the caller sent it.
+    prompt_type_source: str
     importance: int
     is_branded: bool
     term_ids: tuple[UUID, ...]
@@ -122,8 +139,10 @@ def _prompts(workspace_id: UUID, project_id: UUID) -> Select[tuple[object, ...]]
             p.intent,
             p.funnel_stage,
             p.prompt_type,
+            p.prompt_type_source,
             p.importance,
             p.is_branded,
+            p.is_branded_source,
             p.source,
             p.creation_method,
             p.is_active,
@@ -164,8 +183,10 @@ def _record(row: Row[Any], terms: Mapping[UUID, list[TermRecord]]) -> PromptReco
         intent=row.intent,
         funnel_stage=row.funnel_stage,
         prompt_type=row.prompt_type,
+        prompt_type_source=row.prompt_type_source,
         importance=row.importance,
         is_branded=row.is_branded,
+        is_branded_source=row.is_branded_source,
         source=row.source,
         creation_method=row.creation_method,
         is_active=row.is_active,
@@ -213,6 +234,34 @@ async def _with_terms(
     return [_record(row, terms) for row in rows]
 
 
+def _conditions(workspace_id: UUID, given: PromptFilter) -> list[ColumnElement[bool]]:
+    """The `WHERE` terms of a filter over `_prompts`, one per filter that is used: shared by the
+    list and by the selections of the bulk writes, so both mean the same prompts."""
+    p, v = ai_prompts.c, ai_prompt_versions.c
+    found: list[ColumnElement[bool]] = []
+    if given.q is not None:
+        found.append(v.text.ilike(_contains(given.q), escape="\\"))
+    if given.term is not None:
+        tagged = select(ai_prompt_terms.c.prompt_id).where(
+            ai_prompt_terms.c.workspace_id == workspace_id,
+            ai_prompt_terms.c.term_id.in_(
+                descendants("term", [given.term], workspace_id, "term_tree")
+            ),
+        )
+        found.append(p.id.in_(tagged))
+    if given.intents:
+        found.append(p.intent.in_(sorted(given.intents)))
+    if given.prompt_types:
+        found.append(p.prompt_type.in_(sorted(given.prompt_types)))
+    if given.country_iso is not None:
+        found.append(p.country_iso == given.country_iso)
+    if given.language_code is not None:
+        found.append(p.language_code == given.language_code)
+    if given.is_active is not None:
+        found.append(p.is_active == given.is_active)
+    return found
+
+
 async def list_prompts(
     db: AsyncSession,
     workspace_id: UUID,
@@ -223,26 +272,8 @@ async def list_prompts(
     limit: int,
 ) -> list[PromptRecord]:
     """Newest first: prompt ids are time-ordered (`uuidv7()`)."""
-    p, v = ai_prompts.c, ai_prompt_versions.c
-    statement = _prompts(workspace_id, project_id)
-    if given.q is not None:
-        statement = statement.where(v.text.ilike(_contains(given.q), escape="\\"))
-    if given.term is not None:
-        tagged = select(ai_prompt_terms.c.prompt_id).where(
-            ai_prompt_terms.c.workspace_id == workspace_id,
-            ai_prompt_terms.c.term_id.in_(
-                descendants("term", [given.term], workspace_id, "term_tree")
-            ),
-        )
-        statement = statement.where(p.id.in_(tagged))
-    if given.intents:
-        statement = statement.where(p.intent.in_(sorted(given.intents)))
-    if given.country_iso is not None:
-        statement = statement.where(p.country_iso == given.country_iso)
-    if given.language_code is not None:
-        statement = statement.where(p.language_code == given.language_code)
-    if given.is_active is not None:
-        statement = statement.where(p.is_active == given.is_active)
+    p = ai_prompts.c
+    statement = _prompts(workspace_id, project_id).where(*_conditions(workspace_id, given))
     if after is not None:
         statement = statement.where(p.id < after)
     rows = (await db.execute(statement.order_by(p.id.desc()).limit(limit))).all()
@@ -451,6 +482,7 @@ async def insert_prompts(
                         "intent": items[index].intent,
                         "funnel_stage": items[index].funnel_stage,
                         "prompt_type": items[index].prompt_type,
+                        "prompt_type_source": items[index].prompt_type_source,
                         "importance": items[index].importance,
                         "is_branded": items[index].is_branded,
                         "created_by": created_by,

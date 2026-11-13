@@ -29,7 +29,6 @@ PROMPTS_PATH = "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"
 @pytest.mark.parametrize(
     "params",
     [
-        {"filter[prompt_type_in]": "comparison"},
         {"filter[funnel_stage_in]": "tofu,mofu"},
         {"filter[importance_in]": "1,2"},
         {"filter[is_branded]": "true"},
@@ -103,8 +102,6 @@ async def test_the_list_without_additions_answers_as_before(
     assert listed.status_code == 200, listed.text
     rows = listed.json()["data"]
     assert len(rows) == 1
-    assert "prompt_type_source" not in rows[0]
-    assert "is_branded_source" not in rows[0]
     assert archived.status_code == 200, archived.text
     assert archived.json()["data"] == []
 
@@ -299,7 +296,7 @@ def test_the_api_document_has_the_prompt_additions() -> None:
 
     prompt = schemas["Prompt"]
     assert {"prompt_type_source", "is_branded_source"} <= set(prompt["properties"])
-    assert not {"prompt_type_source", "is_branded_source"} & set(prompt.get("required", []))
+    assert {"prompt_type_source", "is_branded_source"} <= set(prompt["required"])
 
     patch = document["paths"][PROMPTS_PATH + "/{prompt_id}"]["patch"]["parameters"]
     header = next(item for item in patch if item["in"] == "header" and item["name"] == "If-Match")

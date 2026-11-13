@@ -8,6 +8,7 @@ import hashlib
 import json
 import uuid
 
+import asyncpg
 import httpx
 import pytest
 
@@ -31,6 +32,7 @@ from tests.api.keywords.support import (
     vocabulary,
 )
 from tests.conftest import PostgresServer
+from tests.db.support import scoped
 
 # Built from code points so the file stays ASCII: the composed spelling is "cafe" with
 # e-acute, the decomposed one "cafe" with a combining acute accent after a plain "e".
@@ -401,3 +403,190 @@ async def test_only_a_prompt_writer_changes_prompts(
     archive = await api.delete(url, headers=caller.headers)
 
     assert problem(create) == problem(change) == problem(archive) == (403, "forbidden")
+
+
+async def test_a_prompt_without_a_type_gets_the_rule_and_says_so(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+
+    versus = await add_prompt(api, workspace, project, editor, "Asana versus Trello for a team?")
+    plain = await add_prompt(api, workspace, project, editor, "best crm")
+
+    assert versus.status_code == plain.status_code == 201, plain.text
+    assert versus.json()["data"]["prompt_type"] == "comparison"
+    assert versus.json()["data"]["prompt_type_source"] == "rule"
+    assert plain.json()["data"]["prompt_type"] == "other"
+    assert plain.json()["data"]["prompt_type_source"] == "rule"
+    rows = await fetch(
+        migrated,
+        "SELECT prompt_type, prompt_type_source FROM ai.prompts WHERE project_id = $1 "
+        "ORDER BY prompt_type",
+        project,
+    )
+    assert [(row["prompt_type"], row["prompt_type_source"]) for row in rows] == [
+        ("comparison", "rule"),
+        ("other", "rule"),
+    ]
+    (entry, _) = await fetch(
+        migrated,
+        "SELECT after FROM ops.audit_logs WHERE workspace_id = $1 AND action = 'prompt.created' "
+        "ORDER BY id",
+        workspace.id,
+    )
+    assert json.loads(entry["after"])["prompt_type_source"] == "rule"
+
+
+async def test_a_type_sent_is_kept_and_marked_person(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+
+    # The wording says comparison; the person's choice stands, even when it is the default.
+    sent = await add_prompt(
+        api, workspace, project, editor, "Asana versus Trello?", prompt_type="recommendation"
+    )
+    same = await add_prompt(
+        api, workspace, project, editor, "Is Asana good?", prompt_type="question"
+    )
+
+    for response, expected in ((sent, "recommendation"), (same, "question")):
+        assert response.status_code == 201, response.text
+        assert response.json()["data"]["prompt_type"] == expected
+        assert response.json()["data"]["prompt_type_source"] == "person"
+    assert sent.json()["data"]["is_branded_source"] == "computed"
+
+
+async def test_a_type_changed_by_patch_becomes_person(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    prompt_id = await added(api, workspace, project, editor, "Asana versus Trello?")
+    url = project_url(workspace, project, "prompts", prompt_id)
+
+    other_field = await api.patch(url, json={"importance": 1}, headers=editor.headers)
+    retyped = await api.patch(url, json={"prompt_type": "recommendation"}, headers=editor.headers)
+
+    assert other_field.json()["data"]["prompt_type_source"] == "rule"
+    assert retyped.status_code == 200, retyped.text
+    data = retyped.json()["data"]
+    assert (data["prompt_type"], data["prompt_type_source"]) == ("recommendation", "person")
+    entries = await fetch(
+        migrated,
+        "SELECT before, after FROM ops.audit_logs WHERE workspace_id = $1 "
+        "AND action = 'prompt.updated' ORDER BY id",
+        workspace.id,
+    )
+    last = entries[-1]
+    assert json.loads(last["before"])["prompt_type_source"] == "rule"
+    assert json.loads(last["after"])["prompt_type_source"] == "person"
+
+
+async def test_the_list_filters_by_prompt_type(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    versus = await added(api, workspace, project, editor, "Asana versus Trello?")
+    how_to = await added(api, workspace, project, editor, "How to pick a CRM")
+    await added(api, workspace, project, editor, "What is a CRM?")
+    url = project_url(workspace, project, "prompts")
+
+    both = await api.get(
+        url, params={"filter[prompt_type_in]": "comparison,how_to"}, headers=editor.headers
+    )
+    first = await api.get(
+        url,
+        params={"filter[prompt_type_in]": "comparison,how_to", "limit": "1"},
+        headers=editor.headers,
+    )
+    cursor = first.json()["page"]["next_cursor"]
+    rest = await api.get(
+        url,
+        params={"filter[prompt_type_in]": "comparison,how_to", "limit": "1", "cursor": cursor},
+        headers=editor.headers,
+    )
+    unfiltered = await api.get(url, params={"limit": "1"}, headers=editor.headers)
+    crossed = await api.get(
+        url,
+        params={
+            "filter[prompt_type_in]": "comparison",
+            "limit": "1",
+            "cursor": unfiltered.json()["page"]["next_cursor"],
+        },
+        headers=editor.headers,
+    )
+    unknown = await api.get(
+        url, params={"filter[prompt_type_in]": "comparison,poem"}, headers=editor.headers
+    )
+
+    # Newest first: the question (left out) is newest, then how to, then the comparison.
+    assert [row["prompt_id"] for row in both.json()["data"]] == [how_to, versus]
+    assert [row["prompt_id"] for row in first.json()["data"]] == [how_to]
+    assert [row["prompt_id"] for row in rest.json()["data"]] == [versus]
+    assert rest.json()["page"]["has_more"] is False
+    assert problem(crossed) == (400, "invalid_cursor")
+    assert problem(unknown) == (422, "validation_failed")
+
+
+async def test_a_cursor_issued_without_the_type_filter_still_decodes(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    for text in ("Alpha?", "Beta?", "Gamma?"):
+        await added(api, workspace, project, editor, text)
+    url = project_url(workspace, project, "prompts")
+
+    first = await api.get(url, params={"limit": "2"}, headers=editor.headers)
+    rest = await api.get(
+        url,
+        params={"limit": "2", "cursor": first.json()["page"]["next_cursor"]},
+        headers=editor.headers,
+    )
+
+    # A page two cursor must not need the `prompt_types` key, which an older client never sent.
+    assert rest.status_code == 200, rest.text
+    assert len(rest.json()["data"]) == 1
+
+
+async def test_the_new_columns_default_and_are_granted(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+    # Written directly with no value for the new columns, as a row made before them is.
+    (prompt_id,) = await seed_prompts(migrated, workspace, project, 1)
+
+    read = await api.get(
+        project_url(workspace, project, "prompts", prompt_id), headers=viewer.headers
+    )
+    async with scoped(migrated, "app_api", workspace_id=workspace.id) as db:
+        updated = await db.execute(
+            "UPDATE ai.prompts SET prompt_type_source = 'rule', is_branded_source = 'override' "
+            "WHERE id = $1",
+            prompt_id,
+        )
+    async with scoped(migrated, "app_api", workspace_id=workspace.id) as db:
+        with pytest.raises(asyncpg.CheckViolationError):
+            await db.execute(
+                "UPDATE ai.prompts SET prompt_type_source = 'robot' WHERE id = $1", prompt_id
+            )
+    async with scoped(migrated, "app_api", workspace_id=workspace.id) as db:
+        with pytest.raises(asyncpg.CheckViolationError):
+            await db.execute(
+                "UPDATE ai.prompts SET is_branded_source = 'guess' WHERE id = $1", prompt_id
+            )
+
+    data = read.json()["data"]
+    assert (data["prompt_type_source"], data["is_branded_source"]) == ("person", "computed")
+    assert updated == "UPDATE 1"

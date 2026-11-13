@@ -367,6 +367,8 @@ MATRIX: dict[str, tuple[Access, Access]] = {
                 "funnel_stage",
                 "is_branded",
                 "prompt_type",
+                "prompt_type_source",
+                "is_branded_source",
                 "importance",
                 "is_active",
                 "updated_at",

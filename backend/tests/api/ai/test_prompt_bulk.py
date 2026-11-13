@@ -199,3 +199,39 @@ async def test_a_decomposed_repeat_inside_a_list_is_a_duplicate_in_the_request(
     ]
     rows = await fetch(migrated, "SELECT id FROM ai.prompts WHERE project_id = $1", project)
     assert len(rows) == 1
+
+
+async def test_bulk_create_items_take_the_rule_one_by_one(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.post(
+        project_url(workspace, project, "prompts", "bulk-create"),
+        json={
+            "items": [
+                prompt_body("Asana versus Trello?"),
+                prompt_body("How to pick a CRM"),
+                prompt_body("Asana versus Monday?", prompt_type="definition"),
+                prompt_body("best crm"),
+            ]
+        },
+        headers=editor.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    rows = await fetch(
+        migrated,
+        "SELECT v.text, p.prompt_type, p.prompt_type_source FROM ai.prompts p "
+        "JOIN ai.prompt_versions v ON v.id = p.current_version_id "
+        "WHERE p.project_id = $1 ORDER BY p.id",
+        project,
+    )
+    assert [(row["text"], row["prompt_type"], row["prompt_type_source"]) for row in rows] == [
+        ("Asana versus Trello?", "comparison", "rule"),
+        ("How to pick a CRM", "how_to", "rule"),
+        ("Asana versus Monday?", "definition", "person"),
+        ("best crm", "other", "rule"),
+    ]

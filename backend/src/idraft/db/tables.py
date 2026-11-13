@@ -1450,6 +1450,8 @@ ai_prompts = Table(
     Column("funnel_stage", Text, nullable=False, server_default=FetchedValue()),
     Column("is_branded", Boolean, nullable=False, server_default=FetchedValue()),
     Column("prompt_type", Text, nullable=False, server_default=FetchedValue()),
+    Column("prompt_type_source", Text, nullable=False, server_default=FetchedValue()),
+    Column("is_branded_source", Text, nullable=False, server_default=FetchedValue()),
     Column("importance", SmallInteger, nullable=False, server_default=FetchedValue()),
     Column("expected_frequency", Text, nullable=False, server_default=FetchedValue()),
     Column("source", Text, nullable=False, server_default=FetchedValue()),

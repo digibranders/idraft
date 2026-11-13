@@ -123,7 +123,7 @@ async def test_lint_without_additions_answers_as_before(
     body = response.json()
     assert "estimate" not in body
     assert "would_create" not in body["quota"]
-    assert not {"tracked", "near_duplicate_of", "suggested_prompt_type"} & set(body["data"][0])
+    assert not {"tracked", "near_duplicate_of"} & set(body["data"][0])
 
 
 async def test_bulk_update_answers_501_after_the_permission_and_the_body(

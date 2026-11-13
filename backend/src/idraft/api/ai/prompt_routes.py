@@ -119,8 +119,10 @@ def prompt_view(record: PromptRecord) -> Prompt:
             "intent": record.intent,
             "funnel_stage": record.funnel_stage,
             "prompt_type": record.prompt_type,
+            "prompt_type_source": record.prompt_type_source,
             "importance": record.importance,
             "is_branded": record.is_branded,
+            "is_branded_source": record.is_branded_source,
             "source": record.source,
             "creation_method": record.creation_method,
             "is_active": record.is_active,
@@ -151,10 +153,10 @@ def prompt_view(record: PromptRecord) -> Prompt:
     summary="The project's prompts",
     description="Newest first. `filter[is_active]` is true when left out; archived prompts are "
     "listed with false. `filter[term]` takes the term or one under it, `filter[q]` matches the "
-    "text as a substring without case, and `filter[intent_in]` takes a comma list. A cursor is "
-    "bound to its filters (`400 invalid_cursor` otherwise). The type, funnel stage, importance "
-    "and branded filters, `sort` and `filter[is_active]=any` are published and not built yet "
-    "(`501`).",
+    "text as a substring without case, and `filter[intent_in]` and `filter[prompt_type_in]` take "
+    "a comma list. A cursor is bound to its filters (`400 invalid_cursor` otherwise). The "
+    "funnel stage, importance and branded filters, `sort` and `filter[is_active]=any` are "
+    "published and not built yet (`501`).",
 )
 async def list_prompts(
     project_id: UUID,
@@ -176,7 +178,10 @@ async def list_prompts(
     prompt_type_in: Annotated[
         list[PromptType] | None,
         Commas,
-        Query(alias="filter[prompt_type_in]", description=_NOT_BUILT),
+        Query(
+            alias="filter[prompt_type_in]",
+            description="A comma list of types; prompts of any of them.",
+        ),
     ] = None,
     funnel_stage_in: Annotated[
         list[FunnelStage] | None,
@@ -202,7 +207,6 @@ async def list_prompts(
         raise not_built_yet("Not built yet: filter[is_active]=any.")
     refuse_unbuilt(
         {
-            "filter[prompt_type_in]": bool(prompt_type_in),
             "filter[funnel_stage_in]": bool(funnel_stage_in),
             "filter[importance_in]": bool(importance_in),
             "filter[is_branded]": is_branded is not None,
@@ -213,6 +217,7 @@ async def list_prompts(
         q=q,
         term=term,
         intents=frozenset(intent_in or ()),
+        prompt_types=frozenset(prompt_type_in or ()),
         country_iso=country_iso,
         language_code=language_code,
         is_active=is_active,
@@ -238,7 +243,10 @@ async def list_prompts(
     "`prompt_too_long` (over 2,000 characters, the most any engine takes), "
     "`location_not_supported` (`country_iso` has no location of an enabled engine), "
     "`term_unknown` and `single_valued_vocabulary`. `is_branded` is computed from the project's "
-    "own aliases.",
+    "own aliases. `prompt_type` left out is chosen from the wording (`rule`: `vs` or `versus` is "
+    "a comparison, `how to` is how_to, a leading question word or a question mark is a "
+    "question, anything else is other) and `prompt_type_source` says `rule`; sent, it is kept "
+    "and says `person`.",
 )
 async def create_prompt(
     project_id: UUID, body: PromptCreate, access: WritePrompts, prompts: Prompts, info: Info
@@ -276,6 +284,7 @@ def _lint_view(item: LintedPrompt) -> PromptLint:
             )
             for note in item.notes
         ],
+        suggested_prompt_type=item.suggested_prompt_type,
         tracked=None
         if item.tracked is None
         else LintTracked(prompt_id=item.tracked[0], is_active=item.tracked[1]),
@@ -293,7 +302,8 @@ def _lint_view(item: LintedPrompt) -> PromptLint:
     "`duplicate_in_request` for the same prompt twice in the list, and `duplicate` with "
     "`on_duplicate: error`); with `skip`, a prompt the project has is listed in `skipped`. The "
     "rest are written together: `422 quota_exceeded` past the workspace's active prompt limit, "
-    "and nothing is written. No Idempotency-Key: sending the list again skips what it added.",
+    "and nothing is written. Each item without a `prompt_type` takes the wording rule on its "
+    "own. No Idempotency-Key: sending the list again skips what it added.",
 )
 async def bulk_create_prompts(
     project_id: UUID, body: PromptBulkCreate, access: WritePrompts, prompts: Prompts, info: Info
@@ -334,7 +344,8 @@ async def bulk_create_prompts(
     "without spaces count half their characters) and `language_mismatch` (the text reads as "
     "another script, or for en, de, fr, es, it, pt and nl another language, than the item's "
     "`language_code`, or the body's for `texts`; texts under 4 words and unknown languages are "
-    "not checked). The competitor and leading rules carry a span; the others carry none.",
+    "not checked). The competitor and leading rules carry a span; the others carry none. Every "
+    "result has `suggested_prompt_type`, the type the wording rule gives the text.",
 )
 async def lint_prompts(
     project_id: UUID, body: PromptLintBody, access: ReadData, prompts: Prompts
@@ -400,7 +411,8 @@ async def get_prompt(
     summary="Change a prompt's metadata",
     description="The text, language and country cannot change (`422 validation_failed` with "
     "`immutable_field`): archive the prompt and add a new one. `term_ids` replaces the terms. "
-    "`is_active: true` brings an archived prompt back and counts against the quota.",
+    "`is_active: true` brings an archived prompt back and counts against the quota. Setting "
+    "`prompt_type` makes `prompt_type_source` `person`.",
 )
 async def update_prompt(
     project_id: UUID,

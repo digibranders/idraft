@@ -68,10 +68,11 @@ def test_a_body_breaking_a_rule_is_refused_with_its_code(
 def test_a_prompt_is_stored_trimmed_and_composed() -> None:
     body = PromptCreate.model_validate({**ONE, "text": f"  Cafe{ACUTE} near me?  "})
     assert body.text == f"Caf{E_ACUTE} near me?"
+    # Left out, the type is the server's to choose (the rule), not a default.
     assert (body.intent, body.funnel_stage, body.prompt_type, body.importance) == (
         "unknown",
         "unknown",
-        "question",
+        None,
         3,
     )
 

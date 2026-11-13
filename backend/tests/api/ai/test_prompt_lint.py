@@ -320,8 +320,33 @@ async def test_lint_texts_answers_as_before(
     body = response.json()
     assert set(body) == {"data", "quota"}
     assert set(body["quota"]) == {"limit", "used"}
-    assert {"tracked", "near_duplicate_of", "suggested_prompt_type"}.isdisjoint(body["data"][0])
+    assert {"tracked", "near_duplicate_of"}.isdisjoint(body["data"][0])
     assert len(sent) == TEXTS_STATEMENTS, sent
+
+
+async def test_lint_suggests_a_type_for_every_text_in_both_shapes(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+    texts = ["Asana versus Trello for a team", "How to pick a CRM", "best crm", "Is Acme good?"]
+    url = project_url(workspace, project, "prompts", "lint")
+
+    old = await api.post(url, json={"texts": texts}, headers=viewer.headers)
+    new = await _lint(api, workspace, project, viewer.headers, [_item(text) for text in texts])
+
+    expected = ["comparison", "how_to", "other", "question"]
+    for response in (old, new):
+        assert response.status_code == 200, response.text
+        data = response.json()["data"]
+        assert [row["suggested_prompt_type"] for row in data] == expected
+        # The suggestion is a field, not a warning: no rule is added for it.
+        assert all(
+            warning["rule"] in {"engine_limit", "word_count", "contains_brand_alias"}
+            for row in data
+            for warning in row["warnings"]
+        )
 
 
 FRENCH = "Quelle est la meilleure solution de facturation ?"

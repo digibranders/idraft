@@ -168,7 +168,11 @@ class PromptCreate(Body):
     )
     intent: Intent = "unknown"
     funnel_stage: FunnelStage = "unknown"
-    prompt_type: PromptType = "question"
+    prompt_type: PromptType | None = Field(
+        default=None,
+        description="Left out: the server rule reads the wording and `prompt_type_source` is "
+        "`rule`. Sent: kept as sent, `person`.",
+    )
     importance: Importance = 3
     term_ids: TermIds = Field(
         default_factory=list, description="Topics and other terms the project may use."
@@ -260,16 +264,17 @@ class Prompt(BaseModel):
     intent: Intent
     funnel_stage: FunnelStage
     prompt_type: PromptType
-    prompt_type_source: Literal["rule", "person"] | None = Field(
-        default=None, exclude_if=_absent, description=_NOT_RETURNED
+    prompt_type_source: Literal["rule", "person"] = Field(
+        description="`rule` when the server's wording rule set the type, `person` when a person "
+        "sent or changed it."
     )
     importance: int
     is_branded: bool = Field(
         description="Names an own brand: computed from the project's own aliases when the "
         "prompt is saved; a change may set it."
     )
-    is_branded_source: Literal["computed", "override"] | None = Field(
-        default=None, exclude_if=_absent, description=_NOT_RETURNED
+    is_branded_source: Literal["computed", "override"] = Field(
+        description="`computed` from the own aliases, or `override` when a person set the flag."
     )
     source: str
     creation_method: CreationMethod
@@ -390,10 +395,8 @@ class PromptLint(BaseModel):
         description="A prompt of the same language and country that differs only in case and "
         "spacing (with `items`, when the text is not tracked).",
     )
-    suggested_prompt_type: PromptType | None = Field(
-        default=None,
-        exclude_if=_absent,
-        description="The type the server rule gives the text. " + _NOT_RETURNED,
+    suggested_prompt_type: PromptType = Field(
+        description="The type the server rule gives the text when none is sent."
     )
 
 
