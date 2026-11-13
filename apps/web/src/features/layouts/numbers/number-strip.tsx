@@ -33,6 +33,7 @@ import {
 } from '../dnd';
 import { DropLine, columnGapOf, lineRect, sameLine, type LineRect } from '../drop-line';
 import { useLayoutScreen } from '../layout-provider';
+import { AddNumberSlot } from './number-catalog';
 import { numberCoordinateGetter, useNumberAnnouncements } from './number-dnd';
 import {
   NumberCell,
@@ -60,9 +61,14 @@ export interface NumberStripProps {
   /** What the page shows for each number of the layout; called for every number on every render. */
   valueOf: (item: NumberItem) => NumberValue;
   status: MetricStripProps['status'];
-  /** Customize mode: the Add number slot, a whole cell, drawn after the last number while there is room for one. */
+  /**
+   * Customize mode: the Add number slot, a whole cell with `data-add-number-slot`, drawn after the last number while
+   * there is room for one. The catalog of this folder by default.
+   */
   renderAddSlot?: (() => ReactNode) | undefined;
 }
+
+const renderAddNumberSlot = (): ReactNode => <AddNumberSlot />;
 
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
 /** The CSS value that turns dnd-kit's glide off. */
@@ -133,7 +139,12 @@ interface ActiveDrag {
   by: 'keyboard' | 'pointer';
 }
 
-function CustomizeStrip({ label, valueOf, status, renderAddSlot }: NumberStripProps): ReactElement | null {
+function CustomizeStrip({
+  label,
+  valueOf,
+  status,
+  renderAddSlot = renderAddNumberSlot,
+}: NumberStripProps): ReactElement | null {
   const { actions, document } = useLayoutScreen();
   const say = useLayoutAnnouncer();
   const tCore = useTranslations('layouts.core');
@@ -220,9 +231,8 @@ function CustomizeStrip({ label, valueOf, status, renderAddSlot }: NumberStripPr
     setLine(null);
   };
 
-  const showSlot = renderAddSlot !== undefined && numbers.length < LIMITS.numbers;
+  const showSlot = numbers.length < LIMITS.numbers;
   const count = numbers.length + (showSlot ? 1 : 0);
-  if (count === 0) return null;
   const dragged = active === null ? undefined : numbers.find((item) => item.id === active.id);
   return (
     <div

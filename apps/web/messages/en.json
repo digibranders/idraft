@@ -4235,7 +4235,15 @@
         "reorder": "Reorder {number}",
         "remove": "Remove {number}",
         "removeTip": "Remove",
-        "move": "Move {number}"
+        "move": "Move {number}",
+        "add": "Add number",
+        "catalogTitle": "Add a headline number",
+        "placesLeft": "{left, number} of {limit, number} places left.",
+        "full": "{limit, number} numbers is the most a strip shows.",
+        "seo": "SEO",
+        "ai": "AI, one engine each",
+        "engineChoice": "{number} {engine}",
+        "shown": "Already shown"
       },
       "announce": {
         "numberAdded": "{number} added",
