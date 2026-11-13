@@ -185,6 +185,7 @@ const renderCard = (overrides: Partial<CitationTabContext> = {}): ReturnType<typ
   renderWithProviders(<NoOwnPage context={context(overrides)} />);
 
 const CARD = 'Prompts with no own page cited';
+const LIST = 'Prompt and engine pairs';
 const card = (): Promise<HTMLElement> => screen.findByRole('region', { name: CARD });
 const tableOf = async (): Promise<HTMLElement> => within(await card()).findByRole('table');
 /** The table once its rows have loaded. */
@@ -246,7 +247,9 @@ describe('NoOwnPage', () => {
       name: '7 domains cited instead for this prompt, show them',
     });
     expect(trigger).toHaveTextContent('7 cited instead');
-    // In the card the trigger is reached with Tab
+    // In the card the scroll region is the first stop, then the trigger
+    await user.tab();
+    expect(screen.getByRole('region', { name: LIST })).toHaveFocus();
     await user.tab();
     expect(trigger).toHaveFocus();
     await user.keyboard('{Enter}');
@@ -298,18 +301,25 @@ describe('NoOwnPage', () => {
     expect(await within(second).findByRole('button', { name: /7 domains cited instead/ })).toBeInTheDocument();
     const first = rowOf(table, 'Best CRM for startups');
     expect(within(first).getByText('n/a')).toBeInTheDocument();
+    // The reason is text a screen reader reaches, not a tooltip on a span nothing can focus
+    expect(within(first).getByText('The domains cited instead are not known yet.')).toBeInTheDocument();
     expect(within(first).queryByRole('button')).toBeNull();
     expect(within(first).queryByText('0')).toBeNull();
     act(() => held.open());
     expect(await within(first).findByRole('button', { name: /7 domains cited instead/ })).toBeInTheDocument();
   });
 
-  it('shows n/a for a count whose read failed', async () => {
+  it('shows n/a and a Try again for a count whose read failed, and Try again reads it again', async () => {
     serve([pair(1)], {});
     server.use(http.get(DOMAINS, () => HttpResponse.json({ code: 'internal_error' }, { status: 500 })));
-    renderCard();
+    const { user } = renderCard();
     const table = await loaded();
-    expect(await within(rowOf(table, 'Best CRM for startups')).findByText('n/a')).toBeInTheDocument();
+    const row = rowOf(table, 'Best CRM for startups');
+    expect(await within(row).findByText('n/a')).toBeInTheDocument();
+    const retry = within(row).getByRole('button', { name: 'Try again, domains cited instead' });
+    serve([pair(1)]);
+    await user.click(retry);
+    expect(await within(row).findByRole('button', { name: /7 domains cited instead/ })).toBeInTheDocument();
   });
 
   it('says a real count of 0 as 0 cited instead', async () => {
@@ -352,6 +362,36 @@ describe('NoOwnPage', () => {
     // The engine mark is an image of the page's own; the hostile text is not one
     expect(table.querySelector('img[src="x"]')).toBeNull();
     expect(within(table).getByText('Prompt a1b2c3d3, text n/a')).toBeInTheDocument();
+    expect(within(table).getByText('The text of this prompt could not be read.')).toBeInTheDocument();
+  });
+
+  it('keeps the list in a scroll region of bounded height that the keyboard reaches', async () => {
+    renderCard();
+    const table = await loaded();
+    const region = within(await card()).getByRole('region', { name: LIST });
+    expect(region).toContainElement(table);
+    expect(region).toHaveClass('max-h-60', 'overflow-y-auto');
+    expect(region).toHaveAttribute('tabindex', '0');
+  });
+
+  it('does not say every prompt has an own page while the next scope is read after an empty one', async () => {
+    serve([]);
+    const held = gate();
+    const view = renderCard();
+    expect(await screen.findByText('Every prompt has an own page cited')).toBeInTheDocument();
+    server.use(
+      http.get(PAIRS, async () => {
+        await held.opened;
+        return HttpResponse.json(pairsPage([pair(1)]));
+      }),
+    );
+    // Another engine: a new read, whose answer is held; the empty list of the old scope stands in for it
+    view.rerender(<NoOwnPage context={context({ filters: { ...FILTERS, engines: ['gemini_web'] } })} />);
+    await waitFor(() => expect(screen.queryByText('Every prompt has an own page cited')).toBeNull());
+    expect(await card()).toHaveAttribute('aria-busy', 'true');
+    act(() => held.open());
+    const table = await loaded();
+    expect(within(table).getByText('Best CRM for startups')).toBeInTheDocument();
   });
 
   it('shows a skeleton while the pairs load, with no unknown prompt, then the rows', async () => {
@@ -415,6 +455,7 @@ describe('NoOwnPage', () => {
     const table = await loaded();
     await within(rowOf(table, 'Best CRM for startups')).findByRole('button', { name: /cited instead/ });
     expect(await axe(container)).toHaveNoViolations();
+    await user.tab();
     await user.tab();
     await user.keyboard('{Enter}');
     expect(await axe(document.body)).toHaveNoViolations();

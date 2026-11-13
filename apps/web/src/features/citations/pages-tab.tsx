@@ -151,8 +151,9 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
   );
   useRegisterExport(context.registerExport, exportSource);
 
+  // The tab scrolls as a whole when the card above the table and the notes leave it under 20rem, so the table is never squeezed away
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
       <NoOwnPage context={context} />
       <CitationTableNotes
         meta={meta}
@@ -179,64 +180,66 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
           />
         ) : null}
       </CitationTableNotes>
-      <DataTable<SourcePageRow>
-        caption={tt('pagesCaption')}
-        itemNoun={{ one: tt('pageNoun.one'), other: tt('pageNoun.other') }}
-        columns={columns}
-        getRowId={pageRowId}
-        rows={listed}
-        total={listed.length}
-        // The server sorts (the select)
-        sort={NO_SORT}
-        onSortChange={nothing}
-        defaultSort={NO_SORT}
-        compactToolbar
-        columnGroups
-        toolbarEnd={
-          <>
-            <SortSelect
-              sort={scope.sort}
-              onSortChange={(next) => setSearch({ sort: next === DEFAULT_SORT ? null : next })}
+      <div className="flex min-h-80 flex-1 flex-col">
+        <DataTable<SourcePageRow>
+          caption={tt('pagesCaption')}
+          itemNoun={{ one: tt('pageNoun.one'), other: tt('pageNoun.other') }}
+          columns={columns}
+          getRowId={pageRowId}
+          rows={listed}
+          total={listed.length}
+          // The server sorts (the select)
+          sort={NO_SORT}
+          onSortChange={nothing}
+          defaultSort={NO_SORT}
+          compactToolbar
+          columnGroups
+          toolbarEnd={
+            <>
+              <SortSelect
+                sort={scope.sort}
+                onSortChange={(next) => setSearch({ sort: next === DEFAULT_SORT ? null : next })}
+              />
+              <MinSupportSelect
+                minSupport={scope.minSupport}
+                onMinSupportChange={(next) => setSearch({ min: next === null ? null : String(next) })}
+              />
+            </>
+          }
+          density={scope.density}
+          onDensityChange={(next: Density) => setSearch({ density: next === DEFAULT_DENSITY ? null : next })}
+          columnState={{
+            visible,
+            onChange: (next) => setSearch({ cols: next === null ? null : formatColumns(next) }),
+          }}
+          search={query}
+          onSearchChange={setQuery}
+          searchPlaceholder={tt('searchPages')}
+          rowName={rowName}
+          rowTone={ownRow}
+          status={status}
+          errorState={
+            <InlineError
+              title={t('empty.failedTitle')}
+              reason={t('empty.failedReason')}
+              errorId={errorId}
+              onRetry={() => void read.refetch()}
+              retrying={read.isFetching}
+              retryLabel={common('retry')}
+              live
             />
-            <MinSupportSelect
+          }
+          emptyState={<CitationEmptyState meta={meta} workspaceSlug={workspaceSlug} projectSlug={projectSlug} />}
+          filteredEmptyState={
+            <CitationFilteredEmptyState
+              filterBar={filterBar}
               minSupport={scope.minSupport}
-              onMinSupportChange={(next) => setSearch({ min: next === null ? null : String(next) })}
+              filtering={filtering}
+              onClear={clearFilters}
             />
-          </>
-        }
-        density={scope.density}
-        onDensityChange={(next: Density) => setSearch({ density: next === DEFAULT_DENSITY ? null : next })}
-        columnState={{
-          visible,
-          onChange: (next) => setSearch({ cols: next === null ? null : formatColumns(next) }),
-        }}
-        search={query}
-        onSearchChange={setQuery}
-        searchPlaceholder={tt('searchPages')}
-        rowName={rowName}
-        rowTone={ownRow}
-        status={status}
-        errorState={
-          <InlineError
-            title={t('empty.failedTitle')}
-            reason={t('empty.failedReason')}
-            errorId={errorId}
-            onRetry={() => void read.refetch()}
-            retrying={read.isFetching}
-            retryLabel={common('retry')}
-            live
-          />
-        }
-        emptyState={<CitationEmptyState meta={meta} workspaceSlug={workspaceSlug} projectSlug={projectSlug} />}
-        filteredEmptyState={
-          <CitationFilteredEmptyState
-            filterBar={filterBar}
-            minSupport={scope.minSupport}
-            filtering={filtering}
-            onClear={clearFilters}
-          />
-        }
-      />
-    </>
+          }
+        />
+      </div>
+    </div>
   );
 }

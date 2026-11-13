@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -85,6 +85,15 @@ function renderButton(source: ExportSource | null): ReturnType<typeof renderWith
   );
 }
 
+/** A promise a test settles itself, to hold an answer back. */
+function gate(): { opened: Promise<void>; open: () => void } {
+  let open = (): void => undefined;
+  const opened = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return { opened, open };
+}
+
 const button = (): HTMLElement => screen.getByRole('button', { name: 'Export CSV' });
 /** A toast is also written for assistive technology, so its text is found more than once. */
 const said = async (text: string): Promise<void> => {
@@ -142,9 +151,52 @@ describe('ExportButton', () => {
   it('is disabled with its reason while the rows are not loaded', async () => {
     const { user } = renderButton(null);
     expect(button()).toHaveAttribute('aria-disabled', 'true');
-    expect(button()).toHaveAccessibleDescription('The rows are not loaded.');
+    expect(button()).toHaveAccessibleDescription('The rows are not loaded');
     await user.click(button());
     expect(csv.downloadBlob).not.toHaveBeenCalled();
+  });
+
+  it('is not ready for the Domains tab while the names behind Cited with load, and is when they have', async () => {
+    const held = gate();
+    server.use(
+      http.get(mswPath(`${P}/entities`), async () => {
+        await held.opened;
+        return HttpResponse.json({ data: [{ entity: { entity_id: 'ent-hubspot', canonical_name: 'HubSpot' } }] });
+      }),
+    );
+    const { user } = renderButton(domains([domain('g2.com', 1912)]));
+    expect(button()).toHaveAttribute('aria-disabled', 'true');
+    expect(button()).toHaveAccessibleDescription('The rows are not loaded');
+    await user.click(button());
+    expect(csv.downloadBlob).not.toHaveBeenCalled();
+    act(() => held.open());
+    await waitFor(() => expect(button()).not.toHaveAttribute('aria-disabled', 'true'));
+  });
+
+  it('does not wait for the names to write the pages of the Pages tab', () => {
+    server.use(http.get(mswPath(`${P}/entities`), () => new Promise<never>(() => undefined)));
+    renderButton({ rows: { tab: 'pages', rows: [pageRow(1)] }, total: 1, meta: META });
+    expect(button()).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('still writes the Domains file with the names left blank when the names cannot be read', async () => {
+    server.use(
+      http.get(mswPath(`${P}/entities`), () => HttpResponse.json({ code: 'internal_error' }, { status: 500 })),
+    );
+    const { user, queryClient } = renderButton(domains([domain('g2.com', 1912)]));
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(button()).not.toHaveAttribute('aria-disabled', 'true');
+    await user.click(button());
+    const [blob] = vi.mocked(csv.downloadBlob).mock.calls[0] ?? [];
+    if (!(blob instanceof Blob)) throw new Error('No file was written');
+    expect((await blob.text()).trim().split('\r\n')[1]).toBe('g2.com,Third party,1912,10.38,18420,10,2,1912,');
+  });
+
+  it('says one domain in the singular', async () => {
+    const { user, queryClient } = renderButton(domains([domain('g2.com', 1912)]));
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    await user.click(button());
+    await said('1 of 1 domain exported');
   });
 
   it('is disabled with its reason when there is no row', () => {

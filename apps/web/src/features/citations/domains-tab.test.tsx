@@ -299,6 +299,29 @@ describe('DomainsTab', () => {
     expect(names(table)).toEqual([expect.stringContaining('hubspot.com'), expect.stringContaining('g2.com')]);
   });
 
+  it('takes the domains back from the export while another order is read, and hands over the new ones when they arrive', async () => {
+    const second = gate();
+    let calls = 0;
+    server.use(
+      http.get(DOMAINS, async () => {
+        calls += 1;
+        if (calls > 1) await second.opened;
+        return HttpResponse.json(domainPage(calls === 1 ? [HUBSPOT, G2] : [G2]));
+      }),
+    );
+    const register = vi.fn();
+    const { user } = renderTab('', {}, { registerExport: register });
+    await loaded();
+    await waitFor(() => expect(register.mock.lastCall?.[0]).not.toBeNull());
+    await user.click(screen.getByRole('combobox', { name: 'Order by' }));
+    await user.click(await screen.findByRole('option', { name: 'Answers' }));
+    await waitFor(() => expect(calls).toBe(2));
+    // The rows of the last order stand in on screen while the new read is held: they are not the file's rows
+    await waitFor(() => expect(register.mock.lastCall?.[0]).toBeNull());
+    act(() => second.open());
+    await waitFor(() => expect(register.mock.lastCall?.[0]).toMatchObject({ rows: { tab: 'domains', rows: [G2] } }));
+  });
+
   it('hands the page the domains it lists and the total of the scope for the export, and takes them back on leaving', async () => {
     serveDomains([HUBSPOT, G2], { total: 1204 });
     const register = vi.fn();

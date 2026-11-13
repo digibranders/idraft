@@ -18,7 +18,6 @@ import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tooltip } from '@/components/ui/tooltip';
 import { Truncate } from '@/components/ui/truncate';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { promptTextsById, promptTextsQuery } from '@/lib/citations/prompt-texts-query';
@@ -69,9 +68,10 @@ export function NoOwnPage({ context }: NoOwnPageProps): ReactElement | null {
   const promptTexts = useMemo(() => promptTextsById(texts.data), [texts.data]);
 
   if (!worthReading) return null;
-  const loading = read.isPending;
+  // The pairs of the last scope stand in while a new one is read: empty, they say nothing about the new scope
+  const loading = read.isPending || (read.isPlaceholderData && rows.length === 0);
   const failed = read.isError && read.data === undefined;
-  const empty = read.data !== undefined && rows.length === 0;
+  const empty = read.data !== undefined && !read.isPlaceholderData && rows.length === 0;
   // With the scope's answers not known the empty list cannot be told from one that has none to count
   if (empty && meta.data === undefined) return null;
   const hasMore = read.data?.page.has_more === true;
@@ -81,18 +81,26 @@ export function NoOwnPage({ context }: NoOwnPageProps): ReactElement | null {
     if (text !== undefined) return <Truncate text={text} className="max-w-48 sm:max-w-80" />;
     if (texts.isPending) return <Skeleton shape="text-12" widthPct={48} />;
     return (
-      <Tooltip content={t('promptUnknownTip')}>
+      <>
         <span className="text-foreground-tertiary">{t('promptUnknown', { id: row.prompt_id.slice(0, SHORT_ID) })}</span>
-      </Tooltip>
+        <span className="sr-only">{t('promptUnknownTip')}</span>
+      </>
     );
   };
 
   const insteadCell = (found: CitedInsteadRead | undefined): ReactNode => {
     if (found === undefined || found.total === null) {
+      // n/a with its reason as text a screen reader reaches; a read that failed can be asked again
       return (
-        <Tooltip content={t('insteadUnknown')}>
+        <span className="inline-flex items-center gap-2">
           <span>{EMPTY_VALUE}</span>
-        </Tooltip>
+          <span className="sr-only">{t('insteadUnknown')}</span>
+          {found?.status === 'error' ? (
+            <Button variant="link" size="sm" aria-label={t('insteadRetry')} onClick={found.retry}>
+              {common('retry')}
+            </Button>
+          ) : null}
+        </span>
       );
     }
     return (
@@ -162,16 +170,24 @@ export function NoOwnPage({ context }: NoOwnPageProps): ReactElement | null {
             {hasMore ? t('leadMore', { count: rows.length }) : t('lead', { count: rows.length })}
           </p>
         )}
-        <PlainTable<PromptOwnPagesRow>
-          caption={t('title')}
-          columns={columns}
-          rows={rows}
-          rowKey={(row) => citedInsteadId(pairOf(row))}
-          status={loading ? 'loading' : 'ready'}
-          errorState={null}
-          emptyText={t('emptyTitle')}
-          skeletonRows={3}
-        />
+        {/* Ten pairs are about 400 px: the list scrolls inside its own region, which the keyboard reaches, so the card never takes the table's height */}
+        <div
+          role="region"
+          aria-label={t('listLabel')}
+          tabIndex={0}
+          className="max-h-60 overflow-y-auto rounded-lg focus-visible:focus-ring"
+        >
+          <PlainTable<PromptOwnPagesRow>
+            caption={t('title')}
+            columns={columns}
+            rows={rows}
+            rowKey={(row) => citedInsteadId(pairOf(row))}
+            status={loading ? 'loading' : 'ready'}
+            errorState={null}
+            emptyText={t('emptyTitle')}
+            skeletonRows={3}
+          />
+        </div>
         {hasMore ? <p className="type-meta">{t('moreUnknown')}</p> : null}
       </div>
     );

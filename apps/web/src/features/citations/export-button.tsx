@@ -59,7 +59,17 @@ export function ExportButton({ source, scope, previousMeta, engines, range }: Ex
   const columns = useTranslations('citations.exportColumns');
   const roles = useTranslations('common.domainCell.roles');
   const entities = useQuery({ ...entitiesQuery(scope), placeholderData: keepPreviousData });
-  const reason = source === null ? t('exportLoading') : source.rows.rows.length === 0 ? t('exportNone') : null;
+  // The Domains file names the entity behind Cited with, so it waits for the names; a read that failed is not waited for
+  // and the names are left blank. The Pages file has no such column.
+  const namesPending = source?.rows.tab === 'domains' && entities.isPending;
+  const reason =
+    source === null
+      ? t('exportLoading')
+      : source.rows.rows.length === 0
+        ? t('exportNone')
+        : namesPending
+          ? t('exportLoading')
+          : null;
 
   const exportRows = (): void => {
     if (source === null || reason !== null) return;
@@ -86,15 +96,10 @@ export function ExportButton({ source, scope, previousMeta, engines, range }: Ex
         entityName: (id) => names.get(id),
       });
       downloadBlob(csvBlob(table), citationsExportFileName(tab, range));
-      const total = Math.max(source.total, rows.length);
-      const plural = total === 1 ? 'one' : 'other';
+      // The noun and its number are the message's: it chooses the plural from the total
       toast({
         type: 'success',
-        title: t('exported', {
-          count: rows.length,
-          total,
-          noun: tab === 'domains' ? tt(`noun.${plural}`) : tt(`pageNoun.${plural}`),
-        }),
+        title: t('exported', { count: rows.length, total: Math.max(source.total, rows.length), tab }),
       });
     } catch {
       toast({ type: 'error', title: t('exportFailed') });

@@ -113,16 +113,17 @@ describe('buildCitationsExport, Domains', () => {
     expect(file.rows).toEqual([['g2.com', 'Third party', 1912, 10.38, 18420, 640, 48, 1000, 912, 'HubSpot']]);
   });
 
-  it('writes a text that starts with = as text, in every text field', () => {
+  it('writes the domain, the role and the entity name as text a spreadsheet will not run', () => {
     const file = buildCitationsExport(
       domains([domain({ registrable_domain: '=cmd|calc', cited_with: { entity_id: 'ent-evil', observations: 1 } })]),
       META,
       undefined,
       ENGINES,
-      { ...LABELS, entityName: () => '@SUM(A1)' },
+      { ...LABELS, roleName: () => '=x', entityName: () => '@SUM(A1)' },
     );
     const [row] = file.rows;
     expect(row?.[0]).toBe("'=cmd|calc");
+    expect(row?.[1]).toBe("'=x");
     expect(row?.at(-1)).toBe("'@SUM(A1)");
   });
 
@@ -219,15 +220,22 @@ describe('buildCitationsExport, Pages', () => {
     ]);
   });
 
-  it('writes a hostile title as text a spreadsheet will not run, and leaves a missing title empty', () => {
+  it('writes the address, title, domain and role as text a spreadsheet will not run, and leaves a missing title empty', () => {
     const file = buildCitationsExport(
-      pages([page({ title: '=HYPERLINK("http://evil.example")' }), page({ url_id: 2, title: null })]),
+      pages([
+        page({
+          url: '=cmd|calc',
+          title: '=HYPERLINK("http://evil.example")',
+          registrable_domain: '+SUM(A1)',
+        }),
+        page({ url_id: 2, title: null }),
+      ]),
       META,
       undefined,
       ENGINES,
-      LABELS,
+      { ...LABELS, roleName: () => '=x' },
     );
-    expect(file.rows[0]?.[1]).toBe(`'=HYPERLINK("http://evil.example")`);
+    expect(file.rows[0]?.slice(0, 4)).toEqual(["'=cmd|calc", `'=HYPERLINK("http://evil.example")`, "'+SUM(A1)", "'=x"]);
     expect(file.rows[1]?.[1]).toBeNull();
   });
 

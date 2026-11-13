@@ -398,7 +398,7 @@ describe('Citations page', () => {
     render();
     const button = await screen.findByRole('button', { name: 'Export CSV' });
     expect(button).toHaveAttribute('aria-disabled', 'true');
-    expect(button).toHaveAccessibleDescription('The rows are not loaded.');
+    expect(button).toHaveAccessibleDescription('The rows are not loaded');
   });
 
   it('turns Export CSV on when the tab that is shown has loaded its rows', async () => {

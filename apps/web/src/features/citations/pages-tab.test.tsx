@@ -752,6 +752,40 @@ describe('PagesTab', () => {
     expect(register).toHaveBeenLastCalledWith(null);
   });
 
+  it('keeps the table at least 20rem high and lets the tab scroll instead of squeezing it', async () => {
+    renderTab();
+    const table = await loaded();
+    const held = table.closest('.min-h-80');
+    expect(held).not.toBeNull();
+    expect(held?.parentElement).toHaveClass('overflow-y-auto');
+    // The card is above the table, inside the same scrolling body
+    const card = await screen.findByRole('region', { name: 'Prompts with no own page cited' });
+    expect(held?.parentElement).toContainElement(card);
+  });
+
+  it('takes the rows back from the export while another order is read, and hands over the new ones when they arrive', async () => {
+    const second = gate();
+    let calls = 0;
+    server.use(
+      http.get(PAGES, async () => {
+        calls += 1;
+        if (calls > 1) await second.opened;
+        return HttpResponse.json(pagePage(calls === 1 ? [ONE, TWO] : [TWO]));
+      }),
+    );
+    const register = vi.fn();
+    const { user } = renderTab('', {}, { registerExport: register });
+    await loaded();
+    await waitFor(() => expect(register.mock.lastCall?.[0]).not.toBeNull());
+    await user.click(screen.getByRole('combobox', { name: 'Order by' }));
+    await user.click(await screen.findByRole('option', { name: 'Prompts' }));
+    await waitFor(() => expect(calls).toBe(2));
+    // The rows of the last order stand in on screen while the new read is held: they are not the file's rows
+    await waitFor(() => expect(register.mock.lastCall?.[0]).toBeNull());
+    act(() => second.open());
+    await waitFor(() => expect(register.mock.lastCall?.[0]).toMatchObject({ rows: { tab: 'pages', rows: [TWO] } }));
+  });
+
   it('hands over the rows the search leaves, of the total the scope has', async () => {
     servePages([ONE, TWO], { total: 40 });
     const register = vi.fn();

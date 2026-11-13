@@ -30,16 +30,24 @@ export interface CitedInsteadRead {
   status: 'loading' | 'error' | 'ready';
   domains: readonly SourceDomainRow[];
   total: number | null;
+  /** Reads the pair's domains again. */
+  retry: () => void;
 }
 
 /** In the order of the queries. A failed read with no page is an error; one with a page in hand keeps it. */
 function combineReads(
-  results: readonly { isError: boolean; isPending: boolean; data: SourceDomainPage | undefined }[],
+  results: readonly {
+    isError: boolean;
+    isPending: boolean;
+    data: SourceDomainPage | undefined;
+    refetch: () => Promise<unknown>;
+  }[],
 ): CitedInsteadRead[] {
   return results.map((result): CitedInsteadRead => ({
     status: result.isError && result.data === undefined ? 'error' : result.isPending ? 'loading' : 'ready',
     domains: result.data?.data ?? [],
     total: result.data?.page.total ?? null,
+    retry: () => void result.refetch(),
   }));
 }
 
