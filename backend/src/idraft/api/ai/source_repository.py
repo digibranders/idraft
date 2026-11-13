@@ -915,6 +915,68 @@ async def cited_with(
     return found
 
 
+async def prompt_own_pages(
+    db: AsyncSession,
+    scope: SourceScope,
+    *,
+    own_cited: bool | None,
+    after: tuple[UUID, str] | None,
+    limit: int,
+) -> list[Any]:
+    """Per (prompt, engine) of the counted answers: the answers, those citing an own page, the own
+    citation units, the distinct own pages and the own page with the most units (ties: the lowest
+    url id), with its canonical URL. An answer that cites no own page still counts (outer join),
+    so an engine with no counted answer has no row. Keyset `(prompt_id, engine_code)`, `own_cited`
+    keeping the pairs that cite an own page or none. One statement."""
+    answers = counted_answers(scope)
+    own = (
+        select(_C.observation_id, _C.observed_at, _C.url_id)
+        .where(*citation_bounds(scope), _C.domain_role == "own")
+        .distinct()
+        .subquery("own_cited")
+    )
+    joined = answers.outerjoin(
+        own,
+        and_(
+            own.c.observation_id == answers.c.observation_id,
+            own.c.observed_at == answers.c.observed_at,
+        ),
+    )
+    citing = func.count(answers.c.observation_id.distinct()).filter(own.c.url_id.is_not(None))
+    grouped = (
+        select(
+            answers.c.prompt_id,
+            answers.c.engine_code,
+            func.count(answers.c.observation_id.distinct()).label("answers"),
+            citing.label("answers_citing_own"),
+            func.count(own.c.url_id).label("own_citation_units"),
+            func.count(own.c.url_id.distinct()).label("own_pages"),
+            func.mode()
+            .within_group(own.c.url_id)
+            .filter(own.c.url_id.is_not(None))
+            .label("top_url_id"),
+        )
+        .select_from(joined)
+        .group_by(answers.c.prompt_id, answers.c.engine_code)
+    )
+    if own_cited is not None:
+        grouped = grouped.having(citing > 0 if own_cited else citing == 0)
+    per_prompt = grouped.subquery("per_prompt")
+    u = urls.c
+    statement = select(per_prompt, u.canonical_url).select_from(
+        per_prompt.outerjoin(urls, u.id == per_prompt.c.top_url_id)
+    )
+    if after is not None:
+        statement = statement.where(
+            tuple_(per_prompt.c.prompt_id, per_prompt.c.engine_code) > tuple_(*after)
+        )
+    return list(
+        await db.execute(
+            statement.order_by(per_prompt.c.prompt_id, per_prompt.c.engine_code).limit(limit)
+        )
+    )
+
+
 async def citation_rows(
     db: AsyncSession,
     scope: SourceScope,

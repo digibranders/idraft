@@ -35,7 +35,7 @@ from idraft.api.schemas.ai_sources import (
     SourceSort,
 )
 from idraft.api.schemas.common import printable
-from idraft.api.stubs import not_built, not_built_yet, refuse_unbuilt
+from idraft.api.stubs import refuse_unbuilt
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 from idraft.domain.ai_engines import EngineCode
@@ -400,12 +400,12 @@ async def source_domain(
     "that cite an own page, the own citation units, the distinct own pages and the one with "
     "the most units. `filter[own_cited]=false` keeps the prompts whose answers cite no own page. "
     "Keyset pages `(prompt_id, engine_code)`; a cursor is bound to its filters (`400 "
-    "invalid_cursor` otherwise). " + _NOT_BUILT,
+    "invalid_cursor` otherwise). An engine with no counted answer of a prompt has no row.",
 )
-@not_built
 async def source_prompts(
     project_id: UUID,
     access: ReadData,
+    sources: Sources,
     scope: AnswerScope,
     page: Cursor,
     flags: Flags,
@@ -414,12 +414,20 @@ async def source_prompts(
         Query(
             alias="filter[own_cited]",
             description="`false` keeps the prompt and engine pairs whose answers cite no own page; "
-            "`true` those that cite one. Default: both. " + _NOT_BUILT,
+            "`true` those that cite one. Default: both.",
         ),
     ] = None,
     country_iso: CountryFilter = None,
 ) -> PromptOwnPagesPage:
-    raise not_built_yet()
+    refuse_unbuilt(
+        {
+            "include_unresolved_redirects": "unresolved_redirect" not in flags,
+            "include_engine_internal": "engine_internal" not in flags,
+        }
+    )
+    return await sources.prompts(
+        access, project_id, replace(scope, country_iso=country_iso), own_cited=own_cited, page=page
+    )
 
 
 @router.get(

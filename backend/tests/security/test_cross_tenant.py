@@ -348,7 +348,11 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     ("GET", _W + "/projects/{project_id}/ai/sources/domains/{registrable_domain}"): {
         "filter[country_iso]": "US"
     },
-    ("GET", _W + "/projects/{project_id}/ai/sources/prompts"): {"filter[country_iso]": "US"},
+    # The tenant's prompt cites its own page: the row names the page.
+    ("GET", _W + "/projects/{project_id}/ai/sources/prompts"): {
+        "filter[own_cited]": "true",
+        "filter[country_iso]": "US",
+    },
     # WP-26 evidence-viewer
     # WP-30 runs-costs-health
     # WP-31 settings-engines

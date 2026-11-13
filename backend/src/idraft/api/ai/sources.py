@@ -61,7 +61,11 @@ from idraft.api.schemas.ai_sources import (
     FanoutMeta,
     FanoutQueryPage,
     FanoutQueryRow,
+    OwnPage,
     PreviousUnits,
+    PromptOwnPagesMeta,
+    PromptOwnPagesPage,
+    PromptOwnPagesRow,
     RoleAnswers,
     RoleUnits,
     SourceChangeKind,
@@ -514,6 +518,44 @@ def _after(cursor: str, bound: dict[str, object]) -> tuple[datetime, int, int]:
     return cursor_instant(at_text), observation_id, index
 
 
+_ENGINE_CODES: Final = frozenset(str(code) for code in EngineCode)
+
+
+def _prompts_cursor_scope(
+    project_id: UUID, query: SourceQuery, engines: Sequence[str], own_cited: bool | None
+) -> dict[str, object]:
+    """What a prompts cursor is bound to: the project and every filter, the country only when
+    set (as `_cursor_scope`)."""
+    bound: dict[str, object] = {
+        "project_id": str(project_id),
+        "from": query.start,
+        "to": query.end,
+        "engines": list(engines),
+        "prompt": query.prompt_id,
+        "term": query.term_id,
+        "branded": query.include_branded,
+        "own_cited": own_cited,
+    }
+    if query.country_iso is not None:
+        bound["country"] = query.country_iso
+    return bound
+
+
+def _prompt_after(cursor: str, bound: dict[str, object]) -> tuple[UUID, str]:
+    """The key of a prompts cursor, `[prompt id, engine code]`: a forged key the database could
+    not take (text that is no uuid, an engine that does not exist) is `400 invalid_cursor`."""
+    key = decode_cursor(cursor, scope=bound)
+    if len(key) != 2:
+        raise invalid_cursor()
+    prompt_id, engine_code = key
+    if not isinstance(prompt_id, str) or engine_code not in _ENGINE_CODES:
+        raise invalid_cursor()
+    try:
+        return UUID(prompt_id), str(engine_code)
+    except ValueError:
+        raise invalid_cursor() from None
+
+
 class SourceService:
     def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
@@ -839,6 +881,55 @@ class SourceService:
                 ],
             ),
             meta=sources_meta(now, query, engines, whole),
+        )
+
+    async def prompts(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        query: SourceQuery,
+        *,
+        own_cited: bool | None,
+        page: CursorParams,
+    ) -> PromptOwnPagesPage:
+        """Per prompt and engine of the counted answers, which own pages they cite (BE-SOURCES-20).
+        The project is looked up first by `scoped`: an unknown or deleted one is `404`."""
+        engines = shown_engines(query.engine_codes)
+        bound = _prompts_cursor_scope(project_id, query, engines, own_cited)
+        after = None if page.cursor is None else _prompt_after(page.cursor, bound)
+        async with self._transaction(access) as db:
+            now = await scoped(db, access, project_id, query, engines)
+            rows = await repository.prompt_own_pages(
+                db, now.scope, own_cited=own_cited, after=after, limit=page.limit + 1
+            )
+        shown = rows[: page.limit]
+        next_cursor = None
+        if len(rows) > page.limit:
+            last = shown[-1]
+            next_cursor = encode_cursor([str(last.prompt_id), last.engine_code], scope=bound)
+        return PromptOwnPagesPage(
+            data=[
+                PromptOwnPagesRow(
+                    prompt_id=row.prompt_id,
+                    engine_code=EngineCode(row.engine_code),
+                    answers=row.answers,
+                    answers_citing_own=row.answers_citing_own,
+                    own_citation_units=row.own_citation_units,
+                    own_pages=row.own_pages,
+                    top_own_page=None
+                    if row.top_url_id is None
+                    else OwnPage(url_id=row.top_url_id, url=row.canonical_url),
+                )
+                for row in shown
+            ],
+            page=CursorPageInfo(
+                limit=page.limit, next_cursor=next_cursor, has_more=next_cursor is not None
+            ),
+            meta=PromptOwnPagesMeta(
+                window=now.window,
+                include_branded=query.include_branded,
+                engine_codes=[EngineCode(code) for code in engines],
+            ),
         )
 
     async def citations(

@@ -59,27 +59,13 @@ async def test_a_source_addition_answers_501(
 
 
 NEW_ROUTES = ["sources/diversity", "sources/domains/g2.com", "sources/prompts"]
-BUILT_ROUTES = ["sources/diversity", "sources/domains/g2.com"]
 
 
-@pytest.mark.parametrize("path", [path for path in NEW_ROUTES if path not in BUILT_ROUTES])
-async def test_a_new_source_route_answers_501(
-    path: str, api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    viewer = await member(resources, migrated, workspace, "viewer")
-    project = await ai_project(migrated, workspace)
-
-    response = await api.get(project_url(workspace, project, "ai", path), headers=viewer.headers)
-
-    assert problem(response) == NOT_BUILT
-
-
-@pytest.mark.parametrize("path", BUILT_ROUTES)
+@pytest.mark.parametrize("path", NEW_ROUTES)
 async def test_a_built_new_source_route_answers_a_viewer(
     path: str, api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
-    """The routes T5 builds answer `200` for a reader, empty when the project has no answer."""
+    """The new routes answer `200` for a reader, empty when the project has no answer."""
     workspace = await make_workspace(migrated)
     viewer = await member(resources, migrated, workspace, "viewer")
     project = await ai_project(migrated, workspace)
