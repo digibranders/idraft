@@ -212,6 +212,28 @@ async def _make_ties(pg: PostgresServer, ids: list[str]) -> None:
         )
 
 
+async def _walk(
+    api: httpx.AsyncClient, url: str, caller: Caller, sort: str, *, limit: int
+) -> tuple[list[str], int]:
+    """The ids of every page of a sorted list, in order, and the number of pages. Bounded, so a
+    paging fault fails the test instead of hanging it."""
+    seen: list[str] = []
+    cursor: str | None = None
+    for pages in range(1, 11):
+        params = {
+            "sort": sort,
+            "limit": str(limit),
+            **({} if cursor is None else {"cursor": cursor}),
+        }
+        response = await api.get(url, params=params, headers=caller.headers)
+        assert response.status_code == 200, response.text
+        seen += [row["prompt_id"] for row in response.json()["data"]]
+        cursor = response.json()["page"]["next_cursor"]
+        if cursor is None:
+            return seen, pages
+    raise AssertionError("the list did not end within 10 pages")
+
+
 @pytest.mark.parametrize("sort", SORTS)
 async def test_each_sort_orders_and_pages_without_gaps_or_repeats(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, sort: str
@@ -235,18 +257,7 @@ async def test_each_sort_orders_and_pages_without_gaps_or_repeats(
         )
     ]
 
-    seen: list[str] = []
-    cursor: str | None = None
-    pages = 0
-    while True:
-        params = {"sort": sort, "limit": "3", **({} if cursor is None else {"cursor": cursor})}
-        response = await api.get(url, params=params, headers=editor.headers)
-        assert response.status_code == 200, response.text
-        seen += [row["prompt_id"] for row in response.json()["data"]]
-        pages += 1
-        cursor = response.json()["page"]["next_cursor"]
-        if cursor is None:
-            break
+    seen, pages = await _walk(api, url, editor, sort, limit=3)
 
     assert pages == 3
     assert seen == expected
@@ -365,7 +376,8 @@ async def test_a_sort_cursor_holds_the_value_and_the_id(
         url, params={"sort": "created_at", "limit": "1"}, headers=editor.headers
     )
 
-    assert cursor_key(_cursor(by_text)) == ["alpha", ids["alpha"]]
+    # A text can be 2,000 characters: the cursor of a text sort names the prompt, not its text.
+    assert cursor_key(_cursor(by_text)) == [ids["alpha"]]
     assert cursor_key(_cursor(by_importance)) == [5, ids["alpha"]]
     created_key = cursor_key(_cursor(by_creation))
     assert created_key[1] == ids["alpha"]
@@ -383,8 +395,9 @@ async def test_a_sort_cursor_holds_the_value_and_the_id(
         pytest.param("created_at", ["yesterday", str(uuid.uuid4())], id="not an instant"),
         pytest.param("created_at", ["2026-01-01T00:00:00", str(uuid.uuid4())], id="no offset"),
         pytest.param("created_at", [5, str(uuid.uuid4())], id="instant not text"),
-        pytest.param("text", [5, str(uuid.uuid4())], id="text not text"),
-        pytest.param("text", [str(uuid.uuid4())], id="text key of one"),
+        pytest.param("text", [5, str(uuid.uuid4())], id="text key of two"),
+        pytest.param("text", [5], id="text key not an id"),
+        pytest.param("text", [], id="text key empty"),
     ],
 )
 async def test_a_forged_sort_cursor_is_invalid_not_a_server_error(
@@ -405,6 +418,118 @@ async def test_a_forged_sort_cursor_is_invalid_not_a_server_error(
     )
 
     assert problem(forged) == INVALID_CURSOR
+
+
+def _long_texts(kind: str) -> list[str]:
+    """Three texts of the longest size a prompt may have, in ascending order: 2,000 ASCII
+    characters, or 600 CJK ones (code points built here, so this file stays ASCII)."""
+    if kind == "ascii":
+        return [letter * 2000 for letter in "bcd"]
+    return [chr(0x4E00 + step) * 600 for step in range(3)]
+
+
+@pytest.mark.parametrize("sort", ["text", "-text"])
+@pytest.mark.parametrize("kind", ["ascii", "cjk"])
+async def test_a_text_sort_pages_the_longest_texts(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, sort: str, kind: str
+) -> None:
+    workspace, editor, project, url = await _scene(resources, migrated)
+    texts = _long_texts(kind)
+    ids = [await added(api, workspace, project, editor, text) for text in texts]
+    first = await api.get(url, params={"sort": sort, "limit": "1"}, headers=editor.headers)
+
+    seen, pages = await _walk(api, url, editor, sort, limit=1)
+
+    assert seen == (ids[::-1] if sort.startswith("-") else ids)
+    assert pages == 3
+    # The cursor names the prompt, not its text: it stays short however long the text is.
+    assert cursor_key(_cursor(first)) == [seen[0]]
+    assert len(_cursor(first)) < 200
+
+
+async def test_a_text_cursor_names_only_a_prompt_of_this_project(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, editor, project, url = await _scene(resources, migrated)
+    for text in ("prompt b", "prompt c", "prompt d"):
+        await added(api, workspace, project, editor, text)
+    sibling = await ai_project(migrated, workspace)
+    # Sorts before every text of `project`: were its position used, the page would not be empty.
+    of_sibling = await added(api, workspace, sibling, editor, "aaa sibling secret")
+    elsewhere = await make_workspace(migrated)
+    stranger = await member(resources, migrated, elsewhere, "editor")
+    abroad = await ai_project(migrated, elsewhere)
+    of_stranger = await added(api, elsewhere, abroad, stranger, "aaa stranger secret")
+
+    for sort in ("text", "-text"):
+        real = await api.get(url, params={"sort": sort, "limit": "1"}, headers=editor.headers)
+        for anchor in (of_sibling, of_stranger, str(uuid.uuid4())):
+            response = await api.get(
+                url,
+                params={
+                    "sort": sort,
+                    "limit": "5",
+                    "cursor": forged_cursor(_cursor(real), [anchor]),
+                },
+                headers=editor.headers,
+            )
+
+            # An anchor the project does not have is no position: an empty page, nothing shown.
+            assert response.status_code == 200, response.text
+            assert response.json()["data"] == []
+            assert response.json()["page"] == {"limit": 5, "next_cursor": None, "has_more": False}
+            assert "secret" not in response.text
+
+
+@pytest.mark.parametrize("sort", ["created_at", "-created_at", "updated_at", "-updated_at"])
+async def test_instants_less_than_a_second_apart_page_in_order(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, sort: str
+) -> None:
+    workspace, editor, project, url = await _scene(resources, migrated)
+    ids = [await added(api, workspace, project, editor, f"prompt {n}") for n in range(6)]
+    base = dt.datetime(2026, 1, 1, tzinfo=dt.UTC)
+    # Six instants 7 microseconds apart, the updates in another order than the creations.
+    for step, (prompt_id, touched) in enumerate(zip(ids, (3, 1, 4, 0, 5, 2), strict=True)):
+        await execute(
+            migrated,
+            "UPDATE ai.prompts SET created_at = $2, updated_at = $3 WHERE id = $1",
+            uuid.UUID(prompt_id),
+            base + dt.timedelta(microseconds=7 * step),
+            base + dt.timedelta(microseconds=7 * touched),
+        )
+    rows = await _rows(migrated, project)
+    field = sort.removeprefix("-")
+    expected = [
+        prompt_id
+        for prompt_id, _ in sorted(
+            rows.items(), key=lambda item: item[1][field], reverse=sort.startswith("-")
+        )
+    ]
+
+    seen, pages = await _walk(api, url, editor, sort, limit=2)
+
+    assert seen == expected
+    assert pages == 3
+
+
+@pytest.mark.parametrize("sort", SORTS)
+async def test_the_last_page_of_a_sorted_list_has_no_cursor(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, sort: str
+) -> None:
+    workspace, editor, project, url = await _scene(resources, migrated)
+    for name, importance in zip("abcdef", (1, 2, 3, 4, 5, 3), strict=True):
+        await added(api, workspace, project, editor, f"prompt {name}", importance=importance)
+
+    first = await api.get(url, params={"sort": sort, "limit": "3"}, headers=editor.headers)
+    second = await api.get(
+        url,
+        params={"sort": sort, "limit": "3", "cursor": _cursor(first)},
+        headers=editor.headers,
+    )
+
+    # Exactly `limit` rows are left: they are the last page, not a page before an empty one.
+    assert len(_texts(second)) == 3
+    assert second.json()["page"] == {"limit": 3, "next_cursor": None, "has_more": False}
 
 
 async def test_a_sort_cursor_of_an_unsorted_list_must_hold_one_id(
@@ -474,8 +599,18 @@ async def test_the_page_is_one_statement_whatever_the_filters_and_sort(
     with statements(resources) as later:
         await api.get(url, params={**everything, "cursor": cursor}, headers=editor.headers)
 
+    # A text sort reads the text of its anchor prompt: still the same statement.
+    by_text = await api.get(url, params={"sort": "text", "limit": "1"}, headers=editor.headers)
+    with statements(resources) as continued:
+        await api.get(
+            url,
+            params={"sort": "text", "limit": "1", "cursor": _cursor(by_text)},
+            headers=editor.headers,
+        )
+
     def on_prompts(seen: list[str]) -> int:
         return sum("FROM ai.prompts" in statement for statement in seen)
 
     assert on_prompts(plain) == on_prompts(filtered) == on_prompts(later) == 1
-    assert len(plain) == len(filtered) == len(later)
+    assert on_prompts(continued) == 1
+    assert len(plain) == len(filtered) == len(later) == len(continued)

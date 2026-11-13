@@ -593,34 +593,29 @@ def _after(
     The hash of a cursor is no signature, so a key a client made up is `400 invalid_cursor`, never
     a value the database cannot take."""
     key = decode_cursor(cursor, scope=scope)
-    if sort is None:
+    field = None if sort is None else sort.removeprefix("-")
+    if field in (None, "text"):
+        # The cursor of a text sort holds the prompt only: a text can be 2,000 characters, more
+        # than a cursor may hold, so the repository reads the text of that prompt itself.
         if len(key) != 1:
             raise invalid_cursor()
         return None, _uuid(key[0])
     if len(key) != 2:
         raise invalid_cursor()
     value, prompt_id = key
-    match sort.removeprefix("-"):
-        case "importance":
-            # 1 to 5, as the column allows: a larger number would fail in the database.
-            if not isinstance(value, int) or value not in range(1, 6):
-                raise invalid_cursor()
-            return value, _uuid(prompt_id)
-        case "text":
-            if not isinstance(value, str):
-                raise invalid_cursor()
-            return value, _uuid(prompt_id)
-        case _:
-            return cursor_instant(value), _uuid(prompt_id)
+    if field == "importance":
+        # 1 to 5, as the column allows: a larger number would fail in the database.
+        if not isinstance(value, int) or value not in range(1, 6):
+            raise invalid_cursor()
+        return value, _uuid(prompt_id)
+    return cursor_instant(value), _uuid(prompt_id)
 
 
 def _key(record: PromptRecord, sort: str | None) -> list[KeyValue]:
     """The key of the last prompt of a page, as `_after` reads it."""
     match None if sort is None else sort.removeprefix("-"):
-        case None:
+        case None | "text":
             return [str(record.id)]
-        case "text":
-            return [record.current_version.text, str(record.id)]
         case "importance":
             return [record.importance, str(record.id)]
         case "created_at":

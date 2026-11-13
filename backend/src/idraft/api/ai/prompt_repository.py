@@ -17,6 +17,7 @@ from uuid import UUID
 from sqlalchemy import (
     ColumnElement,
     Row,
+    ScalarSelect,
     Select,
     and_,
     delete,
@@ -292,6 +293,31 @@ def _sort_column(field: str) -> ColumnElement[Any]:
     return columns[field]
 
 
+def _anchor_text(workspace_id: UUID, project_id: UUID, prompt_id: UUID) -> ScalarSelect[str]:
+    """The current text of this prompt of the project, as `_prompts` sorts it. Archived and
+    deleted prompts count: a page continues past a prompt changed after the page before. Another
+    project's prompt, or another workspace's, is NULL, so its text and place are never read."""
+    anchor, version = ai_prompts.alias(), ai_prompt_versions.alias()
+    return (
+        select(version.c.text)
+        .select_from(
+            anchor.join(
+                version,
+                and_(
+                    version.c.id == anchor.c.current_version_id,
+                    version.c.workspace_id == anchor.c.workspace_id,
+                ),
+            )
+        )
+        .where(
+            anchor.c.workspace_id == workspace_id,
+            anchor.c.project_id == project_id,
+            anchor.c.id == prompt_id,
+        )
+        .scalar_subquery()
+    )
+
+
 async def list_prompts(
     db: AsyncSession,
     workspace_id: UUID,
@@ -303,8 +329,9 @@ async def list_prompts(
     limit: int,
 ) -> list[PromptRecord]:
     """Newest first (prompt ids are time-ordered, `uuidv7()`), or by `sort`: a field, `-` first
-    for descending, the id breaking ties. `after` is the last row's sort value (`None` without
-    `sort`) and id; the page continues past it."""
+    for descending, the id breaking ties. `after` is the last row's sort value and id (the value
+    is `None` without `sort` and for `text`, which is read from the id); the page continues past
+    it."""
     p = ai_prompts.c
     statement = _prompts(workspace_id, project_id).where(*_conditions(workspace_id, given))
     if sort is None:
@@ -312,13 +339,18 @@ async def list_prompts(
             statement = statement.where(p.id < after[1])
         statement = statement.order_by(p.id.desc())
     else:
-        column = _sort_column(sort.removeprefix("-"))
+        field = sort.removeprefix("-")
+        column = _sort_column(field)
         descending = sort.startswith("-")
         if after is not None:
             key = tuple_(column, p.id)
-            statement = statement.where(
-                key < tuple_(*after) if descending else key > tuple_(*after)
-            )
+            # A text is too long for a cursor: its prompt is, and the text is read in this
+            # statement. An id the project does not have reads NULL: an empty page.
+            anchor: ScalarSelect[str] | SortValue | None = after[0]
+            if field == "text":
+                anchor = _anchor_text(workspace_id, project_id, after[1])
+            past = tuple_(anchor, after[1])
+            statement = statement.where(key < past if descending else key > past)
         statement = statement.order_by(
             *((column.desc(), p.id.desc()) if descending else (column, p.id))
         )
