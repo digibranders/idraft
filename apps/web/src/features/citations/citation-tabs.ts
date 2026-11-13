@@ -3,6 +3,7 @@ import { createElement, type ReactNode } from 'react';
 
 import type { CitationRead } from './citation-reads';
 import type { CitationScope, CitationScopeState, CitationTab, DateWindow } from './citation-scope';
+import type { ExportSource } from './citations-export';
 import { DomainsTab } from './domains-tab';
 import { PagesTab } from './pages-tab';
 import type { FilterField, FilterValues } from '@/components/app/filters/types';
@@ -35,6 +36,11 @@ export interface CitationTabContext {
   meta: CitationRead<SourceDomainPage>;
   previousMeta: CitationRead<SourceDomainPage>;
   setSearch: CitationScopeState['setSearch'];
+  /**
+   * Hands the page's Export button the rows the tab lists (`null` while they are not loaded). Absent where nothing
+   * exports; a tab calls it through `useRegisterExport`.
+   */
+  registerExport?: ((source: ExportSource | null) => void) | undefined;
   /** The filter bar's fields and values, so a tab that finds nothing can name the filters and clear them. */
   filterBar: {
     fields: readonly FilterField[];

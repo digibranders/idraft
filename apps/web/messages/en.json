@@ -4291,6 +4291,7 @@
     "exported": "{count, number} of {total, number} {noun} exported",
     "exportNone": "Nothing to export",
     "exportFailed": "The file could not be made",
+    "exportLoading": "The rows are not loaded.",
     "tabs": {
       "label": "Citation views",
       "domains": "Domains",
@@ -4455,7 +4456,25 @@
       "emptyTitle": "Every prompt has an own page cited",
       "emptyReason": "Each prompt and engine with an answer cites at least one page of yours.",
       "failed": "This list could not be loaded.",
-      "more": "{count, plural, one {# more pair is} other {# more pairs are}} not listed."
+      "more": "{count, plural, one {# more pair is} other {# more pairs are}} not listed.",
+      "prompt": "Prompt",
+      "engine": "Engine",
+      "result": "Answers read",
+      "finding": "none of {answers, plural, one {# answer} other {# answers}} cites an own page",
+      "insteadUnits": "{count, plural, one {# unit} other {# units}}",
+      "insteadUnknown": "The domains cited instead are not known yet.",
+      "promptUnknown": "Prompt {id}, text n/a",
+      "promptUnknownTip": "The text of this prompt could not be read.",
+      "leadMore": "{count, number} or more prompt and engine pairs cite no page of yours.",
+      "moreUnknown": "More pairs are not listed."
+    },
+    "exportColumns": {
+      "url": "URL",
+      "title": "Title",
+      "share": "Source share (%)",
+      "total": "Total citation units in scope",
+      "engineUnits": "Citation units on {engine}",
+      "change": "Change in share (points)"
     },
     "inspectors": {}
   },

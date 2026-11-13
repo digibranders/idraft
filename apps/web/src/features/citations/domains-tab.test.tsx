@@ -210,10 +210,17 @@ interface HarnessProps {
   onClear?: () => void;
   /** The engines that are on; keep it stable between renders. */
   engines?: readonly EngineCode[];
+  /** What the page's Export button is handed. */
+  registerExport?: CitationTabContext['registerExport'];
 }
 
 /** The tab as the page gives it its context: the real scope from the address, and the strip's reads. */
-function Harness({ values = {}, onClear = () => undefined, engines = ENABLED }: HarnessProps): ReactElement {
+function Harness({
+  values = {},
+  onClear = () => undefined,
+  engines = ENABLED,
+  registerExport,
+}: HarnessProps): ReactElement {
   const { scope, range, setSearch } = useCitationScope('UTC', engines);
   const filters = useMemo(() => toFilters(scope, range), [scope, range]);
   const strip = useMemo(() => read(domainPage([], META)), []);
@@ -231,6 +238,7 @@ function Harness({ values = {}, onClear = () => undefined, engines = ENABLED }: 
     meta: strip,
     previousMeta: previous,
     setSearch,
+    registerExport,
     filterBar: { fields: FIELDS, values, onClear },
   };
   return (
@@ -289,6 +297,24 @@ describe('DomainsTab', () => {
     renderTab();
     const table = await loaded();
     expect(names(table)).toEqual([expect.stringContaining('hubspot.com'), expect.stringContaining('g2.com')]);
+  });
+
+  it('hands the page the domains it lists and the total of the scope for the export, and takes them back on leaving', async () => {
+    serveDomains([HUBSPOT, G2], { total: 1204 });
+    const register = vi.fn();
+    const { unmount } = renderTab('', {}, { registerExport: register });
+    await loaded();
+    await waitFor(() =>
+      expect(register).toHaveBeenLastCalledWith({
+        rows: { tab: 'domains', rows: [HUBSPOT, G2] },
+        total: 1204,
+        meta: META,
+      }),
+    );
+    // Never rows of a scope that is still being read
+    expect(register.mock.calls[0]?.[0]).toBeNull();
+    unmount();
+    expect(register).toHaveBeenLastCalledWith(null);
   });
 
   it('asks the server for 200 rows with the sort, the minimum and the blocks of the page', async () => {

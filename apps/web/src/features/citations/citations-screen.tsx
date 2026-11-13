@@ -4,15 +4,17 @@ import { useQuery } from '@tanstack/react-query';
 import { Ban, Link2, MoreHorizontal, Power } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { useCallback, useMemo, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 
 import { CompareSelect } from './compare-select';
 import { useChangeCounts, useDiversity, useLatestCitation, usePreviousMeta, useScopeMeta } from './citation-reads';
 import { useCitationScope, toFilters } from './citation-scope';
 import { activeCitationTab, CITATION_TABS, type CitationTabContext } from './citation-tabs';
 import { CITATION_VIEW_KEYS, citationViews } from './citation-views';
+import type { ExportSource } from './citations-export';
 import { citationFilterFields } from './citations-filters';
 import { CitationsStrip } from './citations-strip';
+import { ExportButton } from './export-button';
 import type { StripReads } from './strip-model';
 import { DateRangePicker } from '@/components/app/date-range/date-range-picker';
 import { droppedMessageKey } from '@/components/app/date-range/range-model';
@@ -189,6 +191,13 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
       }),
   });
 
+  // The rows the shown tab has loaded, which Export CSV writes; the tab gives them and takes them back
+  const [exportSource, setExportSource] = useState<ExportSource | null>(null);
+  const exportEngines = useMemo(
+    () => (scope.engines.length > 0 ? scope.engines : enabledEngines).map((code) => ({ code, label: labelOf(code) })),
+    [scope.engines, enabledEngines, labelOf],
+  );
+
   // The saved view menu and the header
   const views = useMemo(() => citationViews((key) => t(`views.${key}`)), [t]);
   const savedView = useSavedView({ views, viewKeys: CITATION_VIEW_KEYS });
@@ -235,6 +244,13 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
             edited={savedView.edited}
             onApply={savedView.apply}
             onReset={savedView.reset}
+          />
+          <ExportButton
+            source={exportSource}
+            scope={source}
+            previousMeta={previousMeta.data?.meta}
+            engines={exportEngines}
+            range={range}
           />
           <Menu
             align="end"
@@ -287,6 +303,7 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
       meta: scopeMeta,
       previousMeta,
       setSearch,
+      registerExport: setExportSource,
       filterBar: { fields, values, onClear: () => setValues({}) },
     };
     // The scope read failing leaves nothing to show a panel against; any other read fails alone, and the strip says so.

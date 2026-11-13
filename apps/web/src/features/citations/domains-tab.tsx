@@ -14,8 +14,10 @@ import {
   resolveTableStatus,
 } from './citation-table-states';
 import type { CitationTabContext } from './citation-tabs';
+import type { ExportSource } from './citations-export';
 import { rowNameOf, useDomainColumns } from './domain-columns';
 import { buildRows, domainRowId, type CitationTableRow } from './domain-rows';
+import { useRegisterExport } from './export-button';
 import { MinSupportSelect } from './min-support-select';
 import { SortSelect } from './sort-select';
 import { useExpandedPages } from './use-expanded-pages';
@@ -179,6 +181,14 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
   });
   // A refresh that failed leaves the rows of the last read on screen: say so, with a way to ask again
   const refreshFailed = read.isError && read.data !== undefined;
+
+  // The page's Export button gets the rows listed, never the last scope's rows that stand in while a new one is read
+  const exportSource = useMemo(
+    (): ExportSource | null =>
+      meta === undefined || read.isPlaceholderData ? null : { rows: { tab: 'domains', rows: listed }, total, meta },
+    [meta, read.isPlaceholderData, listed, total],
+  );
+  useRegisterExport(context.registerExport, exportSource);
 
   const errorState = (
     <InlineError

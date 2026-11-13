@@ -146,12 +146,12 @@ const domainPage = (rows: readonly SourceDomainRow[]): SourceDomainPage => ({
   meta: META,
 });
 
-/** Every request the mock server saw for a route, as URLs. */
+/** Every request of the tab's table the mock server saw for a route, as URLs: the reads of the no own page card ask for one prompt. */
 function watch(route: string): URL[] {
   const seen: URL[] = [];
   server.events.on('request:start', ({ request }) => {
     const url = new URL(request.url);
-    if (url.pathname.endsWith(route)) seen.push(url);
+    if (url.pathname.endsWith(route) && !url.searchParams.has('filter[prompt_id]')) seen.push(url);
   });
   return seen;
 }
@@ -210,6 +210,8 @@ interface HarnessProps {
   /** The engines that are on; keep it stable between renders. */
   engines?: readonly EngineCode[];
   timeZone?: string;
+  /** What the page's Export button is handed. */
+  registerExport?: CitationTabContext['registerExport'];
 }
 
 /**
@@ -221,6 +223,7 @@ function Harness({
   onClear = () => undefined,
   engines = ENABLED,
   timeZone = 'UTC',
+  registerExport,
 }: HarnessProps): ReactElement {
   const { scope, range, setSearch } = useCitationScope(timeZone, engines);
   const filters = useMemo(() => toFilters(scope, range), [scope, range]);
@@ -241,6 +244,7 @@ function Harness({
     meta: strip,
     previousMeta: previous,
     setSearch,
+    registerExport,
     filterBar: {
       fields: FIELDS,
       values: values ?? fromAddress,
@@ -276,6 +280,19 @@ beforeEach(() => {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('viewer').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   servePages([ONE, TWO]);
   serveDomains([G2_DOMAIN, HUBSPOT_DOMAIN]);
+  // The no own page card above the table: every prompt has an own page here, so it reads two empty lists and says so
+  server.use(
+    http.get(mswPath(`${P}/ai/sources/prompts`), () =>
+      HttpResponse.json({
+        data: [],
+        page: { has_more: false, limit: 10, next_cursor: null },
+        meta: { window: META.window, include_branded: false, engine_codes: [...ENABLED] },
+      }),
+    ),
+    http.get(mswPath(`${P}/prompts`), () =>
+      HttpResponse.json({ data: [], page: { has_more: false, limit: 200, next_cursor: null } }),
+    ),
+  );
   // The one entity "Cited with" names
   server.use(
     http.get(mswPath(`${P}/entities`), () =>
@@ -713,6 +730,37 @@ describe('PagesTab', () => {
     expect(pages).toHaveLength(0);
     expect(domains).toHaveLength(0);
     expect(screen.queryByRole('grid', { name: 'Cited pages' })?.getAttribute('aria-busy')).toBe('true');
+  });
+
+  it('shows the prompts with no own page above the table', async () => {
+    renderTab();
+    const card = await screen.findByRole('region', { name: 'Prompts with no own page cited' });
+    const table = await grid();
+    expect(card.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('hands the page its listed rows and the total of the scope for the export, and takes them back on leaving', async () => {
+    const register = vi.fn();
+    const { unmount } = renderTab('', {}, { registerExport: register });
+    await loaded();
+    await waitFor(() =>
+      expect(register).toHaveBeenLastCalledWith({ rows: { tab: 'pages', rows: [ONE, TWO] }, total: 2, meta: META }),
+    );
+    // Never rows of a scope that is still being read
+    expect(register.mock.calls[0]?.[0]).toBeNull();
+    unmount();
+    expect(register).toHaveBeenLastCalledWith(null);
+  });
+
+  it('hands over the rows the search leaves, of the total the scope has', async () => {
+    servePages([ONE, TWO], { total: 40 });
+    const register = vi.fn();
+    const { user } = renderTab('', {}, { registerExport: register });
+    await loaded();
+    await user.type(screen.getByRole('searchbox', { name: 'Search in table' }), 'hubspot');
+    await waitFor(() =>
+      expect(register).toHaveBeenLastCalledWith({ rows: { tab: 'pages', rows: [TWO] }, total: 40, meta: META }),
+    );
   });
 
   it.each(['default', 'compact'])('is axe clean at %s density', async (density) => {

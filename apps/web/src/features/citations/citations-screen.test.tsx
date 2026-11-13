@@ -394,6 +394,21 @@ describe('Citations page', () => {
     Reflect.deleteProperty(navigator, 'clipboard');
   });
 
+  it('has Export CSV in the header, disabled with its reason until the tab has rows', async () => {
+    render();
+    const button = await screen.findByRole('button', { name: 'Export CSV' });
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    expect(button).toHaveAccessibleDescription('The rows are not loaded.');
+  });
+
+  it('turns Export CSV on when the tab that is shown has loaded its rows', async () => {
+    registry.real = true;
+    render('?tab=pages');
+    const button = await screen.findByRole('button', { name: 'Export CSV' });
+    await screen.findByRole('grid', { name: 'Cited pages' });
+    await waitFor(() => expect(button).not.toHaveAttribute('aria-disabled', 'true'));
+  });
+
   it('a saved view preset writes its keys and Reset restores them', async () => {
     const writes: string[] = [];
     const { user } = render('', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });

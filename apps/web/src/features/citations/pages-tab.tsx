@@ -12,7 +12,10 @@ import {
   resolveTableStatus,
 } from './citation-table-states';
 import type { CitationTabContext } from './citation-tabs';
+import type { ExportSource } from './citations-export';
+import { useRegisterExport } from './export-button';
 import { MinSupportSelect } from './min-support-select';
+import { NoOwnPage } from './no-own-page';
 import { pageRowId, usePageColumns } from './page-columns';
 import { SortSelect } from './sort-select';
 import { DataTable } from '@/components/app/data-table/data-table';
@@ -140,8 +143,17 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
     meta,
   });
 
+  // The page's Export button gets the rows listed, never the last scope's rows that stand in while a new one is read
+  const exportSource = useMemo(
+    (): ExportSource | null =>
+      meta === undefined || read.isPlaceholderData ? null : { rows: { tab: 'pages', rows: listed }, total, meta },
+    [meta, read.isPlaceholderData, listed, total],
+  );
+  useRegisterExport(context.registerExport, exportSource);
+
   return (
     <>
+      <NoOwnPage context={context} />
       <CitationTableNotes
         meta={meta}
         compare={scope.compare}
