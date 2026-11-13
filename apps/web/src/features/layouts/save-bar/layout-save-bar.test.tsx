@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useCustomize } from '../customize/customize-controller';
+import { useLayoutScreen } from '../layout-provider';
 import { LIVE_REGION_ID } from '@/lib/a11y/announcer';
 import { SCREENS, type LayoutDocument } from '@/lib/layouts';
 import {
@@ -14,6 +15,7 @@ import {
   startCustomizing,
   stateOf,
   stubViewport,
+  type ServedLayouts,
 } from '@/test/customize-harness';
 import { gate } from '@/test/gate';
 import { renderWithProviders } from '@/test/render';
@@ -57,19 +59,38 @@ async function edit(user: User, times = 1, total = times): Promise<void> {
 
 /** Shows the conflict state of the controller, which the dialog of the next task renders. */
 function ConflictProbe(): ReactElement {
-  const { conflict } = useCustomize();
-  return <p data-testid="conflict">{conflict ?? 'none'}</p>;
+  const { conflict, conflictPending, dismissConflict, resolveConflict } = useCustomize();
+  return (
+    <div>
+      <p data-testid="conflict">{conflict ?? 'none'}</p>
+      <p data-testid="pending">{conflictPending ?? 'none'}</p>
+      <button type="button" onClick={dismissConflict}>
+        Dismiss dialog
+      </button>
+      <button type="button" onClick={resolveConflict}>
+        Resolve conflict
+      </button>
+    </div>
+  );
 }
 
+/** The cards and numbers of the draft that renders, by id. */
+function DraftProbe(): ReactElement {
+  const { document: draft } = useLayoutScreen();
+  const ids = (items: readonly { id: string }[] | undefined): string => (items ?? []).map((item) => item.id).join(',');
+  return <p data-testid="draft">{`cards ${ids(draft.cards)} numbers ${ids(draft.numbers)}`}</p>;
+}
+
+const TEAM: LayoutDocument = { schema: 1, numbers: [], cards: [{ id: 't1', type: 'ai.by_engine', width: 'full' }] };
+
 /** A personal layout (the built-in one) over a team default that differs from it. */
-function personalOverTeam(): void {
-  const team: LayoutDocument = { schema: 1, numbers: [], cards: [{ id: 't1', type: 'ai.by_engine', width: 'full' }] };
-  serveLayouts({
+function personalOverTeam(): ServedLayouts {
+  return serveLayouts({
     layout: {
       source: 'personal',
       document: SCREENS.overview.builtin,
       team_default_exists: true,
-      team_document: team,
+      team_document: TEAM,
     },
   });
 }
@@ -180,18 +201,127 @@ describe('LayoutSaveBar', () => {
     });
   });
 
-  it('opens the conflict state on a 412 and keeps the draft', async () => {
-    serveLayouts({ putStatus: 412 });
-    const { user } = renderWithProviders(<ScreenUnderTest extra={<ConflictProbe />} />);
+  it('clears the failure line when the mode ends', async () => {
+    serveLayouts({ putStatus: 500 });
+    const { user } = renderWithProviders(<ScreenUnderTest />);
     await startCustomizing(user);
-    expect(screen.getByTestId('conflict')).toHaveTextContent('none');
     await edit(user);
     await user.click(control('Save layout', '1 change'));
+    await screen.findByText(FAILED);
+    await user.click(control('Cancel', '1 change'));
+    const dialog = await screen.findByRole('alertdialog', { name: DISCARD_TITLE });
+    await user.click(within(dialog).getByRole('button', { name: 'Discard changes' }));
     await waitFor(() => {
-      expect(screen.getByTestId('conflict')).toHaveTextContent('personal');
+      expect(stateOf()).toBe('view 0');
     });
-    expect(stateOf()).toBe('customize 1');
+    await user.click(customizeButton());
+    await waitFor(() => {
+      expect(stateOf()).toBe('customize 0');
+    });
     expect(failure()).toBeNull();
+  });
+
+  describe('after a 412', () => {
+    const conflictOf = (): string => screen.getByTestId('conflict').textContent ?? '';
+    const pendingOf = (): string => screen.getByTestId('pending').textContent ?? '';
+
+    /** Customize mode with one change, saved once and answered with a 412. */
+    async function conflicted(): Promise<{ user: User; served: ServedLayouts }> {
+      const served = serveLayouts({ putStatus: 412 });
+      const { user } = renderWithProviders(<ScreenUnderTest extra={<ConflictProbe />} />);
+      await startCustomizing(user);
+      expect(conflictOf()).toBe('none');
+      await edit(user);
+      await user.click(control('Save layout', '1 change'));
+      await waitFor(() => {
+        expect(conflictOf()).toBe('personal');
+      });
+      return { user, served };
+    }
+
+    it('opens the conflict state, keeps the draft and the mode, and shows no failure line', async () => {
+      await conflicted();
+      expect(pendingOf()).toBe('personal');
+      expect(stateOf()).toBe('customize 1');
+      expect(failure()).toBeNull();
+    });
+
+    it('never sends a second save: the next Save asks the question again, even when the draft was edited', async () => {
+      const { user, served } = await conflicted();
+      expect(served.puts).toHaveLength(1);
+      await user.click(control('Save layout', '1 change'));
+      expect(conflictOf()).toBe('personal');
+      await user.click(screen.getByRole('button', { name: 'Dismiss dialog' }));
+      expect(conflictOf()).toBe('none');
+      expect(pendingOf()).toBe('personal');
+      await user.click(within(box()).getByRole('button', { name: 'Edit' }));
+      await user.click(control('Save layout', '2 changes'));
+      await waitFor(() => {
+        expect(conflictOf()).toBe('personal');
+      });
+      expect(served.puts).toHaveLength(1);
+      expect(stateOf()).toBe('customize 2');
+    });
+
+    it('saves again once the conflict is resolved', async () => {
+      const { user, served } = await conflicted();
+      await user.click(screen.getByRole('button', { name: 'Resolve conflict' }));
+      expect(conflictOf()).toBe('none');
+      expect(pendingOf()).toBe('none');
+      await user.click(control('Save layout', '1 change'));
+      await waitFor(() => {
+        expect(served.puts).toHaveLength(2);
+      });
+    });
+
+    it('forgets the conflict when the mode ends', async () => {
+      const { user } = await conflicted();
+      await user.click(control('Cancel', '1 change'));
+      const dialog = await screen.findByRole('alertdialog', { name: DISCARD_TITLE });
+      await user.click(within(dialog).getByRole('button', { name: 'Discard changes' }));
+      await waitFor(() => {
+        expect(stateOf()).toBe('view 0');
+      });
+      expect(conflictOf()).toBe('none');
+      expect(pendingOf()).toBe('none');
+    });
+  });
+
+  it('gives the scope line the full text as a title, since it may be cut short', async () => {
+    const { user } = renderWithProviders(<ScreenUnderTest />);
+    await startCustomizing(user);
+    expect(within(bar('No changes')).getByText(SCOPE)).toHaveAttribute('title', SCOPE);
+  });
+
+  it('gives the differs line the full text as a title too', async () => {
+    personalOverTeam();
+    const { user } = renderWithProviders(<ScreenUnderTest />);
+    await startCustomizing(user);
+    expect(within(bar('No changes')).getByText(DIFFERS)).toHaveAttribute('title', DIFFERS);
+  });
+
+  describe('keeping the focus clear of the bar', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('reserves the height of the bar at the bottom of the scrolling page while the mode is on', async () => {
+      const measure = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        return { height: this.dataset.slot === 'layout-save-bar' ? 56 : 0 } as DOMRect;
+      });
+      const { user } = renderWithProviders(<ScreenUnderTest />);
+      await loaded();
+      expect(document.documentElement.style.scrollPaddingBottom).toBe('');
+      await startCustomizing(user);
+      expect(document.documentElement.style.scrollPaddingBottom).toBe('56px');
+      await user.click(customizeButton());
+      await waitFor(() => {
+        expect(document.documentElement.style.scrollPaddingBottom).toBe('');
+      });
+      measure.mockRestore();
+    });
   });
 
   it('is not rendered when the screen asks for no save bar', async () => {
@@ -209,6 +339,7 @@ describe('Reset to default', () => {
   });
 
   it('replaces the draft with the default and announces it, saving nothing', async () => {
+    const served = serveLayouts();
     const { user } = renderWithProviders(<ScreenUnderTest />);
     await startCustomizing(user);
     await edit(user, 2);
@@ -218,17 +349,23 @@ describe('Reset to default', () => {
     });
     expect(polite()).toHaveTextContent('Layout reset to the default. Save to keep it.');
     expect(isDisabled(control('Reset to default', 'No changes'))).toBe(true);
+    expect(served.puts).toEqual([]);
+    expect(served.deletes).toEqual([]);
   });
 
   it('goes back to the team default, not the built-in layout, when one exists', async () => {
-    personalOverTeam();
-    const { user } = renderWithProviders(<ScreenUnderTest />);
+    const served = personalOverTeam();
+    const { user } = renderWithProviders(<ScreenUnderTest extra={<DraftProbe />} />);
     await startCustomizing(user);
+    expect(screen.getByTestId('draft')).not.toHaveTextContent('cards t1 numbers');
     expect(isDisabled(control('Reset to default', 'No changes'))).toBe(false);
     await user.click(control('Reset to default', 'No changes'));
     await waitFor(() => {
-      expect(stateOf()).toMatch(/^customize [1-9]/);
+      expect(screen.getByTestId('draft').textContent).toBe('cards t1 numbers ');
     });
+    expect(stateOf()).toMatch(/^customize [1-9]/);
+    expect(served.puts).toEqual([]);
+    expect(served.deletes).toEqual([]);
   });
 });
 

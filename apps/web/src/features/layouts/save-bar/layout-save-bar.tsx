@@ -2,7 +2,7 @@
 
 import { Redo2, Undo2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useId, type ReactElement } from 'react';
+import { useId, useLayoutEffect, useRef, type ReactElement, type RefObject } from 'react';
 
 import { useCustomize } from '../customize/customize-controller';
 import { useLayoutScreen } from '../layout-provider';
@@ -28,6 +28,40 @@ const VARIANT_CLASS = {
   drawer: 'px-4',
 } as const satisfies Record<NonNullable<LayoutSaveBarProps['variant']>, string>;
 
+/** The element the page scrolls in: the nearest ancestor that scrolls, else the document. */
+function scrollerOf(node: HTMLElement): HTMLElement {
+  for (let parent = node.parentElement; parent !== null; parent = parent.parentElement) {
+    const { overflowY } = getComputedStyle(parent);
+    if (overflowY === 'auto' || overflowY === 'scroll') return parent;
+  }
+  return document.documentElement;
+}
+
+/**
+ * Keeps what has focus out from under a bar that is pinned to the bottom (WCAG 2.4.11): while the bar is shown,
+ * the scroller reserves the bar's height, so a control reached by Tab or by `focus()` scrolls to just above it.
+ * The height is read from the bar, so a bar that wraps to two rows reserves two.
+ */
+function useReserveBarHeight(bar: RefObject<HTMLElement | null>, enabled: boolean): void {
+  useLayoutEffect(() => {
+    const node = bar.current;
+    if (!enabled || node === null) return undefined;
+    const scroller = scrollerOf(node);
+    const before = scroller.style.scrollPaddingBottom;
+    const reserve = (): void => {
+      scroller.style.scrollPaddingBottom = `${String(node.getBoundingClientRect().height)}px`;
+    };
+    reserve();
+    // jsdom and old browsers have no ResizeObserver: the height read once is what they get
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(reserve);
+    observer?.observe(node);
+    return () => {
+      observer?.disconnect();
+      scroller.style.scrollPaddingBottom = before;
+    };
+  }, [bar, enabled]);
+}
+
 /**
  * The bar of customize mode (docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md, T5): how many
  * changes the draft has, Undo and Redo, what the layout applies to, and the ways out: Reset to default, Cancel
@@ -38,12 +72,22 @@ export function LayoutSaveBar({ variant = 'page' }: LayoutSaveBarProps): ReactEl
   const t = useTranslations('layouts.customize');
   const countId = useId();
   const { mode, document, defaultDocument, resolved, changes, canUndo, canRedo, saving, actions } = useLayoutScreen();
-  const { requestExit, saveError, setSaveError, setConflict } = useCustomize();
-  if (mode !== 'customize') return null;
+  const { requestExit, saveError, setSaveError, conflictPending, setConflict } = useCustomize();
+  const barRef = useRef<HTMLDivElement>(null);
+  const customizing = mode === 'customize';
+  useReserveBarHeight(barRef, customizing && variant === 'page');
+  if (!customizing) return null;
 
   const differs = resolved.source === 'personal' && resolved.teamDefaultExists;
+  const scope = differs ? t('saveBar.differs') : t('saveBar.scope');
 
   const save = async (): Promise<void> => {
+    // A write met a changed layout and has not been answered: the API has read that layout again, so another
+    // save would send its fresh ETag and overwrite it without asking. Ask again instead.
+    if (conflictPending !== null) {
+      setConflict(conflictPending);
+      return;
+    }
     setSaveError(false);
     const outcome = await actions.save();
     if (outcome.kind === 'failed') setSaveError(true);
@@ -53,6 +97,7 @@ export function LayoutSaveBar({ variant = 'page' }: LayoutSaveBarProps): ReactEl
 
   return (
     <div
+      ref={barRef}
       role="group"
       aria-labelledby={countId}
       data-slot="layout-save-bar"
@@ -88,10 +133,19 @@ export function LayoutSaveBar({ variant = 'page' }: LayoutSaveBarProps): ReactEl
           }}
         />
       </span>
-      <span className="hidden min-w-0 truncate type-meta lg:block">
-        {differs ? t('saveBar.differs') : t('saveBar.scope')}
+      {/* Takes what is left of the row, so the bar stays one row; the full text is the title when it is cut. The
+          two lines of the differs line are 40 px: the negative margin keeps them inside the bar's own height. */}
+      <span
+        title={scope}
+        className={cn(
+          'hidden min-w-0 flex-1 type-meta',
+          differs ? 'lg:-my-0.5 lg:line-clamp-2' : 'lg:block lg:truncate',
+        )}
+      >
+        {scope}
       </span>
-      <span className="ml-auto flex items-center gap-2">
+      {/* A narrowed window (customize mode starts at 768 px) may not fit the actions, the team menu included */}
+      <span className="ml-auto flex shrink-0 items-center justify-end gap-2 max-md:max-w-full max-md:flex-wrap">
         <Button
           variant="ghost"
           disabled={saving || sameLayout(document, defaultDocument)}

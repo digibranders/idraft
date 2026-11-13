@@ -40,8 +40,23 @@ export interface ServeOptions {
   layout?: Record<string, unknown>;
 }
 
-/** The layout routes: every screen reads as the built-in layout, and a save is accepted. */
-export function serveLayouts({ read = 'ok', holdSave, putStatus = 200, layout = {} }: ServeOptions = {}): void {
+/** What the layout routes were asked to write: one entry per request, so a test can say that none was sent. */
+export interface ServedLayouts {
+  puts: string[];
+  deletes: string[];
+}
+
+/**
+ * The layout routes: every screen reads as the built-in layout, and a save is accepted. Gives back the log of
+ * the writes the routes received (a later `serveLayouts` call has its own log).
+ */
+export function serveLayouts({
+  read = 'ok',
+  holdSave,
+  putStatus = 200,
+  layout = {},
+}: ServeOptions = {}): ServedLayouts {
+  const served: ServedLayouts = { puts: [], deletes: [] };
   server.use(
     http.get(mswPath(LAYOUTS), ({ params }) => {
       if (read === 'error') {
@@ -66,7 +81,8 @@ export function serveLayouts({ read = 'ok', holdSave, putStatus = 200, layout = 
         { headers: { etag: '"e1"' } },
       );
     }),
-    http.put(mswPath(PERSONAL), async ({ params }) => {
+    http.put(mswPath(PERSONAL), async ({ params, request }) => {
+      served.puts.push(request.headers.get('if-match') ?? '');
       if (holdSave !== undefined) await holdSave;
       if (putStatus !== 200) {
         return HttpResponse.json(
@@ -94,13 +110,17 @@ export function serveLayouts({ read = 'ok', holdSave, putStatus = 200, layout = 
         { headers: { etag: '"p1"' } },
       );
     }),
-    http.delete(mswPath(PERSONAL), () => new HttpResponse(null, { status: 204 })),
+    http.delete(mswPath(PERSONAL), () => {
+      served.deletes.push('personal');
+      return new HttpResponse(null, { status: 204 });
+    }),
     // Removing the team default is a write that can be under way while the screen is in view mode
     http.delete(mswPath(`${LAYOUTS}/default`), async () => {
       if (holdSave !== undefined) await holdSave;
       return new HttpResponse(null, { status: 204 });
     }),
   );
+  return served;
 }
 
 /** A window of `widthRem` rem that a test can resize: `matchMedia` answers `(width >= Nrem)` from it. */

@@ -264,7 +264,8 @@ function ScreenProvider({ screen, workspaceId, capabilities, registry, children 
 
   const actions = useMemo<LayoutActions>(() => {
     const edit = (next: LayoutDocument, focus?: FocusRequest): boolean => {
-      if (live.current.draft === null || next === live.current.draft) return false;
+      // A write is putting the draft as it was: an edit now would be lost when the write ends the mode
+      if (live.current.draft === null || writing.current !== null || next === live.current.draft) return false;
       send({ type: 'edit', next, focus });
       return true;
     };
@@ -417,13 +418,13 @@ function ScreenProvider({ screen, workspaceId, capabilities, registry, children 
         return true;
       },
       undo: () => {
-        if (live.current.past.length === 0) return false;
+        if (live.current.past.length === 0 || writing.current !== null) return false;
         send({ type: 'undo' });
         say.undone();
         return true;
       },
       redo: () => {
-        if (live.current.future.length === 0) return false;
+        if (live.current.future.length === 0 || writing.current !== null) return false;
         send({ type: 'redo' });
         say.redone();
         return true;

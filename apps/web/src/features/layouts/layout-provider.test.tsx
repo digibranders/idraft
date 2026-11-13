@@ -972,6 +972,39 @@ describe('saving the personal layout', () => {
     expect(puts).toBe(1);
   });
 
+  it('ignores an edit, an undo and a reset made while a save is under way, and says nothing', async () => {
+    serve();
+    const answer = gate();
+    server.use(
+      http.put(PERSONAL, async () => {
+        await answer.wait;
+        return HttpResponse.json({ data: { ...BUILTIN_LAYOUT, source: 'personal' } }, { headers: { etag: '"p1"' } });
+      }),
+    );
+    mount();
+    await customizing();
+    run(() => current().actions.hideCard('matrix'));
+    const { actions } = current();
+    let pending: Promise<SaveOutcome> | undefined;
+    act(() => {
+      pending = actions.save();
+    });
+    await waitFor(() => {
+      expect(current().saving).toBe(true);
+    });
+    const before = polite();
+    expect(run(() => actions.hideCard('competitors'))).toBe(false);
+    expect(run(() => actions.undo())).toBe(false);
+    expect(run(() => actions.replaceDraft(current().defaultDocument, 'Reset'))).toBe(false);
+    expect(cardIds()).not.toContain('matrix');
+    expect(cardIds()).toContain('competitors');
+    expect(polite()).toBe(before);
+    answer.open();
+    expect(await runAsync(() => pending ?? Promise.reject(new Error('no save'))).then((outcome) => outcome.kind)).toBe(
+      'saved',
+    );
+  });
+
   it('counts the re-read of "Keep mine" as saving, and puts once when it is pressed twice', async () => {
     const served = serve();
     mount();

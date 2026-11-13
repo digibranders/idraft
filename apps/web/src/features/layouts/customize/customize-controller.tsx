@@ -54,11 +54,22 @@ export interface CustomizeContextValue {
   saveError: boolean;
   setSaveError(failed: boolean): void;
   /**
-   * Which write met a layout that was changed somewhere else, null when none did. The conflict dialog reads it;
-   * it clears with the mode.
+   * Which write met a layout that was changed somewhere else, null while its question is not on screen. The
+   * conflict dialog is open exactly while this is set.
    */
   conflict: ConflictKind | null;
-  setConflict(kind: ConflictKind | null): void;
+  /**
+   * The conflict that has not been answered yet. It stays set when the dialog is dismissed, because the API has
+   * already re-read the layout: a plain save would now send the fresh ETag and overwrite the other version
+   * without asking. No save is sent while it is set; asking again is `setConflict(conflictPending)`.
+   */
+  conflictPending: ConflictKind | null;
+  /** A write met a conflict: opens the question and holds every save until it is answered. */
+  setConflict(kind: ConflictKind): void;
+  /** The dialog closes without an answer (Escape): the conflict stays pending, so Save asks again. */
+  dismissConflict(): void;
+  /** The question was answered (Keep mine, Load the other version): clears both. The mode ending does too. */
+  resolveConflict(): void;
 }
 
 /** The personal layout or the team default: what "Keep mine" writes again. */
@@ -113,7 +124,10 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
   const [catalog, setCatalog] = useState({ open: false, index: 0 });
   // The draft a failed save was sent with: the failure holds only while the draft is that one
   const [failedDraft, setFailedDraft] = useState<LayoutDocument | null>(null);
-  const [conflict, setConflict] = useState<ConflictKind | null>(null);
+  const [conflictState, setConflictState] = useState<{ open: ConflictKind | null; pending: ConflictKind | null }>({
+    open: null,
+    pending: null,
+  });
 
   // What the callbacks below read: the state of the last render, so they can stay the same function
   const live = useRef({ customizing, layout, dirty, saving, canCustomize, actions });
@@ -124,7 +138,7 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
   // The question belongs to the mode: it goes with it
   if (!customizing && discard !== null) setDiscard(null);
   if (!customizing && catalog.open) setCatalog((current) => ({ ...current, open: false }));
-  if (!customizing && conflict !== null) setConflict(null);
+  if (!customizing && conflictState.pending !== null) setConflictState({ open: null, pending: null });
   if (failedDraft !== null && (!customizing || failedDraft !== layout)) setFailedDraft(null);
 
   const requestExit = useCallback((then?: () => void): void => {
@@ -216,6 +230,15 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
   const setSaveError = useCallback((failed: boolean): void => {
     setFailedDraft(failed ? live.current.layout : null);
   }, []);
+  const setConflict = useCallback((kind: ConflictKind): void => {
+    setConflictState({ open: kind, pending: kind });
+  }, []);
+  const dismissConflict = useCallback((): void => {
+    setConflictState((current) => ({ ...current, open: null }));
+  }, []);
+  const resolveConflict = useCallback((): void => {
+    setConflictState({ open: null, pending: null });
+  }, []);
 
   // Escape leaves the mode. A card in the hand, a menu and a dialog keep the key for themselves
   useShortcut(
@@ -243,10 +266,25 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
       openCatalog,
       saveError,
       setSaveError,
-      conflict,
+      conflict: conflictState.open,
+      conflictPending: conflictState.pending,
       setConflict,
+      dismissConflict,
+      resolveConflict,
     }),
-    [workspaceName, enter, requestExit, registerEntry, openCatalog, saveError, setSaveError, conflict],
+    [
+      workspaceName,
+      enter,
+      requestExit,
+      registerEntry,
+      openCatalog,
+      saveError,
+      setSaveError,
+      conflictState,
+      setConflict,
+      dismissConflict,
+      resolveConflict,
+    ],
   );
 
   return (
