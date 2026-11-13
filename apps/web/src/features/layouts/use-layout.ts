@@ -39,7 +39,7 @@ export interface UseLayoutResult {
  * The layout of a screen and the four writes of contract C12a. A save puts the API's answer (with its new
  * `ETag`) into the cache; a removal, and any `412`, read the layout again, and the write settles only once that
  * read is in, so a caller that retries sends the fresh `ETag`. `refetch: false` (customize mode) turns off the
- * refetch on window focus, so a draft is never compared with a layout that moved under it.
+ * refetch on window focus and on reconnect, so a draft never gets the `ETag` of a layout that moved under it.
  */
 export function useLayout(workspaceId: string, screen: ScreenKey, options?: { refetch: boolean }): UseLayoutResult {
   const queryClient = useQueryClient();
@@ -48,6 +48,7 @@ export function useLayout(workspaceId: string, screen: ScreenKey, options?: { re
     queryKey: key,
     queryFn: ({ signal }) => fetchLayout(api, workspaceId, screen, signal),
     refetchOnWindowFocus: options?.refetch ?? true,
+    refetchOnReconnect: options?.refetch ?? true,
   });
   const keep = (read: LayoutRead): void => {
     queryClient.setQueryData(key, read);

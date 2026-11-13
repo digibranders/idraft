@@ -152,6 +152,25 @@ describe('useLayout reading', () => {
     });
     expect(focusOf(second.queryClient)).toBe(false);
   });
+
+  it('refetches on reconnect unless the caller turns it off, so a draft keeps the ETag it started from', async () => {
+    serve();
+    const first = harness(<Probe />);
+    await waitFor(() => {
+      expect(current().query.isSuccess).toBe(true);
+    });
+    const key = layoutQueryKey(WORKSPACE, 'overview');
+    const reconnectOf = (client: typeof first.queryClient): unknown =>
+      client.getQueryCache().find({ queryKey: key })?.observers[0]?.options.refetchOnReconnect;
+    expect(reconnectOf(first.queryClient)).not.toBe(false);
+    first.unmount();
+
+    const second = harness(<Probe refetch={false} />);
+    await waitFor(() => {
+      expect(current().query.isSuccess).toBe(true);
+    });
+    expect(reconnectOf(second.queryClient)).toBe(false);
+  });
 });
 
 describe('useLayout writing', () => {
