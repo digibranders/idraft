@@ -743,8 +743,11 @@ class WeekCells(BaseModel):
     entities: list[EntityCells] | None = Field(
         default=None,
         exclude_if=_absent,
-        description="With `include=series,entities`: the week's cells per tracked entity, "
-        "weighted as the week's own (at most 20). " + _NOT_RETURNED,
+        description="With `include=series,entities`: the cells of each tracked entity of the "
+        "engine's `entities` (the own ones first, at most 20) over the weeks the point holds: "
+        "its own week, or, when `is_pooled`, the weeks of `pool`. Weighted as the point's own "
+        "cells are: Mentioned prompt weighted in a topic, total or country row. Has no "
+        "`previous`. Left out otherwise.",
     )
 
 

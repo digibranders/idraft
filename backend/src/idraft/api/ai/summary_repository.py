@@ -319,6 +319,30 @@ async def counts_by_prompt(
     return {(row.prompt_id, row.engine_code): _counts(row) for row in rows}
 
 
+def _weekly_facts(
+    workspace_id: UUID,
+    project_id: UUID,
+    prompt_ids: Collection[UUID],
+    since: datetime,
+    until: datetime,
+    engine_codes: Sequence[str] | None,
+    timezone: str,
+) -> Any:
+    """The fact rows of the window with their week: a Monday at midnight in the project's
+    timezone. The week is a column of this subquery, so that a read can group by it (see
+    `weekly_counts`)."""
+    return (
+        select(
+            ai_observation_facts,
+            cast(func.date_trunc("week", func.timezone(timezone, _F.observed_at)), Date).label(
+                "week_start"
+            ),
+        )
+        .where(*_window(workspace_id, project_id, prompt_ids, since, until, engine_codes))
+        .subquery()
+    )
+
+
 async def weekly_counts(
     db: AsyncSession,
     workspace_id: UUID,
@@ -337,15 +361,8 @@ async def weekly_counts(
     would be a second parameter, which PostgreSQL reads as a different expression."""
     if not prompt_ids:
         return {}
-    facts = (
-        select(
-            ai_observation_facts,
-            cast(func.date_trunc("week", func.timezone(timezone, _F.observed_at)), Date).label(
-                "week_start"
-            ),
-        )
-        .where(*_window(workspace_id, project_id, prompt_ids, since, until, engine_codes))
-        .subquery()
+    facts = _weekly_facts(
+        workspace_id, project_id, prompt_ids, since, until, engine_codes, timezone
     )
     c = facts.c
     rows = await db.execute(
@@ -375,30 +392,54 @@ async def entity_counts(
     row's own share. The caller may ask for fewer entities than the answer names."""
     if not prompt_ids or not entity_ids:
         return {}
-    m = ai_entity_mentions.c
     rows = await db.execute(
+        _named(
+            ai_observation_facts,
+            _F,
+            [_F.prompt_id, _F.engine_code],
+            project_id,
+            entity_ids,
+            since,
+            until,
+        ).where(*_window(workspace_id, project_id, prompt_ids, since, until, engine_codes))
+    )
+    return {(row.prompt_id, row.engine_code, row.entity_id): _entity_counts(row) for row in rows}
+
+
+def _named(
+    facts: Any,
+    c: Any,
+    keys: Sequence[Any],
+    project_id: UUID,
+    entity_ids: Collection[UUID],
+    since: datetime,
+    until: datetime,
+) -> Any:
+    """Per `keys` (columns of the fact rows `c`, the facts table or a subquery of all its columns
+    that `facts` is) and entity: the valid answers whose share of voice set holds the entity, and
+    its shares of them. The caller bounds the fact rows by the window."""
+    m = ai_entity_mentions.c
+    return (
         select(
-            _F.prompt_id,
-            _F.engine_code,
+            *keys,
             m.entity_id,
             func.count().label("mentioned"),
-            func.sum(cast(literal(1), Float) / _F.tracked_entities_mentioned).label("sov_share"),
+            func.sum(cast(literal(1), Float) / c.tracked_entities_mentioned).label("sov_share"),
         )
         .select_from(
-            ai_observation_facts.join(
+            facts.join(
                 ai_entity_mentions,
                 and_(
-                    m.observation_id == _F.observation_id,
-                    m.observed_at == _F.observed_at,
-                    m.derivation_id == _F.derivation_id,
-                    m.workspace_id == _F.workspace_id,
+                    m.observation_id == c.observation_id,
+                    m.observed_at == c.observed_at,
+                    m.derivation_id == c.derivation_id,
+                    m.workspace_id == c.workspace_id,
                 ),
             )
         )
         .where(
-            *_window(workspace_id, project_id, prompt_ids, since, until, engine_codes),
-            _F.is_valid,
-            _F.tracked_entities_mentioned >= 1,
+            c.is_valid,
+            c.tracked_entities_mentioned >= 1,
             m.project_id == project_id,
             m.is_current,
             # The mentions' own partitions, bounded by the same instants.
@@ -407,12 +448,48 @@ async def entity_counts(
             m.mention_order.is_not(None),
             m.entity_id.in_(list(entity_ids)),
         )
-        .group_by(_F.prompt_id, _F.engine_code, m.entity_id)
+        .group_by(*keys, m.entity_id)
+    )
+
+
+def _entity_counts(row: Any) -> EntityCounts:
+    return EntityCounts(mentioned=row.mentioned, sov_share=float(row.sov_share))
+
+
+async def weekly_entity_counts(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    prompt_ids: Collection[UUID],
+    entity_ids: Collection[UUID],
+    *,
+    since: datetime,
+    until: datetime,
+    engine_codes: Sequence[str] | None,
+    timezone: str,
+) -> dict[tuple[UUID, str, date, UUID], EntityCounts]:
+    """`entity_counts` by week too, the weeks being those of `weekly_counts` (worked out in a
+    subquery, for the reason given there), in one statement. Over the weeks, the entity counts of
+    the window are the sum of these."""
+    if not prompt_ids or not entity_ids:
+        return {}
+    facts = _weekly_facts(
+        workspace_id, project_id, prompt_ids, since, until, engine_codes, timezone
+    )
+    c = facts.c
+    rows = await db.execute(
+        _named(
+            facts,
+            c,
+            [c.prompt_id, c.engine_code, c.week_start],
+            project_id,
+            entity_ids,
+            since,
+            until,
+        )
     )
     return {
-        (row.prompt_id, row.engine_code, row.entity_id): EntityCounts(
-            mentioned=row.mentioned, sov_share=float(row.sov_share)
-        )
+        (row.prompt_id, row.engine_code, row.week_start, row.entity_id): _entity_counts(row)
         for row in rows
     }
 

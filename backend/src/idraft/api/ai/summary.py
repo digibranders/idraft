@@ -273,9 +273,24 @@ def sum_counts(parts: Sequence[Counts]) -> Counts:
     )
 
 
-def _week(week: date, prompts: int, pool: PointPool | None, cells: EngineCells) -> WeekCells:
+def sum_named(parts: Sequence[EntityCounts]) -> EntityCounts:
+    """One entity's counts for one prompt and engine over several weeks, added up."""
+    return EntityCounts(
+        mentioned=sum(part.mentioned for part in parts),
+        sov_share=sum(part.sov_share for part in parts),
+    )
+
+
+def _week(
+    week: date,
+    prompts: int,
+    pool: PointPool | None,
+    cells: EngineCells,
+    entities: list[EntityCells] | None,
+) -> WeekCells:
     """One point of a series, for the week starting `week`: the cells of its own week, or, with a
-    `pool`, those of the weeks it pools (C-10, C-11)."""
+    `pool`, those of the weeks it pools (C-10, C-11); `entities` the same weeks' cells per
+    entity, when they were asked for."""
     return WeekCells(
         week_start=week,
         prompts=prompts,
@@ -284,6 +299,7 @@ def _week(week: date, prompts: int, pool: PointPool | None, cells: EngineCells) 
         mentioned=cells.mentioned,
         cited=cells.cited,
         share_of_voice=cells.share_of_voice,
+        entities=entities,
     )
 
 
@@ -291,7 +307,8 @@ def _week(week: date, prompts: int, pool: PointPool | None, cells: EngineCells) 
 class _Read:
     """What the queries read, by prompt and engine. `entity_ids` is None unless the entity cells
     were asked for, `weeks` None unless the series was (`first` and `last` are then the days of
-    the window and `timezone` the project's, which a pooled point states), and `previous` None
+    the window and `timezone` the project's, which a pooled point states; `weekly_named` is the
+    entity counts by week, when the entity cells were asked for too), and `previous` None
     unless a window was compared with (`previous_named` is then its entity counts, when the
     entity cells were asked for)."""
 
@@ -300,6 +317,7 @@ class _Read:
     named: Mapping[tuple[UUID, str, UUID], EntityCounts] = field(default_factory=dict)
     weeks: Sequence[date] | None = None
     weekly: Mapping[tuple[UUID, str, date], Counts] = field(default_factory=dict)
+    weekly_named: Mapping[tuple[UUID, str, date, UUID], EntityCounts] = field(default_factory=dict)
     first: date = date.min
     last: date = date.max
     timezone: str = "UTC"
@@ -346,6 +364,45 @@ def _entity_cells(
     )
 
 
+def _week_entity(
+    code: str,
+    entity_id: UUID,
+    counts: Mapping[tuple[UUID, str], Counts],
+    weekly_named: Mapping[tuple[UUID, str, date, UUID], EntityCounts],
+    weeks: Sequence[date],
+    *,
+    topic: bool,
+) -> EntityCells:
+    """One entity's cells of a point of a series: over the `weeks` the point holds, which are
+    the weeks of its own cells (C-11). `counts` are the counts of the row's prompts over those
+    weeks, already added up; the entity's counts over them are added up here, the same way."""
+    named: dict[tuple[UUID, str, UUID], EntityCounts] = {}
+    for prompt, _ in counts:
+        held = [
+            weekly_named[key]
+            for w in weeks
+            if (key := (prompt, code, w, entity_id)) in weekly_named
+        ]
+        if held:
+            named[(prompt, code, entity_id)] = held[0] if len(held) == 1 else sum_named(held)
+    cells = _entity_cells(
+        code, entity_id, [prompt for prompt, _ in counts], counts, named, topic=topic
+    )
+    return EntityCells(
+        entity_id=entity_id, mentioned=cells.mentioned, share_of_voice=cells.share_of_voice
+    )
+
+
+def _window_named(
+    weekly_named: Mapping[tuple[UUID, str, date, UUID], EntityCounts],
+) -> dict[tuple[UUID, str, UUID], EntityCounts]:
+    """The entity counts of the whole window from those of its weeks."""
+    weeks: dict[tuple[UUID, str, UUID], list[EntityCounts]] = {}
+    for (prompt, code, _, entity_id), counts in weekly_named.items():
+        weeks.setdefault((prompt, code, entity_id), []).append(counts)
+    return {key: sum_named(held) for key, held in weeks.items()}
+
+
 def _engine_row(
     code: str, prompt_ids: Collection[UUID], read: _Read, *, topic: bool
 ) -> EngineSummary:
@@ -388,29 +445,42 @@ def _engine_row(
         )
 
     def point(week: date) -> WeekCells:
-        own = [read.weekly[(p, code, week)] for p in prompt_ids if (p, code, week) in read.weekly]
-        prompts = sum(1 for counts in own if counts.n_valid > 0)
-        if not pools(prompt_row=not topic, prompts=prompts):
-            return _week(week, prompts, None, cells(own))
-        # The pooled weeks are read from the weeks already read, clipped to the window: each
-        # prompt's counts over them are added first, then the cells are built as the row's are.
-        start, end, weeks = pool_window(week, read.first, read.last)
-        pooled_weeks = [week - timedelta(weeks=back) for back in range(weeks)]
-
-        def over_pool(prompt: UUID) -> list[Counts]:
-            keys = [(prompt, code, w) for w in pooled_weeks]
-            return [read.weekly[key] for key in keys if key in read.weekly]
-
-        members = [sum_counts(held) for held in map(over_pool, prompt_ids) if held]
-        pool = PointPool(
-            weeks=weeks,
-            window=MetricWindow(
-                from_=start.isoformat(), to=end.isoformat(), timezone=read.timezone
-            ),
-            reason="few_prompts" if topic else "prompt_point",
-            below_prompts=POOL_BELOW_PROMPTS,
+        prompts = sum(
+            1
+            for p in prompt_ids
+            if (counts := read.weekly.get((p, code, week))) is not None and counts.n_valid > 0
         )
-        return _week(week, prompts, pool, cells(members))
+        pool: PointPool | None = None
+        held_weeks = [week]
+        if pools(prompt_row=not topic, prompts=prompts):
+            # The pooled weeks are read from the weeks already read, clipped to the window.
+            start, end, weeks = pool_window(week, read.first, read.last)
+            held_weeks = [week - timedelta(weeks=back) for back in range(weeks)]
+            pool = PointPool(
+                weeks=weeks,
+                window=MetricWindow(
+                    from_=start.isoformat(), to=end.isoformat(), timezone=read.timezone
+                ),
+                reason="few_prompts" if topic else "prompt_point",
+                below_prompts=POOL_BELOW_PROMPTS,
+            )
+        # Each prompt's counts over the weeks the point holds are added first, then the cells are
+        # built as the row's are; the entity cells are built over the same counts (C-11).
+        members: dict[UUID, Counts] = {}
+        for prompt in prompt_ids:
+            held = [
+                read.weekly[key] for w in held_weeks if (key := (prompt, code, w)) in read.weekly
+            ]
+            if held:
+                members[prompt] = held[0] if len(held) == 1 else sum_counts(held)
+        entities = None
+        if read.entity_ids is not None:
+            by_prompt = {(prompt, code): counts for prompt, counts in members.items()}
+            entities = [
+                _week_entity(code, entity_id, by_prompt, read.weekly_named, held_weeks, topic=topic)
+                for entity_id in read.entity_ids
+            ]
+        return _week(week, prompts, pool, cells(list(members.values())), entities)
 
     return EngineSummary(
         engine_code=code,
@@ -596,11 +666,17 @@ class SummaryService:
                 if "entities" in query.include
                 else None
             )
-            named: Mapping[tuple[UUID, str, UUID], EntityCounts] = (
-                {}
-                if cell_ids is None
-                else await repository.entity_counts(db, ws, project_id, ids, cell_ids, **window)
-            )
+            # With the series, ONE statement reads the entity counts by week, and the window's
+            # are their sum; without it the window's are read alone.
+            weekly_named: Mapping[tuple[UUID, str, date, UUID], EntityCounts] = {}
+            named: Mapping[tuple[UUID, str, UUID], EntityCounts] = {}
+            if cell_ids is not None and weeks is not None:
+                weekly_named = await repository.weekly_entity_counts(
+                    db, ws, project_id, ids, cell_ids, **window, timezone=zone_row.timezone
+                )
+                named = _window_named(weekly_named)
+            elif cell_ids is not None:
+                named = await repository.entity_counts(db, ws, project_id, ids, cell_ids, **window)
             previous_named: Mapping[tuple[UUID, str, UUID], EntityCounts] = (
                 {}
                 if before is None or cell_ids is None
@@ -621,6 +697,7 @@ class SummaryService:
             named=named,
             weeks=weeks,
             weekly=weekly,
+            weekly_named=weekly_named,
             first=first,
             last=last,
             timezone=zone_row.timezone,

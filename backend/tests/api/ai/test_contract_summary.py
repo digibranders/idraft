@@ -12,6 +12,7 @@ from idraft.api.openapi import build_openapi
 from idraft.api.resources import Resources
 from idraft.api.schemas.ai import EngineSummary, EntityCells, WeekCells
 from tests.api.ai import test_prompts_summary
+from tests.api.ai.summary_support import day
 from tests.api.ai.support import ai_project
 from tests.api.ai.test_prompts_summary import Summary, _summary
 from tests.api.auth.support import make_workspace
@@ -305,8 +306,8 @@ async def test_the_defaults_and_the_built_options_answer_as_before(
         assert absent not in data
 
 
-@pytest.mark.parametrize("params", [{}, {"include": "series,entities"}], ids=str)
-async def test_the_additions_are_left_out_of_a_summary_that_does_not_build_them(
+@pytest.mark.parametrize("params", [{}, {"include": "series"}, {"include": "entities"}], ids=str)
+async def test_a_summary_leaves_out_the_blocks_it_was_not_asked_for(
     api: httpx.AsyncClient, seeded: Summary, params: dict[str, str]
 ) -> None:
     response = await _summary(seeded, api, **params)
@@ -317,13 +318,39 @@ async def test_the_additions_are_left_out_of_a_summary_that_does_not_build_them(
     assert engines
     for engine in engines:
         assert "previous" not in engine
+        # The cells per entity of a week need both `series` and `entities`.
         for point in engine.get("series", []):
             assert "entities" not in point
         for cells in engine.get("entities", []):
             assert "previous" not in cells
     if params:
         # Something is there to carry the nested keys, so their absence is not vacuous.
-        assert all(engine["series"] and engine["entities"] for engine in engines)
+        key = params["include"]
+        assert all(engine[key] for engine in engines)
+
+
+async def test_a_series_with_entities_has_the_cells_of_each_entity_in_every_week(
+    api: httpx.AsyncClient, seeded: Summary
+) -> None:
+    """`WeekCells.entities` is returned with `include=series,entities`, for the same entities as
+    the engine's cells, and with the cells but not the `previous` of an entity."""
+    response = await _summary(
+        seeded, api, include="series,entities", compare="previous_period", **{"from": day(2)}
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    engines = [engine for row in (*data["prompts"], *data["topics"]) for engine in row["engines"]]
+    assert engines
+    for engine in engines:
+        assert engine["series"]
+        assert all("previous" in cells for cells in engine["entities"])
+        for point in engine["series"]:
+            assert [c["entity_id"] for c in point["entities"]] == [
+                c["entity_id"] for c in engine["entities"]
+            ]
+            for cells in point["entities"]:
+                assert set(cells) == {"entity_id", "mentioned", "share_of_voice"}
 
 
 def _cell() -> dict[str, object]:
@@ -417,6 +444,10 @@ def test_the_api_document_has_the_summary_additions() -> None:
     assert {"prompts", "is_pooled"} <= set(schemas["WeekCells"]["required"])
     assert set(schemas["PointPool"]["required"]) == {"weeks", "window", "reason", "below_prompts"}
     assert schemas["PointPool"]["properties"]["reason"]["enum"] == ["prompt_point", "few_prompts"]
+    # The cells per entity of a week are built: no "not returned yet", and the weeks they hold.
+    week_entities = schemas["WeekCells"]["properties"]["entities"]["description"]
+    assert "Not returned yet" not in week_entities
+    assert "include=series,entities" in week_entities
 
     optional = {
         "EngineSummary": {"previous"},
