@@ -4373,13 +4373,16 @@
       "tip": {
         "previous": "Previous {rate}, {basis}",
         "previousAnswers": "Previous {rate}, {answers, plural, one {# answer} other {# answers}}",
+        "previousPrompts": "Previous {rate}, {basis}, over {count, plural, one {# prompt} other {# prompts}}",
         "average": "Average of {count, plural, one {# engine} other {# engines}} that have a rate in both periods",
+        "averageTest": "Average of {count, plural, one {# engine} other {# engines}} that have a rate in both periods, tested on pooled answers",
         "pooled": "test on the answers of those engines together",
         "prompts": "over {count, plural, one {# prompt} other {# prompts}}",
         "method": "unpaired, pooled counts"
       },
       "strip": {
-        "previousLabel": "Previous period, {range}"
+        "previousLabel": "Previous period, {range}",
+        "tip": "{tip} {change}."
       }
     },
     "citationsTab": {

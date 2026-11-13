@@ -3,13 +3,16 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
+import { ChangeInline, useChangeWords, useComparedWindow, useCompare } from './compare';
 import { CELL_OF_METRIC, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
 import { useRateWords } from './rate-view';
 import { col } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
+import { SENTENCE_BREAK } from '@/components/app/metric/delta';
 import { InsufficientPill } from '@/components/app/metric/insufficient-pill';
 import type { EngineSummary, ProjectEngine } from '@/lib/api/types';
-import { EMPTY_VALUE, formatList } from '@/lib/format';
+import { averageChangeOf, type RateChange } from '@/lib/compare/change-model';
+import { EMPTY_VALUE, formatDateRange, formatList } from '@/lib/format';
 import { averageRate, cellFigure, engineRatesOf, hasRate, topEngine, type AverageRate } from '@/lib/rates/rate-model';
 import type { RateReading } from '@/lib/rates/strip-model';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
@@ -59,9 +62,23 @@ export function useRateColumns<TRow>(
   const t = useTranslations('prompts.columns');
   const rate = useTranslations('prompts.rate');
   const words = useRateWords();
+  const changeWords = useChangeWords();
+  const { compare } = useCompare();
+  const comparedWindow = useComparedWindow();
   const locale = useLocale();
   return useMemo(() => {
     const codes = engines.map((engine) => engine.engine.engine_code);
+    const range = comparedWindow === null ? null : formatDateRange(comparedWindow.from, comparedWindow.to);
+    /** The change of the Mention rate average: only the engines with a rate in both periods take part (D4). */
+    const changeOf = (row: TRow): RateChange | null => averageChangeOf(cellsOf(row), codes, 'mentioned');
+    /** Why a row has no change while comparison is on: no engine has a previous period, or none has a rate in both. */
+    const gapOfChange = (row: TRow): string => {
+      const anyPrevious = cellsOf(row)?.some(
+        (cell) => codes.some((code) => code === cell.engine_code) && cell.previous != null,
+      );
+      if (anyPrevious !== true) return changeWords.gap('noPrevious');
+      return changeWords.gap(codes.length > 1 ? 'noEngineInBoth' : 'tooFew');
+    };
     const labelOf = (code: string): string =>
       engines.find((engine) => engine.engine.engine_code === code)?.engine.label ?? code;
     const withNote = (text: string): string => (note === undefined ? text : `${text}. ${note}`);
@@ -102,6 +119,7 @@ export function useRateColumns<TRow>(
               <span className="type-label text-foreground-tertiary">
                 {rate('avgLabel', { count: average.engines })}
               </span>
+              {metric === 'mentioned' && compare ? <ChangeInline change={changeOf(row)} size="sm" /> : null}
             </span>
           );
         },
@@ -122,15 +140,24 @@ export function useRateColumns<TRow>(
             counting.map(({ name }) => name),
             locale,
           );
+          const avgDetail =
+            counting.length === 1
+              ? rate('onlyTip', { engines: engineNames })
+              : rate('avgTip', { engines: engineNames });
+          // Every change shows what it rests on: the previous figure with its answers, the window and the test, or why none
+          const change = metric === 'mentioned' && compare ? changeOf(row) : null;
+          const changeText =
+            metric !== 'mentioned' || !compare
+              ? null
+              : change === null
+                ? gapOfChange(row)
+                : changeWords.tip(change, { kind: 'average', range });
           return {
             content: formatList(
               counting.map(({ name, count }) => t('engineCount', { engine: name, count })),
               locale,
             ),
-            detail:
-              counting.length === 1
-                ? rate('onlyTip', { engines: engineNames })
-                : rate('avgTip', { engines: engineNames }),
+            detail: changeText === null ? avgDetail : [avgDetail, changeText].join(SENTENCE_BREAK),
           };
         },
       };
@@ -170,7 +197,7 @@ export function useRateColumns<TRow>(
       citation: rateColumn(SORT_ID.citation, 'cited', t('citationRate'), t('citationRateTip')),
       topEngine: topColumn,
     };
-  }, [engines, cellsOf, note, t, rate, words, locale]);
+  }, [engines, cellsOf, note, t, rate, words, changeWords, compare, comparedWindow, locale]);
 }
 
 const HEADER_KEY = { mention: 'engineMention', citation: 'engineCitation', sov: 'engineShareOfVoice' } as const;

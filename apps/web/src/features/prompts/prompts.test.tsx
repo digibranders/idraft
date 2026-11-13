@@ -624,7 +624,8 @@ const FIRST_TEXT = 'Which SEO agency is best for a SaaS startup in Germany?';
 
 describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', () => {
   it('shows the Mention of each enabled engine as a percent with its count of valid answers, and only for enabled engines', async () => {
-    renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts' });
+    // Without a comparison: the change beside the Mention rate has its own tests (rate-columns.test.tsx)
+    renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts&cmp=off' });
     const table = await grid();
     expect(await within(table).findByRole('columnheader', { name: /^ChatGPT mention/ })).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: /^Gemini mention/ })).toBeInTheDocument();
@@ -2188,8 +2189,9 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     expect(within(third).getAllByText('2 answers')[0]).toHaveClass('bg-insufficient');
     // An equal weight percent gets the count of each engine, not a pooled count that would read as another rate
     const [, , , mention] = within(rowOf(table, 'Question number 1?')).getAllByRole('gridcell');
+    // This read has no previous period, so with comparison on the tip says why there is no change
     expect(mention).toHaveAccessibleDescription(
-      'ChatGPT 6 of 8 and Gemini 2 of 8 Equal weight average of ChatGPT and Gemini, each engine counting once',
+      'ChatGPT 6 of 8 and Gemini 2 of 8 Equal weight average of ChatGPT and Gemini, each engine counting once. No answers in the previous period',
     );
     expect(order(table)).toEqual(['Question number 2?', 'Question number 1?', 'Question number 3?']);
     expect(within(table).getByRole('columnheader', { name: /^Mention rate/ })).toHaveAttribute(
