@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T12:42:47+05:30",
+ "updated": "2026-11-13T13:07:35+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -587,7 +587,7 @@
     "done": 18
    },
    "owner": "",
-   "notes": "file work-packages/WP-14-sources-lane.md; estimate 8 tasks; decisions D-41 | steps 8/10, rows 18/21; T1-T7 incl O1 committed (backup on origin/ai/wp-14-sources-lane); next T8 fan-out topics, T9, T10 regeneration on top of WP-12 and WP-13"
+   "notes": "file work-packages/WP-14-sources-lane.md; estimate 8 tasks; decisions D-41 | steps 8/10, rows 18/21; T1-T7 reviewed (T6+T7 review passed, 11 of 17 weakenings caught), T8 fan-out topics running; O1 flagged citations built; backup on origin/ai/wp-14-sources-lane; then T9, T10 regeneration on top of WP-12 and WP-13"
   },
   {
    "id": "WP-15",
@@ -696,7 +696,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 0/15; plan on develop (parity table sec 2, WP-33 contract sec 5); customize button from 768 px like the preview"
+   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 1/15: T0 provider additions reviewed PASS (d6cd1c8a); T1 controller, Customize button, badge and header slot with an implementer"
   },
   {
    "id": "WP-17",
