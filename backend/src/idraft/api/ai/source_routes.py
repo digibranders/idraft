@@ -10,6 +10,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query
+from pydantic import AfterValidator
 
 from idraft.api.ai.sources import SourceQuery, SourceService
 from idraft.api.pagination import Commas, Cursor, Offset
@@ -33,6 +34,7 @@ from idraft.api.schemas.ai_sources import (
     SourcePagePage,
     SourceSort,
 )
+from idraft.api.schemas.common import printable
 from idraft.api.stubs import not_built, not_built_yet, refuse_unbuilt
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
@@ -212,8 +214,11 @@ async def source_domains(
     )
 
 
+# A control character (NUL included) would reach the database as text and answer 500.
+DomainText = Annotated[str, AfterValidator(printable)]
+
 RegistrableDomain = Annotated[
-    str | None,
+    DomainText | None,
     Query(
         alias="filter[registrable_domain]",
         min_length=1,
@@ -368,7 +373,7 @@ async def source_diversity(
 )
 async def source_domain(
     project_id: UUID,
-    registrable_domain: Annotated[str, Path(min_length=1, max_length=253)],
+    registrable_domain: Annotated[DomainText, Path(min_length=1, max_length=253)],
     access: ReadData,
     sources: Sources,
     scope: AnswerScope,

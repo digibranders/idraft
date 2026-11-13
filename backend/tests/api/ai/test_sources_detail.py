@@ -314,6 +314,15 @@ async def test_a_domain_not_cited_answers_empty_lists(api: httpx.AsyncClient, sc
     assert response.json()["meta"]["citation_units"] == 7
 
 
+@pytest.mark.parametrize("name", ["a%00b", "a%0ab", "a%7fb"])
+async def test_a_control_character_in_the_domain_is_refused(
+    api: httpx.AsyncClient, scene: Scene, name: str
+) -> None:
+    """The house rule (schemas.common): a control character, NUL included, is a 422 and never a
+    500 from the database."""
+    assert problem(await _detail(scene.world, api, name)) == (422, "validation_failed")
+
+
 async def test_a_domain_is_read_in_lower_case(api: httpx.AsyncClient, scene: Scene) -> None:
     data = _data(await _detail(scene.world, api, "Example.ORG"))
 

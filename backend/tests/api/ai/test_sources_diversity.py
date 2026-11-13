@@ -190,6 +190,30 @@ async def test_a_domain_in_two_roles_is_one_domain(
     assert (cell["value"], cell["numerator"], cell["denominator"]) == (pytest.approx(1.8), 9, 5)
 
 
+async def test_a_domain_in_two_roles_is_one_domain_in_a_week(
+    api: httpx.AsyncClient, migrated: PostgresServer, scene: Scene
+) -> None:
+    """One whole week: the own domain cited as the own brand in one answer and as a third party
+    in another, and the wiki once: 3 units on 2 domains, (2 + 1)^2 / (4 + 1) = 1.8. Split by role
+    the week would hold 3 domains and 3.0."""
+    today = datetime.now(UTC).date()
+    last = today - timedelta(days=today.weekday() + 1)
+    first = last - timedelta(days=6)
+    await _answer(migrated, scene, _noon(first + timedelta(days=1)), scene.world.own_cite(OWN))
+    await _answer(migrated, scene, _noon(first + timedelta(days=2)), Cite(OWN_BLOG), Cite(WIKI))
+
+    response = await _diversity(
+        scene.world, api, **{"from": first.isoformat(), "to": last.isoformat()}, include="series"
+    )
+
+    chatgpt = _engines(response)["chatgpt_web"]
+    assert [
+        (p["week_start"], p["citation_units"], p["distinct_domains"], p["effective_sources"])
+        for p in chatgpt["series"]
+    ] == [(first.isoformat(), 3, 2, pytest.approx(1.8))]
+    assert chatgpt["distinct_domains"] == 2
+
+
 async def test_the_meta_pools_counts_only(api: httpx.AsyncClient, busy: Scene) -> None:
     """The domains cited over every engine are 3 (Gemini's is one of ChatGPT's, not a fourth).
     The mean is of ChatGPT's and Gemini's values: AI Mode cites nothing and is left out."""
