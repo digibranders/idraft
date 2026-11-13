@@ -1,9 +1,10 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 
-import type { NewestRunRead } from './ai-health-model';
+import type { AiCoverage, NewestRunRead } from './ai-health-model';
+import { projectKey } from '@/lib/api/keys';
 import { apiQuery } from '@/lib/api/query';
 import type { paths } from '@/lib/api/schema';
 import type { Run } from '@/lib/api/types';
@@ -15,6 +16,7 @@ import type { Run } from '@/lib/api/types';
  */
 
 const RUNS = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs';
+const COVERAGE = `${RUNS}/{run_id}/ai-coverage` as const;
 const ENGINES = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines';
 
 type StatusFilter = NonNullable<
@@ -70,6 +72,69 @@ export function useLatestFinishedAiRun(scope: AiRunsScope, enabled: boolean): Ru
   // The request's filters are the answer's reason; the check here keeps a link from pointing at a run the
   // answers did not come from, whatever the server sent
   return data?.data.find((run) => run.workload === 'ai_prompt' && ANSWERED.includes(run.status)) ?? null;
+}
+
+/** How often an open run's coverage is read again: the run's own poll (`FOLLOW_MS` of Runs). */
+export const COVERAGE_MS = 10_000;
+
+/**
+ * `GET {P}/runs/{run_id}/ai-coverage`: what an AI run planned, stored and is missing, per engine. Keyed under
+ * the project's `runs` prefix, so `refreshRuns` reads it again too. Read again every 10 seconds while the run
+ * is `open`; a poll that fails after a good read keeps the data (`isError` with `data`). `enabled` is false for
+ * a run that is not an AI run, which the API refuses with 422.
+ */
+export function useAiCoverage(
+  scope: AiRunsScope,
+  runId: string,
+  enabled: boolean,
+  open: boolean,
+): UseQueryResult<{ data: AiCoverage }> {
+  return useQuery({
+    ...apiQuery(COVERAGE, { params: { path: { ...pathOf(scope), run_id: runId } } }),
+    enabled,
+    refetchInterval: open ? COVERAGE_MS : false,
+  });
+}
+
+/** The part of a cached prompts summary this file reads: a prompt's id and its current text. */
+interface CachedPrompts {
+  data: { prompts: readonly { prompt_id: string; text: string }[] };
+}
+
+const isCachedPrompts = (value: unknown): value is CachedPrompts => {
+  if (typeof value !== 'object' || value === null || !('data' in value)) return false;
+  const { data } = value;
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'prompts' in data &&
+    Array.isArray(data.prompts) &&
+    data.prompts.every(
+      (row: unknown) =>
+        typeof row === 'object' &&
+        row !== null &&
+        'prompt_id' in row &&
+        typeof row.prompt_id === 'string' &&
+        'text' in row &&
+        typeof row.text === 'string',
+    )
+  );
+};
+
+/**
+ * The text of the prompts the page has already read, by prompt id, from the prompts summaries in the cache of
+ * the project. Nothing is asked for: a prompt not in the cache is not here, and the caller shows its id.
+ * Read when the component renders, so it is as fresh as the cache is at that moment.
+ */
+export function usePromptTexts(scope: AiRunsScope): ReadonlyMap<string, string> {
+  const queryClient = useQueryClient();
+  const texts = new Map<string, string>();
+  for (const [, data] of queryClient.getQueriesData({
+    queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'ai', 'prompts-summary'],
+  })) {
+    if (isCachedPrompts(data)) for (const row of data.data.prompts) texts.set(row.prompt_id, row.text);
+  }
+  return texts;
 }
 
 /**

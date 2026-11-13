@@ -1,4 +1,4 @@
-import type { Run } from '@/lib/api/types';
+import type { Run, Schemas } from '@/lib/api/types';
 import { formatIsoDate, formatTableDate, formatTime } from '@/lib/format';
 import { collectionStatusOf, isOpenRun, type QueuedOrStatus } from '@/lib/runs/run-status';
 
@@ -13,6 +13,70 @@ import { collectionStatusOf, isOpenRun, type QueuedOrStatus } from '@/lib/runs/r
 export const DEGRADED_BELOW = 0.9;
 /** A run that planned fewer tasks than this is never called degraded: one failed answer would say so (D12). */
 export const DEGRADED_MIN_PLANNED = 10;
+
+/** The most missing answers a run's list shows before "Show all N" (WP-30 task 5a). */
+export const MISSING_SHOWN = 50;
+
+export type CoverageEngine = Schemas['AiCoverageEngine'];
+export type CoverageMissing = Schemas['AiCoverageMissing'];
+export type AiCoverage = Schemas['AiCoverage'];
+
+/** The kinds of answer a run's engine line names besides the valid ones; `partial` is inside the valid ones. */
+export type InvalidPart = 'partial' | 'empty' | 'refused' | 'error';
+
+/**
+ * One engine of a run as the inspector shows it. `none`: nothing was planned, so there is no rate and no zero;
+ * `thin`: fewer than `DEGRADED_MIN_PLANNED` planned, so the counts show and the rate does not; `rated`.
+ */
+export interface CoverageRow {
+  engine: string;
+  planned: number;
+  valid: number;
+  kind: 'none' | 'thin' | 'rated';
+  /** Valid over planned, for a `rated` engine only. */
+  rate: number | null;
+  /** A `rated` engine below `DEGRADED_BELOW`: the only tone the inspector gives. */
+  degraded: boolean;
+  /** The partial answers (counted as valid) and the invalid ones, those with a count only, in reading order. */
+  parts: { part: InvalidPart; count: number }[];
+}
+
+/**
+ * The engines of a run, one row each in the order given (never pooled). The rate is valid over planned, not
+ * over observed: an answer that never arrived is a miss, and the API's own `valid_rate` is not read so the
+ * counts shown and the rate shown are the same two numbers.
+ */
+export function coverageRows(engines: readonly CoverageEngine[]): CoverageRow[] {
+  return engines.map((row): CoverageRow => {
+    const { planned, valid } = row;
+    const kind = planned === 0 ? 'none' : planned < DEGRADED_MIN_PLANNED ? 'thin' : 'rated';
+    const rate = kind === 'rated' ? valid / planned : null;
+    const counted: [InvalidPart, number][] = [
+      ['partial', row.partial],
+      ['empty', row.invalid_by_status.empty],
+      ['refused', row.invalid_by_status.refused],
+      ['error', row.invalid_by_status.error],
+    ];
+    return {
+      engine: row.engine_code,
+      planned,
+      valid,
+      kind,
+      rate,
+      degraded: rate !== null && rate < DEGRADED_BELOW,
+      parts: counted.filter(([, count]) => count > 0).map(([part, count]) => ({ part, count })),
+    };
+  });
+}
+
+/** The missing answers to draw, and how many the cap leaves out. */
+export function missingShown(
+  missing: readonly CoverageMissing[],
+  showAll: boolean,
+): { rows: readonly CoverageMissing[]; hidden: number } {
+  if (showAll || missing.length <= MISSING_SHOWN) return { rows: missing, hidden: 0 };
+  return { rows: missing.slice(0, MISSING_SHOWN), hidden: missing.length - MISSING_SHOWN };
+}
 
 /** The fields of a run the line reads. */
 export type LineRun = Pick<

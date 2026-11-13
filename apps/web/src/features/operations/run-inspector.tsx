@@ -4,6 +4,7 @@ import { ClipboardList, ListChecks } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactElement, ReactNode } from 'react';
 
+import { AiRunCoverage } from './ai-run-coverage';
 import { RUN_STATUS_KEYS, taskStatusRows, TRIGGER_KEYS } from './run-model';
 import { useRunDetail, type RunsScope } from './runs-queries';
 import { Inspector } from '@/components/app/inspector/inspector';
@@ -19,7 +20,7 @@ import { useErrorId } from '@/lib/api/use-error-id';
 import type { Run, RunDetail } from '@/lib/api/types';
 import { EMPTY_VALUE, formatCurrency, formatDetailDateTime, formatInteger } from '@/lib/format';
 import { money } from '@/lib/format/money';
-import { collectionStatusOf } from '@/lib/runs/run-status';
+import { collectionStatusOf, isOpenRun } from '@/lib/runs/run-status';
 import { taskSummary } from '@/lib/runs/task-summary';
 import { useRunReason } from '@/lib/runs/use-run-reason';
 import { useWorkloadName } from '@/lib/workloads/use-workload-name';
@@ -41,7 +42,7 @@ export interface RunInspectorProps {
 /**
  * The inspector of one run (17-empty-loading-error-states.md section 4.2, "Full" density, for what part 1
  * has): its status in the header, a summary of what it is, when it ran and what it cost, and its tasks by
- * status. The task table, dead letters and provider calls arrive with Operations and the tasks API.
+ * status; an AI run adds its answers by engine and its missing answers. The task table, dead letters and provider calls arrive with Operations and the tasks API.
  */
 export function RunInspector({
   scope,
@@ -189,6 +190,8 @@ export function RunInspector({
                 </div>
               )}
             </InspectorSection>
+            {/* What the engines answered is an AI run's: the API refuses the question for any other workload */}
+            {run?.workload === 'ai_prompt' ? <AiRunCoverage scope={scope} runId={runId} open={isOpenRun(run)} /> : null}
           </>
         )}
       </InspectorBody>

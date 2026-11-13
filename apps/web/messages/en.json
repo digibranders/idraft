@@ -2059,6 +2059,35 @@
       "loadFailedReason": "The server did not answer. Try again in a moment.",
       "stale": "Could not refresh. These are the last figures read.",
       "position": "{index} of {count}"
+    },
+    "coverage": {
+      "byEngine": "Answers by engine",
+      "missing": "Missing answers",
+      "validRated": "{valid, number} of {planned, number} {planned, plural, one {answer} other {answers}} valid, {percent}",
+      "validCounts": "{valid, number} of {planned, number} {planned, plural, one {answer} other {answers}} valid",
+      "thin": "{planned, number} planned, too few for a rate",
+      "none": "n/a",
+      "noneReason": "No answers were planned on this engine in this run.",
+      "invalid": {
+        "partial": "{count, number} partial counted",
+        "empty": "{count, number} empty",
+        "refused": "{count, number} refused",
+        "error": "{count, number} {count, plural, one {error} other {errors}}"
+      },
+      "noEngines": "No answers planned",
+      "noEnginesReason": "This run planned no AI tasks, so there is nothing to count.",
+      "loadFailed": "Answers per engine did not load",
+      "loadFailedReason": "The server did not answer. The rest of the run is unchanged.",
+      "caption": "Planned answers that have not arrived",
+      "missingCount": "{count, number} planned {count, plural, one {answer has} other {answers have}} not arrived.",
+      "columns": {
+        "prompt": "Prompt",
+        "engine": "Engine",
+        "status": "Task status"
+      },
+      "allArrived": "Every planned answer arrived",
+      "allArrivedReason": "No planned task is still waiting for an answer.",
+      "showAll": "Show all {count, number}"
     }
   },
   "rankings": {

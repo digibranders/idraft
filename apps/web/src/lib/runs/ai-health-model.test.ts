@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEGRADED_BELOW, DEGRADED_MIN_PLANNED, lineOf, type LineRun } from './ai-health-model';
+import {
+  coverageRows,
+  DEGRADED_BELOW,
+  DEGRADED_MIN_PLANNED,
+  lineOf,
+  MISSING_SHOWN,
+  missingShown,
+  type CoverageEngine,
+  type CoverageMissing,
+  type LineRun,
+} from './ai-health-model';
 
 /** Saturday 14 November 2026, 10:00 UTC: 11:00 in Berlin. */
 const NOW = new Date('2026-11-14T10:00:00Z');
@@ -80,6 +90,102 @@ describe('lineOf', () => {
 
   it('a failed read reads Run status unavailable, never a time', () => {
     expect(lineOf({ state: 'failed' }, BERLIN, NOW)).toEqual({ kind: 'unavailable' });
+  });
+});
+
+const engine = (over: Partial<CoverageEngine> = {}): CoverageEngine => ({
+  engine_code: 'gemini_web',
+  planned: 150,
+  observed: 148,
+  valid: 141,
+  partial: 3,
+  invalid_by_status: { empty: 2, refused: 1, error: 1 },
+  valid_rate: { numerator: 141, denominator: 150, n_observations: 148, value: 0.94 },
+  ...over,
+});
+
+describe('coverageRows', () => {
+  it('rates valid over planned, so an answer that never arrived lowers the rate', () => {
+    // 141 of 150 planned; observed is 148, and a denominator of observed would say 95.3 percent
+    const [row] = coverageRows([engine()]);
+    expect(row).toMatchObject({ kind: 'rated', planned: 150, valid: 141 });
+    expect(row?.rate).toBeCloseTo(0.94, 10);
+  });
+
+  it('names the invalid answers by status, partial first, and leaves out a status with none', () => {
+    const [row] = coverageRows([engine()]);
+    expect(row?.parts).toEqual([
+      { part: 'partial', count: 3 },
+      { part: 'empty', count: 2 },
+      { part: 'refused', count: 1 },
+      { part: 'error', count: 1 },
+    ]);
+    const [clean] = coverageRows([engine({ partial: 0, invalid_by_status: { empty: 0, refused: 0, error: 4 } })]);
+    expect(clean?.parts).toEqual([{ part: 'error', count: 4 }]);
+  });
+
+  it('an engine with nothing planned is none, with no rate: never 0', () => {
+    const [row] = coverageRows([
+      engine({
+        planned: 0,
+        observed: 0,
+        valid: 0,
+        partial: 0,
+        invalid_by_status: { empty: 0, refused: 0, error: 0 },
+        valid_rate: { numerator: 0, denominator: 0, n_observations: 0, value: null },
+      }),
+    ]);
+    expect(row).toMatchObject({ kind: 'none', rate: null, degraded: false, parts: [] });
+  });
+
+  it('under 10 planned is a thin sample: counts, no rate and never degraded', () => {
+    const [row] = coverageRows([engine({ planned: 8, observed: 8, valid: 2, partial: 0 })]);
+    expect(row).toMatchObject({ kind: 'thin', rate: null, degraded: false, planned: 8, valid: 2 });
+    // Exactly 10 planned is rated
+    expect(coverageRows([engine({ planned: 10, observed: 10, valid: 3, partial: 0 })])[0]?.kind).toBe('rated');
+  });
+
+  it('is degraded below 90 percent of at least 10 planned, and exactly 90 percent is not', () => {
+    const rowOf = (valid: number): ReturnType<typeof coverageRows>[number] | undefined =>
+      coverageRows([engine({ planned: 100, observed: 100, valid, partial: 0 })])[0];
+    expect(rowOf(89)?.degraded).toBe(true);
+    expect(rowOf(90)?.degraded).toBe(false);
+  });
+
+  it('keeps one row per engine in the order given and never pools them', () => {
+    const rows = coverageRows([
+      engine({ engine_code: 'chatgpt_web', valid: 147, planned: 150 }),
+      engine({ engine_code: 'gemini_web', valid: 132, planned: 150 }),
+    ]);
+    expect(rows.map((row) => [row.engine, row.valid, row.planned])).toEqual([
+      ['chatgpt_web', 147, 150],
+      ['gemini_web', 132, 150],
+    ]);
+  });
+});
+
+describe('missingShown', () => {
+  const missing = (count: number): CoverageMissing[] =>
+    Array.from({ length: count }, (_, place) => ({
+      prompt_id: `prompt-${String(place)}`,
+      engine_code: 'gemini_web',
+      location_id: null,
+      replicate_index: 0,
+      task_status: 'failed',
+    }));
+
+  it('shows the first 50 and says how many more there are', () => {
+    expect(MISSING_SHOWN).toBe(50);
+    const shown = missingShown(missing(73), false);
+    expect(shown.rows).toHaveLength(50);
+    expect(shown.rows[0]?.prompt_id).toBe('prompt-0');
+    expect(shown.hidden).toBe(23);
+  });
+
+  it('shows every row when asked, and when there are 50 or fewer', () => {
+    expect(missingShown(missing(73), true)).toMatchObject({ hidden: 0 });
+    expect(missingShown(missing(73), true).rows).toHaveLength(73);
+    expect(missingShown(missing(50), false)).toMatchObject({ hidden: 0 });
   });
 });
 

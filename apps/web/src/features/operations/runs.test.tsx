@@ -29,6 +29,7 @@ const W = '/api/v1/workspaces/{workspace_id}';
 const RUNS = `${W}/projects/{project_id}/runs`;
 const RUN = `${RUNS}/{run_id}`;
 const CANCEL = `${RUN}/cancel`;
+const COVERAGE = `${RUN}/ai-coverage`;
 
 /** The fixture runs sit in the summer of 2026, the newest on 30 September at 16:41 UTC; this is that evening. */
 const NOW = new Date('2026-09-30T23:00:00Z');
@@ -648,6 +649,46 @@ describe('Runs', () => {
     expect(await within(panel).findByText('Failed', { selector: 'dt' })).toBeInTheDocument();
     expect(within(panel).getByText('Started by')).toBeInTheDocument();
     expect(within(panel).getByText('idraft.ai')).toBeInTheDocument();
+  });
+
+  it('opens an AI run with Answers by engine and Missing answers after its tasks by status', async () => {
+    serveRuns([store({ run_id: uuid(1), workload: 'ai_prompt', created_at: '2026-09-20T01:00:00.000Z' })]);
+    server.use(
+      http.get(mswPath(COVERAGE), () =>
+        HttpResponse.json({
+          data: {
+            by_engine: [
+              {
+                engine_code: 'chatgpt_web',
+                planned: 150,
+                observed: 148,
+                valid: 141,
+                partial: 3,
+                invalid_by_status: { empty: 2, refused: 1, error: 1 },
+                valid_rate: { numerator: 141, denominator: 150, n_observations: 148, value: 0.94 },
+              },
+            ],
+            missing: [
+              {
+                prompt_id: uuid(7),
+                engine_code: 'chatgpt_web',
+                location_id: null,
+                replicate_index: 0,
+                task_status: 'failed',
+              },
+            ],
+          },
+        }),
+      ),
+    );
+    renderWithProviders(runsAs('admin'), { searchParams: `?inspect=run:${uuid(1)}&month=2026-09` });
+    const panel = await screen.findByRole('complementary');
+    expect(await within(panel).findByText('141 of 150 answers valid, 94%')).toBeInTheDocument();
+    expect(within(panel).getByRole('table', { name: 'Planned answers that have not arrived' })).toBeInTheDocument();
+    const names = within(panel)
+      .getAllByRole('heading', { level: 3 })
+      .map((heading) => heading.textContent);
+    expect(names).toEqual(['Summary', 'Tasks by status', 'Answers by engine', 'Missing answers']);
   });
 
   it.each([
