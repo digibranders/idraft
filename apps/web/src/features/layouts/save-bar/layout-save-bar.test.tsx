@@ -57,16 +57,13 @@ async function edit(user: User, times = 1, total = times): Promise<void> {
   });
 }
 
-/** Shows the conflict state of the controller, which the dialog of the next task renders. */
+/** Shows the conflict state of the controller, which the conflict dialog renders. */
 function ConflictProbe(): ReactElement {
-  const { conflict, conflictPending, dismissConflict, resolveConflict } = useCustomize();
+  const { conflict, conflictPending, resolveConflict } = useCustomize();
   return (
     <div>
       <p data-testid="conflict">{conflict ?? 'none'}</p>
       <p data-testid="pending">{conflictPending ?? 'none'}</p>
-      <button type="button" onClick={dismissConflict}>
-        Dismiss dialog
-      </button>
       <button type="button" onClick={resolveConflict}>
         Resolve conflict
       </button>
@@ -246,14 +243,24 @@ describe('LayoutSaveBar', () => {
       expect(failure()).toBeNull();
     });
 
+    /** The question is a modal dialog: the rest of the page is out of reach until it is dismissed. */
+    async function dismiss(user: User): Promise<void> {
+      const question = screen.getByRole('dialog', { name: 'This layout was changed somewhere else.' });
+      await user.click(within(question).getByRole('button', { name: 'Close' }));
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).toBeNull();
+      });
+    }
+
     it('never sends a second save: the next Save asks the question again, even when the draft was edited', async () => {
       const { user, served } = await conflicted();
       expect(served.puts).toHaveLength(1);
-      await user.click(control('Save layout', '1 change'));
-      expect(conflictOf()).toBe('personal');
-      await user.click(screen.getByRole('button', { name: 'Dismiss dialog' }));
+      await dismiss(user);
       expect(conflictOf()).toBe('none');
       expect(pendingOf()).toBe('personal');
+      await user.click(control('Save layout', '1 change'));
+      expect(conflictOf()).toBe('personal');
+      await dismiss(user);
       await user.click(within(box()).getByRole('button', { name: 'Edit' }));
       await user.click(control('Save layout', '2 changes'));
       await waitFor(() => {
@@ -265,9 +272,13 @@ describe('LayoutSaveBar', () => {
 
     it('saves again once the conflict is resolved', async () => {
       const { user, served } = await conflicted();
-      await user.click(screen.getByRole('button', { name: 'Resolve conflict' }));
+      // The probe sits behind the modal question: reached by its hidden role
+      await user.click(screen.getByRole('button', { name: 'Resolve conflict', hidden: true }));
       expect(conflictOf()).toBe('none');
       expect(pendingOf()).toBe('none');
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).toBeNull();
+      });
       await user.click(control('Save layout', '1 change'));
       await waitFor(() => {
         expect(served.puts).toHaveLength(2);
@@ -276,6 +287,7 @@ describe('LayoutSaveBar', () => {
 
     it('forgets the conflict when the mode ends', async () => {
       const { user } = await conflicted();
+      await dismiss(user);
       await user.click(control('Cancel', '1 change'));
       const dialog = await screen.findByRole('alertdialog', { name: DISCARD_TITLE });
       await user.click(within(dialog).getByRole('button', { name: 'Discard changes' }));

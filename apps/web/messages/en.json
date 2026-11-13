@@ -4250,7 +4250,9 @@
         "numberRemoved": "{number} removed",
         "numberMoved": "{number}, position {position, number} of {total, number}",
         "duplicated": "{card} duplicated, position {position, number} of {total, number}",
-        "reset": "Layout reset to the default. Save to keep it."
+        "reset": "Layout reset to the default. Save to keep it.",
+        "teamSet": "Team default set",
+        "teamRemoved": "Team default removed"
       },
       "saveBar": {
         "changes": "{count, plural, =0 {No changes} one {# change} other {# changes}}",
@@ -4261,7 +4263,33 @@
         "reset": "Reset to default",
         "cancel": "Cancel",
         "save": "Save layout",
+        "moreSave": "More save options",
         "failed": "Could not save. Try again."
+      },
+      "team": {
+        "save": "Save as team default",
+        "remove": "Remove team default",
+        "setTitle": "Set this as the default for everyone in {workspace}?",
+        "setBody": "People who have customized this page keep their own layout. Everyone else sees this one.",
+        "setConfirm": "Set team default",
+        "removeTitle": "Remove the team default?",
+        "removeBody": "People in {workspace} who have not customized this page go back to the built-in layout.",
+        "removeConfirm": "Remove team default",
+        "cancel": "Cancel",
+        "setToast": "Team default set",
+        "setToastBody": "{screen} now opens with this layout for {workspace}.",
+        "removedToast": "Team default removed",
+        "removedKeptBody": "Your unsaved changes are still here.",
+        "failedToast": "The team default could not be saved. Try again.",
+        "removeFailedToast": "The team default could not be removed. Try again."
+      },
+      "conflict": {
+        "title": "This layout was changed somewhere else.",
+        "body": "Keep mine saves your layout over the other version. Load the other version drops your changes.",
+        "savedBy": "Saved by {name}, {when}",
+        "keepMine": "Keep mine",
+        "loadOther": "Load the other version",
+        "close": "Close"
       }
     },
     "core": {

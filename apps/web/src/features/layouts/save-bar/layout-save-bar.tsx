@@ -6,6 +6,8 @@ import { useId, useLayoutEffect, useRef, type ReactElement, type RefObject } fro
 
 import { useCustomize } from '../customize/customize-controller';
 import { useLayoutScreen } from '../layout-provider';
+import { LayoutConflictDialog } from './conflict-dialog';
+import { TeamDefaultMenu } from './team-default-menu';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { sameLayout } from '@/lib/layouts';
@@ -71,7 +73,8 @@ function useReserveBarHeight(bar: RefObject<HTMLElement | null>, enabled: boolea
 export function LayoutSaveBar({ variant = 'page' }: LayoutSaveBarProps): ReactElement | null {
   const t = useTranslations('layouts.customize');
   const countId = useId();
-  const { mode, document, defaultDocument, resolved, changes, canUndo, canRedo, saving, actions } = useLayoutScreen();
+  const { mode, document, defaultDocument, resolved, changes, canUndo, canRedo, saving, canManage, actions } =
+    useLayoutScreen();
   const { requestExit, saveError, setSaveError, conflictPending, setConflict } = useCustomize();
   const barRef = useRef<HTMLDivElement>(null);
   const customizing = mode === 'customize';
@@ -91,7 +94,7 @@ export function LayoutSaveBar({ variant = 'page' }: LayoutSaveBarProps): ReactEl
     setSaveError(false);
     const outcome = await actions.save();
     if (outcome.kind === 'failed') setSaveError(true);
-    // The dialog that asks what to do about it is the team default task's; the state is what it reads
+    // The conflict dialog is open while this is set
     else if (outcome.kind === 'conflict') setConflict('personal');
   };
 
@@ -164,20 +167,24 @@ export function LayoutSaveBar({ variant = 'page' }: LayoutSaveBarProps): ReactEl
         >
           {t('saveBar.cancel')}
         </Button>
-        {/* The team default menu joins Save here, as the other half of one split button */}
+        {/* The team default menu joins Save as the other half of one split button, for whoever may manage it */}
         <div className="flex">
           <Button
             variant="primary"
             disabled={changes === 0}
             loading={saving}
+            className={cn(canManage && 'rounded-r-none')}
             onClick={() => {
               void save();
             }}
           >
             {t('saveBar.save')}
           </Button>
+          <TeamDefaultMenu />
         </div>
       </span>
+      {/* Portalled: it is the bar's own because the bar is what a conflict is answered from */}
+      <LayoutConflictDialog />
     </div>
   );
 }

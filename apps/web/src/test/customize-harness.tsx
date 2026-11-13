@@ -12,6 +12,7 @@ import { LayoutGrid } from '@/features/layouts/layout-grid';
 import { useLayoutScreen } from '@/features/layouts/layout-provider';
 import { defineCards } from '@/features/layouts/registry';
 import type { Capabilities, ScreenKey } from '@/lib/layouts';
+import type { Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_WORKSPACE } from '@/mocks/fixtures';
@@ -32,23 +33,35 @@ export const BOTH_CHANNELS: Capabilities = { channels: ['seo', 'ai'], permission
 export interface ServeOptions {
   /** `error`: a read that fails, so the layout never loads. */
   read?: 'ok' | 'error';
-  /** A save that waits for this promise before it answers. */
+  /** A save that would succeed, and the removal of the team default, wait for this promise before they answer. */
   holdSave?: Promise<void>;
-  /** What a save answers: 200 by default, 500 (a failure) or 412 (the layout changed somewhere else). */
-  putStatus?: 200 | 412 | 500;
+  /**
+   * What a save answers, for the personal layout and the team default alike: 200 by default, 500 (a failure) or
+   * 412 (the layout changed somewhere else). A list is one answer per save, in order; the last one repeats.
+   */
+  putStatus?: SaveStatus | readonly SaveStatus[];
   /** Fields of the layout a read answers, over the built-in layout: a personal layout, a team default. */
   layout?: Record<string, unknown>;
 }
 
+type SaveStatus = 200 | 412 | 500;
+
 /** What the layout routes were asked to write: one entry per request, so a test can say that none was sent. */
 export interface ServedLayouts {
+  /** The `If-Match` of each personal save. */
   puts: string[];
   deletes: string[];
+  /** The `If-Match` of each save of the team default. */
+  teamPuts: string[];
+  teamDeletes: string[];
+  /** How many reads of the layout were answered. */
+  reads: number;
 }
 
 /**
  * The layout routes: every screen reads as the built-in layout, and a save is accepted. Gives back the log of
- * the writes the routes received (a later `serveLayouts` call has its own log).
+ * the writes the routes received (a later `serveLayouts` call has its own log). Once the team default is
+ * removed, a read answers without it.
  */
 export function serveLayouts({
   read = 'ok',
@@ -56,9 +69,25 @@ export function serveLayouts({
   putStatus = 200,
   layout = {},
 }: ServeOptions = {}): ServedLayouts {
-  const served: ServedLayouts = { puts: [], deletes: [] };
+  const served: ServedLayouts = { puts: [], deletes: [], teamPuts: [], teamDeletes: [], reads: 0 };
+  const statuses = typeof putStatus === 'number' ? [putStatus] : putStatus;
+  let saves = 0;
+  let teamRemoved = false;
+  /** The answer to the next save. */
+  const nextStatus = (): SaveStatus => statuses[Math.min(saves++, statuses.length - 1)] ?? 200;
+  const failure = (status: 412 | 500): Response =>
+    HttpResponse.json(
+      {
+        type: 'about:blank',
+        title: status === 412 ? 'Precondition failed' : 'Internal',
+        status,
+        code: status === 412 ? 'precondition_failed' : 'internal',
+      },
+      { status },
+    );
   server.use(
     http.get(mswPath(LAYOUTS), ({ params }) => {
+      served.reads += 1;
       if (read === 'error') {
         return HttpResponse.json(
           { type: 'about:blank', title: 'Internal', status: 500, code: 'internal' },
@@ -76,25 +105,37 @@ export function serveLayouts({
             updated_at: null,
             updated_by: null,
             ...layout,
+            ...(teamRemoved ? { team_default_exists: false, team_document: null } : {}),
           },
         },
         { headers: { etag: '"e1"' } },
       );
     }),
+    http.put(mswPath(`${LAYOUTS}/default`), async ({ params, request }) => {
+      served.teamPuts.push(request.headers.get('if-match') ?? '');
+      const status = nextStatus();
+      if (status === 200 && holdSave !== undefined) await holdSave;
+      if (status !== 200) return failure(status);
+      return HttpResponse.json(
+        {
+          data: {
+            screen: params.screen,
+            source: 'team',
+            document: null,
+            team_default_exists: true,
+            team_document: null,
+            updated_at: '2026-11-10T09:12:44Z',
+            updated_by: null,
+          },
+        },
+        { headers: { etag: '"t1"' } },
+      );
+    }),
     http.put(mswPath(PERSONAL), async ({ params, request }) => {
       served.puts.push(request.headers.get('if-match') ?? '');
-      if (holdSave !== undefined) await holdSave;
-      if (putStatus !== 200) {
-        return HttpResponse.json(
-          {
-            type: 'about:blank',
-            title: putStatus === 412 ? 'Precondition failed' : 'Internal',
-            status: putStatus,
-            code: putStatus === 412 ? 'precondition_failed' : 'internal',
-          },
-          { status: putStatus },
-        );
-      }
+      const status = nextStatus();
+      if (status === 200 && holdSave !== undefined) await holdSave;
+      if (status !== 200) return failure(status);
       return HttpResponse.json(
         {
           data: {
@@ -116,7 +157,9 @@ export function serveLayouts({
     }),
     // Removing the team default is a write that can be under way while the screen is in view mode
     http.delete(mswPath(`${LAYOUTS}/default`), async () => {
+      served.teamDeletes.push('team');
       if (holdSave !== undefined) await holdSave;
+      teamRemoved = true;
       return new HttpResponse(null, { status: 204 });
     }),
   );
@@ -228,6 +271,8 @@ export interface UnderTestProps {
   addSlot?: boolean;
   /** `none`: a screen whose save bar is somewhere else (the drawer). */
   saveBar?: ComponentProps<typeof CustomizableScreen>['saveBar'];
+  /** The person's role in the workspace; an admin by default, who may set the team default. */
+  workspaceRole?: Role;
 }
 
 /** One customizable screen: its header with the button and the badge, the test's controls, and the cards. */
@@ -240,9 +285,10 @@ export function ScreenUnderTest({
   capabilities = BOTH_CHANNELS,
   addSlot = false,
   saveBar,
+  workspaceRole = 'admin',
 }: UnderTestProps): ReactElement {
   return (
-    <PermissionProvider membership={membershipFactory('admin')}>
+    <PermissionProvider membership={membershipFactory(workspaceRole)}>
       <section aria-label={label}>
         <CustomizableScreen
           screen={key}
