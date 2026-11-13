@@ -375,3 +375,24 @@ async def test_rows_none_under_a_term_filter_also_skips_the_subtree_statement(
     assert await counted(rows="none") - await counted() == -3
     data = await summary_data(world, api, rows="none", include="total", **params)
     assert data["total"]["prompt_count"] == 150
+
+
+async def test_rows_none_with_a_term_still_scopes_the_total(
+    api: httpx.AsyncClient, seeded: Summary
+) -> None:
+    """`rows=none` skips the term's subtree read for the rows, not for the scope: in the seeded
+    world only `providers` holds Compliance, while the three prompts in scope hold one topic or
+    none. (Under `full_project` all 150 prompts hold Managed SOC, so a term cannot narrow there.)"""
+    compliance = {"filter[term]": str(seeded.topics["compliance"])}
+
+    everything = await summary_data(seeded, api, rows="none", include="total")
+    narrowed = await summary_data(seeded, api, rows="none", include="total", **compliance)
+
+    assert everything["total"]["prompt_count"] == 3
+    assert narrowed["total"]["prompt_count"] == 1
+    assert (narrowed["prompts"], narrowed["topics"]) == ([], [])
+    # `providers` alone, as a topic row: 2 of its 5 valid ChatGPT answers (6 counted) name the
+    # own brand, one prompt weighing 0.4.
+    chatgpt = _engines(narrowed["total"])[CHATGPT]
+    assert cell(chatgpt["mentioned"]) == (pytest.approx(0.4), 1, 6)
+    assert pooled(chatgpt["mentioned"]) == (2, 5)
