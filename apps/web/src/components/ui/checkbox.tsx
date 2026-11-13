@@ -1,6 +1,6 @@
 import { Checkbox as CheckboxPrimitive } from '@base-ui/react/checkbox';
 import { Check, Minus } from 'lucide-react';
-import { useId, type ReactElement } from 'react';
+import { useId, type ReactElement, type ReactNode } from 'react';
 
 import { Icon } from './icon';
 import { cn } from '@/lib/utils';
@@ -11,8 +11,11 @@ export interface CheckboxProps extends Omit<
 > {
   /** `indeterminate` only for a parent that stands for children of which some are checked. */
   checked: boolean | 'indeterminate';
-  /** The visible label, or the name read out in a table cell ("Select crm pricing"). */
-  label: string;
+  /**
+   * The visible label, or the name read out in a table cell ("Select crm pricing"). An element is for a label that
+   * carries a mark beside its words (an engine's logo and name): its text is the box's name.
+   */
+  label: ReactNode;
   labelDisplay?: 'visible' | 'visually-hidden' | undefined;
   /** One line under the label. */
   description?: string | undefined;

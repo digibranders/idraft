@@ -10,6 +10,7 @@ import type { Read } from '../data/read-state';
 import { useOverviewFanout, useOverviewSources, type OverviewReadInput } from '../data/use-overview-reads';
 import { useOverview, useOverviewPeriods } from '../overview-context';
 import type { Branded } from '../scope/scope-model';
+import { useTopicsKept } from '../scope/use-topic-tree';
 import { numberDisplay, type NumberContext, type Say, type UnreadWhy } from './number-model';
 import { Delta } from '@/components/app/metric/delta';
 import { useLayoutScreen, type NumberStripProps, type NumberValue } from '@/features/layouts';
@@ -57,6 +58,7 @@ export function useNumberValues(): NumberValues {
   const { workspaceId, project, scope, enabledEngines, engines } = useOverview();
   const { document } = useLayoutScreen();
   const periods = useOverviewPeriods();
+  const topicsKept = useTopicsKept();
   const numbers = document.numbers;
   const needsSources = useMemo(() => numbers?.some((number) => number.metric === SOURCES_METRIC) === true, [numbers]);
   const needsFanout = useMemo(() => numbers?.some((number) => number.metric === FANOUT_METRIC) === true, [numbers]);
@@ -85,18 +87,20 @@ export function useNumberValues(): NumberValues {
             previous: previousData,
             engines: engines.data,
             chosenEngines: scope.engines,
-            // The chosen topic's subtree needs the topic tree (the scope bar's): until then no count of topics
-            topicsKept: null,
+            topicsKept,
             sources: sources.data ?? null,
             fanout: fanout.data ?? null,
           }),
-    [current.data, previousData, engines.data, scope.engines, sources.data, fanout.data],
+    [current.data, previousData, engines.data, scope.engines, topicsKept, sources.data, fanout.data],
   );
-  // The count of topics is of the chosen topic's subtree once a topic is chosen, which the topic tree (the scope
-  // bar's) will tell; until then no count is better than the wrong one
+  // The count of topics is of the chosen topic's subtree once a topic is chosen, which the topic tree tells; until
+  // it is read no count is better than the wrong one
   const shown = useMemo(
-    () => (aggregates === null || scope.topic === null ? aggregates : { ...aggregates, topicCount: null }),
-    [aggregates, scope.topic],
+    () =>
+      aggregates === null || scope.topic === null || topicsKept !== null
+        ? aggregates
+        : { ...aggregates, topicCount: null },
+    [aggregates, scope.topic, topicsKept],
   );
   const compared = comparisonWindow(scope) !== null;
   const previousStatus = previous?.status ?? null;

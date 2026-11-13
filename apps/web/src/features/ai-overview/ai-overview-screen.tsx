@@ -10,6 +10,7 @@ import { NumbersZone } from './numbers/numbers-zone';
 import { OverviewProvider, useOverview, type OverviewProject } from './overview-context';
 import { GridPlaceholder, ScopeBarPlaceholder, StripPlaceholder } from './overview-placeholders';
 import { buildOverviewPresets } from './presets/presets';
+import { ScopeBar } from './scope/scope-bar';
 import { EnginesError } from './states/engines-error';
 import { NoEngineState } from './states/no-engine-state';
 import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
@@ -65,8 +66,7 @@ function OverviewBody(): ReactElement {
     content = (
       <>
         <NumbersZone />
-        {/* The scope bar (T7) takes this place */}
-        <ScopeBarPlaceholder />
+        <ScopeBar />
         <CustomizableGrid label={t('cards')} />
       </>
     );

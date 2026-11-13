@@ -20,7 +20,7 @@ import {
 } from './scope-model';
 
 /** The longest window the summary and the sources reads accept, in project days. */
-const MAX_DAYS = 92;
+export const MAX_DAYS = 92;
 
 /** The engine codes the API accepts (the layout catalog's list): a link naming another reads as every engine. */
 const KNOWN_ENGINES: readonly string[] = ENGINES.map((engine) => engine.code);

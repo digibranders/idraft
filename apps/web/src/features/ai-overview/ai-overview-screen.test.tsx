@@ -276,6 +276,32 @@ describe('the numbers strip of the AI visibility page', () => {
     expect(valuesOf(strip)[1]).not.toHaveAccessibleDescription(/Change against/);
   });
 
+  it('changes the numbers and the address when the scope bar changes the scope', async () => {
+    const urls: string[] = [];
+    const { user } = renderWithProviders(overviewAs('admin'), {
+      onUrlUpdate: (event) => urls.push(event.queryString),
+    });
+    const strip = await stripOf();
+    await waitFor(() => {
+      expect(strip).not.toHaveAttribute('aria-busy');
+    });
+    expect(valuesOf(strip)[1]).not.toHaveTextContent('Not asked');
+    await user.click(await screen.findByRole('button', { name: 'Engines: 2 of 2' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'ChatGPT' }));
+    await waitFor(() => {
+      expect(urls.at(-1)).toBe('?engine=gemini_web');
+    });
+    await waitFor(() => {
+      expect(valuesOf(screen.getByRole('group', { name: STRIP }))[1]).toHaveTextContent('Not asked');
+    });
+    await user.keyboard('{Escape}');
+    await user.click(await screen.findByRole('button', { name: 'vs previous period' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'No comparison' }));
+    await waitFor(() => {
+      expect(urls.at(-1)).toBe('?engine=gemini_web&cmp=off');
+    });
+  });
+
   it('shows the strip error with Try again when the summary fails, and the cards keep their own states', async () => {
     server.use(
       http.get(mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary'), () =>

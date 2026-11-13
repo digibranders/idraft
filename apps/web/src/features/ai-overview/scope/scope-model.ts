@@ -96,6 +96,24 @@ export function brandedParams(branded: Branded): { include_branded: boolean; bra
   return { include_branded: branded === 'included' };
 }
 
+/** What "Reset filters" puts back: the comparison, the engines, the topic and the branded choice; never the window or the country. */
+export const RESET_PATCH = {
+  compare: true,
+  engines: null,
+  topic: null,
+  branded: 'excluded',
+} as const satisfies ScopePatch;
+
+/**
+ * How many of the scope's filters are not their default (comparison on, every engine, no topic, branded excluded):
+ * the count on the Filters button and the reason for "Reset filters". The window and the country are scope the
+ * top bar owns, and a default window does not count (19 section 4.1).
+ */
+export function changedFilterCount(scope: OverviewScope): number {
+  return [!scope.compare, scope.engines !== null, scope.topic !== null, scope.branded !== 'excluded'].filter(Boolean)
+    .length;
+}
+
 /**
  * A string that is equal for equal scopes, for query keys. The order of the engines does not matter to a
  * read, and the previous window is part of the key only while the comparison is on.

@@ -4,6 +4,8 @@ import { parseCompare } from '@/lib/compare/compare-model';
 
 import {
   brandedParams,
+  changedFilterCount,
+  RESET_PATCH,
   parseBranded,
   parseCountry,
   parseEngines,
@@ -143,5 +145,29 @@ describe('scopeKey', () => {
     const a = scopeOf({ compare: false });
     const b = scopeOf({ compare: false, previous: { from: '2000-01-01', to: '2000-01-02' } });
     expect(scopeKey(a)).toBe(scopeKey(b));
+  });
+});
+
+describe('changedFilterCount', () => {
+  it('is zero for the default scope, whatever the window and the country are', () => {
+    expect(changedFilterCount(scopeOf())).toBe(0);
+    expect(changedFilterCount(scopeOf({ country: 'DE', rangeValue: { kind: 'preset', preset: '7d' } }))).toBe(0);
+  });
+
+  it('counts the comparison, the engines, the topic and the branded choice that are not the default', () => {
+    expect(changedFilterCount(scopeOf({ compare: false }))).toBe(1);
+    expect(changedFilterCount(scopeOf({ engines: ['gemini_web'] }))).toBe(1);
+    expect(changedFilterCount(scopeOf({ topic: TOPIC }))).toBe(1);
+    expect(changedFilterCount(scopeOf({ branded: 'included' }))).toBe(1);
+    expect(changedFilterCount(scopeOf({ branded: 'only' }))).toBe(1);
+    expect(
+      changedFilterCount(scopeOf({ compare: false, engines: ['gemini_web'], topic: TOPIC, branded: 'only' })),
+    ).toBe(4);
+  });
+
+  it('has a reset patch that leaves the window and the country out and brings the count to zero', () => {
+    expect(Object.keys(RESET_PATCH).sort()).toEqual(['branded', 'compare', 'engines', 'topic']);
+    const reset = scopeOf({ compare: false, engines: ['gemini_web'], topic: TOPIC, branded: 'only', country: 'DE' });
+    expect(changedFilterCount({ ...reset, ...RESET_PATCH } as OverviewScope)).toBe(0);
   });
 });
