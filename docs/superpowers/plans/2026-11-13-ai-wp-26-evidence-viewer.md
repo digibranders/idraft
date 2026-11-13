@@ -235,10 +235,10 @@ citations (say so in the note); no query inside a loop.
 ## T3: Web foundation: mock first, SafeMarkdown, markers, list, toggles, view modes (SC-11, WB-ANS-10, 11, 12)
 
 Split in three commits so the dependency lands alone.
-T3a (own commit, LEASE package.json and lockfile): add `react-markdown` and `remark-gfm` at exact versions (at least two weeks
-old, React 19 compatible) with `pnpm add --save-exact` from `apps/web`; no `rehype-raw`. Fallback if the lease is refused: an
-in-house subset renderer in the same file with the same fixtures (headings, paragraphs, lists, emphasis, inline code, links;
-tables stay text). Verify: `pnpm install --frozen-lockfile` clean, `pnpm typecheck`.
+T3a (DECIDED by the coordinator, supersedes the dependency idea): NO new dependency and no package.json or lockfile edit. The
+renderer is in house: headings, paragraphs, lists, bold and italic, inline code, links with an http, https or mailto allowlist,
+everything else as plain text, built as React nodes, never raw HTML. T3a is dropped; T3c `safe-markdown.tsx` below is that
+renderer (a small parser in `safe-markdown.tsx` or a pure `markdown-subset.ts` beside it), with the same XSS fixtures.
 T3b (mock first): `apps/web/src/mocks/handlers/evidence.ts` (WP-26: the compare handler, computed from the prompt fixtures
 with the same rule as D1 and D2, `404 no_baseline` problem, 404 for an unknown id, validation like the detail handler),
 `apps/web/src/mocks/handlers/prompt-answers.ts` and `apps/web/src/mocks/prompt-fixtures.ts` (LEASE: detail answers carry
@@ -249,9 +249,10 @@ or missing member fails the parse; `test_no_baseline_answers_404_no_baseline`; `
 in `prompt-answers.test.ts` (LEASE file) using shapes `z.ZodType<Schemas['ObservationDetail']>`.
 T3c (parts), all in `apps/web/src/components/app/evidence/` (WP-26), each with a test file beside it, copy in `messages/en.json`
 under `evidence.*`:
-- `safe-markdown.tsx`: `react-markdown` with `skipHtml`, `disallowedElements` for `img`, `iframe`, `script`, `style`, `urlTransform`
-  that passes only `webHref` results, `a` rendered with `TextLink` (`target="_blank" rel="noopener noreferrer"`) and the host in
-  `type-meta` beside it, no highlights, `lang`.
+- `safe-markdown.tsx`: in-house subset renderer (no library): HTML in the text is shown as text, images are dropped (alt text as
+  text), links pass only an http, https or mailto allowlist (credentials in the URL make it text) and render with `TextLink`
+  (`target="_blank" rel="noopener noreferrer"`) and the host in `type-meta` beside it, no `dangerouslySetInnerHTML`, no highlights,
+  `lang`. Tables stay text. The "prove it bites" guards below apply to the allowlist, the image drop and the HTML-as-text rule.
 - `citation-marker.tsx` (`index`, `label`, `onActivate`), `citation-list.tsx` (DS25 15.16: `ol`, index, title escaped, host,
   role badge, `quote` through `QuoteBox` when present (T4), `CopyButton` with the original `raw_url`, open link, flag icons with
   tooltips, `activeIndex`, "Show in answer"), `entity-toggle-list.tsx` (checkbox group "Entities", swatch by color index, span
@@ -287,9 +288,9 @@ Verify (from `apps/web`): `pnpm exec vitest run --maxWorkers=3 src/components/ap
 UI check: `NEXT_PUBLIC_API_MOCKING=all` dev server per the Dev Server Policy (reuse this worktree's, else a free port from 3101 to
 3105, never kill another), open an answer from the Prompts page; 390, 768, 1024, 1280; light and dark; Default and Compact.
 Rows: SC-11, WB-ANS-10, WB-ANS-11, WB-ANS-12.
-Prove it bites (reviewer, scratch commit): (1) `urlTransform` returns the url unchanged: `test_a_javascript_link_is_text` and
-`test_every_hostile_link_scheme_is_text` fail. (2) remove `skipHtml`: `test_a_script_is_inert` or the event handler test fails.
-(3) allow `img`: `test_a_markdown_image_is_dropped` fails. (4) `canViewRaw` ignored: the viewer-without-`raw:read` test fails.
+Prove it bites (reviewer, scratch commit): (1) the link allowlist accepts any scheme: `test_a_javascript_link_is_text` and
+`test_every_hostile_link_scheme_is_text` fail. (2) HTML in the text is passed through as markup instead of text: `test_a_script_is_inert` or the event handler test fails.
+(3) images are rendered: `test_a_markdown_image_is_dropped` fails. (4) `canViewRaw` ignored: the viewer-without-`raw:read` test fails.
 (5) marker anchors counted in code points: the rocket case fails. (6) hidden set ignored: the toggle test fails.
 Reviewer checks: no `dangerouslySetInnerHTML` (grep), `target="_blank"` always with `rel`, host shown beside every link, tokens
 only, copy under `evidence.*`, no dash characters, focus visible on markers, the Evidence text keeps `whitespace-pre-wrap`.
