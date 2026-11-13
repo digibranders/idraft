@@ -1,5 +1,6 @@
-"""Contract C2, prompts summary (docs/ai-visibility/contracts/c2-summary.md): each addition
-answers 501 once the caller may use the route; left out, the summary answers as before."""
+"""Contract C2, prompts summary (docs/ai-visibility/contracts/c2-summary.md): every addition is
+built, answers a caller who may read the route and a value outside the contract with a 422;
+left out, the summary answers as before. Nothing answers 501 any more."""
 
 from __future__ import annotations
 
@@ -20,7 +21,6 @@ from tests.api.entities.support import member, problem
 from tests.api.keywords.support import project_url
 from tests.conftest import PostgresServer
 
-NOT_BUILT = (501, "not_implemented")
 FORBIDDEN = (403, "forbidden")
 NOT_FOUND = (404, "not_found")
 INVALID = (422, "validation_failed")
@@ -29,35 +29,13 @@ SUMMARY_PATH = "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/promp
 # The seeded world of the summary tests: six prompts, two engines, answers over several weeks.
 seeded = test_prompts_summary.summary
 
-# Every value of the contract the summary does not build yet, one for each parameter at least.
-NOT_BUILT_OPTIONS = [
-    {"group_by": "country"},
-]
 
-
-@pytest.mark.parametrize("params", NOT_BUILT_OPTIONS, ids=str)
-async def test_a_summary_option_that_is_not_built_answers_501(
-    api: httpx.AsyncClient,
-    resources: Resources,
-    migrated: PostgresServer,
-    params: dict[str, str],
-) -> None:
-    workspace = await make_workspace(migrated)
-    viewer = await member(resources, migrated, workspace, "viewer")
-    project = await ai_project(migrated, workspace)
-
-    response = await api.get(
-        project_url(workspace, project, "ai", "prompts-summary"),
-        params=params,
-        headers=viewer.headers,
-    )
-
-    assert problem(response) == NOT_BUILT
-
-
-async def test_the_summary_checks_access_before_it_says_not_built(
+async def test_the_summary_checks_access_before_it_reads_the_project(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
+    """Order of the answers, now that no option answers 501: 401 (no session), 404 (not a member
+    of the workspace), 403 (a role without `data:read`), then 422 for a value, then the 404 of a
+    project the service cannot read; the last two are tested with the values below."""
     workspace = await make_workspace(migrated)
     billing = await member(resources, migrated, workspace, "billing")
     outsider = await member(resources, migrated, await make_workspace(migrated), "owner")
@@ -65,31 +43,13 @@ async def test_the_summary_checks_access_before_it_says_not_built(
     url = project_url(workspace, project, "ai", "prompts-summary")
     params = {"group_by": "country"}
 
+    anonymous = await api.get(url, params=params)
     refused = await api.get(url, params=params, headers=billing.headers)
     unseen = await api.get(url, params=params, headers=outsider.headers)
 
+    assert problem(anonymous) == (401, "unauthenticated")
     assert problem(refused) == FORBIDDEN
     assert problem(unseen) == NOT_FOUND
-
-
-@pytest.mark.parametrize("params", NOT_BUILT_OPTIONS, ids=str)
-async def test_every_unbuilt_option_is_refused_to_a_member_who_may_not_read(
-    api: httpx.AsyncClient,
-    resources: Resources,
-    migrated: PostgresServer,
-    params: dict[str, str],
-) -> None:
-    workspace = await make_workspace(migrated)
-    billing = await member(resources, migrated, workspace, "billing")
-    project = await ai_project(migrated, workspace)
-
-    response = await api.get(
-        project_url(workspace, project, "ai", "prompts-summary"),
-        params=params,
-        headers=billing.headers,
-    )
-
-    assert problem(response) == FORBIDDEN
 
 
 async def test_the_summary_checks_access_before_it_checks_a_value(
@@ -108,22 +68,6 @@ async def test_the_summary_checks_access_before_it_checks_a_value(
     assert problem(response) == FORBIDDEN
 
 
-async def test_a_value_out_of_the_contract_is_refused_before_one_not_built(
-    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    viewer = await member(resources, migrated, workspace, "viewer")
-    project = await ai_project(migrated, workspace)
-
-    response = await api.get(
-        project_url(workspace, project, "ai", "prompts-summary"),
-        params={"group_by": "country", "rows": "all"},
-        headers=viewer.headers,
-    )
-
-    assert problem(response) == INVALID
-
-
 @pytest.mark.parametrize(
     "params",
     [
@@ -134,6 +78,8 @@ async def test_a_value_out_of_the_contract_is_refused_before_one_not_built(
         {"compare_from": "2026-01-01", "compare_to": "nope"},
         {"rows": "all"},
         {"group_by": "language"},
+        {"group_by": "region"},
+        {"group_by": "country", "rows": "all"},
     ],
     ids=str,
 )
@@ -289,12 +235,9 @@ def test_the_api_document_no_longer_says_total_rows_and_co_mentions_are_not_buil
     assert "include=total" in total["description"]
     assert "Not returned yet" not in co_mentions["description"]
     assert "include=co_mentions" in co_mentions["description"]
-    # Still not built: the sentence of the route names what remains, and not what was built.
     route = document["paths"][SUMMARY_PATH]["get"]["description"]
     assert "`include=total`, `include=co_mentions`" not in route
     assert "`include=co_mentions`, `filter[outcome]`" not in route
-    assert "`filter[outcome]`, `filter[opportunity]` and `group_by` are published" not in route
-    assert "`group_by` is published and not built yet (`501`)" in route
     assert "`include=co_mentions` adds `co_mentions`" in route
 
 
@@ -339,7 +282,58 @@ def test_the_api_document_no_longer_says_the_filters_are_not_built() -> None:
     route = document["paths"][SUMMARY_PATH]["get"]["description"]
     assert "`filter[outcome]=O` keeps a prompt row" in route
     assert "`filter[opportunity]`" in route
-    assert "Not built yet" in parameters["group_by"]["description"]
+
+
+GROUP_BY_OPTIONS = [
+    {"group_by": "country"},
+    {"group_by": "country", "filter[country_iso]": "US"},
+    {"group_by": "country", "include": "series,entities,total,co_mentions", "rows": "none"},
+]
+
+
+@pytest.mark.parametrize("params", GROUP_BY_OPTIONS, ids=str)
+async def test_the_group_by_option_is_built(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    params: dict[str, str],
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    billing = await member(resources, migrated, workspace, "billing")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "ai", "prompts-summary")
+
+    response = await api.get(url, params=params, headers=viewer.headers)
+    refused = await api.get(url, params=params, headers=billing.headers)
+
+    assert response.status_code == 200, response.text
+    # The project has no prompt, so the block is there and holds no entry.
+    assert response.json()["data"]["by_country"] == []
+    assert problem(refused) == FORBIDDEN
+
+
+def test_the_api_document_no_longer_says_group_by_is_not_built() -> None:
+    document = build_openapi()
+    operation = document["paths"][SUMMARY_PATH]["get"]
+    parameters = {item["name"]: item for item in operation["parameters"]}
+    by_country = document["components"]["schemas"]["PromptsSummary"]["properties"]["by_country"]
+
+    # Nothing of the summary is still "not built yet" or "not returned yet".
+    assert "Not built yet" not in operation["description"]
+    assert "not built yet" not in operation["description"]
+    for name, parameter in parameters.items():
+        assert "Not built yet" not in parameter.get("description", ""), name
+    assert "Not returned yet" not in by_country["description"]
+    assert "group_by=country" in by_country["description"]
+    assert "`group_by=country` adds `by_country`" in operation["description"]
+    # The one value is `country`; `language` is refused, with the reason in the parameter text.
+    group_by = parameters["group_by"]
+    values = next(option for option in group_by["schema"]["anyOf"] if option.get("type") != "null")
+    # One value is a `const` in the document, several would be an `enum`.
+    assert (values.get("enum") or [values["const"]]) == ["country"]
+    assert "`language` is not built" in group_by["description"]
+    assert "Not built yet" not in str(document["components"]["schemas"]["PromptsSummary"])
 
 
 @pytest.mark.parametrize(

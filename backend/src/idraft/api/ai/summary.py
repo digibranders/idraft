@@ -23,6 +23,7 @@ from idraft.api.ranks.service import instants
 from idraft.api.schemas.ai import (
     NOT_ASKED,
     CoMentionPair,
+    CountrySummary,
     EngineCells,
     EngineCoMentions,
     EngineSummary,
@@ -38,6 +39,7 @@ from idraft.api.schemas.ai import (
     PromptSummaryRow,
     SummaryCompare,
     SummaryEntity,
+    SummaryGroupBy,
     SummaryInclude,
     SummaryMetricContext,
     SummaryRows,
@@ -88,6 +90,8 @@ class SummaryQuery:
     # `nobody_named` or `lost_to:<entity id>`, the id's form already checked): C-5 and C-6.
     outcome: Outcome | None = None
     opportunity: str | None = None
+    # "country": one entry per market of the prompts in scope (C-7).
+    group_by: SummaryGroupBy | None = None
 
 
 def _out_of_range(field: str) -> RequestValidationError:
@@ -658,6 +662,25 @@ def _topic_row(
     )
 
 
+def _countries(
+    prompts: Sequence[SummaryPrompt], engine_codes: Sequence[str], read: _Read
+) -> list[CountrySummary]:
+    """One entry per market of the prompts in scope, sorted by code, each built as a topic row of
+    its prompts (C-7). A prompt's market is its own, not the location of its answers, and a
+    prompt without one is in no entry."""
+    markets: dict[str, list[UUID]] = {}
+    for prompt in prompts:
+        if prompt.country_iso is not None:
+            markets.setdefault(prompt.country_iso, []).append(prompt.id)
+    return [
+        CountrySummary(
+            country_iso=iso,
+            engines=[_engine_row(code, markets[iso], read, topic=True) for code in engine_codes],
+        )
+        for iso in sorted(markets)
+    ]
+
+
 def _context() -> SummaryMetricContext:
     per_prompt = "Counts of valid answers to one prompt, so each answer weighs the same."
     topic = (
@@ -895,4 +918,5 @@ class SummaryService:
             co_mentions=(
                 _co_mentions(shown, by_prompt, pairs) if "co_mentions" in query.include else None
             ),
+            by_country=_countries(prompts, shown, read) if query.group_by == "country" else None,
         )

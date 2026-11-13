@@ -120,17 +120,22 @@ async def test_a_kept_row_still_has_all_its_cells(api: httpx.AsyncClient, seeded
         (OPPORTUNITY, "lost_to:{rival}"),
     ],
 )
-async def test_topics_total_and_co_mentions_are_not_narrowed_by_the_filters(
+async def test_topics_total_countries_and_co_mentions_are_not_narrowed_by_the_filters(
     api: httpx.AsyncClient, seeded: Summary, name: str, value: str
 ) -> None:
     """Everything of the response but `prompts` is what it is without the filter: the topic rows
-    (with their `prompt_count`), `total`, `co_mentions`, the previous cells, the series and the
-    entity cells. The prompt rows are fewer than the three of the scope."""
-    every = {"include": "series,entities,total,co_mentions", "compare": "previous_period"}
+    (with their `prompt_count`), `total`, `by_country`, `co_mentions`, the previous cells, the
+    series and the entity cells. The prompt rows are fewer than the three of the scope."""
+    every = {
+        "include": "series,entities,total,co_mentions",
+        "compare": "previous_period",
+        "group_by": "country",
+    }
     plain = await summary_data(seeded, api, **every)
     narrowed = await summary_data(seeded, api, **every, **{name: value.format(rival=seeded.rival)})
 
     assert len(plain["prompts"]) == 3
+    assert [entry["country_iso"] for entry in plain["by_country"]] == ["US"]
     assert 0 < len(narrowed["prompts"]) < 3
     assert {k: v for k, v in narrowed.items() if k != "prompts"} == {
         k: v for k, v in plain.items() if k != "prompts"

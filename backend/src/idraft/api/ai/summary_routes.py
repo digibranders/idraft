@@ -21,7 +21,6 @@ from idraft.api.schemas.ai import (
     SummaryInclude,
     SummaryRows,
 )
-from idraft.api.stubs import refuse_unbuilt
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 
@@ -86,7 +85,10 @@ Summaries = Annotated[SummaryService, Depends(get_summary_service)]
     "and the own brand not (an id that is not a competitor of the project keeps no row and is "
     "not an error). With both, a row must pass each. They narrow `prompts` only: cells, topic "
     "rows, `total`, `co_mentions` and `prompt_count` still count every prompt in scope. "
-    "`group_by` is published and not built yet (`501`).",
+    "`group_by=country` adds `by_country`: one entry per market of the prompts in scope (the "
+    "prompt's own, sorted by code), with the engines built as a topic row of those prompts and "
+    "the blocks the rows carry when asked; a prompt without a market is in no entry, and the "
+    "block does not depend on `rows`, the outcome or opportunity filters.",
 )
 async def prompts_summary(
     project_id: UUID,
@@ -168,11 +170,13 @@ async def prompts_summary(
     ] = None,
     group_by: Annotated[
         SummaryGroupBy | None,
-        Query(description="`country` adds `by_country`. Not built yet: `501`."),
+        Query(
+            description="`country` adds `by_country`. `language` is not built (the language half "
+            "of BE-METRICS-22 is not in contract C2): `422`, as any other value."
+        ),
     ] = None,
 ) -> PromptsSummaryResponse:
     asked = frozenset(include or ())
-    refuse_unbuilt({"group_by": group_by is not None})
     return PromptsSummaryResponse(
         data=await summaries.summary(
             access,
@@ -192,6 +196,7 @@ async def prompts_summary(
                 rows=rows,
                 outcome=outcome,
                 opportunity=opportunity,
+                group_by=group_by,
             ),
         )
     )

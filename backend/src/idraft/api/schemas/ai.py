@@ -618,7 +618,21 @@ class MetricCell(BaseModel):
 SummaryInclude = Literal["series", "entities", "total", "co_mentions"]
 SummaryCompare = Literal["none", "previous_period", "previous_year"]
 SummaryRows = Literal["topics", "none"]
-SummaryGroupBy = Literal["country"]
+
+
+def _refuse_language(value: object) -> object:
+    """BE-METRICS-22 names a language breakdown that C2 does not have: refuse `language` with
+    that reason, where any other unknown value gets the plain "input should be"."""
+    if value == "language":
+        raise PydanticCustomError(
+            "not_built",
+            "`group_by=language` is not built: the language half of the breakdown (BE-METRICS-22) "
+            "is not in contract C2, which has `country` alone.",
+        )
+    return value
+
+
+SummaryGroupBy = Annotated[Literal["country"], BeforeValidator(_refuse_language)]
 OPPORTUNITY_PATTERN = (
     r"^(named_not_cited|cited_not_named|nobody_named"
     r"|lost_to:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
@@ -910,8 +924,12 @@ class PromptsSummary(BaseModel):
     by_country: list[CountrySummary] | None = Field(
         default=None,
         exclude_if=_absent,
-        description="With `group_by=country`: the engine cells per prompt country. "
-        + _NOT_RETURNED,
+        description="With `group_by=country`: one entry per market (`country_iso`) of the prompts "
+        "in scope, sorted by code, each with the engines built as a topic row of those prompts "
+        "(the same blocks the rows carry when asked). The market is the prompt's, not the "
+        "location of its answers; a prompt without a market is in no entry, and a market with "
+        "prompts and no answer has an entry of zero cells. `filter[country_iso]` leaves that one "
+        "entry. It does not depend on `rows`. Left out otherwise.",
     )
 
 
