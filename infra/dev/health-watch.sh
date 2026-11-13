@@ -62,6 +62,13 @@ while true; do
   level_of
   numbers="disk ${disk_gb} GB free, memory ${mem_pct}% free, swap ${swap_mb} MB, load5 ${load5}, heavy jobs ${heavy}"
   printf 'level=%s\n%s\nreasons=%s\nat=%s\n' "$level" "$numbers" "${reasons:-none}" "$(date '+%Y-%m-%dT%H:%M:%S%z')" >"$STATE_DIR/state"
+  # Brake: fewer parallel jobs while the Mac is stressed. infra/dev/heavy reads this file on every call, so
+  # it only limits new starts; jobs already running finish.
+  case "$level" in
+    OK) printf 'heavy=2\nmedium=3\n' >"$STATE_DIR/slots" ;;
+    WARN) printf 'heavy=1\nmedium=2\n' >"$STATE_DIR/slots" ;;
+    *) printf 'heavy=1\nmedium=1\n' >"$STATE_DIR/slots" ;;
+  esac
   if [ "$level" = CRIT ]; then
     : >"$STATE_DIR/pause"
     calm=0
