@@ -10,7 +10,7 @@ import { can, type Permission } from '@/lib/permissions/permissions';
 // edits nothing else in this file; the "WP-NN" line above each stays as it is.
 
 // WP-27 add-dialog
-// import { limitsMeter } from '../toolbar/limits-meter';
+import { limitsMeter } from '../limits/limits-meter';
 
 // WP-28 import-csv
 // import { importEntry } from '../toolbar/import-entry';
@@ -50,7 +50,7 @@ export const BUILT_IN_TOOLBAR_IDS = ['copy-link', 'add-prompts'] as const;
 
 export const PROMPTS_TOOLBAR_ENTRIES: readonly PromptsToolbarEntry[] = [
   // WP-27 add-dialog (WB-TPH-14, WB-TPH-18)
-  // limitsMeter,
+  limitsMeter,
   // WP-28 import-csv (WB-TPH-10, WB-TPH-11)
   // importEntry,
   // WP-43 panels-web (WB-TPH-05, WB-TPH-16)
