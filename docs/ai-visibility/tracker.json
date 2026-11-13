@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T17:07:32+05:30",
+ "updated": "2026-11-13T17:15:31+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -4167,6 +4167,34 @@
    "granted": "2026-11-13T16:41:15+05:30",
    "scope": "the width test (~231) that clicks the Stats tab at every width (Stats is under More tabs at 390 px) and lines 137-139 (Competitors, Stats at 1280); WP-17 owns the file in wave 2 and rebases",
    "until": "WP-21 merged"
+  },
+  {
+   "path": "apps/web/src/components/design-system/token-groups.ts",
+   "wp": "WP-21 (F-19, done)",
+   "granted": "2026-11-13T17:15:31+05:30",
+   "scope": "Z_LAYERS order (done)",
+   "until": "WP-21 merged"
+  },
+  {
+   "path": "apps/web/src/components/design-system/token-groups.test.ts",
+   "wp": "WP-21 (F-19, done)",
+   "granted": "2026-11-13T17:15:31+05:30",
+   "scope": "z order test (done)",
+   "until": "WP-21 merged"
+  },
+  {
+   "path": "docs/design-system/01-foundations.md",
+   "wp": "WP-21 (F-19, done)",
+   "granted": "2026-11-13T17:15:31+05:30",
+   "scope": "z table (done)",
+   "until": "WP-21 merged"
+  },
+  {
+   "path": "docs/design-system/16-drawers-dialogs-popovers.md",
+   "wp": "WP-21 (F-19, done)",
+   "granted": "2026-11-13T17:15:31+05:30",
+   "scope": "line 187 correction (done)",
+   "until": "WP-21 merged"
   }
  ],
  "followups": [
@@ -4358,7 +4386,7 @@
    "detail": "The inspector is a fixed overlay at --z-drawer (70) while popups use --z-dropdown (60). Affects every popover and Select in the inspector (WP-25 CountPopover, WP-21 count popover and min_support Select, other tabs). Fine at 390 and 1600+. Fix in the shared layer by WP-21 (lease granted): popup layer above the drawer.",
    "owner": "WP-21 session",
    "severity": "user-visible defect",
-   "status": "assigned"
+   "status": "fixed dd3740da: --z-dropdown moved from 60 to 75 (between drawer 70 and dialog 80), no consumer class changed; popups now open above the inspector at 390, 768, 1024, 1280, 1600; ordering test pins it; docs 01 and 16 corrected"
   },
   {
    "id": "F-20",
