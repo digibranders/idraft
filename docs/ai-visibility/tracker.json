@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T22:07:33+05:30",
+ "updated": "2026-11-13T22:09:37+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -946,7 +946,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-19-compare-deltas.md; estimate 6 tasks; decisions D-03 | planning: branch ai/wp-19-compare cut from develop (bdb180b8); a Sonnet planner writes the plan; shares one compare helper with WP-33"
+   "notes": "file work-packages/WP-19-compare-deltas.md; estimate 6 tasks; decisions D-03 | plan committed (5 tasks, 11 commits; P1 after T1a, P2 after T2b, P3 after T5); shared lib/compare for WP-33 and WP-21; D-03 on by default; interim Newcombe test as the detectable rule (no backend flag)"
   },
   {
    "id": "WP-20",
@@ -4048,6 +4048,111 @@
    "granted": "2026-11-13T21:30:33+05:30",
    "scope": "two index rows and one Update line",
    "until": "WP-32 merged"
+  },
+  {
+   "path": "apps/web/messages/en.json",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "additive prompts.compare.* only",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/lib/compare/",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "new folder (parseCompare, cmpParam, compareParams, isCompared, comparedWindow, change-model); WP-33 and WP-21 adopt it on rebase",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/handlers/prompt-answers.ts",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "summary handler only, about 60 lines (compare answers)",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompt-queries.ts",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "SummaryScope.compare and one query line",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompts-screen.tsx",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "five hunks, about 50 lines",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompts-strip.tsx",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "change per engine chip",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/rate-columns.tsx",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "Mention cell change",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/inspector-strip.tsx",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "change per engine item",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/topic-inspector.tsx",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "cards and top prompts change, one optional slot",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/topic-drawer/prompt-row.tsx",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "change on top prompts, one optional slot",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "docs/design-system/13-filters-search.md",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "one key-table row (detectable)",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "docs/design-system/24-page-templates.md",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "append-only As built",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/e2e/flows/ai-compare.spec.ts",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "new file",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/e2e/support/ai-compare.ts",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "new file",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompt-fixtures.ts",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "ONLY if T1b shows the fixtures have no detectable change at 28 days; report first; shifts other tests' counts",
+   "until": "WP-19 merged"
   }
  ],
  "followups": [
@@ -4358,6 +4463,20 @@
    "date": "2026-11-13T21:07:25+05:30",
    "title": "WP-33 plan choices accepted",
    "effect": "page order header, notice, strip, filter bar, grid (preview and DS 24, not the spec's filter bar first); URL keys country/engine/topic/branded plus cmp as the Prompts page reads them; the shell reads the summary twice (current and previous window) and aggregates on the client until WP-32 lands (seam useOverviewPeriods + buildAggregates); no-engine state is a body empty state; the Competitive preset differs from spec 9.5 (adds ai.sample_coverage, widens ai.co_mentions) so no half row remains at 1280 px; owner to confirm",
+   "status": "accepted by coordinator, owner to confirm"
+  },
+  {
+   "id": "D-03",
+   "by": "coordinator",
+   "date": "2026-11-13T22:09:37+05:30",
+   "title": "Compare on by default on Overview and Topics & Prompts (cmp=off turns it off); the select offers vs previous period and No comparison only (same period last year and Custom not offered although the API supports them)",
+   "status": "accepted by coordinator, owner to confirm"
+  },
+  {
+   "id": "WP-19-defaults",
+   "by": "coordinator",
+   "date": "2026-11-13T22:09:37+05:30",
+   "title": "Q1 equal-weight average change coloured when detectable on pooled answers (labelled pooled answers); Q2 strip chips with prompts in one window use each side's own prompts with counts in the tooltip; Q3 chip is an enum field Show with option Detectable changes only",
    "status": "accepted by coordinator, owner to confirm"
   }
  ],
