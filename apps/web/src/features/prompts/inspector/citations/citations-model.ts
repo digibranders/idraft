@@ -17,6 +17,12 @@ export const ALL_ENGINES = 'all';
 /** Favicons are shown everywhere until the project setting exists (plan D16). */
 export const FAVICON: FaviconMode = 'show';
 
+/**
+ * The widest the first cell of a row grows (a class, so the table's other columns stay in view): a table cell does
+ * not shrink its text by itself, and the inspector holds 376 px of table (326 in the sheet of a phone).
+ */
+export const IDENTITY_WIDTH = 'max-w-32 md:max-w-44';
+
 /** The lists name the five most cited. */
 export const TOP_LIMIT = 5;
 

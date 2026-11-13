@@ -271,18 +271,16 @@ describe('the tab capacity of the prompt inspector', () => {
 });
 
 describe('the tabs of the prompt inspector', () => {
-  it('has Latest, History, Competitors and Stats in that order, with Latest chosen and left out of the address', async () => {
+  it('has Latest, History, Citations, Competitors and Stats in that order, with Latest chosen and left out of the address', async () => {
     renderOn('viewer', opened);
     const inspector = await panel();
     const list = await within(inspector).findByRole('tablist', { name: 'Prompt sections' });
     const tabs = within(list).getAllByRole('tab');
-    ['Latest', 'History', 'Competitors', 'Stats'].forEach((name, place) =>
+    ['Latest', 'History', 'Citations', 'Competitors', 'Stats'].forEach((name, place) =>
       expect(tabs[place]).toHaveAccessibleName(name),
     );
-    expect(tabs).toHaveLength(4);
-    expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false']);
-    // There is no Citations tab until its routes exist
-    expect(within(inspector).queryByRole('tab', { name: 'Citations' })).toBeNull();
+    expect(tabs).toHaveLength(5);
+    expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false', 'false']);
   });
 
   it('chooses a tab by click and by the arrow keys, and keeps the choice in the address', async () => {
@@ -294,6 +292,9 @@ describe('the tabs of the prompt inspector', () => {
     expect(within(inspector).getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
     expect(await within(inspector).findByText('Latest answers')).toBeInTheDocument();
     await user.keyboard('{ArrowRight}');
+    expect(urls.at(-1)).toContain('itab=citations');
+    expect(within(inspector).getByRole('tab', { name: 'Citations' })).toHaveFocus();
+    await user.keyboard('{ArrowRight}');
     expect(urls.at(-1)).toContain('itab=competitors');
     expect(within(inspector).getByRole('tab', { name: 'Competitors' })).toHaveAttribute('aria-selected', 'true');
     // Focus follows the chosen tab, so the keys go on from it
@@ -302,11 +303,29 @@ describe('the tabs of the prompt inspector', () => {
     expect(urls.at(-1)).not.toContain('itab');
   });
 
+  it('shows the Citations tab through the seam, after History, and keeps it in the address', async () => {
+    const urls: string[] = [];
+    const { user } = renderOn('viewer', opened, (query) => urls.push(decodeURIComponent(query)));
+    const inspector = await panel();
+    await user.click(await within(inspector).findByRole('tab', { name: 'Citations' }));
+    expect(urls.at(-1)).toContain('itab=citations');
+    expect(within(inspector).getByRole('tab', { name: 'Citations' })).toHaveAttribute('aria-selected', 'true');
+    expect(await within(inspector).findByRole('heading', { name: 'Top domains' })).toBeInTheDocument();
+    expect(within(inspector).getByRole('heading', { name: 'Cited in each answer' })).toBeInTheDocument();
+  });
+
   it('opens on the tab the address names, and on Latest for one it does not know', async () => {
     const { unmount } = renderOn('viewer', openedOn('stats'));
     expect(await within(await panel()).findByRole('tab', { name: 'Stats' })).toHaveAttribute('aria-selected', 'true');
     unmount();
-    renderOn('viewer', openedOn('citations'));
+    const citations = renderOn('viewer', openedOn('citations'));
+    expect(await within(await panel()).findByRole('tab', { name: 'Citations' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    citations.unmount();
+    // Fan-out has no entry yet (WP-24): its address falls back to Latest, as any name no tab has does
+    renderOn('viewer', openedOn('fanout'));
     expect(await within(await panel()).findByRole('tab', { name: 'Latest' })).toHaveAttribute('aria-selected', 'true');
   });
 

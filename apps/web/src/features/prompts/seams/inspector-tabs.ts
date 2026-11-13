@@ -10,7 +10,7 @@ import type { ProjectEngine, Prompt } from '@/lib/api/types';
 // edits nothing else in this file; the "WP-NN" line above each stays as it is.
 
 // WP-21 citations-core
-// import { citationsTab } from '../inspector/citations/citations-tab';
+import { citationsTab } from '../inspector/citations/citations-tab';
 
 // WP-24 fanout-views
 // import { fanoutTab } from '../inspector/fanout/fanout-tab';
@@ -50,7 +50,7 @@ export interface PromptInspectorTab {
 
 export const PROMPT_TAB_ENTRIES: readonly PromptInspectorTab[] = [
   // WP-21 citations-core (after: 'history')
-  // citationsTab,
+  citationsTab,
   // WP-24 fanout-views (after: 'competitors', available while an enabled engine exposes fan-out)
   // fanoutTab,
 ];

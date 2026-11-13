@@ -3,11 +3,14 @@
 import { useTranslations } from 'next-intl';
 import { useState, type ReactElement } from 'react';
 
+import { AnswersCited } from './answers-cited';
+import { CitationBanner } from './citation-banner';
 import { CitationsControls } from './citations-controls';
 import { ALL_ENGINES, DEFAULT_MIN_SUPPORT, engineColumns, staleSince } from './citations-model';
-import { useCitationReads } from './citations-reads';
+import { useAnswerReads, useCitationReads } from './citations-reads';
 import { TopDomains, TopPages } from './top-lists';
 import type { PromptInspectorTab, PromptTabContext } from '../../seams/inspector-tabs';
+import { Skeleton } from '@/components/ui/skeleton';
 import { formatTableDateTime } from '@/lib/format';
 
 export interface CitationsTabProps {
@@ -17,8 +20,8 @@ export interface CitationsTabProps {
 /**
  * The Citations tab of the prompt inspector (WB-PIC-01 to 04, 10): which domains and pages the answers to this
  * prompt cite, over the window of the inspector. The engine is All engines (one count column each, never a pool)
- * or one engine; every share says the units it is a share of. The banner above and the answers below join in
- * the next task. It reads only while it is mounted, and each of its reads loads and fails alone.
+ * or one engine; every share says the units it is a share of. The banner above (WB-PI-21) and the answers
+ * below (WB-PIC-06 to 09) join them. It reads only while it is mounted, and each of its reads loads and fails alone.
  */
 export function CitationsTab({ context }: CitationsTabProps): ReactElement {
   const t = useTranslations('prompts.citationsTab');
@@ -30,7 +33,12 @@ export function CitationsTab({ context }: CitationsTabProps): ReactElement {
       ? chosen
       : ALL_ENGINES;
   const reads = useCitationReads(context, { engine, minSupport });
+  const answerReads = useAnswerReads(context);
   const meta = reads.domains.data?.meta;
+  // The banner waits for the three things it says; the newest listed answer stands in for a summary that failed
+  const bannerLoading =
+    reads.domains.status === 'loading' || reads.ownPages.status === 'loading' || context.counts.status === 'loading';
+  const lastAnswerAt = context.counts.row?.last_observed_at ?? answerReads.answers.data?.data[0]?.observed_at ?? null;
   const staleAt = staleSince(context.counts.row?.last_valid_at, new Date());
   // What the figures below are of, one sentence each; every share in the lists is of the units the first one names
   const notes = [
@@ -43,6 +51,17 @@ export function CitationsTab({ context }: CitationsTabProps): ReactElement {
   ].filter((note): note is string => note !== null);
   return (
     <>
+      {bannerLoading ? (
+        <Skeleton shape="block" height="row" widthPct={100} />
+      ) : meta === undefined ? null : (
+        <CitationBanner
+          cited={meta.by_role.find((entry) => entry.domain_role === 'own')?.observations ?? 0}
+          answers={meta.answers}
+          lastAnswerAt={lastAnswerAt}
+          ownPages={reads.ownPages.data?.page.total ?? null}
+          timeZone={context.timeZone}
+        />
+      )}
       <CitationsControls
         engines={context.engines}
         labelOf={context.labelOf}
@@ -68,11 +87,18 @@ export function CitationsTab({ context }: CitationsTabProps): ReactElement {
         minSupport={minSupport}
       />
       <TopPages read={reads.pages} ownPages={reads.ownPages} minSupport={minSupport} />
+      <AnswersCited
+        answers={answerReads.answers}
+        citations={answerReads.citations}
+        labelOf={context.labelOf}
+        timeZone={context.timeZone}
+        onOpenAnswer={context.onOpenAnswer}
+      />
     </>
   );
 }
 
-/** The entry the seam lists (wired in the next task): placed after History. */
+/** The entry the seam lists: placed after History. */
 export const citationsTab: PromptInspectorTab = {
   id: 'citations',
   after: 'history',

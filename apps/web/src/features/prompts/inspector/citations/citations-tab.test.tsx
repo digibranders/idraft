@@ -20,6 +20,8 @@ const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai';
 const DOMAINS = mswPath(`${P}/sources/domains`);
 const PAGES = mswPath(`${P}/sources/pages`);
 const CHANGES = mswPath(`${P}/sources/changes`);
+const OBSERVATIONS = mswPath(`${P}/observations`);
+const CITATIONS = mswPath(`${P}/citations`);
 
 const [fynix] = MOCK_PROJECTS;
 if (fynix === undefined) throw new Error('The Fynix project fixture is missing');
@@ -106,11 +108,44 @@ interface Served {
   domains: URL[];
   pages: URL[];
   changes: URL[];
+  observations: URL[];
+  citations: URL[];
 }
 
-/** Serves the three reads; `ownPages` is the total the own-page read answers. */
-function serve({ meta = metaOf(), failDomains = false } = {}): Served {
-  const served: Served = { domains: [], pages: [], changes: [] };
+const answer = (id: string, at = '2026-11-11T09:05:00Z'): object => ({
+  observation_id: id,
+  engine_code: 'chatgpt_web',
+  observed_at: at,
+  status: 'complete',
+  facts: { is_valid: true, total_citation_count: 2 },
+});
+
+const citationRow = (observationId: string, index: number, domain: string, role: string): object => ({
+  citation_index: index,
+  citation_kind: 'inline',
+  domain_role: role,
+  engine_code: 'chatgpt_web',
+  host: `www.${domain}`,
+  observation_id: observationId,
+  observed_at: '2026-11-11T09:05:00Z',
+  occurrences: 1,
+  prompt_id: '0192d1a8-e000-7a10-8e00-000000000001',
+  raw_url: `https://www.${domain}/a`,
+  registrable_domain: domain,
+  role_entity_id: null,
+  title: null,
+  url: `https://www.${domain}/a`,
+  url_id: index,
+});
+
+/** Serves the reads; `ownTotal` is the total the own-page read answers, `failCitations` fails the citation list. */
+function serve({
+  meta = metaOf(),
+  failDomains = false,
+  ownTotal = 0,
+  failCitations = false,
+}: { meta?: SourcesMeta; failDomains?: boolean; ownTotal?: number; failCitations?: boolean } = {}): Served {
+  const served: Served = { domains: [], pages: [], changes: [], observations: [], citations: [] };
   server.use(
     http.get(DOMAINS, ({ request }) => {
       served.domains.push(new URL(request.url));
@@ -121,7 +156,22 @@ function serve({ meta = metaOf(), failDomains = false } = {}): Served {
       const url = new URL(request.url);
       served.pages.push(url);
       const own = url.searchParams.get('filter[domain_role_in]') === 'own';
-      return HttpResponse.json(own ? list([], meta, 0) : list([page('https://g2.com/categories/seo', 9)], meta));
+      return HttpResponse.json(own ? list([], meta, ownTotal) : list([page('https://g2.com/categories/seo', 9)], meta));
+    }),
+    http.get(OBSERVATIONS, ({ request }) => {
+      served.observations.push(new URL(request.url));
+      return HttpResponse.json({
+        data: [answer('o1')],
+        page: { has_more: false, limit: 200, next_cursor: null },
+      });
+    }),
+    http.get(CITATIONS, ({ request }) => {
+      served.citations.push(new URL(request.url));
+      if (failCitations) return HttpResponse.json({ title: 'Server error' }, { status: 500 });
+      return HttpResponse.json({
+        data: [citationRow('o1', 1, 'g2.com', 'third_party'), citationRow('o1', 2, 'fynix.io', 'own')],
+        page: { has_more: false, limit: 200, next_cursor: null },
+      });
     }),
     http.get(CHANGES, ({ request }) => {
       served.changes.push(new URL(request.url));
@@ -145,6 +195,7 @@ function serve({ meta = metaOf(), failDomains = false } = {}): Served {
 const countsOf = (lastValidAt: string | null = '2026-11-12T02:00:00Z'): PromptCounts => ({
   status: 'ready',
   row: {
+    last_observed_at: '2026-11-11T09:05:00Z',
     last_valid_at: lastValidAt,
     engines: [
       { engine_code: 'chatgpt_web', cited: cell(2, 4) },
@@ -178,6 +229,12 @@ const contextOf = (over: Partial<PromptTabContext> = {}): PromptTabContext => ({
 
 const renderTab = (over: Partial<PromptTabContext> = {}): ProvidedRender =>
   renderWithProviders(<CitationsTab context={contextOf(over)} />);
+
+const bannerOf = (container: HTMLElement): HTMLElement => {
+  const banner = container.querySelector<HTMLElement>('[data-slot="banner"]');
+  if (banner === null) throw new Error('No banner is drawn');
+  return banner;
+};
 
 const domainsTable = (): Promise<HTMLElement> =>
   screen.findByRole('table', { name: 'Most cited domains for this prompt' });
@@ -340,11 +397,122 @@ describe('a read that fails', () => {
   });
 });
 
-describe('accessibility', () => {
-  it('is axe clean', async () => {
-    serve();
+describe('the banner, the lists and the answers in one tab', () => {
+  it('shows the banner, Top domains, Top pages and the answers', async () => {
+    serve({ ownTotal: 4 });
+    renderTab();
+    await domainsTable();
+    expect(
+      await screen.findByText('Cited in 4 of 8 answers; last answer Nov 11, 09:05; 4 own pages cited'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Top domains' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Top pages' })).toBeInTheDocument();
+    expect(await screen.findByRole('table', { name: 'Own page cited in each answer' })).toBeInTheDocument();
+  });
+
+  it('puts the banner first in the tab, in the info tone when the own domain is cited', async () => {
+    serve({ ownTotal: 4 });
     const { container } = renderTab();
     await domainsTable();
+    const banner = await waitFor(() => bannerOf(container));
+    expect(banner).toHaveAttribute('role', 'status');
+    expect(banner.className).toContain('bg-info-subtle');
+    expect(container.firstElementChild).toBe(banner);
+  });
+
+  it('says Cited in 0 of 8 answers in the neutral tone, and that the domain is not cited, for a prompt cited by no own page', async () => {
+    serve({
+      meta: metaOf({
+        by_role: [
+          { domain_role: 'own', citation_units: 0, observations: 0 },
+          { domain_role: 'competitor', citation_units: 12, observations: 5 },
+          { domain_role: 'third_party', citation_units: 36, observations: 6 },
+        ],
+      }),
+    });
+    const { container } = renderTab();
+    await domainsTable();
+    const banner = await waitFor(() => bannerOf(container));
+    expect(banner).toHaveTextContent('Cited in 0 of 8 answers; last answer Nov 11, 09:05');
+    expect(banner.className).toContain('bg-surface-subtle');
+    expect(
+      screen.getByText('Your domain is not cited in any of the 8 answers read. These sources are cited instead.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('No page of yours is cited by this prompt.')).toBeInTheDocument();
+  });
+
+  it('says there is nothing to count, with no banner, when the window has no answers', async () => {
+    serve({ meta: metaOf({ answers: 0, answers_citing: 0, citation_units: 0, by_role: [] }) });
+    const { container } = renderTab();
+    expect(await screen.findByText('No answers in this window, so there is nothing to count.')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="banner"]')).toBeNull();
+  });
+
+  it('reads the answers and their citations only while the tab is shown, for this prompt and window', async () => {
+    const served = serve();
+    function Harness(): ReactElement {
+      const [shown, setShown] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setShown(true)}>
+            Show
+          </button>
+          {shown ? <CitationsTab context={contextOf()} /> : null}
+        </>
+      );
+    }
+    const { user } = renderWithProviders(<Harness />);
+    expect(served.observations).toHaveLength(0);
+    expect(served.citations).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: 'Show' }));
+    await screen.findByRole('table', { name: 'Own page cited in each answer' });
+    expect(served.observations[0]?.searchParams.get('filter[prompt_id]')).toBe('2000001');
+    expect(served.citations[0]?.searchParams.get('filter[prompt_id]')).toBe('2000001');
+    expect(served.citations[0]?.searchParams.get('from')).toBe(WINDOW.from);
+    expect(served.citations[0]?.searchParams.get('limit')).toBe('200');
+  });
+
+  it('passes include_branded to the citation list for a branded prompt, and no engine to it', async () => {
+    const served = serve();
+    const { user } = renderTab({ prompt: { is_branded: true } as unknown as Prompt });
+    await screen.findByRole('table', { name: 'Own page cited in each answer' });
+    expect(served.citations[0]?.searchParams.get('include_branded')).toBe('true');
+    await user.click(screen.getByRole('radio', { name: 'Gemini' }));
+    await waitFor(() => {
+      expect(served.domains.at(-1)?.searchParams.get('filter[engine_code_in]')).toBe('gemini_web');
+    });
+    expect(served.citations.every((request) => request.searchParams.get('filter[engine_code_in]') === null)).toBe(true);
+  });
+
+  it('shows the position of the own page in each answer', async () => {
+    serve();
+    renderTab();
+    expect(await screen.findByText('Source 2 of 2')).toBeInTheDocument();
+  });
+
+  it('keeps the answers and says n/a for their citations when the citation list fails', async () => {
+    serve({ failCitations: true });
+    renderTab();
+    expect(await screen.findByText('The citations of the answers could not be loaded.')).toBeInTheDocument();
+    const table = await screen.findByRole('table', { name: 'Own page cited in each answer' });
+    expect(within(table).getAllByText('n/a')).toHaveLength(2);
+  });
+
+  it('opens an answer from its date', async () => {
+    serve();
+    const calls: string[] = [];
+    const { user } = renderTab({ onOpenAnswer: (id) => calls.push(id) });
+    await user.click(await screen.findByRole('button', { name: 'Open the ChatGPT answer of Nov 11, 09:05' }));
+    expect(calls).toEqual(['o1']);
+  });
+});
+
+describe('accessibility', () => {
+  it('is axe clean', async () => {
+    serve({ ownTotal: 4 });
+    const { container } = renderTab();
+    await domainsTable();
+    await screen.findByRole('table', { name: 'Own page cited in each answer' });
     expect(await axe(container)).toHaveNoViolations();
   });
 });

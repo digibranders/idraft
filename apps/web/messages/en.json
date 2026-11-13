@@ -4206,6 +4206,7 @@
       "basedOn": "Based on the latest {count, plural, one {# answer} other {# answers}}.",
       "banner": {
         "cited": "Cited in {cited, number} of {answers, plural, one {# answer} other {# answers}}; last answer {time}; {pages, plural, one {# own page} other {# own pages}} cited",
+        "citedNoPages": "Cited in {cited, number} of {answers, plural, one {# answer} other {# answers}}; last answer {time}",
         "notCited": "Cited in 0 of {answers, plural, one {# answer} other {# answers}}; last answer {time}",
         "noAnswers": "No answers in this window, so there is nothing to count."
       },
@@ -4252,6 +4253,7 @@
         "moreOwn": "and {count, plural, one {# more own page} other {# more own pages}}",
         "insteadTitle": "Cited instead",
         "alsoTitle": "Also cited",
+        "domainPages": "{count, plural, one {# page} other {# pages}}",
         "insteadLabel": "{count, plural, one {# domain} other {# domains}} cited in this answer, show them",
         "emptyTitle": "No answers to read",
         "failed": "The citations of the answers could not be loaded."

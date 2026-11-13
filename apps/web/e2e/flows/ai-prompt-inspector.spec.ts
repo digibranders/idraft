@@ -70,15 +70,19 @@ test.describe('The prompt inspector, completed', () => {
     await expect(opener).toBeFocused();
   });
 
-  test('is a sheet on a phone, whose four tabs fit one row with no More tabs button', async ({ page }) => {
+  test('is a sheet on a phone, whose five tabs are four in one row and Stats under More tabs', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await signIn(page, EDITOR);
     await page.goto(`${FYNIX_PROMPTS}?tab=prompts&inspect=${encodeURIComponent(`prompt:${FIRST_PROMPT_ID}`)}`);
     const sheet = page.getByRole('dialog', { name: FIRST_PROMPT });
     await expect(sheet.getByRole('tablist', { name: 'Prompt sections' })).toBeVisible();
     await expect(page.getByRole('complementary', { name: FIRST_PROMPT })).toHaveCount(0);
+    // Measured at 390 px: Latest, History, Citations and Competitors fit the row, the fifth tab is in the menu
     await expect(sheet.getByRole('tab')).toHaveCount(4);
-    await expect(sheet.getByRole('button', { name: 'More tabs' })).toHaveCount(0);
+    await expect(sheet.getByRole('tab', { name: 'Citations' })).toBeVisible();
+    await sheet.getByRole('button', { name: 'More tabs' }).click();
+    await expect(page.getByRole('menuitem')).toHaveText(['Stats']);
+    await page.keyboard.press('Escape');
     const fits = await tabRowOf(sheet).evaluate((row) => row.scrollWidth <= row.clientWidth);
     expect(fits).toBe(true);
   });
@@ -99,8 +103,14 @@ for (const theme of ['light', 'dark'] as const) {
       test(`has no accessibility violation on Latest, History and Stats at ${String(width)} px`, async ({ page }) => {
         const inspector = await openFirstPrompt(page, width);
         await expectAccessible(page);
-        for (const tab of ['History', 'Stats']) {
-          await inspector.getByRole('tab', { name: tab }).click();
+        for (const tab of ['History', 'Citations', 'Stats']) {
+          // On a phone the fifth tab is under More tabs, and choosing it puts it in the row
+          if ((await inspector.getByRole('tab', { name: tab }).count()) === 0) {
+            await inspector.getByRole('button', { name: 'More tabs' }).click();
+            await page.getByRole('menuitem', { name: tab }).click();
+          } else {
+            await inspector.getByRole('tab', { name: tab }).click();
+          }
           await expectAccessible(page);
         }
         await inspector.getByRole('button', { name: 'Open statistics for Mention on ChatGPT' }).click();

@@ -4,7 +4,16 @@ import { FileText, Globe, type LucideIcon } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import type { ReactElement, ReactNode } from 'react';
 
-import { engineCell, FAVICON, lostRows, notCited, topRows, type EngineColumn, type TopRow } from './citations-model';
+import {
+  engineCell,
+  FAVICON,
+  IDENTITY_WIDTH,
+  lostRows,
+  notCited,
+  topRows,
+  type EngineColumn,
+  type TopRow,
+} from './citations-model';
 import type { CitationRead } from './citations-reads';
 import type { PromptCounts } from '../../inspector-reads';
 import { DomainCell } from '@/components/app/cells/domain-cell';
@@ -26,6 +35,7 @@ import type {
   SourcesMeta,
 } from '@/lib/citations/types';
 import { EMPTY_VALUE, formatInteger, formatList, formatPercent } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
 /** A cell's two lines: the units, then the share with the units it is a share of ("25.0% of 48 units"). */
 function UnitsCell({ units, share }: { units: number; share: UnitShare }): ReactElement {
@@ -207,7 +217,7 @@ export function TopDomains({ read, lost, columns, counts, minSupport }: TopDomai
       id: 'domain',
       header: t('domain'),
       cell: ({ row, isNew }) => (
-        <span className="flex min-w-0 items-center gap-2">
+        <span className={cn('flex min-w-0 items-center gap-2', IDENTITY_WIDTH)}>
           <DomainCell
             host={row.registrable_domain}
             registrable={row.registrable_domain}
@@ -269,7 +279,7 @@ export function TopPages({ read, ownPages, minSupport }: TopPagesProps): ReactEl
       id: 'page',
       header: t('page'),
       cell: ({ row, isNew }) => (
-        <span className="flex min-w-0 items-center gap-2">
+        <span className={cn('flex min-w-0 items-center gap-2', IDENTITY_WIDTH)}>
           <URLCell
             url={row.url}
             hostDisplay="show"

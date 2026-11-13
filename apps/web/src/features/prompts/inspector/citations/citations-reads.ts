@@ -3,14 +3,23 @@
 import { keepPreviousData, useQuery, type UseQueryResult } from '@tanstack/react-query';
 
 import { ALL_ENGINES, TOP_LIMIT } from './citations-model';
+import { observationsQuery } from '../../prompt-queries';
 import type { PromptTabContext } from '../../seams/inspector-tabs';
 import {
+  citationListQuery,
   sourceChangesQuery,
   sourceDomainsQuery,
   sourcePagesQuery,
   type SourceFilters,
 } from '@/lib/citations/source-queries';
-import type { EngineCode, SourceChangePage, SourceDomainPage, SourcePagePage } from '@/lib/citations/types';
+import type {
+  CitationPage,
+  EngineCode,
+  SourceChangePage,
+  SourceDomainPage,
+  SourcePagePage,
+} from '@/lib/citations/types';
+import type { Schemas } from '@/lib/api/types';
 import { useErrorId, type ErrorIdWords } from '@/lib/api/use-error-id';
 
 /** One read of the tab: what it has, and how to say so (the shape of `PromptAnswers`). */
@@ -85,4 +94,33 @@ export function useCitationReads(context: PromptTabContext, { engine, minSupport
     ...options,
   });
   return { domains: useRead(domains), pages: useRead(pages), ownPages: useRead(ownPages), lost: useRead(lost) };
+}
+
+export interface AnswerReads {
+  /** The prompt's answers in the window: the read History shares (one cache entry). */
+  answers: CitationRead<Schemas['ObservationPage']>;
+  /** The first page of the citation rows of those answers, newest answer first. */
+  citations: CitationRead<CitationPage>;
+}
+
+/** The most citation rows one read holds; the answers past them read n/a (the list is cut by rows, not by answers). */
+const CITATION_ROWS = 200;
+
+/**
+ * The two reads of the answers section: the answers, and the citation rows to join to them by answer. Neither
+ * follows the engine choice (every answer lists its engine) and they fail apart. A branded prompt is read with
+ * `include_branded`, as the top lists are (plan Q11).
+ */
+export function useAnswerReads(context: PromptTabContext): AnswerReads {
+  const { scope, promptId, range, exists, prompt } = context;
+  const filters: SourceFilters = {
+    from: range.from,
+    to: range.to,
+    promptId,
+    ...(prompt?.is_branded === true ? { includeBranded: true } : {}),
+  };
+  const options = { placeholderData: keepPreviousData, enabled: exists } as const;
+  const answers = useQuery({ ...observationsQuery(scope, promptId, range), ...options });
+  const citations = useQuery({ ...citationListQuery(scope, filters, { limit: CITATION_ROWS }), ...options });
+  return { answers: useRead(answers), citations: useRead(citations) };
 }
