@@ -4031,6 +4031,17 @@
   "discover": {},
   "layouts": {
     "customize": {
+      "mode": {
+        "customize": "Customize",
+        "customizeCards": "Customize cards",
+        "customizeNumbers": "Customize numbers",
+        "badge": "Customizing",
+        "notLoaded": "Available once your layout has loaded",
+        "discardTitle": "Discard unsaved changes?",
+        "discardBody": "Your layout changes will be lost.",
+        "keepEditing": "Keep editing",
+        "discard": "Discard changes"
+      },
       "announce": {
         "numberAdded": "{number} added",
         "numberRemoved": "{number} removed",

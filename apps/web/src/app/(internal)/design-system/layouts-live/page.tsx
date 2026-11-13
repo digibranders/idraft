@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 
+import { LayoutsCustomizeLive } from '@/features/layouts/customize-specimen';
 import { LayoutsLive } from '@/features/layouts/live-specimen';
 import { publicEnv } from '@/lib/env/public';
 
@@ -21,6 +22,7 @@ export default function LayoutsLivePage(): ReactNode {
     <>
       <h1 className="type-page-title">Layouts, live</h1>
       <LayoutsLive />
+      <LayoutsCustomizeLive />
     </>
   );
 }

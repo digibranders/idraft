@@ -9,6 +9,15 @@ export type { CardPart, FocusRequest, LayoutMode } from './layout-state';
 export { useLayoutCapabilities } from './use-layout-capabilities';
 export type { LayoutCapabilities } from './use-layout-capabilities';
 
+// Customize mode (WP-16): the screen wrapper, the controller's hook, and the controls of the page header
+export { CustomizableScreen } from './customize/customizable-screen';
+export type { CustomizableScreenProps } from './customize/customizable-screen';
+export { useCustomize } from './customize/customize-controller';
+export type { CustomizeContextValue } from './customize/customize-controller';
+export { CustomizeButton, useCustomizeMenuItem } from './customize/customize-button';
+export type { CustomizeButtonProps, CustomizeLabel } from './customize/customize-button';
+export { CustomizingBadge } from './customize/customizing-badge';
+
 // Grid and frame: the slots a page or WP-16 fills
 export { LayoutGrid, SPAN_CLASS } from './layout-grid';
 export type { LayoutGridProps } from './layout-grid';
