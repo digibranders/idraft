@@ -4648,6 +4648,16 @@
       "internal": "Engine links",
       "internalInclude": "Include engine-internal links"
     },
+    "scope": {
+      "country": "Country: {country}",
+      "allCountries": "All countries",
+      "countrySearch": "Search countries",
+      "countryEmpty": "No country matches {query}",
+      "clear": "Clear",
+      "open": "Show countries",
+      "note": "Only the prompts set in {country} are read.",
+      "noteUnset": "Prompts with no country are left out."
+    },
     "inspectors": {}
   },
   "competitors": {},
