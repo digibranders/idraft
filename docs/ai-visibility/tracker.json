@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T12:30:38+05:30",
+ "updated": "2026-11-13T12:40:48+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -99,7 +99,7 @@
    },
    "counts": {
     "total": 4,
-    "done": 2
+    "done": 4
    },
    "owner": "",
    "notes": "file work-packages/WP-01-backend-scaffold.md; estimate 5 tasks; decisions D-11, D-18 | scaffold merged to develop"
@@ -130,7 +130,7 @@
    },
    "counts": {
     "total": 4,
-    "done": 0
+    "done": 4
    },
    "owner": "",
    "notes": "file work-packages/WP-02-web-scaffold.md; estimate 7 tasks; decisions D-16 | scaffold merged to develop"
@@ -584,7 +584,7 @@
    },
    "counts": {
     "total": 21,
-    "done": 5
+    "done": 18
    },
    "owner": "",
    "notes": "file work-packages/WP-14-sources-lane.md; estimate 8 tasks; decisions D-41 | steps 8/10, rows 18/21; T1-T7 incl O1 committed (backup on origin/ai/wp-14-sources-lane); next T8 fan-out topics, T9, T10 regeneration on top of WP-12 and WP-13"
