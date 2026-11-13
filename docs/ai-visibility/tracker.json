@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T22:18:14+05:30",
+ "updated": "2026-11-13T22:22:48+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1323,7 +1323,7 @@
     "done": 9
    },
    "owner": "",
-   "notes": "file work-packages/WP-26-evidence-viewer.md; estimate 7 tasks; decisions none | from WP-25: step 1 CF-26 hashes closes WB-PI-23; Latest cards then need one line with a copy button"
+   "notes": "file work-packages/WP-26-evidence-viewer.md; estimate 7 tasks; decisions none | plan committed (8 tasks, backed up on origin/ai/wp-26-evidence); CF-25 already populated, CF-26 hashes need no migration, quote per citation needs one nullable column (migration 0023+); T0 contract push next"
   },
   {
    "id": "WP-27",
@@ -4153,6 +4153,90 @@
    "granted": "2026-11-13T22:09:37+05:30",
    "scope": "ONLY if T1b shows the fixtures have no detectable change at 28 days; report first; shifts other tests' counts",
    "until": "WP-19 merged"
+  },
+  {
+   "path": "backend/src/idraft/api/schemas/ai.py",
+   "wp": "SHARED WP-26 (with WP-30, WP-31, WP-32)",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "additive: CitationOut.quote, ObservationDetail.answer_sha256 and raw_sha256, optional with default; hot file: rebase before every push, keep both sides",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "backend/src/idraft/db/tables.py",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "one Column on ai.citations (quote, nullable); migration 0023 or higher (renumber on rebase if another package took it)",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "backend/tests/db/test_grants.py",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "one row for the new column if needed",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "backend/tests/security/test_cross_tenant.py",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "one QUERIES line in its anchor plus a baseline answer in the _tenant seed for the compare read",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "backend/src/idraft/api/ai/observation_repository.py",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "observation detail hashes and compare baseline read",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "backend/src/idraft/collectors/ai_prompt_ingest.py",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "store the quote per citation",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "backend/src/idraft/providers/dataforseo/ai_parse.py",
+   "wp": "WP-26 (after WP-14's _bounded fix, already on develop)",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "quote parse only",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/handlers/prompt-answers.ts",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "additive fields (hashes, quote, compare)",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/prompt-fixtures.ts",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "additive fields",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/inspector-latest.tsx",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "WB-PI-23 hash line with a copy button",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/inspector-latest.test.tsx",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "its test",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "apps/web/messages/en.json",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "namespace evidence.* only, additive",
+   "until": "WP-26 merged"
   }
  ],
  "followups": [
@@ -4437,6 +4521,11 @@
    "wp": "WP-13",
    "name": "0022_ai_prompt_value_sources",
    "status": "merged; dev DB NOT upgraded yet"
+  },
+  {
+   "wp": "WP-26",
+   "name": "ai.citations.quote nullable column (0023 or higher)",
+   "status": "queued; first to push takes 0023, the others renumber"
   }
  ],
  "decisions_made": [
@@ -4477,6 +4566,13 @@
    "by": "coordinator",
    "date": "2026-11-13T22:09:37+05:30",
    "title": "Q1 equal-weight average change coloured when detectable on pooled answers (labelled pooled answers); Q2 strip chips with prompts in one window use each side's own prompts with counts in the tooltip; Q3 chip is an enum field Show with option Detectable changes only",
+   "status": "accepted by coordinator, owner to confirm"
+  },
+  {
+   "id": "WP-26-decisions",
+   "by": "coordinator",
+   "date": "2026-11-13T22:22:48+05:30",
+   "title": "No markdown dependency (in-house subset renderer); D1 compare baseline newest earlier valid answer naming the own brand (404 when none); D4 Raw view fetches provider raw JSON on open with raw:read; D6 answer compare is a gained/lost/kept summary (2-column text view is WP-52); D8 WB-SRC-04 closes as a reusable QuotedPassage plus its use in the viewer (cited-URL inspector mounting is WP-22)",
    "status": "accepted by coordinator, owner to confirm"
   }
  ],
