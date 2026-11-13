@@ -150,6 +150,16 @@ function recordRequests(pathEnd: string, method = 'GET'): string[] {
 
 type User = ReturnType<typeof renderWithProviders>['user'];
 
+/** Where a meter's muted fill ends and its warning fill starts and runs, as the widths it is drawn with. */
+function fillOf(meter: HTMLElement): { muted: string; warningFrom: string; warningWidth: string } {
+  const [muted, warning] = Array.from(meter.querySelectorAll<HTMLElement>('div > span'));
+  return {
+    muted: muted?.style.width ?? '',
+    warningFrom: warning?.style.left ?? '',
+    warningWidth: warning?.style.width ?? '',
+  };
+}
+
 const table = (): Promise<HTMLElement> => screen.findByRole('table', { name: 'Budgets' });
 /** The row of a scope and group, once the list has loaded. */
 async function rowOf(scope: string, group: string): Promise<HTMLElement> {
@@ -222,6 +232,12 @@ describe('Budgets and usage', () => {
       'href',
       '/digibranders/fynix/ai/prompts',
     );
+    // Under the soft share (80 percent of the limit) the whole fill is muted
+    expect(fillOf(screen.getByRole('meter', { name: 'Active prompts' }))).toEqual({
+      muted: '48%',
+      warningFrom: '80%',
+      warningWidth: '0%',
+    });
     first.unmount();
     // Over the limit the meter keeps the real figures and still carries no negative colour
     serveLimits({ used: 168, limit: 150 }, { used: 2100, limit: 2000 });
@@ -230,6 +246,8 @@ describe('Budgets and usage', () => {
     expect(screen.getByText('168 of 150')).toBeInTheDocument();
     expect(screen.getByText('2,100 of 2,000')).toBeInTheDocument();
     expect(prompts).toHaveAttribute('aria-valuetext', '168 of 150 active prompts');
+    // Past the soft share the fill turns warning (never a negative colour), and stops at the track's end
+    expect(fillOf(prompts)).toEqual({ muted: '80%', warningFrom: '80%', warningWidth: '20%' });
     for (const meter of screen.getAllByRole('meter', { name: /prompts|AI answers this month/ })) {
       expect(meter.innerHTML).not.toMatch(/negative|red/);
     }
@@ -421,8 +439,12 @@ describe('Budgets and usage', () => {
     first.unmount();
     // No project has a price: the forecast is unknown, and the card says nothing about it instead of $0.00
     serveForecast([]);
+    const asked = recordRequests('/costs/forecast');
     renderWithProviders(pageAs('admin'));
-    await screen.findByRole('heading', { name: 'AI answers budget' });
+    const empty = await screen.findByRole('region', { name: 'AI answers budget' });
+    // The forecast line is a skeleton until its read ends: wait for the answer before saying it is absent
+    await waitFor(() => expect(asked).toHaveLength(1));
+    await waitFor(() => expect(empty.querySelector('[data-slot="skeleton"]')).toBeNull());
     expect(screen.queryByText(/^About /)).toBeNull();
     expect(screen.queryByText(/\$0\.00 this month/)).toBeNull();
   });
@@ -456,6 +478,26 @@ describe('Budgets and usage', () => {
       await screen.findByText('These figures could not be refreshed. They are the last ones read.'),
     ).toBeInTheDocument();
     expect(await rowOf('Workspace', 'All workloads')).toBeInTheDocument();
+  });
+
+  it('a refresh keeps the rows on screen with the bar while it runs', async () => {
+    serveStatus([statusRow('all')]);
+    const { queryClient } = renderWithProviders(pageAs('admin'));
+    await rowOf('Workspace', 'All workloads');
+    const bar = (): Element | null => document.querySelector('[data-slot="budgets-refetch-bar"]');
+    expect(bar()).toBeNull();
+    server.use(
+      http.get(mswPath(STATUS), async () => {
+        await delay(400);
+        return HttpResponse.json({ data: [statusRow('all')] });
+      }),
+    );
+    void queryClient.invalidateQueries({ queryKey: ['ws', MOCK_WORKSPACE.workspace_id, 'budgets'] });
+    await waitFor(() => expect(bar()).not.toBeNull());
+    // The previous rows stay, not a skeleton
+    expect(await rowOf('Workspace', 'All workloads')).toBeInTheDocument();
+    expect(document.querySelector('tbody[aria-busy="true"]')).toBeNull();
+    await waitFor(() => expect(bar()).toBeNull());
   });
 
   it('the dialog traps focus, Escape closes and returns focus to the trigger', async () => {
