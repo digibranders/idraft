@@ -1,4 +1,4 @@
-import { promptsInScope, topicsInScope } from './topics-in-scope';
+import { promptRowsRead, promptsInScope, topicsInScope } from './topics-in-scope';
 import type { EngineCode, ProjectEngine, PromptsSummary, PromptSummaryRow, Schemas } from '@/lib/api/types';
 import { ENGINES } from '@/lib/layouts/catalog';
 import { engineRates, type RateFigure } from '@/lib/rates/strip-model';
@@ -70,8 +70,13 @@ export interface EngineAggregate extends Figures {
 }
 
 export interface OverviewAggregates {
-  /** The prompts in scope, once. */
-  promptCount: number;
+  /**
+   * The summary carried every prompt row. When it did not (a read with `rows` of `topics` or `none`), nothing of
+   * the prompt rows is known: `promptCount` is `null` and the engines' figures are unread, not "no answer".
+   */
+  rowsRead: boolean;
+  /** The prompts in scope, once; `null` when the prompt rows were not read. */
+  promptCount: number | null;
   /** The topics they span; `null` while the topic rows are absent. */
   topicCount: number | null;
   /** ChatGPT, Gemini, AI Mode, in that order; every engine of the catalog, asked or not. */
@@ -83,8 +88,12 @@ export interface OverviewAggregates {
 }
 
 export interface AggregateInputs {
+  /** The summary of the window. It must carry every prompt row (no `rows` option): a read that leaves them out is unread. */
   current: PromptsSummary;
-  /** The summary of the window before; `null` when the comparison is off or its window cannot be asked. */
+  /**
+   * The summary of the window before; `null` when the comparison is off or its window cannot be asked, and while
+   * the two reads are not `paired` (`useOverviewPeriods`): a change between two scopes is no change.
+   */
   previous: PromptsSummary | null;
   /** The engines of the project, enabled or not. */
   engines: readonly ProjectEngine[];
@@ -108,6 +117,12 @@ const NO_FIGURES: Figures = {
   allAnswers: 0,
 };
 const NO_CHANGE: Change = { delta: null, detectable: null };
+const NO_CHANGES: EngineAggregate['change'] = {
+  mentioned: NO_CHANGE,
+  cited: NO_CHANGE,
+  mentionedAndCited: NO_CHANGE,
+  shareOfVoice: NO_CHANGE,
+};
 
 const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0);
 
@@ -158,7 +173,7 @@ function detectableOf(now: RateCount, before: RateCount, delta: number): boolean
   );
   if (detectable === null) return null;
   const pooled = now.successes / now.answers - before.successes / before.answers;
-  return delta !== 0 && Math.sign(pooled) !== Math.sign(delta) ? null : detectable;
+  return Math.sign(pooled) !== Math.sign(delta) ? null : detectable;
 }
 
 function changeOf(now: RateCount, before: RateCount | undefined, tested: boolean): Change {
@@ -206,7 +221,7 @@ function availabilityOf(
   return chosen === null || chosen.includes(code) ? 'asked' : 'outsideFilter';
 }
 
-function engineAggregate(inputs: AggregateInputs, code: EngineCode, label: string): EngineAggregate {
+function engineAggregate(inputs: AggregateInputs, code: EngineCode, label: string, rowsRead: boolean): EngineAggregate {
   const project = inputs.engines.find((entry) => entry.engine.engine_code === code);
   const availability = availabilityOf(project, code, inputs.chosenEngines);
   const base = {
@@ -216,16 +231,12 @@ function engineAggregate(inputs: AggregateInputs, code: EngineCode, label: strin
     availability,
     fanout: fanoutOf(inputs.fanout, project, code),
   };
+  const noFigures = { ...base, ...NO_FIGURES, previous: null, change: NO_CHANGES };
   if (availability !== 'asked') {
-    return {
-      ...base,
-      ...NO_FIGURES,
-      previous: null,
-      change: { mentioned: NO_CHANGE, cited: NO_CHANGE, mentionedAndCited: NO_CHANGE, shareOfVoice: NO_CHANGE },
-      citationShare: null,
-      fanout: { exposed: base.fanout.exposed, presence: null },
-    };
+    return { ...noFigures, citationShare: null, fanout: { exposed: base.fanout.exposed, presence: null } };
   }
+  // Without the prompt rows the figures are unread (`rowsRead` is false), not an engine without an answer
+  if (!rowsRead) return { ...noFigures, citationShare: citationShareOf(inputs.sources, code) };
   const figures = figuresOf(inputs.current.prompts, code);
   const before = inputs.previous === null ? null : figuresOf(inputs.previous.prompts, code);
   // A window with no answer of any kind is no data, not a rate of 0
@@ -246,15 +257,18 @@ function engineAggregate(inputs: AggregateInputs, code: EngineCode, label: strin
 
 /** The numbers and cards of the page from the reads of the scope; pure, and called once per change of the reads. */
 export function buildAggregates(inputs: AggregateInputs): OverviewAggregates {
-  const engines = ENGINES.map(({ code, label }) => engineAggregate(inputs, code, label));
   const { current } = inputs;
+  const rowsRead = promptRowsRead(current);
+  const engines = ENGINES.map(({ code, label }) => engineAggregate(inputs, code, label, rowsRead));
   return {
-    promptCount: promptsInScope(current),
+    rowsRead,
+    promptCount: rowsRead ? promptsInScope(current) : null,
     topicCount: topicsInScope(current, inputs.topicsKept),
     engines,
     lastValidAt: newest(current.prompts.map((prompt) => prompt.last_valid_at)),
     lastObservedAt: newest(current.prompts.map((prompt) => prompt.last_observed_at)),
     // An engine whose previous window has no answer has no previous figures, which is 0 valid answers
-    previousAnswers: inputs.previous === null ? null : sum(engines.map((entry) => entry.previous?.validAnswers ?? 0)),
+    previousAnswers:
+      inputs.previous === null || !rowsRead ? null : sum(engines.map((entry) => entry.previous?.validAnswers ?? 0)),
   };
 }

@@ -99,19 +99,45 @@ export function useOverviewSummary(input: OverviewReadInput, options: SummaryOpt
   return useSummary(input, 'current', options);
 }
 
+export interface OverviewPeriods {
+  current: Read<PromptsSummary>;
+  /** `null` when the comparison is off or unavailable: it is not read, and a figure of it is never zero. */
+  previous: Read<PromptsSummary> | null;
+  /**
+   * The two windows are of the same scope: the current read is `ready` and so is the previous one, or there is no
+   * previous read by design. A scope change keeps the last data of each read (`keepPreviousData`) and the two reads
+   * settle separately, so for a moment one window can be the new one and the other the old one: a change between
+   * them would be of two different scopes. Callers of `buildAggregates` pass `previous: null` while this is false.
+   */
+  paired: boolean;
+  /**
+   * No read of the page's summary is under way (none is `loading` or `refetching`). While it is false the data
+   * shown is that of the last scope while the scope itself is the new one (the engine filter, the topic), so a
+   * figure read against the new scope can say "No valid answers" for what is only still loading: show the loading
+   * state, not an empty one. It is a fact of the reads, not of the aggregates, so it lives here.
+   */
+  settled: boolean;
+}
+
+const busy = (read: Read<PromptsSummary>): boolean => read.status === 'loading' || read.status === 'refetching';
+
 /**
  * The summary of the window and, while the comparison is on and its window can be asked, of the window just
- * before it. `previous` is `null` when the comparison is off or unavailable: it is not read, and a figure of it is
- * never zero.
+ * before it, with whether the two answer for the same scope (`paired`) and whether the reads are done (`settled`).
  */
-export function useOverviewPeriods(
-  input: OverviewReadInput,
-  options: SummaryOptions = {},
-): { current: Read<PromptsSummary>; previous: Read<PromptsSummary> | null } {
+export function useOverviewPeriods(input: OverviewReadInput, options: SummaryOptions = {}): OverviewPeriods {
   const current = useSummary(input, 'current', options);
-  const previous = useSummary(input, 'previous', options);
+  const previousRead = useSummary(input, 'previous', options);
   const compared = comparisonWindow(input.scope) !== null;
-  return useMemo(() => ({ current, previous: compared ? previous : null }), [current, previous, compared]);
+  return useMemo(() => {
+    const previous = compared ? previousRead : null;
+    return {
+      current,
+      previous,
+      paired: current.status === 'ready' && (previous === null || previous.status === 'ready'),
+      settled: !busy(current) && (previous === null || !busy(previous)),
+    };
+  }, [current, previousRead, compared]);
 }
 
 /** The meta of the sources read: the citation units by role (own over all), per engine, and the window before. */

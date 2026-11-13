@@ -80,6 +80,56 @@ describe('the number sources', () => {
   });
 });
 
+describe('a summary read without its prompt rows', () => {
+  const current: PromptsSummary = {
+    ...summaryOf(),
+    prompts: [],
+    topics: [{ term_id: 't1', name: 'One', prompt_count: 1, engines: [], last_observed_at: null, last_valid_at: null }],
+  };
+
+  it('reads the numbers of the prompt rows as unread, never as no answers', () => {
+    const aggregates = aggregatesOf({ current });
+    for (const metric of [
+      'ai.mention_rate',
+      'ai.citation_rate',
+      'ai.mention_and_citation_rate',
+      'ai.share_of_voice',
+      'ai.valid_answers',
+    ]) {
+      expect(readNumber(aggregates, { id: 'n', metric, engine: 'chatgpt_web' })).toEqual({ status: 'unread' });
+    }
+    expect(readNumber(aggregates, { id: 'n', metric: 'ai.prompts_in_scope' })).toEqual({ status: 'unread' });
+  });
+
+  it('still says an engine is not asked, and leaves the sources and fan-out numbers to their own reads', () => {
+    const outside = aggregatesOf({ current, chosenEngines: ['gemini_web'] });
+    expect(readNumber(outside, chatgpt)).toEqual({ status: 'notAsked', why: 'outsideFilter' });
+    const sources: Schemas['SourcesMeta'] = {
+      answers: 100,
+      answers_citing: 90,
+      by_role: [],
+      by_role_by_engine: [
+        {
+          engine_code: 'chatgpt_web',
+          own: { answers_citing: 10, citation_units: 10 },
+          competitor: { answers_citing: 30, citation_units: 30 },
+          third_party: { answers_citing: 60, citation_units: 60 },
+        },
+      ],
+      citation_units: 100,
+      engine_codes: ['chatgpt_web'],
+      include_branded: false,
+      window: WINDOW,
+    };
+    const reading = readNumber(aggregatesOf({ current, sources }), {
+      id: 'n',
+      metric: 'ai.citation_share',
+      engine: 'chatgpt_web',
+    });
+    expect(figureOf(reading)).toMatchObject({ value: 0.1 });
+  });
+});
+
 describe('ai.prompts_in_scope', () => {
   it('counts the prompts once and gives the topics they span, with no change', () => {
     const current = {

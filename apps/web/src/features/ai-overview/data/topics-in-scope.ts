@@ -4,6 +4,14 @@ import type { PromptsSummary } from '@/lib/api/types';
 export type ScopeSummary = Pick<PromptsSummary, 'topics' | 'prompts' | 'total'>;
 
 /**
+ * Whether the summary carried its prompt rows. A read with `rows` of `topics` or `none` leaves them out: then the
+ * prompts are empty while the topic rows or the total say there are some. With no prompt, no topic and no total,
+ * the read cannot tell a project with no prompt from one that left the rows out, and is taken as having read them.
+ */
+export const promptRowsRead = (summary: ScopeSummary): boolean =>
+  summary.prompts.length > 0 || (summary.topics.length === 0 && (summary.total?.prompt_count ?? 0) === 0);
+
+/**
  * The prompts in scope, each once whatever the engines: the prompt rows, or the total's count when the rows
  * were left out of the read.
  */

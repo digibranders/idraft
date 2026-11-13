@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { buildAggregates } from './aggregates';
 import {
   useOverviewEngines,
   useOverviewFanout,
@@ -259,6 +260,77 @@ describe('useOverviewPeriods', () => {
     });
     expect(result.current.previous).toBeNull();
     expect(to(seen, '/ai/prompts-summary')).toHaveLength(1);
+  });
+
+  it('is paired and settled when both windows are read, and when the comparison is off', async () => {
+    const compared = renderHook(() => useOverviewPeriods(inputOf()), { wrapper });
+    expect(compared.result.current).toMatchObject({ paired: false, settled: false });
+    await waitFor(() => {
+      expect(compared.result.current).toMatchObject({ paired: true, settled: true });
+    });
+    const off = renderHook(() => useOverviewPeriods(inputOf({ compare: false })), { wrapper });
+    await waitFor(() => {
+      expect(off.result.current).toMatchObject({ paired: true, settled: true });
+    });
+  });
+
+  it('is not paired while one window of a scope change has answered and the other has not: no delta between two windows', async () => {
+    setAiSeeded(true);
+    const enabled: readonly EngineCode[] = ['chatgpt_web', 'gemini_web'];
+    const { result, rerender } = renderHook(
+      (props: { scope: OverviewScope }) => ({
+        periods: useOverviewPeriods({ project: EVENTUS, scope: props.scope, enabledEngines: enabled }),
+        engines: useOverviewEngines(EVENTUS),
+      }),
+      { wrapper, initialProps: { scope: scopeOf() } },
+    );
+    /** The change of the mention rate on ChatGPT the page would show: the previous window only when paired. */
+    const deltaOf = (scope: OverviewScope): number | null => {
+      const { periods, engines } = result.current;
+      if (periods.current.data === undefined || engines.data === undefined) return null;
+      const aggregates = buildAggregates({
+        current: periods.current.data,
+        previous: periods.paired ? (periods.previous?.data ?? null) : null,
+        engines: engines.data,
+        chosenEngines: scope.engines,
+        topicsKept: null,
+        sources: null,
+        fanout: null,
+      });
+      return aggregates.engines[0]?.change.mentioned.delta ?? null;
+    };
+    await waitFor(() => {
+      expect(result.current.periods.paired).toBe(true);
+      expect(result.current.engines.status).toBe('ready');
+    });
+    expect(deltaOf(scopeOf())).not.toBeNull();
+
+    // The previous window answers late: it is held until the current one has settled on the new scope
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get(`${PROJECT_PATH}/ai/prompts-summary`, async ({ request }) => {
+        if (new URL(request.url).searchParams.get('to') === '2026-10-15') await gate;
+        return undefined;
+      }),
+    );
+    const narrowed = scopeOf({ engines: ['chatgpt_web'] });
+    rerender({ scope: narrowed });
+    expect(result.current.periods).toMatchObject({ paired: false, settled: false });
+    await waitFor(() => {
+      expect(result.current.periods.current.status).toBe('ready');
+    });
+    expect(result.current.periods.previous?.status).toBe('refetching');
+    expect(result.current.periods).toMatchObject({ paired: false, settled: false });
+    expect(deltaOf(narrowed)).toBeNull();
+
+    release();
+    await waitFor(() => {
+      expect(result.current.periods).toMatchObject({ paired: true, settled: true });
+    });
+    expect(deltaOf(narrowed)).not.toBeNull();
   });
 });
 

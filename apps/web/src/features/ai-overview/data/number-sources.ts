@@ -101,12 +101,17 @@ function countFigure(rate: CountRate, unit: NumberUnit): NumberReading {
   return read({ ...EMPTY, state: rate.state, value: rate.value, k: rate.k, n: rate.n, unit });
 }
 
-/** A source for one engine; an engine that is not asked is said so, before anything is read of it. */
-function perEngine(source: (engine: EngineAggregate) => NumberReading): NumberSource {
+/**
+ * A source for one engine; an engine that is not asked is said so, before anything is read of it. `fromRows` is
+ * for the numbers of the prompt rows: while the summary carried none they are unread, not "no answers".
+ */
+function perEngine(source: (engine: EngineAggregate) => NumberReading, fromRows: boolean = true): NumberSource {
   return {
     perEngine: true,
-    read: (_aggregates, engine) =>
-      engine.availability === 'asked' ? source(engine) : { status: 'notAsked', why: engine.availability },
+    read: (aggregates, engine) => {
+      if (engine.availability !== 'asked') return { status: 'notAsked', why: engine.availability };
+      return fromRows && !aggregates.rowsRead ? { status: 'unread' } : source(engine);
+    },
   };
 }
 
@@ -146,7 +151,9 @@ export const NUMBER_VALUE_SOURCE: NumberValueSource = {
   'ai.prompts_in_scope': {
     perEngine: false,
     read: ({ promptCount, topicCount }) =>
-      read({ ...EMPTY, state: 'ok', value: promptCount, k: null, n: null, unit: 'prompts', topics: topicCount }),
+      promptCount === null
+        ? { status: 'unread' }
+        : read({ ...EMPTY, state: 'ok', value: promptCount, k: null, n: null, unit: 'prompts', topics: topicCount }),
   },
   'ai.valid_answers': perEngine(validAnswers),
   'ai.mention_rate': perEngine(mentionRate),
@@ -157,8 +164,8 @@ export const NUMBER_VALUE_SOURCE: NumberValueSource = {
   'ai.share_of_voice': perEngine((engine) =>
     rateFigure(engine, engine.shareOfVoice, engine.change.shareOfVoice, 'namingAnswers'),
   ),
-  'ai.citation_share': perEngine(citationShare),
-  'ai.fanout_presence_rate': perEngine(fanoutPresence),
+  'ai.citation_share': perEngine(citationShare, false),
+  'ai.fanout_presence_rate': perEngine(fanoutPresence, false),
 };
 
 const SOURCES: ReadonlyMap<string, NumberSource> = new Map(Object.entries(NUMBER_VALUE_SOURCE));

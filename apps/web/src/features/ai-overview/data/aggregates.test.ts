@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { buildAggregates, type AggregateInputs, type EngineAggregate } from './aggregates';
 import { lastObservedAt } from '@/features/prompts/prompt-model';
-import { cell, engine, projectEngine, promptRow } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { cell, engine, projectEngine, promptRow, topicRow } from '@/features/prompts/topics-by-engine/cells-fixtures';
 import type {
   EngineCode,
   EngineSummary,
@@ -210,6 +210,35 @@ describe('the numbers of one engine', () => {
   });
 });
 
+describe('a summary read without its prompt rows', () => {
+  const topicRows = [topicRow('seo', 'SEO', 3), topicRow(null, null, 1)];
+  const total = { engines: [], last_observed_at: null, last_valid_at: null, prompt_count: 4 };
+
+  it('is unread, not zero: no prompt count, no answers, and nothing said of the previous window', () => {
+    const current = { ...summaryOf([]), topics: topicRows };
+    const previous = { ...summaryOf([]), topics: topicRows };
+    const result = buildAggregates(inputsOf(current, { previous }));
+    expect(result.rowsRead).toBe(false);
+    expect(result.promptCount).toBeNull();
+    expect(result.previousAnswers).toBeNull();
+    for (const entry of result.engines) expect(entry.previous).toBeNull();
+  });
+
+  it('is unread when only the total says there are prompts', () => {
+    const result = buildAggregates(inputsOf({ ...summaryOf([]), total }));
+    expect(result.rowsRead).toBe(false);
+    expect(result.promptCount).toBeNull();
+  });
+
+  it('is read when the prompt rows are there, and when there are no prompts at all', () => {
+    const rows = buildAggregates(inputsOf(summaryOf([row('a', cellsOf('chatgpt_web', { mentioned: cell(3, 8) }))])));
+    expect(rows.rowsRead).toBe(true);
+    expect(rows.promptCount).toBe(1);
+    const none = buildAggregates(inputsOf(summaryOf([])));
+    expect(none).toMatchObject({ rowsRead: true, promptCount: 0 });
+  });
+});
+
 describe('the engines', () => {
   it('keep the fixed order ChatGPT, Gemini, AI Mode, with the catalog labels, whatever order the project lists them', () => {
     const reversed = [...ENGINES].reverse();
@@ -333,6 +362,22 @@ describe('the previous window', () => {
     const { change } = engineOf(buildAggregates(inputsOf(now, { previous: before })), 'chatgpt_web');
     expect(change.mentioned.delta).toBeGreaterThan(0);
     expect(isDetectableChange({ k: 4, n: 100 }, { k: 20, n: 100 })).toBe(true);
+    expect(change.mentioned.detectable).toBeNull();
+  });
+
+  it('makes no claim when the weighted change is exactly zero and the pooled counts are not', () => {
+    // Weighted: 0.5 on both sides. Pooled: 4 of 100 against 50 of 100, which the test alone would call detectable
+    const now = summaryOf([
+      row('a', cellsOf('chatgpt_web', { mentioned: cell(4, 4) })),
+      row('b', cellsOf('chatgpt_web', { mentioned: cell(0, 96) })),
+    ]);
+    const before = summaryOf([
+      row('a', cellsOf('chatgpt_web', { mentioned: cell(2, 4) })),
+      row('b', cellsOf('chatgpt_web', { mentioned: cell(48, 96) })),
+    ]);
+    const { change } = engineOf(buildAggregates(inputsOf(now, { previous: before })), 'chatgpt_web');
+    expect(change.mentioned.delta).toBe(0);
+    expect(isDetectableChange({ k: 4, n: 100 }, { k: 50, n: 100 })).toBe(true);
     expect(change.mentioned.detectable).toBeNull();
   });
 
