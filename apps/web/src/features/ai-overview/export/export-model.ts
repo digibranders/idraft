@@ -42,8 +42,17 @@ export const NUMBERS_HEADER = [
   'is_estimate',
 ] as const;
 
-/** The line that closes the file and the note of the table: what an empty value means. */
-const NUMBERS_NOTE = 'Rates are percent. An empty value is unknown, not zero: the status column says why.';
+/**
+ * The notes every Numbers file must carry. The file holds no sentence of its own: the caller words each key (from
+ * the message catalog) and `numbersCsv` takes a `NumbersNotes` with all of them, so a missing one does not compile.
+ * - `unknownIsEmpty`: an empty `value` is unknown, never 0, and `status` says why.
+ * - `pooledCounts`: `numerator` over `denominator` is NOT the `value` of a prompt weighted row. The value is the mean
+ *   of each prompt's own rate (docs/16 section 3); the numerator and denominator are the pooled answer counts the
+ *   strip shows (e.g. value 66.25 with 110 of 167 answers, where 110/167 is 65.87).
+ */
+export const NUMBERS_NOTE_KEYS = ['unknownIsEmpty', 'pooledCounts'] as const;
+export type NumbersNoteKey = (typeof NUMBERS_NOTE_KEYS)[number];
+export type NumbersNotes = Readonly<Record<NumbersNoteKey, string>>;
 
 /** A table of a card, as the card hands it over (`useExportBlock`): its own columns, under the id of the card. */
 export interface ExportBlock {
@@ -55,20 +64,25 @@ export interface ExportBlock {
 export interface NumbersTable {
   header: string[];
   rows: CsvCell[][];
-  /** What the file says of its empty cells. */
-  note: string;
+  /** The notes the file must carry, always all of them: the caller words each one. */
+  noteKeys: readonly NumbersNoteKey[];
 }
 
-/** Everything the file adds to the Numbers: the tables of the cards that are ready, and notes after them. */
+/** What the file adds to the Numbers: the words of its notes, the tables of the cards that are ready, more notes. */
 export interface NumbersCsvExtras {
+  notes: NumbersNotes;
   blocks?: readonly ExportBlock[];
-  notes?: readonly string[];
+  /** Notes after the required ones, e.g. how many blocks were still loading. */
+  extraNotes?: readonly string[];
 }
 
 interface NumberSpec {
   metric: NumberMetricKey;
   unit: 'percent' | 'count';
-  /** How the value is averaged: a count has none, a share of voice weights every answer once. */
+  /**
+   * How the value is averaged: a count has none, a share of voice weights every answer once. A human readable
+   * label by design (the plan keeps "prompt weighted"), unlike the snake_case `status` keys.
+   */
   method: 'prompt weighted' | 'answer weighted' | 'pooled' | 'count';
   /** What `n_observations` counts: every answer seen of the engine, the denominator itself, or nothing. */
   observations: 'allAnswers' | 'denominator' | null;
@@ -182,7 +196,7 @@ export function buildNumbersTable(
       ? read(null, 0)
       : aggregates.engines.flatMap((engine) => read(engine.engineCode, engine.allAnswers));
   });
-  return { header: [...NUMBERS_HEADER], rows, note: NUMBERS_NOTE };
+  return { header: [...NUMBERS_HEADER], rows, noteKeys: NUMBERS_NOTE_KEYS };
 }
 
 /**
@@ -193,7 +207,7 @@ export function numbersCsv(
   aggregates: OverviewAggregates,
   scope: OverviewScope,
   project: Pick<OverviewProject, 'slug'>,
-  { blocks = [], notes = [] }: NumbersCsvExtras = {},
+  { notes, blocks = [], extraNotes = [] }: NumbersCsvExtras,
 ): CsvTable {
   const table = buildNumbersTable(aggregates, scope, project);
   const rows: CsvCell[][] = [...table.rows];
@@ -202,7 +216,7 @@ export function numbersCsv(
     for (const row of block.rows) rows.push([block.id, ...row].map(safe));
   }
   rows.push([]);
-  for (const note of [table.note, ...notes]) rows.push(['note', note].map(safe));
+  for (const note of [...table.noteKeys.map((key) => notes[key]), ...extraNotes]) rows.push(['note', note].map(safe));
   return { header: table.header, rows };
 }
 

@@ -6,8 +6,10 @@ import {
   buildNumbersTable,
   exportFileName,
   NUMBERS_HEADER,
+  NUMBERS_NOTE_KEYS,
   numbersCsv,
   type ExportBlock,
+  type NumbersNotes,
   type NumbersTable,
 } from './export-model';
 import { cell, engine, projectEngine, promptRow } from '@/features/prompts/topics-by-engine/cells-fixtures';
@@ -430,16 +432,34 @@ describe('the cells of the file', () => {
     expect(toCsv({ header: table.header, rows: table.rows })).not.toMatch(/,=HYPERLINK/);
   });
 
-  it('uses no en dash or em dash in the header, the words of the cells or the note', () => {
+  it('uses no en dash or em dash in the header or the words of the cells', () => {
     const table = tableOf();
     const dashes = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`);
-    const words = [...table.header, table.note, ...table.rows.flat().filter((entry) => typeof entry === 'string')];
+    const words = [...table.header, ...table.rows.flat().filter((entry) => typeof entry === 'string')];
     for (const word of words) expect(String(word)).not.toMatch(dashes);
   });
+});
 
-  it('has a note that says an empty value is unknown and not zero', () => {
-    expect(tableOf().note).toMatch(/empty/i);
-    expect(tableOf().note).toMatch(/zero/i);
+describe('the notes of the file', () => {
+  it('always has the two note slots the caller must say in words: empty is unknown, and the counts are pooled', () => {
+    expect(NUMBERS_NOTE_KEYS).toEqual(['unknownIsEmpty', 'pooledCounts']);
+    expect(tableOf().noteKeys).toEqual([...NUMBERS_NOTE_KEYS]);
+    // Also with nothing read: the notes do not depend on the numbers
+    const noRows: PromptsSummary = {
+      ...worldInputs().current,
+      prompts: [],
+      topics: [
+        { term_id: 't1', name: 'One', prompt_count: 1, engines: [], last_observed_at: null, last_valid_at: null },
+      ],
+    };
+    expect(tableOf({ current: noRows }).noteKeys).toEqual([...NUMBERS_NOTE_KEYS]);
+  });
+
+  it('is needed because a prompt weighted value is not its numerator over its denominator', () => {
+    const row = rowOf(tableOf(), 'ai.mention_rate', 'chatgpt_web');
+    // 4 of 12 pooled answers is 33.33 percent; the value is the mean of each prompt's own rate
+    expect(row['value']).toBe(31.25);
+    expect(Math.round((Number(row['numerator']) / Number(row['denominator'])) * 10000) / 100).toBe(33.33);
   });
 });
 
@@ -453,19 +473,30 @@ describe('the file of the Numbers', () => {
     ],
   };
 
-  it('is the numbers table alone, ending with its note, when no card has a block', () => {
+  const NOTES: NumbersNotes = { unknownIsEmpty: 'Empty is unknown.', pooledCounts: 'Counts are pooled.' };
+
+  it('is the numbers table alone, ending with the note rows the caller worded, when no card has a block', () => {
     const aggregates = world();
     const table = buildNumbersTable(aggregates, scopeOf(), PROJECT);
-    const file = numbersCsv(aggregates, scopeOf(), PROJECT);
+    const file = numbersCsv(aggregates, scopeOf(), PROJECT, { notes: NOTES });
     expect(file.header).toEqual(table.header);
     expect(file.rows.slice(0, table.rows.length)).toEqual(table.rows);
-    expect(file.rows.slice(table.rows.length)).toEqual([[], ['note', table.note]]);
+    expect(file.rows.slice(table.rows.length)).toEqual([
+      [],
+      ['note', 'Empty is unknown.'],
+      ['note', 'Counts are pooled.'],
+    ]);
+  });
+
+  it('writes a note so a spreadsheet does not read it as a formula', () => {
+    const file = numbersCsv(world(), scopeOf(), PROJECT, { notes: { ...NOTES, pooledCounts: '=SUM(A1)' } });
+    expect(file.rows.at(-1)).toEqual(['note', "'=SUM(A1)"]);
   });
 
   it('puts a block from a card after the strip block with a blank line, under its own header', () => {
     const aggregates = world();
     const strip = buildNumbersTable(aggregates, scopeOf(), PROJECT).rows;
-    const file = numbersCsv(aggregates, scopeOf(), PROJECT, { blocks: [block] });
+    const file = numbersCsv(aggregates, scopeOf(), PROJECT, { notes: NOTES, blocks: [block] });
     expect(file.rows[strip.length]).toEqual([]);
     expect(file.rows[strip.length + 1]).toEqual(['block', 'engine', 'mentioned', 'label']);
     expect(file.rows[strip.length + 2]).toEqual(['ai.by_engine', 'ChatGPT', 31.25, "'=1+1"]);
@@ -478,8 +509,9 @@ describe('the file of the Numbers', () => {
     const aggregates = world();
     const second: ExportBlock = { id: 'ai.zzz', header: ['x'], rows: [[1]] };
     const file = numbersCsv(aggregates, scopeOf(), PROJECT, {
+      notes: NOTES,
       blocks: [block, second],
-      notes: ['1 blocks were still loading and are not included'],
+      extraNotes: ['1 blocks were still loading and are not included'],
     });
     const blank = file.rows.flatMap((row, at) => (row.length === 0 ? [at] : []));
     expect(blank).toHaveLength(3);
@@ -488,7 +520,7 @@ describe('the file of the Numbers', () => {
       ['block', 'x'],
       ['ai.zzz', 1],
     ]);
-    expect(file.rows.at(-2)).toEqual(['note', expect.stringContaining('Rates are')]);
+    expect(file.rows.at(-3)).toEqual(['note', 'Counts are pooled.']);
     expect(file.rows.at(-1)).toEqual(['note', '1 blocks were still loading and are not included']);
   });
 });

@@ -9,6 +9,14 @@ import type { ExportBlock } from './export-model';
  * the page what its table holds with `useExportBlock(id, getBlock)`, and the Export menu reads every card's block
  * when its item runs. Nothing is read while the page renders: `getBlock` is called only by `useExportBlocks()`'s
  * reader, so a card that builds its rows at that moment costs nothing on every render.
+ *
+ * Three limits the Export menu and the cards must know:
+ * - The block `id` is the layout ITEM id (one per card instance), not the catalog key: a card type can have up to
+ *   3 instances (`maxInstances`), and a duplicate id keeps only the newest registration, so two instances under
+ *   the catalog key would export one table.
+ * - A card whose lazy chunk has not mounted yet is not registered, so it is not counted in `loading`: the count
+ *   (and the note built from it) undercounts "still loading". It counts only cards that registered and returned null.
+ * - A `getBlock` that throws fails the whole export: the reader does not catch, and the menu shows the error toast.
  */
 
 /** A card's way to build its table now, or `null` while it is still loading. */
