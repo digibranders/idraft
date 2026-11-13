@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T22:09:37+05:30",
+ "updated": "2026-11-13T22:13:18+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1085,13 +1085,13 @@
    "title": "Citations: New and lost, domain and source inspectors, country, mobile",
    "wave": "W2",
    "kind": "web",
-   "status": "not_started",
+   "status": "planning",
    "dependsOn": [
     "WP-21",
     "WP-14"
    ],
-   "session": null,
-   "branch": null,
+   "session": "wp-25-inspector",
+   "branch": "ai/wp-22-citations-lost",
    "rows": {
     "BE": [],
     "WB": [
@@ -1276,12 +1276,12 @@
    "title": "Evidence viewer completion: citation markers, entity toggles, views, answer diff",
    "wave": "W2",
    "kind": "both",
-   "status": "not_started",
+   "status": "planning",
    "dependsOn": [
     "WP-08"
    ],
-   "session": null,
-   "branch": null,
+   "session": "wp-00-kit",
+   "branch": "ai/wp-26-evidence",
    "rows": {
     "BE": [
      "BE-SOURCES-21",
@@ -1632,13 +1632,13 @@
    "title": "Runs, costs, budgets and collection health (W21 freshness)",
    "wave": "W2",
    "kind": "both",
-   "status": "not_started",
+   "status": "planning",
    "dependsOn": [
     "WP-03",
     "WP-07"
    ],
-   "session": null,
-   "branch": null,
+   "session": "wp-30-runs",
+   "branch": "ai/wp-30-runs-costs",
    "rows": {
     "BE": [
      "BE-COLLECT-01",
@@ -1698,12 +1698,12 @@
    "title": "Settings: engines page extras, data retention, setup checklist",
    "wave": "W2",
    "kind": "both",
-   "status": "not_started",
+   "status": "planning",
    "dependsOn": [
     "WP-07"
    ],
-   "session": null,
-   "branch": null,
+   "session": "wp-31-settings",
+   "branch": "ai/wp-31-settings",
    "rows": {
     "BE": [
      "BE-ENGINES-01",
@@ -4481,11 +4481,11 @@
   }
  ],
  "policy": {
-  "set": "2026-11-13T10:28:45+05:30",
+  "set": "2026-11-13T22:13:18+05:30",
   "by": "owner",
-  "working_sessions_max": 3,
-  "subagents_per_session_max": 1,
-  "rule": "Owner (15:2x): add one more session, so at most 3 working sessions, one subagent each. Currently WP-16, WP-20 and WP-21."
+  "working_sessions_max": 7,
+  "subagents_per_session_max": 2,
+  "rule": "Owner (22:20): only idraft sessions tonight, run the maximum, finish release A including Tier 2, then go further. 7 working sessions, up to 2 subagents each (the second is a read-only reviewer where possible). Heavy lock slots raised to 2 heavy and 3 medium (/tmp/idraft-health/slots); health-watch load thresholds 18 warn and 28 critical; swap counts only with low free memory. Full suites still only via infra/dev/heavy with --maxWorkers=3 under the gate (pause OFF, memory free at least 40 percent)."
  },
  "baselineDone": 279
 }
