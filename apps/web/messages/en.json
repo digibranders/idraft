@@ -4812,7 +4812,27 @@
         "viewPages": "View pages on the Pages tab",
         "copyLink": "Copy link",
         "linkCopied": "Link copied",
-        "openDomain": "Open domain"
+        "openDomain": "Open domain",
+        "trendTitle": "Share of citations by engine",
+        "trendMeta": "Weekly, {range}",
+        "trendSummary": "Weekly share of the citation units on each engine that cite {domain}, {weeks, plural, one {# week} other {# weeks}}, one line for each of {engines, plural, one {# engine} other {# engines}}.",
+        "trendCell": "{units, number} of {total, number} units",
+        "trendCellShare": "{share}, {units, number} of {total, number} units",
+        "trendGapNote": "A gap is a week with no citation on that engine.",
+        "trendEmptyTitle": "No weekly figures",
+        "trendEmptyReason": "The engines have no citation in this window.",
+        "coTitle": "Named when cited",
+        "coLead": "The tracked entities named most often in the answers that cite this domain.",
+        "coCell": "named in {count, plural, one {# answer} other {# answers}}",
+        "coOf": "of {answers, number} answers that cite it",
+        "coNone": "None named",
+        "coNoneReason": "No answer that cites this domain names a tracked entity.",
+        "coNameUnknown": "Name n/a",
+        "coNameTip": "The name of this entity is not loaded yet.",
+        "sovTitle": "Search share of voice",
+        "sovUnavailable": "Not available yet",
+        "sovReason": "No read of a domain's share of voice on your tracked keywords exists yet, so no figure is shown.",
+        "sovAction": "Open Rankings"
       }
     }
   },
