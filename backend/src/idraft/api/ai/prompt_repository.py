@@ -33,6 +33,9 @@ from idraft.keywords.trees import among_ids, descendants
 
 # Rows per insert: 14 values a prompt row stays far under the 32,767 parameters of a statement.
 INSERT_MAX = 1000
+# The database default of `max_ai_observations_per_month` (migration 0003): a workspace without a
+# quota row has this limit (test_the_limit_defaults_match_the_database).
+MONTHLY_ANSWERS_DEFAULT = 20_000
 # Term links per insert: three values each.
 _TERM_ROWS_MAX = 5000
 
@@ -315,6 +318,28 @@ async def quota_usage(db: AsyncSession, workspace_id: UUID) -> tuple[int, int]:
         )
     ).scalar_one()
     return limit, used
+
+
+@dataclass(frozen=True, slots=True)
+class LimitsRow:
+    ai_observations_limit: int
+    # The database clock, read in the same statement.
+    now: datetime
+
+
+async def limits_row(db: AsyncSession, workspace_id: UUID) -> LimitsRow:
+    """The workspace's monthly limit of AI answers and the database clock, in one statement that
+    only reads: no quota row is created or locked (`run_repository.lock_ai_observation_limit`
+    does both, for the writes). Without a quota row the limit is the database default."""
+    stored = (
+        select(workspace_quotas.c.max_ai_observations_per_month)
+        .where(workspace_quotas.c.workspace_id == workspace_id)
+        .scalar_subquery()
+    )
+    limit, now = (
+        await db.execute(select(func.coalesce(stored, MONTHLY_ANSWERS_DEFAULT), func.now()))
+    ).one()
+    return LimitsRow(ai_observations_limit=limit, now=now)
 
 
 async def existing(

@@ -29,6 +29,7 @@ from idraft.ai.text import text_hash
 from idraft.api import audit
 from idraft.api.ai import engine_repository as engines
 from idraft.api.ai import prompt_repository as prompts
+from idraft.api.ai import run_repository as ai_runs
 from idraft.api.ai.engine_service import live_project
 from idraft.api.ai.prompt_lint import Named, check
 from idraft.api.ai.prompt_repository import (
@@ -41,6 +42,8 @@ from idraft.api.ai.prompt_repository import (
 from idraft.api.entities.project_repository import MatcherEntity
 from idraft.api.entities.project_service import MatcherRules, matcher_rules, to_utf16
 from idraft.api.keywords import repository as keywords
+from idraft.api.operations import runs_repository as runs
+from idraft.api.operations.runs import MANUAL_RUNS_PER_DAY
 from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
 from idraft.api.problems import (
     DuplicateError,
@@ -131,6 +134,19 @@ class LintOutcome:
     used: int
     # Items neither tracked nor repeated nor too long to save; `items` shape only.
     would_create: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Limit:
+    limit: int
+    used: int
+
+
+@dataclass(frozen=True, slots=True)
+class Limits:
+    prompts: Limit
+    ai_observations_month: Limit
+    manual_runs_today: Limit
 
 
 @dataclass(frozen=True, slots=True)
@@ -470,6 +486,24 @@ class PromptService:
         if found is None:
             raise NotFoundError
         return found
+
+    async def limits(self, access: WorkspaceAccess, project_id: UUID) -> Limits:
+        """What the writes check, read without taking part in them: the workspace's active
+        prompts, its AI answers this UTC month as Run now counts them, and the project's manual
+        runs today. Nothing is written, locked or created, so a workspace without a quota row
+        shows the defaults."""
+        async with self._transaction(access) as db:
+            await live_project(db, access, project_id)
+            row = await prompts.limits_row(db, access.workspace_id)
+            today = row.now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+            prompt_limit, prompt_count = await prompts.quota_usage(db, access.workspace_id)
+            answers = await ai_runs.ai_tasks_since(db, access.workspace_id, today.replace(day=1))
+            manual = await runs.manual_runs_since(db, access.workspace_id, project_id, today)
+        return Limits(
+            prompts=Limit(limit=prompt_limit, used=prompt_count),
+            ai_observations_month=Limit(limit=row.ai_observations_limit, used=answers),
+            manual_runs_today=Limit(limit=MANUAL_RUNS_PER_DAY, used=manual),
+        )
 
     async def create(
         self, access: WorkspaceAccess, project_id: UUID, body: PromptCreate, info: RequestInfo

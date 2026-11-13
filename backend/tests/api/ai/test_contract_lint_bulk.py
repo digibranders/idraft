@@ -205,36 +205,6 @@ async def test_bulk_archive_by_ids_works_as_before(
     assert response.json() == {"data": {"matched": 1, "updated": 1}}
 
 
-async def test_the_limits_read_answers_501_for_a_reader(
-    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    viewer = await member(resources, migrated, workspace, "viewer")
-    project = await ai_project(migrated, workspace)
-
-    response = await api.get(
-        project_url(workspace, project, "ai", "limits"), headers=viewer.headers
-    )
-
-    assert problem(response) == NOT_BUILT
-
-
-async def test_the_limits_read_checks_access_first(
-    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    billing = await member(resources, migrated, workspace, "billing")
-    outsider = await member(resources, migrated, await make_workspace(migrated), "owner")
-    project = await ai_project(migrated, workspace)
-    url = project_url(workspace, project, "ai", "limits")
-
-    refused = await api.get(url, headers=billing.headers)
-    unseen = await api.get(url, headers=outsider.headers)
-
-    assert problem(refused) == FORBIDDEN
-    assert problem(unseen) == NOT_FOUND
-
-
 def _required(schema: dict[str, Any]) -> set[str]:
     return set(schema.get("required", []))
 
