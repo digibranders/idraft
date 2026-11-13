@@ -1069,7 +1069,7 @@ export interface paths {
         };
         /**
          * The queries ChatGPT issued while answering, by how many answers issued them
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). Read from the lists ingest stored with each answer (engines that show them: ChatGPT; `filter[engine_code_in]` naming another is `422 engine_has_no_fanout`, and `meta.engines_without_fanout` lists them so they read as not exposed, never zero). One row per normalized text (lower case, trimmed, inner whitespace as one space) and engine, the most issued first: the most common spelling, the answers and prompts that issued it, when it was first and last seen, and the 5 registrable domains with the most citation units in those answers (an association: which query found which source is not stored). A query issued by fewer than `min_support` answers (default 2) is left out. `meta.answers` is the denominator; `meta.answers_truncated` counts the answers whose stored list is shorter than the queries they issued (the 16 KB bound keeps the first ones). Offset pages.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). Read from the lists ingest stored with each answer (engines that show them: ChatGPT; `filter[engine_code_in]` naming another is `422 engine_has_no_fanout`, and `meta.engines_without_fanout` lists them so they read as not exposed, never zero). One row per normalized text (lower case, trimmed, inner whitespace as one space) and engine, the most issued first: the most common spelling, the answers and prompts that issued it, when it was first and last seen, and the 5 registrable domains with the most citation units in those answers (an association: which query found which source is not stored). A query issued by fewer than `min_support` answers (default 2) is left out. `meta.answers` is the denominator; `meta.answers_truncated` counts the answers whose stored list is shorter than the queries they issued (the 16 KB bound keeps the first ones). `include=topics` adds the topic terms (of a `topic` vocabulary of the project or of the workspace) tagged on the prompts that issued each query, the most answers first, at most 10. Offset pages.
          */
         get: operations["fanout_queries_api_v1_workspaces__workspace_id__projects__project_id__ai_fanout_queries_get"];
         put?: never;
@@ -1209,7 +1209,7 @@ export interface paths {
         };
         /**
          * New and lost sources against the window before
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). `kind=new` (default): domains with at least `min_support` citation units in the window and none in as many days before. `kind=lost`: domains with at least `min_support` units before and none in the window. One row per registrable domain and role; offset pages. Not built yet: `501 not_implemented`.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). `kind=new` (default): domains with at least `min_support` citation units in the window and none in as many days before (docs/16 C5). `kind=lost` (docs/16 C6): domains with at least `min_support` units in a support window and none in each of the 2 windows after it. The windows are as long as the asked one: for `lost`, `meta.window` is the asked window and the one before it (the 2 empty windows) and `meta.compare_window` the support window before those, so a 92 day ask reads 276 days; for `new`, `meta.window` is the asked window and `meta.compare_window` the one before. `min_support` (default 2) counts citation units. `current_units` and `previous_units` are the units in `meta.window` and `meta.compare_window`; `first_seen_at` and `last_seen_at` are in `meta.window` (null for `lost`). One row per registrable domain and role (and entity), the most units first; offset pages.
          */
         get: operations["source_changes_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_changes_get"];
         put?: never;
@@ -1229,7 +1229,7 @@ export interface paths {
         };
         /**
          * Source diversity per engine
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). Per engine: the valid answers, the answers that cite a source, the citation units, the registrable domains cited (roles merged) and the effective number of sources (docs/16 C3: 1 over the sum of squared source shares, with its numerator and denominator visible). Engines are never pooled: `meta.distinct_domains` is a count over every engine in scope and `meta.effective_sources_engine_average` the equal-weight mean of the engines with units. `include=series` adds a weekly point per engine and `include=ads` the answers that showed an ad. Not built yet: `501 not_implemented`.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). Per engine: the valid answers, the answers that cite a source, the citation units, the registrable domains cited (roles merged) and the effective number of sources (docs/16 C3: 1 over the sum of squared source shares, with its numerator and denominator visible). Engines are never pooled: `meta.distinct_domains` is a count over every engine in scope and `meta.effective_sources_engine_average` the equal-weight mean of the engines with units. `include=series` adds a weekly point per engine and `include=ads` the answers that showed an ad.
          */
         get: operations["source_diversity_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_diversity_get"];
         put?: never;
@@ -1269,7 +1269,7 @@ export interface paths {
         };
         /**
          * One cited domain
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One registrable domain as the domain list names it: its rows (one per role and entity, at most 10), its units per engine and week, its 10 most cited pages, the 20 prompts whose answers cite it most and the 5 tracked entities named most in those answers. A domain that is not cited in scope answers `200` with empty lists. Not built yet: `501 not_implemented`.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One registrable domain as the domain list names it: its rows (one per role and entity, at most 10), its units per engine and week, its 10 most cited pages, the 20 prompts whose answers cite it most and the 5 tracked entities named most in those answers. A domain that is not cited in scope answers `200` with empty lists; the name is read in lower case.
          */
         get: operations["source_domain_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_domains__registrable_domain__get"];
         put?: never;
@@ -1309,7 +1309,7 @@ export interface paths {
         };
         /**
          * Each prompt's own pages, per engine
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per prompt and engine with a counted answer: the valid answers, the answers that cite an own page, the own citation units, the distinct own pages and the one with the most units. `filter[own_cited]=false` keeps the prompts whose answers cite no own page. Keyset pages `(prompt_id, engine_code)`; a cursor is bound to its filters (`400 invalid_cursor` otherwise). Not built yet: `501 not_implemented`.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per prompt and engine with a counted answer: the valid answers, the answers that cite an own page, the own citation units, the distinct own pages and the one with the most units. `filter[own_cited]=false` keeps the prompts whose answers cite no own page. Keyset pages `(prompt_id, engine_code)`; a cursor is bound to its filters (`400 invalid_cursor` otherwise). An engine with no counted answer of a prompt has no row.
          */
         get: operations["source_prompts_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_prompts_get"];
         put?: never;
@@ -4251,7 +4251,7 @@ export interface components {
             query_text: string;
             /**
              * Topics
-             * @description With `include=topics`: the topic terms tagged on the prompts whose answers issued it, the most answers first, at most 10. Not returned yet: absent from every response until it is built.
+             * @description With `include=topics`: the topic terms tagged on the prompts whose answers issued it, the most answers first, then by term id, at most 10; an empty list when no such prompt is tagged with a topic. Absent unless `include=topics`.
              */
             topics?: components["schemas"]["FanoutTopic"][] | null;
         };
@@ -8180,7 +8180,7 @@ export interface components {
         SourceChangeRow: {
             /**
              * Current Units
-             * @description Citation units in the window.
+             * @description Citation units in `meta.window` (0 for `lost`).
              */
             current_units: number;
             /**
@@ -8190,17 +8190,17 @@ export interface components {
             domain_role: "own" | "competitor" | "third_party";
             /**
              * First Seen At
-             * @description Its first citation in the window.
+             * @description Its first citation in `meta.window`; null when it has none (`lost`).
              */
             first_seen_at: string | null;
             /**
              * Last Seen At
-             * @description Its last citation in the window.
+             * @description Its last citation in `meta.window`; null when it has none (`lost`).
              */
             last_seen_at: string | null;
             /**
              * Previous Units
-             * @description Citation units in the window compared with.
+             * @description Citation units in `meta.compare_window` (0 for `new`).
              */
             previous_units: number;
             /** Registrable Domain */
@@ -8232,7 +8232,7 @@ export interface components {
         };
         /** SourceDiversityEngine */
         SourceDiversityEngine: {
-            /** @description With `include=ads`. Not returned yet: absent from every response until it is built. */
+            /** @description With `include=ads`: the answers of the engine that showed an ad. */
             ads?: components["schemas"]["AdPresence"] | null;
             /** Answers */
             answers: number;
@@ -8250,7 +8250,7 @@ export interface components {
             engine_code: components["schemas"]["EngineCode"];
             /**
              * Series
-             * @description With `include=series`. Not returned yet: absent from every response until it is built.
+             * @description With `include=series`: a point per week of the window, oldest first, at most 14, zero filled.
              */
             series?: components["schemas"]["DiversityWeek"][] | null;
         };
@@ -8316,7 +8316,7 @@ export interface components {
              * @description Citation units: distinct canonical URLs per answer (docs/16 C2); a URL an answer cites twice is one, and `occurrences` never counts.
              */
             citation_units: number;
-            /** @description With `include=cited_with`. Not returned yet: absent from every response until it is built. */
+            /** @description With `include=cited_with`: the tracked entity named in the most answers that cite this row (this role and entity), ties by entity id, with the answers citing it that name the entity. Absent when no counted answer citing it names one. */
             cited_with?: components["schemas"]["CitedWith"] | null;
             /**
              * Domain Role
@@ -8364,7 +8364,7 @@ export interface components {
             role_entity_id: string | null;
             /**
              * Series
-             * @description With `include=series`: a point per week of the window, oldest first, at most 14. Not returned yet: absent from every response until it is built.
+             * @description With `include=series`: a point per week of the window, oldest first, at most 14, zero filled.
              */
             series?: components["schemas"]["SourceWeekUnits"][] | null;
             /** @description Its citation units over every citation unit in scope (docs/16 C1); `n_observations` is the valid answers in scope. */
@@ -8421,7 +8421,7 @@ export interface components {
             role_entity_id: string | null;
             /**
              * Series
-             * @description With `include=series`: a point per week of the window, oldest first, at most 14. Not returned yet: absent from every response until it is built.
+             * @description With `include=series`: a point per week of the window, oldest first, at most 14, zero filled.
              */
             series?: components["schemas"]["SourceWeekUnits"][] | null;
             source_share: components["schemas"]["MetricCell"];
@@ -8470,7 +8470,7 @@ export interface components {
             by_role: components["schemas"]["RoleUnits"][];
             /**
              * By Role By Engine
-             * @description With `include=by_role_by_engine` on domains. Not returned yet: absent from every response until it is built.
+             * @description With `include=by_role_by_engine` on domains: every engine of `engine_codes`, in that order, with the units and citing answers of each role over every citation in scope; `filter[domain_role_in]` does not narrow it. Per role the units over the engines add up to `by_role`.
              */
             by_role_by_engine?: components["schemas"]["EngineRoleUnits"][] | null;
             /**
@@ -8491,7 +8491,7 @@ export interface components {
             previous_answers?: number | null;
             /**
              * Series
-             * @description With `include=series`. Not returned yet: absent from every response until it is built.
+             * @description With `include=series`: a point per week of the window, oldest first, at most 14: the answers (citing or not), citation units and registrable domains cited in each week, the denominators of the rows' weekly points. The row filters (`filter[domain_role_in]`, and `filter[registrable_domain]` on pages) narrow the rows, not these.
              */
             series?: components["schemas"]["SourcesWeek"][] | null;
             window: components["schemas"]["MetricWindow"];
@@ -11982,7 +11982,7 @@ export interface operations {
                 /** @description The sources of one registrable domain, as a domain row names it. */
                 "filter[registrable_domain]"?: string | null;
                 "filter[url_id]"?: number | null;
-                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`. */
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
                 "filter[country_iso]"?: string | null;
                 "filter[domain_role_in]"?: ("own" | "competitor" | "third_party")[] | null;
                 from?: string | null;
@@ -12067,9 +12067,9 @@ export interface operations {
             query?: {
                 /** @description The fewest answers a query is listed for. */
                 min_support?: number;
-                /** @description Blocks to add: `topics`. Not built yet: `501 not_implemented`. */
+                /** @description Blocks to add: `topics` (on each row, the topic terms tagged on the prompts whose answers issued the query). */
                 include?: "topics"[] | null;
-                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`. */
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
                 "filter[country_iso]"?: string | null;
                 from?: string | null;
                 to?: string | null;
@@ -12358,7 +12358,7 @@ export interface operations {
             query?: {
                 kind?: "new" | "lost";
                 min_support?: number;
-                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`. */
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
                 "filter[country_iso]"?: string | null;
                 "filter[domain_role_in]"?: ("own" | "competitor" | "third_party")[] | null;
                 from?: string | null;
@@ -12371,9 +12371,9 @@ export interface operations {
                 include_branded?: boolean;
                 offset?: number;
                 limit?: number;
-                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
                 include_unresolved_redirects?: boolean;
-                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
                 include_engine_internal?: boolean;
             };
             header?: never;
@@ -12408,9 +12408,9 @@ export interface operations {
     source_diversity_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_diversity_get: {
         parameters: {
             query?: {
-                /** @description Blocks to add to each engine: `series` (a weekly point) and `ads` (the answers that showed an ad). Default none. Not built yet: `501 not_implemented`. */
+                /** @description Blocks to add to each engine: `series` (a weekly point) and `ads` (the answers that showed an ad). Default none. */
                 include?: ("series" | "ads")[] | null;
-                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`. */
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
                 "filter[country_iso]"?: string | null;
                 from?: string | null;
                 to?: string | null;
@@ -12420,9 +12420,9 @@ export interface operations {
                 /** @description The prompts given the term or one under it. */
                 "filter[term]"?: string | null;
                 include_branded?: boolean;
-                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
                 include_unresolved_redirects?: boolean;
-                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
                 include_engine_internal?: boolean;
             };
             header?: never;
@@ -12459,11 +12459,11 @@ export interface operations {
             query?: {
                 sort?: "-citation_units" | "-observations" | "-prompts";
                 compare?: "none" | "previous_period";
-                /** @description Blocks to add: `series`, `cited_with`, `by_role_by_engine`. Not built yet: `501 not_implemented`. */
+                /** @description Blocks to add: `series` (a point per week of the window), `cited_with` (on each row, the tracked entity named in the most answers that cite it, ties by entity id; absent when none is named) and `by_role_by_engine` (`meta`: per engine the units and citing answers of each role, whatever `filter[domain_role_in]` says). */
                 include?: ("series" | "cited_with" | "by_role_by_engine")[] | null;
-                /** @description The fewest citation units a row is listed for. Not built yet: `501 not_implemented`. */
+                /** @description The fewest citation units in the window a row is listed for (docs/16 C5). Rows with fewer are left out of the rows and of `page.total`; `meta` and every share still count them. */
                 min_support?: number | null;
-                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`. */
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
                 "filter[country_iso]"?: string | null;
                 "filter[domain_role_in]"?: ("own" | "competitor" | "third_party")[] | null;
                 from?: string | null;
@@ -12476,9 +12476,9 @@ export interface operations {
                 include_branded?: boolean;
                 offset?: number;
                 limit?: number;
-                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
                 include_unresolved_redirects?: boolean;
-                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
                 include_engine_internal?: boolean;
             };
             header?: never;
@@ -12513,7 +12513,7 @@ export interface operations {
     source_domain_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_domains__registrable_domain__get: {
         parameters: {
             query?: {
-                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`. */
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
                 "filter[country_iso]"?: string | null;
                 from?: string | null;
                 to?: string | null;
@@ -12523,9 +12523,9 @@ export interface operations {
                 /** @description The prompts given the term or one under it. */
                 "filter[term]"?: string | null;
                 include_branded?: boolean;
-                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
                 include_unresolved_redirects?: boolean;
-                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
                 include_engine_internal?: boolean;
             };
             header?: never;
@@ -12565,11 +12565,11 @@ export interface operations {
                 "filter[registrable_domain]"?: string | null;
                 sort?: "-citation_units" | "-observations" | "-prompts";
                 compare?: "none" | "previous_period";
-                /** @description Blocks to add: `series`. Not built yet: `501 not_implemented`. */
+                /** @description Blocks to add: `series` (a point per week of the window, and `meta.series`). */
                 include?: "series"[] | null;
-                /** @description The fewest citation units a row is listed for. Not built yet: `501 not_implemented`. */
+                /** @description The fewest citation units in the window a row is listed for (docs/16 C5). Rows with fewer are left out of the rows and of `page.total`; `meta` and every share still count them. */
                 min_support?: number | null;
-                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`. */
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
                 "filter[country_iso]"?: string | null;
                 "filter[domain_role_in]"?: ("own" | "competitor" | "third_party")[] | null;
                 from?: string | null;
@@ -12582,9 +12582,9 @@ export interface operations {
                 include_branded?: boolean;
                 offset?: number;
                 limit?: number;
-                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
                 include_unresolved_redirects?: boolean;
-                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
                 include_engine_internal?: boolean;
             };
             header?: never;
@@ -12619,9 +12619,9 @@ export interface operations {
     source_prompts_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_prompts_get: {
         parameters: {
             query?: {
-                /** @description `false` keeps the prompt and engine pairs whose answers cite no own page; `true` those that cite one. Default: both. Not built yet: `501 not_implemented`. */
+                /** @description `false` keeps the prompt and engine pairs whose answers cite no own page; `true` those that cite one. Default: both. */
                 "filter[own_cited]"?: boolean | null;
-                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`. */
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
                 "filter[country_iso]"?: string | null;
                 from?: string | null;
                 to?: string | null;
@@ -12634,9 +12634,9 @@ export interface operations {
                 /** @description `page.next_cursor` of the previous page. */
                 cursor?: string | null;
                 limit?: number;
-                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
                 include_unresolved_redirects?: boolean;
-                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
                 include_engine_internal?: boolean;
             };
             header?: never;
