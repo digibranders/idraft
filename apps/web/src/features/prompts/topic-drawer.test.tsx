@@ -15,10 +15,15 @@ import { SESSION_COOKIE } from '@/mocks/session';
 import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
+// The drawer reads the entities and the tracked keywords: the harness answers both with none
+import '@/test/topic-drawer-harness';
 
+// jsdom has no canvas: the drawer's charts are drawn as an empty box
+vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/digibranders/fynix/ai/prompts',
+  useSearchParams: () => new URLSearchParams(''),
 }));
 
 /** Thursday 12 November 2026, noon UTC: the 02:00 run has answered. */
@@ -207,10 +212,11 @@ describe('the topic drawer: the numbers', () => {
     expect(within(rates).getByText('No valid answers')).toBeInTheDocument();
     const byEngine = within(panel).getByRole('heading', { name: 'By engine' }).closest('section');
     if (byEngine === null) throw new Error('The By engine card is missing');
-    expect(within(byEngine).getByText('38%')).toBeInTheDocument();
+    // The panel's rows and its table form both say it
+    expect(within(byEngine).getAllByText('38%').length).toBeGreaterThan(0);
     // The answers behind the rate, not the sum of the prompts' rates over the prompts (0.75 of 2)
-    expect(within(byEngine).getByText('3 of 8')).toBeInTheDocument();
-    expect(within(byEngine).getByText('8 of 8')).toBeInTheDocument();
+    expect(within(byEngine).getAllByText('3 of 8 answers, 2 prompts').length).toBeGreaterThan(0);
+    expect(within(byEngine).getAllByText('8 of 8 answers, 2 prompts').length).toBeGreaterThan(0);
     expect(within(byEngine).queryByText(/^0\.75/)).toBeNull();
     expect(
       within(byEngine).getByText('Each prompt counts once, whatever the number of its answers.'),

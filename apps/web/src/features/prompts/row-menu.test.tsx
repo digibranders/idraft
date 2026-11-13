@@ -11,10 +11,15 @@ import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
+// A topic drawer reads the entities and the tracked keywords: the harness answers both with none
+import '@/test/topic-drawer-harness';
 
+// jsdom has no canvas: a topic drawer's charts are drawn as an empty box
+vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/digibranders/fynix/ai/prompts',
+  useSearchParams: () => new URLSearchParams(''),
 }));
 // Nothing is copied: the call is what the test reads
 vi.mock('@/lib/dom/clipboard', async (importOriginal) => ({

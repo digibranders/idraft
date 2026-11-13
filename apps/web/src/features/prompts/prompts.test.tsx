@@ -18,10 +18,15 @@ import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders, type ProvidedRender, type ProvidedRenderOptions } from '@/test/render';
+// A topic drawer reads the entities and the tracked keywords: the harness answers both with none
+import '@/test/topic-drawer-harness';
 
+// jsdom has no canvas: a topic drawer's charts are drawn as an empty box
+vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/digibranders/fynix/ai/prompts',
+  useSearchParams: () => new URLSearchParams(''),
 }));
 
 /** Thursday 12 November 2026, noon UTC: the 02:00 run has answered. */

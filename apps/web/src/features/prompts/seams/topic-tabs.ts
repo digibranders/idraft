@@ -9,8 +9,8 @@ import type { ProjectEngine, PromptsSummary } from '@/lib/api/types';
 // edits nothing else in this file; the "WP-NN" line above each stays as it is.
 
 // WP-20 topics-by-engine
-// import { topicCompetitorsTab } from '../inspector/topic/topic-competitors-tab';
-// import { topicRelatedTab } from '../inspector/topic/topic-related-tab';
+import { topicCompetitorsTab } from '../topic-drawer/topic-competitors-tab';
+import { topicRelatedTab } from '../topic-drawer/topic-related-tab';
 
 /** What the topic drawer lends a tab. */
 export interface TopicTabContext {
@@ -38,9 +38,9 @@ export interface TopicInspectorTab {
 
 export const TOPIC_TAB_ENTRIES: readonly TopicInspectorTab[] = [
   // WP-20 topics-by-engine (the end; WP-23 fills the competitors content inside this tab)
-  // topicCompetitorsTab,
+  topicCompetitorsTab,
   // WP-20 topics-by-engine (the end)
-  // topicRelatedTab,
+  topicRelatedTab,
 ];
 
 /** The tabs to show, in order: `builtIns` with `entries` placed, those not available to `context` left out. */

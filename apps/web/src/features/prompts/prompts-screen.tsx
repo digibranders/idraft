@@ -58,6 +58,7 @@ import { PROMPTS_TOOLBAR_ENTRIES, promptsToolbarItems } from './seams/toolbar';
 import { usePromptActions } from './use-prompt-actions';
 import { TopicInspector } from './topic-inspector';
 import { selectionKeyOf } from './selection-model';
+import { DRAWER_ENTRY_KEYS } from './topics-by-engine/drill';
 import { TopicsView } from './topics-by-engine/topics-view';
 import type { TopicMenuTarget } from './topics-table';
 import { DateRangePicker } from '@/components/app/date-range/date-range-picker';
@@ -424,7 +425,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const density = parseDensity(view.density);
 
   // The inspector: a prompt opened from either tab, stepping in the order of the table on screen
-  const inspector = useInspector();
+  // The topic drawer's engine filter (`?eng=`) belongs to its entry: Close after a drill-down goes back and drops it
+  const inspector = useInspector({ entryKeys: DRAWER_ENTRY_KEYS });
   const openPrompt = inspector.target?.type === 'prompt' ? inspector.target.id : null;
   // An answer opens from a prompt's answers and takes the inspector's place until it goes back to the prompt
   const openAnswer = inspector.target?.type === 'answer' ? inspector.target.id : null;
@@ -518,6 +520,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     void setView({ tab: 'prompts' }, { history: 'push' });
   };
   const canRun = useCan('runs:trigger');
+  // A topic's prompts come from the summary, and an action reads them from the list: until the list is whole (or when
+  // it failed) some of them are not in it, so the actions that read them wait
+  const listReason = optionsPending ? t('bulk.listLoading') : null;
   /** The "More" menu of a row of the Topics tab: a topic's, or the prompt listed under a topic's. */
   const topicMenu = (target: TopicMenuTarget): readonly PromptAction[] => {
     if (target.kind === 'prompt') {
@@ -526,10 +531,6 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     // The prompts without a topic are no topic to filter by or to add a prompt to
     const real = target.key !== NO_TOPIC;
     const held = target.promptIds.length > 0;
-    // A topic's prompts come from the summary, and an action reads them from the list: until the list is whole (or when
-    // it failed) some of them are not in it, so the actions that read them wait
-    const listReason =
-      list.loading || list.fetching || list.hasMore || list.error !== null ? t('bulk.listLoading') : null;
     const builtIns: PromptAction[] = [
       {
         id: 'open',
@@ -1085,6 +1086,18 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         descendants={descendants}
         treeName={topicTree.find((term) => term.termId === openTopic)?.name ?? null}
         treePending={vocabularies.pending}
+        extras={{
+          scope,
+          range,
+          includeBranded,
+          country,
+          workspaceSlug,
+          projectSlug: project.slug,
+          tree: topicTree,
+          countryName: nameOfCountry,
+          onAddPrompt: canWrite && engines.data !== undefined ? openAdd : null,
+          run: canRun ? { onRun: actions.run, blockedReason: actions.busyReason ?? listReason } : null,
+        }}
         tab={topicTab}
         onTabChange={inspector.setTab}
         onOpenPrompt={openPromptFromTopic}

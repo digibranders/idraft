@@ -6,9 +6,8 @@ import type { ReactElement, ReactNode } from 'react';
 
 import { useDrawerMetric, useTopicDrawer } from './drawer-context';
 import { promptsBehindCell } from './prompts-behind';
+import { PromptRow } from './prompt-row';
 import { EmptyState } from '@/components/app/status/empty-state';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Tag } from '@/components/ui/tag';
 import { CELL_OF_METRIC } from '@/features/prompts/prompt-model';
 import { useRateWords } from '@/features/prompts/rate-view';
@@ -75,30 +74,23 @@ export function EngineFilteredPrompts({ prompts, onOpen, renderList }: EngineFil
             {behind.map((prompt) => {
               const value = engineValue(prompt.engines, code, key);
               return (
-                <li
+                <PromptRow
                   key={prompt.prompt_id}
-                  className="flex flex-col gap-0.5 border-t border-border-subtle py-2 first:border-t-0 first:pt-0 last:pb-0"
-                >
-                  <span className="flex items-start gap-2">
-                    <Button
-                      variant="link"
-                      className="max-w-full min-w-0 shrink justify-start"
-                      onClick={() => onOpen(prompt.prompt_id)}
-                    >
-                      <span className="line-clamp-2 text-left whitespace-normal">{prompt.text}</span>
-                    </Button>
-                    {prompt.is_branded ? <Badge>{words('branded')}</Badge> : null}
-                  </span>
-                  <p className="num type-meta text-foreground-tertiary">
-                    {value.state === 'none'
-                      ? panel('rowNone', { engine: label, reason: rate.reason(value) ?? panel('noAnswers') })
-                      : panel('rowName', {
-                          engine: label,
-                          value: rate.inline(value),
-                          basis: rate.basis(value) ?? '',
-                        })}
-                  </p>
-                </li>
+                  text={prompt.text}
+                  isBranded={prompt.is_branded}
+                  onOpen={() => onOpen(prompt.prompt_id)}
+                  meta={
+                    <span className="num">
+                      {value.state === 'none'
+                        ? panel('rowNone', { engine: label, reason: rate.reason(value) ?? panel('noAnswers') })
+                        : panel('rowName', {
+                            engine: label,
+                            value: rate.inline(value),
+                            basis: rate.basis(value) ?? '',
+                          })}
+                    </span>
+                  }
+                />
               );
             })}
           </ul>
