@@ -1,8 +1,18 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
 import { projectCaller } from './access';
-import { answersWithCitations, countedAnswers, NO_FLAGS, scopeOf, termSubtree, unitsOf } from './citations-model';
+import {
+  answersWithCitations,
+  countedAnswers,
+  type CitedAnswer,
+  NO_FLAGS,
+  registrableOf,
+  scopeOf,
+  termSubtree,
+  unitsOf,
+} from './citations-model';
 import { booleanQuery, offsetPageOf, offsetPaging, queryError, unknownQuery, uuidError } from './rules';
+import { fanoutQueryRows, type FanoutAnswer } from '../ai-fanout-queries';
 import { ENGINE_CODES, ENGINE_FACTS } from '../prompt-fixtures';
 import { promptsOf } from '../prompts-state';
 import { invalid, mock, problem } from '../respond';
@@ -18,7 +28,8 @@ import { formatIsoDate } from '@/lib/format';
  *
  * shortcut: the fixtures keep no list of the queries an answer issued (the observations mock says `fanout_count:
  * 0` for every answer), so an answer counts as one that issued queries when it cited a source (the sources
- * read's `answers_citing`), and no query rows are listed. The denominator is the sources read's: the valid
+ * read's `answers_citing`), and its queries come from the fixture builder `../ai-fanout-queries.ts`, which gives
+ * each such answer one to three queries from a fixed pool (WP-37). The denominator is the sources read's: the valid
  * answers in scope on the engines that show their fan-out (ChatGPT). Unlike the API, an engine filter naming an
  * engine that shows none is not a `422 engine_has_no_fanout` here: it is no answers, and the engine is in
  * `engines_without_fanout`.
@@ -79,6 +90,27 @@ function minSupportOf(url: URL, errors: ValidationItem[]): number {
     return value;
   }
   return DEFAULT_MIN_SUPPORT;
+}
+
+/** The answer as the fixture builder needs it, or nothing when it cited no source (it issued no query). */
+function fanoutAnswerOf(answer: CitedAnswer): FanoutAnswer[] {
+  const units = unitsOf(answer, NO_FLAGS);
+  if (units.length === 0) return [];
+  const cited = new Map<string, FanoutAnswer['cited'][number]>();
+  for (const unit of units) {
+    const domain = registrableOf(unit.host);
+    const key = `${domain}|${unit.domain_role}|${unit.role_entity_id ?? ''}`;
+    const found = cited.get(key);
+    cited.set(key, {
+      domain,
+      role: unit.domain_role,
+      entityId: unit.role_entity_id,
+      units: (found?.units ?? 0) + 1,
+    });
+  }
+  return [
+    { id: answer.id, at: answer.at, promptId: answer.promptId, engine: answer.engine, cited: [...cited.values()] },
+  ];
 }
 
 export const aiOverviewHandlers: HttpHandler[] = [
@@ -153,6 +185,7 @@ export const aiOverviewHandlers: HttpHandler[] = [
     });
     const showing = scope.engines.filter((code) => ENGINE_FACTS[code].exposes_fanout);
     const counted = countedAnswers(answersWithCitations(projectId, now), { ...scope, engines: showing });
+    const issuing = counted.flatMap(fanoutAnswerOf);
     const meta: Schemas['FanoutMeta'] = {
       window: { from: scope.window.first, to: scope.window.last, timezone: zone },
       include_branded: scope.includeBranded,
@@ -161,9 +194,8 @@ export const aiOverviewHandlers: HttpHandler[] = [
       min_support: minSupport,
       answers: counted.length,
       answers_truncated: 0,
-      answers_with_fanout: counted.filter((answer) => unitsOf(answer, NO_FLAGS).length > 0).length,
+      answers_with_fanout: issuing.length,
     };
-    const rows: Schemas['FanoutQueryRow'][] = [];
-    return HttpResponse.json({ ...offsetPageOf(rows, paging), meta });
+    return HttpResponse.json({ ...offsetPageOf(fanoutQueryRows(issuing, minSupport), paging), meta });
   }),
 ];

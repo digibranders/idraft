@@ -91,8 +91,10 @@ afterEach(() => {
 describe('the fan-out mock of the AI overview', () => {
   it('answers the generated FanoutQueryPage shape with the meta of ChatGPT, the only engine that shows it', async () => {
     const page = await fanoutOf(FYNIX);
-    expect(page.data).toEqual([]);
-    expect(page.page).toEqual({ offset: 0, limit: 1, total: 0 });
+    expect(page.data).toHaveLength(1);
+    expect(page.page.limit).toBe(1);
+    expect(page.page.offset).toBe(0);
+    expect(page.page.total).toBeGreaterThan(1);
     expect(page.meta).toMatchObject({
       engine_codes: ['chatgpt_web'],
       engines_without_fanout: ['gemini_web', 'google_ai_mode'],
@@ -171,6 +173,100 @@ describe('the fan-out mock of the AI overview', () => {
   it('is not answered to a caller who cannot see the project', async () => {
     const answer = await get(`${W}/projects/00000000-0000-4000-8000-000000000000/ai/fanout-queries?${WINDOW}`);
     expect(answer.status).toBe(404);
+  });
+});
+
+/** The page of query rows the card reads: many rows, one request. */
+async function fanoutRows(base: string, query = ''): Promise<Schemas['FanoutQueryPage']> {
+  const answer = await get(`${base}/fanout-queries?${WINDOW}&limit=200${query === '' ? '' : `&${query}`}`);
+  expect(answer.status, JSON.stringify(answer.body)).toBe(200);
+  return FANOUT_PAGE.parse(answer.body);
+}
+
+describe('the query rows of the fan-out mock', () => {
+  it('lists rows that satisfy the generated shape, most answers first, each within the answers counted', async () => {
+    const page = await fanoutRows(FYNIX);
+    expect(page.data.length).toBeGreaterThan(3);
+    expect(page.page.total).toBe(page.data.length);
+    const counts = page.data.map((row) => row.observations);
+    expect(counts).toEqual([...counts].sort((a, b) => b - a));
+    for (const row of page.data) {
+      expect(row.engine_code).toBe('chatgpt_web');
+      expect(row.observations).toBeGreaterThanOrEqual(page.meta.min_support);
+      expect(row.observations).toBeLessThanOrEqual(page.meta.answers_with_fanout);
+      expect(row.prompts).toBe(row.prompt_ids.length);
+      expect(row.prompts).toBeLessThanOrEqual(row.observations);
+      expect(Date.parse(row.first_seen_at)).toBeLessThanOrEqual(Date.parse(row.last_seen_at));
+      expect(row.normalized_text).toBe(row.query_text.toLowerCase().replace(/\s+/g, ' ').trim());
+    }
+  });
+
+  it('gives each row at most 5 cited domains, the most units first, from the sources of the answers that issued it', async () => {
+    const page = await fanoutRows(FYNIX);
+    for (const row of page.data) {
+      expect(row.cited_domains.length).toBeGreaterThan(0);
+      expect(row.cited_domains.length).toBeLessThanOrEqual(5);
+      const units = row.cited_domains.map((domain) => domain.citation_units);
+      expect(units).toEqual([...units].sort((a, b) => b - a));
+    }
+  });
+
+  it('honours min_support: a larger one lists fewer rows, every row has that many answers, and total follows', async () => {
+    const loose = await fanoutRows(FYNIX, 'min_support=1');
+    const counts = loose.data.map((row) => row.observations);
+    // The most answers any query has: a limit no other query reaches
+    const cut = Math.max(...counts);
+    expect(Math.min(...counts)).toBeLessThan(cut);
+    const strict = await fanoutRows(FYNIX, `min_support=${String(cut)}`);
+    expect(strict.meta.min_support).toBe(cut);
+    expect(strict.data.length).toBeLessThan(loose.data.length);
+    expect(strict.data.length).toBeGreaterThan(0);
+    for (const row of strict.data) expect(row.observations).toBeGreaterThanOrEqual(cut);
+    expect(strict.page.total).toBe(strict.data.length);
+    expect(loose.page.total).toBe(loose.data.length);
+  });
+
+  it('honours limit and offset on the same order, and total stays the whole list', async () => {
+    const all = await fanoutRows(FYNIX);
+    const answer = await get(`${FYNIX}/fanout-queries?${WINDOW}&offset=2&limit=2`);
+    const second = FANOUT_PAGE.parse(answer.body);
+    expect(second.data.map((row) => row.normalized_text)).toEqual(
+      all.data.slice(2, 4).map((row) => row.normalized_text),
+    );
+    expect(second.page).toEqual({ offset: 2, limit: 2, total: all.data.length });
+  });
+
+  it('lists the same rows for the engine that shows fan-out and none for one that does not', async () => {
+    const all = await fanoutRows(FYNIX);
+    const shown = await fanoutRows(FYNIX, 'filter[engine_code_in]=chatgpt_web');
+    expect(shown.data.map((row) => row.normalized_text)).toEqual(all.data.map((row) => row.normalized_text));
+    const hidden = await fanoutRows(FYNIX, 'filter[engine_code_in]=gemini_web');
+    expect(hidden.data).toEqual([]);
+    expect(hidden.page.total).toBe(0);
+    expect(hidden.meta.engine_codes).toEqual([]);
+    expect(hidden.meta.engines_without_fanout).toEqual(['gemini_web']);
+  });
+
+  it('lists no row for a project with no answers, and keeps the meta answers as they are', async () => {
+    const page = await fanoutRows(`${W}/projects/${cleanstart.project_id}/ai`);
+    expect(page.data).toEqual([]);
+    expect(page.page.total).toBe(0);
+  });
+
+  it('lists no row for a market nobody asks in, and no more answers for one market than for all', async () => {
+    const sum = (page: Schemas['FanoutQueryPage']): number => page.data.reduce((n, row) => n + row.observations, 0);
+    const all = await fanoutRows(FYNIX, 'min_support=1');
+    const market = await fanoutRows(FYNIX, 'min_support=1&filter[country_iso]=DE');
+    const none = await fanoutRows(FYNIX, 'min_support=1&filter[country_iso]=ZZ');
+    expect(none.data).toEqual([]);
+    expect(sum(all)).toBeGreaterThan(0);
+    expect(sum(market)).toBeLessThanOrEqual(sum(all));
+  });
+
+  it('lists rows for the Eventus Security data set', async () => {
+    setAiSeeded(true);
+    const page = await fanoutRows(`${W}/projects/${eventus.project_id}/ai`);
+    expect(page.data.length).toBeGreaterThan(0);
   });
 });
 
