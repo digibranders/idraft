@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T14:46:05+05:30",
+ "updated": "2026-11-13T15:07:40+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -696,7 +696,7 @@
     "done": 1
    },
    "owner": "",
-   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 3/15: T0 provider, T1 customize controller/button/badge/header slot, T2 card catalog dialog on develop (3928b3a8); T3 NumberStrip next; rows 25, 29, 30, 35, 36 built, close with the save bar and e2e"
+   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 6/15 (T0-T2 on develop; T3 number strip, T4 number catalog, T5 save bar committed locally in the WP-16 worktree, not yet pushed); rows built 1/24 until the e2e closes them (25, 29, 30, 35, 36 and more built); metric-strip columnsFor lease extension granted"
   },
   {
    "id": "WP-17",
@@ -1016,7 +1016,7 @@
     "done": 9
    },
    "owner": "",
-   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | plan committed (7 tasks, about 10 h); steps 0/7, rows 9/37; History copy lease then Task 1"
+   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | tasks 1/7, rows 9/37; plan, message keys, per engine model and History copy on develop; Task 2 Topics tab By engine view in progress"
   },
   {
    "id": "WP-21",
