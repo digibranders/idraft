@@ -9,6 +9,7 @@ The expected numbers are worked out by hand from the scene below. Nothing in ing
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -20,14 +21,16 @@ from idraft.api.ai.source_routes import FLAGGED_COUNTED_BY_DEFAULT, flag_toggles
 from idraft.api.resources import Resources
 from tests.api.ai.sources_support import (
     GUIDE,
+    GUIDE_TOP,
     OWN_BLOG,
+    WIKI,
     Cite,
     World,
     answer,
     make_world,
     statements,
 )
-from tests.api.auth.support import execute
+from tests.api.auth.support import execute, fetchrow
 from tests.api.entities.support import problem
 from tests.collectors.ai_support import Prompt, add_prompt
 from tests.conftest import PostgresServer
@@ -494,3 +497,212 @@ async def test_a_prompts_cursor_is_bound_to_the_toggles(
         headers=world.owner.headers,
     )
     assert same.status_code == 200, same.text
+
+
+async def _mention(
+    pg: PostgresServer, world: World, observation_id: int, entity: uuid.UUID
+) -> None:
+    """The mention of a tracked entity in an answer, as `seed_extraction` writes one."""
+    observation = await fetchrow(
+        pg, "SELECT observed_at, engine_code FROM ai.observations WHERE id = $1", observation_id
+    )
+    await execute(
+        pg,
+        "INSERT INTO ai.entity_mentions (observation_id, observed_at, entity_id, derivation_id, "
+        "workspace_id, project_id, engine_code, role, mention_count, first_char_offset, "
+        "mention_order, prominence, match_method, confidence, evidence_spans, mention_status, "
+        "is_current) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, 0, 1, 1, 'alias_word', 1, "
+        "ARRAY['[0,8)'::int4range], 'accepted', true)",
+        observation_id,
+        observation["observed_at"],
+        entity,
+        world.derivation_id,
+        world.project.workspace_id,
+        world.project.id,
+        observation["engine_code"],
+        "own" if entity == world.own else "competitor",
+    )
+
+
+@dataclass(frozen=True)
+class Flagged:
+    world: World
+    first: Prompt
+    second: Prompt
+
+
+@pytest.fixture
+async def flagged(resources: Resources, migrated: PostgresServer) -> Flagged:
+    """Two prompts, days before now in brackets. P1 is "Best managed SOC providers?", P2 "How
+    much does a SOC cost?". The link to the guide's top page is flagged `unresolved_redirect` in
+    f2 and `engine_internal` in f3, the grounding redirect (google.com) in g1 and g2.
+
+      f1 (1)  ChatGPT, P1   the guide, the wiki                  names the rival
+      f2 (2)  ChatGPT, P1   the top page (flagged)               names the own brand
+      f3 (3)  ChatGPT, P2   the top page (flagged)               names the own brand
+      g1 (2)  Gemini, P1    the guide, the redirect (flagged)    names nobody
+      g2 (3)  Gemini, P1    the redirect (flagged)               names nobody
+
+    Counted by default: ChatGPT 3 answers, 1 citing, 2 units on 2 domains (example.org and
+    wikipedia.org), so (1 + 1)^2 / (1 + 1) = 2; Gemini 2 answers, 1 citing, 1 unit on 1 domain.
+    Nothing else moves: f2, f3 and g2 are answers that cite no source that counts."""
+    world = await make_world(resources, migrated)
+    first = await add_prompt(migrated, world.project, "Best managed SOC providers?")
+    second = await add_prompt(migrated, world.project, "How much does a SOC cost?")
+    f1 = await answer(migrated, world, first, days_ago=1, cites=[Cite(GUIDE), Cite(WIKI)])
+    f2 = await answer(migrated, world, first, days_ago=2, cites=[Cite(GUIDE_TOP)])
+    f3 = await answer(migrated, world, second, days_ago=3, cites=[Cite(GUIDE_TOP)])
+    g1 = await answer(
+        migrated,
+        world,
+        first,
+        days_ago=2,
+        engine="gemini_web",
+        cites=[Cite(GUIDE), Cite(REDIRECT)],
+    )
+    g2 = await answer(
+        migrated, world, first, days_ago=3, engine="gemini_web", cites=[Cite(REDIRECT)]
+    )
+    await _flag(migrated, f2, 1, UNRESOLVED)
+    await _flag(migrated, f3, 1, INTERNAL)
+    await _flag(migrated, g1, 2, UNRESOLVED)
+    await _flag(migrated, g2, 1, UNRESOLVED)
+    await _mention(migrated, world, f1, world.rival)
+    await _mention(migrated, world, f2, world.own)
+    await _mention(migrated, world, f3, world.own)
+    return Flagged(world, first, second)
+
+
+def _engines(response: httpx.Response) -> dict[str, dict[str, Any]]:
+    return {entry["engine_code"]: entry for entry in response.json()["data"]}
+
+
+async def test_the_effective_sources_leave_the_flagged_citation_out(
+    api: httpx.AsyncClient, flagged: Flagged
+) -> None:
+    """The squares of `effective_sources` come from the units per domain: the flagged links to
+    example.org (2 more units) and google.com (2 units, a domain of its own) are not in them."""
+    response = await _get(flagged.world, api, "sources/diversity")
+
+    engines = _engines(response)
+    chatgpt, gemini = engines["chatgpt_web"], engines["gemini_web"]
+    assert (chatgpt["citation_units"], chatgpt["distinct_domains"]) == (2, 2)
+    assert (
+        chatgpt["effective_sources"]["numerator"],
+        chatgpt["effective_sources"]["denominator"],
+    ) == (
+        4.0,
+        2,
+    )
+    assert chatgpt["effective_sources"]["value"] == pytest.approx(2.0)
+    assert (gemini["citation_units"], gemini["distinct_domains"]) == (1, 1)
+    assert (
+        gemini["effective_sources"]["numerator"],
+        gemini["effective_sources"]["denominator"],
+    ) == (
+        1.0,
+        1,
+    )
+    assert response.json()["meta"]["distinct_domains"] == 2
+
+
+async def test_an_answer_with_only_flagged_links_still_counts_in_diversity(
+    api: httpx.AsyncClient, flagged: Flagged
+) -> None:
+    """f2, f3 and g2 are answers, only not citing a source: they stay in `answers` and out of
+    `answers_citing`. With the toggles they cite."""
+    default = _engines(await _get(flagged.world, api, "sources/diversity"))
+    counted = _engines(await _get(flagged.world, api, "sources/diversity", **BOTH_TOGGLES))
+
+    assert [
+        (e["answers"], e["answers_citing"]) for e in (default["chatgpt_web"], default["gemini_web"])
+    ] == [
+        (3, 1),
+        (2, 1),
+    ]
+    assert [
+        (e["answers"], e["answers_citing"]) for e in (counted["chatgpt_web"], counted["gemini_web"])
+    ] == [
+        (3, 3),
+        (2, 2),
+    ]
+
+
+async def test_the_diversity_weeks_leave_the_flagged_citation_out(
+    api: httpx.AsyncClient, flagged: Flagged
+) -> None:
+    """Whatever week the answers fall in, the weekly units of an engine add up to the units it
+    counts: 2 for ChatGPT and 1 for Gemini, and 4 and 3 with the flagged links counted."""
+    for toggle, expected in ((NO_TOGGLE, (2, 1)), (BOTH_TOGGLES, (4, 3))):
+        engines = _engines(
+            await _get(flagged.world, api, "sources/diversity", include="series", **toggle)
+        )
+        units = tuple(
+            sum(point["citation_units"] for point in engines[code]["series"])
+            for code in ("chatgpt_web", "gemini_web")
+        )
+        assert units == expected, toggle
+
+
+async def test_the_domain_detail_prompts_leave_the_flagged_citation_out(
+    api: httpx.AsyncClient, flagged: Flagged
+) -> None:
+    """example.org is cited by P1 in f1 and g1 (2 units in 2 answers); P2 cites it only through
+    a flagged link, so it is not one of the domain's prompts."""
+    default = (await _get(flagged.world, api, "sources/domains/example.org")).json()["data"]
+    counted = (
+        await _get(flagged.world, api, "sources/domains/example.org", **BOTH_TOGGLES)
+    ).json()["data"]
+
+    assert [
+        (p["prompt_id"], p["citation_units"], p["observations"]) for p in default["prompts"]
+    ] == [(str(flagged.first.id), 2, 2)]
+    assert [
+        (p["prompt_id"], p["citation_units"], p["observations"]) for p in counted["prompts"]
+    ] == [
+        (str(flagged.first.id), 3, 3),
+        (str(flagged.second.id), 1, 1),
+    ]
+
+
+async def test_the_role_split_per_engine_agrees_with_the_roles_on_the_flagged_scene(
+    api: httpx.AsyncClient, flagged: Flagged
+) -> None:
+    """ChatGPT: 2 third-party units in 1 answer; Gemini: 1 unit in 1. Both reads leave the
+    flagged links out, so the split adds up to `by_role`; with the toggles they count in both."""
+    for toggle, expected in (
+        (NO_TOGGLE, {"chatgpt_web": (2, 1), "gemini_web": (1, 1)}),
+        (BOTH_TOGGLES, {"chatgpt_web": (4, 3), "gemini_web": (3, 2)}),
+    ):
+        meta = (
+            await _get(flagged.world, api, "sources/domains", include="by_role_by_engine", **toggle)
+        ).json()["meta"]
+
+        split = {
+            entry["engine_code"]: (
+                entry["third_party"]["citation_units"],
+                entry["third_party"]["answers_citing"],
+            )
+            for entry in meta["by_role_by_engine"]
+        }
+        by_role = next(r for r in meta["by_role"] if r["domain_role"] == "third_party")
+        assert {k: split[k] for k in expected} == expected, toggle
+        assert sum(units for units, _ in split.values()) == by_role["citation_units"], toggle
+        assert meta["citation_units"] == by_role["citation_units"], toggle
+
+
+async def test_cited_with_does_not_name_an_entity_of_a_flagged_citation(
+    api: httpx.AsyncClient, flagged: Flagged
+) -> None:
+    """example.org is cited by f1 (names the rival) and g1 (names nobody). f2 and f3 reach it
+    only through a flagged link and name the own brand: with the toggles the own brand, named
+    twice, wins over the rival, named once."""
+    rows = {}
+    for label, toggle in (("none", NO_TOGGLE), ("both", BOTH_TOGGLES)):
+        body = (
+            await _get(flagged.world, api, "sources/domains", include="cited_with", **toggle)
+        ).json()["data"]
+        rows[label] = next(r for r in body if r["registrable_domain"] == "example.org")
+
+    assert rows["none"]["cited_with"] == {"entity_id": str(flagged.world.rival), "observations": 1}
+    assert rows["both"]["cited_with"] == {"entity_id": str(flagged.world.own), "observations": 2}
