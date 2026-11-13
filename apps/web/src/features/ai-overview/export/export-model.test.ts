@@ -520,7 +520,8 @@ describe('the file of the Numbers', () => {
       ['block', 'x'],
       ['ai.zzz', 1],
     ]);
-    expect(file.rows.at(-3)).toEqual(['note', 'Counts are pooled.']);
+    expect(file.rows.at(-3)).toEqual(['note', 'Empty is unknown.']);
+    expect(file.rows.at(-2)).toEqual(['note', 'Counts are pooled.']);
     expect(file.rows.at(-1)).toEqual(['note', '1 blocks were still loading and are not included']);
   });
 });
