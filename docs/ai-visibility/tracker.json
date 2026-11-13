@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T18:36:09+05:30",
+ "updated": "2026-11-13T19:07:30+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1075,10 +1075,10 @@
    },
    "counts": {
     "total": 31,
-    "done": 14
+    "done": 17
    },
    "owner": "",
-   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | steps 3.5/8, rows 14/31; T3a page model and strip reviewed PASS (local); P2 after T5; methodology link constant pending F-24"
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | steps 4/8, rows 17/31; P1 on develop (3c33fce1); T3 Citations page model, strip and shell committed locally (reviewed PASS after one fix round); T4 Domains tab next; P2 after T5"
   },
   {
    "id": "WP-22",
