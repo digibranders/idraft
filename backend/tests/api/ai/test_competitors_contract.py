@@ -1,6 +1,7 @@
 """Contract C5 (docs/ai-visibility/contracts/c5-competitors.md): the parameters only the competitors
 read takes. The access order, the scope and the compare parameters of both routes are in
-test_metrics_contract.py."""
+test_metrics_contract.py. The competitors read is built without its `include` blocks: an `include`
+still answers `501` naming it, until the lost prompts and top sources are built."""
 
 from __future__ import annotations
 
@@ -33,6 +34,15 @@ async def test_include_takes_the_two_blocks(world: World, include: str) -> None:
     assert problem(await world.read(COMPETITORS, include=include)) == NOT_BUILT
 
 
+async def test_an_include_answers_501_naming_the_block_not_built(world: World) -> None:
+    """A client cannot mistake an unbuilt block for an empty one."""
+    response = await world.read(COMPETITORS, include="top_sources,lost_prompts")
+
+    assert problem(response) == NOT_BUILT
+    assert "include=top_sources" in response.json()["detail"]
+    assert "include=lost_prompts" in response.json()["detail"]
+
+
 @pytest.mark.parametrize("include", ["bogus", "lost_prompts,bogus", "Lost_Prompts"])
 async def test_any_other_include_is_422(world: World, include: str) -> None:
     response = await world.read(COMPETITORS, include=include)
@@ -52,7 +62,8 @@ async def test_lost_limit_and_sources_limit_bounds(
     world: World, name: str, good: list[str], bad: list[str]
 ) -> None:
     for value in good:
-        assert problem(await world.read(COMPETITORS, **{name: value})) == NOT_BUILT, value
+        # Only a block asked for with `include` uses them: alone they change nothing.
+        assert (await world.read(COMPETITORS, **{name: value})).status_code == 200, value
     for value in bad:
         assert problem(await world.read(COMPETITORS, **{name: value})) == INVALID, value
 

@@ -9,18 +9,29 @@ routes' (metrics_routes.py).
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
+from idraft.api.ai.competitors import CompetitorService
 from idraft.api.ai.metrics_routes import COMPARE, SCOPE, Compared, EntityIds, ReadData
 from idraft.api.pagination import Commas
+from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai_metrics import AiCompetitorsResponse, OverviewCompetitorsResponse
-from idraft.api.stubs import not_built, not_built_yet
+from idraft.api.stubs import not_built, not_built_yet, refuse_unbuilt
 
 PROJECT = "/api/v1/workspaces/{workspace_id}/projects/{project_id}"
 router = APIRouter(tags=["ai"])
+
+
+def get_competitor_service(
+    resources: Annotated[Resources, Depends(get_resources)],
+) -> CompetitorService:
+    return CompetitorService(sessions=resources.sessions, summaries=resources.ai_summary)
+
+
+Competitors = Annotated[CompetitorService, Depends(get_competitor_service)]
 
 CompetitorInclude = Literal["lost_prompts", "top_sources"]
 
@@ -41,11 +52,11 @@ CompetitorInclude = Literal["lost_prompts", "top_sources"]
     "`lost_prompts_with_min_answers`; `include=top_sources` adds the domains cited most with the "
     "entity, at most `sources_limit`, over all engines. " + COMPARE,
 )
-@not_built
 async def competitors(
     project_id: UUID,
     access: ReadData,
     query: Compared,
+    service: Competitors,
     entity_ids: EntityIds = None,
     include: Annotated[
         list[CompetitorInclude] | None,
@@ -59,7 +70,11 @@ async def competitors(
         int, Query(ge=1, le=5, description="Rows of `top_sources` per entity.")
     ] = 3,
 ) -> AiCompetitorsResponse:
-    raise not_built_yet()
+    # The blocks are built by the next task: until then a client is told so, not given `[]`.
+    refuse_unbuilt(
+        {f"include={block}": block in (include or []) for block in get_args(CompetitorInclude)}
+    )
+    return await service.competitors(access, project_id, query, entity_ids)
 
 
 @router.get(
