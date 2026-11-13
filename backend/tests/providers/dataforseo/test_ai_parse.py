@@ -16,6 +16,7 @@ from idraft.providers.dataforseo.ai_parse import (
     READS_PATHS,
     AiSchemaMismatchError,
     NormalizedAnswer,
+    _bounded,
     parse_ai_answer,
     unreadable,
 )
@@ -428,6 +429,40 @@ def test_the_extras_are_cut_to_fit_their_column() -> None:
     assert extras["truncated"] is True
     assert 0 < len(extras["brand_entities"]) < 400
     assert len(json.dumps(extras, ensure_ascii=False).encode()) <= EXTRAS_MAX_BYTES
+
+
+def _extras(queries: int, ads: int, brands: int = 0) -> dict[str, Any]:
+    return {
+        "check_url": None,
+        "brand_entities": [{"title": f"Brand {n}", "category": "company"} for n in range(brands)],
+        "fan_out_queries": [f"query {n:03d} " + "q" * 50 for n in range(queries)],
+        "search_results": 0,
+        "ads": [{"url": f"https://ads.example.com/{n}/" + "a" * 300} for n in range(ads)],
+        "unreadable_sources": 0,
+    }
+
+
+def test_the_bound_cuts_the_ads_and_brand_entities_before_the_queries() -> None:
+    payload = _extras(queries=80, ads=60, brands=40)
+
+    kept = _bounded(payload)
+
+    assert kept["truncated"] is True
+    assert kept["fan_out_queries"] == payload["fan_out_queries"]
+    assert len(kept["ads"]) < 60
+    assert len(json.dumps(kept, ensure_ascii=False).encode()) <= EXTRAS_MAX_BYTES
+
+
+def test_the_queries_are_cut_as_a_prefix_when_they_are_the_only_list_left() -> None:
+    payload = _extras(queries=500, ads=0)
+
+    kept = _bounded(payload)
+
+    queries = payload["fan_out_queries"]
+    assert kept["truncated"] is True
+    assert 0 < len(kept["fan_out_queries"]) < 500
+    assert kept["fan_out_queries"] == queries[: len(kept["fan_out_queries"])]
+    assert len(json.dumps(kept, ensure_ascii=False).encode()) <= EXTRAS_MAX_BYTES
 
 
 # The fixtures and their registry (docs/26-testing-quality.md section 3.3).

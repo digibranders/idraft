@@ -452,14 +452,16 @@ def _fits(payload: Mapping[str, Any]) -> bool:
 
 
 def _bounded(payload: dict[str, Any]) -> dict[str, Any]:
-    """The extras with their longest list halved until they fit; `{"truncated": true}` when
-    that is not enough."""
+    """The extras with their longest list halved until they fit, the fan-out queries last (the
+    fan-out read counts them; the ads and brand entities are only kept for reference);
+    `{"truncated": true}` when that is not enough."""
     kept = {
         name: list(value) if isinstance(value, list) else value for name, value in payload.items()
     }
     lists = [name for name, value in kept.items() if isinstance(value, list)]
     while not _fits(kept):
-        longest = max(lists, key=lambda name: len(kept[name]), default=None)
+        others = [name for name in lists if name != "fan_out_queries" and kept[name]]
+        longest = max(others or lists, key=lambda name: len(kept[name]), default=None)
         if longest is None or not kept[longest]:
             return {"truncated": True}
         del kept[longest][len(kept[longest]) // 2 :]
