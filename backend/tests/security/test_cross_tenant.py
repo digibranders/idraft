@@ -739,6 +739,15 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     more_ids["note_id"] = str(uuid.uuid4())
 
     # WP-11 layouts-api
+    # The owner's own layout and the team default of the screen the suite fills in (`WORDS`).
+    await execute(
+        pg,
+        "INSERT INTO core.layouts (workspace_id, owner_user_id, screen, document, "
+        "schema_version, updated_by) VALUES ($1, $2, 'ai_overview', '{\"schema\": 1}', 1, $2), "
+        "($1, NULL, 'ai_overview', '{\"schema\": 1}', 1, $2)",
+        workspace.id,
+        owner.id,
+    )
 
     # WP-12 summary-lane
 
@@ -1021,6 +1030,7 @@ _TENANT_ROWS = {
     # your entries under your own line, nowhere else in this table.
     # WP-03 contract-pack
     # WP-11 layouts-api
+    "core.layouts": "workspace_id",
     # WP-12 summary-lane
     # WP-13 prompts-lane
     # WP-14 sources-lane
