@@ -70,7 +70,8 @@ export interface InspectorHistoryProps {
  * The History tab of the prompt inspector (parity spec G94 to G96): the weekly mention rate of each engine over the
  * window with its 95 percent Wilson band (computed in the browser from each week's counts, from the summary's
  * series: no read of its own), the latest 10 answers, and the events the page can tell (the prompt was added, an
- * engine reports another model). The chart's numbers are also a table that is read to assistive technology.
+ * engine reports another model, an engine has had no valid answer for 7 days), with a mark on the chart for each
+ * change of model. The chart's numbers are also a table that is read to assistive technology.
  */
 export function InspectorHistory({
   counts,
