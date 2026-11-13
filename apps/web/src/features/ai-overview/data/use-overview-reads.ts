@@ -9,6 +9,7 @@ import {
   comparisonWindow,
   overviewEnginesQuery,
   overviewFanoutQuery,
+  overviewFreshnessQuery,
   overviewSchedulesQuery,
   overviewSourcesQuery,
   overviewSummaryQuery,
@@ -222,6 +223,44 @@ export function useOverviewFanout(
       : 'waiting';
   const result = useRead(query, gate);
   return useMemo(() => mapRead(result, fanoutMetaOf), [result]);
+}
+
+/** What the project's freshness is made from: the day it is asked on, and whether any engine is on to answer. */
+export interface FreshnessInput {
+  project: ProjectRef;
+  /** The day it is now in the project's zone. */
+  today: string;
+  enabledEngines: readonly EngineCode[];
+}
+
+/** The newest answers of the project, whatever the window and filters of the page. */
+export interface OverviewFreshness {
+  /** The newest answer of any status; `null` when the project has none in the last 92 days. */
+  lastObservedAt: string | null;
+  /** The newest valid answer; `null` when there is none. */
+  lastValidAt: string | null;
+}
+
+/**
+ * How current the project's AI answers are (inventory WB-OV-02): a fact of the project, so it is read over the
+ * last 92 days ending today and not over the page's window (see `overviewFreshnessQuery`). Not asked while no
+ * engine is on, nor while `options.subscribed` is `false`.
+ */
+export function useOverviewFreshness(
+  { project, today, enabledEngines }: FreshnessInput,
+  { subscribed = true }: ReadOptions = {},
+): Read<OverviewFreshness> {
+  const gate = gateOf(enabledEngines.length > 0, subscribed);
+  const query = useQuery({ ...overviewFreshnessQuery(project, today), enabled: gate === 'run' });
+  const read = useRead(query, gate);
+  return useMemo(
+    () =>
+      mapRead(read, (page): OverviewFreshness => {
+        const total = page.data.total;
+        return { lastObservedAt: total?.last_observed_at ?? null, lastValidAt: total?.last_valid_at ?? null };
+      }),
+    [read],
+  );
 }
 
 /** When the AI workload runs next and whether it is paused, for the notice before the first answers. */

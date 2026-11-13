@@ -2,13 +2,16 @@
 
 import { Link2, MoreHorizontal } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useMemo, type ReactElement, type ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 import { askedEngines } from '../data/overview-queries';
-import { buildAggregates } from '../data/aggregates';
-import { useOverview, useOverviewSummary } from '../overview-context';
+import { useCurrentAggregates } from '../data/use-current-aggregates';
+import { staleDaysOf } from '../notices/notice-model';
+import { useNow } from '../notices/use-now';
+import { useOverview, useOverviewFreshness } from '../overview-context';
 import { metaLine } from './meta-line';
 import { PageHeader } from '@/components/app/shell/page-header';
+import { FreshnessIndicator } from '@/components/app/status/freshness-indicator';
 import { IconButton } from '@/components/ui/icon-button';
 import { Menu } from '@/components/ui/menu';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,35 +24,45 @@ import { formatTableDateTime } from '@/lib/format';
 const COPY_LINK = 'copy-link';
 
 /**
- * The meta line: when the newest answer came, how many prompts are asked and on how many engines, all of the
- * scope the numbers below show. Until the summary has answered it is a skeleton the height of the line, so nothing
- * moves; a failed read leaves the engines alone, and a project with no engine on has no line.
+ * The meta line: when the project's newest answer came, how many prompts are asked and on how many engines. The
+ * freshness is a fact of the project (the last 92 days, no filter), so it does not move with the window; the prompts
+ * and engines are those of the scope the numbers below show. Until the reads have answered it is a skeleton the
+ * height of the line, so nothing moves; a failed freshness read leaves that fact out, and a project with no engine
+ * on has no line.
  */
 function useMeta(): ReactNode {
   const t = useTranslations('aiOverview.meta');
+  const fresh = useTranslations('aiOverview.freshness');
   const { project, scope, engines, enabledEngines } = useOverview();
-  const summary = useOverviewSummary();
-  const aggregates = useMemo(
-    () =>
-      summary.data === undefined || engines.data === undefined
-        ? null
-        : buildAggregates({
-            current: summary.data,
-            previous: null,
-            engines: engines.data,
-            chosenEngines: scope.engines,
-            topicsKept: null,
-            sources: null,
-            fanout: null,
-          }),
-    [summary.data, engines.data, scope.engines],
-  );
+  const { aggregates, summary } = useCurrentAggregates();
+  const freshness = useOverviewFreshness();
+  const now = useNow();
   if (engines.status === 'error' || (engines.status === 'ready' && enabledEngines.length === 0)) return undefined;
-  if (engines.status === 'loading' || summary.status === 'loading') return <Skeleton shape="text-13" widthPct={48} />;
-  const updatedAt = aggregates?.lastObservedAt ?? null;
+  if (engines.status === 'loading' || summary.status === 'loading' || freshness.status === 'loading') {
+    return <Skeleton shape="text-13" widthPct={48} />;
+  }
   const promptCount = aggregates?.promptCount ?? null;
+  const newest = freshness.data;
+  let indicator: ReactNode = null;
+  if (newest !== undefined) {
+    const staleDays = staleDaysOf(newest.lastValidAt, now);
+    indicator = (
+      <FreshnessIndicator
+        state={newest.lastObservedAt === null ? 'none' : staleDays === null ? 'fresh' : 'stale'}
+        lastAnswerAt={newest.lastObservedAt}
+        timeZone={project.timeZone}
+        text={
+          newest.lastObservedAt === null
+            ? fresh('none')
+            : t('updated', { time: formatTableDateTime(newest.lastObservedAt, project.timeZone) })
+        }
+        badgeText={staleDays === null ? undefined : fresh('stale', { days: staleDays })}
+        tooltip={(relative) => fresh('newest', { time: relative })}
+      />
+    );
+  }
   return metaLine([
-    updatedAt === null ? null : t('updated', { time: formatTableDateTime(updatedAt, project.timeZone) }),
+    indicator,
     promptCount === null ? null : t('prompts', { count: promptCount }),
     t('engines', { count: askedEngines({ scope, enabledEngines }).length }),
   ]);

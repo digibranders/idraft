@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import type { ReactNode } from 'react';
 
+import { AiSetupSlot } from './ai-setup-slot';
 import { AiOverviewScreen } from '@/features/ai-overview';
 import { projectsOfMembership } from '@/lib/projects/server';
 import { requireMembership } from '@/lib/session/server';
@@ -26,6 +27,14 @@ export default async function AiOverviewPage({ params }: PageProps<'/[workspace]
     <AiOverviewScreen
       workspaceId={membership.workspace.workspace_id}
       workspaceSlug={membership.workspace.slug}
+      setupSlot={
+        <AiSetupSlot
+          workspaceId={membership.workspace.workspace_id}
+          workspaceSlug={membership.workspace.slug}
+          projectId={current.project_id}
+          projectSlug={current.slug}
+        />
+      }
       project={{
         id: current.project_id,
         slug: current.slug,

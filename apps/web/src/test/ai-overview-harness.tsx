@@ -1,4 +1,4 @@
-import { Suspense, type ComponentType, type ReactElement } from 'react';
+import { Suspense, type ComponentType, type ReactElement, type ReactNode } from 'react';
 
 import { TopBarSlotProvider, TopBarSlotTarget } from '@/components/app/shell/top-bar-slot';
 import { AiOverviewScreen, OverviewProvider, type OverviewProject } from '@/features/ai-overview';
@@ -58,12 +58,14 @@ export interface OverviewAsOptions {
   withoutPermissions?: readonly Permission[];
   /** The presets of the Start from menu; none by default. */
   presets?: readonly LayoutPreset[];
+  /** What the route passes as the setup checklist; nothing by default. */
+  setupSlot?: ReactNode;
 }
 
 /** The page of the Overview for a member of `role`, with a top bar that holds the controls the page portals. */
 export function overviewAs(
   role: Role,
-  { world = 'fynix', withoutPermissions = [], presets }: OverviewAsOptions = {},
+  { world = 'fynix', withoutPermissions = [], presets, setupSlot }: OverviewAsOptions = {},
 ): ReactElement {
   return (
     <PermissionProvider membership={membershipOf(role, withoutPermissions)}>
@@ -77,6 +79,7 @@ export function overviewAs(
             workspaceSlug={MOCK_WORKSPACE.slug}
             project={overviewProject(world)}
             {...(presets === undefined ? {} : { presets })}
+            {...(setupSlot === undefined ? {} : { setupSlot })}
           />
         </Suspense>
       </TopBarSlotProvider>

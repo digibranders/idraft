@@ -79,7 +79,9 @@ describe('the AI visibility page of a project with engines on', () => {
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1, name: 'AI visibility' })).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByText(/^AI updated .+ · \d+ prompts · 2 engines$/)).toBeInTheDocument();
+      // The freshness is its own element (a time in a button), so the line is read in two parts
+      expect(screen.getByText(/^AI updated .+$/)).toBeInTheDocument();
+      expect(screen.getByText(/^· \d+ prompts · 2 engines$/)).toBeInTheDocument();
     });
     expect(customize()).toHaveClass('hidden', 'md:inline-flex');
     expect(screen.getByRole('button', { name: 'More actions' })).toBeInTheDocument();

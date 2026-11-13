@@ -6,12 +6,14 @@ import type { Read } from './data/read-state';
 import {
   useOverviewEngines as readEngines,
   useOverviewFanout as readFanout,
+  useOverviewFreshness as readFreshness,
   useOverviewPeriods as readPeriods,
   useOverviewSchedule as readSchedule,
   useOverviewSources as readSources,
   useOverviewSummary as readSummary,
   type OverviewEngines,
   type OverviewFanoutMeta,
+  type OverviewFreshness,
   type OverviewPeriods,
   type OverviewReadInput,
   type OverviewSchedule,
@@ -24,6 +26,7 @@ import { normalizeEngines, type OverviewScope, type ScopePatch } from './scope/s
 import { useOverviewScope } from './scope/use-overview-scope';
 import type { RangeProblem } from '@/components/app/date-range/range-model';
 import type { EngineCode, PromptsSummary } from '@/lib/api/types';
+import { useZoneDay } from '@/lib/dom/use-zone-day';
 import { useCan } from '@/lib/permissions';
 
 /** The project the page is of, as the route gives it. */
@@ -152,6 +155,13 @@ export const useOverviewFanout = (options?: ReadOptions): Read<OverviewFanoutMet
 export function useOverviewSchedule(options?: ReadOptions): Read<OverviewSchedule> {
   const { workspaceId, project } = useOverview();
   return readSchedule({ workspaceId, projectId: project.id }, options);
+}
+
+/** How current the project's answers are: not bound to the page's window or filters (see `useOverviewFreshness` of the reads). */
+export function useOverviewFreshness(options?: ReadOptions): Read<OverviewFreshness> {
+  const { workspaceId, project, enabledEngines } = useOverview();
+  const today = useZoneDay(project.timeZone);
+  return readFreshness({ project: { workspaceId, projectId: project.id }, today, enabledEngines }, options);
 }
 
 /** The engines of the project and their read, from the provider (the same request the layout capabilities make). */

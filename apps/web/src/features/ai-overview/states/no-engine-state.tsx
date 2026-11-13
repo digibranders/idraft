@@ -12,7 +12,7 @@ import { projectPath } from '@/lib/routes/paths';
 
 /**
  * The body of a project with no AI engine on (spec 3.6): the page has nothing to count, so it says why and where
- * the engines are turned on. A member who cannot turn them on is told whom to ask (the words are finished in T9).
+ * the engines are turned on. A member who cannot turn them on is told whom to ask, with no link.
  */
 export function NoEngineState(): ReactElement {
   const t = useTranslations('aiOverview.empty');

@@ -1,4 +1,4 @@
-import { isBeforeFirstDay } from '@/components/app/date-range/business-date';
+import { addDays, isBeforeFirstDay } from '@/components/app/date-range/business-date';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import type { EngineCode } from '@/lib/api/types';
 import { compareParams } from '@/lib/compare/compare-model';
@@ -109,6 +109,34 @@ export function overviewSummaryQuery(
         ...scopeFilters(scope),
         ...(include.length === 0 ? {} : { include: [...include].sort() }),
         ...(rows === undefined ? {} : { rows }),
+      },
+    },
+  });
+}
+
+/** The days the freshness read looks back over: the longest window the summary accepts. */
+export const FRESHNESS_DAYS = 92;
+
+/**
+ * `GET {P}/ai/prompts-summary` for the project as a whole: the last 92 days ending `today`, branded prompts too, no
+ * engine, country or topic, and only the one-row `total` (`rows=none`), whose `last_observed_at` and `last_valid_at`
+ * are the newest answers. Not the scope's window, so "AI updated" and the stale notice are a fact of the project and
+ * do not change when a person looks at an older window. The overview aggregate route of WP-32 cannot serve this: its
+ * `last_observed_at` is bound to the window and the filters too.
+ *
+ * shortcut: an answer older than 92 days is not seen, so a project silent for longer reads as having none; upgrade
+ * when WP-32 adds a window independent freshness field.
+ */
+export function overviewFreshnessQuery(project: ProjectRef, today: string): ApiQueryOptions<typeof SUMMARY> {
+  return apiQuery(SUMMARY, {
+    params: {
+      path: pathOf(project),
+      query: {
+        from: addDays(today, 1 - FRESHNESS_DAYS),
+        to: today,
+        ...brandedParams('included'),
+        include: ['total'],
+        rows: 'none',
       },
     },
   });

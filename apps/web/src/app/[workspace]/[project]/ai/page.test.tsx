@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AiSetupSlot } from './ai-setup-slot';
 import AiOverviewPage, { generateMetadata } from './page';
 import { AiOverviewScreen } from '@/features/ai-overview';
 import type { components } from '@/lib/api/schema';
@@ -59,6 +60,19 @@ describe('AI visibility of a project', () => {
           defaultLanguage: cleanstart.default_language_code,
           defaultCountryIso: cleanstart.default_location?.country_iso ?? null,
         },
+      },
+    });
+  });
+
+  it('passes the setup checklist of the project as the screen slot, so the route and not the feature joins them', async () => {
+    const element = (await page('cleanstart')) as { props: { setupSlot: { type: unknown; props: unknown } } };
+    expect(element.props.setupSlot).toMatchObject({
+      type: AiSetupSlot,
+      props: {
+        workspaceId: 'w1',
+        workspaceSlug: 'digibranders',
+        projectId: cleanstart.project_id,
+        projectSlug: 'cleanstart',
       },
     });
   });

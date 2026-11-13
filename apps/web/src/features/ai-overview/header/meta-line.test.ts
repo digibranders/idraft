@@ -1,3 +1,5 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { metaLine } from './meta-line';
@@ -24,7 +26,14 @@ describe('metaLine', () => {
 
   it('keeps at most two middle dots, the design system rule for the meta line', () => {
     const line = metaLine(['a', 'b', 'c']);
-    expect(line?.split('·')).toHaveLength(3);
+    expect(typeof line === 'string' ? line.split('·') : []).toHaveLength(3);
+  });
+
+  it('takes an element as a fact and keeps the order and the dots', () => {
+    const line = metaLine([createElement('time', null, 'Nov 12'), '250 prompts', null, '3 engines']);
+    expect(renderToStaticMarkup(createElement('p', null, line))).toBe(
+      '<p><time>Nov 12</time> · 250 prompts · 3 engines</p>',
+    );
   });
 
   it('writes no em-dash or en-dash', () => {

@@ -4645,7 +4645,26 @@
       "noEngineTitle": "No AI engine is on",
       "noEngineReason": "Turn on ChatGPT, Gemini or Google AI Mode in the project settings to start asking your prompts.",
       "toEngines": "Turn on engines",
-      "askAdmin": "Ask a workspace admin to turn on an engine"
+      "askAdmin": "Ask a workspace admin to turn on an engine",
+      "noPromptsTitle": "No prompts are asked yet",
+      "noPromptsReason": "Add the questions your buyers ask AI assistants. Each prompt is asked twice a week.",
+      "toPrompts": "Open Topics and prompts",
+      "noCountryTitle": "No prompts ask in {country}.",
+      "noCountryReason": "Clear the location to see every prompt, or add a prompt for this market in Topics and prompts.",
+      "clearCountry": "Clear location"
+    },
+    "notices": {
+      "firstAnswers": "First answers arrive after {time}",
+      "firstAnswersGeneric": "No AI answers have been collected yet. The first arrive after the next scheduled run.",
+      "paused": "Scheduled AI runs are paused for this project",
+      "invalid": "{count, number} of {total, number} answers were not valid on {engine} {days, plural, one {on this day} other {in these # days}}",
+      "stale": "The newest valid answer is {days, plural, one {# day} other {# days}} old",
+      "viewRuns": "View runs"
+    },
+    "freshness": {
+      "none": "No AI answers yet",
+      "stale": "Last answer {days, plural, one {# day} other {# days}} ago",
+      "newest": "Newest answer {time}"
     },
     "pending": {
       "title": "This card is not built yet",
