@@ -53,14 +53,14 @@ function hrefOf(drill: CardDrill, row: OpportunityRow): Route | undefined {
  * counted once per row however many engines or competitors meet it. No score and no verdict: a count, the number of
  * prompts in scope it is of, and the rule in the tooltip.
  */
-export default function OpportunitiesCard({ item, options }: CardProps): ReactElement {
+export default function OpportunitiesCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.competitors.opportunities');
   const insufficient = useTranslations('common.insufficient');
   const { scope, enabledEngines } = useOverview();
   const density = useCardDensity();
   const drill = useCardDrill();
   // One read: this card draws no comparison, so the previous window is not asked
-  const summaryRead = useOverviewSummary(SHAPE_OPTIONS['prompt-rows']);
+  const summaryRead = useOverviewSummary({ ...SHAPE_OPTIONS['prompt-rows'], subscribed: live });
   const current = summaryRead.data;
   const set = useTrackedSet(current);
   const engines = useMemo(() => askedEngines({ scope, enabledEngines }), [scope, enabledEngines]);

@@ -7,6 +7,7 @@ import { record, roleOf, type SeriesOption, type TooltipParam } from './chart-pa
 import { SHAPE_OPTIONS, useTrackedSet } from './data/use-competitor-reads';
 import { entityTotals } from './model/entity-totals';
 import { colorSlots } from './model/tracked-set';
+import { trimIdleShares } from './model/trim-weeks';
 import type { EngineEntityTotals, FoldedPoint, TrackedEntity, TrackedSet } from './model/types';
 import { foldOthers, weeklyShares } from './model/weekly-series';
 import { useCardEngine } from './parts/card-engine';
@@ -68,13 +69,15 @@ function columnsModel(
     const entity = set.entities.find((candidate) => candidate.entityId === entityId);
     return entity === undefined ? [] : [{ entity, slot }];
   });
+  // The idle weeks at the ends are not drawn (an empty slot on the axis); the counts below are of what is drawn
+  const drawn = trimIdleShares(weekly.points);
   return {
     totals,
     brands,
     hasOther: set.entities.some((entity) => !slots.has(entity.entityId)),
-    points: weekly.points.map((point) => foldOthers(point, set)),
-    weeksWithAnswers: weekly.points.filter((point) => point.answers > 0).length,
-    weeksDrawn: weekly.points.filter((point) => point.state === 'ok').length,
+    points: drawn.map((point) => foldOthers(point, set)),
+    weeksWithAnswers: drawn.filter((point) => point.answers > 0).length,
+    weeksDrawn: drawn.filter((point) => point.state === 'ok').length,
   };
 }
 
@@ -138,13 +141,13 @@ function stackedShareOption(
   };
 }
 
-export default function SovOverTimeCard({ item, options }: CardProps): ReactElement {
+export default function SovOverTimeCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.competitors.sovOverTime');
   const cardMeta = useCardMeta();
   const { scope } = useOverview();
   const engine = useCardEngine(options);
   // The weekly shape without its previous window: this card draws no comparison, so it asks for none
-  const read = useOverviewSummary(SHAPE_OPTIONS.weekly);
+  const read = useOverviewSummary({ ...SHAPE_OPTIONS.weekly, subscribed: live });
   const summary = read.data;
   const set = useTrackedSet(summary);
   const model = useMemo(() => columnsModel(summary, set, engine.code), [summary, set, engine.code]);

@@ -96,7 +96,7 @@ function rowsOf(
  * the top 8 brands, you first. Every cell is of the same valid answers (one denominator, printed), a pair that was
  * never seen is a real 0, and a cell the answers cannot support says so instead of showing a rate.
  */
-export default function CoMentionsCard({ item, options }: CardProps): ReactElement {
+export default function CoMentionsCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.competitors.coMentions');
   const belowTenth = useTranslations('aiOverview.competitors.common')('belowTenth');
   const percent = (value: number): string => percentOf(value, belowTenth);
@@ -105,7 +105,7 @@ export default function CoMentionsCard({ item, options }: CardProps): ReactEleme
   const density = useCardDensity();
   const drill = useCardDrill();
   // One read: this card draws no comparison, so the previous window is not asked
-  const read = useOverviewSummary(SHAPE_OPTIONS.pairs);
+  const read = useOverviewSummary({ ...SHAPE_OPTIONS.pairs, subscribed: live });
   const current = read.data;
   const set = useTrackedSet(current);
   const result = current !== undefined && set !== null ? coMentionMatrix(current, engine.code, set) : null;
@@ -122,7 +122,15 @@ export default function CoMentionsCard({ item, options }: CardProps): ReactEleme
   const rows = matrix === null ? [] : rowsOf(matrix, engine.code, drill, t as Say, percent);
   const columns = (matrix?.entities ?? []).map((entity) => ({
     id: entity.entityId,
-    label: <span className="block truncate">{entity.name}</span>,
+    // The column is narrow and cuts a long name short: the title keeps the full name (and "you") on hover
+    label: (
+      <span
+        className="block truncate"
+        title={entity.role === 'own' ? t('ownName', { name: entity.name }) : entity.name}
+      >
+        {entity.name}
+      </span>
+    ),
   }));
   const grid = (form: 'grid' | 'table'): ReactElement => (
     <HeatmapGrid

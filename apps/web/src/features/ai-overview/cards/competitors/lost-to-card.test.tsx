@@ -156,7 +156,7 @@ describe('the lost to a competitor card', () => {
     expect(within(at(items, 0)).getByText('HubSpot: 3 prompts, of 5 prompts')).toBeInTheDocument();
     expect(within(at(items, 1)).getByText('Zoho: 2 prompts, of 5 prompts')).toBeInTheDocument();
     expect(
-      screen.getByText('Oct 16 to Nov 12, 2026 · of 5 prompts with 4 or more answers · branded prompts left out'),
+      screen.getByText('Oct 16 to Nov 12, 2026 · of 5 prompts with 4 or more valid answers · branded prompts left out'),
     ).toBeInTheDocument();
     for (const item of items) {
       expect(item.querySelector('[data-slot="bar-list-bar"]')?.className).not.toContain('bg-chart-1');
@@ -164,6 +164,15 @@ describe('the lost to a competitor card', () => {
     // A full bar is every prompt with enough answers: 3 of 5 and 2 of 5
     const widths = items.map((item) => item.querySelector<HTMLElement>('[data-slot="bar-list-bar"]')?.style.width);
     expect(widths).toEqual(['60%', '40%']);
+  });
+
+  it('says valid answers in the summary sentence where it names the minimum', async () => {
+    serve(summary(PROMPTS));
+    renderCard();
+    await barList();
+    expect(
+      screen.getByText(/of 5 prompts with 4 or more valid answers: HubSpot 3 prompts and Zoho 2 prompts\./),
+    ).toBeInTheDocument();
   });
 
   it('counts the prompts with too few answers in the footnote', async () => {
@@ -180,15 +189,15 @@ describe('the lost to a competitor card', () => {
     renderCard();
     expect(await screen.findByText('No prompt is lost to a competitor on ChatGPT')).toBeInTheDocument();
     expect(
-      screen.getByText('In each of the 4 prompts with 4 or more answers, you are named or no competitor is.'),
+      screen.getByText('In each of the 4 prompts with 4 or more valid answers, you are named or no competitor is.'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: TITLE })).not.toBeInTheDocument();
   });
 
-  it('says no prompt has enough answers when every prompt is under 4 answers', async () => {
+  it('says no prompt has enough valid answers when every prompt is under 4 answers', async () => {
     serve(summary([prompt(1, 3, 0, [2, 0]), prompt(2, 2, 0, [1, 0])]));
     renderCard();
-    expect(await screen.findByText('No prompt has enough answers yet')).toBeInTheDocument();
+    expect(await screen.findByText('No prompt has enough valid answers yet')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: TITLE })).not.toBeInTheDocument();
   });
 
@@ -269,7 +278,7 @@ describe('the lost to a competitor card', () => {
     await barList();
     const [block] = sink.read().blocks;
     expect(block?.id).toBe('card-under-test');
-    expect(block?.header).toEqual(['Competitor', 'Prompts lost', 'Of prompts with enough answers', 'Status']);
+    expect(block?.header).toEqual(['Competitor', 'Prompts lost', 'Of prompts with enough valid answers', 'Status']);
     expect(block?.rows).toEqual([
       ['HubSpot', '3 prompts', 'of 5 prompts', 'Read'],
       ['Zoho', '2 prompts', 'of 5 prompts', 'Read'],

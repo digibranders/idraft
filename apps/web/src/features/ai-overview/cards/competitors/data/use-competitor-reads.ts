@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 
 import { trackedSetQuery } from './tracked-set-query';
 import type { SummaryOptions } from '../../../data/overview-queries';
-import type { OverviewPeriods } from '../../../data/use-overview-reads';
+import type { OverviewPeriods, ReadOptions } from '../../../data/use-overview-reads';
 import { useOverview, useOverviewPeriods } from '../../../overview-context';
 import { trackedSetOf } from '../model/tracked-set';
 import type { TrackedSet } from '../model/types';
@@ -30,9 +30,12 @@ export const SHAPE_OPTIONS: Readonly<Record<ReadShape, SummaryOptions>> = {
   weekly: { include: ['entities', 'series', 'total'], rows: 'none' },
 };
 
-/** The summary of the window and, with the comparison on, of the window before it, for one shape. */
-export function useCompetitorReads(shape: ReadShape): OverviewPeriods {
-  return useOverviewPeriods(SHAPE_OPTIONS[shape]);
+/**
+ * The summary of the window and, with the comparison on, of the window before it, for one shape. A card passes the
+ * `live` of its `CardProps` as `subscribed`: while it is false (customize mode) neither window is asked.
+ */
+export function useCompetitorReads(shape: ReadShape, options: ReadOptions = {}): OverviewPeriods {
+  return useOverviewPeriods({ ...SHAPE_OPTIONS[shape], ...options });
 }
 
 /**

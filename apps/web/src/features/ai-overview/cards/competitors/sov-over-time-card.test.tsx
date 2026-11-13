@@ -6,10 +6,12 @@ import { id } from './model/summary-fixtures';
 import { axe } from '@/test/axe';
 import { stubViewport } from '@/test/customize-harness';
 import {
+  drawnCategories,
   drawnOption,
   drawnSeries,
   ENGINE,
   entityRows,
+  idleWeek,
   NAMES,
   POOLED_WEEKS,
   readExport,
@@ -20,6 +22,7 @@ import {
   SIX_WEEKS,
   tooltipText,
   WEEKS,
+  WEEKS_WITH_GAP,
   weeklySummary,
   yAxisOf,
   type WeekSpec,
@@ -29,7 +32,7 @@ vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).
 vi.mock('@/components/app/chart/echart', async () => (await import('@/test/weekly-card-kit')).echartStandIn);
 
 const TYPE = 'ai.sov_over_time';
-const TITLE = 'Share of voice on ChatGPT';
+const TITLE = 'Share of voice over time on ChatGPT';
 const OPTIONS = { engine: ENGINE };
 
 beforeEach(() => {
@@ -74,9 +77,9 @@ describe('the share of voice over time card (CH-19)', () => {
     // A good week adds up to 1: the folded brand's share is in Other tracked
     const column = drawnSeries()
       .filter((entry) => entry.stack === 'total')
-      .map((entry) => entry.data[1] as number);
+      .map((entry) => entry.data[0] as number);
     expect(column.reduce((total, value) => total + value, 0)).toBeCloseTo(1, 10);
-    expect(drawnSeries().find((entry) => entry.id === 'other')?.data[1]).toBeCloseTo(0.05, 10);
+    expect(drawnSeries().find((entry) => entry.id === 'other')?.data[0]).toBeCloseTo(0.05, 10);
   });
 
   it('has no other tracked series while every brand has a slot', async () => {
@@ -90,22 +93,37 @@ describe('the share of voice over time card (CH-19)', () => {
     serveWorld(weeklySummary(), entityRows());
     await drawColumns();
     for (const entry of drawnSeries().filter((candidate) => candidate.stack === 'total')) {
-      // The leading week with no answers and the thin week are not 0: they have no value
-      expect(entry.data[0]).toBeNull();
-      expect(entry.data[2]).toBeNull();
-      expect(entry.data[1]).not.toBeNull();
+      // The thin week is not 0: it has no value
+      expect(entry.data[1]).toBeNull();
+      expect(entry.data[0]).not.toBeNull();
     }
     const placeholder = drawnSeries().find((entry) => entry.id === 'too-few');
-    expect(placeholder?.data).toEqual([1, null, 1, null, null]);
-    expect(tooltipText(2)).toContain('Too few answers name a tracked brand that week: 3 answers, fewer than 4');
-    expect(tooltipText(0)).toContain('0 answers, fewer than 4');
-    expect(tooltipText(2)).not.toContain('%');
+    expect(placeholder?.data).toEqual([null, 1, null, null]);
+    expect(tooltipText(1)).toContain('Too few answers name a tracked brand that week: 3 answers, fewer than 4');
+    expect(tooltipText(1)).not.toContain('%');
+  });
+
+  it('starts the axis at the first week with answers and ends at the last, keeping a thin week and a gap', async () => {
+    serveWorld(weeklySummary({ weeks: [idleWeek('2026-10-05'), ...WEEKS, idleWeek('2026-11-16')] }), entityRows());
+    const { user } = await drawColumns();
+    expect(drawnCategories()).toEqual(['Oct 19', 'Oct 26', 'Nov 2', 'Nov 9']);
+    await user.click(screen.getByRole('button', { name: 'Table' }));
+    const rows = within(screen.getByRole('table', { name: TITLE })).getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('Oct 19');
+    expect(rows).toHaveLength(5);
+  });
+
+  it('keeps an empty week between two weeks with answers as a gap', async () => {
+    serveWorld(weeklySummary({ weeks: WEEKS_WITH_GAP }), entityRows());
+    await drawColumns();
+    expect(drawnCategories()).toEqual(['Oct 19', 'Oct 26', 'Nov 2', 'Nov 9']);
+    expect(drawnSeries().find((entry) => entry.id === 'too-few')?.data).toEqual([null, 1, null, null]);
   });
 
   it('says of how many answers naming a tracked brand each share is, best first', async () => {
     serveWorld(weeklySummary(), entityRows());
     await drawColumns();
-    const words = tooltipText(1);
+    const words = tooltipText(0);
     expect(words).toContain('Week of Oct 19');
     expect(words).toContain('Of 100 answers naming a tracked brand that week');
     expect(words).toContain('Fynix|40%');
@@ -116,7 +134,7 @@ describe('the share of voice over time card (CH-19)', () => {
   it('names the weeks a pooled week holds, and says the pooling rule in the footnote', async () => {
     serveWorld(weeklySummary({ weeks: POOLED_WEEKS }), entityRows());
     await drawColumns();
-    expect(tooltipText(3)).toContain('Week of Nov 2, 4 weeks together (Oct 19 to Nov 9, 2026)');
+    expect(tooltipText(2)).toContain('Week of Nov 2, 4 weeks together (Oct 19 to Nov 9, 2026)');
     expect(screen.getByText(/shows the last 4 weeks together/)).toBeInTheDocument();
   });
 

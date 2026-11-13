@@ -46,7 +46,7 @@ function situationOf(result: LostToRead | null, set: TrackedSet | null): DataSit
  * more valid answers (D-3: the rule of a prompt, so a drill count can be larger). The bar is the share of those
  * prompts, and prompts with too few answers are counted in the footnote, never hidden.
  */
-export default function LostToCard({ item, options }: CardProps): ReactElement {
+export default function LostToCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.competitors.lostTo');
   const insufficient = useTranslations('common.insufficient');
   const { scope } = useOverview();
@@ -54,7 +54,7 @@ export default function LostToCard({ item, options }: CardProps): ReactElement {
   const density = useCardDensity();
   const drill = useCardDrill();
   // One read: this card draws no comparison, so the previous window is not asked
-  const summaryRead = useOverviewSummary(SHAPE_OPTIONS['prompt-rows']);
+  const summaryRead = useOverviewSummary({ ...SHAPE_OPTIONS['prompt-rows'], subscribed: live });
   const current = summaryRead.data;
   const set = useTrackedSet(current);
   const result = current !== undefined && set !== null ? lostToRows(current, engine.code, set) : null;

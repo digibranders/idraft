@@ -129,11 +129,16 @@ function ranksOf(shares: readonly (number | null)[]): (number | null)[] {
  * The rank of every brand in each week, by share of voice. When the API pooled any point (C-11) the points are
  * ranked as read. Otherwise each week is ranked on the pool of the trailing four weeks (fewer at the start of the
  * window), so one thin week does not reorder the brands. A week whose shares are of fewer than 4 answers naming a
- * tracked brand has no rank: a gap, never a last place.
+ * tracked brand has no rank: a gap, never a last place. `asRead` says the API pooled a point of the series the
+ * points come from, for a caller that has left some points out (the idle weeks at its ends); left out, the points
+ * given decide.
  */
-export function rankSeries(points: readonly WeeklyPoint[]): RankedWeek[] {
+export function rankSeries(
+  points: readonly WeeklyPoint[],
+  { asRead: pooledByApi }: { asRead?: boolean } = {},
+): RankedWeek[] {
   const ordered = [...points].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
-  const asRead = ordered.some((point) => point.pool !== null);
+  const asRead = pooledByApi ?? ordered.some((point) => point.pool !== null);
   return ordered.map((point, index) => {
     const window = asRead ? [point] : ordered.slice(Math.max(0, index - POOL_WEEKS + 1), index + 1);
     const answers = window.reduce((total, entry) => total + entry.answers, 0);

@@ -97,7 +97,10 @@ test.describe('the competitors cards', () => {
       await awaitFamilyReady(page);
       await expect(cardGrid(page).locator('[data-layout-card]')).toHaveCount(11);
       await expect(
-        cardById(page, PRESET_FAMILY.overTime).getByRole('heading', { level: 2, name: 'Share of voice on Gemini' }),
+        cardById(page, PRESET_FAMILY.overTime).getByRole('heading', {
+          level: 2,
+          name: 'Share of voice over time on Gemini',
+        }),
       ).toBeVisible();
       await expect(cardTitled(page, /^Share of voice rank on /)).toBeVisible();
       await expect(cardTitled(page, 'AI opportunities')).toBeVisible();
@@ -147,7 +150,7 @@ test.describe('the competitors cards', () => {
             await expect(card.getByRole('button', { name: RETRY })).toHaveCount(0);
           }
           await expectNoSidewaysScroll(page, width);
-          expect(await cardGrid(page).innerText()).not.toMatch(/[–—]/);
+          expect(await cardGrid(page).innerText()).not.toMatch(new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`));
           await expectNoSeriousViolations(page);
         });
       }

@@ -317,6 +317,29 @@ describe('the co-mentions card', () => {
     expect(screen.getByText(/2 tracked brands are not drawn/)).toBeInTheDocument();
   });
 
+  it('gives every column header its full brand name, as its name and as a title for a header cut short', async () => {
+    const long = [
+      { entity: own(), k: 30 },
+      { entity: competitor(2, 'Brightwave CRM'), k: 50 },
+      { entity: competitor(3, 'Rankforge Analytics'), k: 20 },
+    ];
+    serve(pairsRead(long, []));
+    renderCard();
+    const table = await grid();
+    const headers = within(table).getAllByRole('columnheader');
+    expect(headers.map((header) => header.textContent)).toEqual([
+      'Brand',
+      'Fynix',
+      'Brightwave CRM',
+      'Rankforge Analytics',
+    ]);
+    for (const header of headers.slice(2)) {
+      expect(within(header).getByTitle(header.textContent ?? '')).toBeInTheDocument();
+    }
+    // The own brand's title says it is you, as its row does
+    expect(within(headers[1] as HTMLElement).getByTitle('Fynix (you)')).toBeInTheDocument();
+  });
+
   it('keeps the grid inside its own scroll region, so a narrow card scrolls it and not the page', async () => {
     serve(pairsRead());
     renderCard();

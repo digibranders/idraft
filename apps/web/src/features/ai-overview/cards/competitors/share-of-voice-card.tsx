@@ -52,14 +52,14 @@ const byShare = (a: EntityFigures, b: EntityFigures): number => (b.share.value ?
  * gives 1 over the tracked brands it names), one denominator printed in the meta line, and beside every percent
  * the count of answers that name the brand. A share change is never coloured: share of voice has no test.
  */
-export default function ShareOfVoiceCard({ item, options }: CardProps): ReactElement {
+export default function ShareOfVoiceCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.competitors.shareOfVoice');
   const insufficient = useTranslations('common.insufficient');
   const { scope } = useOverview();
   const engine = useCardEngine(options);
   const density = useCardDensity();
   const drill = useCardDrill();
-  const reads = useCompetitorReads('totals');
+  const reads = useCompetitorReads('totals', { subscribed: live });
   const current = reads.current.data;
   const set = useTrackedSet(current);
   const totals = current !== undefined && set !== null ? entityTotals(current, engine.code, set) : null;

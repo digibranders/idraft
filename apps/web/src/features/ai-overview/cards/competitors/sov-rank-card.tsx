@@ -7,6 +7,7 @@ import { roleOf } from './chart-parts';
 import { SHAPE_OPTIONS, useTrackedSet } from './data/use-competitor-reads';
 import { entityTotals } from './model/entity-totals';
 import { colorSlots } from './model/tracked-set';
+import { trimIdleShares } from './model/trim-weeks';
 import type { EngineEntityTotals, EntityFigures, RankedWeek, TrackedSet } from './model/types';
 import { rankSeries, weeklyShares } from './model/weekly-series';
 import { useCardEngine } from './parts/card-engine';
@@ -80,14 +81,18 @@ function rankModel(
     const slot = slotOf(figures);
     return slot === undefined ? [] : [{ figures, slot }];
   });
-  const weeks = rankSeries(weekly.points);
+  // Whether the server pooled a point is a fact of the whole series, even of a week that is left off the axis
+  const asRead = weekly.points.some((point) => point.pool !== null);
+  // The idle weeks at the ends are not drawn (an empty slot on the axis), nor ranked
+  const drawnWeeks = trimIdleShares(weekly.points);
+  const weeks = rankSeries(drawnWeeks, { asRead });
   return {
     totals,
     weeks,
     drawn,
     hidden: set.entities.length - drawn.length,
-    asRead: weekly.points.some((point) => point.pool !== null),
-    weeksWithAnswers: weekly.points.filter((point) => point.answers > 0).length,
+    asRead,
+    weeksWithAnswers: drawnWeeks.filter((point) => point.answers > 0).length,
     weeksRanked: weeks.filter((week) => week.entities.some((entity) => entity.rank !== null)).length,
   };
 }
@@ -95,13 +100,13 @@ function rankModel(
 const rankOf = (week: RankedWeek, entityId: string): number | null =>
   week.entities.find((entity) => entity.entityId === entityId)?.rank ?? null;
 
-export default function SovRankCard({ item, options }: CardProps): ReactElement {
+export default function SovRankCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.competitors.sovRank');
   const cardMeta = useCardMeta();
   const { scope } = useOverview();
   const engine = useCardEngine(options);
   // The weekly shape without its previous window: this card draws no comparison, so it asks for none
-  const read = useOverviewSummary(SHAPE_OPTIONS.weekly);
+  const read = useOverviewSummary({ ...SHAPE_OPTIONS.weekly, subscribed: live });
   const summary = read.data;
   const set = useTrackedSet(summary);
   const model = useMemo(() => rankModel(summary, set, engine.code), [summary, set, engine.code]);

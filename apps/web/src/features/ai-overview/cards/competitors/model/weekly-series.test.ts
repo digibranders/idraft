@@ -15,6 +15,7 @@ import {
   weighted,
 } from './summary-fixtures';
 import { trackedSetOf } from './tracked-set';
+import { trimIdleMentions, trimIdleShares } from './trim-weeks';
 import type { WeeklyPoint } from './types';
 import { foldOthers, rankSeries, weeklyMention, weeklyShares } from './weekly-series';
 import type { WeekCells } from '@/lib/api/types';
@@ -207,5 +208,51 @@ describe('rankSeries', () => {
     expect(ranked.map((entry) => entry.poolWeeks)).toEqual([null, 3, null]);
     expect(ranked.map((entry) => entry.entities[0]?.rank)).toEqual([2, 1, 2]);
     expect(ranked.map((entry) => entry.answers)).toEqual([10, 10, 10]);
+  });
+});
+
+describe('idle weeks at the ends of the series', () => {
+  const idle = (weekStart: string): WeekCells => week(weekStart, { pool: pool(1, weekStart, weekStart), entities: [] });
+  const SERIES = [
+    idle('2026-10-12'),
+    weekOf('2026-10-19', 10, [3, 5, 2]),
+    idle('2026-10-26'),
+    weekOf('2026-11-02', 2, [1, 1, 0]),
+    idle('2026-11-09'),
+  ];
+
+  it('weekly shares start at the first week with answers, end at the last, and keep a gap and a thin week', () => {
+    expect(trimIdleShares(sharesOf(SERIES)).map((entry) => [entry.weekStart, entry.state])).toEqual([
+      ['2026-10-19', 'ok'],
+      ['2026-10-26', 'none'],
+      ['2026-11-02', 'insufficient'],
+    ]);
+  });
+
+  it('weekly mention starts at the first week with answers, end at the last, and keeps a gap and a thin week', () => {
+    const summary = summaryWith(SERIES);
+    const read = weeklyMention(summary, CODE, trackedSetOf(summary, null));
+    if (read.status !== 'read') throw new Error('expected a read');
+    expect(trimIdleMentions(read.points).map((entry) => entry.weekStart)).toEqual([
+      '2026-10-19',
+      '2026-10-26',
+      '2026-11-02',
+    ]);
+  });
+
+  it('a series of idle weeks has no week to draw', () => {
+    expect(trimIdleShares(sharesOf([idle('2026-10-12'), idle('2026-10-19')]))).toEqual([]);
+  });
+
+  it('a rank of the shares as the server pooled them survives the pooled idle week being left off the axis', () => {
+    const pooledIdle = week('2026-10-12', { pool: pool(1, '2026-10-12', '2026-10-12'), entities: [] });
+    const points = sharesOf([pooledIdle, weekOf('2026-10-19', 10, [3, 5, 2]), weekOf('2026-10-26', 10, [6, 3, 1])]);
+    const drawn = trimIdleShares(points);
+    expect(drawn.map((entry) => entry.weekStart)).toEqual(['2026-10-19', '2026-10-26']);
+    // Left to itself the second week would be ranked on both weeks together (12 of 20 for HubSpot); as read it is 3 of 10
+    const asRead = rankSeries(drawn, { asRead: points.some((entry) => entry.pool !== null) });
+    expect(asRead.map((entry) => entry.poolWeeks)).toEqual([null, null]);
+    expect(asRead[1]?.entities.map((entry) => entry.rank)).toEqual([1, 2, 3]);
+    expect(rankSeries(drawn)[1]?.poolWeeks).toBe(2);
   });
 });

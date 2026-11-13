@@ -33,6 +33,12 @@ import { MIN_OBSERVATIONS, type RateState } from '@/lib/stats';
 type Metric = 'mention' | 'share_of_voice';
 const metricOf = (option: string | undefined): Metric => (option === 'share_of_voice' ? option : 'mention');
 
+/**
+ * The least width of an engine or Average column (160 px): below it the count line would run to many short lines, so
+ * the table scrolls in its own region instead. PlainTable has no column width, so the cell content holds it.
+ */
+const COLUMN_MIN = 'min-w-40';
+
 /** The `rows` option: the brands drawn, you included (catalog 5 or 10, default 5). */
 const ROW_OPTIONS = [5, 10] as const;
 const DEFAULT_ROWS = 5;
@@ -166,14 +172,14 @@ interface LongRow {
   cell: Cell;
 }
 
-export default function CompetitorTableCard({ item, options }: CardProps): ReactElement {
+export default function CompetitorTableCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.competitors.table');
   const belowTenth = useTranslations('aiOverview.competitors.common')('belowTenth');
   const percent = (value: number): string => percentOf(value, belowTenth);
   const { scope, enabledEngines } = useOverview();
   const drill = useCardDrill();
   const metric = metricOf(options.metric);
-  const reads = useCompetitorReads('totals');
+  const reads = useCompetitorReads('totals', { subscribed: live });
   const current = reads.current.data;
   const set = useTrackedSet(current);
   const asked = useMemo(() => askedEngines({ scope, enabledEngines }), [scope, enabledEngines]);
@@ -236,8 +242,8 @@ export default function CompetitorTableCard({ item, options }: CardProps): React
         );
       case 'value':
         return (
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-baseline gap-2">
+          <div className="flex flex-col">
+            <div className="flex items-baseline gap-1.5 whitespace-nowrap">
               <span className="num type-table-strong text-foreground">{percent(cell.value)}</span>
               {cell.change === null ? null : <DeltaCell input={deltaInput(cell.change)} test="interim" />}
             </div>
@@ -256,7 +262,7 @@ export default function CompetitorTableCard({ item, options }: CardProps): React
     // Only a competitor has a page; you are plain text
     const href = isOwn ? null : drill('competitors');
     return (
-      <span className="flex min-w-0 items-center gap-2">
+      <span className="flex min-w-36 items-center gap-2">
         <EntitySwatch colorIndex={brand.colorIndex} own={isOwn} />
         {href === null ? (
           <span>{isOwn ? t('ownName', { name: brand.name }) : brand.name}</span>
@@ -273,10 +279,18 @@ export default function CompetitorTableCard({ item, options }: CardProps): React
       id: column.code,
       header: column.label,
       wrap: true,
-      cell: (row) => figure(row.cells[index] ?? { kind: 'none' }),
+      cell: (row) => <div className={COLUMN_MIN}>{figure(row.cells[index] ?? { kind: 'none' })}</div>,
     })),
     ...(showAverage
-      ? [{ id: 'average', header: averageLabel, wrap: true, cell: (row: BrandRow) => figure(row.average) }]
+      ? [
+          {
+            id: 'average',
+            header: t('averageColumn'),
+            description: averageLabel,
+            wrap: true,
+            cell: (row: BrandRow) => <div className={COLUMN_MIN}>{figure(row.average)}</div>,
+          },
+        ]
       : []),
   ];
 

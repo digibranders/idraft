@@ -7,6 +7,7 @@ import { roleOf } from './chart-parts';
 import { SHAPE_OPTIONS, useTrackedSet } from './data/use-competitor-reads';
 import { entityTotals } from './model/entity-totals';
 import { colorSlots } from './model/tracked-set';
+import { trimIdleMentions } from './model/trim-weeks';
 import type { EngineEntityTotals, EntityFigures, TrackedSet, WeeklyMention, WeeklyMentionPoint } from './model/types';
 import { weeklyMention } from './model/weekly-series';
 import { useCardEngine } from './parts/card-engine';
@@ -79,14 +80,15 @@ function trendModel(
     return slot === undefined ? [] : [{ figures, slot }];
   });
   const ownId = own?.entity.entityId;
+  // The idle weeks at the ends are not drawn (an empty slot on the axis)
+  const weeks = trimIdleMentions(weekly.points);
   return {
     totals,
-    weeks: weekly.points,
+    weeks,
     drawn,
     competitorsTracked: totals.entities.filter((figures) => figures.entity.role === 'competitor').length,
-    weeksWithAnswers: weekly.points.filter(
-      (point) => (point.entities.find((entry) => entry.entityId === ownId)?.n ?? 0) > 0,
-    ).length,
+    weeksWithAnswers: weeks.filter((point) => (point.entities.find((entry) => entry.entityId === ownId)?.n ?? 0) > 0)
+      .length,
   };
 }
 
@@ -102,7 +104,7 @@ function ceilingOf(values: readonly (number | null)[]): number {
   return Math.min(1, Math.max(0.1, Math.ceil(highest * 1.1 * 10) / 10));
 }
 
-export default function CompetitorTrendCard({ item, options }: CardProps): ReactElement {
+export default function CompetitorTrendCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.competitors.trend');
   const tipWords = useRateTipWords();
   const cardMeta = useCardMeta();
@@ -110,7 +112,7 @@ export default function CompetitorTrendCard({ item, options }: CardProps): React
   const engine = useCardEngine(options);
   const competitors = options.competitors === '5' ? 5 : 3;
   // The weekly shape without its previous window: this card draws no comparison, so it asks for none
-  const read = useOverviewSummary(SHAPE_OPTIONS.weekly);
+  const read = useOverviewSummary({ ...SHAPE_OPTIONS.weekly, subscribed: live });
   const summary = read.data;
   const set = useTrackedSet(summary);
   const model = useMemo(

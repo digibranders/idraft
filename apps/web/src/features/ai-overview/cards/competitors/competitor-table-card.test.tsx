@@ -50,7 +50,9 @@ const HEADING = 'Mention rate by engine';
 const SHARE_HEADING = 'Share of voice by engine';
 const TABLE = 'Mention rate of each tracked brand on each engine';
 const SHARE_TABLE = 'Share of voice of each tracked brand on each engine';
-const AVERAGE = 'Average of 2 engines, equal weight';
+/** The column header, short; its full words are the header's description, the Table view's engine and the export's. */
+const AVERAGE = 'Average';
+const AVERAGE_FULL = 'Average of 2 engines, equal weight';
 
 beforeEach(() => {
   vi.setSystemTime(new Date('2026-11-12T12:00:00Z'));
@@ -159,10 +161,11 @@ function renderCard(
 
 const table = (name: string = TABLE): Promise<HTMLElement> => screen.findByRole('table', { name });
 
+/** The drawn label of each header; a header's description sits in a hidden node after it. */
 const headers = (element: HTMLElement): string[] =>
   within(element)
     .getAllByRole('columnheader')
-    .map((header) => header.textContent ?? '');
+    .map((header) => header.firstChild?.textContent ?? '');
 
 /** The body rows: the brand and what each other column says. */
 const bodyRows = (element: HTMLElement): HTMLElement[] => within(element).getAllByRole('row').slice(1);
@@ -414,6 +417,68 @@ describe('the competitor table card', () => {
     expect(element.parentElement?.className).toContain('overflow-x-auto');
   });
 
+  it('names the average column Average and carries the full equal weight words as its description', async () => {
+    serve(summary());
+    renderCard();
+    await table();
+    expect(screen.getByRole('columnheader', { name: AVERAGE, description: AVERAGE_FULL })).toBeInTheDocument();
+    // The footnote keeps its sentence
+    expect(screen.getByText(/The last column is the plain mean of the engines/)).toBeVisible();
+  });
+
+  it('puts the value and its change on one line, with the count on the line below', async () => {
+    serve(summary(), summary([{ ...CHATGPT, mentions: [10, 66, 20] }, GEMINI]));
+    renderCard('');
+    const element = await table();
+    const cell = cellAt(element, 'Fynix', 'ChatGPT');
+    const line = within(cell).getByText('25%').parentElement as HTMLElement;
+    expect(line).toContainElement(within(cell).getByText('+16.7 pts'));
+    expect(line).not.toHaveTextContent(/named in/);
+    expect(cell).toHaveTextContent('named in 30 of 120 answers');
+  });
+
+  it('keeps k and n visible in every value cell, never only in a tooltip', async () => {
+    serve(summary());
+    renderCard();
+    const element = await table();
+    expect(cellAt(element, 'HubSpot', 'ChatGPT')).toHaveTextContent('65 of 120');
+    expect(cellAt(element, 'HubSpot', 'Gemini')).toHaveTextContent('10 of 20');
+  });
+
+  it('gives every engine, average and brand column a minimum width, so the table scrolls instead of squeezing', async () => {
+    serve(summary());
+    renderCard();
+    const element = await table();
+    for (const column of ['ChatGPT', 'Gemini', AVERAGE]) {
+      expect(cellAt(element, 'HubSpot', column).firstElementChild?.className).toContain('min-w-40');
+    }
+    const rowHeader = within(bodyRows(element)[1] as HTMLElement).getByRole('rowheader');
+    expect(rowHeader.firstElementChild?.className).toContain('min-w-36');
+  });
+
+  it('makes its scroll region a focusable, named region while the table is wider than the card', async () => {
+    class Observer {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element): void {
+        this.callback([{ target } as ResizeObserverEntry], this as unknown as ResizeObserver);
+      }
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal('ResizeObserver', Observer);
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(900);
+    const client = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300);
+    try {
+      serve(summary());
+      renderCard();
+      await table();
+      expect(await screen.findByRole('region', { name: TABLE })).toHaveAttribute('tabindex', '0');
+    } finally {
+      scroll.mockRestore();
+      client.mockRestore();
+    }
+  });
+
   it('shows the same mention rate as the strip for you on the same engine and scope', async () => {
     const strip = engineRates([promptRow(1, [engine('chatgpt_web', { mentioned: cell(30, 120) })])], 'chatgpt_web');
     serve(summary());
@@ -476,7 +541,7 @@ describe('the competitor table card', () => {
       'Read',
     ]);
     expect(block?.rows).toContainEqual(['Zoho', 'ChatGPT', null, null, null, 'Not available']);
-    expect(block?.rows).toContainEqual(['Zoho', AVERAGE, null, null, null, 'Not available']);
+    expect(block?.rows).toContainEqual(['Zoho', AVERAGE_FULL, null, null, null, 'Not available']);
     expect(JSON.stringify(block?.rows)).not.toContain('"0%"');
   });
 

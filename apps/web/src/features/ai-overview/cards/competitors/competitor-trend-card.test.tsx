@@ -6,10 +6,12 @@ import { id } from './model/summary-fixtures';
 import { axe } from '@/test/axe';
 import { stubViewport } from '@/test/customize-harness';
 import {
+  drawnCategories,
   drawnOption,
   drawnSeries,
   ENGINE,
   entityRows,
+  idleWeek,
   NAMES,
   POOLED_WEEKS,
   readExport,
@@ -20,6 +22,7 @@ import {
   SIX_WEEKS,
   tooltipText,
   WEEKS,
+  WEEKS_WITH_GAP,
   weeklySummary,
   yAxisOf,
 } from '@/test/weekly-card-kit';
@@ -84,14 +87,14 @@ describe('the competitor trend card (CH-06)', () => {
   it('says the value of a week with its k of n and the interval, best first', async () => {
     serveWorld(weeklySummary(), entityRows());
     await drawTrend();
-    const words = tooltipText(1);
+    const words = tooltipText(0);
     expect(words).toContain('Week of Oct 19');
     expect(words).toContain('40.0%, 80 of 200 answers');
     expect(words).toContain('35.0%, 70 of 200 answers');
     expect(words.indexOf('Fynix')).toBeLessThan(words.indexOf('HubSpot'));
     expect(words.indexOf('HubSpot')).toBeLessThan(words.indexOf('Zoho'));
     // A later week where HubSpot leads lists it before you
-    const later = tooltipText(3);
+    const later = tooltipText(2);
     expect(later.indexOf('HubSpot')).toBeLessThan(later.indexOf('Fynix'));
   });
 
@@ -99,16 +102,25 @@ describe('the competitor trend card (CH-06)', () => {
     serveWorld(weeklySummary(), entityRows());
     await drawTrend();
     const own = drawnSeries().find((entry) => entry.id === id(1));
-    expect(own?.data[2]).toMatchObject({ symbolSize: 5, itemStyle: { color: '#elevated', borderColor: '#c1' } });
+    expect(own?.data[1]).toMatchObject({ symbolSize: 5, itemStyle: { color: '#elevated', borderColor: '#c1' } });
     // Its place is the share of its 3 answers (1 of 3), not 0
-    expect((own?.data[2] as { value: number }).value).toBeCloseTo(1 / 3, 10);
-    expect(own?.data[1]).toBeCloseTo(0.4, 10);
-    // The leading week has no answers at all: a gap, never 0
-    expect(own?.data[0]).toBeNull();
-    const thin = tooltipText(2);
+    expect((own?.data[1] as { value: number }).value).toBeCloseTo(1 / 3, 10);
+    expect(own?.data[0]).toBeCloseTo(0.4, 10);
+    const thin = tooltipText(1);
     expect(thin).toContain('3 answers, fewer than 4');
     expect(thin).not.toMatch(/33\.3%|66\.7%/);
-    expect(tooltipText(0)).toContain('No answers');
+  });
+
+  it('starts the axis at the first week with answers and ends at the last, and keeps an empty week between as a gap', async () => {
+    serveWorld(
+      weeklySummary({ weeks: [idleWeek('2026-10-05'), ...WEEKS_WITH_GAP, idleWeek('2026-11-16')] }),
+      entityRows(),
+    );
+    await drawTrend();
+    expect(drawnCategories()).toEqual(['Oct 19', 'Oct 26', 'Nov 2', 'Nov 9']);
+    const own = drawnSeries().find((entry) => entry.id === id(1));
+    expect(own?.data[1]).toBeNull();
+    expect(tooltipText(1)).toContain('No answers');
   });
 
   it('toggles a series from the legend and keeps its colour', async () => {
@@ -126,10 +138,10 @@ describe('the competitor trend card (CH-06)', () => {
   it('names the weeks a pooled week holds in its tooltip, and says the pooling rule in the footnote only then', async () => {
     serveWorld(weeklySummary({ weeks: POOLED_WEEKS }), entityRows());
     const { unmount } = await drawTrend();
-    expect(tooltipText(3)).toContain('Week of Nov 2, 4 weeks together (Oct 19 to Nov 9, 2026)');
-    // The leading week the API pooled over one week is a plain week
-    expect(tooltipText(1)).toContain('Week of Oct 19');
-    expect(tooltipText(1)).not.toContain('together');
+    expect(tooltipText(2)).toContain('Week of Nov 2, 4 weeks together (Oct 19 to Nov 9, 2026)');
+    // A week the API pooled over one week is a plain week
+    expect(tooltipText(0)).toContain('Week of Oct 19');
+    expect(tooltipText(0)).not.toContain('together');
     expect(screen.getByText(/shows the last 4 weeks together/)).toBeInTheDocument();
     unmount();
 
@@ -181,12 +193,13 @@ describe('the competitor trend card (CH-06)', () => {
         .getAllByRole('columnheader')
         .map((cell) => cell.textContent),
     ).toEqual(['Week', 'Fynix', 'HubSpot', 'Zoho']);
-    expect(within(table).getAllByRole('row')).toHaveLength(WEEKS.length + 1);
+    // The header and the four weeks the chart draws: the leading week with no answers is not a row
+    expect(within(table).getAllByRole('row')).toHaveLength(WEEKS.length);
+    expect(within(table).queryByRole('row', { name: /Oct 12/ })).not.toBeInTheDocument();
     expect(within(table).getByRole('row', { name: /Oct 19/ })).toHaveTextContent('40.0%, 80 of 200 answers');
     const thin = within(table).getByRole('row', { name: /Oct 26/ });
     expect(thin).toHaveTextContent('3 answers, fewer than 4');
     expect(thin).not.toHaveTextContent('33.3%');
-    expect(within(table).getByRole('row', { name: /Oct 12/ })).toHaveTextContent('No data');
   });
 
   it('hands its table to the export under the layout item id', async () => {
@@ -196,9 +209,9 @@ describe('the competitor trend card (CH-06)', () => {
     expect(rest).toEqual([]);
     expect(block?.id).toBe('card-under-test');
     expect(block?.header).toEqual(['week', 'brand', 'value', 'k', 'n', 'state']);
-    // The week of Oct 19 for you: 40 percent, 80 of 200; the leading week has no value, never 0
+    // The week of Oct 19 for you: 40 percent, 80 of 200; the leading week with no answers is not drawn, so not exported
     expect(block?.rows).toContainEqual(['2026-10-19', 'Fynix', 40, 80, 200, 'ok']);
-    expect(block?.rows).toContainEqual(['2026-10-12', 'Fynix', null, 0, 0, 'none']);
+    expect(block?.rows.some((row) => row[0] === '2026-10-12')).toBe(false);
     expect(block?.rows).toContainEqual(['2026-10-26', 'Fynix', null, 1, 3, 'insufficient']);
   });
 

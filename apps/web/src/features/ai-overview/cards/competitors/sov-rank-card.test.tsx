@@ -6,9 +6,11 @@ import { id } from './model/summary-fixtures';
 import { axe } from '@/test/axe';
 import { stubViewport } from '@/test/customize-harness';
 import {
+  drawnCategories,
   drawnSeries,
   ENGINE,
   entityRows,
+  idleWeek,
   NAMES,
   POOLED_WEEKS,
   readExport,
@@ -19,6 +21,7 @@ import {
   SIX_WEEKS,
   tooltipText,
   WEEKS,
+  WEEKS_WITH_GAP,
   weeklySummary,
   yAxisOf,
   type WeekSpec,
@@ -78,13 +81,24 @@ describe('the share of voice rank card (CH-29)', () => {
   it('ranks the weekly shares as read when the server pooled a point, and gives a thin week no rank, not last place', async () => {
     serveWorld(weeklySummary(), entityRows());
     await drawRanks();
-    // The leading week and the 3 answer week are gaps for every brand
+    // The 3 answer week is a gap for every brand
     expect(lines()).toEqual({
-      [id(1)]: [null, 1, null, 2, 2],
-      [id(2)]: [null, 2, null, 1, 1],
-      [id(3)]: [null, 3, null, 3, 3],
+      [id(1)]: [1, null, 2, 2],
+      [id(2)]: [2, null, 1, 1],
+      [id(3)]: [3, null, 3, 3],
     });
+    // The week the server pooled is the leading one with no answers, left off the axis: it still says how it ranks
     expect(screen.getByText(/ranked on the points as the server pooled them/)).toBeInTheDocument();
+  });
+
+  it('starts the axis at the first week with answers and ends at the last, and keeps an empty week between as a gap', async () => {
+    serveWorld(
+      weeklySummary({ weeks: [idleWeek('2026-10-05'), ...WEEKS_WITH_GAP, idleWeek('2026-11-16')] }),
+      entityRows(),
+    );
+    await drawRanks();
+    expect(drawnCategories()).toEqual(['Oct 19', 'Oct 26', 'Nov 2', 'Nov 9']);
+    expect(lines()[id(1)]).toEqual([1, null, 2, 2]);
   });
 
   it('pools the trailing four weeks itself when no point is pooled, and the first thin week is a gap', async () => {
@@ -121,23 +135,22 @@ describe('the share of voice rank card (CH-29)', () => {
   it('says the rank, the share and the answers behind it in the tooltip, best rank first', async () => {
     serveWorld(weeklySummary(), entityRows());
     await drawRanks();
-    const words = tooltipText(3);
+    const words = tooltipText(2);
     expect(words).toContain('Week of Nov 2');
     expect(words).toContain('HubSpot|Rank 1, 45%');
     expect(words).toContain('Fynix|Rank 2, 30%');
     expect(words).toContain('120 answers naming a tracked brand');
     expect(words.indexOf('HubSpot')).toBeLessThan(words.indexOf('Fynix'));
-    expect(tooltipText(2)).toContain('Too few answers name a tracked brand (3): this week has no rank');
-    expect(tooltipText(2)).not.toMatch(/Rank \d/);
-    expect(tooltipText(0)).toContain('(0)');
+    expect(tooltipText(1)).toContain('Too few answers name a tracked brand (3): this week has no rank');
+    expect(tooltipText(1)).not.toMatch(/Rank \d/);
   });
 
   it('says in the footer how many weeks a pooled point holds, and nothing of weeks on a plain point', async () => {
     serveWorld(weeklySummary({ weeks: POOLED_WEEKS }), entityRows());
     await drawRanks();
-    expect(tooltipText(3)).toContain('120 answers naming a tracked brand, 4 weeks together');
-    expect(tooltipText(4)).toContain('100 answers naming a tracked brand');
-    expect(tooltipText(4)).not.toContain('together');
+    expect(tooltipText(2)).toContain('120 answers naming a tracked brand, 4 weeks together');
+    expect(tooltipText(3)).toContain('100 answers naming a tracked brand');
+    expect(tooltipText(3)).not.toContain('together');
   });
 
   it('says how many tracked brands are not drawn: you and the 5 with the highest share', async () => {

@@ -91,6 +91,9 @@ export function tooltipText(index: number): string {
 
 export const yAxisOf = (): Record<string, unknown> => drawnOption().yAxis as Record<string, unknown>;
 
+/** The labels of the x axis the frame drew, one per week. */
+export const drawnCategories = (): string[] => (drawnOption().xAxis as { data: string[] }).data;
+
 export const ENGINE = 'chatgpt_web';
 export const NAMES = ['Fynix', 'HubSpot', 'Zoho'] as const;
 
@@ -119,6 +122,20 @@ export const WEEKS: readonly WeekSpec[] = [
   { start: '2026-11-02', answers: 120, numerators: [36, 54, 30], mentions: { n: 240, ks: [84, 120, 60] } },
   { start: '2026-11-09', answers: 100, numerators: [30, 50, 20], mentions: { n: 200, ks: [60, 100, 40] } },
 ];
+
+/** A week with no answer at all, as the mock has before the window start: the weekly cards leave it off the axis. */
+export const idleWeek = (start: string): WeekSpec => ({
+  start,
+  answers: 0,
+  numerators: [0, 0, 0],
+  mentions: { n: 0, ks: [0, 0, 0] },
+  pooled: { weeks: 1, from: start, to: start },
+});
+
+/** The mock's weeks with the thin week of Oct 26 left empty: a gap between two weeks that have answers. */
+export const WEEKS_WITH_GAP: readonly WeekSpec[] = WEEKS.map((spec) =>
+  spec.start === '2026-10-26' ? idleWeek(spec.start) : spec,
+);
 
 /** The mock's weeks with the week of Nov 2 pooled by the API over the four weeks from Oct 19 to Nov 9. */
 export const POOLED_WEEKS: readonly WeekSpec[] = WEEKS.map((spec) =>

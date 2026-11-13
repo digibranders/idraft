@@ -44,8 +44,16 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function ReadProbe({ shape, name }: { shape: ReadShape; name: string }): ReactElement {
-  const reads = useCompetitorReads(shape);
+function ReadProbe({
+  shape,
+  name,
+  subscribed,
+}: {
+  shape: ReadShape;
+  name: string;
+  subscribed?: boolean;
+}): ReactElement {
+  const reads = useCompetitorReads(shape, subscribed === undefined ? undefined : { subscribed });
   return (
     <p
       data-testid={name}
@@ -84,6 +92,23 @@ function renderWith(ui: ReactElement, searchParams = ''): ReturnType<typeof rend
 }
 
 describe('useCompetitorReads', () => {
+  it('asks neither window while it is not subscribed, and is idle rather than loading or failed', async () => {
+    const seen = recordRequests();
+    renderWith(<ReadProbe shape="totals" name="paused" subscribed={false} />);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(summaries(seen)).toEqual([]);
+    expect(screen.getByTestId('paused')).toHaveTextContent('idle idle');
+  });
+
+  it('asks both windows when subscribed is left out or true', async () => {
+    const seen = recordRequests();
+    renderWith(<ReadProbe shape="totals" name="live" subscribed />);
+    await waitFor(() => {
+      expect(screen.getByTestId('live')).toHaveTextContent('ready ready');
+    });
+    expect(summaries(seen)).toHaveLength(2);
+  });
+
   it('asks the include and rows of its shape, one request per shape', async () => {
     const seen = recordRequests();
     renderWith(
