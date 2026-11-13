@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CITATION_KEYS, parseScope, toFilters } from './citation-scope';
+import { CITATION_VIEW_KEYS } from './citation-views';
 import type { EngineCode } from '@/lib/citations/types';
 
 const ENABLED: readonly EngineCode[] = ['chatgpt_web', 'gemini_web', 'google_ai_mode'];
@@ -41,6 +42,14 @@ describe('parseScope', () => {
         includeUnresolvedRedirects: false,
         includeEngineInternal: false,
       });
+    }
+  });
+
+  it('country=DE is read, country=de is every country', () => {
+    expect(parseScope({ country: 'DE' }, ENABLED).country).toBe('DE');
+    expect(parseScope({}, ENABLED).country).toBeNull();
+    for (const country of ['de', 'DEU', 'D', '', ' DE', 'DE,IN', null, undefined]) {
+      expect(parseScope({ country }, ENABLED).country).toBeNull();
     }
   });
 
@@ -133,6 +142,14 @@ describe('toFilters', () => {
     expect(only({ internal: 'include' })).not.toHaveProperty('includeUnresolvedRedirects');
   });
 
+  it('toFilters carries the country, and leaves it out when every country is read', () => {
+    const only = (search: Record<string, string>): ReturnType<typeof toFilters> =>
+      toFilters(parseScope(search, ENABLED), RANGE);
+    expect(only({ country: 'DE' })).toMatchObject({ country: 'DE' });
+    expect(only({ country: 'de' })).not.toHaveProperty('country');
+    expect(only({})).not.toHaveProperty('country');
+  });
+
   it('a scope with no flags makes the same filters as before', () => {
     const filters = toFilters(parseScope({ tab: 'new-lost', kind: 'lost' }, ENABLED), RANGE);
     expect(filters).toEqual({ from: RANGE.from, to: RANGE.to, engines: [], roles: [], includeBranded: false });
@@ -172,5 +189,11 @@ describe('CITATION_KEYS', () => {
       ].sort(),
     );
     expect(new Set(CITATION_KEYS).size).toBe(CITATION_KEYS.length);
+  });
+
+  it('country is not a saved view key: it is scope, as the date range is', () => {
+    expect(CITATION_KEYS).not.toContain('country');
+    expect(CITATION_VIEW_KEYS).not.toContain('country');
+    expect(CITATION_VIEW_KEYS).not.toContain('win');
   });
 });

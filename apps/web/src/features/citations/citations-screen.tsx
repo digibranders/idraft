@@ -5,6 +5,7 @@ import { Ban, Link2, MoreHorizontal } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 
+import { useCitationCountries } from './citation-country';
 import { CompareSelect } from './compare-select';
 import { useChangeCounts, useDiversity, useLatestCitation, usePreviousMeta, useScopeMeta } from './citation-reads';
 import { useCitationScope, toFilters } from './citation-scope';
@@ -21,6 +22,7 @@ import { droppedMessageKey } from '@/components/app/date-range/range-model';
 import { FilterBar } from '@/components/app/filters/filter-bar';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
+import { CountryScopeControl, type CountryScopeLabels } from '@/components/app/scope/country-scope-control';
 import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
 import { TopBarPortal } from '@/components/app/shell/top-bar-slot';
 import { Banner } from '@/components/app/status/banner';
@@ -97,6 +99,7 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
   const t = useTranslations('citations');
   const filterWords = useTranslations('citations.filters');
   const flagWords = useTranslations('citations.flagFilters');
+  const scopeWords = useTranslations('citations.scope');
   const common = useTranslations('common');
   const locale = useLocale();
   const source = useMemo((): SourceScope => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
@@ -125,6 +128,19 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
   // The same day the scope's window ends on: a day of the project's zone, the one place the clock is read
   const today = useZoneDay(project.timeZone);
   const filters = useMemo(() => toFilters(scope, range), [scope, range]);
+  // The country is scope, like the date range: the top bar chooses it and the filter bar's Clear leaves it
+  const countries = useCitationCountries(source, scope.country);
+  const countryLabels = useMemo(
+    (): CountryScopeLabels => ({
+      country: (name) => scopeWords('country', { country: name }),
+      allCountries: scopeWords('allCountries'),
+      search: scopeWords('countrySearch'),
+      empty: (query) => scopeWords('countryEmpty', { query }),
+      clear: scopeWords('clear'),
+      open: scopeWords('open'),
+    }),
+    [scopeWords],
+  );
 
   // The strip: each read loads and fails alone, and none takes the role filter
   const scopeMeta = useScopeMeta(source, filters, enginesReady);
@@ -337,6 +353,11 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
             <CompareSelect compare={scope.compare} onCompareChange={(next) => setSearch({ cmp: cmpOf(next) })} />
           </div>
         </div>
+        {scope.country === null ? null : (
+          <p className="type-meta">
+            {scopeWords('note', { country: countries.nameOf(scope.country) })} {scopeWords('noteUnset')}
+          </p>
+        )}
         {scopeFailed || tab === null ? null : (
           <TabsPanel value={tab.id} className="flex flex-col gap-3 lg:min-h-0 lg:flex-1">
             {tab.render(context)}
@@ -354,6 +375,13 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
           onValueChange={picked.onValueChange}
           today={today}
           timeZone={project.timeZone}
+        />
+        <CountryScopeControl
+          country={scope.country}
+          isos={countries.isos}
+          nameOf={countries.nameOf}
+          labels={countryLabels}
+          onCountryChange={(iso) => setSearch({ country: iso })}
         />
       </TopBarPortal>
       {/* From lg up the window's height, as the Prompts page has it: the table of a tab fills what the strip and the filters leave. Below it the page scrolls as a whole, so a short phone keeps the table whole */}

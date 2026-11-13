@@ -8,6 +8,7 @@ import type { SourceFilters, SourceSort } from '@/lib/citations/source-queries';
 import type { DomainRole, EngineCode } from '@/lib/citations/types';
 import { useZoneDay } from '@/lib/dom/use-zone-day';
 import { parseText } from '@/lib/filters/filter-values';
+import { parseCountry } from '@/lib/locations/country-scope';
 import { parseDensity, type Density } from '@/lib/tables/table-state';
 
 /**
@@ -21,7 +22,10 @@ export type CitationTab = 'domains' | 'pages' | 'new-lost';
 /** The two lists of the New and lost tab. */
 export type ChangeKind = 'new' | 'lost';
 
-/** Every URL key of the page besides the date range's: the saved views govern these. */
+/**
+ * Every URL key of the page besides the date range's and the country's: the saved views govern these. The country
+ * is scope, as the date range is, so a view never sets it and a view's reset never clears it.
+ */
 export const CITATION_KEYS = [
   'tab',
   'kind',
@@ -39,7 +43,10 @@ export const CITATION_KEYS = [
   'cols',
 ] as const;
 
-export type CitationKey = (typeof CITATION_KEYS)[number];
+/** Every key the page writes to its address: the view keys and the country. */
+const ADDRESS_KEYS = [...CITATION_KEYS, 'country'] as const;
+
+export type CitationKey = (typeof ADDRESS_KEYS)[number];
 
 /** The address as nuqs gives it: each key's text, or absent. */
 export type CitationSearch = Readonly<Partial<Record<CitationKey, string | null | undefined>>>;
@@ -58,6 +65,8 @@ export interface CitationScope {
   tab: CitationTab;
   /** The list the New and lost tab shows; New unless the address says Lost. */
   changeKind: ChangeKind;
+  /** The market the prompts are set in (two capitals), or `null` for every country. */
+  country: string | null;
   /** Enabled engines only, at most 3; none means every engine that is on. */
   engines: readonly EngineCode[];
   roles: readonly DomainRole[];
@@ -106,6 +115,7 @@ export function parseScope(search: CitationSearch, enabledEngines: readonly Engi
   return {
     tab: TABS.find((tab) => tab === search.tab) ?? 'domains',
     changeKind: search.kind === 'lost' ? 'lost' : 'new',
+    country: parseCountry(search.country ?? null),
     engines: listOf(search.engine, enabledEngines).slice(0, MAX_ENGINES),
     roles: listOf(search.role, ROLES),
     term: term === '' ? null : term,
@@ -139,13 +149,14 @@ export function toFilters(scope: CitationScope, range: DateWindow): SourceFilter
     roles: scope.roles,
     ...(scope.term === null ? {} : { term: scope.term }),
     includeBranded: scope.includeBranded,
+    ...(scope.country === null ? {} : { country: scope.country }),
     ...(scope.includeUnresolvedRedirects ? { includeUnresolvedRedirects: true } : {}),
     ...(scope.includeEngineInternal ? { includeEngineInternal: true } : {}),
   };
 }
 
 const PARSERS: Record<CitationKey, typeof parseAsString> = Object.fromEntries(
-  CITATION_KEYS.map((key) => [key, parseAsString]),
+  ADDRESS_KEYS.map((key) => [key, parseAsString]),
 ) as Record<CitationKey, typeof parseAsString>;
 
 export interface CitationScopeState {

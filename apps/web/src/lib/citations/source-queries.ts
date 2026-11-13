@@ -30,6 +30,8 @@ export interface SourceFilters {
   term?: string;
   roles?: readonly DomainRole[];
   includeBranded?: boolean;
+  /** The prompts set in one market (two capitals); left out for every country. */
+  country?: string;
   /** Count the citations flagged as an unresolved redirect, which every share and unit leaves out by default. */
   includeUnresolvedRedirects?: boolean;
   /** Count the citations flagged as engine-internal links, left out by default. */
@@ -44,6 +46,7 @@ export interface ScopeParams {
   'filter[prompt_id]'?: string;
   'filter[term]'?: string;
   'filter[domain_role_in]'?: DomainRole[];
+  'filter[country_iso]'?: string;
   include_branded?: true;
 }
 
@@ -57,6 +60,7 @@ export function filterParams(filters: SourceFilters): ScopeParams {
     ...(filters.promptId === undefined ? {} : { 'filter[prompt_id]': filters.promptId }),
     ...(filters.term === undefined ? {} : { 'filter[term]': filters.term }),
     ...(roles.length === 0 ? {} : { 'filter[domain_role_in]': [...roles] }),
+    ...(filters.country === undefined ? {} : { 'filter[country_iso]': filters.country }),
     ...(filters.includeBranded === true ? { include_branded: true as const } : {}),
   };
 }

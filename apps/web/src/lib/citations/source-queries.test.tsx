@@ -74,6 +74,46 @@ describe('filterParams', () => {
     });
   });
 
+  it('country sends filter[country_iso]', () => {
+    const german = { ...FILTERS, country: 'DE' } satisfies SourceFilters;
+    expect(filterParams(german)).toEqual({ from: FILTERS.from, to: FILTERS.to, 'filter[country_iso]': 'DE' });
+    for (const query of [
+      sourceDomainsQuery(scope, german),
+      sourcePagesQuery(scope, german),
+      sourceDiversityQuery(scope, german),
+      sourceChangesQuery(scope, german, { kind: 'new' }),
+      sourcePromptsQuery(scope, german),
+    ]) {
+      expect(queryOf(query.queryKey)).toHaveProperty('filter[country_iso]', 'DE');
+    }
+  });
+
+  it('no country sends none, and the key equals the one without the field', () => {
+    for (const query of [
+      sourceDomainsQuery(scope, FILTERS),
+      sourcePagesQuery(scope, FILTERS),
+      sourceDiversityQuery(scope, FILTERS),
+      sourceChangesQuery(scope, FILTERS, { kind: 'new' }),
+      sourcePromptsQuery(scope, FILTERS),
+      citationListQuery(scope, FILTERS),
+    ]) {
+      expect(queryOf(query.queryKey)).not.toHaveProperty('filter[country_iso]');
+    }
+    expect(sourceDomainsQuery(scope, { ...FILTERS, country: 'DE' }).queryKey).not.toEqual(
+      sourceDomainsQuery(scope, FILTERS).queryKey,
+    );
+  });
+
+  it('the citations list takes it too', () => {
+    const german = { ...FILTERS, country: 'DE' } satisfies SourceFilters;
+    expect(queryOf(citationListQuery(scope, german, { limit: 1 }).queryKey)).toEqual({
+      from: FILTERS.from,
+      to: FILTERS.to,
+      'filter[country_iso]': 'DE',
+      limit: 1,
+    });
+  });
+
   it('does not alter the lists it is given', () => {
     const engines = ['chatgpt_web'] as const;
     expect(filterParams({ ...FILTERS, engines })['filter[engine_code_in]']).not.toBe(engines);

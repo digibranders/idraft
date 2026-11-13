@@ -752,3 +752,147 @@ describe('Citations page: the New and lost tab', () => {
     ).toEqual(['lost', 'new']);
   });
 });
+
+describe('Citations page: the country scope', () => {
+  const countryControl = (name = 'Country: All countries'): Promise<HTMLElement> =>
+    screen.findByRole('combobox', { name });
+  const COUNTRY = 'filter[country_iso]';
+  /** The routes every tab reads for the strip, and the one list route each tab reads besides. */
+  const STRIP_ROUTES = ['/ai/sources/domains', '/ai/sources/diversity', '/ai/sources/changes', '/ai/citations'];
+
+  it('puts the control in the top bar after the date range', async () => {
+    render();
+    const country = await countryControl();
+    const range = await screen.findByRole('button', { name: /^Date range: / });
+    expect(range.compareDocumentPosition(country) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByRole('combobox', { name: /^Country:/ })).toHaveLength(1);
+  });
+
+  it('lists all countries and the countries of the prompts', async () => {
+    const { user } = render();
+    await user.click(await countryControl());
+    expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
+      'All countries',
+      'Germany',
+      'India',
+    ]);
+  });
+
+  it('choosing a country asks every read with filter[country_iso] and writes the key, and All countries removes it', async () => {
+    const reads = watch();
+    const writes: string[] = [];
+    const { user } = render('', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
+    await waitFor(() => expect(to(reads, '/ai/sources/domains').length).toBeGreaterThan(0));
+    for (const url of reads) expect(url.searchParams.has(COUNTRY)).toBe(false);
+    await user.click(await countryControl());
+    await user.click(await screen.findByRole('option', { name: 'Germany' }));
+    await waitFor(() => expect(new URLSearchParams(writes.at(-1)).get('country')).toBe('DE'));
+    for (const route of STRIP_ROUTES) {
+      await waitFor(() => expect(to(reads, route).some((url) => url.searchParams.get(COUNTRY) === 'DE')).toBe(true));
+    }
+    expect(await countryControl('Country: Germany')).toBeInTheDocument();
+    await user.click(await countryControl('Country: Germany'));
+    await user.click(await screen.findByRole('option', { name: 'All countries' }));
+    await waitFor(() => expect(new URLSearchParams(writes.at(-1)).has('country')).toBe(false));
+  });
+
+  it('keeps the old rows while the new country is read', async () => {
+    registry.real = true;
+    const held = gate();
+    server.use(
+      http.get(DOMAINS, async ({ request }) => {
+        if (new URL(request.url).searchParams.get(COUNTRY) === 'DE') await held.opened;
+        return (await getResponse([...handlers], request)) ?? problem(request, 'not_found');
+      }),
+    );
+    const { user } = render();
+    const table = await screen.findByRole('treegrid', { name: 'Cited domains' });
+    await waitFor(() => expect(within(table).queryAllByRole('rowheader').length).toBeGreaterThan(0));
+    const before = within(table).getAllByRole('rowheader').length;
+    await user.click(await countryControl());
+    await user.click(await screen.findByRole('option', { name: 'Germany' }));
+    await waitFor(() => expect(table).toHaveAttribute('aria-busy', 'true'));
+    expect(within(table).getAllByRole('rowheader')).toHaveLength(before);
+    held.open();
+    await waitFor(() => expect(table).not.toHaveAttribute('aria-busy', 'true'));
+  });
+
+  it('Clear filters does not clear the country', async () => {
+    const writes: string[] = [];
+    const { user } = render('?country=DE&redirects=include', {
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    await user.click(await screen.findByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(writes.at(-1)).not.toContain('redirects'));
+    expect(new URLSearchParams(writes.at(-1)).get('country')).toBe('DE');
+    expect(await countryControl('Country: Germany')).toBeInTheDocument();
+  });
+
+  it('the Clear filters of an empty table does not clear the country either', async () => {
+    registry.real = true;
+    const writes: string[] = [];
+    // 1,000 is the most the minimum takes: no domain of the mock world reaches it
+    const { user } = render('?country=DE&min=1000&redirects=include', {
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    const heading = await screen.findByRole('heading', { name: 'No domain or page matches these filters' });
+    const empty = heading.parentElement as HTMLElement;
+    await user.click(within(empty).getByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(writes.at(-1)).not.toContain('redirects'));
+    expect(writes.at(-1)).not.toContain('min=');
+    expect(new URLSearchParams(writes.at(-1)).get('country')).toBe('DE');
+  });
+
+  it('the country is no filter chip and no saved view key', async () => {
+    render('?country=DE');
+    await countryControl('Country: Germany');
+    expect(screen.queryByRole('button', { name: /^Remove filter/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Saved view: Default(?!, edited)/ })).toBeInTheDocument();
+  });
+
+  it('the note names the country while one is chosen, and is absent for all countries', async () => {
+    const chosen = render('?country=DE');
+    expect(
+      await screen.findByText('Only the prompts set in Germany are read. Prompts with no country are left out.'),
+    ).toBeInTheDocument();
+    chosen.unmount();
+    render();
+    await countryControl();
+    expect(screen.queryByText(/Only the prompts set in/)).toBeNull();
+  });
+
+  it('the control is absent when no prompt has a country', async () => {
+    server.use(
+      http.get(mswPath(`${P}/prompts`), async ({ request }) => {
+        const real = await getResponse([...handlers], request);
+        const body = (await real?.json()) as { data: { country_iso: string | null }[] };
+        return HttpResponse.json({ ...body, data: body.data.map((prompt) => ({ ...prompt, country_iso: null })) });
+      }),
+    );
+    const reads = watch();
+    render();
+    await strip();
+    // The project's own prompt list, not the sources/prompts read
+    const promptList = (): URL[] => reads.filter((url) => url.pathname.endsWith(`/${fynix.project_id}/prompts`));
+    await waitFor(() => expect(promptList().length).toBeGreaterThan(0));
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(screen.queryByRole('combobox', { name: /^Country:/ })).toBeNull();
+    expect(screen.queryByText(/^Country:/)).toBeNull();
+  });
+
+  it('the Domains, Pages and New and lost tabs all carry it', async () => {
+    registry.real = true;
+    const reads = watch();
+    const list = { domains: '/ai/sources/domains', pages: '/ai/sources/pages', 'new-lost': '/ai/sources/changes' };
+    for (const [tab, route] of Object.entries(list)) {
+      reads.length = 0;
+      const view = render(`?tab=${tab}&country=DE`);
+      await waitFor(() => expect(to(reads, route).length).toBeGreaterThan(0));
+      await strip();
+      for (const url of [...to(reads, route), ...to(reads, '/ai/sources/diversity')]) {
+        expect(url.searchParams.get(COUNTRY)).toBe('DE');
+      }
+      view.unmount();
+    }
+  });
+});
