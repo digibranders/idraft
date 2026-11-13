@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T10:03:54+05:30",
+ "updated": "2026-11-13T10:17:35+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -644,7 +644,7 @@
     "done": 7
    },
    "owner": "",
-   "notes": "file work-packages/WP-15-layouts-react-core.md; estimate 9 tasks; decisions D-14 | tasks 8/13, rows 11/26; provider, grid view mode and card frame on develop"
+   "notes": "file work-packages/WP-15-layouts-react-core.md; estimate 9 tasks; decisions D-14 | tasks 11/13, rows 20/26; T8-T10 on develop (749f7ce3); live specimen on dev route /design-system/layouts-live; T11 e2e running"
   },
   {
    "id": "WP-16",
@@ -1269,7 +1269,7 @@
     "done": 26
    },
    "owner": "",
-   "notes": "file work-packages/WP-25-inspector-completion.md; estimate 6 tasks; decisions D-02 | tasks 0/10, rows 26/35 built; plan on develop; WB-PI-23 blocked on CF-26 (WP-26)"
+   "notes": "file work-packages/WP-25-inspector-completion.md; estimate 6 tasks; decisions D-02 | tasks 4/10, rows 31/35; Tasks 1,2,3,8 on develop (c0f3c63e)"
   },
   {
    "id": "WP-26",
