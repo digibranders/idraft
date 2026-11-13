@@ -20,7 +20,9 @@ mkdir -p "$STATE_DIR"
 echo "$$" >"$STATE_DIR/pid"
 
 # Thresholds for a 14 core, 39 GB Mac that also runs a Colima VM with 10 CPUs and 16 GiB.
-DISK_WARN_GB=25 DISK_CRIT_GB=15
+# Disk: macOS grows swap files on this volume under load, so free space swings by 10 GB or more during test
+# runs. CRIT at 10 GB keeps a margin above a full disk without pausing work at the usual 13 to 16 GB low point.
+DISK_WARN_GB=15 DISK_CRIT_GB=10
 MEMFREE_WARN_PCT=25 MEMFREE_CRIT_PCT=12
 SWAP_WARN_MB=8192 SWAP_CRIT_MB=12288
 SWAP_MEM_WARN_PCT=50 SWAP_MEM_CRIT_PCT=40
