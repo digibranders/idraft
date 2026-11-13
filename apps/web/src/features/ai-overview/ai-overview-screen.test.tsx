@@ -22,6 +22,9 @@ import type { ReactElement } from 'react';
 
 // The screen's leave guard reads the router and the address
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
+// Real zrender cannot draw in jsdom ("ctx.save is not a function"), which would turn every built chart card into its error
+// state; the tests of this page are about the screen, and each card tests its chart itself
+vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 
 const NOW = new Date('2026-11-12T12:00:00Z');
 const ENGINES = mswPath('/api/v1/workspaces/:w/projects/:p/engines');
@@ -46,6 +49,12 @@ afterEach(() => {
 
 const customize = (): HTMLElement => screen.getByRole('button', { name: 'Customize' });
 const cardsRegion = (): HTMLElement => screen.getByRole('region', { name: CARDS });
+/**
+ * The layout item id of each card frame, in page order. A built card words its own title (a card of one engine says
+ * which), so the cards are told apart by item id and not by the catalog title.
+ */
+const cardIds = (): string[] =>
+  [...cardsRegion().querySelectorAll<HTMLElement>('[data-layout-card]')].map((frame) => frame.dataset.layoutCard ?? '');
 
 describe('the AI visibility page without access', () => {
   it('says so and reads nothing without data:read', async () => {
@@ -100,7 +109,7 @@ describe('the AI visibility page of a project with engines on', () => {
     const pending = cards.filter((card) => !built.has(card.type));
     const pendingNames = pending.map(cardName);
     await waitFor(() => {
-      expect(within(cardsRegion()).getAllByRole('heading', { level: 2 })).toHaveLength(9);
+      expect(cardIds()).toEqual(cards.map((card) => card.id));
     });
     // The pending cards keep the order of the layout
     expect(
@@ -285,7 +294,7 @@ describe('the numbers strip of the AI visibility page', () => {
     expect(within(panel as HTMLElement).getByRole('button', { name: 'Try again' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: STRIP })).not.toBeInTheDocument();
     await waitFor(() => {
-      expect(within(cardsRegion()).getAllByRole('heading', { level: 2 })).toHaveLength(9);
+      expect(cardIds()).toHaveLength(9);
     });
   });
 
@@ -310,11 +319,6 @@ describe('the presets of the AI visibility page', () => {
   type User = ReturnType<typeof renderWithProviders>['user'];
 
   const polite = (): HTMLElement | null => document.getElementById(LIVE_REGION_ID.polite);
-  const cardTitles = (): string[] =>
-    within(cardsRegion())
-      .queryAllByRole('heading', { level: 2 })
-      .map((heading) => heading.textContent ?? '');
-
   async function startCustomizing(user: User): Promise<void> {
     const button = await screen.findByRole('button', { name: 'Customize' });
     await waitFor(() => {
@@ -374,9 +378,9 @@ describe('the presets of the AI visibility page', () => {
     await startCustomizing(user);
     const menu = await openMenu(user);
     await user.click(within(menu).getByRole('menuitem', { name: 'Executive summary' }));
-    const names = EXECUTIVE_LAYOUT.cards?.map(cardName) ?? [];
+    const ids = EXECUTIVE_LAYOUT.cards?.map((card) => card.id) ?? [];
     await waitFor(() => {
-      expect(cardTitles()).toEqual(names);
+      expect(cardIds()).toEqual(ids);
     });
     expect(screen.getByRole('group', { name: /^[1-9]\d* changes?$/ })).toBeInTheDocument();
     await waitFor(() => {
@@ -393,18 +397,18 @@ describe('the presets of the AI visibility page', () => {
     const { user } = renderWithProviders(overviewAs('admin'));
     await startCustomizing(user);
     await waitFor(() => {
-      expect(cardTitles()).toHaveLength(9);
+      expect(cardIds()).toHaveLength(9);
     });
-    const before = cardTitles();
+    const before = cardIds();
     await user.click(within(await openMenu(user)).getByRole('menuitem', { name: 'Executive summary' }));
     await waitFor(() => {
-      expect(cardTitles()).toHaveLength(6);
+      expect(cardIds()).toHaveLength(6);
     });
     await user.click(
       within(screen.getByRole('group', { name: /^[1-9]\d* changes?$/ })).getByRole('button', { name: 'Undo' }),
     );
     await waitFor(() => {
-      expect(cardTitles()).toEqual(before);
+      expect(cardIds()).toEqual(before);
     });
     expect(screen.getByRole('group', { name: 'No changes' })).toBeInTheDocument();
   });
