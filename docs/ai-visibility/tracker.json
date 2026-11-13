@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T22:28:23+05:30",
+ "updated": "2026-11-13T22:31:16+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -946,7 +946,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-19-compare-deltas.md; estimate 6 tasks; decisions D-03 | P1 PUSHED (b69b7374): shared apps/web/src/lib/compare on develop (parseCompare, cmpParam, compareParams, isCompared, comparedWindow; change-model: rateChange, engineChangeOf, averageChangeOf, stripChangeOf, deltaInput) and prompts.compare.* messages (29 strings); T1b mock compare answers and size/fixture measurements next; steps 2/6"
+   "notes": "file work-packages/WP-19-compare-deltas.md; estimate 6 tasks; decisions D-03 | measured: compare adds +23 percent to the page read (Fynix 206 KB to 253 KB, Eventus 643 KB to 790 KB; gzip 8.6 to 10.6 KB and 26 to 33 KB): no lean-rows request needed; fixtures have no detectable change on Fynix, a few on Eventus: no fixture edit, e2e asserts the neutral rule and a mock cookie shows one coloured delta; T1b mock compare answers committed (a9243b27), T1c compare select and chip next"
   },
   {
    "id": "WP-20",
@@ -4148,13 +4148,6 @@
    "until": "WP-19 merged"
   },
   {
-   "path": "apps/web/src/features/prompts/prompt-fixtures.ts",
-   "wp": "WP-19",
-   "granted": "2026-11-13T22:09:37+05:30",
-   "scope": "ONLY if T1b shows the fixtures have no detectable change at 28 days; report first; shifts other tests' counts",
-   "until": "WP-19 merged"
-  },
-  {
    "path": "backend/src/idraft/api/schemas/ai.py",
    "wp": "SHARED WP-26 (with WP-30, WP-31, WP-32)",
    "granted": "2026-11-13T22:22:48+05:30",
@@ -4468,6 +4461,13 @@
    "granted": "2026-11-13T22:28:23+05:30",
    "scope": "same condition",
    "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/session.ts",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:31:16+05:30",
+   "scope": "add one mock cookie (e.g. mock-compare-detectable) to MOCK_COOKIES so an e2e can see one coloured delta; additive",
+   "until": "WP-19 merged"
   }
  ],
  "followups": [
