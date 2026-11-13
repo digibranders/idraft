@@ -26,7 +26,6 @@ const PLANNED: ReadonlyArray<readonly [string, () => Promise<PlannedPage>]> = [
   ['/discover/[tab]', () => import('./discover/[tab]/page')],
   ['/reports', () => import('./reports/page')],
   ['/settings/alert-rules', () => import('./settings/alert-rules/page')],
-  ['/settings/retention', () => import('./settings/retention/page')],
   ['/matrix', () => import('./matrix/page')],
 ];
 

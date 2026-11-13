@@ -56,6 +56,7 @@ describe('SettingsFrame', () => {
       '/digibranders/fynix/settings/taxonomy',
       '/digibranders/fynix/settings/engines',
       '/digibranders/fynix/settings/schedules',
+      '/digibranders/fynix/settings/retention',
       '/digibranders/fynix/settings/workspace',
       '/digibranders/fynix/settings/members',
       // Inside a project they open in that project's shell
@@ -74,6 +75,18 @@ describe('SettingsFrame', () => {
     const nav = screen.getByRole('navigation', { name: 'Settings sections' });
     expect(within(nav).getByRole('link', { name: 'Schedules' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: 'Taxonomy' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('lists Data retention after Schedules and marks it as the section on screen on its own page', () => {
+    location.pathname = '/digibranders/fynix/settings/retention';
+    renderWithProviders(frame('fynix', 'viewer'));
+    const nav = screen.getByRole('navigation', { name: 'Settings sections' });
+    const labels = within(nav)
+      .getAllByRole('link')
+      .map((link) => link.textContent);
+    expect(labels.indexOf('Data retention')).toBe(labels.indexOf('Schedules') + 1);
+    expect(within(nav).getByRole('link', { name: 'Data retention' })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('link', { name: 'Schedules' })).not.toHaveAttribute('aria-current');
   });
 
   it('outside a project leaves the project group out and links to the workspace settings routes', () => {

@@ -1,4 +1,4 @@
 import type { HttpHandler } from 'msw';
 
-/** WP-31: answers the data retention settings routes. */
+/** There is no retention route: the Data retention page states the platform's fixed policy and reads nothing. */
 export const retentionHandlers: HttpHandler[] = [];

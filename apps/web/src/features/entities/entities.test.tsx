@@ -1,10 +1,11 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { http } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { Suspense, type ReactElement } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DomainsScreen } from './domains-screen';
 import { EntitiesScreen } from './entities-screen';
+import type { ProjectEntity } from './entity-queries';
 import type { Role } from '@/lib/api/types';
 import { LeaveGuardProvider } from '@/lib/navigation/use-leave-guard';
 import { PermissionProvider } from '@/lib/permissions';
@@ -28,6 +29,7 @@ const SCOPE = {
   projectId: fynix.project_id,
   workspaceSlug: 'digibranders',
   projectSlug: fynix.slug,
+  timeZone: fynix.timezone,
 };
 
 function as(role: Role, page: ReactElement): ReactElement {
@@ -191,6 +193,144 @@ describe('Entities and aliases', () => {
     expect(screen.getByText('Owners, admins and editors can change the entities of a project.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add competitor' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Actions for/ })).toBeNull();
+  });
+});
+
+/** A role as the list returns it, added at `addedAt`. */
+function roleRow(
+  n: number,
+  name: string,
+  role: 'own' | 'competitor' | 'watch',
+  addedAt: string,
+  colorIndex: number | null,
+): ProjectEntity {
+  return {
+    project_id: SCOPE.projectId,
+    entity: {
+      entity_id: `0192d1a8-9a01-7b44-8c2d-1f0e9d8c7d${String(n).padStart(2, '0')}`,
+      canonical_name: name,
+      entity_type: 'brand',
+      role,
+      color_index: colorIndex,
+    },
+    role,
+    is_primary: role === 'own',
+    track_seo: true,
+    track_ai: true,
+    color_index: colorIndex,
+    added_at: addedAt,
+    removed_at: null,
+    alias_count: 0,
+    domains: [],
+  };
+}
+
+/** The table's row for `name`. */
+const rowOf = (inTable: HTMLElement, name: string): HTMLElement => {
+  const row = within(inTable).getByText(name).closest('tr');
+  if (row === null) throw new Error(`no row for ${name}`);
+  return row;
+};
+
+const PROJECT_ENTITIES = `/api/v1/workspaces/${SCOPE.workspaceId}/projects/${SCOPE.projectId}/entities`;
+
+// States: loading, empty and error are the screen's own and covered above (the Added column adds no read of
+// its own); partial and stale do not apply, since the date comes with the row.
+describe('Entities, the Added column', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('shows the date each role was added for the own brand, the competitors and the watched entities', async () => {
+    vi.setSystemTime(new Date('2026-11-13T12:00:00Z'));
+    const { container } = renderWithProviders(as('editor', <EntitiesScreen {...SCOPE} />));
+    const own = await table('Own brand');
+    const competitors = await table('Competitors');
+    const watched = await table('Watched');
+    for (const [found, name] of [
+      [own, 'Fynix'],
+      [competitors, 'Rankforge'],
+      [competitors, 'Meridian Growth'],
+      [watched, 'SEO Weekly'],
+    ] as const) {
+      const cell = within(rowOf(found, name)).getByText('Jun 1');
+      // The full timestamp is in the project time zone (Berlin is on summer time in June)
+      expect(cell).toHaveAttribute('title', `Jun 1, 2026 ${String.fromCharCode(183)} 11:00 GMT+2`);
+    }
+    expect(within(own).getByRole('columnheader', { name: 'Added' })).toBeInTheDocument();
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('counts the date in the project time zone: 23:30 UTC on the day before is the next day in Kolkata', async () => {
+    vi.setSystemTime(new Date('2026-11-13T12:00:00Z'));
+    server.use(
+      http.get(mswPath(PROJECT_ENTITIES), () =>
+        HttpResponse.json({
+          data: [
+            roleRow(1, 'Fynix', 'own', '2026-06-01T09:00:00Z', 1),
+            roleRow(2, 'Brightwave', 'competitor', '2026-03-09T23:30:00Z', 2),
+          ],
+        }),
+      ),
+    );
+    renderWithProviders(as('editor', <EntitiesScreen {...SCOPE} timeZone="Asia/Kolkata" />));
+    const competitors = await table('Competitors');
+    const cell = within(rowOf(competitors, 'Brightwave')).getByText('Mar 10');
+    expect(cell).toHaveAttribute('title', `Mar 10, 2026 ${String.fromCharCode(183)} 05:00 GMT+5:30`);
+  });
+
+  it('shows each role its own date, so a competitor added again shows the later one', async () => {
+    vi.setSystemTime(new Date('2026-11-13T12:00:00Z'));
+    server.use(
+      http.get(mswPath(PROJECT_ENTITIES), () =>
+        HttpResponse.json({
+          data: [
+            roleRow(1, 'Fynix', 'own', '2026-06-01T09:00:00Z', 1),
+            roleRow(2, 'Brightwave', 'competitor', '2026-02-03T10:00:00Z', 2),
+            // Removed in the spring and added again in September: the API gives the role the new date
+            roleRow(3, 'Rankforge', 'competitor', '2026-09-20T10:00:00Z', 3),
+          ],
+        }),
+      ),
+    );
+    renderWithProviders(as('editor', <EntitiesScreen {...SCOPE} />));
+    const competitors = await table('Competitors');
+    expect(within(rowOf(competitors, 'Brightwave')).getByText('Feb 3')).toBeInTheDocument();
+    expect(within(rowOf(competitors, 'Rankforge')).getByText('Sep 20')).toBeInTheDocument();
+  });
+
+  it('shows a competitor added now the date of today in the project time zone', async () => {
+    // 23:30 UTC is already the next day in Berlin
+    vi.setSystemTime(new Date('2026-11-13T23:30:00Z'));
+    const { user } = renderWithProviders(as('editor', <EntitiesScreen {...SCOPE} />));
+    await table('Competitors');
+    await user.click(screen.getByRole('button', { name: 'Add competitor' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add competitor' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Domain' }), 'hubspot.com');
+    await user.click(within(dialog).getByRole('button', { name: 'Add competitor' }));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    const competitors = await table('Competitors');
+    const row = await within(competitors).findByText('Hubspot');
+    expect(within(row.closest('tr') ?? competitors).getByText('Nov 14')).toBeInTheDocument();
+  });
+
+  it('says under Competitors that share of voice counts a competitor from the date it was added', async () => {
+    renderWithProviders(as('analyst', <EntitiesScreen {...SCOPE} />));
+    await table('Competitors');
+    expect(
+      screen.getAllByText(
+        'Share of voice counts a competitor from the date it was added. Adding or removing one changes share of voice for all entities from that day.',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('hides the Added column below md, as it hides Domains', async () => {
+    renderWithProviders(as('editor', <EntitiesScreen {...SCOPE} />));
+    const competitors = await table('Competitors');
+    for (const name of ['Domains', 'Added']) {
+      const header = within(competitors).getByRole('columnheader', { name });
+      expect(header).toHaveClass('hidden', 'md:table-cell');
+    }
   });
 });
 

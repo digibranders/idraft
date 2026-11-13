@@ -26,6 +26,7 @@ export default async function EntitiesPage({
       projectId={current.project_id}
       workspaceSlug={membership.workspace.slug}
       projectSlug={current.slug}
+      timeZone={current.timezone}
     />
   );
 }

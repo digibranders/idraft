@@ -540,6 +540,7 @@
       "taxonomy": "Taxonomy",
       "engines": "Engines",
       "schedules": "Schedules",
+      "retention": "Data retention",
       "workspace": "General",
       "members": "Members and roles",
       "costs": "Costs",
@@ -1116,6 +1117,39 @@
       "viaProduct": "{entity} via {product}"
     }
   },
+  "dataRetention": {
+    "title": "Data retention",
+    "description": "How long the platform keeps the raw responses it collects.",
+    "notice": "Retention is set by the platform and cannot be changed here.",
+    "tableCaption": "Retention of raw data by kind",
+    "empty": "No kinds of raw data are listed.",
+    "columns": {
+      "data": "Data",
+      "what": "What it is",
+      "keptFor": "Kept for"
+    },
+    "classes": {
+      "serpRaw": {
+        "name": "Search results",
+        "what": "Search engine results pages as the data provider returned them."
+      },
+      "aiRaw": {
+        "name": "AI answers",
+        "what": "Answers from AI engines, with their citations and the searches they ran."
+      },
+      "firstPartyRaw": {
+        "name": "Search Console and other first-party imports",
+        "what": "Responses from Search Console, Google Analytics, Bing and Cloudflare, kept to trace import problems."
+      },
+      "error": {
+        "name": "Error responses",
+        "what": "Error bodies and malformed responses, kept to trace collection problems."
+      }
+    },
+    "days": "{days} days",
+    "indefinite": "Kept indefinitely",
+    "pastRetention": "When a raw answer is past its retention it is no longer kept. The numbers, mentions and citations read from it stay."
+  },
   "entitySettings": {
     "title": "Entities and aliases",
     "description": "The brands this project is judged against: its own, up to 10 competitors, and others to watch in answers.",
@@ -1141,8 +1175,10 @@
       "domains": "Domains",
       "aliases": "Aliases",
       "tracking": "Tracking",
+      "added": "Added",
       "actions": "Actions"
     },
+    "addedHint": "Share of voice counts a competitor from the date it was added. Adding or removing one changes share of voice for all entities from that day.",
     "primary": "Primary",
     "noDomains": "No domains",
     "domainsMore": "{domains} and {count} more",
