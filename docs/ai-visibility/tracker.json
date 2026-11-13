@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T22:13:18+05:30",
+ "updated": "2026-11-13T22:18:14+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -946,7 +946,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-19-compare-deltas.md; estimate 6 tasks; decisions D-03 | plan committed (5 tasks, 11 commits; P1 after T1a, P2 after T2b, P3 after T5); shared lib/compare for WP-33 and WP-21; D-03 on by default; interim Newcombe test as the detectable rule (no backend flag)"
+   "notes": "file work-packages/WP-19-compare-deltas.md; estimate 6 tasks; decisions D-03 | P1 PUSHED (b69b7374): shared apps/web/src/lib/compare on develop (parseCompare, cmpParam, compareParams, isCompared, comparedWindow; change-model: rateChange, engineChangeOf, averageChangeOf, stripChangeOf, deltaInput) and prompts.compare.* messages (29 strings); T1b mock compare answers and size/fixture measurements next; steps 2/6"
   },
   {
    "id": "WP-20",
@@ -1818,7 +1818,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20 | tasks 4/13: T1 scope model, T2 ai_overview catalog (38 card types, reviewed vs inventory: 47 rows, no mismatch), T3 read hooks and fan-out mock handler, T4 aggregates model (60 tests) in review; T5 route, header, customize wiring and registry next; milestone M1 at T6; backed up on origin/ai/wp-33-overview-shell"
+   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20 | tasks 4/13: T1 scope model, T2 ai_overview catalog (38 card types, reviewed vs inventory: 47 rows, no mismatch), T3 read hooks and fan-out mock handler, T4 aggregates model (60 tests) in review; T5 route, header, customize wiring and registry next; milestone M1 at T6; backed up on origin/ai/wp-33-overview-shell | from WP-19: adopt apps/web/src/lib/compare (on develop, b69b7374) instead of a local parseCompare"
   },
   {
    "id": "WP-34",
