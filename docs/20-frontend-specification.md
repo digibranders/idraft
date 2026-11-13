@@ -890,6 +890,8 @@ Tabs:
 
 Controls: engine selector, topic, window, `min_support`, "Include unresolved redirects" (off), "Include engine-internal links" (off). Category override (`entities:write` scope proposed, see section 11) on a domain row opens a dialog to set the workspace category.
 
+> As built (WP-22, 2026-11-14): the two toggles are filter fields ("Unresolved redirects" and "Engine links", off by default, keys `redirects` and `internal`) that every aggregate read sends only when on and the citations list never sends; the country is a top bar scope control (`country`, shared `CountryScopeControl`); the New and lost tab is `tab=new-lost` with `kind`; the domain and source inspectors open from the table (`inspect=domain:<registrable>`, `inspect=source:<url_id>`). Details in [design-system/24-page-templates.md](design-system/24-page-templates.md) section 9.7 and [design-system/23-application-patterns.md](design-system/23-application-patterns.md) section 4.2. The category override is not built.
+
 Data: `GET .../citations/domains`, `/pages`, `/categories`, `/changes`, `/opportunities`, `/retrieved-not-cited`.
 
 ### 5.10 Competitor Intelligence
