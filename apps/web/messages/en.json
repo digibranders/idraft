@@ -3534,7 +3534,13 @@
     "perplexityState": "Not available yet",
     "costChange": "Estimated cost change: about {amount} a month {direction, select, down {less} other {more}}. Estimated total for {count, plural, one {# engine that is} other {# engines that are}} on: {total} a month. Estimate from the price book.",
     "costChangeNoTotal": "Estimated cost change: about {amount} a month {direction, select, down {less} other {more}}. The total is not estimated because an engine that is on has no price on record. Estimate from the price book.",
-    "costChangeNoPrice": "No price is on record, so the change is not estimated."
+    "costChangeNoPrice": "No price is on record, so the change is not estimated.",
+    "deviceLabel": "Device of {engine}",
+    "deviceDesktop": "Desktop",
+    "deviceMobile": "Mobile",
+    "deviceHint": "Applies from the next run. Answers already collected keep the device they were collected on.",
+    "deviceChanged": "Device of {engine} set to {device}.",
+    "deviceHeld": "Device of {engine} set to {device}. It applies once the engine is turned on."
   },
   "prompts": {
     "title": "Topics & Prompts",
@@ -5036,5 +5042,38 @@
   "exports": {},
   "savedViews": {},
   "commandPalette": {},
-  "matrix": {}
+  "matrix": {},
+  "setupChecklist": {
+    "label": "Project setup",
+    "loading": "Checking setup",
+    "progress": "Setup: {done, number} of {total, plural, one {# step} other {# steps}} complete",
+    "progressBar": "Setup progress",
+    "complete": "Setup complete",
+    "continue": "Continue setup",
+    "showSteps": "Show steps",
+    "hideSteps": "Hide steps",
+    "dismiss": "Dismiss",
+    "stepsLabel": "Setup steps",
+    "done": "Done:",
+    "todo": "To do:",
+    "unchecked": "Could not be checked",
+    "error": {
+      "title": "Setup could not be checked"
+    },
+    "engines": {
+      "name": "Select AI engines",
+      "fact": "{on, number} of {total, plural, one {# engine} other {# engines}} on",
+      "action": "Open Engines"
+    },
+    "prompts": {
+      "name": "Add prompts",
+      "fact": "{count, plural, one {# active prompt} other {# active prompts}}",
+      "action": "Add prompts"
+    },
+    "answers": {
+      "name": "First answers",
+      "waiting": "First answers arrive after the next Monday or Thursday run",
+      "blocked": "Needs engines and prompts"
+    }
+  }
 }
