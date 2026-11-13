@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T09:01:04+05:30",
+ "updated": "2026-11-13T09:20:41+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1211,14 +1211,14 @@
    "title": "Prompt inspector completion: header, Latest, History, Stats (R-11 prompt part)",
    "wave": "W2",
    "kind": "web",
-   "status": "not_started",
+   "status": "planning",
    "dependsOn": [
     "WP-07",
     "WP-08",
     "WP-04"
    ],
-   "session": null,
-   "branch": null,
+   "session": "wp-25-inspector",
+   "branch": "ai/wp-25-inspector-completion",
    "rows": {
     "BE": [],
     "WB": [
