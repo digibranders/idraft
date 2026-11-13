@@ -20,7 +20,11 @@ server or the release. Run every command from the repository root or any worktre
 
 ## Lanes
 
-Heavy, 1 job at a time across all worktrees (`--lane heavy`, the default):
+Slot counts: 1 heavy and 2 medium by default. When the Mac runs only this project, the coordinator raises them
+by writing `heavy=2` and `medium=3` lines into `/tmp/idraft-health/slots` (the file is read on every call; a
+missing or invalid value falls back to the default).
+
+Heavy, 1 job at a time across all worktrees by default (`--lane heavy`, the default):
 
 - `backend/check.sh` without a test path, `pytest` without a path
 - `pnpm test` without a path, `pnpm build`, `pnpm e2e`, `pnpm e2e:visual`

@@ -84,7 +84,15 @@ else
   root="$common/idraft-locks"
 fi
 
-lane_slots() { case "$1" in heavy) echo 1 ;; medium) echo 2 ;; esac; }
+# Slots per lane: 1 heavy and 2 medium by default; the coordinator can raise them without editing this file by
+# writing "heavy=2" and "medium=3" lines into $IDRAFT_SLOTS_FILE (default /tmp/idraft-health/slots).
+lane_slots() {
+  local default file value=""
+  case "$1" in heavy) default=1 ;; medium) default=2 ;; esac
+  file="${IDRAFT_SLOTS_FILE:-/tmp/idraft-health/slots}"
+  if [ -r "$file" ]; then value="$(sed -n "s/^$1=\\([1-9]\\)\$/\\1/p" "$file" | head -n 1)"; fi
+  echo "${value:-$default}"
+}
 
 # ---- liveness of a slot ----
 
