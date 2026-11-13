@@ -1,5 +1,6 @@
 """Contract C1, prompt list, create and change (docs/ai-visibility/contracts/c1-prompts.md): each
-addition answers 501 once the caller may use the route; left out, nothing changes."""
+addition not built yet answers 501 once the caller may use the route; left out, nothing changes.
+The create members are built (test_prompt_provenance.py)."""
 
 from __future__ import annotations
 
@@ -104,42 +105,6 @@ async def test_the_list_without_additions_answers_as_before(
     assert len(rows) == 1
     assert archived.status_code == 200, archived.text
     assert archived.json()["data"] == []
-
-
-@pytest.mark.parametrize(
-    "extra",
-    [
-        {"is_branded": True},
-        {"source": "csv_import"},
-        {"creation_method": "imported"},
-        {"generated_from": {"tracked_keyword_id": str(uuid.uuid4()), "template": "comparison"}},
-    ],
-)
-async def test_a_create_member_that_is_not_built_answers_501_and_writes_nothing(
-    api: httpx.AsyncClient,
-    resources: Resources,
-    migrated: PostgresServer,
-    extra: dict[str, Any],
-) -> None:
-    workspace = await make_workspace(migrated)
-    editor = await member(resources, migrated, workspace, "editor")
-    viewer = await member(resources, migrated, workspace, "viewer")
-    project = await ai_project(migrated, workspace)
-    body = prompt_body("Which CRM suits a startup?", **extra)
-
-    one = await api.post(
-        project_url(workspace, project, "prompts"), json=body, headers=editor.headers
-    )
-    many = await api.post(
-        project_url(workspace, project, "prompts", "bulk-create"),
-        json={"items": [body]},
-        headers=editor.headers,
-    )
-    listed = await api.get(project_url(workspace, project, "prompts"), headers=viewer.headers)
-
-    assert problem(one) == NOT_BUILT
-    assert problem(many) == NOT_BUILT
-    assert listed.json()["data"] == []
 
 
 async def test_a_viewer_is_refused_before_the_new_members_are_looked_at(

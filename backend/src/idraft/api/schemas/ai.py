@@ -85,7 +85,6 @@ PromptSource = Literal["manual", "csv_import", "seo_keyword", "paa", "gsc_query"
 CreateMethod = Literal["human", "template", "imported"]
 # The templates of `POST {P}/prompts/from-keywords/preview` (docs/19 section 3.7.1).
 GeneratedTemplate = Literal["recommendation", "comparison", "how_to", "procurement"]
-_NOT_BUILT = "Not built yet: `501 not_implemented`."
 _NOT_RETURNED = "Not returned yet: absent from every response until it is built."
 
 BULK_CREATE_MAX: Final = 1000
@@ -179,17 +178,20 @@ class PromptCreate(Body):
     )
     is_branded: bool | None = Field(
         default=None,
-        description="Overrides the branded flag computed from the own aliases. " + _NOT_BUILT,
+        description="Overrides the branded flag computed from the own aliases; sent, it is kept "
+        "and `is_branded_source` is `override`.",
     )
     source: PromptSource | None = Field(
-        default=None, description="Where the prompt came from; left out: `manual`. " + _NOT_BUILT
+        default=None, description="Where the prompt came from; left out: `manual`."
     )
     creation_method: CreateMethod | None = Field(
-        default=None, description="How it was written; left out: `human`. " + _NOT_BUILT
+        default=None,
+        description="How it was written; left out: `human`, or `template` with `generated_from`.",
     )
     generated_from: GeneratedFrom | None = Field(
         default=None,
-        description="The tracked keyword and template it was generated from. " + _NOT_BUILT,
+        description="The tracked keyword (one of the project's, else `tracked_keyword_unknown`) "
+        "and template it was generated from. Kept in the audit entry only.",
     )
 
 
@@ -209,7 +211,11 @@ class PromptPatch(Patch):
     funnel_stage: FunnelStage | None = None
     prompt_type: PromptType | None = None
     importance: Importance | None = None
-    is_branded: bool | None = None
+    is_branded: bool | None = Field(
+        default=None,
+        description="Sets the branded flag; `is_branded_source` becomes `override`, even when "
+        "the value is the one the aliases give.",
+    )
     is_active: bool | None = Field(
         default=None,
         description="`true` brings an archived prompt back; it counts against the quota.",

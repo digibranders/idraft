@@ -8,8 +8,10 @@ decision A2). Writers of one workspace take a lock first, so the active prompt q
 duplicate check hold under concurrent writes. A prompt's country must be one every enabled
 engine of the project runs in, so no prompt is saved to be skipped everywhere; a prompt brought
 back from the archive is not checked again, and an engine without its country skips it.
-`is_branded` is computed from the project's own aliases when a prompt is saved. Every change is
-audited in its transaction.
+`is_branded` is computed from the project's own aliases when a prompt is saved, unless the caller
+sends it (then `is_branded_source` is `override`, as after a PATCH of it). A prompt that says it
+was generated from a tracked keyword names one of the project's own. Every change is audited in
+its transaction.
 """
 
 from __future__ import annotations
@@ -183,14 +185,27 @@ class Limits:
 @dataclass(frozen=True, slots=True)
 class Checks:
     """What items are checked against: the terms they name that the project may use, held
-    until the transaction ends, and the countries of the project's enabled engines."""
+    until the transaction ends, the countries of the project's enabled engines and the tracked
+    keywords the items say they were generated from, of those the project has."""
 
     terms: Mapping[UUID, TermRecord]
     countries: Mapping[EngineCode, set[str]]
+    keywords: set[UUID]
 
     def error(self, item: PromptCreate) -> FieldError | None:
-        return term_error(item.term_ids, self.terms) or _country_error(
-            item.country_iso, self.countries
+        return (
+            term_error(item.term_ids, self.terms)
+            or _country_error(item.country_iso, self.countries)
+            or self._keyword_error(item)
+        )
+
+    def _keyword_error(self, item: PromptCreate) -> FieldError | None:
+        if item.generated_from is None or item.generated_from.tracked_keyword_id in self.keywords:
+            return None
+        return FieldError(
+            "generated_from.tracked_keyword_id",
+            "tracked_keyword_unknown",
+            "A keyword the project does not track.",
         )
 
 
@@ -426,6 +441,12 @@ async def checks_for(
     return Checks(
         terms={term.term_id: term for term in usable},
         countries=await engines.enabled_countries(db, access.workspace_id, project_id),
+        keywords=await prompts.live_tracked_keywords(
+            db,
+            access.workspace_id,
+            project_id,
+            {item.generated_from.tracked_keyword_id for item in items if item.generated_from},
+        ),
     )
 
 
@@ -440,9 +461,24 @@ def _snapshot(record: PromptRecord) -> audit.Snapshot:
         "prompt_type_source": record.prompt_type_source,
         "importance": record.importance,
         "is_branded": record.is_branded,
+        "is_branded_source": record.is_branded_source,
         "is_active": record.is_active,
         "term_ids": sorted(str(term.term_id) for term in record.terms),
     }
+
+
+def _created_snapshot(record: PromptRecord, item: PromptCreate) -> audit.Snapshot:
+    """What a new prompt was and where it came from. `generated_from` has no column, so the
+    audit entry is its only trace (a snapshot holds flat values, so it is two keys)."""
+    snapshot: dict[str, str | int | bool | list[str] | None] = {
+        **_snapshot(record),
+        "source": record.source,
+        "creation_method": record.creation_method,
+    }
+    if item.generated_from is not None:
+        snapshot["generated_from_tracked_keyword_id"] = str(item.generated_from.tracked_keyword_id)
+        snapshot["generated_from_template"] = item.generated_from.template
+    return snapshot
 
 
 async def write(
@@ -480,7 +516,12 @@ async def write(
                 prompt_type=typed[0],
                 prompt_type_source=typed[1],
                 importance=item.importance,
-                is_branded=names_own(result, own),
+                # Sent, the flag is a person's word; left out, the own aliases give it.
+                is_branded=names_own(result, own) if item.is_branded is None else item.is_branded,
+                is_branded_source="computed" if item.is_branded is None else "override",
+                source=item.source or "manual",
+                creation_method=item.creation_method
+                or ("human" if item.generated_from is None else "template"),
                 term_ids=tuple(sorted(set(item.term_ids))),
             )
             for item, result, typed in zip(items, results, types, strict=True)
@@ -496,7 +537,10 @@ async def write(
         action="prompt.created",
         target_type="prompt",
         info=info,
-        entries=[audit.Entry(target_id=record.id, after=_snapshot(record)) for record in records],
+        entries=[
+            audit.Entry(target_id=record.id, after=_created_snapshot(record, item))
+            for record, item in zip(records, items, strict=True)
+        ],
     )
     return records
 
@@ -741,6 +785,9 @@ class PromptService:
             values = {name: getattr(body, name) for name in given & _COLUMNS}
             if "prompt_type" in values:
                 values["prompt_type_source"] = "person"
+            if "is_branded" in values:
+                # Even the value the aliases give is the person's word from now on.
+                values["is_branded_source"] = "override"
             if values.get("is_active") is True and not current.is_active:
                 limit, used = await prompts.quota_usage(db, access.workspace_id)
                 if used + 1 > limit:

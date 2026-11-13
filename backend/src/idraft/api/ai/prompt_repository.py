@@ -36,6 +36,7 @@ from idraft.db.tables import (
     ai_prompts,
     projects,
     taxonomy_terms,
+    tracked_keywords,
     users,
     workspace_quotas,
 )
@@ -111,6 +112,10 @@ class NewPrompt:
     prompt_type_source: str
     importance: int
     is_branded: bool
+    # `override` when the caller sent `is_branded`, `computed` when the own aliases gave it.
+    is_branded_source: str
+    source: str
+    creation_method: str
     term_ids: tuple[UUID, ...]
 
 
@@ -373,6 +378,24 @@ async def limits_row(db: AsyncSession, workspace_id: UUID) -> LimitsRow:
     return LimitsRow(ai_observations_limit=limit, now=now)
 
 
+async def live_tracked_keywords(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, ids: Collection[UUID]
+) -> set[UUID]:
+    """Those of `ids` the project tracks (not deleted): one statement for all of them."""
+    if not ids:
+        return set()
+    t = tracked_keywords.c
+    rows = await db.execute(
+        select(t.id).where(
+            t.workspace_id == workspace_id,
+            t.project_id == project_id,
+            t.deleted_at.is_(None),
+            among_ids(t.id, sorted(ids)),
+        )
+    )
+    return set(rows.scalars())
+
+
 async def existing(
     db: AsyncSession, workspace_id: UUID, project_id: UUID, keys: Collection[PromptKey]
 ) -> dict[PromptKey, UUID]:
@@ -485,6 +508,9 @@ async def insert_prompts(
                         "prompt_type_source": items[index].prompt_type_source,
                         "importance": items[index].importance,
                         "is_branded": items[index].is_branded,
+                        "is_branded_source": items[index].is_branded_source,
+                        "source": items[index].source,
+                        "creation_method": items[index].creation_method,
                         "created_by": created_by,
                         "created_at": now,
                         "updated_at": now,

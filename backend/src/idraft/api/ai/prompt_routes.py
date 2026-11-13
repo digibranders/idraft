@@ -93,16 +93,6 @@ IfMatch = Annotated[
 ]
 
 
-def _unbuilt_members(item: PromptCreate) -> dict[str, bool]:
-    """The members of a create whose behaviour is not built yet (contract C1)."""
-    return {
-        "is_branded": item.is_branded is not None,
-        "source": item.source is not None,
-        "creation_method": item.creation_method is not None,
-        "generated_from": item.generated_from is not None,
-    }
-
-
 def prompt_view(record: PromptRecord) -> Prompt:
     version = record.current_version
     return Prompt.model_validate(
@@ -244,16 +234,18 @@ async def list_prompts(
     "`used` and `requested`) past the workspace's active prompt limit. Field codes: "
     "`prompt_too_long` (over 2,000 characters, the most any engine takes), "
     "`location_not_supported` (`country_iso` has no location of an enabled engine), "
-    "`term_unknown` and `single_valued_vocabulary`. `is_branded` is computed from the project's "
-    "own aliases. `prompt_type` left out is chosen from the wording (`rule`: `vs` or `versus` is "
-    "a comparison, `how to` is how_to, a leading question word or a question mark is a "
-    "question, anything else is other) and `prompt_type_source` says `rule`; sent, it is kept "
-    "and says `person`.",
+    "`term_unknown`, `single_valued_vocabulary` and `tracked_keyword_unknown` "
+    "(`generated_from` names a keyword the project does not track). `is_branded` left out is "
+    "computed from the project's own aliases and `is_branded_source` says `computed`; sent, it "
+    "is kept and says `override`. `source` left out is `manual` and `creation_method` is `human` "
+    "(`template` with `generated_from`, which is kept in the audit entry). `prompt_type` left "
+    "out is chosen from the wording (`rule`: `vs` or `versus` is a comparison, `how to` is "
+    "how_to, a leading question word or a question mark is a question, anything else is other) "
+    "and `prompt_type_source` says `rule`; sent, it is kept and says `person`.",
 )
 async def create_prompt(
     project_id: UUID, body: PromptCreate, access: WritePrompts, prompts: Prompts, info: Info
 ) -> PromptResponse:
-    refuse_unbuilt(_unbuilt_members(body))
     return PromptResponse(data=prompt_view(await prompts.create(access, project_id, body, info)))
 
 
@@ -301,6 +293,7 @@ def _lint_view(item: LintedPrompt) -> PromptLint:
     summary="Add a list of prompts",
     description="Up to 1,000 items. An item that cannot be saved is rejected with its code "
     "(`location_not_supported`, `term_unknown`, `single_valued_vocabulary`, "
+    "`tracked_keyword_unknown`, "
     "`duplicate_in_request` for the same prompt twice in the list, and `duplicate` with "
     "`on_duplicate: error`); with `skip`, a prompt the project has is listed in `skipped`. The "
     "rest are written together: `422 quota_exceeded` past the workspace's active prompt limit, "
@@ -310,8 +303,6 @@ def _lint_view(item: LintedPrompt) -> PromptLint:
 async def bulk_create_prompts(
     project_id: UUID, body: PromptBulkCreate, access: WritePrompts, prompts: Prompts, info: Info
 ) -> PromptBulkResponse:
-    for item in body.items:
-        refuse_unbuilt(_unbuilt_members(item))
     outcome = await prompts.bulk_create(access, project_id, body, info)
     return PromptBulkResponse(
         data=PromptBulkResult(
@@ -435,7 +426,8 @@ async def get_prompt(
     description="The text, language and country cannot change (`422 validation_failed` with "
     "`immutable_field`): archive the prompt and add a new one. `term_ids` replaces the terms. "
     "`is_active: true` brings an archived prompt back and counts against the quota. Setting "
-    "`prompt_type` makes `prompt_type_source` `person`.",
+    "`prompt_type` makes `prompt_type_source` `person`, and setting `is_branded` makes "
+    "`is_branded_source` `override`.",
 )
 async def update_prompt(
     project_id: UUID,
