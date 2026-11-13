@@ -4,7 +4,7 @@ import { http, HttpResponse } from 'msw';
 import { useRef, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import { expect, vi } from 'vitest';
 
-import { CustomizableScreen } from '@/features/layouts/customize/customizable-screen';
+import { CustomizableGrid, CustomizableScreen } from '@/features/layouts/customize/customizable-screen';
 import { CustomizeButton } from '@/features/layouts/customize/customize-button';
 import { useCustomize } from '@/features/layouts/customize/customize-controller';
 import { CustomizingBadge } from '@/features/layouts/customize/customizing-badge';
@@ -186,6 +186,10 @@ export interface UnderTestProps {
   buttonLabel?: ComponentProps<typeof CustomizeButton>['label'];
   /** More parts of the screen, for a test of a part of its own. */
   extra?: ReactNode;
+  /** What the project can use; both channels by default. */
+  capabilities?: Capabilities;
+  /** The grid of a page: its Add card slot opens the catalog. Without it the grid has no slot. */
+  addSlot?: boolean;
 }
 
 /** One customizable screen: its header with the button and the badge, the test's controls, and the cards. */
@@ -195,6 +199,8 @@ export function ScreenUnderTest({
   onThen = () => undefined,
   buttonLabel,
   extra,
+  capabilities = BOTH_CHANNELS,
+  addSlot = false,
 }: UnderTestProps): ReactElement {
   return (
     <PermissionProvider membership={membershipFactory('admin')}>
@@ -203,7 +209,7 @@ export function ScreenUnderTest({
           screen={key}
           workspaceId={WORKSPACE}
           workspaceName="Acme"
-          capabilities={BOTH_CHANNELS}
+          capabilities={capabilities}
           registry={defineCards({})}
         >
           <header>
@@ -212,7 +218,7 @@ export function ScreenUnderTest({
           </header>
           <Controls onThen={onThen} />
           {extra}
-          <LayoutGrid label={`${label} cards`} />
+          {addSlot ? <CustomizableGrid label={`${label} cards`} /> : <LayoutGrid label={`${label} cards`} />}
         </CustomizableScreen>
       </section>
     </PermissionProvider>

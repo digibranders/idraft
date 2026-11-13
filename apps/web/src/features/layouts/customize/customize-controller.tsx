@@ -20,6 +20,7 @@ import {
   type RefObject,
 } from 'react';
 
+import { CardCatalogDialog } from '../catalog/card-catalog-dialog';
 import { useLayoutScreen } from '../layout-provider';
 import { MEDIUM_MEDIA } from '../use-breakpoint';
 import { DiscardChangesDialog } from '@/components/ui/alert-dialog';
@@ -40,6 +41,11 @@ export interface CustomizeContextValue {
   requestExit(then?: () => void): void;
   /** The ref of a Customize button: where focus goes back to. Returns what React calls when the button goes. */
   registerEntry(node: HTMLElement | null): () => void;
+  /**
+   * Opens the card catalog; a card chosen there goes to `index` of the document's cards. Only in customize mode,
+   * and the catalog closes with the mode. Focus returns to what held it when the catalog was opened.
+   */
+  openCatalog(index: number): void;
 }
 
 const CustomizeContext = createContext<CustomizeContextValue | null>(null);
@@ -87,6 +93,8 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
   const entryRef = useRef<HTMLElement | null>(null);
   const returnRef = useRef<HTMLElement | null>(null);
   const [discard, setDiscard] = useState<{ then: (() => void) | undefined } | null>(null);
+  // The index stays when the catalog closes, so the closing dialog still has the place it was opened for
+  const [catalog, setCatalog] = useState({ open: false, index: 0 });
 
   // What the callbacks below read: the state of the last render, so they can stay the same function
   const live = useRef({ customizing, dirty, saving, canCustomize, actions });
@@ -96,6 +104,7 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
 
   // The question belongs to the mode: it goes with it
   if (!customizing && discard !== null) setDiscard(null);
+  if (!customizing && catalog.open) setCatalog((current) => ({ ...current, open: false }));
 
   const requestExit = useCallback((then?: () => void): void => {
     const { dirty: changed, saving: writing, actions: current } = live.current;
@@ -179,6 +188,10 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
     };
   }, []);
 
+  const openCatalog = useCallback((index: number): void => {
+    if (live.current.customizing) setCatalog({ open: true, index });
+  }, []);
+
   // Escape leaves the mode. A card in the hand, a menu and a dialog keep the key for themselves
   useShortcut(
     'Escape',
@@ -195,13 +208,20 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
   }, [wide]);
 
   const value = useMemo<CustomizeContextValue>(
-    () => ({ workspaceName, rootRef, enter, requestExit, registerEntry }),
-    [workspaceName, enter, requestExit, registerEntry],
+    () => ({ workspaceName, rootRef, enter, requestExit, registerEntry, openCatalog }),
+    [workspaceName, enter, requestExit, registerEntry, openCatalog],
   );
 
   return (
     <CustomizeContext value={value}>
       {children}
+      <CardCatalogDialog
+        open={customizing && catalog.open}
+        index={catalog.index}
+        onOpenChange={(open) => {
+          setCatalog((current) => ({ ...current, open }));
+        }}
+      />
       <DiscardChangesDialog
         open={customizing && discard !== null}
         title={t('discardTitle')}

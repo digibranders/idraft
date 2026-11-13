@@ -2,7 +2,9 @@
 
 import type { ReactElement, ReactNode } from 'react';
 
+import { LayoutGrid, type LayoutGridProps } from '../layout-grid';
 import { LayoutProvider, type LayoutProviderProps } from '../layout-provider';
+import { CustomizeButton } from './customize-button';
 import { CustomizeController, useCustomize } from './customize-controller';
 import { useUndoKeys } from './use-undo-keys';
 
@@ -27,6 +29,16 @@ function ScreenRoot({ children }: { children: ReactNode }): ReactElement {
       {children}
     </div>
   );
+}
+
+/**
+ * The cards of a customizable screen: the layout grid with its Add card slot wired to the catalog and the
+ * Customize button on an empty page. Later parts of the customize UI (placeholders, the card boundary) fill the
+ * grid's other slots here.
+ */
+export function CustomizableGrid({ label, columns }: Pick<LayoutGridProps, 'label' | 'columns'>): ReactElement {
+  const { openCatalog } = useCustomize();
+  return <LayoutGrid label={label} columns={columns} onAddCard={openCatalog} emptyAction={<CustomizeButton />} />;
 }
 
 /**

@@ -4042,6 +4042,28 @@
         "keepEditing": "Keep editing",
         "discard": "Discard changes"
       },
+      "catalog": {
+        "title": "Add card",
+        "description": "Each card follows the page’s date range, location and filters.",
+        "search": "Search cards",
+        "close": "Close",
+        "groups": {
+          "seo": "SEO",
+          "ai": "AI",
+          "cross": "Cross-channel",
+          "activity": "Activity"
+        },
+        "add": "Add",
+        "addAnother": "Add another",
+        "added": "Added",
+        "unavailable": "Unavailable",
+        "pageFull": "Page is full",
+        "addLabel": "Add {card}",
+        "addAnotherLabel": "Add another {card}",
+        "isNew": "New",
+        "noMatch": "No cards match “{query}”",
+        "results": "{count, plural, one {# card matches} other {# cards match}}"
+      },
       "announce": {
         "numberAdded": "{number} added",
         "numberRemoved": "{number} removed",

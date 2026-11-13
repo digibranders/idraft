@@ -3,11 +3,9 @@
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { useId, useState, type ReactElement, type ReactNode } from 'react';
 
-import { CustomizableScreen } from './customize/customizable-screen';
+import { CustomizableGrid, CustomizableScreen } from './customize/customizable-screen';
 import { CustomizeButton } from './customize/customize-button';
 import { CustomizingBadge } from './customize/customizing-badge';
-import { LayoutGrid } from './layout-grid';
-import { useLayoutScreen } from './layout-provider';
 import { GALLERY_CARDS } from './live-fixtures';
 import { useLayoutCapabilities } from './use-layout-capabilities';
 import { PageHeader } from '@/components/app/shell/page-header';
@@ -40,9 +38,6 @@ const COPY = {
 
 const PROJECTS = '/api/v1/workspaces/{workspace_id}/projects';
 
-/** The card the Add card slot puts on the page, until the catalog of T2 replaces the slot's action. */
-const ADDED_TYPE = 'seo.top_movers';
-
 function Group({ title, note, children }: { title: string; note: string; children: ReactNode }): ReactElement {
   return (
     <section className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
@@ -52,19 +47,6 @@ function Group({ title, note, children }: { title: string; note: string; childre
       </header>
       {children}
     </section>
-  );
-}
-
-function Cards(): ReactElement {
-  const { actions } = useLayoutScreen();
-  return (
-    <LayoutGrid
-      label={COPY.grid}
-      onAddCard={(index) => {
-        actions.addCard(ADDED_TYPE, index);
-      }}
-      emptyAction={<CustomizeButton />}
-    />
   );
 }
 
@@ -86,7 +68,7 @@ function ProjectScreen({ membership, projectId }: ProjectScreenProps): ReactElem
       registry={GALLERY_CARDS}
     >
       <PageHeader title={COPY.pageTitle} titleAddon={<CustomizingBadge />} actions={<CustomizeButton />} />
-      <Cards />
+      <CustomizableGrid label={COPY.grid} />
     </CustomizableScreen>
   );
 }
