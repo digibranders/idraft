@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T21:11:57+05:30",
+ "updated": "2026-11-13T21:19:43+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1075,10 +1075,10 @@
    },
    "counts": {
     "total": 31,
-    "done": 25
+    "done": 31
    },
    "owner": "",
-   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | steps 7/8, rows 25/31; T4 Domains tab, T5 Pages tab, route, states and sidebar flip (Citations live) committed (0a7dac1c, 855c3b5b), whole T5c review running; P2 then T6 e2e, T7 As built, T8 final push; backed up on origin/ai/wp-21-citations"
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | P2 PUSHED (3c2e196d): Citations page live in the sidebar (Domains tab, Pages tab, Prompts with no own page, CSV, strip); 31/31 rows built, e2e (T6), As built (T7) and final heavy run + P3 pending; steps 7/8; browser pass 390/768/1024/1280 light and dark: axe clean; not seen in a browser: New/Lost badges (mock has none), filtered-empty and error states, 390 sidebar drawer, real API"
   },
   {
    "id": "WP-22",
@@ -4153,6 +4153,13 @@
    "granted": "2026-11-13T21:07:25+05:30",
    "scope": "five empty registry slot files for the WP-34 to 37 card folders; card packages fill them in",
    "until": "WP-33 merged"
+  },
+  {
+   "path": "apps/web/src/app/[workspace]/[project]/planned-routes.test.ts",
+   "wp": "WP-21 (retroactive)",
+   "granted": "2026-11-13T21:19:43+05:30",
+   "scope": "removed the /ai/citations line (planned routes must 404; the route is live now); WP-33 does the same for the Overview",
+   "until": "WP-21 merged"
   }
  ],
  "followups": [
