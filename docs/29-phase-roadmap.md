@@ -359,11 +359,27 @@ live call has confirmed (plan open question 4). The end to end flow is `apps/web
 against the newest earlier valid answer of the same prompt and engine that named the own brand: tracked entities
 by id and cited sources by registrable domain, flagged citations (`unresolved_redirect`, `engine_internal`) left
 out. No earlier such answer is `404 no_baseline`. Five statements read it (not counting `set_config`), whatever the size of the answers
-(`tests/api/ai/test_answer_compare.py` fixes the count); no table and no migration. The route was a `501` stub
-from the contract push (T0); the three additive fields (`quote`, `answer_sha256`, `raw_sha256`) are filled by T1
-and the web half of WP-26 is built separately. Rows built: BE-REPORTS-04 (contract note
+(`tests/api/ai/test_answer_compare.py` fixes the count); the compare route adds no table. The route was a `501`
+stub from the contract push (T0). The three additive fields are built: `answer_sha256` and `raw_sha256` on the
+answer detail (the hash of the answer text and of the provider body as received, still given after the raw body
+expires) and `quote` per citation, read from the Gemini scraper `snippet` and the AI Mode reference `text` (ChatGPT
+gives none), which is migration 0024 (`ai.citations.quote`, one nullable column, expand only). Rows built:
+CF-25 (offsets were already filled, now proven by tests), CF-26, BE-SOURCES-21, BE-REPORTS-04 (contract note
 docs/ai-visibility/contracts/evidence.md; doc 19 section 3.7.6 as built note; plan
 `docs/superpowers/plans/2026-11-13-ai-wp-26-evidence-viewer.md`).
+
+**As built (AI visibility WP-26 web, 2026-11-14): evidence viewer.** The answer viewer in the prompt inspector
+has three views: Evidence (marked text with inline citation markers that jump to the source list and back, and an
+entity toggle list), Formatted (an in-house markdown subset renderer: no library, HTML shown as text, images
+dropped, links only for http, https and mailto, never `dangerouslySetInnerHTML`) and Raw (the provider JSON, fetched
+on open and only with `raw:read`, cut at 200,000 characters with a note). It adds `QuoteBox`, the quoted passage
+section, the facts footer with the answer and raw hash (12 hex characters shown, the full value copied), the answer
+compare panel (gained, lost and kept in words, no earlier answer is an empty state and not an error), "Open at the
+provider" and the hash lines on the Latest cards of the prompt inspector. Rows built: SC-11, SC-23, WB-ANS-10 to
+WB-ANS-16, WB-SRC-04 (as the reusable `QuotedPassage` plus its use in the viewer; mounting it in the cited URL
+inspector is WP-22), WB-PI-23. Rows WB-ANS-01 to WB-ANS-09 are confirmed by tests (row to test map in
+docs/ai-visibility/contracts/evidence.md). The answer compare is the gained, lost and kept summary: the two column
+text comparison belongs to Prompt Detail (WP-52).
 
 ### Phase 10: SEO and AI integration
 

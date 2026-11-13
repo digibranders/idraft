@@ -167,9 +167,29 @@ and there is no re-derive.
   `test_answer_compare.py`; `backend/openapi/v1.json` and `schema.ts` were regenerated for the new route
   description at the rebase.
 
+## Web rows confirmed by tests (WB-ANS-01 to WB-ANS-09)
+
+Paths are under `apps/web/src/`. `answer.test.tsx` is `features/prompts/answer.test.tsx`.
+
+| Row | Proven by |
+|---|---|
+| WB-ANS-01 spans as UTF-16, own and competitor marks | `features/prompts/answer-segments.test.ts` (UTF-16 units, an emoji counts two, spans inside a character left out, overlaps); `answer.test.tsx` (hostile spans keep the text whole, own brand and competitors marked) |
+| WB-ANS-02 mark accessible names | `components/app/evidence/evidence-highlight.test.tsx` (entity, match and confidence, product); `answer.test.tsx` (role words for watched and untracked brands, uncertain marks) |
+| WB-ANS-03 mentions list | `answer.test.tsx` (role and count, uncertain, via product, watched without a number, none named) |
+| WB-ANS-04 sources with role and host | `answer.test.tsx` (host and role in words, canonical link); `components/app/evidence/citation-list.test.tsx` |
+| WB-ANS-05 ads note | `answer.test.tsx` (note shown in Evidence and Formatted, not for an answer without text) |
+| WB-ANS-06 status | `answer.test.tsx` (complete, partial, empty, refused, error words without provider codes, not read yet) |
+| WB-ANS-07 details | `answer.test.tsx` (engine, time in the project time zone, model, outcome, provider link, facts and hashes) |
+| WB-ANS-08 download raw, 410 and 503 | `answer.test.tsx` (download, busy and focus, past retention, unavailable then retried, no control without `raw:read`) |
+| WB-ANS-09 back to the prompt | `answer.test.tsx` (open from a date, back to the prompt, error back, the prompt stays marked) |
+
+The end to end flow is `apps/web/e2e/flows/ai-evidence.spec.ts` (markers, toggles, Formatted and Raw, compare,
+provider link, hash copy, no horizontal scroll at 390 px, axe at 1280 and 390 in light and dark).
+
 ## Change log
 
 Newest last; one line per change, in the form `date package: change`.
 
 2026-11-13 WP-26: contract published (route stub, three optional fields)
+2026-11-13 WP-26: the fields are built (T1): `answer_sha256`, `raw_sha256` and `quote`; the quote column is migration 0024 (`ai.citations.quote`)
 2026-11-13 WP-26: the compare route is built (T2): the `501 not_implemented` stub is gone and the route answers `200`, `404 not_found` or `404 no_baseline` (also an answer with no current facts yet); the shapes are unchanged; the route description now states the D1 and D2 rules; `test_contract_evidence.py` is replaced by `test_answer_compare.py`
