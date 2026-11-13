@@ -252,6 +252,37 @@ describe('a scope the destination cannot express gives null, never a link that s
   });
 });
 
+describe('the longest window the destinations take', () => {
+  // The Overview allows 92 days; Prompts and Citations read a range with the default limit, 91
+  const custom = (from: string, to: string, days: number): OverviewScope =>
+    scopeOf({ rangeValue: { kind: 'custom', from, to }, range: { from, to, days } });
+  const KINDS = ['prompts', 'topic', 'topicDrawer', 'citations'] as const;
+
+  it.each(KINDS)('%s: a 92 day custom window gives null, not a link that opens another window', (kind) => {
+    expect(drillHref(kind, custom('2026-08-13', '2026-11-12', 92), { term: TOPIC }, PROJECT)).toBeNull();
+  });
+
+  it.each(KINDS)('%s: a 91 day window links and the destination reads it back as the same window', (kind) => {
+    const scope = custom('2026-08-14', '2026-11-12', 91);
+    const query = queryOf(drillHref(kind, scope, { term: TOPIC }, PROJECT));
+    const read = readRangeParams(
+      { win: query.get('win'), from: query.get('from'), to: query.get('to') },
+      { today: '2026-11-13' },
+    );
+    expect(read).toEqual({ value: scope.rangeValue, dropped: null });
+  });
+
+  it('the 90d preset still links', () => {
+    const scope = scopeOf({
+      rangeValue: { kind: 'preset', preset: '90d' },
+      range: { from: '2026-08-15', to: '2026-11-12', days: 90 },
+    });
+    const query = queryOf(drillHref('prompts', scope, {}, PROJECT));
+    expect(query.get('win')).toBe('90d');
+    expect(readRangeParams({ win: '90d', from: null, to: null }, { today: '2026-11-13' }).dropped).toBeNull();
+  });
+});
+
 describe('bad input', () => {
   it('a window before 2000 and a window that is not a date never throw', () => {
     const early = scopeOf({

@@ -1,6 +1,6 @@
 import type { Route } from 'next';
 
-import { writeRangeParams } from '@/components/app/date-range/range-model';
+import { MAX_RANGE_DAYS, writeRangeParams } from '@/components/app/date-range/range-model';
 import { cmpParam } from '@/lib/compare/compare-model';
 import { formatInspectTarget } from '@/lib/inspector/placement';
 import { NAVIGATION, type NavKey } from '@/lib/navigation/registry';
@@ -19,7 +19,8 @@ import type { Branded, OverviewScope } from '../scope/scope-model';
  * to that page's own parsers, so a rename there fails the test and not the person who follows a link.
  *
  * A link is `null` (the number is plain text) rather than a link that would show other numbers than the ones
- * clicked: the page is not live, or the scope has a country or a branded choice the page cannot express.
+ * clicked: the page is not live, or the scope has a country, a branded choice or a window the page cannot express.
+ * The helper cannot know which engines are off in the project: the caller skips the link when the scope holds one.
  */
 
 export type DrillKind =
@@ -119,6 +120,8 @@ export function drillHref(
   if (page === undefined || page.status !== 'live') return null;
   const path = projectPath(project.workspace, project.project, page.path);
   if (!destination.scoped) return path;
+  // The Overview takes 92 days; the pages read a range with the default limit and would open another window
+  if (scope.range.days > MAX_RANGE_DAYS) return null;
 
   const branded = destination.branded[scope.branded];
   if (branded === undefined || (scope.country !== null && !destination.country)) return null;
