@@ -38,6 +38,8 @@ interface Session {
   /** One column and one gap of the page grid, in pixels. */
   column: number;
   gap: number;
+  /** From the card's left edge to the grid's right edge: the outline never goes past it. */
+  room: number;
 }
 
 /** What the outline shows: the width the pointer would give, and its size in the grid's pixels. */
@@ -51,8 +53,9 @@ interface GripProps extends ResizeGripProps {
   breakpoint: Breakpoint;
 }
 
-const pixelsOf = (columns: number, { column, gap }: Pick<Session, 'column' | 'gap'>): number =>
-  columns * column + (columns - 1) * gap;
+/** The outline's width for `columns`: as wide as they are, and no wider than the grid has room for. */
+const pixelsOf = (columns: number, { column, gap, room }: Session): number =>
+  Math.min(columns * column + (columns - 1) * gap, room);
 
 function Grip({ item, widths, breakpoint }: GripProps): ReactElement {
   const t = useTranslations('layouts.core');
@@ -71,6 +74,8 @@ function Grip({ item, widths, breakpoint }: GripProps): ReactElement {
     const enter = (): void => {
       setHovered(true);
     };
+    // The pointer may already be over the card when the grip mounts (customize mode begins, the window changes size)
+    setHovered(frame.matches(':hover'));
     const leave = (): void => {
       setHovered(false);
     };
@@ -98,6 +103,7 @@ function Grip({ item, widths, breakpoint }: GripProps): ReactElement {
     if (!dragging) return undefined;
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return;
+      event.preventDefault();
       event.stopPropagation();
       stop();
     };
@@ -123,17 +129,21 @@ function Grip({ item, widths, breakpoint }: GripProps): ReactElement {
     const grid = frame?.parentElement;
     if (frame === null || frame === undefined || grid === null || grid === undefined) return;
     const gap = columnGapOf(grid);
-    const column = (grid.getBoundingClientRect().width - (COLUMNS - 1) * gap) / COLUMNS;
+    const gridBox = grid.getBoundingClientRect();
+    const frameBox = frame.getBoundingClientRect();
+    const column = (gridBox.width - (COLUMNS - 1) * gap) / COLUMNS;
     if (!(column > 0)) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    session.current = {
+    const pressed: Session = {
       pointerId: event.pointerId,
       startX: event.clientX,
-      startWidth: frame.getBoundingClientRect().width,
+      startWidth: frameBox.width,
       column,
       gap,
+      room: gridBox.right - frameBox.left,
     };
-    setPreview({ width: current, px: pixelsOf(spanOf(current, breakpoint), session.current) });
+    session.current = pressed;
+    setPreview({ width: current, px: pixelsOf(spanOf(current, breakpoint), pressed) });
   };
 
   const onPointerMove = (event: PointerEvent<HTMLDivElement>): void => {

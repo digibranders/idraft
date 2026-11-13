@@ -184,7 +184,7 @@ function mount(extra: ReactElement | null = null): ProvidedRender {
   return view;
 }
 
-async function customize(view: ProvidedRender): Promise<void> {
+async function customize(view: ProvidedRender, layout: LayoutDocument = DOCUMENT): Promise<void> {
   const button = screen.getByRole('button', { name: 'Customize' });
   await waitFor(() => {
     expect(button).toBeEnabled();
@@ -193,8 +193,9 @@ async function customize(view: ProvidedRender): Promise<void> {
   await waitFor(() => {
     expect(latest?.mode).toBe('customize');
   });
-  layOut(DOCUMENT.cards ?? [], media.breakpoint);
-  const grid = frameOf('rank').parentElement;
+  const cards = layout.cards ?? [];
+  layOut(cards, media.breakpoint);
+  const grid = frameOf(cards[0]?.id ?? '').parentElement;
   if (grid === null) throw new Error('the frames have no grid');
   grid.style.columnGap = `${String(GAP)}px`;
   vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
@@ -210,7 +211,7 @@ async function open(breakpoint: Breakpoint = 'wide', layout: LayoutDocument = DO
   stubMedia();
   serve(layout);
   const view = mount();
-  await customize(view);
+  await customize(view, layout);
   return view;
 }
 
@@ -222,16 +223,16 @@ const rightOf = (id: string): number => {
   if (box === undefined) throw new Error(`no box for ${id}`);
   return box.left + box.width;
 };
-/** Presses on the grip of a card, at its right edge. */
-function press(id: string): void {
-  fireEvent.pointerDown(gripOf(id), { pointerId: POINTER, button: 0, clientX: rightOf(id), clientY: 50 });
+/** Presses on the grip of a card, at its right edge. False when the press was cancelled (`preventDefault`). */
+function press(id: string): boolean {
+  return fireEvent.pointerDown(gripOf(id), { pointerId: POINTER, button: 0, clientX: rightOf(id), clientY: 50 });
 }
 /** Moves the pointer `by` pixels from where it pressed. */
-function move(id: string, by: number): void {
-  fireEvent.pointerMove(gripOf(id), { pointerId: POINTER, clientX: rightOf(id) + by, clientY: 50 });
+function move(id: string, by: number, pointerId: number = POINTER): void {
+  fireEvent.pointerMove(gripOf(id), { pointerId, clientX: rightOf(id) + by, clientY: 50 });
 }
-function lift(id: string, by: number): void {
-  fireEvent.pointerUp(gripOf(id), { pointerId: POINTER, clientX: rightOf(id) + by, clientY: 50 });
+function lift(id: string, by: number, pointerId: number = POINTER): void {
+  fireEvent.pointerUp(gripOf(id), { pointerId, clientX: rightOf(id) + by, clientY: 50 });
 }
 /** The pixels the pointer moves for the card's right edge to sit where `columns` columns would end. */
 const toColumns = (id: string, columns: number): number => spanPx(columns) - (boxes.get(id)?.width ?? 0);
@@ -247,7 +248,7 @@ afterEach(() => {
 });
 
 describe('where the grip is', () => {
-  it('is on a card with two different widths at wide, and not on one whose widths look the same at medium', async () => {
+  it('is on every card with two different widths at wide', async () => {
     await open('wide');
     expect(hasGrip('rank')).toBe(true);
     expect(hasGrip('movers')).toBe(true);
@@ -317,15 +318,27 @@ describe('the handle', () => {
 });
 
 describe('resizing', () => {
-  it('takes the pointer on press, and a press on the grip goes no further (it must not start a card drag)', async () => {
+  it('takes the pointer on press, keeps the browser from its own default, and goes no further (it must not start a card drag)', async () => {
     await open();
     const reached = vi.fn();
     document.addEventListener('pointerdown', reached);
-    press('rank');
+    const uncancelled = press('rank');
     document.removeEventListener('pointerdown', reached);
     expect(capture.set).toHaveBeenCalledWith(POINTER);
+    expect(uncancelled).toBe(false);
     expect(reached).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-slot="layout-drag-overlay"]')).toBeNull();
+  });
+
+  it('follows the pointer it was pressed by and ignores another one', async () => {
+    await open();
+    press('movers');
+    move('movers', toColumns('movers', 7), 2);
+    expect(previewOf()).toHaveStyle({ width: `${String(spanPx(4))}px` });
+    lift('movers', toColumns('movers', 7), 2);
+    expect(previewOf()).not.toBeNull();
+    expect(latest?.canUndo).toBe(false);
+    lift('movers', toColumns('movers', 7));
+    expect(latest?.document.cards?.find((card) => card.id === 'movers')?.width).toBe('half');
   });
 
   it('ignores a press that is not the main button', async () => {
@@ -448,7 +461,8 @@ describe('ending without a change', () => {
     press('movers');
     move('movers', toColumns('movers', 7));
     expect(previewOf()).not.toBeNull();
-    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+    const uncancelled = fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+    expect(uncancelled).toBe(false);
     expect(previewOf()).toBeNull();
     expect(capture.release).toHaveBeenCalledWith(POINTER);
     lift('movers', toColumns('movers', 7));
@@ -496,5 +510,78 @@ describe('ending without a change', () => {
     press('movers');
     expect(capture.set).not.toHaveBeenCalled();
     expect(previewOf()).toBeNull();
+  });
+
+  it('is left alone when the card goes away in the middle of a drag: no change, no listener left, no warning', async () => {
+    const view = await open();
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const setWidth = vi.spyOn(latest?.actions ?? { setCardWidth: () => false }, 'setCardWidth');
+    const added = vi.spyOn(window, 'addEventListener');
+    const removed = vi.spyOn(window, 'removeEventListener');
+    press('movers');
+    move('movers', toColumns('movers', 7));
+    expect(added.mock.calls.filter(([type]) => type === 'keydown')).toHaveLength(1);
+    view.unmount();
+    expect(removed.mock.calls.filter(([type]) => type === 'keydown')).toHaveLength(1);
+    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+    expect(setWidth).not.toHaveBeenCalled();
+    expect(errors).not.toHaveBeenCalled();
+  });
+});
+
+describe('the outline at the grid edge', () => {
+  /** The engine card is the right half of the row: from column 7, 500 px wide, 500 px from the grid's right edge. */
+  const RIGHT: LayoutDocument = {
+    schema: 1,
+    numbers: [],
+    cards: [
+      { id: 'left', type: 'cross.matrix_summary', width: 'half' },
+      { id: 'engine', type: 'ai.by_engine', width: 'half' },
+    ],
+  };
+
+  it('never reaches past the grid, however far the pointer goes, and the name stays inside it', async () => {
+    await open('wide', RIGHT);
+    const room = GRID_WIDTH - (boxes.get('engine')?.left ?? 0);
+    expect(room).toBe(spanPx(6));
+    press('engine');
+    // the full row is 12 columns: wider than the room there is
+    move('engine', toColumns('engine', 12));
+    const preview = previewOf();
+    expect(preview).toHaveTextContent('Full');
+    expect(preview).toHaveStyle({ width: `${String(room)}px` });
+    expect(preview?.querySelector('[data-slot="layout-resize-tip"]')).not.toBeNull();
+    move('engine', 900);
+    expect(previewOf()).toHaveStyle({ width: `${String(room)}px` });
+    // the card still takes the width the pointer chose: the grid puts it in a row of its own
+    lift('engine', toColumns('engine', 12));
+    expect(latest?.document.cards?.find((card) => card.id === 'engine')?.width).toBe('full');
+  });
+
+  it('is not shortened where there is room', async () => {
+    await open('wide', RIGHT);
+    press('left');
+    move('left', toColumns('left', 8));
+    expect(previewOf()).toHaveStyle({ width: `${String(spanPx(8))}px` });
+    expect(previewOf()).toHaveTextContent('Two thirds');
+  });
+});
+
+describe('the handle when the pointer is already there', () => {
+  it('shows at once on a card the pointer is over when customize mode begins', async () => {
+    media.breakpoint = 'wide';
+    stubMedia();
+    serve(DOCUMENT);
+    const view = mount();
+    const matches = Element.prototype.matches;
+    // jsdom has no pointer, so :hover is answered here for the frame of the rank card
+    vi.spyOn(Element.prototype, 'matches').mockImplementation(function (this: Element, selector: string) {
+      return selector === ':hover' && this.getAttribute('data-layout-card') === 'rank'
+        ? true
+        : matches.call(this, selector);
+    });
+    await customize(view);
+    expect(gripOf('rank').children).toHaveLength(1);
+    expect(gripOf('movers').children).toHaveLength(0);
   });
 });
