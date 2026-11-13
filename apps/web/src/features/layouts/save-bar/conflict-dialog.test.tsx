@@ -1,8 +1,9 @@
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useCustomize } from '../customize/customize-controller';
+import { useLayoutScreen } from '../layout-provider';
 import { SCREENS } from '@/lib/layouts';
 import {
   ScreenUnderTest,
@@ -39,13 +40,31 @@ const toastText = (): string => document.querySelector('[data-slot="toast"]')?.t
 
 function ConflictProbe(): ReactElement {
   const { conflict, conflictPending } = useCustomize();
+  const { document: draft } = useLayoutScreen();
   return (
     <div>
       <p data-testid="conflict">{conflict ?? 'none'}</p>
       <p data-testid="pending">{conflictPending ?? 'none'}</p>
+      <p data-testid="draft">{(draft.cards ?? []).map((card) => card.id).join(',')}</p>
     </div>
   );
 }
+
+/** The team default as someone else saved it: three cards, over a personal layout of the built-in cards. */
+const OTHER_TEAM = (): Record<string, unknown> => ({
+  source: 'personal',
+  document: SCREENS.overview.builtin,
+  team_default_exists: true,
+  team_document: {
+    schema: 1,
+    numbers: [],
+    cards: [
+      { id: 't1', type: 'ai.by_engine', width: 'half' },
+      { id: 't2', type: 'seo.rank_distribution', width: 'half' },
+      { id: 't3', type: 'trend.visibility_mentions', width: 'full' },
+    ],
+  },
+});
 
 /** The layout as the other writer left it: a personal layout saved by Ana Brandt three minutes ago. */
 const OTHER_VERSION = (): Record<string, unknown> => ({
@@ -140,6 +159,80 @@ describe('LayoutConflictDialog', () => {
       await new Promise((resolve) => setTimeout(resolve, 150));
     });
     expect(answer('Load the other version')).toHaveFocus();
+  });
+
+  it('Load the other version after a team 412 loads the team default, not the personal layout', async () => {
+    const { user, served } = await teamConflicted({ layout: OTHER_TEAM() });
+    await user.click(answer('Load the other version'));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    expect(screen.getByTestId('draft')).toHaveTextContent(/^t1,t2,t3$/);
+    expect(stateOf()).toBe('customize 0');
+    expect(conflictOf()).toBe('none');
+    expect(pendingOf()).toBe('none');
+    expect(served.teamPuts).toHaveLength(1);
+    expect(served.puts).toEqual([]);
+  });
+
+  it('a click on the scrim puts the dialog away, and Save asks again without writing', async () => {
+    const { user, served } = await conflicted();
+    const scrim = document.querySelector('[data-slot="dialog-scrim"]');
+    if (scrim === null) throw new Error('the dialog has no scrim');
+    await user.click(scrim);
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    expect(pendingOf()).toBe('personal');
+    expect(stateOf()).toBe('customize 1');
+    await user.click(control('Save layout', '1 change'));
+    expect(await screen.findByRole('dialog', { name: TITLE })).toBeVisible();
+    expect(served.puts).toHaveLength(1);
+  });
+
+  it('asks the team question again after Escape, an edit and a personal Save, with no personal write', async () => {
+    const { user, served } = await teamConflicted();
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    expect(pendingOf()).toBe('team');
+    await edit(user, 2);
+    await user.click(control('Save layout', '2 changes'));
+    expect(await screen.findByRole('dialog', { name: TITLE })).toBeVisible();
+    expect(conflictOf()).toBe('team');
+    expect(served.puts).toEqual([]);
+    expect(served.teamPuts).toHaveLength(1);
+  });
+
+  it('writes once for two quick clicks on Keep mine of a personal conflict', async () => {
+    const { served } = await conflicted();
+    const keep = answer('Keep mine');
+    act(() => {
+      fireEvent.click(keep);
+      fireEvent.click(keep);
+    });
+    await waitFor(() => {
+      expect(stateOf()).toBe('view 0');
+    });
+    expect(served.puts).toHaveLength(2);
+  });
+
+  it('writes and toasts once for two quick clicks on Keep mine of a team conflict', async () => {
+    const { served } = await teamConflicted();
+    const keep = answer('Keep mine');
+    act(() => {
+      fireEvent.click(keep);
+      fireEvent.click(keep);
+    });
+    await waitFor(() => {
+      expect(stateOf()).toBe('view 0');
+    });
+    await waitFor(() => {
+      expect(toastText()).toContain('Team default set');
+    });
+    expect(served.teamPuts).toHaveLength(2);
+    expect(document.querySelectorAll('[data-slot="toast"]')).toHaveLength(1);
   });
 
   it('Keep mine after a team 412 saves the team default again, not the personal layout', async () => {

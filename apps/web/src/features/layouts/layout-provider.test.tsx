@@ -1191,6 +1191,34 @@ describe('the team default', () => {
     expect(current().mode).toBe('customize');
   });
 
+  it('loads the team default as it was read after the conflict on "Load the other version" of a team write', async () => {
+    const served = serve(stored('personal', withoutCompetitors, TEAM_DOCUMENT));
+    mount();
+    await customizing();
+    run(() => current().actions.hideCard('matrix'));
+    // Someone else saved another team default meanwhile
+    const NEWER_TEAM: LayoutDocument = {
+      schema: 1,
+      numbers: [],
+      cards: [{ id: 't2', type: 'seo.rank_distribution', width: 'half' }],
+    };
+    served.layout = stored('personal', withoutCompetitors, NEWER_TEAM);
+    served.putStatus = 412;
+    const outcome = await runAsync(() => current().actions.saveTeamDefault());
+    expect(outcome).toEqual<SaveOutcome>({ kind: 'conflict' });
+    await waitFor(() => {
+      expect(current().resolved.teamDocument).toEqual(NEWER_TEAM);
+    });
+
+    act(() => {
+      current().actions.loadRemote('team');
+    });
+    expect(cardIds()).toEqual(['t2']);
+    expect(idsOf(current().baseline?.cards ?? [])).toEqual(['t2']);
+    expect(current().changes).toBe(0);
+    expect(current().mode).toBe('customize');
+  });
+
   it('keeps the mode and the draft when the team default is removed while there are changes, and rebases', async () => {
     const served = serve(stored('team', TEAM_DOCUMENT, TEAM_DOCUMENT));
     mount();

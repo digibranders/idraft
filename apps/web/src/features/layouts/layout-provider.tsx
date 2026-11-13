@@ -116,8 +116,11 @@ export interface LayoutActions {
    * the ETag the conflict has just read.
    */
   saveAnyway(): Promise<SaveOutcome>;
-  /** "Load the other version": the layout as read after the conflict becomes the draft and the baseline. */
-  loadRemote(): void;
+  /**
+   * "Load the other version": the layout as read after the conflict becomes the draft and the baseline. After a
+   * conflict of the team default (`'team'`) that is the team document of that read, else the person's own layout.
+   */
+  loadRemote(kind?: 'personal' | 'team'): void;
   saveTeamDefault(): Promise<SaveOutcome>;
   removeTeamDefault(): Promise<SaveOutcome>;
   focused(): void;
@@ -446,8 +449,8 @@ function ScreenProvider({ screen, workspaceId, capabilities, registry, children 
             setRereading(false);
           }
         }),
-      loadRemote: () => {
-        send({ type: 'reload', document: resolved.document });
+      loadRemote: (kind = 'personal') => {
+        send({ type: 'reload', document: kind === 'team' ? defaultDocument : resolved.document });
       },
       saveTeamDefault: async () => {
         if (live.current.draft === null) return UNCHANGED;
@@ -489,6 +492,7 @@ function ScreenProvider({ screen, workspaceId, capabilities, registry, children 
     status,
     resolved,
     etag,
+    defaultDocument,
     screen,
     workspaceId,
     definition.title,

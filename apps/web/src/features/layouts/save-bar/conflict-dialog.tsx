@@ -27,6 +27,7 @@ export function LayoutConflictDialog(): ReactElement {
   const { conflict, setConflict, dismissConflict, resolveConflict, setSaveError } = useCustomize();
   const noticeTeamSet = useTeamSetNotice();
   const loadOther = useRef<HTMLButtonElement>(null);
+  const answering = useRef(false);
   const { updatedBy, updatedAt } = resolved;
 
   // The question is modal, so focus stays in it. A team write answered with a 412 comes from a confirm dialog, which
@@ -46,9 +47,13 @@ export function LayoutConflictDialog(): ReactElement {
   }, [conflict]);
 
   const keepMine = async (): Promise<void> => {
-    if (conflict === null) return;
+    // Two clicks before the button shows its loading state: the second finds the write under way and is dropped
+    if (conflict === null || answering.current) return;
+    answering.current = true;
     const kind = conflict;
-    const outcome = await (kind === 'team' ? actions.saveTeamDefault() : actions.saveAnyway());
+    const outcome = await (kind === 'team' ? actions.saveTeamDefault() : actions.saveAnyway()).finally(() => {
+      answering.current = false;
+    });
     if (outcome.kind === 'conflict') {
       // Changed again while the question was open: ask again
       setConflict(kind);
@@ -97,7 +102,7 @@ export function LayoutConflictDialog(): ReactElement {
             variant="primary"
             disabled={saving}
             onClick={() => {
-              actions.loadRemote();
+              actions.loadRemote(conflict === 'team' ? 'team' : 'personal');
               resolveConflict();
             }}
           >

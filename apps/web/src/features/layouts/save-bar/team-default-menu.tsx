@@ -43,7 +43,6 @@ export function TeamDefaultMenu(): ReactElement | null {
   const t = useTranslations('layouts.customize');
   const { canManage, resolved, saving, dirty, actions } = useLayoutScreen();
   const { workspaceName, conflictPending, setConflict } = useCustomize();
-  const { say } = useLayoutAnnouncer();
   const noticeSet = useTeamSetNotice();
   const chevron = useRef<HTMLButtonElement>(null);
   // The kind stays when the dialog closes, so the closing dialog keeps its words
@@ -74,7 +73,7 @@ export function TeamDefaultMenu(): ReactElement | null {
     }
     const outcome = await actions.removeTeamDefault();
     if (outcome.kind === 'saved') {
-      say(t('announce.teamRemoved'));
+      // The toast is announced by its own region
       toast({
         type: 'info',
         title: t('team.removedToast'),
