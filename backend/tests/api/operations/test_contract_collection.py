@@ -1,6 +1,7 @@
-"""The contract of the AI coverage of a run and of daily AI collection (WP-03 T3a; contracts C3
-and N5): the access checks answer first, then `501 not_implemented` until WP-30 builds the
-bodies. The owner deletes this file when it writes the real tests."""
+"""The contract of the AI coverage of a run and of daily AI collection (WP-03 T3a, built by WP-30
+T1; contracts C3 and N5): the access checks answer first, then the bodies (their data is in
+`test_ai_coverage.py` and `test_collection_daily.py`), and the API document carries both
+routes."""
 
 from __future__ import annotations
 
@@ -17,7 +18,7 @@ from tests.api.entities.support import member, problem
 from tests.api.keywords.support import project_url
 from tests.conftest import PostgresServer
 
-NOT_BUILT = (501, "not_implemented")
+UNAUTHENTICATED = (401, "unauthenticated")
 FORBIDDEN = (403, "forbidden")
 NOT_FOUND = (404, "not_found")
 INVALID = (422, "validation_failed")
@@ -29,7 +30,27 @@ def _paths() -> list[str]:
     return [f"runs/{uuid.uuid4()}/ai-coverage", DAILY]
 
 
-async def test_run_coverage_answers_501_for_a_reader(
+@pytest.mark.parametrize("which", [0, 1])
+async def test_both_check_access_first(
+    which: int, api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """401 without a session, 404 for a stranger and for an unknown project, 403 for a role
+    without `data:read`; the bodies answer only after that."""
+    workspace = await make_workspace(migrated)
+    billing = await member(resources, migrated, workspace, "billing")
+    owner = await member(resources, migrated, workspace, "owner")
+    outsider = await member(resources, migrated, await make_workspace(migrated), "owner")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, _paths()[which])
+
+    assert problem(await api.get(url)) == UNAUTHENTICATED
+    assert problem(await api.get(url, headers=outsider.headers)) == NOT_FOUND
+    assert problem(await api.get(url, headers=billing.headers)) == FORBIDDEN
+    unknown = project_url(workspace, uuid.uuid4(), _paths()[which])
+    assert problem(await api.get(unknown, headers=owner.headers)) == NOT_FOUND
+
+
+async def test_a_run_that_does_not_exist_is_not_found_through_the_service(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
     workspace = await make_workspace(migrated)
@@ -41,36 +62,7 @@ async def test_run_coverage_answers_501_for_a_reader(
         headers=viewer.headers,
     )
 
-    assert problem(response) == NOT_BUILT
-
-
-async def test_daily_collection_answers_501_for_a_reader(
-    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    viewer = await member(resources, migrated, workspace, "viewer")
-    project = await ai_project(migrated, workspace)
-
-    response = await api.get(
-        project_url(workspace, project, DAILY),
-        headers=viewer.headers,
-    )
-
-    assert problem(response) == NOT_BUILT
-
-
-@pytest.mark.parametrize("which", [0, 1])
-async def test_both_check_access_first(
-    which: int, api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    billing = await member(resources, migrated, workspace, "billing")
-    outsider = await member(resources, migrated, await make_workspace(migrated), "owner")
-    project = await ai_project(migrated, workspace)
-    url = project_url(workspace, project, _paths()[which])
-
-    assert problem(await api.get(url, headers=billing.headers)) == FORBIDDEN
-    assert problem(await api.get(url, headers=outsider.headers)) == NOT_FOUND
+    assert problem(response) == NOT_FOUND
 
 
 async def test_a_bad_run_id_or_engine_is_refused(

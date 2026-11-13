@@ -856,6 +856,28 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     # WP-26 evidence-viewer
 
     # WP-30 runs-costs-health
+    # An AI run under way takes the place of the rank run for the run routes: the coverage read
+    # answers 422 for a rank run, and cancelling an AI run that is open succeeds as well. A second
+    # AI run a budget blocked today shows in the daily collection, so that read is not empty.
+    ai_run = await fetchrow(
+        pg,
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
+        "window_end, trigger, status, config_snapshot) VALUES ($1, $2, 'ai_prompt', now(), "
+        "now() + interval '2 hours', 'manual', 'running', '{}') RETURNING id",
+        workspace.id,
+        project_id,
+    )
+    blocked_run = await fetchrow(
+        pg,
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
+        "window_end, trigger, status, config_snapshot, completed_at) VALUES ($1, $2, 'ai_prompt', "
+        "now(), now() + interval '2 hours', 'manual', 'budget_blocked', '{}', now()) "
+        "RETURNING id",
+        workspace.id,
+        project_id,
+    )
+    more_ids["run_id"] = str(ai_run["id"])
+    more_ids["blocked_run_id"] = str(blocked_run["id"])
 
     # WP-31 settings-engines
 

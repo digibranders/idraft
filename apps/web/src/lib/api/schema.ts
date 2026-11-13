@@ -1137,7 +1137,7 @@ export interface paths {
         };
         /**
          * AI collection per project day and engine
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`): per day and engine the answers the schedules planned, the answers stored by status, the valid ones, the runs a budget blocked and the runs behind them. Not built yet: `501 not_implemented`.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`): per day and engine the answers the schedules planned, the answers stored by status, the valid ones, the runs a budget blocked and the runs behind them.
          */
         get: operations["collection_daily_api_v1_workspaces__workspace_id__projects__project_id__ai_collection_daily_get"];
         put?: never;
@@ -2235,7 +2235,7 @@ export interface paths {
         };
         /**
          * Per engine, what an AI run planned, stored and found valid
-         * @description A run of workload `ai_prompt` (`422 not_an_ai_run` otherwise): per engine the tasks planned, the answers stored, the valid ones and the others by status, with the valid rate; and every planned task with no stored answer. Not built yet: `501 not_implemented`.
+         * @description A run of workload `ai_prompt` (`422 not_an_ai_run` otherwise): per engine the tasks planned, the answers stored, the valid ones and the others by status, with the valid rate; and every planned task with no stored answer.
          */
         get: operations["ai_coverage_api_v1_workspaces__workspace_id__projects__project_id__runs__run_id__ai_coverage_get"];
         put?: never;
