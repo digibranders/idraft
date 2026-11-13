@@ -10,7 +10,6 @@ type ModuleLoader = () => Promise<Record<string, unknown>>;
  * and is wired into `index.ts`.
  */
 const SLOTS: ReadonlyArray<readonly [slug: string, name: string, load: ModuleLoader]> = [
-  ['layouts', 'layoutHandlers', () => import('./layouts')],
   ['compare', 'compareHandlers', () => import('./compare')],
   ['citations', 'citationHandlers', () => import('./citations')],
   ['citation-details', 'citationDetailHandlers', () => import('./citation-details')],

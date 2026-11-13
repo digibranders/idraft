@@ -104,6 +104,8 @@ export const WORKSPACE_COOKIE = 'mock-workspace';
 export const ENTITIES_COOKIE = 'mock-entities';
 /** What a browser changed in the keywords, groups, terms and keyword settings (./keywords-state.ts). */
 export const KEYWORDS_COOKIE = 'mock-keywords';
+/** What a browser saved in the layouts: the personal layouts of each person and the team defaults (./handlers/layouts.ts). */
+export const LAYOUTS_COOKIE = 'mock-layouts';
 /** What a browser changed in the schedules and runs (./operations-state.ts). */
 export const OPERATIONS_COOKIE = 'mock-operations';
 /** What a browser changed in the Google connections and the properties linked to projects (./integrations-state.ts). */
@@ -126,6 +128,7 @@ export const MOCK_COOKIES: readonly string[] = [
   OPERATIONS_COOKIE,
   INTEGRATIONS_COOKIE,
   GOOGLE_GRANT_COOKIE,
+  LAYOUTS_COOKIE,
 ];
 
 /** The `Set-Cookie` that expires cookie `name`. */
