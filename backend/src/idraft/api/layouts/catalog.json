@@ -1,6 +1,6 @@
 {
   "generated_by": "apps/web: pnpm gen:layout-catalog",
-  "source_sha256": "9f984ef741d9f8f1b6373dc4849a320b14131f08cf2eec29d83d5ab116ef4f09",
+  "source_sha256": "f08103aa3db15c0791cd272418aa4d586704363b437856e5c0984ac5a301dac1",
   "limits": {
     "cards": 12,
     "numbers": 6

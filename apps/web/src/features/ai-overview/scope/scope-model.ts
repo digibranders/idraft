@@ -78,16 +78,20 @@ export function parseEngines(value: string | null, known: readonly string[]): st
   return codes.length === 0 ? null : codes;
 }
 
-/** `branded=only` and `branded=included`; excluded for anything else. */
+/**
+ * `branded=only` and `branded=included`; excluded for anything else. The Prompts page writes `branded=include`
+ * for the same choice, so a link from it reads as included here.
+ */
 export function parseBranded(value: string | null): Branded {
+  if (value === 'include') return 'included';
   return value === 'only' || value === 'included' ? value : 'excluded';
 }
 
 const TERM_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** A term id (a UUID, what `filter[term]` takes); anything else reads as all topics. */
+/** A term id (a UUID, what `filter[term]` takes), lowercased so equal ids share a query key; else all topics. */
 export const parseTopic = (value: string | null): string | null =>
-  value !== null && TERM_ID.test(value) ? value : null;
+  value !== null && TERM_ID.test(value) ? value.toLowerCase() : null;
 
 /** The summary's branded parameters for a choice. `branded_only` counts branded prompts alone. */
 export function brandedParams(branded: Branded): { include_branded: boolean; branded_only?: true } {

@@ -522,7 +522,7 @@ const PRESETS: ReadonlyArray<{ name: string; numbers: NumberItem[]; cards: Place
       { type: 'ai.competitor_table', width: 'full', options: { metric: 'share_of_voice' } },
       { type: 'ai.lost_to_competitor', width: 'half', options: { engine: 'chatgpt_web' } },
       // 9.5 names ai.competitor_table (mention) as card 5 and again for card 3, but the type is single use (9.4:
-      // one instance): the second is left out here and T6 decides what to do with the pair.
+      // one instance), so the duplicate is omitted here.
       { type: 'ai.topic_heatmap', width: 'two_thirds', options: { metric: 'share_of_voice' } },
       { type: 'sources.top_domains', width: 'third', options: { role: 'competitor' } },
       { type: 'ai.engine_disagreement', width: 'half' },

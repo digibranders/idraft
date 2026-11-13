@@ -92,6 +92,10 @@ describe('parseBranded', () => {
     expect(parseBranded('included')).toBe('included');
     expect(parseBranded('ONLY')).toBe('excluded');
   });
+
+  it('reads branded=include, which the Prompts page writes, as included', () => {
+    expect(parseBranded('include')).toBe('included');
+  });
 });
 
 describe('parseTopic', () => {
@@ -101,6 +105,10 @@ describe('parseTopic', () => {
     expect(parseTopic(`${TOPIC},${TOPIC}`)).toBeNull();
     expect(parseTopic('')).toBeNull();
     expect(parseTopic(null)).toBeNull();
+  });
+
+  it('lowercases the id, so equal ids share one query key', () => {
+    expect(parseTopic(TOPIC.toUpperCase())).toBe(TOPIC);
   });
 });
 

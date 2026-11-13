@@ -271,7 +271,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   aiCard(
     'ai.sov_rank',
     'Share of voice rank',
-    'Where you rank among tracked brands by share of voice on one engine, week by week.',
+    'Where you rank among tracked brands by share of voice on one engine, over time.',
     'ai',
     ['half', 'two_thirds'],
     { maxInstances: PER_ENGINE, options: { engine: ENGINE_OPTION } },
@@ -310,7 +310,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   aiCard(
     'ai.topic_extremes',
     'Strongest and weakest topics',
-    'Which topics do best and worst for the metric.',
+    'Which topics do best and worst on the chosen metric.',
     'ai',
     ['half', 'third', 'two_thirds'],
     {
@@ -554,7 +554,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   aiCard(
     'ai.opportunities',
     'AI opportunities',
-    'Where you are named and not cited, lost to a competitor, or not named at all.',
+    'Prompts where you are named but not cited, cited but not named, lost to a competitor, or named by no engine.',
     'ai',
     ['half', 'third'],
     { options: { rows: countOption('Rows', 'rows', ['4', '8'], '4') } },
@@ -580,14 +580,9 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
     'activity',
     ['third', 'half'],
   ),
-  aiCard(
-    'ops.ai_spend',
-    'AI spend',
-    'How much of the AI budget this month’s answers have used.',
-    'activity',
-    ['third'],
-    { permission: 'costs:read' },
-  ),
+  aiCard('ops.ai_spend', 'AI spend', 'How much of this month’s AI budget has been used.', 'activity', ['third'], {
+    permission: 'costs:read',
+  }),
   aiCard(
     'ai.sample_coverage',
     'Answers behind the numbers',
