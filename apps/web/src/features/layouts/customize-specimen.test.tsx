@@ -108,6 +108,16 @@ describe('the customize specimen', () => {
     });
   });
 
+  it('names the scrolling body of the drawer, so a keyboard can reach it while it overflows', async () => {
+    document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('admin').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
+    renderWithProviders(<LayoutsCustomizeLive />);
+    // The body of a 640 px drawer overflows on a phone, and in view mode nothing in it takes focus: axe asks for a
+    // region that a key can scroll (scrollable-region-focusable), which is the named viewport of a ScrollArea
+    const drawer = await screen.findByRole('region', { name: 'best crm for startups' });
+    const body = within(drawer).getByRole('region', { name: 'Keyword drawer body' });
+    expect(within(body).getByRole('region', { name: 'Keyword cards' })).toBeInTheDocument();
+  });
+
   it('has a table page head whose More menu starts Customize numbers, with no card grid', async () => {
     document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('admin').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
     const { user } = renderWithProviders(<LayoutsCustomizeLive />);

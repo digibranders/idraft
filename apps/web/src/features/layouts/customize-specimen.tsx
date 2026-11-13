@@ -19,6 +19,7 @@ import { PageHeader } from '@/components/app/shell/page-header';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { Menu } from '@/components/ui/menu';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select } from '@/components/ui/select';
 import { apiQuery } from '@/lib/api/query';
 import type { MeMembership } from '@/lib/api/types';
@@ -54,6 +55,7 @@ const COPY = {
   drawerType: 'Keyword',
   drawerPosition: '12 of 986',
   drawerCards: 'Keyword cards',
+  drawerBody: 'Keyword drawer body',
   drawerMore: 'More actions for best crm for startups',
   drawerClose: 'Close',
   drawerReopen: 'Open the keyword drawer',
@@ -265,9 +267,12 @@ function DrawerFrame(): ReactElement {
           moreButtonRef={drawer.moreButtonRef}
           onClose={close}
         />
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-          <DrawerGrid label={COPY.drawerCards} />
-        </div>
+        {/* A named ScrollArea: the body overflows on a phone and holds nothing a key reaches in view mode */}
+        <ScrollArea maxHeight="fill" label={COPY.drawerBody} className="flex-1">
+          <div className="px-4 py-3">
+            <DrawerGrid label={COPY.drawerCards} />
+          </div>
+        </ScrollArea>
         {drawer.saveBar}
       </section>
     </div>
