@@ -4,6 +4,7 @@ the numbers the writes check, read in one read only transaction that writes noth
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
@@ -14,7 +15,7 @@ from idraft.api.resources import Resources
 from idraft.domain.ai_engines import BASE_PLAN
 from tests.api.ai.sources_support import statements
 from tests.api.ai.support import ai_project, seed_prompts, set_prompt_quota
-from tests.api.auth.support import Workspace, execute, fetch, make_workspace
+from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import ensure_locations, project_url
 from tests.api.workspaces.support import make_project
@@ -43,17 +44,62 @@ async def _data(
 
 
 async def _manual_runs(
-    pg: PostgresServer, workspace: Workspace, project: uuid.UUID, count: int
+    pg: PostgresServer,
+    workspace: Workspace,
+    project: uuid.UUID,
+    count: int,
+    created_at: datetime | None = None,
 ) -> None:
+    """Manual runs by a person; `created_at` defaults to now."""
     for _ in range(count):
         await execute(
             pg,
             "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
-            "window_end, trigger, status, created_by_type, config_snapshot) VALUES "
-            "($1, $2, 'keyword_metrics', now(), now(), 'manual', 'completed', 'user', '{}')",
+            "window_end, trigger, status, created_by_type, config_snapshot, created_at) VALUES "
+            "($1, $2, 'keyword_metrics', now(), now(), 'manual', 'completed', 'user', '{}', "
+            "COALESCE($3::timestamptz, now()))",
             workspace.id,
             project,
+            created_at,
         )
+
+
+async def _answer_task(
+    pg: PostgresServer, workspace: Workspace, project: uuid.UUID, created_at: datetime
+) -> None:
+    """One completed ai_prompt task made at `created_at`, in a run the system started."""
+    run = await fetch(
+        pg,
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
+        "window_end, trigger, status, created_by_type, config_snapshot) VALUES "
+        "($1, $2, 'ai_prompt', now(), now(), 'manual', 'completed', 'system', '{}') RETURNING id",
+        workspace.id,
+        project,
+    )
+    await execute(
+        pg,
+        "INSERT INTO ops.collection_tasks (created_at, run_id, workspace_id, project_id, "
+        "workload, subject_type, subject_id, engine_code, location_id, idempotency_key, "
+        "request_fingerprint, provider_code, provider_endpoint, scheduled_for, status) VALUES "
+        "($1, $2, $3, $4, 'ai_prompt', 'prompt_version', $5, 'chatgpt_web', 2840, $6, $6, "
+        "'dataforseo', 'chatgpt', now(), 'ingested')",
+        created_at,
+        run[0]["id"],
+        workspace.id,
+        project,
+        str(uuid.uuid4()),
+        uuid.uuid4().bytes,
+    )
+
+
+async def _utc_starts(pg: PostgresServer) -> tuple[datetime, datetime]:
+    """The start of today and of this month, UTC, by the database clock."""
+    row = await fetchrow(
+        pg,
+        "SELECT date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS day, "
+        "date_trunc('month', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS month",
+    )
+    return row["day"], row["month"]
 
 
 async def test_limits_show_workspace_prompts_across_projects(
@@ -68,12 +114,13 @@ async def test_limits_show_workspace_prompts_across_projects(
     stranger = await make_workspace(migrated)
     elsewhere = await ai_project(migrated, stranger)
     await set_prompt_quota(migrated, workspace, 40)
-    ours = await seed_prompts(migrated, workspace, first, 4)
+    ours = await seed_prompts(migrated, workspace, first, 5)
     await seed_prompts(migrated, workspace, second, 2)
     await seed_prompts(migrated, workspace, archived_project, 3)
     await seed_prompts(migrated, workspace, deleted_project, 5)
     await seed_prompts(migrated, stranger, elsewhere, 7)
     await execute(migrated, "UPDATE ai.prompts SET is_active = false WHERE id = $1", ours[0])
+    await execute(migrated, "UPDATE ai.prompts SET deleted_at = now() WHERE id = $1", ours[4])
     await execute(
         migrated,
         "UPDATE core.projects SET status = 'archived' WHERE id = $1",
@@ -85,7 +132,8 @@ async def test_limits_show_workspace_prompts_across_projects(
 
     data = await _data(api, workspace, first, owner)
 
-    # 3 of the first project (one archived prompt left out), 2, and the archived project's 3.
+    # 3 of the first project (one archived and one soft-deleted prompt left out), 2, and the
+    # archived project's 3.
     assert data["prompts"] == {"limit": 40, "used": 8}
 
 
@@ -135,6 +183,27 @@ async def test_manual_runs_today_count_this_project_only(
 
     assert here["manual_runs_today"] == {"used": 3, "limit": MANUAL_RUNS_PER_DAY}
     assert there["manual_runs_today"] == {"used": 2, "limit": MANUAL_RUNS_PER_DAY}
+
+
+async def test_the_day_and_the_month_start_at_utc_midnight_and_count_from_it(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    project = await ai_project(migrated, workspace)
+    day, month = await _utc_starts(migrated)
+    second = timedelta(seconds=1)
+    await _manual_runs(migrated, workspace, project, 1, day - second)
+    await _manual_runs(migrated, workspace, project, 2, day)
+    await _answer_task(migrated, workspace, project, month - second)
+    await _answer_task(migrated, workspace, project, month)
+    await _answer_task(migrated, workspace, project, month)
+
+    data = await _data(api, workspace, project, owner)
+
+    # The run a second before midnight and the answer a second before the month are left out.
+    assert data["manual_runs_today"]["used"] == 2
+    assert data["ai_observations_month"]["used"] == 2
 
 
 async def test_the_limit_defaults_match_the_database(migrated: PostgresServer) -> None:
