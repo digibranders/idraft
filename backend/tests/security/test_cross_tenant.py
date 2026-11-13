@@ -342,21 +342,29 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
         "kind": "new",
         "min_support": "1",
         "filter[country_iso]": "US",
+        "include_unresolved_redirects": "true",
+        "include_engine_internal": "true",
     },
     ("GET", _W + "/projects/{project_id}/ai/citations"): {"filter[country_iso]": "US"},
     # Every block of the diversity read; the tenant's answer cites its own page once.
     ("GET", _W + "/projects/{project_id}/ai/sources/diversity"): {
         "include": "series,ads",
         "filter[country_iso]": "US",
+        "include_unresolved_redirects": "true",
+        "include_engine_internal": "true",
     },
     # The domain of the tenant's seeded citation (`WORDS`), so the detail has rows to show.
     ("GET", _W + "/projects/{project_id}/ai/sources/domains/{registrable_domain}"): {
-        "filter[country_iso]": "US"
+        "filter[country_iso]": "US",
+        "include_unresolved_redirects": "true",
+        "include_engine_internal": "true",
     },
     # The tenant's prompt cites its own page: the row names the page.
     ("GET", _W + "/projects/{project_id}/ai/sources/prompts"): {
         "filter[own_cited]": "true",
         "filter[country_iso]": "US",
+        "include_unresolved_redirects": "true",
+        "include_engine_internal": "true",
     },
     # WP-26 evidence-viewer
     # WP-30 runs-costs-health
