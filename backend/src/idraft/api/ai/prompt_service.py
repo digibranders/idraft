@@ -20,11 +20,13 @@ from collections.abc import Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Final
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from idraft.ai.pricing import task_prices
 from idraft.ai.text import text_hash
 from idraft.api import audit
 from idraft.api.ai import engine_repository as engines
@@ -68,7 +70,13 @@ from idraft.api.schemas.ai import (
 from idraft.api.schemas.ai_bulk import PromptBulkArchive
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
-from idraft.domain.ai_engines import ENGINES, PROMPT_TEXT_MAX, EngineCode
+from idraft.domain.ai_engines import (
+    BASE_PLAN,
+    ENGINES,
+    PROMPT_TEXT_MAX,
+    EngineCode,
+    monthly_cost,
+)
 from idraft.extraction.aliases import AliasMatcher, MatchResult
 from idraft.extraction.aliases import TooManyMatchesError as TooManyHitsError
 from idraft.keywords.links import TermRecord
@@ -131,12 +139,32 @@ class LintedPrompt:
 
 
 @dataclass(frozen=True, slots=True)
+class EngineCost:
+    engine_code: EngineCode
+    prompts_fit: int
+    answers_per_month: int
+    # None when the price book has no price for the engine today.
+    monthly_cost: Decimal | None
+    run_now_answers: int
+    run_now_cost: Decimal | None
+
+
+@dataclass(frozen=True, slots=True)
+class LintCost:
+    engines: list[EngineCost]
+    # The engines' monthly costs added; None when none has a price.
+    total_monthly_cost: Decimal | None
+
+
+@dataclass(frozen=True, slots=True)
 class LintOutcome:
     prompts: list[LintedPrompt]
     limit: int
     used: int
     # Items neither tracked nor repeated nor too long to save; `items` shape only.
     would_create: int | None = None
+    # What those items cost; `items` shape only.
+    estimate: LintCost | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,13 +236,15 @@ class ItemMatches:
 
     tracked: list[tuple[UUID, bool] | None]
     near_duplicate_of: list[tuple[UUID, str] | None]
-    would_create: int
+    # Whether saving the item would create a prompt: not tracked, not a repeat of an earlier
+    # item and not too long to save.
+    creates: list[bool]
 
 
 def match_items(items: Sequence[PromptLintItem], rows: Sequence[LintRow]) -> ItemMatches:
     """For each item the prompt it is (`tracked`) or, when none is, the one it nearly is
-    (`near_duplicate_of`); and how many items saving them would create: not tracked, not a repeat
-    of an earlier item and not too long to save. Rows come oldest first, so the oldest wins."""
+    (`near_duplicate_of`), and whether saving it would create a prompt. Rows come oldest first,
+    so the oldest wins."""
     by_key: dict[PromptKey, LintRow] = {}
     by_fold: dict[tuple[str, str | None, str], LintRow] = {}
     for row in rows:
@@ -223,7 +253,7 @@ def match_items(items: Sequence[PromptLintItem], rows: Sequence[LintRow]) -> Ite
     tracked: list[tuple[UUID, bool] | None] = []
     near: list[tuple[UUID, str] | None] = []
     seen: set[PromptKey] = set()
-    would_create = 0
+    creates: list[bool] = []
     for item in items:
         key = (text_hash(item.text), item.language_code, item.country_iso)
         found = by_key.get(key)
@@ -234,10 +264,36 @@ def match_items(items: Sequence[PromptLintItem], rows: Sequence[LintRow]) -> Ite
         )
         tracked.append(None if found is None else (found.id, found.is_active))
         near.append(None if similar is None else (similar.id, similar.text))
-        if found is None and key not in seen and len(item.text) <= PROMPT_TEXT_MAX:
-            would_create += 1
+        creates.append(found is None and key not in seen and len(item.text) <= PROMPT_TEXT_MAX)
         seen.add(key)
-    return ItemMatches(tracked=tracked, near_duplicate_of=near, would_create=would_create)
+    return ItemMatches(tracked=tracked, near_duplicate_of=near, creates=creates)
+
+
+def estimate_cost(
+    creating: Sequence[str], codes: Sequence[EngineCode], prices: Mapping[str, Decimal]
+) -> LintCost:
+    """What the texts to be created cost on each engine of `codes` in the base plan: the texts
+    the engine takes, asked `runs_per_week` times a week. The monthly cost is the engines'
+    `monthly_cost`; an engine with no price has no cost, never a guess of zero."""
+    engines: list[EngineCost] = []
+    for code in codes:
+        engine = ENGINES[code]
+        fit = sum(1 for text in creating if engine.fits(text))
+        price = prices.get(engine.endpoint)
+        run_now = fit * BASE_PLAN.answers_per_engine
+        engines.append(
+            EngineCost(
+                engine_code=code,
+                prompts_fit=fit,
+                # Whole answers: 52 weeks over 12 months, as `monthly_cost`, rounded down.
+                answers_per_month=run_now * BASE_PLAN.runs_per_week * 52 // 12,
+                monthly_cost=None if price is None else monthly_cost(fit, price),
+                run_now_answers=run_now,
+                run_now_cost=None if price is None else price * run_now,
+            )
+        )
+    costs = [engine.monthly_cost for engine in engines if engine.monthly_cost is not None]
+    return LintCost(engines=engines, total_monthly_cost=sum(costs, Decimal(0)) if costs else None)
 
 
 def quota_error(limit: int, used: int, requested: int) -> QuotaExceededError:
@@ -595,7 +651,7 @@ class PromptService:
         prompt would be branded), the rules that read the text (`prompt_lint`, with the
         language of the item or of the body) and engine limits, and the workspace's prompt
         quota. With `items`, also which of them the project tracks already, which nearly, and
-        how many saving them would create."""
+        how many saving them would create and what those cost on each engine (`estimate_cost`)."""
         items: list[PromptLintItem] | None = None
         if isinstance(body, PromptLintItems):
             items = body.items
@@ -608,16 +664,23 @@ class PromptService:
             await live_project(db, access, project_id)
             rules = await matcher_rules(db, access.workspace_id, project_id)
             limit, used = await prompts.quota_usage(db, access.workspace_id)
-            rows = (
-                []
-                if items is None
-                else await prompts.lint_matches(
+            rows: Sequence[LintRow] = ()
+            priced_engines: set[EngineCode] = set()
+            prices: Mapping[str, Decimal] = {}
+            if items is not None:
+                rows = await prompts.lint_matches(
                     db,
                     access.workspace_id,
                     project_id,
                     {(item.language_code, item.country_iso) for item in items},
                 )
-            )
+                # The estimate's engines are the ones asked for, else the enabled ones; one
+                # price lookup serves them all.
+                priced_engines = set(
+                    body.engine_codes
+                    or await engines.enabled_countries(db, access.workspace_id, project_id)
+                )
+                prices = await task_prices(db, queue=BASE_PLAN.queue, on=datetime.now(UTC).date())
         own = own_entities(rules)
         entities = {entity.id: entity for entity in rules.entities}
         codes = body.engine_codes or list(EngineCode)
@@ -638,7 +701,12 @@ class PromptService:
             ],
             limit=limit,
             used=used,
-            would_create=found.would_create,
+            would_create=sum(found.creates),
+            estimate=estimate_cost(
+                [item.text for item, creates in zip(items, found.creates, strict=True) if creates],
+                [code for code in EngineCode if code in priced_engines],
+                prices,
+            ),
         )
 
     async def update(

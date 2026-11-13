@@ -21,7 +21,9 @@ from idraft.api.request_info import Info
 from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai import (
     CountryIso,
+    EngineEstimate,
     Importance,
+    LintEstimate,
     LintNearDuplicate,
     LintSpan,
     LintTracked,
@@ -345,7 +347,12 @@ async def bulk_create_prompts(
     "another script, or for en, de, fr, es, it, pt and nl another language, than the item's "
     "`language_code`, or the body's for `texts`; texts under 4 words and unknown languages are "
     "not checked). The competitor and leading rules carry a span; the others carry none. Every "
-    "result has `suggested_prompt_type`, the type the wording rule gives the text.",
+    "result has `suggested_prompt_type`, the type the wording rule gives the text. With `items`, "
+    "`estimate` says what the prompts that would be created cost on the standard queue, for "
+    "each of `engine_codes` or, left out, each engine the project has on: the prompts the "
+    "engine takes, the answers a month at two runs a week (rounded down), the cost a month to "
+    "the cent, and the answers and cost of one run now. An engine the price book has no price "
+    "for has null costs.",
 )
 async def lint_prompts(
     project_id: UUID, body: PromptLintBody, access: ReadData, prompts: Prompts
@@ -355,6 +362,22 @@ async def lint_prompts(
         data=[_lint_view(item) for item in outcome.prompts],
         quota=PromptQuota(
             limit=outcome.limit, used=outcome.used, would_create=outcome.would_create
+        ),
+        estimate=None
+        if outcome.estimate is None
+        else LintEstimate(
+            engines=[
+                EngineEstimate(
+                    engine_code=engine.engine_code,
+                    prompts_fit=engine.prompts_fit,
+                    answers_per_month=engine.answers_per_month,
+                    monthly_cost_usd=engine.monthly_cost,
+                    run_now_answers=engine.run_now_answers,
+                    run_now_cost_usd=engine.run_now_cost,
+                )
+                for engine in outcome.estimate.engines
+            ],
+            total_monthly_cost_usd=outcome.estimate.total_monthly_cost,
         ),
     )
 

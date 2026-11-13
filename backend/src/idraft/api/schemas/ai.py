@@ -414,24 +414,39 @@ class PromptQuota(BaseModel):
 class EngineEstimate(BaseModel):
     engine_code: EngineCode
     prompts_fit: int = Field(description="Prompts it would create that the engine takes.")
-    answers_per_month: int
-    monthly_cost_usd: Usd | None = Field(description="Null when the price book has no price.")
-    run_now_answers: int
-    run_now_cost_usd: Usd | None
+    answers_per_month: int = Field(
+        description="Answers in an average month: prompts x runs a week x answers per run x 52 "
+        "weeks / 12 months, rounded down."
+    )
+    monthly_cost_usd: Usd | None = Field(
+        description="What those answers cost, to the cent. Null when the price book has no price."
+    )
+    run_now_answers: int = Field(description="Answers one run of these prompts asks for.")
+    run_now_cost_usd: Usd | None = Field(
+        description="What one run costs, not rounded. Null when the price book has no price."
+    )
 
 
 class LintEstimate(BaseModel):
     """What the prompts that would be created cost on the standard queue (prompt-dialogs N05)."""
 
-    engines: list[EngineEstimate]
-    total_monthly_cost_usd: Usd | None
+    engines: list[EngineEstimate] = Field(
+        description="The engines in `engine_codes`, or the project's enabled engines, in the "
+        "engines' own order."
+    )
+    total_monthly_cost_usd: Usd | None = Field(
+        description="The engines' monthly costs added; null when none has a price."
+    )
 
 
 class PromptLintResponse(BaseModel):
     data: list[PromptLint]
     quota: PromptQuota
     estimate: LintEstimate | None = Field(
-        default=None, exclude_if=_absent, description=_NOT_RETURNED
+        default=None,
+        exclude_if=_absent,
+        description="With `items`: what the prompts that would be created cost. Absent for "
+        "`texts`.",
     )
 
 

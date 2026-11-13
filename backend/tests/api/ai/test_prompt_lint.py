@@ -481,7 +481,8 @@ async def test_lint_items_statement_count_does_not_grow_with_items(
         second = await _lint(api, workspace, project, viewer.headers, many)
 
     assert first.status_code == second.status_code == 200
-    assert len(large) == len(single) == TEXTS_STATEMENTS + 1, large
+    # The project's prompts, then the estimate's enabled engines and price book.
+    assert len(large) == len(single) == TEXTS_STATEMENTS + 3, large
 
 
 async def test_another_workspaces_prompt_is_not_tracked(
