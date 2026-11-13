@@ -39,8 +39,30 @@ const isoOf = (instant: number): string => new Date(instant).toISOString();
 
 // Hosts and addresses
 
-/** The suffixes with two labels, which a registrable domain keeps three labels of. */
-const TWO_LABEL_SUFFIXES: ReadonlySet<string> = new Set(['co.uk', 'com.au', 'co.in', 'com.br']);
+/**
+ * The suffixes with two labels, which a registrable domain keeps three labels of. The plan names `co.uk`, `com.au`,
+ * `co.in` and `com.br`; the Eventus data set cites `rbi.org.in` and `cert-in.org.in`, which would fall together as
+ * `org.in`, so the other common ones of the same kind are listed.
+ * shortcut: a short list, not the public suffix list; add a suffix when a data set cites a site under one.
+ */
+const TWO_LABEL_SUFFIXES: ReadonlySet<string> = new Set([
+  'co.uk',
+  'org.uk',
+  'gov.uk',
+  'ac.uk',
+  'com.au',
+  'org.au',
+  'co.in',
+  'org.in',
+  'gov.in',
+  'ac.in',
+  'net.in',
+  'nic.in',
+  'com.br',
+  'co.nz',
+  'co.jp',
+  'com.sg',
+]);
 
 /** What sources are grouped by: the host in lower case, `www.` left out, the last two labels (three under `co.uk` and its kind). */
 export function registrableOf(host: string): string {
@@ -229,7 +251,7 @@ export interface ScopeInput {
 
 /** The term and every term below it; none for a term the vocabularies do not have. */
 export function termSubtree(
-  terms: readonly { term_id: string; parent_id?: string | null }[],
+  terms: readonly { term_id: string; parent_id?: string | null | undefined }[],
   termId: string,
 ): ReadonlySet<string> {
   const found = new Set<string>();

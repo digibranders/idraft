@@ -140,6 +140,8 @@ describe('hosts and addresses', () => {
     expect(registrableOf('shop.example.com.au')).toBe('example.com.au');
     expect(registrableOf('a.b.co.in')).toBe('b.co.in');
     expect(registrableOf('x.y.com.br')).toBe('y.com.br');
+    expect(registrableOf('www.rbi.org.in')).toBe('rbi.org.in');
+    expect(registrableOf('www.cert-in.org.in')).toBe('cert-in.org.in');
   });
 
   it('canonicalOf drops fragment, utm parameters and a trailing slash', () => {
