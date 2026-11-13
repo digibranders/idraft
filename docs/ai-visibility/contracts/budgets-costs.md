@@ -2,12 +2,13 @@
 
 ## Status
 
-Published by WP-30 on 2026-11-14 (task 0, contract first) as six routes that answer `501
-not_implemented` after their access checks. They are the rest of doc 19 section 3.11.2. Owner
-package: [WP-30 runs-costs-health](../work-packages/WP-30-runs-costs-health.md) (rows
+Published by WP-30 on 2026-11-14 (task 0, contract first) and built by the same package on the same
+day: the six routes are the rest of doc 19 section 3.11.2. Owner package:
+[WP-30 runs-costs-health](../work-packages/WP-30-runs-costs-health.md) (rows
 BE-BILLING-PLAN-LINKS-11 and BE-BILLING-PLAN-LINKS-15). The schemas are in
-`backend/src/idraft/api/schemas/budgets.py`, the routes in `backend/src/idraft/api/operations/cost_routes.py`.
-`GET {W}/budgets/status` is built already and is not changed.
+`backend/src/idraft/api/schemas/budgets.py`, the routes in `backend/src/idraft/api/operations/cost_routes.py`,
+the services in `budgets.py`, `costs_forecast.py` and `costs_unit.py` of the same package. No migration.
+`GET {W}/budgets/status` was built before and is not changed.
 
 ## Routes and parameters
 
@@ -104,23 +105,19 @@ Every figure is null when its divisor is 0, never 0.
 | Status | Code | When |
 |---|---|---|
 | 401 | `unauthenticated` | No session. |
-| 404 | `not_found` | Not a member of the workspace; once built, a budget that is not in the workspace or not in the caller's projects, and a `filter[project_id]` outside the caller's projects. |
+| 404 | `not_found` | Not a member of the workspace; a budget that is not in the workspace or not in the caller's projects (`PATCH`, `DELETE`); a `filter[project_id]` outside the caller's projects or naming no live project (budgets, forecast, unit costs); a member limited to some projects who creates a budget with no project (a workspace-level budget) or for a project outside their scope. |
 | 403 | `forbidden` | The role lacks `costs:read` (reads) or `budgets:manage` (writes). |
 | 422 | `validation_failed` | A bad `budget_id` or `project_id` (not a uuid), a `month` outside the pattern, a body outside the bounds above, an unknown member, an empty `PATCH`. |
-| 422 | `validation_failed` with field code `project_unknown` at `project_id` | A later body: the project is not in the workspace or is deleted. |
-| 409 | `duplicate` | A later body: a budget for the same project (or workspace), group and month exists. |
-| 501 | `not_implemented` | All six routes, until WP-30 builds them. |
+| 422 | `validation_failed` with field code `project_unknown` at `project_id` | The project is not in the workspace or is deleted (`POST`). |
+| 409 | `duplicate` | A budget for the same project (or workspace), group and month exists (`POST`). |
 
-Order: 401, 404, 403, 422 (path, query and body), then `501`. The stub does not look a budget up, so
-`409 duplicate`, `project_unknown` and the `404` for a budget come only with the body.
-
-## Defaults and rules the body will follow
+## Defaults and rules
 
 | # | Rule |
 |---|---|
-| D9 | Budgets CRUD: `201` on create, `204` on delete, the defaults come from the column defaults (80, `pause`). A duplicate is caught from the table's unique constraint (`UNIQUE NULLS NOT DISTINCT (workspace_id, project_id, workload, period)`) inside a savepoint and answered `409 duplicate`. A member limited to some projects creates, changes and deletes budgets of those projects only; any other budget is `404`. `GET {W}/budgets` has the same visibility as `budgets/status`. Audit actions `budget.created`, `budget.updated` (before and after) and `budget.deleted`. No migration. |
-| D10 | Forecast: windows the live `ai_prompt` schedules open in the month (UTC), from the schedule planner's own occurrences, times the price of one full run computed by the AI collector's own estimate with an all-prompts selector, so a forecast and a planned run never disagree. Other workloads are not forecast. |
-| D11 | Unit costs: `per_ai_observation` is the sum of `ai.observations.cost_usd` over current answers with a cost in the month, divided by their count; the other figures divide the month's `ops.cost_daily` spend by the counts above. Money is `Decimal` end to end and rounded once, to six places. |
+| D9 | Budgets CRUD: `201` on create, `204` on delete, the defaults come from the column defaults (80, `pause`). A duplicate is caught from the table's unique constraint (`UNIQUE NULLS NOT DISTINCT (workspace_id, project_id, workload, period)`) inside a savepoint and answered `409 duplicate`, so two workspace-level budgets of one group collide as well. A member limited to some projects creates, changes and deletes budgets of those projects only; any other budget is `404`. `GET {W}/budgets` has the same visibility as `budgets/status`, oldest first, in one statement. Audit actions `budget.created` (after), `budget.updated` (before and after) and `budget.deleted` (before), written in the transaction of the change, each with the snapshot `{ project_id, workload, limit_usd, soft_limit_pct, action_on_hard }`: `project_id` a string or null, `workload` as the API shows it (`all` when the budget has no group), `limit_usd` a string with two places. Deleting a budget keeps the runs it blocked (`blocked_by_budget_id` becomes null). No migration. |
+| D10 | Forecast: windows the live `ai_prompt` schedules open in the month (UTC), from the schedule planner's own occurrences (`occurrences_until`), times the price of one full run computed by the AI collector's own estimate (`select_subjects`, then `estimate` on the schedule's queue) with an all-prompts selector, so a forecast and a planned run never disagree. The selector of each schedule is ignored, so a forecast can be above what is planned; schedules with overlapping windows are each priced in full, so they over-forecast too; a cron schedule is skipped; a paused or deleted schedule adds nothing. A project with live schedules but no active prompts or no enabled engine has an empty run, which costs nothing, so its row shows `0.000000` as a known cost. A project whose run has an engine with no price in the price book is left out (unknown, not 0). `method` is `price_book_x_schedules` and `is_estimate` is `true`. Other workloads are not forecast. |
+| D11 | Unit costs: `per_ai_observation` is the sum of `ai.observations.cost_usd` over current answers with a cost in the month, divided by their count; the other figures divide the month's `ops.cost_daily` spend by the counts above (active prompts and active tracked keywords that are not deleted, and the provider requests of `seo_rank`). One helper, `per_unit(total, count)`, divides `Decimal`s, rounds once to the micro-dollar (half-even, the `Decimal` default) and returns null when the count is 0; a figure whose workload has no `ops.cost_daily` row in the month is null too. `per_engine` has all three engine codes (null for an engine with no costed answer) and `ai_answers_by_engine` the count behind each figure. Four tenant reads, whatever the number of answers, prompts or projects. Money is `Decimal` end to end and rounded once, to six places. |
 
 ## Examples
 
@@ -212,3 +209,4 @@ Each row can be tightened by WP-30 through the change log.
 Newest last; one line per change, in the form `date package: change`.
 
 2026-11-14 WP-30: contract published
+2026-11-14 WP-30: routes built, so no route answers `501` any more; `404` cases named (a budget outside the member's projects, a `filter[project_id]` outside them or naming no live project, a limited member creating a workspace-level budget or one for a project outside their scope); audit snapshot fields recorded in D9; forecast limits (selector ignored, overlapping schedules over-forecast, cron skipped, `0.000000` for live schedules with no prompts or engines, unpriced projects left out) in D10; `per_unit`, half-even rounding and null rules in D11

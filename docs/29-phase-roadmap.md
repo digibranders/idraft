@@ -401,6 +401,57 @@ categories (WP-60). Plan `docs/superpowers/plans/2026-11-13-ai-wp-32-overview-ag
 docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; the spec note is in docs/19-api-specification.md
 section 3.7.9.
 
+**As built (AI visibility WP-30, 2026-11-14): runs, costs, budgets and collection health.** The eight WP-03 stubs for this
+package are built (branch `ai/wp-30-runs-costs`, plan `docs/superpowers/plans/2026-11-14-ai-wp-30-runs-costs.md`; contract
+notes docs/ai-visibility/contracts/c3-collection.md and budgets-costs.md; API notes in doc 19 section 3.11.2). Backend:
+`GET {P}/runs/{run_id}/ai-coverage` and `GET {P}/ai/collection/daily` (C3 and N5), budgets CRUD (`GET`, `POST`, `PATCH`,
+`DELETE` `{W}/budgets`), `GET {W}/costs/forecast` and `GET {W}/costs/unit-costs`. No migration and no new table, so no
+tenant-row entry and no grants. Every read is a fixed number of grouped statements that name the workspace as well as
+row-level security: coverage 3 reads, daily 5 (4 with an engine filter), unit costs 4 tenant reads, the budget list 1,
+whatever the size of the run, the window, the number of answers or the number of budgets. Web: the sidebar collection line
+and the Updated link, the AI progress line and the degraded notice on Topics & Prompts, the two AI sections of the run
+inspector, the cost per AI answer on the unit costs tab, and Settings > Budgets and usage (`/{workspace}/settings/budgets`
+and `/{workspace}/{project}/settings/budgets`). The contract changed in one place: `valid` is `complete` plus `partial`,
+`partial` left `InvalidByStatus` and `AiCoverageEngine.partial` was added (nothing consumed C3 before this package).
+Guards, each with the test that fails when the guard is broken (the full lists are in the plan, tasks 1 to 7):
+the `ai_prompt` workload check (`test_a_rank_run_is_not_an_ai_run`); the valid set `complete` and `partial`
+(`test_partial_counts_as_valid_and_refused_empty_error_do_not`); the planned exclusion (`test_cancelled_and_skipped_cached_tasks_are_not_planned`);
+current answers only (`test_a_superseded_answer_is_not_counted`); null, never 0 (`test_valid_rate_is_valid_of_planned_and_null_when_nothing_is_planned`,
+`test_scheduled_is_planned_tasks_and_null_when_nothing_is_known`); the project day (`test_a_day_is_the_project_day`); the 92 day cap
+(`test_a_window_over_92_days_is_too_large_with_limit_days`); grouped statements (`test_coverage_statements_do_not_grow_with_the_run`,
+`test_daily_statements_do_not_grow_with_days_or_engines`, `test_unit_cost_statements_do_not_grow_with_answers_or_prompts`,
+`test_budget_list_is_one_statement_beyond_setup`, which also check that every read names the workspace);
+the run lookup scoped to workspace and project (`test_a_run_of_another_project_is_not_found`, `test_a_run_of_another_workspace_is_not_found`);
+`budgets:manage` on the writes (`test_only_budget_managers_write`); the duplicate mapping, workspace level included
+(`test_a_second_budget_for_the_same_scope_and_group_is_a_duplicate`); the workspace filter on update and delete
+(`test_another_workspaces_budget_is_not_found_for_patch_and_delete`); a limited member's scope
+(`test_a_member_limited_to_a_project_manages_only_its_budgets`); the audit snapshot (`test_each_write_is_audited_with_before_and_after`);
+limit bounds (`test_a_limit_below_zero_or_over_the_column_is_refused`); `per_unit` null on zero and one rounding to the micro
+(`test_an_engine_with_no_answers_has_null_not_zero`, `test_cost_per_answer_is_the_sum_of_costs_over_the_answers_with_a_cost_to_the_micro`,
+`test_a_figure_halfway_between_two_micro_dollars_is_rounded_as_decimal_does`); costless answers left out
+(`test_answers_without_a_cost_are_not_counted`); the paused schedule (`test_a_paused_schedule_adds_nothing`) and the missing price
+(`test_a_run_with_no_price_leaves_the_project_out_not_zero`) in the forecast. On the web the pure model is pinned by
+`lib/runs/ai-health-model.test.ts` (the 90 percent line, the 10 task minimum, one-decimal rate, "Last run" in the project's
+zone) and the page by `budgets.test.tsx` (never red, "Not available" not 0, duplicate on Scope, read only banner).
+Rows built: BE-COLLECT-10, OV-N5, BE-BILLING-PLAN-LINKS-11 and 15, BE-COLLECT-18 (closed as pinned and ready, below), BE-OPS-04,
+WB-NAV-03, WB-OPS-02, 03, 04, 05 and 07, WB-SET-15. Rows confirmed (behaviour kept, tests named in the plan row map): the 22
+rows of the plan section 8, among them WB-OPS-01 and 06 and BE-BILLING-PLAN-LINKS-08, 09, 10 and 14.
+BE-COLLECT-18 is closed as "pinned and ready": the adapter sends `+` and `%` unescaped (an AI task carries the prompt exactly
+as saved, while SERP escapes it), and the first real run answers whether the provider decodes them. The test file
+`backend/tests/providers/dataforseo/test_ai_probe.py` pins what is sent and holds the verdict function
+`verdict(sent, echoed)`, which reads the keyword the provider echoes back and says `not_decoded`, `plus_read_as_space`,
+`percent_code_decoded`, `both` or `unknown`; if the real probe finds decoding, `test_serp_escapes_them_and_ai_does_not` is the
+test to change with the adapter. BE-OPS-04: the AI payload shape hash now covers all three captured engines
+(`backend/tests/providers/dataforseo/test_ai_payload_shapes.py`: every AI fixture is in the registry, each engine has a
+captured fixture with its own recorded hash, and a new, removed or retyped field changes the hash while a longer list does not).
+Not built: a forecast for workloads other than `ai_prompt`, a forecast by each schedule's own selector, and the answer to the
+`+` and `%` question. Follow-ups: the mock price book has no AI endpoint prices (the Provider price column on the unit costs
+tab is empty in the mock world); `PlainTable` has no pinned column (the budgets table scrolls inside its region at 390 px
+without pinning Scope); a shared `RefetchBar` component does not exist (the budgets and unit costs tables each draw the same
+static bar); the finished-run read behind the Updated link could also expose its error to the sidebar line (today the
+line and the notice fail separately and quietly); and the `budgets.pageTitle` message was removed because the page takes its
+title from `settings.items.budgets`.
+
 ### Phase 10: SEO and AI integration
 
 **10a (MVP):** keyword-prompt links with suggestions (cluster, semantic, fan-out), AI Overview vs organic rank (same-check), AIO citation rate by rank bucket, SEO/AI matrix (keyword level) with thresholds, page intelligence (SEO + AI citations), `core.xch_keyword_weekly`.

@@ -2,10 +2,12 @@
 
 ## Status
 
-Published by WP-03 on 2026-11-13 as two new routes that answer `501 not_implemented` after their access
-checks. Owner package: [WP-30 runs-costs-health](../work-packages/WP-30-runs-costs-health.md)
+Published by WP-03 on 2026-11-13 as two new routes that answered `501 not_implemented` after their access
+checks, and built by WP-30 on 2026-11-14: both routes now answer as described below. Owner package:
+[WP-30 runs-costs-health](../work-packages/WP-30-runs-costs-health.md)
 (MASTER-PLAN 3.3: `api/operations/collection_routes.py`; rows BE-COLLECT-10 and OV-N5). The schemas are
-in `backend/src/idraft/api/schemas/ai_collection.py`.
+in `backend/src/idraft/api/schemas/ai_collection.py`, the services in `ai_coverage.py` and
+`collection_daily.py` of the same package, and `NotAnAiRunError` in `collection_errors.py`.
 
 ## Routes and parameters
 
@@ -68,21 +70,19 @@ Response:
 | Status | Code | When |
 |---|---|---|
 | 401 | `unauthenticated` | No session. |
-| 404 | `not_found` | Not a member of the workspace; a project outside the member's scope; once built, a run that is not in the project. |
+| 404 | `not_found` | Not a member of the workspace; a project outside the member's scope; a run that is not in the project. |
 | 403 | `forbidden` | The role lacks `data:read`. |
 | 422 | `validation_failed` | A bad `run_id` (not a uuid), an engine outside `EngineCode` (`filter[engine_code_in]=perplexity_web`), a value that is not a date. |
-| 422 | `validation_failed` with field code `range_invalid` | A later body: `from` after `to`, at `from` (as the built AI reads). |
-| 422 | `not_an_ai_run` | A later body: the run's workload is not `ai_prompt` (ai-coverage). WP-30 adds the problem class when it raises it (`NotAnAiRunError`, WP-30 plan decision D5). |
-| 422 | `window_too_large` | A later body: `to` more than 92 days after `from` (carries `limit_days`; the class exists). |
-| 501 | `not_implemented` | Both routes, until WP-30 builds them. |
+| 422 | `validation_failed` with field code `range_invalid` | `from` after `to`, at `from` (as the built AI reads). |
+| 422 | `not_an_ai_run` | The run's workload is not `ai_prompt` (ai-coverage): `NotAnAiRunError`, WP-30 plan decision D5. |
+| 422 | `window_too_large` | `to` more than 92 days after `from` (carries `limit_days`). |
 
-Order: 401, 404, 403, 422 (path and query values), then `501`. The stub does not check the window or
-that the run exists, so `window_too_large`, `range_invalid`, `not_an_ai_run` and the `404` for a run
-come only with the body.
+Order of ai-coverage: 401, 404 (workspace, project, or a run outside the project), 403, 422 (path and
+query values), then `not_an_ai_run`.
 
 ## Example
 
-The `501` body is in the [README](README.md). The responses show what WP-30 will return.
+The responses show what the routes return.
 
 ```http
 GET {P}/runs/0000006a-7c1e-4a52-9b3d-00000000006a/ai-coverage
@@ -199,3 +199,4 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-14 WP-30: `scheduled` counts the tasks (not cancelled, not skipped) of `ai_prompt` runs whose `scheduled_for` falls on the day; null when the day and engine have no such task, even if a blocked run exists (D7, as built)
 2026-11-14 WP-30: `budget_blocked` counts `ai_prompt` runs with status `budget_blocked` by the local day of `completed_at`, on each engine the run asked for, else on every engine of the response; it counts runs, so it is never summed across engines; `runs[]` is the distinct runs of the day's answers on that engine plus the blocked runs of the day, oldest first (D8)
 2026-11-14 WP-30: valid_rate.n_observations is the answers observed (145 in the example), not the planned tasks
+2026-11-14 WP-30: routes built, so neither answers `501` any more; the Status paragraph, the error table and the order line are plain statements of what the code does; the examples are kept; a `complete` answer whose extraction hit `TooManyMatchesError` is stored `complete` with `is_valid` false and coverage counts by observation status, so it is not seen (rare)
