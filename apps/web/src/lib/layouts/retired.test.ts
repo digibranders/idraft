@@ -18,6 +18,9 @@ vi.mock('./catalog', async (importOriginal) => {
   };
 });
 
+// The mock handlers of the test setup load this package before this file does: a fresh module graph is what
+// lets the mocked catalog reach draft.ts and the rest
+vi.resetModules();
 const { addCard, canAddCard, hideCard, resolveLayout, sanitizeLayout } = await import('./index');
 const { SCREENS } = await import('./catalog');
 
