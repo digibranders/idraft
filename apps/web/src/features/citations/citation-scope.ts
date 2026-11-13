@@ -55,7 +55,10 @@ export interface CitationScope {
   /** One topic term: the prompts given it or one below it. */
   term: string | null;
   includeBranded: boolean;
-  /** False for `cmp=off`: no previous period is read and no change is shown. */
+  /**
+   * False for `cmp=off`: the own share change and the read of the previous period stop, and the tables show no
+   * change. The New and Lost counts are still read: they are server-side counts over their own windows.
+   */
   compare: boolean;
   minSupport: number;
   sort: SourceSort;

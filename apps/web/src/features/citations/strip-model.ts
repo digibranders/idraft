@@ -6,6 +6,7 @@ import type { CitationScope } from './citation-scope';
 import { Delta } from '@/components/app/metric/delta';
 import { MetricInfo } from '@/components/app/metric/metric-info';
 import type { MetricStripItem } from '@/components/app/metric/metric-strip';
+import { METHODOLOGY_HREF } from '@/lib/citations/methodology';
 import { ownShare } from '@/lib/citations/share-model';
 import type { EngineCode, SourceChangePage, SourceDiversity, SourceDomainPage } from '@/lib/citations/types';
 import { EMPTY_VALUE, formatDecimal, formatInteger, formatList, formatPercent } from '@/lib/format';
@@ -34,12 +35,6 @@ export interface StripWords {
   /** The name of an engine by its code. */
   labelOf: (code: EngineCode) => string;
 }
-
-/**
- * Where the in-app methodology page will be. It does not exist yet: the link in the Effective sources popover
- * leads to the not found page until then.
- */
-export const METHODOLOGY_HREF = '/methodology';
 
 /** One figure that cannot be shown: n/a, in the tertiary colour, and why (a failed read, or none to tell). */
 const unavailable = (id: string, label: string, reason: string): MetricStripItem => ({
@@ -131,7 +126,7 @@ function effectiveItem(reads: StripReads, { t, labelOf }: StripWords): MetricStr
   };
 }
 
-function ownShareItem(reads: StripReads, { t }: StripWords): MetricStripItem {
+function ownShareItem(reads: StripReads, scope: CitationScope, { t }: StripWords): MetricStripItem {
   const label = t('ownShare');
   const { data, none } = dataOf(reads.scope, 'own-share', label, t);
   if (data === null) return none;
@@ -143,10 +138,14 @@ function ownShareItem(reads: StripReads, { t }: StripWords): MetricStripItem {
     id: 'own-share',
     label,
     value: formatPercent(now.value),
-    context: t('ownContext', { units: now.units }),
+    context: t('ownContext', { units: now.units, total: now.total }),
   };
+  const counts = { units: now.units, total: now.total };
+  // With the comparison off there is no change, whatever a read of the period before still holds
+  if (!scope.compare) return { ...base, tip: t('ownTip', counts) };
+  if (reads.previous.status === 'error') return { ...base, tip: t('ownTipPreviousFailed', counts) };
   if (before === null || before.value === null || (data.meta.previous_answers ?? 0) === 0) {
-    return { ...base, tip: t('ownTip', { units: now.units, total: now.total }) };
+    return { ...base, tip: t('ownTip', counts) };
   }
   return {
     ...base,
@@ -165,10 +164,21 @@ function ownShareItem(reads: StripReads, { t }: StripWords): MetricStripItem {
   };
 }
 
-function changeItem(read: CitationRead<SourceChangePage>, kind: 'new' | 'lost', { t }: StripWords): MetricStripItem {
+function changeItem(
+  reads: StripReads,
+  read: CitationRead<SourceChangePage>,
+  kind: 'new' | 'lost',
+  { t }: StripWords,
+): MetricStripItem {
   const label = t(kind);
   const { data, none } = dataOf(read, kind, label, t);
   if (data === null) return none;
+  // A period before with no answers makes every cited domain "new": the count says nothing, so it is n/a (D4)
+  const scope = dataOf(reads.scope, kind, label, t);
+  if (scope.data === null) return scope.none;
+  if ((scope.data.meta.previous_answers ?? 0) === 0) {
+    return unavailable(kind, label, t(kind === 'new' ? 'newNoPrevious' : 'lostNoPrevious'));
+  }
   return {
     id: kind,
     label,
@@ -183,9 +193,9 @@ export function stripItems(reads: StripReads, scope: CitationScope, words: Strip
     unitsItem(reads, scope, words),
     distinctItem(reads, words),
     effectiveItem(reads, words),
-    ownShareItem(reads, words),
-    changeItem(reads.newSources, 'new', words),
-    changeItem(reads.lostSources, 'lost', words),
+    ownShareItem(reads, scope, words),
+    changeItem(reads, reads.newSources, 'new', words),
+    changeItem(reads, reads.lostSources, 'lost', words),
   ];
 }
 

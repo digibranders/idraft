@@ -132,6 +132,18 @@ describe('usePreviousMeta', () => {
     expect(result.current.previous.data?.meta.window.from).toBe(window?.from);
   });
 
+  it('drops the data of the previous period when the comparison goes off', async () => {
+    const { result, rerender } = renderHook(({ compare }: { compare: boolean }) => useBoth(FILTERS, compare), {
+      wrapper,
+      initialProps: { compare: true },
+    });
+    await waitFor(() => expect(result.current.previous.data).toBeDefined());
+    rerender({ compare: false });
+    expect(result.current.previous.data).toBeUndefined();
+    expect(result.current.previous.status).toBe('ready');
+    expect(result.current.previous.retrying).toBe(false);
+  });
+
   it('reads nothing for the previous period when the comparison is off', async () => {
     const seen = watch('/sources/domains');
     const { result } = renderHook(() => useBoth(FILTERS, false), { wrapper });

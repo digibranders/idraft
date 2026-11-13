@@ -174,14 +174,14 @@ describe('stripItems', () => {
   it('own share ignores the role filter', () => {
     const own = byId(readsOf(), scopeOf({ role: 'competitor' }))['own-share'];
     expect(own?.value).toBe('9.1%');
-    expect(own?.context).toBe('1,676 units');
+    expect(own?.context).toBe('1,676 of 18,420 units');
     expect(own?.tip).toContain('1,676 of 18,420 citation units');
     expect(own?.tip).toContain('The role filter does not change this figure');
   });
 
   it('every percent shows its units and the total', () => {
     const own = byId(readsOf())['own-share'];
-    expect(own?.context).toMatch(/units$/);
+    expect(own?.context).toMatch(/ of 18,420 units$/);
     expect(own?.tip).toContain('of 18,420 citation units');
   });
 
@@ -218,8 +218,47 @@ describe('stripItems', () => {
     }
   });
 
-  it('has no change with the comparison off', () => {
-    expect(byId(readsOf({ previous: idle() }), scopeOf({ cmp: 'off' }))['own-share']?.delta).toBeUndefined();
+  it('has no change with the comparison off, even if a read of the period before still holds data', () => {
+    // readsOf() carries STALE previous data: the scope's comparison is what decides
+    const own = byId(readsOf(), scopeOf({ cmp: 'off' }))['own-share'];
+    expect(own?.delta).toBeUndefined();
+    expect(own?.tip).not.toContain('Previous 8.3%');
+    expect(own?.tip).toContain('1,676 of 18,420 citation units');
+  });
+
+  it('says in the tip that the previous period could not be loaded when the comparison is on', () => {
+    const own = byId(readsOf({ previous: failed() }))['own-share'];
+    expect(own?.delta).toBeUndefined();
+    expect(own?.tip).toContain('The previous period could not be loaded.');
+    expect(byId(readsOf({ previous: failed() }), scopeOf({ cmp: 'off' }))['own-share']?.tip).not.toContain(
+      'could not be loaded',
+    );
+  });
+
+  it('New is n/a with its reason when the previous period has no answers, never a count', () => {
+    for (const previous_answers of [0, null]) {
+      const reads = readsOf({ scope: ready(domainPage(metaOf({ previous_answers }))) });
+      const item = byId(reads)['new'];
+      expect(item?.value).toBe('n/a');
+      expect(item?.unknown).toEqual({ kind: 'not-applicable' });
+      expect(item?.tip).toBe('The previous period has no answers, so nothing is new.');
+    }
+    expect(
+      byId(readsOf({ scope: ready(domainPage(metaOf({ previous_answers: 0 }))) }), scopeOf({ cmp: 'off' }))['new']
+        ?.value,
+    ).toBe('n/a');
+  });
+
+  it('Lost is n/a with its own reason when the previous period has no answers', () => {
+    const item = byId(readsOf({ scope: ready(domainPage(metaOf({ previous_answers: 0 }))) }))['lost'];
+    expect(item?.value).toBe('n/a');
+    expect(item?.unknown).toEqual({ kind: 'not-applicable' });
+    expect(item?.tip).toBe('The earlier periods have no answers, so nothing can be lost.');
+  });
+
+  it('New and Lost wait for the scope read and are n/a when it failed', () => {
+    expect(byId(readsOf({ scope: pending() }))['new']?.unknown).toEqual({ kind: 'pending' });
+    expect(byId(readsOf({ scope: failed() }))['lost']?.unknown).toEqual({ kind: 'not-applicable' });
   });
 
   it('own share is n/a with a reason when no unit is in scope', () => {

@@ -118,7 +118,7 @@ describe('CitationsStrip', () => {
     const own = screen.getByText('Own citation share').closest('div');
     if (own === null) throw new Error('The own share cell is missing');
     expect(own).toHaveTextContent('9.1%');
-    expect(own).toHaveTextContent('1,676 units');
+    expect(own).toHaveTextContent('1,676 of 18,420 units');
     await user.hover(within(own).getByRole('definition'));
     await waitFor(() => expect(tooltip()).toHaveTextContent('1,676 of 18,420 citation units'));
   });
@@ -143,7 +143,7 @@ describe('CitationsStrip', () => {
     );
     const own = screen.getByText('Own citation share').closest('div');
     expect(own).toHaveTextContent('9.1%');
-    expect(own).toHaveTextContent('1,676 units');
+    expect(own).toHaveTextContent('1,676 of 18,420 units');
   });
 
   it('shows skeleton values while loading and keeps values while refetching', () => {

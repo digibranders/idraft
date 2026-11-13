@@ -47,7 +47,8 @@ function useRead<TPage>(query: UseQueryResult<TPage>, idle = false): CitationRea
         : query.isPending
           ? 'loading'
           : 'ready',
-    data: query.data,
+    // An idle read has no data: the placeholder of `keepPreviousData` would otherwise show the last window's
+    data: idle ? undefined : query.data,
     errorId,
     retry: () => void query.refetch(),
     retrying: query.isFetching,
