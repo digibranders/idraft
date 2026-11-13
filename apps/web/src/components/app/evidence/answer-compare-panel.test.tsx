@@ -124,7 +124,7 @@ describe('AnswerComparePanel', () => {
   it('says there is no earlier answer to compare, as a reason and not as a failure', async () => {
     const { container } = show({ status: 'empty' });
     expect(screen.getByText('No earlier answer to compare')).toBeInTheDocument();
-    expect(screen.getByText(/No earlier answer of this engine named the brand/)).toBeInTheDocument();
+    expect(screen.getByText(/There is no earlier answer of this engine to compare with yet/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     expect(container.querySelector('[data-slot="inline-error"]')).toBeNull();
     expect(await axe(container)).toHaveNoViolations();

@@ -131,6 +131,8 @@ export const evidenceHandlers: HttpHandler[] = [
     const now = Date.now();
     const latest = findAnswer(projectId, id, null, now);
     if (latest === null) return problem(request, 'not_found');
+    // As the API does: an answer with no current facts has nothing to compare, its entities and sources are unknown
+    if (latest.facts === null) return noBaseline(request);
     // `answersOf` is newest first, so the first match is the newest earlier answer
     const baseline = answersOf(projectId, now).find(isBaselineOf(latest));
     return baseline === undefined ? noBaseline(request) : HttpResponse.json({ data: compare(latest, baseline) });

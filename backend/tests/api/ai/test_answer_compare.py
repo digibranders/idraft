@@ -474,7 +474,7 @@ async def test_compare_statements_are_constant(
     assert len(entities) == len(data["entities"]["kept"])
     assert len(few) == len(many)
     own = [sql for sql in many if "set_config" not in sql]
-    assert len(own) <= 5, own
+    assert len(own) == 5, own
 
 
 @pytest.mark.parametrize("observation_id", ["0", str(2**63), "-1", "abc"])

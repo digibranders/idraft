@@ -1188,7 +1188,7 @@
       "title": "Change since the last answer that named the brand",
       "loading": "Comparing with an earlier answer",
       "emptyTitle": "No earlier answer to compare",
-      "emptyReason": "No earlier answer of this engine named the brand, so there is no change to read yet.",
+      "emptyReason": "There is no earlier answer of this engine to compare with yet, so no change to read.",
       "failedTitle": "The comparison could not be loaded",
       "failedReason": "The server did not answer. Try again in a moment.",
       "thisAnswer": "This answer",

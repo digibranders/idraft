@@ -379,7 +379,10 @@ provider" and the hash lines on the Latest cards of the prompt inspector. Rows b
 WB-ANS-16, WB-SRC-04 (as the reusable `QuotedPassage` plus its use in the viewer; mounting it in the cited URL
 inspector is WP-22), WB-PI-23. Rows WB-ANS-01 to WB-ANS-09 are confirmed by tests (row to test map in
 docs/ai-visibility/contracts/evidence.md). The answer compare is the gained, lost and kept summary: the two column
-text comparison belongs to Prompt Detail (WP-52).
+text comparison belongs to Prompt Detail (WP-52). Accepted deviations: the quoted passages section is absent when no
+citation has a quote (ChatGPT gives none) instead of showing an empty state; the answer detail itself has no refetch
+marker (it had none before this package; only the compare panel keeps its data under a refetch bar); a flagged
+citation states its reason as visible text instead of a tooltip.
 
 ### Phase 10: SEO and AI integration
 

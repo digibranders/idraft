@@ -5,8 +5,9 @@ newest earlier valid answer of the same prompt and engine that named the own bra
 Entities are compared by id over the accepted mentions of each answer's current derivation, in
 any tracked role. Sources are compared by registrable domain; citations flagged
 `unresolved_redirect` or `engine_internal` are left out. The lists are bounded by the two
-answers' own mentions and citations. Three statements read everything: the baseline, the
-mentions of both answers and the citations of both, whatever their size."""
+answers' own mentions and citations. A compare sends five statements (not counting
+`set_config`), whatever the size of the answers: the baseline, the mentions of both answers and
+the citations of both are one grouped read each."""
 
 from __future__ import annotations
 
