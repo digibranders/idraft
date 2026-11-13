@@ -40,11 +40,14 @@ export interface RateChange {
 }
 
 /** What a change needs of a rate: `RateReading`, plus the prompts a topic cell weights when it has them. */
-type Reading = RateReading & { readonly prompts?: number | null };
+export type RateChangeInput = RateReading & { readonly prompts?: number | null };
+
+type Reading = RateChangeInput;
 
 const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0);
 
-const hasRate = (reading: Reading): reading is Reading & { value: number } =>
+/** Whether a reading shows a rate (`state` ok, with a value); named apart from `hasRate` of `lib/rates`, which reads a cell. */
+const isRated = (reading: Reading): reading is Reading & { value: number } =>
   reading.state === 'ok' && reading.value !== null;
 
 /** Whether the move is larger than normal variation: `null` for share of voice (no count of successes) and for counts that cannot be tested. */
@@ -71,8 +74,8 @@ const sideOf = (reading: Reading & { value: number }): Side => ({
  * The change from `before` to `now`, or `null` when either has no rate to show (under 4 valid answers, or none): a
  * rate that is not there is never read as 0, so a move from or to it is not drawn.
  */
-export function rateChange(now: Reading, before: Reading, metric: CellMetric): RateChange | null {
-  if (!hasRate(now) || !hasRate(before)) return null;
+export function rateChange(now: RateChangeInput, before: RateChangeInput, metric: CellMetric): RateChange | null {
+  if (!isRated(now) || !isRated(before)) return null;
   const points = now.value - before.value;
   return {
     points,
@@ -116,13 +119,14 @@ export function averageChangeOf(
   codes: readonly string[],
   metric: CellMetric,
 ): RateChange | null {
-  const taking = codes.flatMap((code) => {
+  // A repeated code is one engine, so it cannot count twice in the pooled answers
+  const taking = [...new Set(codes)].flatMap((code) => {
     const engine = cells?.find((cell) => cell.engine_code === code);
     const previous = previousOf(engine);
     if (engine === undefined || previous === undefined) return [];
     const now = readingOf(engine, metric);
     const before = readingOf(previous, metric);
-    return hasRate(now) && hasRate(before) ? [{ now, before }] : [];
+    return isRated(now) && isRated(before) ? [{ now, before }] : [];
   });
   const [first] = taking;
   if (first === undefined) return null;

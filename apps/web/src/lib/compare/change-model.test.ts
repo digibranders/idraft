@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { averageChangeOf, deltaInput, engineChangeOf, rateChange, stripChangeOf } from './change-model';
+import {
+  averageChangeOf,
+  deltaInput,
+  engineChangeOf,
+  rateChange,
+  stripChangeOf,
+  type RateChangeInput,
+} from './change-model';
 import type { EngineSummary, MetricCell, Schemas } from '@/lib/api/types';
 import type { RateReading, StripPrompt } from '@/lib/rates/strip-model';
 
@@ -92,8 +99,15 @@ describe('rateChange', () => {
     expect(rateChange(reading(30, 60), reading(30, 60), 'mentioned')?.detectable).toBe(false);
   });
 
+  it('does not tell a change whose pooled difference is exactly 0 while the weighted points are not (null)', () => {
+    // 30 of 60 against 30 of 60 pooled, yet the weighted rates moved from 0.5 to 0.6
+    const change = rateChange(reading(30, 60, 0.6), reading(30, 60, 0.5), 'mentioned');
+    expect(change?.points).toBeCloseTo(0.1, 10);
+    expect(change?.detectable).toBeNull();
+  });
+
   it('carries the prompts a topic cell weights', () => {
-    const topic: RateReading & { prompts: number } = { ...reading(30, 60), prompts: 5 };
+    const topic: RateChangeInput = { ...reading(30, 60), prompts: 5 };
     const change = rateChange(topic, { ...reading(12, 60), prompts: 4 }, 'mentioned');
     expect(change?.now.prompts).toBe(5);
     expect(change?.before.prompts).toBe(4);
@@ -172,6 +186,38 @@ describe('averageChangeOf', () => {
   it("with one engine equals that engine's change", () => {
     const only = [cells[0] as EngineSummary, cells[1] as EngineSummary];
     expect(averageChangeOf(only, ['a', 'b'], 'mentioned')).toEqual(engineChangeOf(only, 'a', 'mentioned'));
+  });
+
+  it('with one engine over a topic cell equals that engine change, prompts included', () => {
+    const topic = (k: number, n: number, prompts: number): MetricCell => ({
+      ...cell(0, prompts),
+      value: k / n,
+      pooled: { successes: k, trials: n },
+    });
+    const topics = [engine('a', cellsOf(topic(30, 60, 5)), cellsOf(topic(12, 60, 4)))];
+    const change = averageChangeOf(topics, ['a'], 'mentioned');
+    expect(change).toEqual(engineChangeOf(topics, 'a', 'mentioned'));
+    expect(change?.now.prompts).toBe(5);
+    expect(change?.before.prompts).toBe(4);
+  });
+
+  it('leaves the test out when one engine count is not whole and not pooled, next to a normal engine', () => {
+    const uneven = [
+      engine('a', cellsOf({ ...cell(30, 60), numerator: 29.5 }), cellsOf(cell(12, 60))),
+      engine('c', cellsOf(cell(20, 40)), cellsOf(cell(22, 40))),
+    ];
+    const change = averageChangeOf(uneven, ['a', 'c'], 'mentioned');
+    expect(change?.engines).toBe(2);
+    expect(change?.now.successes).toBeNull();
+    expect(change?.before.successes).toBe(34);
+    expect(change?.detectable).toBeNull();
+  });
+
+  it('counts an engine once when its code is repeated', () => {
+    const change = averageChangeOf(cells, ['a', 'a', 'c', 'c', 'a'], 'mentioned');
+    expect(change?.engines).toBe(2);
+    expect(change).toEqual(averageChangeOf(cells, ['a', 'c'], 'mentioned'));
+    expect(averageChangeOf(cells, ['a', 'a'], 'mentioned')).toEqual(engineChangeOf(cells, 'a', 'mentioned'));
   });
 
   it('is null when no engine has a rate in both', () => {
