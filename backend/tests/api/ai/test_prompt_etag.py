@@ -12,8 +12,8 @@ from itertools import pairwise
 import httpx
 
 from idraft.api.resources import Resources
-from tests.api.ai.support import added, ai_project, seed_prompts
-from tests.api.auth.support import Workspace, fetch, make_workspace
+from tests.api.ai.support import added, ai_project, seed_prompts, set_prompt_quota
+from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import project_url, term, vocabulary
 from tests.conftest import PostgresServer
@@ -158,6 +158,80 @@ async def test_a_stale_if_match_is_412_and_changes_nothing(
     assert await _changes(migrated, workspace, str(prompt_id)) == rows
 
 
+async def test_a_source_only_change_moves_the_etag(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """Saying the value a prompt already has changes who decided it, and a client holding the
+    old tag has not seen that."""
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    flagged, typed = await seed_prompts(migrated, workspace, project, 2)
+    await execute(
+        migrated,
+        "UPDATE ai.prompts SET prompt_type_source = 'rule', is_branded_source = 'computed' "
+        "WHERE id = ANY($1)",
+        [flagged, typed],
+    )
+    for prompt_id, body, field, source in (
+        (flagged, {"is_branded": False}, "is_branded_source", "override"),
+        (typed, {"prompt_type": "question"}, "prompt_type_source", "person"),
+    ):
+        url = project_url(workspace, project, "prompts", prompt_id)
+        read = await api.get(url, headers=editor.headers)
+        tag = read.headers["ETag"]
+        assert read.json()["data"][field] != source
+        assert all(read.json()["data"][name] == value for name, value in body.items())
+
+        same_value = await api.patch(url, json=body, headers=editor.headers)
+
+        assert same_value.status_code == 200, same_value.text
+        assert same_value.json()["data"][field] == source
+        assert same_value.headers["ETag"] != tag
+        assert await _etag(api, url, editor) == same_value.headers["ETag"]
+        late = await api.patch(
+            url, json={"importance": 1}, headers={**editor.headers, "If-Match": tag}
+        )
+        assert problem(late) == PRECONDITION_FAILED
+
+
+async def test_a_stale_if_match_is_answered_before_terms_and_quota_are_looked_at(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    resting, _active = await seed_prompts(migrated, workspace, project, 2)
+    await execute(migrated, "UPDATE ai.prompts SET is_active = false WHERE id = $1", resting)
+    await set_prompt_quota(migrated, workspace, 1)
+    url = project_url(workspace, project, "prompts", resting)
+    stale = await _etag(api, url, editor)
+    assert (await api.patch(url, json={"importance": 1}, headers=editor.headers)).status_code == 200
+    unknown_term = {"term_ids": [str(uuid.uuid4())]}
+    bring_back = {"is_active": True}
+
+    unknown_stale = await api.patch(
+        url, json=unknown_term, headers={**editor.headers, "If-Match": stale}
+    )
+    quota_stale = await api.patch(
+        url, json=bring_back, headers={**editor.headers, "If-Match": stale}
+    )
+    current = await _etag(api, url, editor)
+    unknown_current = await api.patch(
+        url, json=unknown_term, headers={**editor.headers, "If-Match": current}
+    )
+    quota_current = await api.patch(
+        url, json=bring_back, headers={**editor.headers, "If-Match": current}
+    )
+
+    # With the current tag the same bodies are refused for their own reasons, so the 412 above
+    # is the tag being compared first.
+    assert problem(unknown_stale) == PRECONDITION_FAILED
+    assert problem(quota_stale) == PRECONDITION_FAILED
+    assert problem(unknown_current) == INVALID
+    assert problem(quota_current) == (422, "quota_exceeded")
+
+
 async def test_if_match_star_and_lists_match(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -168,7 +242,6 @@ async def test_if_match_star_and_lists_match(
     url = project_url(workspace, project, "prompts", prompt_id)
     stale = await _etag(api, url, editor)
     assert (await api.patch(url, json={"importance": 2}, headers=editor.headers)).status_code == 200
-    current = await _etag(api, url, editor)
 
     async def change(if_match: str, importance: int) -> httpx.Response:
         return await api.patch(
@@ -180,12 +253,16 @@ async def test_if_match_star_and_lists_match(
     weak = await change("W/" + await _etag(api, url, editor), 5)
     no_match = await change(f'{stale}, "{"1" * 32}"', 1)
     empty = await change(",", 1)
-    unquoted = await change(current.strip('"'), 1)
-
     assert [response.status_code for response in (star, listed, weak)] == [200, 200, 200]
-    assert [problem(response) for response in (no_match, empty, unquoted)] == [
-        PRECONDITION_FAILED
-    ] * 3
+    assert [problem(response) for response in (no_match, empty)] == [PRECONDITION_FAILED] * 2
+    assert (await api.get(url, headers=editor.headers)).json()["data"]["importance"] == 5
+
+    # The tag as it is now, without its quotes, and nothing between the read and the change: it
+    # is the right value in the wrong form, so only the form can refuse it.
+    bare = (await _etag(api, url, editor)).strip('"')
+    unquoted = await change(bare, 1)
+
+    assert problem(unquoted) == PRECONDITION_FAILED
     assert (await api.get(url, headers=editor.headers)).json()["data"]["importance"] == 5
 
 
