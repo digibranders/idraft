@@ -48,6 +48,8 @@ from idraft.db.tables import (
     ai_prompt_terms,
     ai_prompts,
     domains,
+    taxonomy_terms,
+    taxonomy_vocabularies,
     urls,
 )
 from idraft.keywords.trees import descendants
@@ -1286,6 +1288,73 @@ async def fanout_cited(
                 citation_units=row.units,
             )
         )
+    return found
+
+
+async def fanout_topics(
+    db: AsyncSession, scope: SourceScope, keys: Sequence[tuple[str, str]], *, top: int
+) -> dict[tuple[str, str], list[tuple[UUID, int]]]:
+    """For each (normalized text, engine), the `top` topic terms tagged on the prompts whose
+    answers issued it, as (term id, answers), the most answers first, then the term id. A topic
+    is a term of a `topic` vocabulary of the project or of the whole workspace; an answer counts
+    once for each term of its prompt, however often it lists the query. One statement."""
+    if not keys:
+        return {}
+    issued = _issued(scope)
+    pairs = (
+        select(
+            issued.c.observation_id,
+            issued.c.prompt_id,
+            issued.c.normalized_text,
+            issued.c.engine_code,
+        )
+        .where(issued.c.normalized_text.in_(sorted({text for text, _ in keys})))
+        .distinct()
+        .subquery("pairs")
+    )
+    tagged, t, v = ai_prompt_terms.c, taxonomy_terms.c, taxonomy_vocabularies.c
+    seen = (
+        select(
+            pairs.c.normalized_text,
+            pairs.c.engine_code,
+            tagged.term_id,
+            func.count(pairs.c.observation_id.distinct()).label("seen"),
+        )
+        .select_from(
+            pairs.join(
+                ai_prompt_terms,
+                and_(
+                    tagged.prompt_id == pairs.c.prompt_id,
+                    tagged.workspace_id == scope.workspace_id,
+                ),
+            )
+            .join(
+                taxonomy_terms,
+                and_(t.id == tagged.term_id, t.workspace_id == scope.workspace_id),
+            )
+            .join(taxonomy_vocabularies, v.id == t.vocabulary_id)
+        )
+        .where(v.kind == "topic", or_(v.project_id.is_(None), v.project_id == scope.project_id))
+        .group_by(pairs.c.normalized_text, pairs.c.engine_code, tagged.term_id)
+        .subquery("seen")
+    )
+    ranked = select(
+        seen,
+        func.row_number()
+        .over(
+            partition_by=(seen.c.normalized_text, seen.c.engine_code),
+            order_by=(seen.c.seen.desc(), seen.c.term_id),
+        )
+        .label("place"),
+    ).subquery("ranked")
+    rows = await db.execute(
+        select(ranked.c.normalized_text, ranked.c.engine_code, ranked.c.term_id, ranked.c.seen)
+        .where(ranked.c.place <= top)
+        .order_by(ranked.c.normalized_text, ranked.c.engine_code, ranked.c.place)
+    )
+    found: dict[tuple[str, str], list[tuple[UUID, int]]] = {}
+    for row in rows:
+        found.setdefault((row.normalized_text, row.engine_code), []).append((row.term_id, row.seen))
     return found
 
 

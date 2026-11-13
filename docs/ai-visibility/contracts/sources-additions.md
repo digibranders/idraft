@@ -19,10 +19,10 @@ plan decision D4).
 | `sources/pages`: `include=series`, `min_support`, `filter[country_iso]` | optional additions | built |
 | `citations`: `filter[country_iso]` | optional addition | built |
 | `fanout-queries`: `filter[country_iso]` | optional addition | built |
-| `fanout-queries`: `include=topics` | optional addition | `501` when used (not built yet) |
+| `fanout-queries`: `include=topics` | optional addition | built |
 | `include_unresolved_redirects`, `include_engine_internal` (default false) on domains, pages, changes, diversity, domain detail, prompts | optional additions | built |
 | Response fields on domain rows, page rows and `meta` | new optional fields | returned when their `include` is asked for; `category` and `category_source` are not returned yet (WP-60) |
-| `FanoutQueryRow.topics` | new optional field | absent from every response (not returned yet) |
+| `FanoutQueryRow.topics` | new optional field | returned with `include=topics`, absent otherwise |
 
 A request that leaves the additions out answers as before (no `series` or `by_role_by_engine` in
 `meta`), with one deliberate change: citations flagged `unresolved_redirect` or `engine_internal` are
@@ -62,7 +62,7 @@ ending today, at most 92), `filter[engine_code_in]` (at most 3 values), `filter[
 | `min_support` | `sources/changes` | integer | 1 to 1,000, default 2 | The citation units a domain needs on the side where it was cited. |
 | `include_unresolved_redirects` | domains, pages, changes, diversity, domain detail, prompts | boolean | default `false` | Count citations flagged `unresolved_redirect` (redirect links that were not resolved, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). |
 | `include_engine_internal` | same six routes | boolean | default `false` | Count citations flagged `engine_internal` (links into the engine's own product), left out by default. Ingest does not set this flag yet, so nothing is left out until it does; the read filters on it already. |
-| `include` | `fanout-queries` | comma list of `topics` | at most 1 value | Adds `topics` to each row. `501` when used (not built yet). |
+| `include` | `fanout-queries` | comma list of `topics` | at most 1 value | Adds `topics` to each row: one statement for the page. |
 | `include` | `sources/diversity` | comma list of `series`, `ads` | at most 2 values | Weekly series and ad presence per engine. |
 | `filter[own_cited]` | `sources/prompts` | boolean | | `true` keeps the prompt and engine pairs whose answers cite an own page, `false` those that cite none. Default both. |
 
@@ -90,7 +90,7 @@ shared scope and a keyset `cursor` and `limit` (1 to 200).
 | `SourcePageRow` | `series` | `SourceWeekUnits[]` | at most 14 | With `include=series`. |
 | `SourcesMeta` | `series` | `SourcesWeek[]` | at most 14 | With `include=series`: per week `week_start`, `answers`, `citation_units`, `distinct_domains`. |
 | `SourcesMeta` | `by_role_by_engine` | `EngineRoleUnits[]` | at most 3 | With `include=by_role_by_engine` on domains: per engine, `own`, `competitor` and `third_party` each as `{ citation_units, answers_citing }`. |
-| `FanoutQueryRow` | `topics` | `FanoutTopic[]` `{ term_id, observations }` | at most 10 | With `include=topics`: the topic terms tagged on the prompts whose answers issued it, the most answers first. Published; not returned yet. |
+| `FanoutQueryRow` | `topics` | `FanoutTopic[]` `{ term_id, observations }` | at most 10 | With `include=topics`: the topic terms tagged on the prompts whose answers issued it, the most answers first, then by term id. An empty list when none of them is tagged with a topic. |
 
 `SourceWeekUnits`: `week_start` (the Monday the week starts on, in the project's zone), `citation_units`,
 `observations`.
@@ -152,10 +152,8 @@ shared scope and a keyset `cursor` and `limit` (1 to 200).
 | 422 | `validation_failed` | A value outside its bounds: `include=cited_with` on pages, `kind=gone`, `min_support=0`, `filter[country_iso]=us`; a parameter the route does not declare; `from` after `to` is field code `range_invalid`. |
 | 422 | `window_too_large` | Over 92 days (the asked window; `sources/changes` with `kind=lost` reads 3 windows of that length). |
 | 422 | `engine_has_no_fanout` | Fan-out only: an engine that does not show its queries is named in `filter[engine_code_in]`. |
-| 501 | `not_implemented` | `fanout-queries` with `include=topics` (not built yet; `detail` names `include`). |
 
-Order: 401, 404, 403, 422, then `501`. The one addition still answering `501` does so before the
-service reads anything.
+Order: 401, 404, 403, 422. No addition answers `501` any more.
 
 ## Example
 
@@ -293,6 +291,26 @@ GET {P}/ai/fanout-queries?filter[country_iso]=US&min_support=2
 Their responses (`CitationPage`, `FanoutQueryPage`) do not change; the answers counted are those of the
 prompts of that market.
 
+### Fan-out queries by topic
+
+```http
+GET {P}/ai/fanout-queries?include=topics&min_support=2
+```
+
+Each row gains `topics`, here two topic terms of the prompts whose answers issued "soc pricing" (3
+answers in all: the first term in 2 of them, the second in 1):
+
+```json
+{
+  "normalized_text": "soc pricing",
+  "observations": 3,
+  "topics": [
+    { "term_id": "0198f3b1-6b3a-7c10-9f0e-5d2a1c7e4a11", "observations": 2 },
+    { "term_id": "0198f3b1-6b3a-7c10-9f0e-5d2a1c7e4a12", "observations": 1 }
+  ]
+}
+```
+
 ### Changes
 
 ```http
@@ -360,8 +378,8 @@ Each row can be tightened by WP-14 through the change log.
 
 ## Built by WP-14
 
-The routes, parameters and fields above are built, except `fanout-queries` `include=topics` and
-`FanoutQueryRow.topics`, and `SourceDomainRow.category` and `category_source` (WP-60). Every aggregate is
+The routes, parameters and fields above are built, except `SourceDomainRow.category` and
+`category_source` (WP-60). Every aggregate is
 one grouped statement, with a statement count test; a foreign or deleted project answers `404` from the
 service; the new blocks stay absent unless asked for (`include`).
 
@@ -378,3 +396,4 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-14: built `include=cited_with` and `include=by_role_by_engine` on `sources/domains` (`cited_with` is read per row, so per registrable domain, role and entity: the tracked entity named in the most counted answers citing that row, current and accepted mentions of the answer's derivation, ties by entity id, `observations` the answers citing the row that name it, the key absent when no answer names one; `meta.by_role_by_engine` lists every engine of `meta.engine_codes` in that order with the units and citing answers of each role over every citation in scope, zero when none, whatever `filter[domain_role_in]` says, so per role the units over the engines add up to `meta.by_role`); every `include` value of domains is now built; a NUL or other control character in `filter[registrable_domain]` or in the `{registrable_domain}` path value answers `422 validation_failed`
 2026-11-13 WP-14: built `GET {P}/ai/sources/prompts` (BE-SOURCES-20): one row per prompt and engine with a counted answer (an engine with none has no row), each with `answers`, `answers_citing_own`, `own_citation_units` (distinct own URLs per answer), `own_pages` and `top_own_page` (the own page with the most units, ties by the lowest url id; null when none); `filter[own_cited]` keeps the pairs that cite an own page (`true`) or none (`false`); keyset pages `(prompt_id, engine_code)` with a cursor bound to the project and every filter (`400 invalid_cursor` for another scope or a forged key); the flag toggles on it still answer `501`
 2026-11-13 WP-14: built `include_unresolved_redirects` and `include_engine_internal` on `sources/domains`, `sources/pages`, `sources/changes`, `sources/diversity`, `sources/domains/{registrable_domain}` and `sources/prompts`, and CHANGED the default (open question O1, approved by the coordinator): citations flagged `unresolved_redirect` or `engine_internal` are now left out of the citation units, citing answers, shares, series, `meta`, diversity numbers, change rules and own pages of those reads unless the toggle asks for them (docs/14 section 9); the answers still count in `meta.answers`; a citation with several excluded flags counts only when every one is asked for; `citations` and `fanout-queries` keep every citation; a `sources/prompts` cursor is bound to the toggles; the default is the one constant `FLAGGED_COUNTED_BY_DEFAULT`; ingest never sets `engine_internal` today, so only `unresolved_redirect` (Gemini grounding links and other redirects ingest could not unwrap) moves numbers
+2026-11-13 WP-14: built `include=topics` on `fanout-queries` (BE-TOPICS-12): each row gets `topics`, the topic terms (terms of a `topic` vocabulary of the project or of the whole workspace; a term of another kind or of another project is never listed) tagged on the prompts whose counted answers issued the query, as `{ term_id, observations }` with the answers of those prompts that issued it (an answer counts once per term however often it lists the query), the most answers first, then by term id, at most 10; an empty list when no such prompt is tagged, the key absent without `include`; read in one statement for the page and scoped like the rows (branded prompts only with `include_branded`, `filter[country_iso]`, the window and the engines); the fan-out read still keeps every citation whatever its flags; no `501` is left in this contract; the share of answers whose list the 16 KB bound cut is measured by the read only query in `docs/ops/ai-fanout-cut-measure.md`, for the ops session to run once

@@ -35,7 +35,6 @@ from idraft.api.schemas.ai_sources import (
     SourceSort,
 )
 from idraft.api.schemas.common import printable
-from idraft.api.stubs import refuse_unbuilt
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 from idraft.domain.ai_engines import EngineCode
@@ -109,8 +108,6 @@ COMPARE = (
     "citing answers over as many days just before the window (0 when not cited there: docs/16 "
     "C5), with `meta.compare_window` and `meta.previous_answers`."
 )
-
-_NOT_BUILT = "Not built yet: `501 not_implemented`."
 
 CountryFilter = Annotated[
     str | None,
@@ -458,7 +455,9 @@ async def citation_list(
     "those answers (an association: which query found which source is not stored). A query "
     "issued by fewer than `min_support` answers (default 2) is left out. `meta.answers` is the "
     "denominator; `meta.answers_truncated` counts the answers whose stored list is shorter than "
-    "the queries they issued (the 16 KB bound keeps the first ones). Offset pages.",
+    "the queries they issued (the 16 KB bound keeps the first ones). `include=topics` adds the "
+    "topic terms (of a `topic` vocabulary of the project or of the workspace) tagged on the "
+    "prompts that issued each query, the most answers first, at most 10. Offset pages.",
 )
 async def fanout_queries(
     project_id: UUID,
@@ -472,15 +471,19 @@ async def fanout_queries(
     include: Annotated[
         list[FanoutInclude] | None,
         Commas,
-        Query(max_length=1, description="Blocks to add: `topics`. " + _NOT_BUILT),
+        Query(
+            max_length=1,
+            description="Blocks to add: `topics` (on each row, the topic terms tagged on the "
+            "prompts whose answers issued the query).",
+        ),
     ] = None,
     country_iso: CountryFilter = None,
 ) -> FanoutQueryPage:
-    refuse_unbuilt({"include": bool(include)})
     return await sources.fanout(
         access,
         project_id,
         replace(scope, country_iso=country_iso),
         min_support=min_support,
+        include=include or (),
         page=page,
     )

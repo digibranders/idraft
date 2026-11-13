@@ -311,6 +311,7 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     ("GET", _W + "/projects/{project_id}/ai/fanout-queries"): {
         "min_support": "1",
         "filter[country_iso]": "US",
+        "include": "topics",
     },
     # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
     # your entries under your own line, nowhere else in this table.

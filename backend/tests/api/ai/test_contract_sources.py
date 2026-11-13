@@ -20,34 +20,9 @@ from tests.api.keywords.support import project_url
 from tests.collectors.ai_support import add_prompt
 from tests.conftest import PostgresServer
 
-NOT_BUILT = (501, "not_implemented")
 FORBIDDEN = (403, "forbidden")
 NOT_FOUND = (404, "not_found")
 INVALID = (422, "validation_failed")
-
-
-@pytest.mark.parametrize(
-    ("path", "params"),
-    [
-        ("fanout-queries", {"include": "topics"}),
-    ],
-)
-async def test_a_source_addition_answers_501(
-    path: str,
-    params: dict[str, str],
-    api: httpx.AsyncClient,
-    resources: Resources,
-    migrated: PostgresServer,
-) -> None:
-    workspace = await make_workspace(migrated)
-    viewer = await member(resources, migrated, workspace, "viewer")
-    project = await ai_project(migrated, workspace)
-
-    response = await api.get(
-        project_url(workspace, project, "ai", path), params=params, headers=viewer.headers
-    )
-
-    assert problem(response) == NOT_BUILT
 
 
 NEW_ROUTES = ["sources/diversity", "sources/domains/g2.com", "sources/prompts"]
@@ -107,6 +82,7 @@ async def test_a_registrable_domain_longer_than_253_is_refused(
         ("sources/changes", {}),
         ("sources/domains", {"include": "series"}),
         ("sources/domains", {"include": "series,cited_with,by_role_by_engine"}),
+        ("fanout-queries", {"include": "topics"}),
     ],
 )
 async def test_the_source_reads_check_access_first(

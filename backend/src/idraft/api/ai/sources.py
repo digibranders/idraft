@@ -46,6 +46,7 @@ from idraft.api.schemas.ai_sources import (
     DETAIL_PAGES_MAX,
     DETAIL_PROMPTS_MAX,
     DETAIL_ROWS_MAX,
+    TOPICS_MAX,
     AdPresence,
     CitationPage,
     CitationRow,
@@ -61,6 +62,7 @@ from idraft.api.schemas.ai_sources import (
     FanoutMeta,
     FanoutQueryPage,
     FanoutQueryRow,
+    FanoutTopic,
     OwnPage,
     PreviousUnits,
     PromptOwnPagesMeta,
@@ -999,10 +1001,12 @@ class SourceService:
         query: SourceQuery,
         *,
         min_support: int,
+        include: Collection[str] = (),
         page: OffsetParams,
     ) -> FanoutQueryPage:
-        """The queries the engines issued while answering (docs/16 F4), the most issued first.
-        An engine that does not show them is refused, never read as zero."""
+        """The queries the engines issued while answering (docs/16 F4), the most issued first;
+        with `include=topics` each names the topics of the prompts that issued it. An engine
+        that does not show them is refused, never read as zero."""
         engines = shown_engines(query.engine_codes) if query.engine_codes else list(FANOUT_ENGINES)
         async with self._transaction(access) as db:
             # The project is looked up first: an unknown or deleted one is 404 whatever engines
@@ -1021,6 +1025,16 @@ class SourceService:
                 now.scope,
                 [(row.normalized_text, row.engine_code) for row in rows],
                 top=CITED_DOMAINS_MAX,
+            )
+            topics = (
+                await repository.fanout_topics(
+                    db,
+                    now.scope,
+                    [(row.normalized_text, row.engine_code) for row in rows],
+                    top=TOPICS_MAX,
+                )
+                if "topics" in include
+                else None
             )
             counts = await repository.fanout_totals(db, now.scope)
         return FanoutQueryPage(
@@ -1043,6 +1057,16 @@ class SourceService:
                         )
                         for domain in cited.get((row.normalized_text, row.engine_code), [])
                     ],
+                    topics=(
+                        None
+                        if topics is None
+                        else [
+                            FanoutTopic(term_id=term_id, observations=seen)
+                            for term_id, seen in topics.get(
+                                (row.normalized_text, row.engine_code), []
+                            )
+                        ]
+                    ),
                 )
                 for row in rows
             ],

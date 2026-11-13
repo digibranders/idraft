@@ -473,7 +473,8 @@ class FanoutQueryRow(BaseModel):
         exclude_if=_absent,
         max_length=TOPICS_MAX,
         description="With `include=topics`: the topic terms tagged on the prompts whose answers "
-        "issued it, the most answers first, at most 10. " + _NOT_RETURNED,
+        "issued it, the most answers first, then by term id, at most 10; an empty list when no "
+        "such prompt is tagged with a topic. Absent unless `include=topics`.",
     )
 
 
