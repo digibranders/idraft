@@ -307,6 +307,30 @@ describe('Topics & Prompts: compare, the read and the address', () => {
     expect(await mentionOf()).not.toHaveAccessibleDescription(/Previous period/);
   });
 
+  it('names the previous window in the Mention cell tooltip of the Prompts tab, and not while comparison is off', async () => {
+    serve();
+    // The Prompts tab builds its columns in the body of the screen, above the provider of the compared window
+    const mentionOf = async (): Promise<HTMLElement> => {
+      const table = await grid();
+      const row = (await within(table).findByText('Question number 1?')).closest('[role="row"]');
+      if (!(row instanceof HTMLElement)) throw new Error('The first prompt row is missing');
+      const mention = within(row)
+        .getAllByRole('gridcell')
+        .find((node) => node.textContent?.includes('1 engine'));
+      if (mention === undefined) throw new Error('The Mention rate cell is missing');
+      return mention;
+    };
+
+    const on = render('?tab=prompts');
+    await waitFor(async () =>
+      expect(await mentionOf()).toHaveAccessibleDescription(/Previous period: Sep 18 to Oct 15, 2026/),
+    );
+    on.unmount();
+
+    render('?tab=prompts&cmp=off');
+    expect(await mentionOf()).not.toHaveAccessibleDescription(/Previous period/);
+  });
+
   it('writes cmp=off for No comparison with history replace, and reads again without compare', async () => {
     const asked: URL[] = [];
     serve(asked);

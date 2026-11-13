@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
+import type { ComparedWindow } from './compare';
 import { countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
 import { ENGINE_COLUMN_WIDTH, useEngineRateColumns, useRateColumns } from './rate-columns';
 import { PROMPT_COLUMN_ENTRIES, withColumnEntries } from './seams/columns';
@@ -117,11 +118,16 @@ const cellsOfPrompt = (row: PromptRow): readonly EngineSummary[] | undefined =>
  * value of `metric`. The counts of
  * Mentioned and Cited per engine wait in the column chooser.
  */
-export function usePromptColumns(engines: readonly ProjectEngine[], metric: RateMetric): PromptColumns {
+export function usePromptColumns(
+  engines: readonly ProjectEngine[],
+  metric: RateMetric,
+  /** The window the summary was compared with: the screen builds these columns above its provider of it. */
+  comparedWindow?: ComparedWindow,
+): PromptColumns {
   const t = useTranslations('prompts');
   const root = useTranslations();
   const locale = useLocale();
-  const { mention, citation } = useRateColumns(engines, cellsOfPrompt);
+  const { mention, citation } = useRateColumns(engines, cellsOfPrompt, { window: comparedWindow });
   const trend = useTrendColumn(engines, cellsOfPrompt);
   const engineRateColumns = useEngineRateColumns(engines, cellsOfPrompt, metric);
   const countColumns = useEngineColumns(engines, cellsOfPrompt, { sortable: true, defaultVisible: false });

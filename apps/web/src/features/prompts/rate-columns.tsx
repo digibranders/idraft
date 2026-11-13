@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
-import { ChangeInline, useChangeWords, useComparedWindow, useCompare } from './compare';
+import { ChangeInline, useChangeWords, useComparedWindow, useCompare, type ComparedWindow } from './compare';
 import { CELL_OF_METRIC, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
 import { useRateWords } from './rate-view';
 import { col } from '@/components/app/data-table/columns';
@@ -62,7 +62,7 @@ export interface RateColumns<TRow> {
 export function useRateColumns<TRow>(
   engines: readonly ProjectEngine[],
   cellsOf: (row: TRow) => readonly EngineSummary[] | undefined,
-  { note }: { note?: string } = {},
+  { note, window }: { note?: string; window?: ComparedWindow | undefined } = {},
 ): RateColumns<TRow> {
   const t = useTranslations('prompts.columns');
   const rate = useTranslations('prompts.rate');
@@ -70,7 +70,9 @@ export function useRateColumns<TRow>(
   const words = useRateWords();
   const changeWords = useChangeWords();
   const { compare } = useCompare();
-  const comparedWindow = useComparedWindow();
+  const contextWindow = useComparedWindow();
+  // The Prompts tab builds its columns above the page's provider, so the screen hands it the window to use
+  const comparedWindow = window ?? contextWindow;
   const locale = useLocale();
   return useMemo(() => {
     const codes = engines.map((engine) => engine.engine.engine_code);

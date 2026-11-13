@@ -468,7 +468,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   );
 
   const metric = parseMetric(view.metric);
-  const { columns, sortFields, searchText, rowName } = usePromptColumns(shown, metric);
+  const { columns, sortFields, searchText, rowName } = usePromptColumns(shown, metric, comparedWindow(summaryData));
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const sort = useMemo((): readonly SortKey[] => {
     const parsed = parseSort(view.sort, sortFields);
