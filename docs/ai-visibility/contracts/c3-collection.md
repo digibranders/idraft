@@ -101,7 +101,7 @@ GET {P}/runs/0000006a-7c1e-4a52-9b3d-00000000006a/ai-coverage
         "valid": 141,
         "partial": 3,
         "invalid_by_status": {"empty": 2, "refused": 1, "error": 1},
-        "valid_rate": {"value": 0.96, "numerator": 141.0, "denominator": 147, "n_observations": 147, "pooled": null}
+        "valid_rate": {"value": 0.96, "numerator": 141.0, "denominator": 147, "n_observations": 145, "pooled": null}
       }
     ],
     "missing": [
@@ -198,3 +198,4 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-14 WP-30: a day is the project's local day; the default window is the 28 days ending today, at most 92 (`window_too_large` with `limit_days`), `from` after `to` is `range_invalid`; rows are dense (a row per day and engine, zero filled); `meta.engine_codes` is the filter, else the engines enabled on the project plus any engine with a row in the window (D6)
 2026-11-14 WP-30: `scheduled` counts the tasks (not cancelled, not skipped) of `ai_prompt` runs whose `scheduled_for` falls on the day; null when the day has none and no blocked run (D7)
 2026-11-14 WP-30: `budget_blocked` counts `ai_prompt` runs with status `budget_blocked` by the local day of `completed_at`, on each engine the run asked for, else on every engine of the response; it counts runs, so it is never summed across engines; `runs[]` is the distinct runs of the day's answers on that engine plus the blocked runs of the day, oldest first (D8)
+2026-11-14 WP-30: valid_rate.n_observations is the answers observed (145 in the example), not the planned tasks
