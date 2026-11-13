@@ -268,6 +268,8 @@ The inspector frame (docking, width 400 px default and 440 px for prompt, citati
 
 Keyboard: `j` and `k` move to the next and previous row of the underlying table and update the inspector in place (single-key policy, [12-tables.md](12-tables.md) section 9). Escape closes and returns focus to the row. The inspector is a `complementary` landmark named by the object ("Keyword: best crm for startups").
 
+> As built (2026-11-13, WP-25): decision D-02 allows six prompt inspector tabs (Latest, History, Citations, Competitors, Fan-out when an enabled engine exposes it, Stats). Tabs that do not fit the row move into a trailing More tabs menu (`overflowLabel` on `Tabs` and `InspectorTabs`). Before and after screenshots at 390 and 440 px come from the later browser check.
+
 ### 4.2 Content per object type
 
 | Object | Header meta | Strip (sm) | Tabs | Sections by tab |

@@ -136,6 +136,8 @@ Rules:
 - Semantics: Base UI Tabs (`role="tablist"`), arrow keys move between tabs with automatic activation ([20-accessibility.md](20-accessibility.md) section 5), the panel is `role="tabpanel"` labelled by its tab. Panels render their skeleton immediately, so arrow keys never wait on a fetch.
 - The first tab is always "Overview" and is the default. Tab state lives in the URL (section 2.7).
 
+> As built (2026-11-13, WP-25): decision D-02 allows six prompt inspector tabs (Latest, History, Citations, Competitors, Fan-out when an enabled engine exposes it, Stats). Tabs that do not fit the row move into a trailing More tabs menu (`overflowLabel` on `Tabs` and `InspectorTabs`). Each tab and the button are measured in a hidden copy and the row is observed with a `ResizeObserver`, so nothing scrolls or fades; the chosen tab always stays in the row, taking the place of the last tab that fits; the button is a 32 px ghost icon button outside the `tablist`, reached by Tab after the tab list, and Escape closes the menu with focus back on it. Without `overflowLabel` the tabs behave as before. Before and after screenshots at 390 and 440 px come from the later browser check.
+
 ### 2.4 Sections
 
 Every section of the inspector body is a card. This is the one place where bordered panels sit inside a container; [06-surfaces-borders-radius.md](06-surfaces-borders-radius.md) section 1 lists it as the exception.

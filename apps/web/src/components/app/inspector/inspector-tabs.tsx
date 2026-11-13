@@ -13,8 +13,10 @@ export interface InspectorTabsProps<TValue extends string> {
   label: string;
   value: TValue;
   onValueChange: (value: TValue) => void;
-  /** At most five, "Overview" first (16-drawers-dialogs-popovers.md section 2.3). */
+  /** At most six for the prompt inspector (D-02); the rest move into More tabs. "Overview" first (16-drawers-dialogs-popovers.md section 2.3). */
   items: readonly TabItem<TValue>[];
+  /** The name of the More tabs button. Without it every tab stays in the row. */
+  overflowLabel?: string | undefined;
   /** One `InspectorPanel` per item. */
   children: ReactNode;
 }
@@ -28,6 +30,7 @@ export function InspectorTabs<TValue extends string>({
   value,
   onValueChange,
   items,
+  overflowLabel,
   children,
 }: InspectorTabsProps<TValue>): ReactElement {
   return (
@@ -37,6 +40,7 @@ export function InspectorTabs<TValue extends string>({
       value={value}
       onValueChange={onValueChange}
       items={items}
+      overflowLabel={overflowLabel}
       className="min-h-0 flex-1"
       listClassName={TAB_ROW}
     >

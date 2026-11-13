@@ -1,6 +1,6 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { useState, type ReactElement } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Tabs, TabsPanel, type TabItem } from './tabs';
 import { axe } from '@/test/axe';
@@ -172,6 +172,167 @@ describe('Tabs', () => {
         <KeywordTabs variant="segmented" />
       </div>,
     );
+    expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+type Prompt = 'latest' | 'history' | 'citations' | 'competitors' | 'fanout' | 'stats';
+const SIX: readonly TabItem<Prompt>[] = [
+  { value: 'latest', label: 'Latest' },
+  { value: 'history', label: 'History' },
+  { value: 'citations', label: 'Citations' },
+  { value: 'competitors', label: 'Competitors' },
+  { value: 'fanout', label: 'Fan-out' },
+  { value: 'stats', label: 'Stats' },
+];
+
+function PromptTabs({
+  overflowLabel,
+  initial = 'latest',
+  onChange,
+}: {
+  overflowLabel?: string;
+  initial?: Prompt;
+  onChange?: (value: Prompt) => void;
+}): ReactElement {
+  const [value, setValue] = useState<Prompt>(initial);
+  return (
+    <>
+      <Tabs
+        variant="underline"
+        label="Prompt sections"
+        value={value}
+        items={SIX}
+        overflowLabel={overflowLabel}
+        onValueChange={(next) => {
+          setValue(next);
+          onChange?.(next);
+        }}
+      >
+        {SIX.map((item) => (
+          <TabsPanel key={item.value} value={item.value}>
+            {item.label} panel
+          </TabsPanel>
+        ))}
+      </Tabs>
+      <button type="button">After</button>
+    </>
+  );
+}
+
+const TAB_WIDTH = 60;
+const MORE_WIDTH = 32;
+const stubLayout = (rowWidth: number): void => {
+  // jsdom has no layout: every measured tab is 60 px, the More button 32 px, and the row is `rowWidth` wide
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+    const kind = this.getAttribute('data-measure');
+    return kind === 'tab' ? TAB_WIDTH : kind === 'more' ? MORE_WIDTH : 0;
+  });
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element): void {
+        const entry = { target, contentRect: { width: rowWidth } };
+        this.callback([entry as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
+      }
+      unobserve(): void {}
+      disconnect(): void {}
+    },
+  );
+};
+const visibleTabs = (): string[] =>
+  within(screen.getByRole('tablist'))
+    .getAllByRole('tab')
+    .map((element) => (element.firstElementChild?.firstElementChild?.textContent ?? '').trim());
+const moreButton = (): HTMLElement => screen.getByRole('button', { name: 'More tabs' });
+
+describe('Tabs overflow', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('moves the tabs that do not fit into a More tabs menu outside the tab list', async () => {
+    stubLayout(400);
+    const { user } = renderWithProviders(<PromptTabs overflowLabel="More tabs" />);
+    // 4 tabs and the button: 4 x 60 + 3 x 24 + 24 + 32 = 368 px; a fifth tab would need 452 px
+    expect(visibleTabs()).toEqual(['Latest', 'History', 'Citations', 'Competitors']);
+    expect(screen.getByRole('tablist')).not.toContainElement(moreButton());
+    await user.click(moreButton());
+    const menu = await screen.findByRole('menu');
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Fan-out', 'Stats']);
+  });
+
+  it('keeps the chosen tab visible, swapping out the last visible one', async () => {
+    stubLayout(400);
+    const onChange = vi.fn();
+    const { user } = renderWithProviders(<PromptTabs overflowLabel="More tabs" onChange={onChange} />);
+    await user.click(moreButton());
+    await user.click(await screen.findByRole('menuitem', { name: 'Stats' }));
+    expect(onChange).toHaveBeenCalledWith('stats');
+    expect(visibleTabs()).toEqual(['Latest', 'History', 'Citations', 'Stats']);
+    expect(screen.getByRole('tab', { name: 'Stats' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('Stats panel');
+    await user.click(moreButton());
+    const menu = await screen.findByRole('menu');
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Competitors', 'Fan-out']);
+  });
+
+  it('keeps a chosen tab that was beyond the fit visible from the start', () => {
+    stubLayout(400);
+    renderWithProviders(<PromptTabs overflowLabel="More tabs" initial="fanout" />);
+    expect(visibleTabs()).toEqual(['Latest', 'History', 'Citations', 'Fan-out']);
+  });
+
+  it('shows no More tabs button when every tab fits, or when no overflowLabel is given', () => {
+    stubLayout(600);
+    const { unmount } = renderWithProviders(<PromptTabs overflowLabel="More tabs" />);
+    // 6 x 60 + 5 x 24 = 480 px
+    expect(visibleTabs()).toHaveLength(6);
+    expect(screen.queryByRole('button', { name: 'More tabs' })).toBeNull();
+    unmount();
+    stubLayout(100);
+    renderWithProviders(<PromptTabs />);
+    expect(visibleTabs()).toHaveLength(6);
+    expect(screen.queryByRole('button', { name: 'More tabs' })).toBeNull();
+  });
+
+  it('moves arrow keys, Home and End among the visible tabs only', async () => {
+    stubLayout(400);
+    const { user } = renderWithProviders(<PromptTabs overflowLabel="More tabs" />);
+    await user.tab();
+    expect(screen.getByRole('tab', { name: 'Latest' })).toHaveFocus();
+    await user.keyboard('{End}');
+    expect(screen.getByRole('tab', { name: 'Competitors' })).toHaveFocus();
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: 'Latest' })).toHaveFocus();
+  });
+
+  it('reaches the menu by keyboard, and Escape closes it with focus back on the button', async () => {
+    stubLayout(400);
+    const { user } = renderWithProviders(<PromptTabs overflowLabel="More tabs" />);
+    await user.tab();
+    await user.tab();
+    expect(moreButton()).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(await screen.findByRole('menu')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    expect(moreButton()).toHaveFocus();
+  });
+
+  it('has no accessibility violations with the menu button', async () => {
+    stubLayout(400);
+    const { container } = renderWithProviders(<PromptTabs overflowLabel="More tabs" />);
     expect(await axe(container)).toHaveNoViolations();
   });
 });
