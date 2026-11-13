@@ -1152,6 +1152,65 @@
       "failedTitle": "The raw answer could not be shown",
       "expiredTitle": "No raw answer to show",
       "truncated": "Showing the first {count} characters. Download the raw answer for the rest."
+    },
+    "quoteBox": {
+      "quoted": "“{text}”"
+    },
+    "quotedPassage": {
+      "title": "Quoted passages",
+      "label": "Passages the engine quoted from its sources",
+      "from": "From {source}"
+    },
+    "facts": {
+      "label": "Extracted facts",
+      "mentioned": "Names the brand",
+      "cited": "Cites the brand’s domain",
+      "order": "Order among the brands named",
+      "prominence": "Prominence",
+      "ownCitations": "Sources on the brand’s domain",
+      "totalCitations": "Sources cited in all",
+      "derivation": "Derivation",
+      "yes": "Yes",
+      "no": "No"
+    },
+    "hash": {
+      "answer": "Answer SHA-256",
+      "raw": "Raw SHA-256",
+      "copyAnswer": "Copy the full answer SHA-256",
+      "copiedAnswer": "Answer SHA-256 copied",
+      "copyRaw": "Copy the full raw SHA-256",
+      "copiedRaw": "Raw SHA-256 copied"
+    },
+    "provider": {
+      "open": "Open at the provider"
+    },
+    "compare": {
+      "title": "Change since the last answer that named the brand",
+      "loading": "Comparing with an earlier answer",
+      "emptyTitle": "No earlier answer to compare",
+      "emptyReason": "No earlier answer of this engine named the brand, so there is no change to read yet.",
+      "failedTitle": "The comparison could not be loaded",
+      "failedReason": "The server did not answer. Try again in a moment.",
+      "thisAnswer": "This answer",
+      "baseline": "Compared with",
+      "answerOf": "{date}, answer {id}",
+      "ownFacts": "{named, select, true {Names the brand} other {Does not name the brand}}, {cited, select, true {cites its domain} other {does not cite its domain}}",
+      "open": "Open",
+      "openNamed": "Open the answer of {date}",
+      "brandsTitle": "Brands named",
+      "sourcesTitle": "Sources cited",
+      "roles": {
+        "own": "Own",
+        "competitor": "Competitor",
+        "watch": "Watched",
+        "thirdParty": "Third party"
+      },
+      "brandsGained": "{count, plural, =0 {No brand gained} one {# brand gained} other {# brands gained}}",
+      "brandsLost": "{count, plural, =0 {No brand lost} one {# brand lost} other {# brands lost}}",
+      "brandsKept": "{count, plural, =0 {No brand kept} one {# brand kept} other {# brands kept}}",
+      "sourcesGained": "{count, plural, =0 {No source gained} one {# source gained} other {# sources gained}}",
+      "sourcesLost": "{count, plural, =0 {No source lost} one {# source lost} other {# sources lost}}",
+      "sourcesKept": "{count, plural, =0 {No source in both answers} one {# source in both answers} other {# sources in both answers}}"
     }
   },
   "dataRetention": {

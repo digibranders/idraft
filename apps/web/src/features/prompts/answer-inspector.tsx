@@ -1,10 +1,11 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, ClipboardList, Link2, MessageSquareText, Users } from 'lucide-react';
+import { ArrowLeft, ClipboardList, ExternalLink, Link2, MessageSquareText, Quote, Users } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
+import { answerCompareQuery } from './answer-compare-query';
 import { markerAnchors } from './answer-markers';
 import { answerSegments, type AnswerSegment } from './answer-segments';
 import { entityColorOf, MarkedAnswer } from './marked-answer';
@@ -17,19 +18,24 @@ import {
   type ObservationAnswer,
   type PromptScope,
 } from './prompt-queries';
+import { AnswerComparePanel, type AnswerCompareState } from '@/components/app/evidence/answer-compare-panel';
 import { AnswerViewMode, type AnswerView } from '@/components/app/evidence/answer-view-mode';
 import { CitationList, citationItemId, type CitationListItem } from '@/components/app/evidence/citation-list';
 import { EntityToggleList, type EntityToggleItem } from '@/components/app/evidence/entity-toggle-list';
+import { FactsFooter, type FactsFooterFacts } from '@/components/app/evidence/facts-footer';
+import { QuotedPassage } from '@/components/app/evidence/quoted-passage';
 import { SafeMarkdown } from '@/components/app/evidence/safe-markdown';
 import { Inspector } from '@/components/app/inspector/inspector';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { InspectorBody } from '@/components/app/inspector/inspector-tabs';
 import { KeyValues, type KeyValue } from '@/components/app/inspector/key-values';
+import { useInspector } from '@/components/app/inspector/use-inspector';
 import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Icon } from '@/components/ui/icon';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
@@ -324,7 +330,8 @@ function AnswerInspectorBody({
       rawUrl: citation.raw_url,
       host: citation.host,
       role: citation.domain_role,
-      quote: citation.quote ?? null,
+      // The passages have a section of their own (QuotedPassage): the source list does not repeat them
+      quote: null,
       flags: citation.flags,
       inAnswer: anchored.has(citation.citation_index),
     }));
@@ -344,8 +351,14 @@ function AnswerInspectorBody({
               id: 'check',
               label: t('checkLabel'),
               value: (
-                <TextLink href={checkHref} target="_blank" rel="noopener noreferrer">
-                  {t('check')}
+                <TextLink
+                  href={checkHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1"
+                >
+                  {evidence('provider.open')}
+                  <Icon icon={ExternalLink} size="sm" />
                 </TextLink>
               ),
             },
@@ -373,8 +386,41 @@ function AnswerInspectorBody({
     ];
   };
 
+  /** What the extractor read, as the facts footer lists it; `null` while the answer has not been read yet. */
+  const factsOf = (shown: ObservationAnswer): FactsFooterFacts | null =>
+    shown.facts === null
+      ? null
+      : {
+          ownMentioned: shown.facts.own_mentioned,
+          ownDomainCited: shown.facts.own_domain_cited,
+          ownMentionOrder: shown.facts.own_mention_order,
+          ownProminence: shown.facts.own_prominence,
+          ownCitationCount: shown.facts.own_citation_count,
+          totalCitationCount: shown.facts.total_citation_count,
+          derivationId: shown.facts.derivation_id,
+        };
+
   const mentionsPending = answer !== null && outcomeKey(answer.status, answer.facts) === 'pending';
   const hasText = answer !== null && answer.answer_text !== null && answer.answer_text !== '';
+  // An answer with no text has no brands or sources to compare. `no_baseline` is a reason, not a failure
+  const compare = useQuery({ ...answerCompareQuery(scope, observationId), enabled: hasText });
+  const compareErrorId = useErrorId(compare.error);
+  const compareState: AnswerCompareState =
+    compare.data !== undefined
+      ? { status: compare.isFetching ? 'refetching' : 'ready', compare: compare.data.data }
+      : isApiProblem(compare.error, 'no_baseline')
+        ? { status: 'empty' }
+        : compare.isError
+          ? {
+              status: 'error',
+              errorId: compareErrorId,
+              onRetry: () => void compare.refetch(),
+              retrying: compare.isFetching,
+            }
+          : { status: 'loading' };
+  // The viewer opens another answer by the address, as the prompt inspector does
+  const inspector = useInspector();
+  const hasQuotes = answer !== null && answer.citations.some((citation) => (citation.quote ?? '') !== '');
 
   return (
     <Inspector
@@ -494,8 +540,37 @@ function AnswerInspectorBody({
                 />
               )}
             </InspectorSection>
+            {answer !== null && hasQuotes ? (
+              <InspectorSection title={evidence('quotedPassage.title')} icon={Quote} status="ready">
+                <QuotedPassage
+                  lang={answer.language_code ?? undefined}
+                  items={answer.citations.map((citation) => ({
+                    index: citation.citation_index,
+                    host: citation.host,
+                    url: citation.url,
+                    quote: citation.quote ?? null,
+                  }))}
+                />
+              </InspectorSection>
+            ) : null}
+            {hasText ? (
+              <AnswerComparePanel
+                state={compareState}
+                timeZone={timeZone}
+                onOpenBaseline={(baselineId) => inspector.open({ type: 'answer', id: baselineId })}
+              />
+            ) : null}
             <InspectorSection title={t('details')} icon={ClipboardList} status={answer === null ? 'loading' : 'ready'}>
-              {answer === null ? null : <KeyValues items={detailsOf(answer)} />}
+              {answer === null ? null : (
+                <div className="flex flex-col gap-3">
+                  <KeyValues items={detailsOf(answer)} />
+                  <FactsFooter
+                    facts={factsOf(answer)}
+                    answerSha256={answer.answer_sha256}
+                    rawSha256={answer.raw_sha256}
+                  />
+                </div>
+              )}
             </InspectorSection>
           </>
         )}

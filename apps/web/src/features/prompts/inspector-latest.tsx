@@ -3,7 +3,7 @@
 import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { Check, MessageSquareText, Minus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { Fragment, useMemo, type ReactElement, type ReactNode } from 'react';
+import { useMemo, type ReactElement, type ReactNode } from 'react';
 
 import { answerSegments, clipSegments } from './answer-segments';
 import { mentionOrderKey } from './latest-model';
@@ -17,12 +17,12 @@ import {
   type PromptScope,
 } from './prompt-queries';
 import { DomainChipList, type DomainChipProps } from '@/components/app/cells/domain-chip';
+import { ResponsePreview } from '@/components/app/evidence/response-preview';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tooltip } from '@/components/ui/tooltip';
 import type { CitationOut, ProjectEngine } from '@/lib/api/types';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { formatDetailDateTime, formatRelative } from '@/lib/format';
@@ -30,8 +30,6 @@ import { displayDomain } from '@/lib/format/url';
 
 /** The characters of an answer the card shows; the viewer has the rest. */
 const EXCERPT_LENGTH = 280;
-/** A time with its exact reading in a tooltip is a tab stop, so the keyboard reaches the tooltip (20 section 6.2 rule 6). */
-const TAB_STOP = { tabIndex: 0 } as const;
 
 export interface InspectorLatestProps {
   scope: PromptScope;
@@ -89,7 +87,6 @@ function LatestCard({
   const statuses = useTranslations('prompts.inspector.statuses');
   const answerWords = useTranslations('prompts.answer');
   const common = useTranslations('common');
-  const separator = useTranslations('inspector')('separator');
   const code = engine.engine.engine_code;
   const valid = newest.data?.data[0] ?? null;
   // With no valid answer in the window the newest of any status says why: the failure, the refusal, the empty answer
@@ -126,25 +123,62 @@ function LatestCard({
     const facts = shown.facts;
     const exact = formatDetailDateTime(shown.observed_at, timeZone);
     return (
-      <div className="flex flex-col gap-3">
-        <p className="flex flex-wrap items-center gap-x-1.5 type-meta">
-          {shown.model_reported === null ? null : (
-            <Fragment>
-              <span>{shown.model_reported}</span>
-              <span aria-hidden="true">{separator}</span>
-            </Fragment>
-          )}
-          <Tooltip content={exact} purpose="label">
-            <time
-              {...TAB_STOP}
-              dateTime={shown.observed_at}
-              aria-label={exact}
-              className="rounded-xs num outline-none focus-visible:focus-ring"
-            >
-              {formatRelative(shown.observed_at, timeZone)}
-            </time>
-          </Tooltip>
-        </p>
+      <ResponsePreview
+        model={shown.model_reported}
+        observedAt={shown.observed_at}
+        exact={exact}
+        relative={formatRelative(shown.observed_at, timeZone)}
+        notes={shown.status === 'partial' ? <p className="type-meta">{answerWords('partial')}</p> : null}
+        facts={
+          facts === null ? null : (
+            <ul aria-label={latest('factsLabel')} className="flex flex-wrap gap-1.5">
+              {shown.status === 'partial' ? (
+                <li>
+                  <Badge tone="warning">{statuses('partial')}</Badge>
+                </li>
+              ) : null}
+              <li>
+                <Badge icon={facts.own_mentioned ? Check : Minus}>
+                  {facts.own_mentioned ? latest('mentioned') : latest('notMentioned')}
+                </Badge>
+              </li>
+              {facts.own_mentioned && facts.own_mention_order !== null ? (
+                <li>
+                  {/* The place of the brand among the tracked brands the answer names: not a rank, not a recommendation */}
+                  <Badge>
+                    {latest('order', {
+                      place: mentionOrderKey(facts.own_mention_order),
+                      order: facts.own_mention_order,
+                    })}
+                  </Badge>
+                </li>
+              ) : null}
+              <li>
+                <Badge icon={facts.own_domain_cited ? Check : Minus}>
+                  {facts.own_domain_cited ? latest('cited') : latest('notCited')}
+                </Badge>
+              </li>
+            </ul>
+          )
+        }
+        sources={<DomainChipList label={latest('sourcesLabel')} domains={citedDomains(shown.citations)} />}
+        answerSha256={shown.answer_sha256}
+        rawSha256={shown.raw_sha256}
+        action={
+          onOpenAnswer === undefined ? null : (
+            <div>
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-label={latest('openLabel', { engine: name })}
+                onClick={() => onOpenAnswer(shown.observation_id, shown.observed_at)}
+              >
+                {latest('open')}
+              </Button>
+            </div>
+          )
+        }
+      >
         {hasText ? (
           <MarkedAnswer
             segments={segments}
@@ -157,48 +191,7 @@ function LatestCard({
         ) : (
           <p className="type-meta">{latest('noText')}</p>
         )}
-        {shown.status === 'partial' ? <p className="type-meta">{answerWords('partial')}</p> : null}
-        {facts === null ? null : (
-          <ul aria-label={latest('factsLabel')} className="flex flex-wrap gap-1.5">
-            {shown.status === 'partial' ? (
-              <li>
-                <Badge tone="warning">{statuses('partial')}</Badge>
-              </li>
-            ) : null}
-            <li>
-              <Badge icon={facts.own_mentioned ? Check : Minus}>
-                {facts.own_mentioned ? latest('mentioned') : latest('notMentioned')}
-              </Badge>
-            </li>
-            {facts.own_mentioned && facts.own_mention_order !== null ? (
-              <li>
-                {/* The place of the brand among the tracked brands the answer names: not a rank, not a recommendation */}
-                <Badge>
-                  {latest('order', { place: mentionOrderKey(facts.own_mention_order), order: facts.own_mention_order })}
-                </Badge>
-              </li>
-            ) : null}
-            <li>
-              <Badge icon={facts.own_domain_cited ? Check : Minus}>
-                {facts.own_domain_cited ? latest('cited') : latest('notCited')}
-              </Badge>
-            </li>
-          </ul>
-        )}
-        <DomainChipList label={latest('sourcesLabel')} domains={citedDomains(shown.citations)} />
-        {onOpenAnswer === undefined ? null : (
-          <div>
-            <Button
-              variant="secondary"
-              size="sm"
-              aria-label={latest('openLabel', { engine: name })}
-              onClick={() => onOpenAnswer(shown.observation_id, shown.observed_at)}
-            >
-              {latest('open')}
-            </Button>
-          </div>
-        )}
-      </div>
+      </ResponsePreview>
     );
   };
 

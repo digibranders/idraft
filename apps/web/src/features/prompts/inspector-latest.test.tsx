@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { InspectorLatest } from './inspector-latest';
 import type { CitationOut, ObservationDetail, ObservationSummary, ProjectEngine } from '@/lib/api/types';
@@ -87,7 +87,7 @@ const cite = (
   url: `https://${host}/a`,
 });
 
-function serveCitations(citations: CitationOut[]): void {
+function serveCitations(citations: CitationOut[], extra: Partial<ObservationDetail> = {}): void {
   const detail: ObservationDetail = {
     ...ROW,
     answer_text: 'Some answer about audit tools.',
@@ -96,6 +96,7 @@ function serveCitations(citations: CitationOut[]): void {
     error_code: null,
     mentions: [],
     offsets_unit: 'utf16',
+    ...extra,
   };
   server.use(
     http.get(LIST, () => HttpResponse.json({ data: [ROW], page: { has_more: false, next_cursor: null, limit: 1 } })),
@@ -182,5 +183,44 @@ describe('the cited sources of a Latest card', () => {
       expect(chip.className).toContain('bg-neutral-subtle');
       expect(chip.className).not.toMatch(/info/);
     }
+  });
+});
+
+const ANSWER_HASH = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
+const RAW_HASH = '0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0';
+
+describe('the hashes of a Latest card', () => {
+  it('test_a_card_shows_the_answer_hash_with_a_copy_button: the first 12 characters, the full value copied', async () => {
+    serveCitations([], { answer_sha256: ANSWER_HASH, raw_sha256: RAW_HASH });
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    const { user } = renderLatest();
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const answer = (await screen.findByText('Answer SHA-256')).closest('p') as HTMLElement;
+    expect(answer).toHaveClass('type-meta');
+    expect(answer).toHaveTextContent('Answer SHA-256 a1b2c3d4e5f6');
+    expect(answer).not.toHaveTextContent(ANSWER_HASH);
+    const raw = screen.getByText('Raw SHA-256').closest('p') as HTMLElement;
+    expect(raw).toHaveTextContent('Raw SHA-256 0f1e2d3c4b5a');
+    await user.click(within(answer).getByRole('button', { name: 'Copy the full answer SHA-256' }));
+    expect(writeText).toHaveBeenLastCalledWith(ANSWER_HASH);
+    await user.click(within(raw).getByRole('button', { name: 'Copy the full raw SHA-256' }));
+    expect(writeText).toHaveBeenLastCalledWith(RAW_HASH);
+    Reflect.deleteProperty(navigator, 'clipboard');
+  });
+
+  it('test_a_null_hash_shows_no_line_and_never_zeros', async () => {
+    serveCitations([], { answer_sha256: null, raw_sha256: ANSWER_HASH });
+    const { container } = renderLatest();
+    expect(await screen.findByText('Raw SHA-256')).toBeInTheDocument();
+    expect(screen.queryByText('Answer SHA-256')).toBeNull();
+    expect(container.textContent).not.toMatch(/0{12}/);
+  });
+
+  it('shows no hash line at all when the answer carries none', async () => {
+    serveCitations([]);
+    renderLatest();
+    expect(await screen.findByText('gpt-5')).toBeInTheDocument();
+    expect(screen.queryByText('Answer SHA-256')).toBeNull();
+    expect(screen.queryByText('Raw SHA-256')).toBeNull();
   });
 });

@@ -28,6 +28,20 @@ vi.mock('next/navigation', () => ({
 const NOW = new Date('2026-11-12T12:00:00Z');
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const DETAIL = mswPath(`${P}/ai/observations/{observation_id}`);
+const COMPARE = mswPath(`${P}/ai/observations/{observation_id}/compare`);
+/** `404 no_baseline`, as the API answers an answer that has no earlier one to compare with. */
+const noBaseline = (request: Request): Response =>
+  HttpResponse.json(
+    {
+      type: 'https://idraft.ai/api/problems/no_baseline',
+      title: 'No earlier answer to compare',
+      status: 404,
+      code: 'no_baseline',
+      instance: new URL(request.url).pathname,
+      request_id: 'req-no-baseline',
+    },
+    { status: 404, headers: { 'content-type': 'application/problem+json' } },
+  );
 const [fynix] = MOCK_PROJECTS;
 if (fynix === undefined) throw new Error('The Fynix project fixture is missing');
 const projectId = fynix.project_id;
@@ -90,6 +104,8 @@ const product = answerWhere((answer) => answer.mentions.some((mention) => mentio
 beforeEach(() => {
   vi.setSystemTime(NOW);
   stubWideScreen();
+  // The tests that stub the detail name answers the mock world has no earlier answer for; the comparison tests say otherwise
+  server.use(http.get(COMPARE, ({ request }) => noBaseline(request)));
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -203,7 +219,7 @@ describe('the answer viewer: what it shows', () => {
     );
     const { container } = renderOn('analyst', opened('2000001'));
     await screen.findByRole('button', { name: 'Download the raw answer' });
-    expect(screen.getByRole('link', { name: 'Open the answer at the provider' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open at the provider' })).toBeInTheDocument();
     expect((await screen.findAllByLabelText(/Uncertain match, excluded from rates/)).length).toBeGreaterThan(0);
     expect(await axe(container)).toHaveNoViolations();
   });
@@ -452,13 +468,13 @@ describe('the answer viewer: what it shows', () => {
     renderOn('viewer', opened('2000001'));
     expect(await screen.findByText('Read more')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Read more' })).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Open the answer at the provider' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Open at the provider' })).toBeNull();
   });
 
   it('links the provider page that shows the answer when it is a web address', async () => {
     serve(detail({ check_url: 'https://chatgpt.com/c/abc' }));
     renderOn('viewer', opened('2000001'));
-    expect(await screen.findByRole('link', { name: 'Open the answer at the provider' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Open at the provider' })).toHaveAttribute(
       'href',
       'https://chatgpt.com/c/abc',
     );
@@ -1168,7 +1184,7 @@ describe('the answer viewer: going back to the marks, a new answer, and the prov
   it('opens the provider link in a new tab that cannot reach back, and links only a web address without credentials', async () => {
     serve(detail({ check_url: 'https://chatgpt.com/c/abc' }));
     const view = renderOn('viewer', opened('2000001'));
-    const link = await screen.findByRole('link', { name: 'Open the answer at the provider' });
+    const link = await screen.findByRole('link', { name: 'Open at the provider' });
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     view.unmount();
@@ -1182,8 +1198,200 @@ describe('the answer viewer: going back to the marks, a new answer, and the prov
       const again = renderOn('viewer', opened('2000001'));
       await viewer();
       await screen.findByText('Fynix and Rankforge lead.');
-      expect(screen.queryByRole('link', { name: 'Open the answer at the provider' }), address).toBeNull();
+      expect(screen.queryByRole('link', { name: 'Open at the provider' }), address).toBeNull();
       again.unmount();
     }
+  });
+});
+
+const COMPARISON = {
+  prompt_id: first.prompt_id,
+  engine_code: 'chatgpt_web',
+  latest: {
+    observation_id: '2000001',
+    observed_at: '2026-11-12T02:00:00Z',
+    own_mentioned: true,
+    own_domain_cited: true,
+  },
+  baseline: {
+    observation_id: '1999990',
+    observed_at: '2026-11-05T02:00:00Z',
+    own_mentioned: true,
+    own_domain_cited: false,
+  },
+  entities: {
+    gained: [{ entity_id: MOCK_ENTITY_IDS.rankforge, name: 'Rankforge', role: 'competitor' }],
+    lost: [],
+    kept: [{ entity_id: MOCK_ENTITY_IDS.fynix, name: 'Fynix', role: 'own' }],
+  },
+  sources: {
+    gained: [{ registrable_domain: 'a1.example', host: 'a1.example', domain_role: 'third_party', title: 'Source 1' }],
+    lost: [],
+    kept_count: 2,
+  },
+};
+const compareHeading = (): Promise<HTMLElement> =>
+  screen.findByRole('heading', { name: 'Change since the last answer that named the brand' });
+
+describe('the answer viewer: the provider link', () => {
+  it('test_the_provider_link_is_http_or_https_only: a javascript address renders no link', async () => {
+    serve(detail({ check_url: 'javascript:alert(1)' }));
+    renderOn('viewer', opened('2000001'));
+    await screen.findByText('Fynix and Rankforge lead.');
+    expect(screen.queryByRole('link', { name: 'Open at the provider' })).toBeNull();
+    expect(screen.queryByText('Open at the provider')).toBeNull();
+  });
+
+  it('test_the_provider_link_has_noopener_noreferrer_and_opens_a_new_tab, with the external link glyph', async () => {
+    serve(detail({ check_url: 'https://chatgpt.com/c/abc' }));
+    renderOn('viewer', opened('2000001'));
+    const link = await screen.findByRole('link', { name: 'Open at the provider' });
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(link.querySelector('svg')).not.toBeNull();
+  });
+});
+
+describe('the answer viewer: the facts and the hashes', () => {
+  const ANSWER_HASH = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
+  const factsOf = (): NonNullable<ObservationDetail['facts']> => ({
+    competitor_cited: [],
+    competitor_mentions: [],
+    derivation_id: 41,
+    had_structured_list: false,
+    is_valid: true,
+    outcome: 'mentioned_only',
+    own_citation_count: 0,
+    own_domain_cited: false,
+    own_mention_order: 1,
+    own_mentioned: true,
+    own_prominence: 0.5,
+    total_citation_count: 3,
+    tracked_entities_mentioned: 1,
+  });
+
+  it('shows the extracted facts and the first 12 characters of each hash in the Details section', async () => {
+    serve(detail({ facts: factsOf(), answer_sha256: ANSWER_HASH, raw_sha256: null }));
+    renderOn('viewer', opened('2000001'));
+    const panel = await viewer();
+    const details = within(panel).getByRole('heading', { name: 'Details' }).closest('section') as HTMLElement;
+    expect(await within(details).findByText('Answer SHA-256')).toBeInTheDocument();
+    expect(within(details).getByText('a1b2c3d4e5f6')).toBeInTheDocument();
+    expect(within(details).queryByText('Raw SHA-256')).toBeNull();
+    expect(within(details).getByText('Derivation').nextElementSibling).toHaveTextContent('41');
+  });
+
+  it('shows n/a for facts the API has not given yet, never 0', async () => {
+    serve(detail({ facts: null }));
+    renderOn('viewer', opened('2000001'));
+    const panel = await viewer();
+    const term = await within(panel).findByText('Derivation');
+    expect(term.nextElementSibling).toHaveTextContent(/^n\/a$/);
+  });
+});
+
+describe('the answer viewer: the comparison with the last answer that named the brand', () => {
+  it('test_the_compare_section_reads_the_route_and_opens_the_baseline', async () => {
+    const asked: string[] = [];
+    server.use(
+      http.get(COMPARE, ({ request }) => {
+        asked.push(new URL(request.url).pathname);
+        return HttpResponse.json({ data: COMPARISON });
+      }),
+    );
+    serve(detail({}));
+    const urls: string[] = [];
+    const { user } = renderOn('viewer', opened('2000001'), urls);
+    const panel = await viewer();
+    await compareHeading();
+    expect(await within(panel).findByText('1 brand gained')).toBeInTheDocument();
+    expect(within(panel).getByText('2 sources in both answers')).toBeInTheDocument();
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toMatch(/\/ai\/observations\/2000001\/compare$/);
+    await user.click(within(panel).getByRole('button', { name: /^Open the answer of Nov 5/ }));
+    expect(decodeURIComponent(urls.at(-1) ?? '')).toContain('inspect=answer:1999990');
+  });
+
+  it('says there is no earlier answer, as a reason, when the API has no baseline, and does not read it again', async () => {
+    let reads = 0;
+    server.use(
+      http.get(COMPARE, ({ request }) => {
+        reads += 1;
+        return noBaseline(request);
+      }),
+    );
+    serve(detail({}));
+    renderOn('viewer', opened('2000001'));
+    const panel = await viewer();
+    expect(await within(panel).findByText('No earlier answer to compare')).toBeInTheDocument();
+    expect(within(panel).queryByText('The comparison could not be loaded')).toBeNull();
+    expect(reads).toBe(1);
+  });
+
+  it('says the comparison failed, with Try again that reads it once more', async () => {
+    let reads = 0;
+    server.use(
+      http.get(COMPARE, ({ request }) => {
+        reads += 1;
+        return reads === 1 ? problem(request, 'internal_error') : HttpResponse.json({ data: COMPARISON });
+      }),
+    );
+    serve(detail({}));
+    const { user } = renderOn('viewer', opened('2000001'));
+    const panel = await viewer();
+    expect(await within(panel).findByText('The comparison could not be loaded')).toBeInTheDocument();
+    await user.click(within(panel).getByRole('button', { name: 'Try again' }));
+    expect(await within(panel).findByText('1 brand gained')).toBeInTheDocument();
+    expect(reads).toBe(2);
+  });
+
+  it('passes the accessibility checks with the comparison shown', async () => {
+    server.use(http.get(COMPARE, () => HttpResponse.json({ data: COMPARISON })));
+    serve(detail({}));
+    const { container } = renderOn('viewer', opened('2000001'));
+    await screen.findByText('1 brand gained');
+    expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('the answer viewer: quoted passages', () => {
+  it('test_quoted_passages_show_only_where_the_payload_has_one', async () => {
+    serve(
+      detail({
+        citation_count: 2,
+        citations: [
+          citationOf(1, { quote: 'The method counts every answer.' }),
+          citationOf(2, { title: 'No passage', host: 'b.example', url: 'https://b.example/' }),
+        ],
+      }),
+    );
+    const view = renderOn('viewer', opened('2000001'));
+    const panel = await viewer();
+    const section = (await within(panel).findByRole('heading', { name: 'Quoted passages' })).closest(
+      'section',
+    ) as HTMLElement;
+    expect(within(section).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(section).getByText('“The method counts every answer.”')).toBeInTheDocument();
+    // The passage is shown once: the sources list does not repeat it
+    const sources = within(panel).getByRole('list', { name: 'Sources cited in this answer' });
+    expect(sources).not.toHaveTextContent('The method counts every answer.');
+    expect(panel.querySelectorAll('blockquote')).toHaveLength(1);
+    view.unmount();
+    serve(detail({ citations: [citationOf(1)] }));
+    renderOn('viewer', opened('2000001'));
+    await screen.findByRole('list', { name: 'Sources cited in this answer' });
+    expect(screen.queryByRole('heading', { name: 'Quoted passages' })).toBeNull();
+  });
+
+  it('shows a hostile passage once, as text', async () => {
+    const hostile = '<img src=x onerror="window.__wp26_xss=1">[x](javascript:alert(1))&lt;b&gt;';
+    serve(detail({ citations: [citationOf(1, { quote: hostile })] }));
+    renderOn('viewer', opened('2000001'));
+    const panel = await viewer();
+    await within(panel).findByRole('heading', { name: 'Quoted passages' });
+    expect(panel.querySelectorAll('img, script')).toHaveLength(0);
+    expect(within(panel).getByText(`“${hostile}”`)).toBeInTheDocument();
+    expect(panel.querySelectorAll('blockquote')).toHaveLength(1);
+    expect(Reflect.get(window, '__wp26_xss')).toBeUndefined();
   });
 });
