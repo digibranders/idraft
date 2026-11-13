@@ -289,6 +289,79 @@ async def test_changes_keep_roles_apart(
     assert _names(rivals) == [RIVAL_HOST]
 
 
+async def test_a_new_source_counts_units_not_answers(
+    api: httpx.AsyncClient, migrated: PostgresServer, scene: Scene
+) -> None:
+    """One answer citing two pages of one domain is 2 units and 1 answer: `min_support=2` is met
+    by that answer alone."""
+    await _at(migrated, scene, 2, Cite(GUIDE), Cite(GUIDE_TOP))
+
+    new = await _changes(scene, api, kind="new", min_support=2)
+    three = await _changes(scene, api, kind="new", min_support=3)
+
+    assert [(r["registrable_domain"], r["current_units"]) for r in new.json()["data"]] == [
+        (EXAMPLE, 2)
+    ]
+    assert _names(three) == []
+
+
+async def test_a_lost_source_counts_units_not_answers(
+    api: httpx.AsyncClient, migrated: PostgresServer, scene: Scene
+) -> None:
+    """The same one answer, in the support window (W-2): 2 units, so `min_support=2` lists it."""
+    await _at(migrated, scene, 17, Cite(GUIDE), Cite(GUIDE_TOP))
+
+    lost = await _changes(scene, api, kind="lost", min_support=2)
+    three = await _changes(scene, api, kind="lost", min_support=3)
+
+    assert [(r["registrable_domain"], r["previous_units"]) for r in lost.json()["data"]] == [
+        (EXAMPLE, 2)
+    ]
+    assert _names(three) == []
+
+
+async def test_a_new_source_is_judged_per_role_not_per_domain(
+    api: httpx.AsyncClient, migrated: PostgresServer, scene: Scene
+) -> None:
+    """`example.org` as a third party: 2 units in W, none before, so new. As the competitor: 1
+    unit in W and 1 in W-1, so not new. Merged by domain it would have 3 units now and 1 before,
+    and would not be listed at all."""
+    world = scene.world
+    for days in (1, 2):
+        await _at(migrated, scene, days, Cite(GUIDE))
+    await _at(migrated, scene, 3, world.rival_cite(GUIDE))
+    await _at(migrated, scene, 10, world.rival_cite(GUIDE))
+
+    response = await _changes(scene, api, kind="new", min_support=1)
+
+    assert response.status_code == 200, response.text
+    assert [
+        (r["registrable_domain"], r["domain_role"], r["current_units"], r["previous_units"])
+        for r in response.json()["data"]
+    ] == [(EXAMPLE, "third_party", 2, 0)]
+
+
+async def test_a_lost_source_is_judged_per_role_not_per_domain(
+    api: httpx.AsyncClient, migrated: PostgresServer, scene: Scene
+) -> None:
+    """`example.org` as a third party: 3 units in W-2 and none after, so lost. As the competitor:
+    3 units in W, so not lost. Merged by domain it would have 3 units now, and would not be
+    listed at all."""
+    world = scene.world
+    for days in (15, 16, 17):
+        await _at(migrated, scene, days, Cite(GUIDE))
+    for days in (1, 2, 3):
+        await _at(migrated, scene, days, world.rival_cite(GUIDE))
+
+    response = await _changes(scene, api, kind="lost", min_support=3)
+
+    assert response.status_code == 200, response.text
+    assert [
+        (r["registrable_domain"], r["domain_role"], r["current_units"], r["previous_units"])
+        for r in response.json()["data"]
+    ] == [(EXAMPLE, "third_party", 0, 3)]
+
+
 async def test_changes_follow_the_scope(
     api: httpx.AsyncClient, migrated: PostgresServer, scene: Scene
 ) -> None:

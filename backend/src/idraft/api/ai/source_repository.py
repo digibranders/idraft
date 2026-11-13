@@ -431,6 +431,8 @@ async def changes(
             func.max(_C.observed_at).filter(_C.observed_at >= split).label("last_seen_at"),
         )
         .select_from(source)
+        # The join to the counted answers already decides what counts: the bounds only prune the
+        # partitions and keep the project's rows, so dropping them changes no number.
         .where(*citation_bounds(scope))
         .group_by(*keys)
         .having(
