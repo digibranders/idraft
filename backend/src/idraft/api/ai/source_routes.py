@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Final
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query
@@ -136,18 +136,30 @@ AnswerScope = Annotated[SourceQuery, Depends(answer_scope)]
 
 _UNRESOLVED = (
     "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to "
-    "its target, such as Gemini's grounding links), which are left out by default (docs/14 "
-    "section 9). " + _NOT_BUILT
+    "its target, such as Gemini's grounding links), which are left out of every share and unit "
+    "by default (docs/14 section 9). A citation with several excluded flags counts only when "
+    "every one of them is asked for. The citation list and the fan-out read always keep them."
 )
 _INTERNAL = (
     "Count the citations flagged `engine_internal` (links into the engine's own product), which "
-    "are left out by default (docs/14 section 9). " + _NOT_BUILT
+    "are left out of every share and unit by default (docs/14 section 9). Ingest does not set "
+    "this flag yet, so nothing is left out until it does. A citation with several excluded "
+    "flags counts only when every one of them is asked for."
 )
+
+# Whether flagged citations count when a request does not say (docs/14 section 9: they do not;
+# open question O1 of the WP-14 plan). The one place the default is decided: `True` counts them
+# again in every read, and the two descriptions above then need their "by default" rewritten.
+FLAGGED_COUNTED_BY_DEFAULT: Final = False
 
 
 def flag_toggles(
-    include_unresolved_redirects: Annotated[bool, Query(description=_UNRESOLVED)] = False,
-    include_engine_internal: Annotated[bool, Query(description=_INTERNAL)] = False,
+    include_unresolved_redirects: Annotated[
+        bool, Query(description=_UNRESOLVED)
+    ] = FLAGGED_COUNTED_BY_DEFAULT,
+    include_engine_internal: Annotated[
+        bool, Query(description=_INTERNAL)
+    ] = FLAGGED_COUNTED_BY_DEFAULT,
 ) -> tuple[str, ...]:
     """The citation flags a read leaves out (docs/14 section 9)."""
     return tuple(
@@ -197,16 +209,10 @@ async def source_domains(
     min_support: MinSupport = None,
     country_iso: CountryFilter = None,
 ) -> SourceDomainPage:
-    refuse_unbuilt(
-        {
-            "include_unresolved_redirects": "unresolved_redirect" not in flags,
-            "include_engine_internal": "engine_internal" not in flags,
-        }
-    )
     return await sources.domains(
         access,
         project_id,
-        replace(scope, country_iso=country_iso),
+        replace(scope, country_iso=country_iso, excluded_flags=flags),
         sort=sort,
         compare=compare,
         include=include or (),
@@ -260,16 +266,10 @@ async def source_pages(
     min_support: MinSupport = None,
     country_iso: CountryFilter = None,
 ) -> SourcePagePage:
-    refuse_unbuilt(
-        {
-            "include_unresolved_redirects": "unresolved_redirect" not in flags,
-            "include_engine_internal": "engine_internal" not in flags,
-        }
-    )
     return await sources.pages(
         access,
         project_id,
-        replace(scope, country_iso=country_iso),
+        replace(scope, country_iso=country_iso, excluded_flags=flags),
         registrable_domain=registrable_domain,
         sort=sort,
         compare=compare,
@@ -306,16 +306,10 @@ async def source_changes(
     min_support: Annotated[int, Query(ge=1, le=1000)] = 2,
     country_iso: CountryFilter = None,
 ) -> SourceChangePage:
-    refuse_unbuilt(
-        {
-            "include_unresolved_redirects": "unresolved_redirect" not in flags,
-            "include_engine_internal": "engine_internal" not in flags,
-        }
-    )
     return await sources.changes(
         access,
         project_id,
-        replace(scope, country_iso=country_iso),
+        replace(scope, country_iso=country_iso, excluded_flags=flags),
         kind=kind,
         min_support=min_support,
         page=page,
@@ -351,14 +345,11 @@ async def source_diversity(
     ] = None,
     country_iso: CountryFilter = None,
 ) -> SourceDiversity:
-    refuse_unbuilt(
-        {
-            "include_unresolved_redirects": "unresolved_redirect" not in flags,
-            "include_engine_internal": "engine_internal" not in flags,
-        }
-    )
     return await sources.diversity(
-        access, project_id, replace(scope, country_iso=country_iso), include=include or ()
+        access,
+        project_id,
+        replace(scope, country_iso=country_iso, excluded_flags=flags),
+        include=include or (),
     )
 
 
@@ -381,14 +372,11 @@ async def source_domain(
     flags: Flags,
     country_iso: CountryFilter = None,
 ) -> SourceDomainDetail:
-    refuse_unbuilt(
-        {
-            "include_unresolved_redirects": "unresolved_redirect" not in flags,
-            "include_engine_internal": "engine_internal" not in flags,
-        }
-    )
     return await sources.domain(
-        access, project_id, replace(scope, country_iso=country_iso), registrable_domain
+        access,
+        project_id,
+        replace(scope, country_iso=country_iso, excluded_flags=flags),
+        registrable_domain,
     )
 
 
@@ -419,14 +407,12 @@ async def source_prompts(
     ] = None,
     country_iso: CountryFilter = None,
 ) -> PromptOwnPagesPage:
-    refuse_unbuilt(
-        {
-            "include_unresolved_redirects": "unresolved_redirect" not in flags,
-            "include_engine_internal": "engine_internal" not in flags,
-        }
-    )
     return await sources.prompts(
-        access, project_id, replace(scope, country_iso=country_iso), own_cited=own_cited, page=page
+        access,
+        project_id,
+        replace(scope, country_iso=country_iso, excluded_flags=flags),
+        own_cited=own_cited,
+        page=page,
     )
 
 

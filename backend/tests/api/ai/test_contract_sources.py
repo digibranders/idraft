@@ -29,15 +29,7 @@ INVALID = (422, "validation_failed")
 @pytest.mark.parametrize(
     ("path", "params"),
     [
-        ("sources/domains", {"include_unresolved_redirects": "true"}),
-        ("sources/pages", {"include_engine_internal": "true"}),
-        ("sources/changes", {"include_unresolved_redirects": "true"}),
-        ("sources/changes", {"kind": "lost", "include_engine_internal": "true"}),
         ("fanout-queries", {"include": "topics"}),
-        ("sources/diversity", {"include_unresolved_redirects": "true"}),
-        ("sources/diversity", {"include": "series", "include_engine_internal": "true"}),
-        ("sources/domains/g2.com", {"include_unresolved_redirects": "true"}),
-        ("sources/domains/g2.com", {"include_engine_internal": "true"}),
     ],
 )
 async def test_a_source_addition_answers_501(

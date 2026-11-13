@@ -111,6 +111,9 @@ class SourceQuery:
     term_id: UUID | None = None
     roles: Sequence[DomainRole] | None = None
     country_iso: str | None = None
+    # The citation flags the aggregate reads leave out (docs/14 section 9): set by the routes
+    # that take the toggles; the citation list and the fan-out never set it.
+    excluded_flags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,6 +176,7 @@ async def scoped(
             until=until,
             engine_codes=tuple(engines),
             prompt_ids=prompt_ids,
+            excluded_flags=query.excluded_flags,
         ),
         window=MetricWindow(
             from_=first.isoformat(), to=last.isoformat(), timezone=zone_row.timezone
@@ -535,6 +539,7 @@ def _prompts_cursor_scope(
         "term": query.term_id,
         "branded": query.include_branded,
         "own_cited": own_cited,
+        "flags": sorted(query.excluded_flags),
     }
     if query.country_iso is not None:
         bound["country"] = query.country_iso

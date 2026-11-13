@@ -325,12 +325,16 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
         "compare": "previous_period",
         "min_support": "1",
         "filter[country_iso]": "US",
+        "include_unresolved_redirects": "true",
+        "include_engine_internal": "true",
     },
     ("GET", _W + "/projects/{project_id}/ai/sources/pages"): {
         "include": "series",
         "compare": "previous_period",
         "min_support": "1",
         "filter[country_iso]": "US",
+        "include_unresolved_redirects": "true",
+        "include_engine_internal": "true",
     },
     # The tenant's answer cites its own page once and is new in the default window.
     ("GET", _W + "/projects/{project_id}/ai/sources/changes"): {

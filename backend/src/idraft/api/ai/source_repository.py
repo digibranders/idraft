@@ -73,6 +73,8 @@ class SourceScope:
     until: datetime
     engine_codes: tuple[str, ...]
     prompt_ids: tuple[UUID, ...]
+    # Citations carrying any of these flags are not read (`citation_bounds`).
+    excluded_flags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,13 +193,19 @@ def counted_answers(scope: SourceScope) -> Any:
 
 
 def citation_bounds(scope: SourceScope) -> list[Any]:
-    """The conditions that keep `ai.citations` to the project and the window's partitions."""
-    return [
+    """The conditions that keep `ai.citations` to the project and the window's partitions, and to
+    the citations that count: none with an excluded flag (docs/14 section 9). Every read of
+    citations applies them, in a `WHERE` or in the `ON` of an outer join, so a flagged citation
+    leaves the units and the citing answers while its answer still counts."""
+    bounds = [
         _C.workspace_id == scope.workspace_id,
         _C.project_id == scope.project_id,
         _C.observed_at >= scope.since,
         _C.observed_at < scope.until,
     ]
+    if scope.excluded_flags:
+        bounds.append(~_C.flags.overlap(list(scope.excluded_flags)))
+    return bounds
 
 
 def _cited(scope: SourceScope) -> tuple[Any, Any]:

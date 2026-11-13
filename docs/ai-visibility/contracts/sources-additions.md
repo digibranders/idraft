@@ -11,19 +11,23 @@ plan decision D4).
 
 | Item | Kind | Answers today |
 |---|---|---|
-| `GET {P}/ai/sources/changes` | new route (stub) | `501` after the access checks and query validation |
-| `GET {P}/ai/sources/diversity` | new route (stub, WP-14) | same |
-| `GET {P}/ai/sources/domains/{registrable_domain}` | new route (stub, WP-14) | same |
-| `GET {P}/ai/sources/prompts` | new route (stub, WP-14) | same |
-| `sources/domains`: `include`, `min_support`, `filter[country_iso]` | optional additions to a built route | `501` when used |
-| `sources/pages`: `include=series`, `min_support`, `filter[country_iso]` | optional additions | `501` when used |
-| `citations`: `filter[country_iso]` | optional addition | `501` when used |
-| `fanout-queries`: `filter[country_iso]`, `include=topics` | optional additions | `501` when used |
-| `include_unresolved_redirects`, `include_engine_internal` (default false) on domains, pages, changes, diversity, domain detail, prompts | optional additions | `501` when set on a built route; accepted by the stubs |
-| Response fields on domain rows, page rows, fan-out rows and `meta` | new optional fields | absent from every response (not returned yet) |
+| `GET {P}/ai/sources/changes` | new route | built |
+| `GET {P}/ai/sources/diversity` | new route (WP-14) | built |
+| `GET {P}/ai/sources/domains/{registrable_domain}` | new route (WP-14) | built |
+| `GET {P}/ai/sources/prompts` | new route (WP-14) | built |
+| `sources/domains`: `include`, `min_support`, `filter[country_iso]` | optional additions to a built route | built |
+| `sources/pages`: `include=series`, `min_support`, `filter[country_iso]` | optional additions | built |
+| `citations`: `filter[country_iso]` | optional addition | built |
+| `fanout-queries`: `filter[country_iso]` | optional addition | built |
+| `fanout-queries`: `include=topics` | optional addition | `501` when used (not built yet) |
+| `include_unresolved_redirects`, `include_engine_internal` (default false) on domains, pages, changes, diversity, domain detail, prompts | optional additions | built |
+| Response fields on domain rows, page rows and `meta` | new optional fields | returned when their `include` is asked for; `category` and `category_source` are not returned yet (WP-60) |
+| `FanoutQueryRow.topics` | new optional field | absent from every response (not returned yet) |
 
-A request that leaves the additions out answers exactly as before (no `series` or `by_role_by_engine`
-in `meta`).
+A request that leaves the additions out answers as before (no `series` or `by_role_by_engine` in
+`meta`), with one deliberate change: citations flagged `unresolved_redirect` or `engine_internal` are
+no longer counted by the aggregate source reads unless a toggle asks for them (see the flag toggles
+below and the change log).
 
 ## Routes and parameters
 
@@ -51,38 +55,42 @@ ending today, at most 92), `filter[engine_code_in]` (at most 3 values), `filter[
 | Parameter | On | Type | Bounds | Meaning |
 |---|---|---|---|---|
 | `include` | `sources/domains` | comma list of `series`, `cited_with`, `by_role_by_engine` | at most 3 values | Blocks to add. All three are built. |
-| `include` | `sources/pages` | comma list of `series` | at most 1 value | `501` when used. |
-| `min_support` | `sources/domains`, `sources/pages` | integer | 1 to 1,000 | The fewest citation units a row is listed for. `501` when used. |
-| `filter[country_iso]` | domains, pages, citations, fan-out, changes | string | `^[A-Z]{2}$` | The answers of the prompts of one market, ISO 3166-1 alpha-2. `501` when used. |
-| `kind` | `sources/changes` | `new` or `lost` | default `new` | `new`: domains with at least `min_support` citation units in the window and none in as many days before. `lost`: at least `min_support` units before and none in the window. |
+| `include` | `sources/pages` | comma list of `series` | at most 1 value | Adds a weekly series to each row and to `meta.series`. |
+| `min_support` | `sources/domains`, `sources/pages` | integer | 1 to 1,000 | The fewest citation units a row is listed for; rows below it leave the rows and `page.total`, never `meta` or a share. |
+| `filter[country_iso]` | domains, pages, citations, fan-out, changes, diversity, domain detail, prompts | string | `^[A-Z]{2}$` | The answers of the prompts of one market, ISO 3166-1 alpha-2; prompts with no market are left out. It narrows `meta` and every share too. |
+| `kind` | `sources/changes` | `new` or `lost` | default `new` | `new` (docs/16 C5): at least `min_support` citation units in the window and none in as many days before. `lost` (docs/16 C6): at least `min_support` units in a support window and none in each of the 2 windows after it (the asked window and the one before it). |
 | `min_support` | `sources/changes` | integer | 1 to 1,000, default 2 | The citation units a domain needs on the side where it was cited. |
-| `include_unresolved_redirects` | domains, pages, changes, diversity, domain detail, prompts | boolean | default `false` | Count citations flagged `unresolved_redirect`, left out by default (docs/14 section 9). `501` on domains and pages when set. |
-| `include_engine_internal` | same six routes | boolean | default `false` | Count citations flagged `engine_internal`, left out by default. `501` on domains and pages when set. |
-| `include` | `fanout-queries` | comma list of `topics` | at most 1 value | Adds `topics` to each row. `501` when used. |
+| `include_unresolved_redirects` | domains, pages, changes, diversity, domain detail, prompts | boolean | default `false` | Count citations flagged `unresolved_redirect` (redirect links that were not resolved, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). |
+| `include_engine_internal` | same six routes | boolean | default `false` | Count citations flagged `engine_internal` (links into the engine's own product), left out by default. Ingest does not set this flag yet, so nothing is left out until it does; the read filters on it already. |
+| `include` | `fanout-queries` | comma list of `topics` | at most 1 value | Adds `topics` to each row. `501` when used (not built yet). |
 | `include` | `sources/diversity` | comma list of `series`, `ads` | at most 2 values | Weekly series and ad presence per engine. |
-| `filter[own_cited]` | `sources/prompts` | boolean | | `false` keeps the prompt and engine pairs whose answers cite no own page. |
-| `filter[country_iso]` | diversity, domain detail, prompts | string | `^[A-Z]{2}$` | As above. |
+| `filter[own_cited]` | `sources/prompts` | boolean | | `true` keeps the prompt and engine pairs whose answers cite an own page, `false` those that cite none. Default both. |
+
+The flag toggles apply to the aggregate reads only. A citation carrying several excluded flags counts
+only when every one of them is asked for (a link flagged with both is counted by neither toggle
+alone). The citation list (`citations`) and the fan-out read keep every citation whatever its flags,
+since they show the evidence behind the counts. A cursor of `sources/prompts` is bound to the
+toggles.
 
 `sources/diversity` and `sources/domains/{registrable_domain}` take the shared scope. The path value
 is a registrable domain (1 to 253 characters), a word and not an id. `sources/prompts` takes the
-shared scope and a keyset `cursor` and `limit` (1 to 200). The three routes answer `501` after the
-access checks and query validation until WP-14 builds them.
+shared scope and a keyset `cursor` and `limit` (1 to 200).
 
 `sources/changes` takes the shared scope and offset paging above, and no `compare`, `sort` or
 `filter[registrable_domain]`. The fan-out route keeps its own `min_support`, which counts answers.
 
-### New response fields (all optional, absent until built)
+### New response fields (all optional, absent unless asked for)
 
 | Model | Field | Type | Bounds | Meaning |
 |---|---|---|---|---|
 | `SourceDomainRow` | `series` | `SourceWeekUnits[]` | at most 14 | With `include=series`: a point per week of the window, oldest first. |
 | `SourceDomainRow` | `cited_with` | `CitedWith` `{ entity_id, observations }` | | With `include=cited_with`: the tracked entity most named in answers citing it, and the answers citing it that name it. |
-| `SourceDomainRow` | `category` | string | up to 64 | The domain's category. Not tied to an `include` value. |
-| `SourceDomainRow` | `category_source` | `seed_list`, `rule`, `llm`, `manual` or `tenant_override` | | Where the category came from. |
+| `SourceDomainRow` | `category` | string | up to 64 | The domain's category. Published; not returned yet (WP-60). |
+| `SourceDomainRow` | `category_source` | `seed_list`, `rule`, `llm`, `manual` or `tenant_override` | | Where the category came from. Published; not returned yet (WP-60). |
 | `SourcePageRow` | `series` | `SourceWeekUnits[]` | at most 14 | With `include=series`. |
 | `SourcesMeta` | `series` | `SourcesWeek[]` | at most 14 | With `include=series`: per week `week_start`, `answers`, `citation_units`, `distinct_domains`. |
 | `SourcesMeta` | `by_role_by_engine` | `EngineRoleUnits[]` | at most 3 | With `include=by_role_by_engine` on domains: per engine, `own`, `competitor` and `third_party` each as `{ citation_units, answers_citing }`. |
-| `FanoutQueryRow` | `topics` | `FanoutTopic[]` `{ term_id, observations }` | at most 10 | With `include=topics`: the topic terms tagged on the prompts whose answers issued it, the most answers first. |
+| `FanoutQueryRow` | `topics` | `FanoutTopic[]` `{ term_id, observations }` | at most 10 | With `include=topics`: the topic terms tagged on the prompts whose answers issued it, the most answers first. Published; not returned yet. |
 
 `SourceWeekUnits`: `week_start` (the Monday the week starts on, in the project's zone), `citation_units`,
 `observations`.
@@ -94,12 +102,12 @@ access checks and query validation until WP-14 builds them.
 | `data[].registrable_domain` | string, up to 253 | One row per registrable domain and role. |
 | `data[].domain_role` | `own`, `competitor`, `third_party` | |
 | `data[].role_entity_id` | uuid or null | The tracked entity whose domain rule matched; null for a third party. |
-| `data[].current_units` | integer | Citation units in the window. |
-| `data[].previous_units` | integer | Citation units in the window compared with. |
-| `data[].first_seen_at` | datetime or null | Its first citation in the window. |
-| `data[].last_seen_at` | datetime or null | Its last citation in the window. |
-| `page` | `{ offset, limit, total }` | Offset page. |
-| `meta` | `{ window, compare_window, include_branded, engine_codes (at most 3), kind, min_support }` | The windows and settings answered. |
+| `data[].current_units` | integer | Citation units in `meta.window`. |
+| `data[].previous_units` | integer | Citation units in `meta.compare_window`. |
+| `data[].first_seen_at` | datetime or null | Its first citation in `meta.window`; null for `lost`. |
+| `data[].last_seen_at` | datetime or null | Its last citation in `meta.window`; null for `lost`. |
+| `page` | `{ offset, limit, total }` | Offset page, the most units first. |
+| `meta` | `{ window, compare_window, include_branded, engine_codes (at most 3), kind, min_support }` | The windows and settings answered. For `new`, `window` is the asked window and `compare_window` the one before it. For `lost`, `window` is the asked window and the one before it (the 2 empty windows) and `compare_window` the support window before those: a 92 day ask reads 276 days. |
 
 ### GET {P}/ai/sources/diversity: response
 
@@ -138,20 +146,20 @@ access checks and query validation until WP-14 builds them.
 | Status | Code | When |
 |---|---|---|
 | 401 | `unauthenticated` | No session. |
-| 404 | `not_found` | Not a member of the workspace; a project outside the member's scope; once built, a deleted or unknown project (a built read with an unbuilt addition answers `501` first). |
+| 404 | `not_found` | Not a member of the workspace; a project outside the member's scope; a deleted or unknown project. |
 | 403 | `forbidden` | The role lacks `data:read`. |
-| 400 | `invalid_cursor` | `citations`: a cursor used with other filters than it was issued for (built). |
-| 422 | `validation_failed` | A value outside its bounds: `include=cited_with` on pages, `kind=gone`, `min_support=0`, `filter[country_iso]=us`; a parameter the route does not declare; `from` after `to` is field code `range_invalid` on the built reads. |
-| 422 | `window_too_large` | Over 92 days (built reads; `sources/changes` once built). |
-| 422 | `engine_has_no_fanout` | Fan-out only: an engine that does not show its queries is named in `filter[engine_code_in]` (built). |
-| 501 | `not_implemented` | `sources/changes`, `sources/diversity`, `sources/domains/{registrable_domain}`, `sources/prompts`, or an addition that was used on a built read (`detail` names it: `include`, `min_support`, `filter[country_iso]`, `include_unresolved_redirects`, `include_engine_internal`). |
+| 400 | `invalid_cursor` | `citations` and `sources/prompts`: a cursor used with other filters than it was issued for (for the prompts also other toggles), or one whose key is not one the list made. |
+| 422 | `validation_failed` | A value outside its bounds: `include=cited_with` on pages, `kind=gone`, `min_support=0`, `filter[country_iso]=us`; a parameter the route does not declare; `from` after `to` is field code `range_invalid`. |
+| 422 | `window_too_large` | Over 92 days (the asked window; `sources/changes` with `kind=lost` reads 3 windows of that length). |
+| 422 | `engine_has_no_fanout` | Fan-out only: an engine that does not show its queries is named in `filter[engine_code_in]`. |
+| 501 | `not_implemented` | `fanout-queries` with `include=topics` (not built yet; `detail` names `include`). |
 
-Order: 401, 404, 403, 422, then `501`. A built read with an addition used answers `501` before the
+Order: 401, 404, 403, 422, then `501`. The one addition still answering `501` does so before the
 service reads anything.
 
 ## Example
 
-The `501` body is in the [README](README.md). The responses show what WP-14 will return.
+The `501` body is in the [README](README.md). The responses show what WP-14 returns.
 
 ### Domains with the new blocks
 
@@ -308,8 +316,8 @@ GET {P}/ai/sources/changes?kind=lost&min_support=3&filter[country_iso]=US
   ],
   "page": {"offset": 0, "limit": 50, "total": 1},
   "meta": {
-    "window": {"from": "2026-10-17", "to": "2026-11-13", "timezone": "Europe/Berlin"},
-    "compare_window": {"from": "2026-09-19", "to": "2026-10-16", "timezone": "Europe/Berlin"},
+    "window": {"from": "2026-09-19", "to": "2026-11-13", "timezone": "Europe/Berlin"},
+    "compare_window": {"from": "2026-08-22", "to": "2026-09-18", "timezone": "Europe/Berlin"},
     "include_branded": false,
     "engine_codes": ["chatgpt_web", "gemini_web"],
     "kind": "lost",
@@ -346,25 +354,16 @@ Each row can be tightened by WP-14 through the change log.
 | Q18 | `sources/changes` row shape and paging | `registrable_domain` rows and offset pages, as the built source reads | Doc 19's `DomainRef` and cursor were replaced by the as built D2 reads. |
 | Q19 | `cited_with` and `by_role_by_engine` always or opt-in | Opt-in through `include` on `sources/domains` | Handoff rule 5: a new extra query is asked for. |
 | D7 | Bounds | `series` at most 14 weeks, engine lists at most 3, `category` up to 64, domain up to 253 | House rule: bounded lists and strings. |
+| O1 | Do flagged citations count when a request does not say | No: `unresolved_redirect` and `engine_internal` citations are left out of every share and unit of the aggregate reads, and counted with the toggles | Docs/14 section 9 and docs/19. One named constant, `FLAGGED_COUNTED_BY_DEFAULT` in `source_routes.py`, decides it. |
+| O2 | `lost` as the contract first described it ("units before and none in the window") or as docs/16 C6 | C6: `min_support` units in a support window and none in each of the 2 windows after it | BE-SOURCES-05, docs/16, docs/14; the row and meta shapes hold for both. |
+| O10 | Ingest never sets `engine_internal` | The toggle filters on it anyway | The read is ready the day ingest marks the links (docs/14 section 9 names the flag); until then `include_engine_internal` changes no number. |
 
-One point the brief leaves open: BE-SOURCES-05 reads "lost" as `min_support` then 0 for 2 full windows
-(C6), while the route description above compares the window with the one before it. The row and meta
-shapes hold for both; WP-14 states the rule it builds in the change log.
+## Built by WP-14
 
-## How the owner package fills it
-
-1. `source_changes` in `api/ai/source_routes.py`: drop `@not_built` and `raise not_built_yet()`
-   (`idraft.api.stubs`).
-2. The additions, one by one: remove the entry from the `refuse_unbuilt` call of `source_domains`,
-   `source_pages`, `citation_list` and `fanout_queries`, and pass the value to the service. Replace the
-   shared `CountryFilter` and `MinSupport` descriptions (they end with `Not built yet`).
-3. Replace `tests/api/ai/test_contract_sources.py` with real tests; the existing tests of
-   `tests/api/ai/test_sources.py`, `test_sources_compare.py` and `test_fanout_queries.py` stay.
-4. Aggregates are one grouped query with a statement count test; the new blocks stay absent unless
-   asked for (`include`).
-5. A foreign or nonexistent project answers `404` through the service; the stub and the refusals
-   answered `501`.
-6. Regenerate `backend/openapi/v1.json`, then `pnpm gen:api` in `apps/web`.
+The routes, parameters and fields above are built, except `fanout-queries` `include=topics` and
+`FanoutQueryRow.topics`, and `SourceDomainRow.category` and `category_source` (WP-60). Every aggregate is
+one grouped statement, with a statement count test; a foreign or deleted project answers `404` from the
+service; the new blocks stay absent unless asked for (`include`).
 
 ## Change log
 
@@ -378,3 +377,4 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-14: built `GET {P}/ai/sources/diversity` (per engine: answers, citing answers, units, distinct registrable domains with roles merged, and `effective_sources` as (sum of units)^2 over the sum of squared units per domain with both visible; `meta.distinct_domains` is a count over every engine in scope and `meta.effective_sources_engine_average` the equal-weight mean of the engines with units; `include=series` a weekly point per engine, `include=ads` the answers that showed an ad) and `GET {P}/ai/sources/domains/{registrable_domain}` (the name is read in lower case; at most 10 rows, 10 pages, 20 prompts, 5 `cited_with` entities and 3 engine series of at most 14 weeks; a domain not cited in scope is `200` with every list empty, `engines` included); the flag toggles on both still answer `501`
 2026-11-13 WP-14: built `include=cited_with` and `include=by_role_by_engine` on `sources/domains` (`cited_with` is read per row, so per registrable domain, role and entity: the tracked entity named in the most counted answers citing that row, current and accepted mentions of the answer's derivation, ties by entity id, `observations` the answers citing the row that name it, the key absent when no answer names one; `meta.by_role_by_engine` lists every engine of `meta.engine_codes` in that order with the units and citing answers of each role over every citation in scope, zero when none, whatever `filter[domain_role_in]` says, so per role the units over the engines add up to `meta.by_role`); every `include` value of domains is now built; a NUL or other control character in `filter[registrable_domain]` or in the `{registrable_domain}` path value answers `422 validation_failed`
 2026-11-13 WP-14: built `GET {P}/ai/sources/prompts` (BE-SOURCES-20): one row per prompt and engine with a counted answer (an engine with none has no row), each with `answers`, `answers_citing_own`, `own_citation_units` (distinct own URLs per answer), `own_pages` and `top_own_page` (the own page with the most units, ties by the lowest url id; null when none); `filter[own_cited]` keeps the pairs that cite an own page (`true`) or none (`false`); keyset pages `(prompt_id, engine_code)` with a cursor bound to the project and every filter (`400 invalid_cursor` for another scope or a forged key); the flag toggles on it still answer `501`
+2026-11-13 WP-14: built `include_unresolved_redirects` and `include_engine_internal` on `sources/domains`, `sources/pages`, `sources/changes`, `sources/diversity`, `sources/domains/{registrable_domain}` and `sources/prompts`, and CHANGED the default (open question O1, approved by the coordinator): citations flagged `unresolved_redirect` or `engine_internal` are now left out of the citation units, citing answers, shares, series, `meta`, diversity numbers, change rules and own pages of those reads unless the toggle asks for them (docs/14 section 9); the answers still count in `meta.answers`; a citation with several excluded flags counts only when every one is asked for; `citations` and `fanout-queries` keep every citation; a `sources/prompts` cursor is bound to the toggles; the default is the one constant `FLAGGED_COUNTED_BY_DEFAULT`; ingest never sets `engine_internal` today, so only `unresolved_redirect` (Gemini grounding links and other redirects ingest could not unwrap) moves numbers
