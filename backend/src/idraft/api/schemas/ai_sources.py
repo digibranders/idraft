@@ -11,7 +11,7 @@ from uuid import UUID
 from pydantic import BaseModel, BeforeValidator, Field
 
 from idraft.api.pagination import CursorPageInfo, OffsetPageInfo
-from idraft.api.schemas.ai import MetricCell
+from idraft.api.schemas.ai import CitationOut, MetricCell
 from idraft.api.schemas.metrics import MetricWindow
 from idraft.domain.ai_engines import EngineCode
 
@@ -433,6 +433,10 @@ class CitationRow(BaseModel):
     domain_role: DomainRole
     role_entity_id: UUID | None
     occurrences: int
+    # The answer detail's text and cap (`CitationOut.quote`): written always, null when none.
+    quote: str | None = Field(
+        default=None, description=CitationOut.model_fields["quote"].description
+    )
 
 
 class CitationPage(BaseModel):

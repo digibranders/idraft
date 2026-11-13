@@ -986,6 +986,7 @@ class SourceService:
                     domain_role=cast(DomainRole, row.domain_role),
                     role_entity_id=row.role_entity_id,
                     occurrences=row.occurrences,
+                    quote=row.quote,
                 )
                 for row in shown
             ],

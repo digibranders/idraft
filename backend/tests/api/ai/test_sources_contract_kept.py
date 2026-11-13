@@ -321,6 +321,8 @@ CITATION_KEYS = {
     "domain_role",
     "role_entity_id",
     "occurrences",
+    # Added by WP-32 (the same member as `CitationOut.quote`); nothing else changed.
+    "quote",
 }
 FANOUT_KEYS = {
     "query_text",

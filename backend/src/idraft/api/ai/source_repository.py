@@ -1016,6 +1016,7 @@ async def citation_rows(
             _C.domain_role,
             _C.role_entity_id,
             _C.occurrences,
+            _C.quote,
         )
         .select_from(source.join(urls, u.id == _C.url_id))
         .where(*citation_bounds(scope))

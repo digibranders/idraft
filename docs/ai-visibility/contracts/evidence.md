@@ -34,6 +34,7 @@ role, not necessarily the newest.
 | Model | Field | Type | Meaning |
 |---|---|---|---|
 | `CitationOut` | `quote` | string or null | The passage the provider quoted from the source, whitespace collapsed, at most 1,000 characters. Null when the provider gave none or the answer was stored before quotes were kept. |
+| `CitationRow` (`GET {P}/ai/citations`) | `quote` | string or null | The same member, text and cap as `CitationOut.quote` (WP-32 follow-up): always written, null for ChatGPT and for rows stored before migration 0024, returned as stored (the parser cuts at 1,000 characters, the API does not cut again). Read by the statement that lists the rows: the list costs the same statements as before. |
 | `ObservationDetail` | `answer_sha256` | string or null | SHA-256 of `answer_text` as UTF-8, lowercase hex, 64 characters. Null when the answer has no text. |
 | `ObservationDetail` | `raw_sha256` | string or null | SHA-256 of the provider's body as received, lowercase hex, 64 characters. Null when the payload row is gone. It stays available after the raw body expires (`410 raw_expired`). |
 
@@ -193,3 +194,4 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-26: contract published (route stub, three optional fields)
 2026-11-13 WP-26: the fields are built (T1): `answer_sha256`, `raw_sha256` and `quote`; the quote column is migration 0024 (`ai.citations.quote`)
 2026-11-13 WP-26: the compare route is built (T2): the `501 not_implemented` stub is gone and the route answers `200`, `404 not_found` or `404 no_baseline` (also an answer with no current facts yet); the shapes are unchanged; the route description now states the D1 and D2 rules; `test_contract_evidence.py` is replaced by `test_answer_compare.py`
+2026-11-14 WP-32: `CitationRow.quote` (the rows of `GET {P}/ai/citations`): the same nullable member as `CitationOut.quote`, read from the existing column by the statement that lists the rows (no migration, no extra statement); null for ChatGPT and for rows stored before migration 0024
