@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T11:01:02+05:30",
+ "updated": "2026-11-13T11:18:20+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1016,7 +1016,7 @@
     "done": 9
    },
    "owner": "",
-   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16"
+   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | from WP-25: statisticsContent in stats-model.ts builds StatisticsContent for one rate of one engine; reuse in the topic drawer"
   },
   {
    "id": "WP-21",
@@ -1078,7 +1078,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02"
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | from WP-25: add tabs through features/prompts seams/inspector-tabs.ts (More tabs absorbs overflow); the e2e phone test hard-codes 4 tabs and no More button: update it when your tab lands; domain chips take href once the domain inspector route exists"
   },
   {
    "id": "WP-22",
@@ -1204,14 +1204,14 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-24-fanout-views.md; estimate 5 tasks; decisions D-02"
+   "notes": "file work-packages/WP-24-fanout-views.md; estimate 5 tasks; decisions D-02 | from WP-25: add tabs through features/prompts seams/inspector-tabs.ts (More tabs absorbs overflow); the e2e phone test hard-codes 4 tabs and no More button: update it when your tab lands; domain chips take href once the domain inspector route exists"
   },
   {
    "id": "WP-25",
    "title": "Prompt inspector completion: header, Latest, History, Stats (R-11 prompt part)",
    "wave": "W2",
    "kind": "web",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-07",
     "WP-08",
@@ -1266,10 +1266,10 @@
    },
    "counts": {
     "total": 35,
-    "done": 26
+    "done": 34
    },
    "owner": "",
-   "notes": "file work-packages/WP-25-inspector-completion.md; estimate 6 tasks; decisions D-02 | tasks 5/10, rows 31/35; Tasks 1,2,3,8 on develop (c0f3c63e); 4-5 committed locally, 6 in flight"
+   "notes": "file work-packages/WP-25-inspector-completion.md; estimate 6 tasks; decisions D-02 | merged 0fcf837b; 34/35 rows (WB-PI-23 blocked on CF-26, WB-PI-01 skipped); vitest 6573/6574 (1 fixed upstream), e2e 6/6; stopped per policy"
   },
   {
    "id": "WP-26",
@@ -1323,7 +1323,7 @@
     "done": 9
    },
    "owner": "",
-   "notes": "file work-packages/WP-26-evidence-viewer.md; estimate 7 tasks; decisions none"
+   "notes": "file work-packages/WP-26-evidence-viewer.md; estimate 7 tasks; decisions none | from WP-25: step 1 CF-26 hashes closes WB-PI-23; Latest cards then need one line with a copy button"
   },
   {
    "id": "WP-27",
@@ -4013,41 +4013,6 @@
    "granted": "2026-11-13T06:49:17+05:30",
    "scope": "tests for the _bounded fix",
    "until": "WP-14 merged"
-  },
-  {
-   "path": "apps/web/src/components/design-system/metric-parts-section.tsx",
-   "wp": "WP-25",
-   "granted": "2026-11-13T09:33:49+05:30",
-   "scope": "add a ConfidenceIndicator specimen group (WB-PIS-06); tiny diff, pushed alone",
-   "until": "WP-25 merged"
-  },
-  {
-   "path": "apps/web/src/components/design-system/metric-parts-section.test.tsx",
-   "wp": "WP-25",
-   "granted": "2026-11-13T09:33:49+05:30",
-   "scope": "same",
-   "until": "WP-25 merged"
-  },
-  {
-   "path": "apps/web/src/components/ui/tabs.tsx",
-   "wp": "WP-25",
-   "granted": "2026-11-13T09:33:49+05:30",
-   "scope": "additive optional overflowLabel prop (trailing 'More tabs' menu at 440 and 390 px); keyword, topic and all other consumers unchanged; run every consumer's tests",
-   "until": "WP-25 merged"
-  },
-  {
-   "path": "apps/web/src/components/ui/tabs.test.tsx",
-   "wp": "WP-25",
-   "granted": "2026-11-13T09:33:49+05:30",
-   "scope": "tests for overflowLabel",
-   "until": "WP-25 merged"
-  },
-  {
-   "path": "apps/web/src/components/app/inspector/inspector-tabs.tsx",
-   "wp": "WP-25",
-   "granted": "2026-11-13T09:33:49+05:30",
-   "scope": "pass overflowLabel through; additive",
-   "until": "WP-25 merged"
   }
  ],
  "followups": [
@@ -4169,6 +4134,16 @@
    "detail": "WP-12 Task 4 co-mentions statement: with no table statistics the planner chose a nested loop taking 69 s (over the 15 s statement timeout); with the leaf partitions analyzed it takes 0.4 s. Real pair volume is much lower than the 20-entity worst case. Add one line to the ops runbook (docs/ops).",
    "owner": "ops session",
    "severity": "performance hardening",
+   "status": "open"
+  },
+  {
+   "id": "F-13",
+   "found": "2026-11-13T11:18:20+05:30",
+   "by": "WP-25",
+   "title": "Small WP-25 leftovers",
+   "detail": "WB-PI-01 quotes around the h2 (needs inspector-header.tsx lease, changes the accessible name in 7 test files); badge path rule uses path.includes('/') so a root topic named CI/CD is treated as nested (harmless); BOUNDARY_ROOM=24 duplicated from small-multiples.tsx; DS25 row 105 still says Tabs.overflow not built (row 153 supersedes it); history stale event uses a 7 day shortcut: replace with the WP-18 CF-27 rule.",
+   "owner": "quality sweep and WP-18",
+   "severity": "low",
    "status": "open"
   }
  ],
