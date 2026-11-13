@@ -8,7 +8,6 @@ import {
   engineRole,
   historyEvents,
   modelBoundaries,
-  POOLED_WEEKS,
   rateCeiling,
   staleEvents,
   staleWindow,
@@ -112,11 +111,14 @@ export function InspectorHistory({
     },
     [history, rate],
   );
-  /** What each point pools, in words: "4 weeks to Oct 26" (fewer weeks for the first points). */
+  /** What each point pools, in words: "4 weeks to Oct 26" (fewer where the window opens; the most the engines pool). */
   const titles = useMemo(
     () =>
       (model?.weeks ?? []).map((week, at) =>
-        history('pointTitle', { weeks: Math.min(POOLED_WEEKS, at + 1), date: formatChartDate(week) }),
+        history('pointTitle', {
+          weeks: Math.max(1, ...(model?.engines ?? []).map((engine) => engine.points[at]?.span ?? 1)),
+          date: formatChartDate(week),
+        }),
       ),
     [model, history],
   );

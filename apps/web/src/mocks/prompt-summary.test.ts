@@ -11,11 +11,15 @@ import {
   NOT_NAMED,
   promptCells,
   promptEntityCells,
+  sumCounts,
   summaryWeeks,
   topicEntityCells,
   weekCells,
+  weeklySeries,
+  type Counts,
   type NamedAnswer,
 } from './prompt-summary';
+import type { PointPool } from '@/lib/api/types';
 import { shiftIsoDate } from './serp-views';
 
 const OWN = 'own-brand';
@@ -204,6 +208,109 @@ describe('the weeks of a series', () => {
       mentioned: cells.mentioned,
       cited: cells.cited,
       share_of_voice: cells.share_of_voice,
+    });
+    expect(weekCells('2026-11-09', cells)).not.toHaveProperty('pool');
+  });
+
+  it('give a pooled point the pooled cells, the prompts of its own week and the pool that says what it holds', () => {
+    const own = promptCells('chatgpt_web', counts(2, 1));
+    const pooled = promptCells('chatgpt_web', counts(6, 3));
+    const pool: PointPool = {
+      weeks: 3,
+      window: { from: '2026-10-16', to: '2026-11-01', timezone: 'UTC' },
+      reason: 'prompt_point',
+      below_prompts: 10,
+    };
+    expect(weekCells('2026-10-26', own, { cells: pooled, pool })).toMatchObject({
+      week_start: '2026-10-26',
+      prompts: 1,
+      is_pooled: true,
+      pool,
+      mentioned: pooled.mentioned,
+      cited: pooled.cited,
+    });
+  });
+});
+
+/** The counts of one prompt over a week: `valid` answers, `mentioned` of them naming the brand. */
+const counts = (valid: number, mentioned: number): Counts => ({
+  ...NO_COUNTS,
+  n_observations: valid,
+  n_valid: valid,
+  mentioned,
+});
+const RANGE = { from: '2026-10-16', to: '2026-11-12', timezone: 'UTC' };
+const WEEKS = summaryWeeks(RANGE.from, RANGE.to);
+
+describe('the pools of a series, as the API makes them (contract C2, change log C-11)', () => {
+  it('add counts', () => {
+    expect(sumCounts([])).toEqual(NO_COUNTS);
+    expect(sumCounts([counts(2, 1), counts(2, 2), NO_COUNTS])).toEqual(counts(4, 3));
+  });
+
+  it('pool a prompt point over the week and the three before it, cut at the window start', () => {
+    const series = weeklySeries('chatgpt_web', WEEKS, RANGE, [
+      [NO_COUNTS, counts(2, 1), counts(2, 2), counts(2, 0), counts(2, 2)],
+    ]);
+    expect(series.map((point) => point.week_start)).toEqual(WEEKS);
+    expect(series.map((point) => [point.is_pooled, point.pool?.weeks, point.pool?.reason])).toEqual([
+      [true, 1, 'prompt_point'],
+      [true, 2, 'prompt_point'],
+      [true, 3, 'prompt_point'],
+      [true, 4, 'prompt_point'],
+      [true, 4, 'prompt_point'],
+    ]);
+    // The week of the 12th opens before the window: the pool starts on the window's first day, and ends with the week
+    expect(series[1]?.pool?.window).toEqual({ from: '2026-10-16', to: '2026-10-25', timezone: 'UTC' });
+    expect(series[2]?.pool?.window).toEqual({ from: '2026-10-16', to: '2026-11-01', timezone: 'UTC' });
+    // The last week ends at the window end, not on its Sunday
+    expect(series[4]?.pool?.window).toEqual({ from: '2026-10-19', to: '2026-11-12', timezone: 'UTC' });
+    expect(series[4]?.pool?.below_prompts).toBe(10);
+    // Answers over answers: the fourth point holds 1 + 2 + 0 of 2 + 2 + 2, the fifth 2 + 0 + 2 of 6 + 2 more
+    expect(series[3]?.mentioned).toMatchObject({ numerator: 3, denominator: 6, pooled: null });
+    expect(series[4]?.mentioned).toMatchObject({ numerator: 5, denominator: 8, pooled: null });
+    // `prompts` is the prompt's own week alone, a pooled point or not
+    expect(series.map((point) => point.prompts)).toEqual([0, 1, 1, 1, 1]);
+    expect(series[0]?.mentioned).toMatchObject({ numerator: 0, denominator: 0, value: null });
+  });
+
+  it('pool a topic point under 10 prompts: each prompt summed over the weeks first, then weighted by prompt', () => {
+    const series = weeklySeries(
+      'chatgpt_web',
+      WEEKS,
+      RANGE,
+      [
+        [NO_COUNTS, counts(2, 2), counts(2, 1)],
+        [NO_COUNTS, counts(2, 0), counts(2, 1)],
+        [NO_COUNTS, NO_COUNTS, counts(2, 2)],
+      ].map((cells) => [...cells, NO_COUNTS, NO_COUNTS]),
+      true,
+    );
+    const point = series[2];
+    // Rates over the three weeks: 3 of 4, 1 of 4 and 2 of 2
+    expect(point).toMatchObject({
+      prompts: 3,
+      is_pooled: true,
+      pool: { weeks: 3, reason: 'few_prompts', below_prompts: 10 },
+      mentioned: { numerator: 2, denominator: 3, pooled: { successes: 6, trials: 10 } },
+    });
+  });
+
+  it('leave a topic point of 10 prompts or more as the week alone', () => {
+    const prompts = Array.from({ length: 10 }, () => [NO_COUNTS, counts(2, 2), counts(2, 0)]);
+    const [, first, second] = weeklySeries('chatgpt_web', WEEKS, RANGE, prompts, true);
+    expect(first).toMatchObject({ prompts: 10, is_pooled: false, mentioned: { numerator: 10, denominator: 10 } });
+    expect(first).not.toHaveProperty('pool');
+    // The week after holds 10 prompts again, with none of the answers of the week before
+    expect(second).toMatchObject({ prompts: 10, is_pooled: false, mentioned: { numerator: 0, denominator: 10 } });
+  });
+
+  it('pool a topic point of 9 prompts, which is under the line', () => {
+    const prompts = Array.from({ length: 9 }, () => [NO_COUNTS, counts(2, 2)]);
+    expect(weeklySeries('chatgpt_web', WEEKS, RANGE, prompts, true)[1]).toMatchObject({
+      prompts: 9,
+      is_pooled: true,
+      pool: { reason: 'few_prompts' },
     });
   });
 });

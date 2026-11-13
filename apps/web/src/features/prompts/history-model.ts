@@ -1,7 +1,7 @@
 import { TZDate } from '@date-fns/tz';
 
 import type { DateRange } from './prompt-model';
-import type { EngineSummary, ObservationSummary } from '@/lib/api/types';
+import type { EngineSummary, ObservationSummary, PointPool } from '@/lib/api/types';
 import type { SeriesRole } from '@/lib/charts/category-chart';
 import { formatIsoDate } from '@/lib/format';
 import { rateState, wilsonInterval, type Interval } from '@/lib/stats';
@@ -11,23 +11,22 @@ import { rateState, wilsonInterval, type Interval } from '@/lib/stats';
  * with its Wilson band, and the events read from its answers. Plain data; the tab puts words and a chart to it.
  */
 
-/** The weeks one point pools: the week it is dated by and the three before it. */
-export const POOLED_WEEKS = 4;
-
 /**
- * One point of one engine: the valid answers that name the brand over all the valid ones of the week it is dated by
- * and the three weeks before it (a prompt is asked twice a week, so one week alone never holds the answers a rate needs).
+ * One point of one engine, as the API gives it: a prompt row's point already pools the valid answers of its week and
+ * the weeks before it (a prompt is asked twice a week, so one week alone never holds the answers a rate needs).
  */
 export interface WeekPoint {
-  /** The Monday of the last week of the point, a project day. */
+  /** The Monday of the week the point is dated by, a project day. */
   weekStart: string;
-  /** How many weeks the point pools: 4, fewer for the first three points of the window. */
+  /** How many weeks the point pools: up to 4 on a prompt row, fewer where the window opens; 1 when it is not pooled. */
   span: number;
+  /** The days the pool covers, inside the window; undefined when the point is not pooled. */
+  window?: PointPool['window'];
   k: number;
   n: number;
-  /** `k / n`; `null` with no valid answer in the weeks (a gap, never a 0). */
+  /** `k / n`; `null` with no valid answer in the point (a gap, never a 0). */
   value: number | null;
-  /** The 95 percent Wilson interval of the pooled counts; only over enough valid answers. */
+  /** The 95 percent Wilson interval of the counts; only over enough valid answers. */
   band: Interval | null;
   /** Fewer valid answers than `MIN_OBSERVATIONS`: drawn as a hollow point with no band. */
   thin: boolean;
@@ -46,9 +45,8 @@ export interface History {
 }
 
 /**
- * The trailing four week points of the engines in `engineCodes`, in that order, from a summary read with
- * `include=series`, one for each week of the series of any of them. An engine whose series lists no week of a window
- * has a gap there. `null` when no engine asked for has a series (not loaded, an older API, or a read made without it).
+ * The weekly points of the engines in `engineCodes`, in that order, from a summary read with `include=series`, one for
+ * each week of the series of any of them, each read as the API pools it. An engine whose series lists no week has a gap there. `null` when no engine asked for has a series (not loaded, an older API, or a read made without it).
  */
 export function weeklyHistory(
   engineCodes: readonly string[],
@@ -64,21 +62,18 @@ export function weeklyHistory(
     weeks,
     engines: chosen.map(({ engineCode, series }) => ({
       engineCode,
-      points: weeks.map((weekStart, at): WeekPoint | null => {
-        const window = weeks.slice(Math.max(0, at - POOLED_WEEKS + 1), at + 1);
-        // The weeks add up exactly on a prompt row; a week with counts that cannot be real adds nothing
-        const counts = series.flatMap((entry) => {
-          const { numerator: k, denominator: n } = entry.mentioned;
-          const real = Number.isInteger(k) && Number.isInteger(n) && k >= 0 && k <= n;
-          return window.includes(entry.week_start) && real ? [{ k, n }] : [];
-        });
-        if (counts.length === 0) return null;
-        const k = counts.reduce((sum, week) => sum + week.k, 0);
-        const n = counts.reduce((sum, week) => sum + week.n, 0);
+      points: weeks.map((weekStart): WeekPoint | null => {
+        const entry = series.find((point) => point.week_start === weekStart);
+        if (entry === undefined) return null;
+        // The counts are the point's own: it is already pooled, so adding the points before it would count answers twice
+        const { numerator: k, denominator: n } = entry.mentioned;
+        // A point with counts that cannot be real is no point
+        if (!Number.isInteger(k) || !Number.isInteger(n) || k < 0 || k > n) return null;
         const state = rateState(n);
         return {
           weekStart,
-          span: window.length,
+          span: entry.pool?.weeks ?? 1,
+          ...(entry.pool == null ? {} : { window: entry.pool.window }),
           k,
           n,
           value: n > 0 ? k / n : null,

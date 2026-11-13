@@ -28,6 +28,17 @@ const week = (weekStart: string, k: number, n: number): WeekCells => ({
   cited: cell(0, n),
   share_of_voice: cell(0, 0),
 });
+/** A point the API pooled: a prompt row's point holds the week and the weeks before it, `weeks` in all. */
+const pooledWeek = (weekStart: string, k: number, n: number, weeks: number): WeekCells => ({
+  ...week(weekStart, k, n),
+  is_pooled: true,
+  pool: {
+    weeks,
+    window: { from: '2026-10-05', to: weekStart, timezone: 'UTC' },
+    reason: 'prompt_point',
+    below_prompts: 10,
+  },
+});
 const engine = (code: string, series: readonly WeekCells[] | null | undefined): EngineSummary =>
   ({
     engine_code: code,
@@ -57,8 +68,8 @@ describe('the weekly history of a prompt', () => {
     );
     expect(history?.weeks).toEqual([W1, W2, W3]);
     expect(history?.engines.map((entry) => entry.engineCode)).toEqual([CHATGPT, GEMINI]);
-    // The window of the third week still holds the first two, so the engine's rate goes on over a week it has no point for
-    expect(history?.engines[0]?.points.map((point) => point?.value ?? null)).toEqual([0.5, 5 / 9, 5 / 9]);
+    // Each point is read as it is: the engine has no point for the third week, so there is a gap, not a carried rate
+    expect(history?.engines[0]?.points.map((point) => point?.value ?? null)).toEqual([0.5, 0.6, null]);
     // An engine whose series lists no week of the window has a gap there, not a week with no answers
     expect(history?.engines[1]?.points.map((point) => point === null)).toEqual([true, true, false]);
   });
@@ -68,16 +79,17 @@ describe('the weekly history of a prompt', () => {
     expect(history?.engines.map((entry) => entry.engineCode)).toEqual([GEMINI]);
   });
 
-  describe('as the trailing four weeks pooled', () => {
+  describe('as the API pools it', () => {
     /** Five Mondays, 4 weeks apart from the first to the fourth and one more after. */
     const MONDAYS = ['2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02'] as const;
-    // Two answers a week, as a prompt is asked: (mentioned, valid) of each week
-    const COUNTS = [
-      [1, 2],
-      [0, 2],
-      [2, 2],
-      [1, 2],
-      [2, 2],
+    // What the API gives for a prompt row with two answers a week: each point already pools the week and the weeks
+    // before it inside the window, as (mentioned, valid, weeks pooled)
+    const POOLS = [
+      [1, 2, 1],
+      [1, 4, 2],
+      [3, 6, 3],
+      [4, 8, 4],
+      [5, 8, 4],
     ] as const;
     const points = () =>
       weeklyHistory(
@@ -85,31 +97,43 @@ describe('the weekly history of a prompt', () => {
         [
           engine(
             CHATGPT,
-            COUNTS.map(([k, n], at) => week(MONDAYS[at] ?? '', k, n)),
+            POOLS.map(([k, n, weeks], at) => pooledWeek(MONDAYS[at] ?? '', k, n, weeks)),
           ),
         ],
       )?.engines[0]?.points;
 
-    it('adds the numerators and the denominators of the week and the three before it', () => {
+    it('reads each point as it is: its own numerator and denominator, never added to the points before it', () => {
       const [, , , , last] = points() ?? [];
-      // Weeks 2 to 5: 0 + 2 + 1 + 2 mentioned of 8 valid answers
-      expect(last).toMatchObject({ weekStart: MONDAYS[4], k: 5, n: 8, value: 5 / 8, thin: false, span: 4 });
+      expect(last).toMatchObject({ weekStart: MONDAYS[4], k: 5, n: 8, value: 5 / 8, thin: false });
       expect(last?.band).toEqual(wilsonInterval(5, 8));
     });
 
-    it('pools fewer weeks for the first three, which are thin until the valid answers reach the minimum', () => {
+    it('does not count an answer twice: four pooled points do not add up', () => {
+      const [first, second, third, fourth] = points() ?? [];
+      // Added again the fourth point would hold 1 + 4 + 6 + 8 = 19 answers
+      expect([first?.n, second?.n, third?.n, fourth?.n]).toEqual([2, 4, 6, 8]);
+      expect(fourth?.band).toEqual(wilsonInterval(4, 8));
+    });
+
+    it('takes the span from the weeks the point pools, and the days from its pool window', () => {
       const pooled = points() ?? [];
-      expect(pooled.map((point) => [point?.k, point?.n, point?.span, point?.thin])).toEqual([
-        [1, 2, 1, true],
-        [1, 4, 2, false],
-        [3, 6, 3, false],
-        [4, 8, 4, false],
-        [5, 8, 4, false],
-      ]);
-      expect(pooled[0]?.band).toBeNull();
+      expect(pooled.map((point) => point?.span)).toEqual([1, 2, 3, 4, 4]);
+      expect(pooled[3]?.window).toEqual({ from: '2026-10-05', to: MONDAYS[3], timezone: 'UTC' });
+    });
+
+    it('gives a point that is not pooled a span of 1 and no window', () => {
+      const point = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 3, 6)])])?.engines[0]?.points[0];
+      expect(point).toMatchObject({ k: 3, n: 6, span: 1 });
+      expect(point?.window).toBeUndefined();
+    });
+
+    it('is thin until a point holds the minimum of valid answers, with no band', () => {
+      const [first, second] = points() ?? [];
+      expect([first?.thin, second?.thin]).toEqual([true, false]);
+      expect(first?.band).toBeNull();
       // A hand built case where a band appears: the second point is the first to hold four valid answers
-      expect(pooled[1]?.band).toEqual(wilsonInterval(1, 4));
-      expect(pooled[1]?.band?.low).toBeLessThan(0.25);
+      expect(second?.band).toEqual(wilsonInterval(1, 4));
+      expect(second?.band?.low).toBeLessThan(0.25);
     });
 
     it('leaves a window with no valid answer a gap, and a window with no week of the engine too', () => {
@@ -131,10 +155,10 @@ describe('the weekly history of a prompt', () => {
       expect(point?.band).toEqual(wilsonInterval(0, 8));
     });
 
-    it('lets a week with counts that cannot be real add nothing', () => {
-      const point = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 9, 5), week(W2, 2, 4)])])?.engines[0]
-        ?.points[1];
-      expect(point).toMatchObject({ k: 2, n: 4 });
+    it('ignores a point with counts that cannot be real, and keeps the others', () => {
+      const history = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 9, 5), week(W2, 2, 4)])]);
+      expect(history?.engines[0]?.points[0]).toBeNull();
+      expect(history?.engines[0]?.points[1]).toMatchObject({ k: 2, n: 4 });
     });
   });
 });

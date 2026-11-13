@@ -33,7 +33,7 @@ import {
   summaryWeeks,
   topicCells,
   topicEntityCells,
-  weekCells,
+  weeklySeries,
   type Counts,
   type EntityCounts,
 } from '../prompt-summary';
@@ -661,14 +661,17 @@ export const promptAnswerHandlers: HttpHandler[] = [
         }
       }
     }
-    /** The series of an engine row: a prompt row's one prompt, or a topic row's prompts of the weeks they have answers in. */
+    /** The series of an engine row: a prompt row's one prompt, or a topic row's prompts, pooled as the API pools them. */
     const seriesOf = (ids: readonly string[], code: string, topic: boolean): WeekCells[] | null =>
       weeks === null
         ? null
-        : weeks.map((week) => {
-            const members = ids.flatMap((id) => weekly.get(`${id} ${code} ${week}`) ?? []);
-            return weekCells(week, topic ? topicCells(code, members) : promptCells(code, members[0] ?? NO_COUNTS));
-          });
+        : weeklySeries(
+            code,
+            weeks,
+            { from: firstDate, to: lastDate, timezone: zone },
+            ids.map((id) => weeks.map((week) => weekly.get(`${id} ${code} ${week}`) ?? NO_COUNTS)),
+            topic,
+          );
     const withBlocks = (
       cells: EngineSummary,
       series: WeekCells[] | null,

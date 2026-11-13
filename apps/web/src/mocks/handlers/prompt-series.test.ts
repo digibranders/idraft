@@ -29,7 +29,21 @@ const CELL = z.object({
   pooled: z.object({ successes: z.number(), trials: z.number() }).nullable(),
 });
 type Cell = z.infer<typeof CELL>;
-const WEEK = z.object({ week_start: z.string(), mentioned: CELL, cited: CELL, share_of_voice: CELL });
+const POOL = z.object({
+  weeks: z.number(),
+  window: z.object({ from: z.string(), to: z.string(), timezone: z.string() }),
+  reason: z.enum(['prompt_point', 'few_prompts']),
+  below_prompts: z.number(),
+});
+const WEEK = z.object({
+  week_start: z.string(),
+  prompts: z.number(),
+  is_pooled: z.boolean(),
+  pool: POOL.nullable().optional(),
+  mentioned: CELL,
+  cited: CELL,
+  share_of_voice: CELL,
+});
 const ENGINE = z.object({
   engine_code: z.string(),
   mentioned: CELL,
@@ -111,11 +125,12 @@ describe('the weekly series of the prompts summary', () => {
       const summary = await summaryOf(mockBrowser('viewer'), base, '?include=series');
       for (const row of summary.prompts) {
         for (const engine of row.engines) {
-          // The window starts on Friday 16 October: the week of the 12th holds no run of its own days
+          // The window starts on Friday 16 October: the week of the 12th holds no run of its own days. A prompt point
+          // pools the week and the weeks before it, so the counts of the weeks 0, 2, 2, 2, 2 build up to four weeks
           expect(
             seriesOf(engine).map((point) => point.mentioned.n_observations),
             name,
-          ).toEqual([0, 2, 2, 2, 2]);
+          ).toEqual([0, 2, 4, 6, 8]);
         }
       }
     }
@@ -138,18 +153,35 @@ describe('the weekly series of the prompts summary', () => {
     }
   });
 
-  it('adds up, on a prompt row, to the window cell: numerators, denominators and answers', async () => {
+  it('pools every point of a prompt row over the week and the three before it, cut at the window start', async () => {
     for (const { name, base } of PROJECTS) {
       const summary = await summaryOf(mockBrowser('viewer'), base, '?include=series&include_branded=true');
       for (const row of summary.prompts) {
         for (const engine of row.engines) {
           const points = seriesOf(engine);
+          expect(
+            points.map((point) => [point.is_pooled, point.pool?.weeks, point.pool?.reason, point.pool?.below_prompts]),
+            name,
+          ).toEqual([1, 2, 3, 4, 4].map((weeks) => [true, weeks, 'prompt_point', 10]));
+          // The week of the 12th opens before the window: its pool starts on the window's first day
+          expect(points[0]?.pool?.window, name).toEqual({
+            from: '2026-10-16',
+            to: '2026-10-18',
+            timezone: summary.window.timezone,
+          });
+          expect(points[4]?.pool?.window.to, name).toBe(summary.window.to);
+          // The last point holds the four weeks that carry every answer of the window, so it is the window cell
+          const last = points.at(-1);
+          if (last === undefined) throw new Error('The series has no point');
           for (const metric of CELLS) {
-            const cells = points.map((point) => cellsOf(point, metric));
-            expect(sum(cells.map((cell) => cell.numerator)), name).toBeCloseTo(engine[metric].numerator, 9);
-            expect(sum(cells.map((cell) => cell.denominator)), name).toBe(engine[metric].denominator);
-            expect(sum(cells.map((cell) => cell.n_observations)), name).toBe(engine[metric].n_observations);
-            for (const cell of cells) {
+            const cell = cellsOf(last, metric);
+            expect(cell.numerator, name).toBeCloseTo(engine[metric].numerator, 9);
+            expect(cell.denominator, name).toBe(engine[metric].denominator);
+            expect(cell.n_observations, name).toBe(engine[metric].n_observations);
+          }
+          for (const point of points) {
+            for (const metric of CELLS) {
+              const cell = cellsOf(point, metric);
               expect(cell.pooled).toBeNull();
               expect(cell.value).toBe(cell.denominator === 0 ? null : cell.numerator / cell.denominator);
             }
@@ -159,7 +191,7 @@ describe('the weekly series of the prompts summary', () => {
     }
   });
 
-  it('weighs a topic by prompt in each week, with the answers pooled, and keeps its pooled counts, share of voice and answers adding up', async () => {
+  it('weighs a topic by prompt over the weeks its point pools, and leaves a point of 10 prompts to its own week', async () => {
     const parents = new Map(
       [...MOCK_TERMS, ...EVENTUS_WORLD.terms].map((term) => [term.term_id, term.parent_id ?? null]),
     );
@@ -186,6 +218,11 @@ describe('the weekly series of the prompts summary', () => {
             return seriesOf(found);
           });
           seriesOf(engine).forEach((point, week) => {
+            // A topic point pools only when fewer than 10 of its prompts answered that week alone
+            expect(point.is_pooled, name).toBe(point.prompts < 10);
+            expect(point.pool?.reason, name).toBe(point.is_pooled ? 'few_prompts' : undefined);
+            if (!point.is_pooled) return;
+            // The prompt rows pool the same weeks, so each prompt's pooled point is the prompt's part of this one
             for (const metric of ['mentioned', 'cited'] as const) {
               const rated = mine.flatMap((points) => {
                 const cell = points[week] === undefined ? null : cellsOf(points[week], metric);
@@ -206,16 +243,17 @@ describe('the weekly series of the prompts summary', () => {
             expect(sov.denominator, name).toBe(sum(parts.map((one) => one.share_of_voice.denominator)));
             expect(sov.pooled).toBeNull();
           });
-          // What does add up on a topic row: pooled counts, share of voice and the answers
-          for (const metric of ['mentioned', 'cited'] as const) {
-            const cells = seriesOf(engine).map((point) => cellsOf(point, metric));
-            expect(sum(cells.map((cell) => cell.pooled?.successes ?? 0)), name).toBe(engine[metric].pooled?.successes);
-            expect(sum(cells.map((cell) => cell.pooled?.trials ?? 0)), name).toBe(engine[metric].pooled?.trials);
-            expect(sum(cells.map((cell) => cell.n_observations)), name).toBe(engine[metric].n_observations);
+          // The last point pools the four weeks that carry every answer of the window, so it is the window cell
+          const last = seriesOf(engine).at(-1);
+          if (last?.is_pooled === true) {
+            for (const metric of ['mentioned', 'cited'] as const) {
+              const cell = cellsOf(last, metric);
+              expect(cell.numerator, name).toBeCloseTo(engine[metric].numerator, 9);
+              expect(cell.denominator, name).toBe(engine[metric].denominator);
+              expect(cell.pooled, name).toEqual(engine[metric].pooled);
+              expect(cell.n_observations, name).toBe(engine[metric].n_observations);
+            }
           }
-          const sovs = seriesOf(engine).map((point) => point.share_of_voice);
-          expect(sum(sovs.map((cell) => cell.numerator)), name).toBeCloseTo(engine.share_of_voice.numerator, 9);
-          expect(sum(sovs.map((cell) => cell.denominator)), name).toBe(engine.share_of_voice.denominator);
         }
       }
       // A sum of weekly rates is not a count of answers, and not the window's numerator
@@ -262,11 +300,12 @@ describe('the weekly series of the prompts summary', () => {
           expect(points, name).toHaveLength(14);
           expect(points[0]?.week_start).toBe('2026-08-10');
           expect(points.at(-1)?.week_start).toBe('2026-11-09');
-          // 92 days of Monday and Thursday runs: the Thursday of the first week, then two a week
+          // 92 days of Monday and Thursday runs: the Thursday of the first week, then two a week, each point
+          // pooling the week and the three before it (the first three pool fewer, the window opening in the first)
           expect(
             points.map((point) => point.mentioned.n_observations),
             name,
-          ).toEqual([1, ...Array<number>(13).fill(2)]);
+          ).toEqual([1, 3, 5, 7, ...Array<number>(10).fill(8)]);
         }
       }
     }
@@ -363,8 +402,9 @@ describe('the weeks of the series in the project time zone', () => {
     const summary = await summaryOf(mockBrowser('viewer'), FYNIX, '?include=series&from=2026-11-15&to=2026-11-16');
     expect(summary.window).toEqual({ from: '2026-11-15', to: '2026-11-16', timezone: 'Europe/Berlin' });
     // The Monday run of the 16th is in the week of the 16th on both engines
+    // A prompt point pools the week and the weeks before it: the week of the 16th holds the one of the 9th too
     expect(week(summary, promptId, 'chatgpt_web', '2026-11-09')).toBe(1);
-    expect(week(summary, promptId, 'chatgpt_web', '2026-11-16')).toBe(1);
+    expect(week(summary, promptId, 'chatgpt_web', '2026-11-16')).toBe(2);
     expect(week(summary, promptId, 'gemini_web', '2026-11-09')).toBe(0);
     expect(week(summary, promptId, 'gemini_web', '2026-11-16')).toBe(2);
   });
@@ -381,7 +421,7 @@ describe('the weeks of the series in the project time zone', () => {
     const summary = await summaryOf(mockBrowser('viewer'), EVENTUS, '?include=series&from=2026-11-15&to=2026-11-16');
     expect(summary.window).toEqual({ from: '2026-11-15', to: '2026-11-16', timezone: 'Asia/Kolkata' });
     expect(week(summary, promptId, 'chatgpt_web', '2026-11-09')).toBe(1);
-    expect(week(summary, promptId, 'chatgpt_web', '2026-11-16')).toBe(1);
+    expect(week(summary, promptId, 'chatgpt_web', '2026-11-16')).toBe(2);
     expect(week(summary, promptId, 'gemini_web', '2026-11-09')).toBe(0);
     expect(week(summary, promptId, 'gemini_web', '2026-11-16')).toBe(2);
   });

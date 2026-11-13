@@ -152,6 +152,7 @@ export type MetricCell = Schemas['MetricCell'];
 export type EngineSummary = Schemas['EngineSummary'];
 export type EntityCells = Schemas['EntityCells'];
 export type WeekCells = Schemas['WeekCells'];
+export type PointPool = Schemas['PointPool'];
 export type RunBulkMeta = Schemas['RunBulkMeta'];
 export type RunSkip = Schemas['RunSkip'];
 export type PromptSummaryRow = Schemas['PromptSummaryRow'];
