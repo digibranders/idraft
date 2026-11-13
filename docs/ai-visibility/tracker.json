@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T08:53:33+05:30",
+ "updated": "2026-11-13T09:01:04+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -644,7 +644,7 @@
     "done": 7
    },
    "owner": "",
-   "notes": "file work-packages/WP-15-layouts-react-core.md; estimate 9 tasks; decisions D-14 | tasks 3/13; T0 T1 T2 on develop; T4 reviewed; mock T3 in review"
+   "notes": "file work-packages/WP-15-layouts-react-core.md; estimate 9 tasks; decisions D-14 | tasks 8/13, rows 11/26; provider, grid view mode and card frame on develop"
   },
   {
    "id": "WP-16",
@@ -696,7 +696,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42"
+   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | from WP-15: after a 412 the conflict dialog must route through saveAnyway, loadRemote or discard (a plain save() would overwrite the remote change); all four writes share one in-flight guard so disable controls on saving"
   },
   {
    "id": "WP-17",
