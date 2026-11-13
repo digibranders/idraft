@@ -20,6 +20,7 @@ from idraft.api.resources import Resources
 from tests.api.ai.sources_support import (
     FULL_ANSWERS,
     GUIDE,
+    GUIDE_TOP,
     OWN,
     WIKI,
     Cite,
@@ -95,8 +96,8 @@ async def scene(resources: Resources, migrated: PostgresServer) -> Scene:
       b1 ChatGPT  Mon m1 00:30   own page, wiki            2 units (Sunday in UTC)
       b2 ChatGPT  Fri m1         no citations at all
 
-    Week m2 has no answer. Left out: a refusal in m1 and an answer the Sunday before the window,
-    each citing the own page."""
+    Week m2 has no answer. Left out: a refusal in m1, an answer the Sunday before the window and
+    an answer of m0 that a newer one replaced, each citing the own page."""
     world = await make_world(resources, migrated)
     await execute(
         migrated,
@@ -129,6 +130,7 @@ async def scene(resources: Resources, migrated: PostgresServer) -> Scene:
     await add("b", first + timedelta(days=11), [])
     await add("a", first + timedelta(days=8), [own], valid=False)
     await add("a", first - timedelta(days=1), [own])
+    await add("a", first + timedelta(days=3), [own, Cite(GUIDE)], superseded=True)
     return Scene(world, prompts, first, last)
 
 
@@ -272,6 +274,125 @@ async def test_series_with_compare_and_filters_follow_the_scope(
         (0, 0),
         (0, 0),
     ]
+
+
+async def test_page_series_with_compare_and_an_engine_filter_follow_the_scope(
+    api: httpx.AsyncClient, scene: Scene
+) -> None:
+    body = (
+        await _get(
+            scene,
+            api,
+            "sources",
+            "pages",
+            include="series",
+            compare="previous_period",
+            **{"filter[engine_code_in]": "gemini_web"},
+        )
+    ).json()
+
+    [row] = body["data"]
+    assert row["url"] == GUIDE
+    assert _points(row) == [(scene.week(0), 1, 1), (scene.week(1), 0, 0), (scene.week(2), 0, 0)]
+    assert row["previous"] == {"citation_units": 0, "observations": 0}
+    assert body["meta"]["compare_window"]
+    assert [(p["answers"], p["citation_units"]) for p in body["meta"]["series"]] == [
+        (1, 1),
+        (0, 0),
+        (0, 0),
+    ]
+
+
+@pytest.fixture
+async def doubled(migrated: PostgresServer, scene: Scene) -> Scene:
+    """Two answers in the empty week m2: one lists the wiki page twice (two `citation_index`
+    rows, one unit) and one cites two pages of example.org (two units, one answer, one domain)."""
+    for prompt, day, cites in (
+        ("a", 1, [Cite(WIKI), Cite(WIKI)]),
+        ("b", 2, [Cite(GUIDE), Cite(GUIDE_TOP)]),
+    ):
+        await answer(
+            migrated,
+            scene.world,
+            scene.prompts[prompt],
+            days_ago=_days_ago(scene.first + timedelta(days=14 + day)),
+            cites=cites,
+        )
+    return scene
+
+
+async def test_a_page_listed_twice_and_two_pages_of_one_domain_count_once_per_unit(
+    api: httpx.AsyncClient, doubled: Scene
+) -> None:
+    body = (await _get(doubled, api, "sources", "domains", include="series")).json()
+
+    rows = _by_source(body)
+    w0, w1, w2 = (doubled.week(i) for i in range(3))
+    assert _points(rows[(WIKIPEDIA, "third_party")]) == [(w0, 1, 1), (w1, 1, 1), (w2, 1, 1)]
+    assert _points(rows[(EXAMPLE, "third_party")]) == [(w0, 2, 2), (w1, 0, 0), (w2, 2, 1)]
+    assert [
+        (p["answers"], p["citation_units"], p["distinct_domains"]) for p in body["meta"]["series"]
+    ] == [(2, 4, 3), (2, 2, 2), (2, 3, 2)]
+    for row in rows.values():
+        assert sum(p["citation_units"] for p in row["series"]) == row["citation_units"]
+
+
+async def test_page_series_count_a_page_listed_twice_once(
+    api: httpx.AsyncClient, doubled: Scene
+) -> None:
+    body = (await _get(doubled, api, "sources", "pages", include="series")).json()
+
+    w2 = doubled.week(2)
+    by_url = {row["url"]: _points(row)[2] for row in body["data"]}
+    assert by_url == {OWN: (w2, 0, 0), GUIDE: (w2, 1, 1), GUIDE_TOP: (w2, 1, 1), WIKI: (w2, 1, 1)}
+
+
+async def test_weeks_follow_the_zone_across_a_clock_change(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """Berlin put its clocks forward on Sunday 2026-03-29, so Monday 00:30 on the 30th is Sunday
+    22:30 in UTC and not 23:30: a week cut with a fixed +01:00 offset would file it in the week
+    before. The rows are written for the fixed days (the partitions of that month are made when
+    the database has none), so the test does not move with the calendar."""
+    month = date(2026, 3, 1)
+    for table in ("observations", "observation_facts", "citations"):
+        await execute(
+            migrated,
+            f"CREATE TABLE IF NOT EXISTS ai.{table}_p202603 PARTITION OF ai.{table} "
+            f"FOR VALUES FROM ('{month} 00:00:00+00') TO ('2026-04-01 00:00:00+00')",
+        )
+    world = await make_world(resources, migrated)
+    await execute(
+        migrated,
+        "UPDATE core.projects SET timezone = 'Europe/Berlin' WHERE id = $1",
+        world.project.id,
+    )
+    prompt = await add_prompt(migrated, world.project, "Best managed SOC providers?")
+    local = [
+        (date(2026, 3, 23), 0, 30),
+        (date(2026, 3, 29), 23, 30),
+        (date(2026, 3, 30), 0, 30),
+        (date(2026, 3, 30), 23, 30),
+    ]
+    for day, hour, minute in local:
+        await answer(
+            migrated, world, prompt, days_ago=_days_ago(day, hour, minute), cites=[Cite(GUIDE)]
+        )
+
+    response = await api.get(
+        world.url("ai", "sources", "domains"),
+        params={"from": "2026-03-23", "to": "2026-04-05", "include": "series"},
+        headers=world.owner.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert [(p["week_start"], p["answers"]) for p in body["meta"]["series"]] == [
+        ("2026-03-23", 2),
+        ("2026-03-30", 2),
+    ]
+    [row] = body["data"]
+    assert _points(row) == [("2026-03-23", 2, 2), ("2026-03-30", 2, 2)]
 
 
 async def test_a_role_filter_narrows_the_rows_and_not_the_weekly_denominators(

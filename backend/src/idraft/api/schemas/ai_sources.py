@@ -198,8 +198,9 @@ class SourcesMeta(BaseModel):
         max_length=SERIES_MAX,
         description="With `include=series`: a point per week of the window, oldest first, at "
         "most 14: the answers (citing or not), citation units and registrable domains cited "
-        "in each week, the denominators of the rows' weekly points. `filter[domain_role_in]` "
-        "narrows the rows, not these.",
+        "in each week, the denominators of the rows' weekly points. The row filters "
+        "(`filter[domain_role_in]`, and `filter[registrable_domain]` on pages) narrow the "
+        "rows, not these.",
     )
     by_role_by_engine: list[EngineRoleUnits] | None = Field(
         default=None,
