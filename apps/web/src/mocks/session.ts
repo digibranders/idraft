@@ -111,6 +111,12 @@ export const LAYOUTS_COOKIE = 'mock-layouts';
  * the e2e of the layout failures, which set it from the browser; nothing in the app writes it.
  */
 export const LAYOUTS_FAULT_COOKIE = 'mock-layouts-fault';
+/**
+ * `on` makes the prompts summary draw one clearly detectable change when it is compared (./handlers/compare.ts), so the
+ * e2e of the colour rule has a coloured delta to read. It exists for tests, which set it from the browser; nothing in
+ * the app writes it.
+ */
+export const COMPARE_DETECTABLE_COOKIE = 'mock-compare-detectable';
 /** What a browser changed in the schedules and runs (./operations-state.ts). */
 export const OPERATIONS_COOKIE = 'mock-operations';
 /** What a browser changed in the Google connections and the properties linked to projects (./integrations-state.ts). */
@@ -135,6 +141,7 @@ export const MOCK_COOKIES: readonly string[] = [
   GOOGLE_GRANT_COOKIE,
   LAYOUTS_COOKIE,
   LAYOUTS_FAULT_COOKIE,
+  COMPARE_DETECTABLE_COOKIE,
 ];
 
 /** The `Set-Cookie` that expires cookie `name`. */

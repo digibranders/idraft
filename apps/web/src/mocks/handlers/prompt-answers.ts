@@ -2,7 +2,7 @@ import { TZDate } from '@date-fns/tz';
 import { HttpResponse, type HttpHandler } from 'msw';
 
 import { projectCaller, type ProjectCaller } from './access';
-import { attachPrevious, compareWindowOf, previousEngineOf } from './compare';
+import { attachPrevious, compareWindowOf, detectableAsked, previousEngineOf, withDetectableChange } from './compare';
 import { countryOf, enabledEngines, isoOf } from './prompts';
 import { booleanQuery, cursorPage, pageRequest, queryError, uuidError } from './rules';
 import { isActiveRole } from '../entities-state';
@@ -670,8 +670,6 @@ export const promptAnswerHandlers: HttpHandler[] = [
       return found;
     };
     const byPrompt = collect(firstDate, lastDate);
-    // With `compare`, or `compare_from` and `compare_to`: the answers of the compared window, read the same way
-    const before = comparing.kind === 'window' ? collect(comparing.window.from, comparing.window.to) : null;
     const counts = (promptId: string, code: string, source: ByPrompt = byPrompt): Counts => {
       const counted = source.get(promptId)?.get(code);
       return counted === undefined ? NO_COUNTS : countsOf(counted.map((answer) => answer.facts));
@@ -715,6 +713,17 @@ export const promptAnswerHandlers: HttpHandler[] = [
         }
       }
     }
+    // With `compare`, or `compare_from` and `compare_to`: the answers of the compared window, read the same way (and,
+    // for the e2e cookie only, with one topic's prompts moved: `withDetectableChange`)
+    const before =
+      comparing.kind === 'window'
+        ? withDetectableChange(
+            collect(comparing.window.from, comparing.window.to),
+            byPrompt,
+            held,
+            detectableAsked(cookies),
+          )
+        : null;
     // With `include=entities`, a cell for each tracked entity on every engine of a prompt row and of a topic row
     const cellIds = include.entities ? cellEntityIds(entitiesOf(caller)) : null;
     const named = (promptId: string, code: string, entityId: string, source: ByPrompt = byPrompt): EntityCounts => {

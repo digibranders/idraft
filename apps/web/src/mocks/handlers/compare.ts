@@ -2,6 +2,7 @@ import type { HttpHandler } from 'msw';
 
 import { queryError } from './rules';
 import { daysBetween, shiftIsoDate, type WindowDateRange } from '../serp-views';
+import { COMPARE_DETECTABLE_COOKIE, cookieOf } from '../session';
 import type { EngineSummary, EntityCells, Schemas, ValidationItem } from '@/lib/api/types';
 
 /** WP-19: answers the C2 compare routes. The summary's own handler lives with the summary (`prompt-answers.ts`). */
@@ -95,6 +96,62 @@ export function previousEngineOf(
   build: () => EngineSummary,
 ): EngineSummary | null {
   return promptIds.some(answered) ? build() : null;
+}
+
+/** Whether the request carries the cookie that asks for one detectable change (`withDetectableChange`). */
+export const detectableAsked = (cookies: Readonly<Record<string, string>>): boolean =>
+  cookieOf(cookies, COMPARE_DETECTABLE_COOKIE) === 'on';
+
+/** The counted answers of a window by prompt and engine code, as far as `withDetectableChange` reads them. */
+type DriftAnswers<T> = Map<string, Map<string, T[]>>;
+interface DriftFacts {
+  facts: { is_valid: boolean; own_mentioned: boolean };
+}
+
+/** The share of an answer set's valid answers that mention the own brand; `null` with no valid answer. */
+function mentionRate(answers: readonly DriftFacts[]): number | null {
+  const valid = answers.filter((answer) => answer.facts.is_valid);
+  return valid.length === 0 ? null : valid.filter((answer) => answer.facts.own_mentioned).length / valid.length;
+}
+
+/**
+ * Makes ONE topic's change of the compared window clearly detectable, for the e2e of the colour rule (the
+ * `mock-compare-detectable` cookie): each prompt of the smallest topic keeps every answer of the compared window
+ * (same count, same validity) but all of them say the opposite of what the prompt's answers say now, so the prompts'
+ * Mention rate and the topic's move by at least half and the interim test finds them. Every other prompt is the same
+ * object as before (a single prompt is not enough: its topic pools the answers of all its prompts, which dilutes the
+ * move below what the test finds). Without `asked`, or with no topic held, `before` itself comes back; a prompt with
+ * no valid answer now is left as it was. Pure.
+ */
+export function withDetectableChange<T extends DriftFacts>(
+  before: DriftAnswers<T>,
+  now: DriftAnswers<T>,
+  held: ReadonlyMap<string, ReadonlySet<string>>,
+  asked: boolean,
+): DriftAnswers<T> {
+  if (!asked) return before;
+  const smallest = [...held.values()].reduce<ReadonlySet<string> | null>(
+    (least, members) => (least === null || members.size < least.size ? members : least),
+    null,
+  );
+  if (smallest === null) return before;
+  const moved = new Map(before);
+  for (const prompt of smallest) {
+    const rate = mentionRate([...(now.get(prompt)?.values() ?? [])].flat());
+    const engines = before.get(prompt);
+    if (rate === null || engines === undefined) continue;
+    const mentioned = rate < 0.5;
+    moved.set(
+      prompt,
+      new Map(
+        [...engines].map(([code, answers]) => [
+          code,
+          answers.map((answer) => ({ ...answer, facts: { ...answer.facts, own_mentioned: mentioned } })),
+        ]),
+      ),
+    );
+  }
+  return moved;
 }
 
 /**

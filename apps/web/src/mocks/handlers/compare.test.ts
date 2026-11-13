@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import { attachPrevious, compareWindowOf, previousEngineOf } from './compare';
+import { attachPrevious, compareWindowOf, previousEngineOf, withDetectableChange } from './compare';
 import { setAiSeeded } from '../ai-seed';
 import { MOCK_PROJECTS, MOCK_WORKSPACE } from '../fixtures';
+import { COMPARE_DETECTABLE_COOKIE, MOCK_COOKIES } from '../session';
 import type { EngineSummary, MetricCell, Schemas } from '@/lib/api/types';
+import { averageChangeOf } from '@/lib/compare/change-model';
 import { dataOf, fieldCodes, mockBrowser, type Answer } from '@/test/mock-api';
 
 /**
@@ -532,5 +534,156 @@ describe('the prompts summary with compare', () => {
     expect(summary.topics).toEqual([]);
     expect(summary.compare_window).not.toBeNull();
     expect(summary.previous_answers).toBeGreaterThan(0);
+  });
+});
+
+describe('withDetectableChange', () => {
+  interface Answer {
+    facts: { is_valid: boolean; own_mentioned: boolean };
+  }
+  type Answers = Map<string, Map<string, Answer[]>>;
+  const answer = (mentioned: boolean, valid = true): Answer => ({
+    facts: { is_valid: valid, own_mentioned: mentioned },
+  });
+  const answers = (entries: Record<string, Record<string, Answer[]>>): Answers =>
+    new Map(Object.entries(entries).map(([prompt, engines]) => [prompt, new Map(Object.entries(engines))]));
+  const mentions = (source: Answers, prompt: string): boolean[] =>
+    [...(source.get(prompt)?.values() ?? [])].flat().map((one) => one.facts.own_mentioned);
+  // The smallest topic is `small`, which holds the prompts d and e
+  const held = new Map([
+    ['big', new Set(['a', 'b', 'c'])],
+    ['small', new Set(['d', 'e'])],
+  ]);
+  const now = answers({
+    a: { x: [answer(true)] },
+    d: { x: [answer(true), answer(true), answer(false)], y: [answer(true)] },
+    e: { x: [answer(true)] },
+  });
+  const before = answers({
+    a: { x: [answer(true)] },
+    d: { x: [answer(true), answer(false), answer(false)], y: [answer(false)] },
+    e: { x: [answer(false)] },
+  });
+
+  it('is the very same answers when nothing asks for it', () => {
+    expect(withDetectableChange(before, now, held, false)).toBe(before);
+  });
+
+  it('turns each prompt of the smallest topic from mostly mentioned to never mentioned, keeping every answer', () => {
+    const moved = withDetectableChange(before, now, held, true);
+    expect(mentions(moved, 'd')).toEqual([false, false, false, false]);
+    expect(mentions(moved, 'e')).toEqual([false]);
+    expect(moved.get('d')?.get('x')).toHaveLength(3);
+    expect(moved.get('d')?.get('y')).toHaveLength(1);
+  });
+
+  it('turns a prompt that was mostly not mentioned into always mentioned, and leaves validity as it was', () => {
+    const quiet = new Map(now).set('d', new Map([['x', [answer(false), answer(false), answer(true, false)]]]));
+    const moved = withDetectableChange(before, quiet, held, true);
+    expect(mentions(moved, 'd')).toEqual([true, true, true, true]);
+    expect(
+      moved
+        .get('d')
+        ?.get('x')
+        ?.map((one) => one.facts.is_valid),
+    ).toEqual(
+      before
+        .get('d')
+        ?.get('x')
+        ?.map((one) => one.facts.is_valid),
+    );
+  });
+
+  it('leaves every prompt outside the smallest topic as it was', () => {
+    const moved = withDetectableChange(before, now, held, true);
+    expect(moved.get('a')).toBe(before.get('a'));
+  });
+
+  it('leaves a prompt with no valid answer now as it was, and changes nothing when no topic is held', () => {
+    const invalid = new Map([['x', [answer(true, false)]]]);
+    const silent = new Map(now).set('d', invalid).set('e', invalid);
+    expect(withDetectableChange(before, silent, held, true)).toEqual(before);
+    expect(withDetectableChange(before, now, new Map(), true)).toBe(before);
+  });
+});
+
+describe('the prompts summary with the mock-compare-detectable cookie', () => {
+  const PAID_SEARCH_PROMPT = 'What is the best way to manage paid search on a small budget?';
+  /** The prompts of the smallest topic of the Fynix fixtures, oldest first. */
+  const PAID_SEARCH_PROMPTS = [PAID_SEARCH_PROMPT, 'How do I lower the cost per click of search ads?'];
+  const COMPARED = `${FYNIX}?compare=previous_period&include=entities`;
+  const withCookie = (value: string): ReturnType<typeof mockBrowser> =>
+    mockBrowser('viewer', new Map([[COMPARE_DETECTABLE_COOKIE, value]]));
+
+  async function cookieSummary(path: string, value = 'on'): Promise<Schemas['PromptsSummary']> {
+    const answer = await withCookie(value).call('GET', path);
+    expect(answer.status, JSON.stringify(answer.body)).toBe(200);
+    return dataOf(answer, SUMMARY);
+  }
+
+  /** The prompts and topics whose Mention change, over the engines shown, is larger than normal variation. */
+  function detectableRows(summary: Schemas['PromptsSummary']): { prompts: string[]; topics: (string | null)[] } {
+    const detectable = (row: { engines: EngineSummary[] }): boolean =>
+      averageChangeOf(row.engines, summary.engine_codes, 'mentioned')?.detectable === true;
+    return {
+      prompts: summary.prompts.filter(detectable).map((row) => row.text),
+      topics: summary.topics.filter(detectable).map((row) => row.name),
+    };
+  }
+
+  it('is a cookie of the mocks, so a test starts without it', () => {
+    expect(MOCK_COOKIES).toContain(COMPARE_DETECTABLE_COOKIE);
+    expect(COMPARE_DETECTABLE_COOKIE).toBe('mock-compare-detectable');
+  });
+
+  it('is not needed for the default Fynix data: no row has a detectable change at 28 days', async () => {
+    expect(detectableRows(await summaryOf(COMPARED))).toEqual({ prompts: [], topics: [] });
+  });
+
+  it('with the cookie exactly the two prompts of Paid Search and that one topic have a detectable change', async () => {
+    const summary = await cookieSummary(COMPARED);
+    expect(detectableRows(summary)).toEqual({ prompts: PAID_SEARCH_PROMPTS, topics: ['Paid Search'] });
+  });
+
+  it('draws the change as the same number of answers with a very different number of mentions', async () => {
+    const plain = await summaryOf(COMPARED);
+    const moved = await cookieSummary(COMPARED);
+    const rowOf = (summary: Schemas['PromptsSummary']) =>
+      summary.prompts.find((row) => row.text === PAID_SEARCH_PROMPT);
+    for (const engine of rowOf(moved)?.engines ?? []) {
+      const was = rowOf(plain)?.engines.find((candidate) => candidate.engine_code === engine.engine_code);
+      expect(engine.previous?.mentioned.denominator).toBe(was?.previous?.mentioned.denominator);
+      expect(engine.previous?.mentioned.numerator).not.toBe(was?.previous?.mentioned.numerator);
+      expect(engine.mentioned).toEqual(was?.mentioned);
+    }
+    expect(moved.previous_answers).toBe(plain.previous_answers);
+  });
+
+  it('changes nothing but the compared window of those prompts, and of the topics that hold them', async () => {
+    const plain = await summaryOf(COMPARED);
+    const moved = await cookieSummary(COMPARED);
+    const bare = (summary: Schemas['PromptsSummary']): Schemas['PromptsSummary'] => {
+      const copy = structuredClone(summary);
+      for (const row of [...copy.prompts, ...copy.topics]) {
+        for (const engine of row.engines) delete engine.previous;
+      }
+      return copy;
+    };
+    expect(bare(moved)).toEqual(bare(plain));
+    const changed = (summary: Schemas['PromptsSummary']): string[] =>
+      summary.prompts
+        .filter((row, index) => JSON.stringify(row) !== JSON.stringify(plain.prompts[index]))
+        .map((row) => row.text);
+    expect(changed(moved)).toEqual(PAID_SEARCH_PROMPTS);
+  });
+
+  it('leaves the answer byte for byte as it was without the cookie, whatever else is asked', async () => {
+    for (const path of [`${FYNIX}?include=series,entities`, `${FYNIX}?${BEFORE_WINDOW}`]) {
+      const plain = await get(path);
+      expect((await withCookie('on').call('GET', path)).body).toEqual(plain.body);
+    }
+    // A value other than on is no request for the change
+    const plain = await get(COMPARED);
+    expect((await withCookie('off').call('GET', COMPARED)).body).toEqual(plain.body);
   });
 });
