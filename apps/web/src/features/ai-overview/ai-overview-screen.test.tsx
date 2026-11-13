@@ -1,5 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { getResponse, http } from 'msw';
+import { getResponse, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LIVE_REGION_ID } from '@/lib/a11y/announcer';
@@ -201,6 +201,105 @@ describe('the AI visibility page of a project with AI off', () => {
       expect(region.querySelectorAll('[data-slot="unavailable-card"]').length).toBeGreaterThan(0);
     });
     expect(screen.queryByRole('heading', { name: 'No AI engine is on' })).not.toBeInTheDocument();
+  });
+});
+
+describe('the numbers strip of the AI visibility page', () => {
+  const STRIP = 'AI visibility numbers for Oct 16 to Nov 12, 2026, branded prompts excluded';
+  const stripOf = (): Promise<HTMLElement> => screen.findByRole('group', { name: STRIP });
+  const valuesOf = (strip: HTMLElement): HTMLElement[] => within(strip).getAllByRole('definition');
+
+  it('shows the Fynix numbers, the engines in the order ChatGPT, Gemini, AI Mode, named by the window and the branded choice', async () => {
+    renderWithProviders(overviewAs('admin'));
+    const strip = await stripOf();
+    await waitFor(() => {
+      expect(strip).not.toHaveAttribute('aria-busy');
+    });
+    const terms = within(strip)
+      .getAllByRole('term')
+      .map((term) => term.textContent);
+    expect(terms).toHaveLength(4);
+    expect(terms[0]).toBe('Prompts');
+    expect(terms[1]).toMatch(/^Mention rate.*ChatGPT$/);
+    expect(terms[2]).toMatch(/^Mention rate.*Gemini$/);
+    expect(terms[3]).toMatch(/^Mention rate.*AI Mode$/);
+    const [prompts, chatgpt, gemini, aiMode] = valuesOf(strip);
+    expect(prompts).toHaveTextContent(/^\d+/);
+    // No engine is pooled: each number is its own engine's, with its counts beside it
+    expect(chatgpt).toHaveTextContent(/%.*\d[\d,]* of \d[\d,]* answers|answers?/);
+    expect(gemini).toHaveTextContent(/%.*\d[\d,]* of \d[\d,]* answers|answers?/);
+    // Fynix has AI Mode off: it is not asked, and never a zero
+    expect(aiMode).toHaveTextContent('Not asked');
+    expect(aiMode).toHaveTextContent('Off in this project');
+    expect(aiMode).not.toHaveTextContent('0%');
+    expect(chatgpt).toHaveAttribute('tabindex', '0');
+    expect(chatgpt).toHaveAccessibleDescription(/Window: Oct 16 to Nov 12, 2026 \(branded prompts excluded\)/);
+  });
+
+  it('is a plain cell until the links of the drill-down exist: no number is a link', async () => {
+    renderWithProviders(overviewAs('admin'));
+    const strip = await stripOf();
+    await waitFor(() => {
+      expect(strip).not.toHaveAttribute('aria-busy');
+    });
+    expect(within(strip).queryAllByRole('link')).toHaveLength(0);
+  });
+
+  it('shows the single engine of the filter and says the others are not asked', async () => {
+    renderWithProviders(overviewAs('admin'), { searchParams: '?engine=gemini_web' });
+    const strip = await stripOf();
+    await waitFor(() => {
+      expect(strip).not.toHaveAttribute('aria-busy');
+    });
+    const [, chatgpt, gemini] = valuesOf(strip);
+    expect(chatgpt).toHaveTextContent('Not asked');
+    expect(chatgpt).toHaveTextContent('Not in the engine filter');
+    expect(gemini).not.toHaveTextContent('Not asked');
+  });
+
+  it('shows no change with the comparison off', async () => {
+    renderWithProviders(overviewAs('admin'), { searchParams: '?cmp=off' });
+    const strip = await stripOf();
+    await waitFor(() => {
+      expect(strip).not.toHaveAttribute('aria-busy');
+    });
+    expect(within(strip).queryByText(/ pts$/)).toBeNull();
+    expect(valuesOf(strip)[1]).not.toHaveAccessibleDescription(/Change against/);
+  });
+
+  it('shows the strip error with Try again when the summary fails, and the cards keep their own states', async () => {
+    server.use(
+      http.get(mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary'), () =>
+        HttpResponse.json(
+          { type: 'about:blank', title: 'Internal error', status: 500, code: 'internal_error', request_id: 'req-7' },
+          { status: 500, headers: { 'content-type': 'application/problem+json' } },
+        ),
+      ),
+    );
+    renderWithProviders(overviewAs('admin'));
+    expect(await screen.findByText('The AI numbers could not be read')).toBeInTheDocument();
+    expect(screen.getByText('Error ID req-7')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: STRIP })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(within(cardsRegion()).getAllByRole('heading', { level: 2 })).toHaveLength(9);
+    });
+  });
+
+  it('keeps the strip in customize mode with the controls of each number, and no links', async () => {
+    const { user } = renderWithProviders(overviewAs('admin'));
+    const button = await screen.findByRole('button', { name: 'Customize' });
+    await waitFor(() => {
+      expect(button).not.toHaveAttribute('aria-disabled', 'true');
+    });
+    await user.click(button);
+    const strip = await stripOf();
+    for (const name of ['Prompts', 'Mention rate ChatGPT', 'Mention rate Gemini', 'Mention rate AI Mode']) {
+      expect(within(strip).getByRole('button', { name: `Reorder ${name}` })).toBeInTheDocument();
+      expect(within(strip).getByRole('button', { name: `Remove ${name}` })).toBeInTheDocument();
+    }
+    expect(within(strip).getByRole('button', { name: 'Add number' })).toBeInTheDocument();
+    expect(within(strip).queryAllByRole('link')).toHaveLength(0);
   });
 });
 

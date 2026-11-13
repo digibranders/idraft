@@ -6,6 +6,7 @@ import { useMemo, type ReactElement, type ReactNode } from 'react';
 
 import { AI_OVERVIEW_CARDS } from './cards/registry';
 import { OverviewHeader } from './header/overview-header';
+import { NumbersZone } from './numbers/numbers-zone';
 import { OverviewProvider, useOverview, type OverviewProject } from './overview-context';
 import { GridPlaceholder, ScopeBarPlaceholder, StripPlaceholder } from './overview-placeholders';
 import { buildOverviewPresets } from './presets/presets';
@@ -63,8 +64,8 @@ function OverviewBody(): ReactElement {
   } else {
     content = (
       <>
-        {/* The strip (T8) and the scope bar (T7) take these places */}
-        <StripPlaceholder />
+        <NumbersZone />
+        {/* The scope bar (T7) takes this place */}
         <ScopeBarPlaceholder />
         <CustomizableGrid label={t('cards')} />
       </>
