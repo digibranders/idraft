@@ -274,7 +274,7 @@ line per package in the route access and cross-tenant tests. No route, table or 
 **As built (AI visibility WP-03, 2026-11-13): contract pack.** The wave 1 and wave 2 API shapes
 are in `backend/openapi/v1.json` and the web client: 14 routes answer `501 not_implemented` after
 their access checks, and 11 built operations gained optional parameters, body members and
-response fields that answer `501` when used. No table, no behaviour change for an existing caller
+response fields that answer `501` when used (the prompts summary ones were built by WP-12, see its As built paragraph below). No table, no behaviour change for an existing caller
 (contract notes in docs/ai-visibility/contracts/README.md; plan
 `docs/superpowers/plans/2026-11-13-ai-wp-03-contract-pack.md`).
 
