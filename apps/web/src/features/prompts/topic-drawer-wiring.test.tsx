@@ -315,3 +315,72 @@ describe('the topic drawer: Close', () => {
     back.mockRestore();
   });
 });
+
+describe('the built rows of the topic drawer, confirmed through the real screen', () => {
+  it('WB-TI-01 shows the topic name, the type Topic, the prompt count as a badge, and Close takes the drawer away', async () => {
+    const { user } = renderOn('viewer', inspect(PAID_SEARCH));
+    const panel = await drawer('Paid Search');
+    expect(within(panel).getByRole('heading', { level: 2, name: 'Paid Search' })).toBeInTheDocument();
+    expect(within(panel).getByText('Topic')).toBeInTheDocument();
+    expect(await within(panel).findByText('2 prompts')).toBeInTheDocument();
+    // The Back button is the sheet's (a phone); a docked drawer leaves with Close, the same way out
+    await user.click(within(panel).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Paid Search' })).toBeNull());
+  });
+
+  it('WB-TI-15 lists the 5 top prompts of a topic with more, and Show all opens the Prompts tab with every one', async () => {
+    const { user } = renderOn('viewer', inspect(MOCK_TERM_IDS.seo));
+    const panel = await drawer('SEO');
+    const top = (await within(panel).findByRole('heading', { name: 'Top prompts' })).closest('section');
+    if (top === null) throw new Error('The Top prompts card is missing');
+    expect(await within(top).findAllByRole('listitem')).toHaveLength(5);
+    await user.click(within(top).getByRole('button', { name: 'Show all 12 prompts' }));
+    expect(await within(panel).findByRole('tab', { name: 'Prompts', selected: true })).toBeInTheDocument();
+    expect(await within(panel).findAllByRole('listitem')).toHaveLength(12);
+  });
+
+  it('WB-TI-21 says a topic with no prompt has none to list', async () => {
+    server.use(
+      http.get(SUMMARY_PATH, () => HttpResponse.json({ data: summaryOf([topicRow(PAID_SEARCH, 'Paid Search', 0)]) })),
+    );
+    renderOn('viewer', inspect(PAID_SEARCH));
+    const panel = await drawer('Paid Search');
+    expect((await within(panel).findAllByText('No prompts to list')).length).toBeGreaterThan(0);
+  });
+
+  it('WB-TI-21 says the prompts of a topic the tree does not hold are not known, and a failed read has Try again', async () => {
+    const ghost = '33333333-0000-4000-8000-0000000000aa';
+    server.use(
+      http.get(SUMMARY_PATH, () => HttpResponse.json({ data: summaryOf([topicRow(ghost, 'Ghost topic', 3)]) })),
+    );
+    const { unmount } = renderOn('viewer', inspect(ghost));
+    const panel = await drawer('Ghost topic');
+    expect((await within(panel).findAllByText('The prompts of this topic are not known yet')).length).toBeGreaterThan(
+      0,
+    );
+    unmount();
+
+    server.use(
+      http.get(SUMMARY_PATH, () =>
+        HttpResponse.json({ status: 500, code: 'internal_error', title: 'Failed' }, { status: 500 }),
+      ),
+    );
+    renderOn('viewer', inspect(PAID_SEARCH));
+    const failed = await screen.findByRole('complementary');
+    expect((await within(failed).findAllByText('The topics could not be loaded.')).length).toBeGreaterThan(0);
+    expect(within(failed).getAllByRole('button', { name: 'Try again' }).length).toBeGreaterThan(0);
+  });
+
+  it('WB-TPE-18 says "avg of 2" on the drawer rate card and in the average column of the By engine view', async () => {
+    const { unmount } = renderOn('viewer', inspect(PAID_SEARCH));
+    const panel = await drawer('Paid Search');
+    const rates = (await within(panel).findByRole('heading', { name: 'Rates' })).closest('section');
+    if (rates === null) throw new Error('The Rates card is missing');
+    expect((await within(rates).findAllByText('avg of 2')).length).toBeGreaterThan(0);
+    unmount();
+
+    renderOn('viewer', '?view=engines');
+    const table = await screen.findByRole('treegrid', { name: 'Topics' });
+    expect((await within(table).findAllByText(/avg of 2/)).length).toBeGreaterThan(0);
+  });
+});
