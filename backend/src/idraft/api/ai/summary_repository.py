@@ -494,6 +494,69 @@ async def weekly_entity_counts(
     }
 
 
+async def comention_pairs(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    prompt_ids: Collection[UUID],
+    entity_ids: Collection[UUID],
+    *,
+    since: datetime,
+    until: datetime,
+    engine_codes: Sequence[str] | None,
+) -> dict[tuple[str, UUID, UUID], int]:
+    """Per engine and pair of entities `(a, b)`, `a` below `b` by id: the valid answers whose
+    share of voice set holds both (the mentions with an order, as `entity_counts` reads them),
+    one statement. One mention row exists per entity and answer, so each answer counts a pair
+    once; `b > a` leaves out an entity with itself and the pair the other way round. Fewer than
+    two entities make no pair, and nothing is read."""
+    if not prompt_ids or len(entity_ids) < 2:
+        return {}
+    first, second = ai_entity_mentions.alias("first"), ai_entity_mentions.alias("second")
+    a, b = first.c, second.c
+
+    def named(m: Any) -> list[Any]:
+        return [
+            m.project_id == project_id,
+            m.is_current,
+            # The mentions' own partitions, bounded by the same instants.
+            m.observed_at >= since,
+            m.observed_at < until,
+            m.mention_order.is_not(None),
+            m.entity_id.in_(list(entity_ids)),
+        ]
+
+    def joined(m: Any) -> Any:
+        return and_(
+            m.observation_id == _F.observation_id,
+            m.observed_at == _F.observed_at,
+            m.derivation_id == _F.derivation_id,
+            m.workspace_id == _F.workspace_id,
+        )
+
+    rows = await db.execute(
+        select(
+            _F.engine_code,
+            a.entity_id.label("first_id"),
+            b.entity_id.label("second_id"),
+            func.count().label("answers"),
+        )
+        .select_from(
+            ai_observation_facts.join(first, joined(a)).join(
+                second, and_(joined(b), b.entity_id > a.entity_id)
+            )
+        )
+        .where(
+            *_window(workspace_id, project_id, prompt_ids, since, until, engine_codes),
+            _F.is_valid,
+            *named(a),
+            *named(b),
+        )
+        .group_by(_F.engine_code, a.entity_id, b.entity_id)
+    )
+    return {(row.engine_code, row.first_id, row.second_id): row.answers for row in rows}
+
+
 async def topic_rollup(
     db: AsyncSession, workspace_id: UUID, prompt_ids: Collection[UUID]
 ) -> dict[UUID, set[UUID]]:

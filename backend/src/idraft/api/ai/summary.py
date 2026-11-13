@@ -15,13 +15,15 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.ai import summary_repository as repository
-from idraft.api.ai.summary_repository import Counts, EntityCounts, SummaryPrompt
+from idraft.api.ai.summary_repository import Counts, EntityCounts, SummaryPrompt, TrackedEntity
 from idraft.api.problems import NotFoundError, WindowTooLargeError
 from idraft.api.ranks.repository import project_zone
 from idraft.api.ranks.service import instants
 from idraft.api.schemas.ai import (
     NOT_ASKED,
+    CoMentionPair,
     EngineCells,
+    EngineCoMentions,
     EngineSummary,
     EntityCells,
     EntityPreviousCells,
@@ -279,6 +281,42 @@ def sum_named(parts: Sequence[EntityCounts]) -> EntityCounts:
         mentioned=sum(part.mentioned for part in parts),
         sov_share=sum(part.sov_share for part in parts),
     )
+
+
+def entity_cell_ids(tracked: Sequence[TrackedEntity]) -> list[UUID]:
+    """The tracked entities the entity cells and the co-mentions are given for: the own ones
+    first, so that the cut keeps them, then the rest in the order given, at most
+    `ENTITY_CELLS_MAX`."""
+    return [entity.id for entity in sorted(tracked, key=lambda e: e.role != "own")][
+        :ENTITY_CELLS_MAX
+    ]
+
+
+def co_mention_pairs(found: Mapping[tuple[UUID, UUID], int]) -> list[CoMentionPair]:
+    """The pairs `(a, b)` (the lower id first) with the answers that name both, most answers
+    first, then by id (C-8)."""
+    return [
+        CoMentionPair(a=a, b=b, answers=answers)
+        for (a, b), answers in sorted(found.items(), key=lambda item: (-item[1], item[0]))
+    ]
+
+
+def _co_mentions(
+    engine_codes: Sequence[str],
+    by_prompt: Mapping[tuple[UUID, str], Counts],
+    pairs: Mapping[tuple[str, UUID, UUID], int],
+) -> list[EngineCoMentions]:
+    """One entry per engine shown: its valid answers in scope, and the pairs read for it."""
+    return [
+        EngineCoMentions(
+            engine_code=code,
+            answers=sum(c.n_valid for (_, engine), c in by_prompt.items() if engine == code),
+            pairs=co_mention_pairs(
+                {(a, b): answers for (engine, a, b), answers in pairs.items() if engine == code}
+            ),
+        )
+        for code in engine_codes
+    ]
 
 
 def _week(
@@ -659,13 +697,8 @@ class SummaryService:
             enabled = await repository.enabled_engine_codes(db, ws, project_id)
             tracked = await repository.tracked_entities(db, ws, project_id)
             # The own entities first, so the cut keeps them; then the competitors by name.
-            cell_ids = (
-                [entity.id for entity in sorted(tracked, key=lambda e: e.role != "own")][
-                    :ENTITY_CELLS_MAX
-                ]
-                if "entities" in query.include
-                else None
-            )
+            tracked_ids = entity_cell_ids(tracked)
+            cell_ids = tracked_ids if "entities" in query.include else None
             # With the series, ONE statement reads the entity counts by week, and the window's
             # are their sum; without it the window's are read alone.
             weekly_named: Mapping[tuple[UUID, str, date, UUID], EntityCounts] = {}
@@ -683,6 +716,12 @@ class SummaryService:
                 else await repository.entity_counts(
                     db, ws, project_id, ids, cell_ids, **before_window
                 )
+            )
+            # One self join over the mentions, for the same prompts as every other read.
+            pairs = (
+                await repository.comention_pairs(db, ws, project_id, ids, tracked_ids, **window)
+                if "co_mentions" in query.include
+                else {}
             )
             names = await repository.topic_names(db, ws, held.keys())
         seen = {engine for _, engine in by_prompt}
@@ -758,4 +797,7 @@ class SummaryService:
             prompts=prompt_rows,
             topics=topic_rows,
             total=total,
+            co_mentions=(
+                _co_mentions(shown, by_prompt, pairs) if "co_mentions" in query.include else None
+            ),
         )

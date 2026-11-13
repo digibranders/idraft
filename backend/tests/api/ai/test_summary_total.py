@@ -312,11 +312,9 @@ async def test_include_total_is_accepted_beside_the_other_values_and_a_bad_one_i
         422,
         "validation_failed",
     )
-    # Not built yet: still refused, and `total` does not hide it.
-    assert problem(await get_summary(seeded, api, include="total,co_mentions")) == (
-        501,
-        "not_implemented",
-    )
+    # Built beside it: both blocks are there.
+    data = await summary_data(seeded, api, include="total,co_mentions")
+    assert {"total", "co_mentions"} <= set(data)
 
 
 async def test_rows_none_skips_the_topic_statements(

@@ -33,8 +33,6 @@ _UUID = uuid.UUID("3b1c5f0e-7a64-4d52-9c0a-1f2e8d6b4a97")
 
 # Every value of the contract the summary does not build yet, one for each parameter at least.
 NOT_BUILT_OPTIONS = [
-    {"include": "series,co_mentions"},
-    {"include": "total,co_mentions"},
     {"filter[outcome]": "neither"},
     {"filter[opportunity]": "named_not_cited"},
     {"filter[opportunity]": f"lost_to:{_UUID}"},
@@ -70,7 +68,7 @@ async def test_the_summary_checks_access_before_it_says_not_built(
     outsider = await member(resources, migrated, await make_workspace(migrated), "owner")
     project = await ai_project(migrated, workspace)
     url = project_url(workspace, project, "ai", "prompts-summary")
-    params = {"include": "co_mentions"}
+    params = {"filter[outcome]": "neither"}
 
     refused = await api.get(url, params=params, headers=billing.headers)
     unseen = await api.get(url, params=params, headers=outsider.headers)
@@ -124,7 +122,7 @@ async def test_a_value_out_of_the_contract_is_refused_before_one_not_built(
 
     response = await api.get(
         project_url(workspace, project, "ai", "prompts-summary"),
-        params={"group_by": "language", "include": "co_mentions"},
+        params={"group_by": "language", "filter[outcome]": "neither"},
         headers=viewer.headers,
     )
 
@@ -263,22 +261,56 @@ async def test_the_total_and_rows_options_are_built(
     assert problem(refused) == FORBIDDEN
 
 
-def test_the_api_document_no_longer_says_total_and_rows_are_not_built() -> None:
+CO_MENTIONS_OPTIONS = [
+    {"include": "co_mentions"},
+    {"include": "series,co_mentions"},
+    {"include": "total,co_mentions", "rows": "none"},
+    {"include": "series,entities,total,co_mentions", "compare": "previous_period"},
+]
+
+
+@pytest.mark.parametrize("params", CO_MENTIONS_OPTIONS, ids=str)
+async def test_the_co_mentions_option_is_built(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    params: dict[str, str],
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    billing = await member(resources, migrated, workspace, "billing")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "ai", "prompts-summary")
+
+    response = await api.get(url, params=params, headers=viewer.headers)
+    refused = await api.get(url, params=params, headers=billing.headers)
+
+    assert response.status_code == 200, response.text
+    assert "co_mentions" in response.json()["data"]
+    assert problem(refused) == FORBIDDEN
+
+
+def test_the_api_document_no_longer_says_total_rows_and_co_mentions_are_not_built() -> None:
     document = build_openapi()
     parameters = {
         item["name"]: item for item in document["paths"][SUMMARY_PATH]["get"]["parameters"]
     }
-    total = document["components"]["schemas"]["PromptsSummary"]["properties"]["total"]
+    properties = document["components"]["schemas"]["PromptsSummary"]["properties"]
+    total, co_mentions = properties["total"], properties["co_mentions"]
 
     assert "Not built yet" not in parameters["rows"]["description"]
-    assert "`total` and `co_mentions` are not built" not in parameters["include"]["description"]
-    assert "`total`; `co_mentions` is not built" in parameters["include"]["description"]
+    assert "not built" not in parameters["include"]["description"]
+    assert "`total`, `co_mentions`" in parameters["include"]["description"]
     assert "Not returned yet" not in total["description"]
     assert "include=total" in total["description"]
+    assert "Not returned yet" not in co_mentions["description"]
+    assert "include=co_mentions" in co_mentions["description"]
     # Still not built: the sentence of the route names what remains, and not what was built.
     route = document["paths"][SUMMARY_PATH]["get"]["description"]
     assert "`include=total`, `include=co_mentions`" not in route
-    assert "`include=co_mentions`, `filter[outcome]`" in route
+    assert "`include=co_mentions`, `filter[outcome]`" not in route
+    assert "`filter[outcome]`, `filter[opportunity]` and `group_by` are published" in route
+    assert "`include=co_mentions` adds `co_mentions`" in route
 
 
 @pytest.mark.parametrize(

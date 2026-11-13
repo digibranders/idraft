@@ -75,9 +75,12 @@ Summaries = Annotated[SummaryService, Depends(get_summary_service)]
     "denominator of 0 when it has answers and none valid. `include=total` adds `total`: every "
     "prompt in scope as one row, aggregated as a topic row is, with the `previous`, `series` and "
     "`entities` blocks when asked. `rows=topics` leaves the prompt rows out and `rows=none` both "
-    "row lists; `total` does not depend on `rows`. Blocks not asked for are left out. "
-    "`include=co_mentions`, `filter[outcome]`, `filter[opportunity]` and `group_by` are "
-    "published and not built yet (`501`).",
+    "row lists; `total` does not depend on `rows`. `include=co_mentions` adds `co_mentions`: "
+    "per engine shown, the valid answers in scope and, for each pair of the tracked entities "
+    "(the own ones first, at most 20) named in the same valid answer, how many answers name "
+    "both; it does not depend on `rows`. Blocks not asked for are left out. "
+    "`filter[outcome]`, `filter[opportunity]` and `group_by` are published and not built yet "
+    "(`501`).",
 )
 async def prompts_summary(
     project_id: UUID,
@@ -107,10 +110,7 @@ async def prompts_summary(
     include: Annotated[
         list[SummaryInclude] | None,
         Commas,
-        Query(
-            description="Blocks to add: `series`, `entities`, `total`; `co_mentions` is not "
-            "built yet (`501`)."
-        ),
+        Query(description="Blocks to add: `series`, `entities`, `total`, `co_mentions`."),
     ] = None,
     compare: Annotated[
         SummaryCompare,
@@ -163,7 +163,6 @@ async def prompts_summary(
     asked = frozenset(include or ())
     refuse_unbuilt(
         {
-            "include=co_mentions": "co_mentions" in asked,
             "filter[outcome]": outcome is not None,
             "filter[opportunity]": opportunity is not None,
             "group_by": group_by is not None,

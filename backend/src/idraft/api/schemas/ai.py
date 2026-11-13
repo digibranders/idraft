@@ -615,7 +615,6 @@ class MetricCell(BaseModel):
     )
 
 
-# `co_mentions`: contract C2, not built yet (`501`).
 SummaryInclude = Literal["series", "entities", "total", "co_mentions"]
 SummaryCompare = Literal["none", "previous_period", "previous_year"]
 SummaryRows = Literal["topics", "none"]
@@ -904,8 +903,9 @@ class PromptsSummary(BaseModel):
     co_mentions: list[EngineCoMentions] | None = Field(
         default=None,
         exclude_if=_absent,
-        description="With `include=co_mentions`: per engine, how often two tracked entities are "
-        "named in one valid answer. " + _NOT_RETURNED,
+        description="With `include=co_mentions`: one entry per engine shown, with how often two "
+        "tracked entities are named in one valid answer. It does not depend on `rows`. Left out "
+        "otherwise.",
     )
     by_country: list[CountrySummary] | None = Field(
         default=None,
