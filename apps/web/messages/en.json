@@ -3903,7 +3903,8 @@
         "events": "Events",
         "eventsLabel": "Events of this prompt",
         "eventAdded": "Prompt added",
-        "eventModel": "Answer model changed on {engine}: {from} to {to}"
+        "eventModel": "Answer model changed on {engine}: {from} to {to}",
+        "eventStale": "No valid answer on {engine} for {days, plural, one {# day} other {# days}}"
       },
       "competitors": {
         "engineLabel": "Engine",

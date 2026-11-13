@@ -1,10 +1,20 @@
 'use client';
 
-import { History, LineChart, ListChecks, Plus, Sparkles } from 'lucide-react';
+import { CircleSlash, History, LineChart, ListChecks, Plus, Sparkles, type LucideIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useMemo, type ReactElement } from 'react';
 
-import { engineRole, historyEvents, POOLED_WEEKS, rateCeiling, weeklyHistory, type WeekPoint } from './history-model';
+import {
+  engineRole,
+  historyEvents,
+  POOLED_WEEKS,
+  rateCeiling,
+  staleEvents,
+  staleWindow,
+  weeklyHistory,
+  type HistoryEvent,
+  type WeekPoint,
+} from './history-model';
 import type { PromptAnswers, PromptCounts } from './inspector-reads';
 import { outcomeKey, type DateRange } from './prompt-model';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
@@ -29,6 +39,12 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 /** The answers the table lists. */
 const LAST_ANSWERS = 10;
+/** An event is no detectable change of the brand's rate, so no icon carries a colour. */
+const EVENT_ICON = { added: Plus, model: Sparkles, stale: CircleSlash } as const satisfies Record<
+  HistoryEvent['kind'],
+  LucideIcon
+>;
+
 const formatRate = (value: number): string => formatPercent(value, { decimals: 0 });
 
 export interface InspectorHistoryProps {
@@ -224,7 +240,21 @@ export function InspectorHistory({
       cell: (row) => t(`outcomes.${outcomeKey(row.status, row.facts)}`),
     },
   ];
-  const events = createdAt === null ? [] : historyEvents(createdAt, answers.rows);
+  // A list that is not read (loading, failed) says nothing of silence: no answers there would read as all engines stale
+  const events: HistoryEvent[] =
+    createdAt === null
+      ? []
+      : [
+          ...historyEvents(createdAt, answers.rows),
+          ...(answers.status === 'ready'
+            ? staleEvents(
+                engines.map((engine) => engine.engine.engine_code),
+                answers.rows,
+                staleWindow(range, createdAt, timeZone, new Date()),
+                !answers.hasMore,
+              )
+            : []),
+        ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
 
   return (
     <>
@@ -269,19 +299,17 @@ export function InspectorHistory({
           {events.map((event) => (
             <li key={event.id} className="flex items-start gap-3">
               <span className="w-16 shrink-0 num type-meta">{formatTableDate(event.at, timeZone)}</span>
-              <Icon
-                icon={event.kind === 'added' ? Plus : Sparkles}
-                size="default"
-                className="mt-0.5 shrink-0 text-foreground-tertiary"
-              />
+              <Icon icon={EVENT_ICON[event.kind]} size="default" className="mt-0.5 shrink-0 text-foreground-tertiary" />
               <span className="min-w-0 type-body wrap-anywhere">
                 {event.kind === 'added'
                   ? history('eventAdded')
-                  : history('eventModel', {
-                      engine: labelOf(event.engineCode ?? ''),
-                      from: event.from ?? '',
-                      to: event.to ?? '',
-                    })}
+                  : event.kind === 'stale'
+                    ? history('eventStale', { engine: labelOf(event.engineCode ?? ''), days: event.days ?? 0 })
+                    : history('eventModel', {
+                        engine: labelOf(event.engineCode ?? ''),
+                        from: event.from ?? '',
+                        to: event.to ?? '',
+                      })}
               </span>
             </li>
           ))}

@@ -1,3 +1,6 @@
+import { TZDate } from '@date-fns/tz';
+
+import type { DateRange } from './prompt-model';
 import type { EngineSummary, ObservationSummary } from '@/lib/api/types';
 import type { SeriesRole } from '@/lib/charts/category-chart';
 import { rateState, wilsonInterval, type Interval } from '@/lib/stats';
@@ -108,13 +111,70 @@ export function rateCeiling(history: History | null): number {
 /** Something that happened to the prompt, from what the page already has. */
 export interface HistoryEvent {
   id: string;
-  kind: 'added' | 'model';
-  /** The instant of the event. */
+  kind: 'added' | 'model' | 'stale';
+  /** The instant of the event; for `stale`, the last valid answer of the gap (or the start of the window). */
   at: string;
-  /** `model` only: the engine, and the model it reported before and after. */
+  /** `model` and `stale`: the engine. */
   engineCode?: string;
+  /** `model` only: the model the engine reported before and after. */
   from?: string;
   to?: string;
+  /** `stale` only: whole days without a valid answer. */
+  days?: number;
+}
+
+const DAY_MS = 86_400_000;
+
+// shortcut: twice the twice-weekly schedule, replace with the shared stale rule of WP-18 (CF-27) when it lands
+/** An engine with no valid answer for this many days is called stale. */
+export const STALE_AFTER_DAYS = 7;
+
+/** The instants a stale gap is measured between. */
+export interface StaleWindow {
+  from: string;
+  end: string;
+}
+
+/**
+ * The window of the page as instants: from the start of its first project day (or when the prompt was added, if
+ * that is later: a prompt cannot be silent before it exists) to the close of its last day, never past `now`.
+ */
+export function staleWindow(range: DateRange, createdAt: string, timeZone: string, now: Date): StaleWindow {
+  const dayStart = (isoDate: string, shift: number): number => {
+    const [year = 1970, month = 1, day = 1] = isoDate.split('-').map(Number);
+    return new TZDate(year, month - 1, day + shift, timeZone).getTime();
+  };
+  const from = Math.max(dayStart(range.from, 0), Date.parse(createdAt));
+  const end = Math.min(dayStart(range.to, 1), now.getTime());
+  return { from: new Date(from).toISOString(), end: new Date(end).toISOString() };
+}
+
+/**
+ * One event for each gap of `STALE_AFTER_DAYS` days or more without a valid answer on an engine in `engineCodes`:
+ * between two valid answers, and from the last one to the end of the window. An engine with no valid answer in the
+ * list is silent from the start of the window. The gap before the first valid answer is not measured (the list holds
+ * 200 answers at most, so its start is unknown). An answer with no facts or an invalid one ends no gap.
+ */
+export function staleEvents(
+  engineCodes: readonly string[],
+  observations: readonly ObservationSummary[],
+  { from, end }: StaleWindow,
+  /** False when the list is only the newest answers: an engine with none in it may have answered earlier. */
+  complete = true,
+): HistoryEvent[] {
+  return engineCodes.flatMap((engineCode) => {
+    const valid = observations
+      .filter((answer) => answer.engine_code === engineCode && answer.facts?.is_valid === true)
+      .map((answer) => answer.observed_at)
+      .sort((a, b) => Date.parse(a) - Date.parse(b));
+    if (valid.length === 0 && !complete) return [];
+    const starts = valid.length === 0 ? [from] : valid;
+    const stops = valid.length === 0 ? [end] : [...valid.slice(1), end];
+    return starts.flatMap((at, place): HistoryEvent[] => {
+      const days = Math.floor((Date.parse(stops[place] ?? end) - Date.parse(at)) / DAY_MS);
+      return days >= STALE_AFTER_DAYS ? [{ id: `stale:${engineCode}:${at}`, kind: 'stale', at, engineCode, days }] : [];
+    });
+  });
 }
 
 /**
