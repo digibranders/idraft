@@ -2026,6 +2026,15 @@
     "incomplete": "Showing {loaded, plural, one {# run} other {# runs}}. The rest did not load.",
     "metaWithManual": "{project}, {month}. {manual}. Times in {timeZone}.",
     "rowName": "{workload}, started {started}",
+    "line": {
+      "lastRun": "Last run {when}, {done, number} of {total, number} {noun, select, answers {{total, plural, one {answer} other {answers}}} checks {{total, plural, one {check} other {checks}}} keywords {{total, plural, one {keyword} other {keywords}}} other {{total, plural, one {task} other {tasks}}}}",
+      "lastRunBare": "Last run {when}",
+      "running": "Running now",
+      "none": "No runs yet",
+      "unavailable": "Run status unavailable",
+      "loading": "Loading run status"
+    },
+    "updatedLink": "{updated}. Open the run that collected these answers.",
     "inspector": {
       "type": "Run",
       "noun": "run",

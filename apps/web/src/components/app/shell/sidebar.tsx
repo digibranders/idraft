@@ -42,6 +42,11 @@ export interface SidebarNavProps {
   toggle: { label: string; visibleLabel: string; onToggle: () => void; controls: string } | null;
   /** The drawer's Close button. */
   close: { label: string; onClose: () => void } | null;
+  /**
+   * The collection line above the toggle (when the project last collected), in `type-label`. The sidebar
+   * only places it: the node says for itself what it shows in the rail, where it is an icon with a tooltip.
+   */
+  collectionLine?: ReactNode;
   /** Called when an item is followed, so a drawer or an expanded rail can close. */
   onNavigate?: (() => void) | undefined;
 }
@@ -64,8 +69,10 @@ export function SidebarNav({
   projectSwitcher,
   toggle,
   close,
+  collectionLine,
   onNavigate,
 }: SidebarNavProps): ReactElement {
+  const hasLine = collectionLine !== undefined && collectionLine !== null;
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <div className="mx-2 mt-3 flex items-center gap-1">
@@ -96,22 +103,30 @@ export function SidebarNav({
           </div>
         ))}
       </div>
-      {toggle === null ? null : (
+      {toggle === null && !hasLine ? null : (
         <div className="mt-auto flex flex-col gap-2 px-2 pt-4 pb-4">
-          <Tooltip content={toggle.label} side="right" purpose="label" shortcut={['[']} disabled={!rail}>
-            <Button
-              variant="ghost"
-              aria-label={toggle.label}
-              aria-expanded={!rail}
-              aria-controls={toggle.controls}
-              aria-keyshortcuts="["
-              onClick={toggle.onToggle}
-              className="h-sidebar-item justify-start gap-3 px-2 type-body text-foreground-secondary rail:justify-center"
-            >
-              <Icon icon={ChevronsLeft} size="md" className="shrink-0 text-foreground-tertiary rail:rotate-180" />
-              <span className="truncate rail:sr-only">{toggle.visibleLabel}</span>
-            </Button>
-          </Tooltip>
+          {/* Above the toggle. A line that renders nothing (no permission to read it) leaves no box: `empty:hidden` */}
+          {hasLine ? (
+            <div data-slot="sidebar-collection-line" className="px-2 type-label text-foreground-tertiary empty:hidden">
+              {collectionLine}
+            </div>
+          ) : null}
+          {toggle === null ? null : (
+            <Tooltip content={toggle.label} side="right" purpose="label" shortcut={['[']} disabled={!rail}>
+              <Button
+                variant="ghost"
+                aria-label={toggle.label}
+                aria-expanded={!rail}
+                aria-controls={toggle.controls}
+                aria-keyshortcuts="["
+                onClick={toggle.onToggle}
+                className="h-sidebar-item justify-start gap-3 px-2 type-body text-foreground-secondary rail:justify-center"
+              >
+                <Icon icon={ChevronsLeft} size="md" className="shrink-0 text-foreground-tertiary rail:rotate-180" />
+                <span className="truncate rail:sr-only">{toggle.visibleLabel}</span>
+              </Button>
+            </Tooltip>
+          )}
         </div>
       )}
     </div>

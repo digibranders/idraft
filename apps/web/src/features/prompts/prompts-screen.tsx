@@ -66,6 +66,7 @@ import { PromptsCountryControl } from './prompts-scope';
 import { PromptsStrip } from './prompts-strip';
 import { PROMPT_ACTION_ENTRIES, withActionEntries } from './seams/actions';
 import { PROMPTS_TOOLBAR_ENTRIES, promptsToolbarItems } from './seams/toolbar';
+import { UpdatedRunLink } from './updated-run-link';
 import { usePromptActions } from './use-prompt-actions';
 import { TopicInspector } from './topic-inspector';
 import { selectionKeyOf } from './selection-model';
@@ -766,7 +767,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       trigger={<IconButton icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}
       header={
         <div className="flex flex-col gap-0.5 type-meta">
-          {updatedText === null ? null : <span>{updatedText}</span>}
+          {updatedText === null ? null : (
+            <UpdatedRunLink scope={scope} workspaceSlug={workspaceSlug} projectSlug={project.slug} text={updatedText} />
+          )}
           <span>{windowCaption}</span>
         </div>
       }
@@ -893,7 +896,14 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           {updatedText === null ? null : (
             // Shown while the header's container is at least 64rem wide (about a 1280 px window with the sidebar open); a narrower one has it in the More actions menu
             <Tooltip content={windowCaption} purpose="label" side="bottom">
-              <span className="hidden type-meta whitespace-nowrap @5xl:inline">{updatedText}</span>
+              <span className="hidden type-meta whitespace-nowrap @5xl:inline">
+                <UpdatedRunLink
+                  scope={scope}
+                  workspaceSlug={workspaceSlug}
+                  projectSlug={project.slug}
+                  text={updatedText}
+                />
+              </span>
             </Tooltip>
           )}
           {extraControls}

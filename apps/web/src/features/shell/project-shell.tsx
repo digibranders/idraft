@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 
+import { CollectionLine } from './collection-line';
 import { TopBarControls } from './top-bar-controls';
 import { useSidebar } from './use-sidebar';
 import { Breadcrumb } from '@/components/app/shell/breadcrumb';
@@ -146,6 +147,13 @@ export function ProjectShell({
           : null
       }
       close={mode === 'drawer' ? { label: t('closeNavigation'), onClose: () => setDrawerOpen(false) } : null}
+      collectionLine={
+        <CollectionLine
+          scope={{ workspaceId: membership.workspace.workspace_id, projectId: project.id }}
+          timeZone={project.timeZone}
+          rail={mode === 'page' && rail}
+        />
+      }
       onNavigate={mode === 'drawer' ? () => setDrawerOpen(false) : closePeek}
     />
   );
