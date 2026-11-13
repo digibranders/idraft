@@ -69,9 +69,12 @@ Summaries = Annotated[SummaryService, Depends(get_summary_service)]
     "`compare_window` and `previous_answers` (the valid answers in scope there), and `previous` "
     "beside each engine's cells, and beside each entity's with `include=entities`: null when "
     "none of the row's prompts has an answer of the engine in that window, cells with a "
-    "denominator of 0 when it has answers and none valid. Blocks not asked for are left out. "
-    "`include=total`, `include=co_mentions`, `rows`, `filter[outcome]`, `filter[opportunity]` "
-    "and `group_by` are published and not built yet (`501`).",
+    "denominator of 0 when it has answers and none valid. `include=total` adds `total`: every "
+    "prompt in scope as one row, aggregated as a topic row is, with the `previous`, `series` and "
+    "`entities` blocks when asked. `rows=topics` leaves the prompt rows out and `rows=none` both "
+    "row lists; `total` does not depend on `rows`. Blocks not asked for are left out. "
+    "`include=co_mentions`, `filter[outcome]`, `filter[opportunity]` and `group_by` are "
+    "published and not built yet (`501`).",
 )
 async def prompts_summary(
     project_id: UUID,
@@ -102,7 +105,7 @@ async def prompts_summary(
         list[SummaryInclude] | None,
         Commas,
         Query(
-            description="Blocks to add: `series`, `entities`; `total` and `co_mentions` are not "
+            description="Blocks to add: `series`, `entities`, `total`; `co_mentions` is not "
             "built yet (`501`)."
         ),
     ] = None,
@@ -132,7 +135,8 @@ async def prompts_summary(
         SummaryRows | None,
         Query(
             description="`topics` leaves the prompt rows out, `none` both row lists (with "
-            "`include=total`). Left out: every row. Not built yet: `501`."
+            "`include=total`). Left out: every row. `total`, `co_mentions` and `by_country` do "
+            "not depend on it."
         ),
     ] = None,
     outcome: Annotated[
@@ -156,9 +160,7 @@ async def prompts_summary(
     asked = frozenset(include or ())
     refuse_unbuilt(
         {
-            "include=total": "total" in asked,
             "include=co_mentions": "co_mentions" in asked,
-            "rows": rows is not None,
             "filter[outcome]": outcome is not None,
             "filter[opportunity]": opportunity is not None,
             "group_by": group_by is not None,
@@ -180,6 +182,7 @@ async def prompts_summary(
                 compare=compare,
                 compare_from=compare_from,
                 compare_to=compare_to,
+                rows=rows,
             ),
         )
     )

@@ -615,7 +615,7 @@ class MetricCell(BaseModel):
     )
 
 
-# `total` and `co_mentions`: contract C2, not built yet (`501`).
+# `co_mentions`: contract C2, not built yet (`501`).
 SummaryInclude = Literal["series", "entities", "total", "co_mentions"]
 SummaryCompare = Literal["none", "previous_period", "previous_year"]
 SummaryRows = Literal["topics", "none"]
@@ -777,7 +777,7 @@ class TopicSummaryRow(BaseModel):
 class SummaryTotal(BaseModel):
     """Every prompt in scope as one row, aggregated as a topic row is (OV-N1)."""
 
-    prompt_count: int
+    prompt_count: int = Field(description="The prompts in scope, whatever the engines shown.")
     last_observed_at: datetime | None = Field(description=_LAST_OBSERVED)
     last_valid_at: datetime | None = Field(description=_LAST_VALID)
     engines: list[EngineSummary]
@@ -858,7 +858,11 @@ class PromptsSummary(BaseModel):
     prompts: list[PromptSummaryRow]
     topics: list[TopicSummaryRow]
     total: SummaryTotal | None = Field(
-        default=None, exclude_if=_absent, description="With `include=total`. " + _NOT_RETURNED
+        default=None,
+        exclude_if=_absent,
+        description="With `include=total`: every prompt in scope as one row, aggregated as a "
+        "topic row is, and carrying the blocks the rows carry when asked. It does not depend on "
+        "`rows`. Left out otherwise.",
     )
     co_mentions: list[EngineCoMentions] | None = Field(
         default=None,

@@ -35,6 +35,8 @@ from idraft.api.schemas.ai import (
     SummaryEntity,
     SummaryInclude,
     SummaryMetricContext,
+    SummaryRows,
+    SummaryTotal,
     TopicSummaryRow,
     WeekCells,
     _NotAsked,
@@ -68,6 +70,8 @@ class SummaryQuery:
     # A window of the caller's own: both dates or neither, and they win over `compare`.
     compare_from: date | None = None
     compare_to: date | None = None
+    # None: every row; "topics": no prompt rows; "none": neither list (C-3).
+    rows: SummaryRows | None = None
 
 
 def _out_of_range(field: str) -> RequestValidationError:
@@ -527,11 +531,14 @@ class SummaryService:
                 if before is None
                 else await repository.counts_by_prompt(db, ws, project_id, ids, **before_window)
             )
-            held = await repository.topic_rollup(db, ws, ids)
-            if query.term_id is not None:
-                # Under a term filter the topic rows are the term's and those below it.
-                subtree = await repository.term_subtree(db, ws, query.term_id)
-                held = {term: members for term, members in held.items() if term in subtree}
+            # `rows=none` reads no topic: the rollup, the term subtree and the names are skipped.
+            held: dict[UUID, set[UUID]] = {}
+            if query.rows != "none":
+                held = await repository.topic_rollup(db, ws, ids)
+                if query.term_id is not None:
+                    # Under a term filter the topic rows are the term's and those below it.
+                    subtree = await repository.term_subtree(db, ws, query.term_id)
+                    held = {term: members for term, members in held.items() if term in subtree}
             weeks = summary_weeks(first, last) if "series" in query.include else None
             weekly: Mapping[tuple[UUID, str, date], Counts] = (
                 {}
@@ -579,7 +586,9 @@ class SummaryService:
             previous=previous,
             previous_named=previous_named,
         )
-        prompt_rows = [_prompt_row(prompt, shown, read) for prompt in prompts]
+        prompt_rows = (
+            [_prompt_row(prompt, shown, read) for prompt in prompts] if query.rows is None else []
+        )
         # Topic rows are sums of the prompts' counts. Each topic row holds the prompts given the
         # term or a term below it, each once; the last row holds the prompts given no topic,
         # except under a term filter.
@@ -588,8 +597,18 @@ class SummaryService:
             for term_id in sorted(held, key=lambda term: (names.get(term, ""), str(term)))
         ]
         untopiced = [prompt.id for prompt in prompts if not prompt.topic_term_ids]
-        if untopiced and query.term_id is None:
+        if untopiced and query.term_id is None and query.rows != "none":
             topic_rows.append(_topic_row(None, None, untopiced, shown, read))
+        total = None
+        if "total" in query.include:
+            # Every prompt in scope, built as a topic row is (C-4); Python over the counts read.
+            last_observed, last_valid = _last_answers(ids, shown, by_prompt)
+            total = SummaryTotal(
+                prompt_count=len(ids),
+                last_observed_at=last_observed,
+                last_valid_at=last_valid,
+                engines=[_engine_row(code, ids, read, topic=True) for code in shown],
+            )
         return PromptsSummary(
             window=MetricWindow(
                 from_=first.isoformat(), to=last.isoformat(), timezone=zone_row.timezone
@@ -620,4 +639,5 @@ class SummaryService:
             entity_config_versions=versions,
             prompts=prompt_rows,
             topics=topic_rows,
+            total=total,
         )
