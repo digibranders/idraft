@@ -13,6 +13,9 @@ import {
   topicSummaryRow,
   type TopicDescendants,
 } from './prompt-model';
+import { ChangeInline, useChangeWords, useComparedWindow, useCompare } from './compare';
+import { averageChange, type AverageChange } from './compare/average-change';
+import { TippedChange } from './compare/tipped-change';
 import { chosenTab } from './seams/shared';
 import { TOPIC_TAB_ENTRIES, topicTabs, type TopicInspectorTab, type TopicTabContext } from './seams/topic-tabs';
 import { TopicDrawerProvider, type TopicDrawerExtras } from './topic-drawer/drawer-context';
@@ -29,7 +32,7 @@ import { InlineError } from '@/components/app/status/inline-error';
 import { Button } from '@/components/ui/button';
 import type { ErrorIdWords } from '@/lib/api/use-error-id';
 import type { MetricCell, ProjectEngine, PromptsSummary, PromptSummaryRow } from '@/lib/api/types';
-import { EMPTY_VALUE, formatPercent } from '@/lib/format';
+import { EMPTY_VALUE, formatDateRange, formatPercent } from '@/lib/format';
 import { acrossEngines } from '@/lib/rates/rate-model';
 
 /** What the screen has of the topic's counts: the summary of the window the page is on. */
@@ -68,6 +71,9 @@ const METRICS = [
 ] as const;
 type Metric = (typeof METRICS)[number]['key'];
 
+/** What a row says of its change while comparison is off: nothing. */
+const NO_CHANGE: AverageChange = { change: null, tip: '' };
+
 const cellOf = (engine: PromptSummaryRow['engines'][number] | undefined, metric: Metric): MetricCell | undefined =>
   engine?.[metric];
 
@@ -83,33 +89,50 @@ function PromptList({
 }): ReactElement {
   const t = useTranslations('prompts.topicDrawer');
   const separator = useTranslations('inspector')('separator');
+  const changeWords = useChangeWords();
+  const { compare } = useCompare();
+  const compared = useComparedWindow();
+  const range = compared === null ? null : formatDateRange(compared.from, compared.to);
   return (
     <ul className="flex flex-col">
-      {prompts.map((prompt) => (
-        <PromptRow
-          key={prompt.prompt_id}
-          text={prompt.text}
-          isBranded={prompt.is_branded}
-          onOpen={() => onOpen(prompt.prompt_id)}
-          meta={engines.map((engine, index) => (
-            <Fragment key={engine.engine.engine_code}>
-              {index > 0 ? <span aria-hidden="true">{separator}</span> : null}
-              <span className="num">
-                {t('engineMentioned', {
-                  engine: engine.engine.label,
-                  count:
-                    countText(
-                      cellOf(
-                        prompt.engines.find((cells) => cells.engine_code === engine.engine.engine_code),
-                        'mentioned',
-                      ),
-                    ) ?? EMPTY_VALUE,
-                })}
-              </span>
-            </Fragment>
-          ))}
-        />
-      ))}
+      {prompts.map((prompt) => {
+        // Only a prompt with a change shows one: no previous period is nothing to draw, never a zero
+        const mention = compare
+          ? averageChange({ cells: prompt.engines, engines, metric: 'mentioned', range, words: changeWords })
+          : NO_CHANGE;
+        return (
+          <PromptRow
+            key={prompt.prompt_id}
+            text={prompt.text}
+            isBranded={prompt.is_branded}
+            onOpen={() => onOpen(prompt.prompt_id)}
+            change={
+              mention.change === null ? undefined : (
+                <TippedChange tip={mention.tip}>
+                  <ChangeInline change={mention.change} size="sm" />
+                </TippedChange>
+              )
+            }
+            meta={engines.map((engine, index) => (
+              <Fragment key={engine.engine.engine_code}>
+                {index > 0 ? <span aria-hidden="true">{separator}</span> : null}
+                <span className="num">
+                  {t('engineMentioned', {
+                    engine: engine.engine.label,
+                    count:
+                      countText(
+                        cellOf(
+                          prompt.engines.find((cells) => cells.engine_code === engine.engine.engine_code),
+                          'mentioned',
+                        ),
+                      ) ?? EMPTY_VALUE,
+                  })}
+                </span>
+              </Fragment>
+            ))}
+          />
+        );
+      })}
     </ul>
   );
 }
@@ -155,6 +178,10 @@ function TopicInspectorBody({
   const words = useTranslations('prompts');
   const common = useTranslations('common');
   const inspectorWords = useTranslations('inspector');
+  const changeWords = useChangeWords();
+  const { compare } = useCompare();
+  const compared = useComparedWindow();
+  const range = compared === null ? null : formatDateRange(compared.from, compared.to);
   const row = topicSummaryRow(summary, topicKey);
   const name = topicKey === NO_TOPIC ? words('columns.noTopic') : (row?.name ?? treeName ?? '');
   const prompts = topicPrompts(summary, topicKey, descendants, engines[0]?.engine.engine_code);
@@ -193,6 +220,9 @@ function TopicInspectorBody({
         return cell === undefined ? [] : [cell];
       }),
     );
+    const change = compare
+      ? averageChange({ cells: row?.engines, engines, metric: key, range, words: changeWords })
+      : NO_CHANGE;
     return {
       id: key,
       label: t(label),
@@ -203,12 +233,15 @@ function TopicInspectorBody({
             <span className="type-meta text-foreground-tertiary">{t('noRate')}</span>
           </span>
         ) : (
-          <span className="flex flex-wrap items-baseline gap-x-2">
+          // The change is of the average over the engines that have a rate in both periods, so the box says which
+          // engines and what the test found, and says why when there is none (a topic with no previous period)
+          <TippedChange tip={change.tip} className="flex flex-wrap items-baseline gap-x-2">
             <span className="num type-body-strong">{formatPercent(average.value, { decimals: 0 })}</span>
             <span className="num type-meta text-foreground-tertiary">
               {t('acrossEngines', { count: average.engines })}
             </span>
-          </span>
+            <ChangeInline change={change.change} size="sm" />
+          </TippedChange>
         ),
     };
   });

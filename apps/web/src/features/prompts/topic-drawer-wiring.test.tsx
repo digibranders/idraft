@@ -5,8 +5,8 @@ import { Suspense, useEffect, type ComponentProps, type ReactElement } from 'rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PromptsScreen } from './prompts-screen';
-import type { Role } from '@/lib/api/types';
-import { topicRow } from './topics-by-engine/cells-fixtures';
+import type { EngineSummary, Role } from '@/lib/api/types';
+import { engine, topicRow, weighted } from './topics-by-engine/cells-fixtures';
 import { PermissionProvider } from '@/lib/permissions';
 import { MOCK_TERM_IDS } from '@/mocks/entity-fixtures';
 import { membershipFactory } from '@/mocks/factories/identity';
@@ -165,6 +165,52 @@ describe('the topic drawer: the Overview', () => {
     }
     // The old per-engine cards are gone: the panel is the one By engine section
     expect(within(panel).getAllByRole('heading', { name: 'By engine' })).toHaveLength(1);
+  });
+
+  describe('change since the previous period (WP-19)', () => {
+    const asked: (string | null)[] = [];
+    /** A topic whose engines each rose; the cells of the compared window come only when the read asks for them, as the API's do. */
+    const rising = (): void => {
+      server.use(
+        http.get(SUMMARY_PATH, ({ request }) => {
+          const compare = new URL(request.url).searchParams.get('compare');
+          asked.push(compare);
+          const cells = (code: string): EngineSummary =>
+            engine(code, {
+              mentioned: weighted(30, 60, 2),
+              ...(compare === 'previous_period' ? { previous: { mentioned: weighted(12, 60, 2) } } : {}),
+            });
+          return HttpResponse.json({
+            data: summaryOf([topicRow(PAID_SEARCH, 'Paid Search', 2, [cells('chatgpt_web'), cells('gemini_web')])]),
+          });
+        }),
+      );
+    };
+    const engineRows = async (): Promise<HTMLElement> => {
+      const panel = await drawer('Paid Search');
+      const section = (await within(panel).findByRole('heading', { name: 'By engine' })).closest('section');
+      if (section === null) throw new Error('The By engine section is missing');
+      return section;
+    };
+
+    it('shows the change of each By engine row from the compare read the page asks for', async () => {
+      asked.length = 0;
+      rising();
+      renderOn('viewer', inspect(PAID_SEARCH));
+      const section = await engineRows();
+      await waitFor(() => expect(section).toHaveTextContent('up 30.0 pts, detectable, interim test'));
+      expect(asked).toContain('previous_period');
+    });
+
+    it('asks no compare and shows no change when comparison is off', async () => {
+      asked.length = 0;
+      rising();
+      renderOn('viewer', inspect(PAID_SEARCH, undefined, '&cmp=off'));
+      const section = await engineRows();
+      await waitFor(() => expect(asked.length).toBeGreaterThan(0));
+      expect(asked.every((value) => value === null)).toBe(true);
+      expect(section.textContent).not.toMatch(/\d pts/);
+    });
   });
 });
 

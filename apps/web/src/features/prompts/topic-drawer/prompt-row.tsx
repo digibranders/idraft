@@ -14,13 +14,17 @@ export function PromptRow({
   isBranded,
   onOpen,
   meta,
+  change,
 }: {
   text: string;
   isBranded: boolean;
   onOpen: () => void;
   meta: ReactNode;
+  /** How the prompt's Mention rate moved (WP-19), drawn at the end of the meta line; leave it out where there is none. */
+  change?: ReactNode;
 }): ReactElement {
   const words = useTranslations('prompts');
+  const separator = useTranslations('inspector')('separator');
   return (
     <li className="flex flex-col gap-0.5 border-t border-border-subtle py-2 first:border-t-0 first:pt-0 last:pb-0">
       <span className="flex items-start gap-2">
@@ -29,7 +33,15 @@ export function PromptRow({
         </Button>
         {isBranded ? <Badge>{words('branded')}</Badge> : null}
       </span>
-      <p className="flex flex-wrap items-center gap-x-1.5 type-meta text-foreground-tertiary">{meta}</p>
+      <p className="flex flex-wrap items-center gap-x-1.5 type-meta text-foreground-tertiary">
+        {meta}
+        {change === undefined ? null : (
+          <>
+            <span aria-hidden="true">{separator}</span>
+            {change}
+          </>
+        )}
+      </p>
     </li>
   );
 }
