@@ -55,7 +55,7 @@ type TopicHead = {
 };
 
 /** A topic, one of its prompts while the topic is open, or the row that offers the rest of them. */
-type TopicRow =
+export type TopicRow =
   | TopicHead
   | {
       kind: 'prompt';
@@ -133,6 +133,10 @@ export interface TopicsTableProps {
   onPromptOrderChange: (promptIds: readonly string[]) => void;
   /** The switch between the views of the page, at the end of the toolbar before the density and columns, as on Rankings. */
   viewSwitch?: ReactNode;
+  /** Columns that take the place of the per engine count columns (the By engine view); the table's own ones when left out. */
+  viewColumns?: readonly DataTableColumn<TopicRow>[] | undefined;
+  /** The topics in the order the table lists them, parents with the topics below them: what the topic drawer steps through. */
+  onTopicOrderChange?: ((keys: readonly string[]) => void) | undefined;
   /** The prompts chosen, by prompt id: a topic's box chooses the prompts it holds (`selection-model.ts`). */
   chosen: ReadonlySet<string>;
   onChosenChange: (ids: ReadonlySet<string>) => void;
@@ -198,6 +202,8 @@ export function TopicsTable({
   onOpenTopic,
   onPromptOrderChange,
   viewSwitch,
+  viewColumns,
+  onTopicOrderChange,
   chosen,
   onChosenChange,
   bulkActions,
@@ -308,9 +314,9 @@ export function TopicsTable({
       blankOnMore(rateColumns.citation),
       blankOnMore(rateColumns.topEngine),
       blankOnMore(trendColumn),
-      ...engineColumns.map(blankOnMore),
+      ...(viewColumns ?? engineColumns).map(blankOnMore),
     ];
-  }, [t, rowName, openTopic, rateColumns, trendColumn, engineColumns]);
+  }, [t, rowName, openTopic, rateColumns, trendColumn, engineColumns, viewColumns]);
   // Only the columns that sort: `?sort=-topic` of the Prompts tab names a column here that does not
   const sortValues = useMemo(
     () =>
@@ -432,6 +438,12 @@ export function TopicsTable({
     [rows],
   );
   useEffect(() => onPromptOrderChange(promptOrder), [promptOrder, onPromptOrderChange]);
+  // Every topic of the tree in the order of the sort, a parent and then the topics below it, open or closed
+  const topicOrder = useMemo(
+    () => branches.flatMap(({ row, children }) => [row.key, ...children.map((child) => child.key)]),
+    [branches],
+  );
+  useEffect(() => onTopicOrderChange?.(topicOrder), [topicOrder, onTopicOrderChange]);
   // A prompt of two open topics is two rows: the one clicked is the open one while it still shows the open prompt
   // (stepping or a link name it without a row, and the first row of the prompt stands for it)
   const ofOpenPrompt = (row: TopicRow): boolean => row.kind === 'prompt' && row.promptId === activePromptId;

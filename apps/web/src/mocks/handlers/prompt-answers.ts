@@ -105,6 +105,15 @@ function includeOf(url: URL): { entities: boolean; series: boolean } | Validatio
   return errors.length > 0 ? errors : { entities: values.includes('entities'), series: values.includes('series') };
 }
 
+/** The summary's `rows` (C-3): left out, every row; `topics`, no prompt rows; `none`, no row at all. Any other value is a `literal_error`. */
+function rowsOf(url: URL): 'all' | 'topics' | 'none' | ValidationItem {
+  const value = url.searchParams.get('rows');
+  if (value === null) return 'all';
+  return value === 'topics' || value === 'none'
+    ? value
+    : queryError('rows', 'literal_error', "Input should be 'topics' or 'none'");
+}
+
 /** The start of a project day as an instant. */
 const dayStart = (date: string, timeZone: string): number => {
   const [year = 0, month = 1, day = 1] = date.split('-').map(Number);
@@ -515,6 +524,7 @@ export const promptAnswerHandlers: HttpHandler[] = [
         'filter[country_iso]',
         'filter[term]',
         'include',
+        'rows',
       ],
     });
     if (caller instanceof Response) return caller;
@@ -548,16 +558,19 @@ export const promptAnswerHandlers: HttpHandler[] = [
         : uuidError(termFilter, 'filter[term]').map((item) => queryError(item.path, item.code, item.message))),
     ];
     const include = includeOf(url);
+    const rowsAsked = rowsOf(url);
     if (
       hasCode(asked) ||
       typeof branded !== 'boolean' ||
       typeof brandedOnly !== 'boolean' ||
       scopeErrors.length > 0 ||
-      Array.isArray(include)
+      Array.isArray(include) ||
+      hasCode(rowsAsked)
     ) {
       return invalid(request, [
         ...[asked, branded, brandedOnly, ...scopeErrors].filter(hasCode),
         ...(Array.isArray(include) ? include : []),
+        ...(hasCode(rowsAsked) ? [rowsAsked] : []),
       ]);
     }
     const { firstDate, lastDate } = window.range;
@@ -740,8 +753,9 @@ export const promptAnswerHandlers: HttpHandler[] = [
       entities: entitiesOf(caller),
       // Every fixture answer was derived under the first entity configuration
       entity_config_versions: counted ? [1] : [],
-      prompts: rows,
-      topics,
+      // `rows` only leaves lists out: every cell above was built from the full set, as the API's aggregates are
+      prompts: rowsAsked === 'all' ? rows : [],
+      topics: rowsAsked === 'none' ? [] : topics,
     };
     return HttpResponse.json({ data: summary });
   }),

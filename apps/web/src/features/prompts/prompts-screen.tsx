@@ -58,7 +58,8 @@ import { PROMPTS_TOOLBAR_ENTRIES, promptsToolbarItems } from './seams/toolbar';
 import { usePromptActions } from './use-prompt-actions';
 import { TopicInspector } from './topic-inspector';
 import { selectionKeyOf } from './selection-model';
-import { TopicsTable, type TopicMenuTarget } from './topics-table';
+import { TopicsView } from './topics-by-engine/topics-view';
+import type { TopicMenuTarget } from './topics-table';
 import { DateRangePicker } from '@/components/app/date-range/date-range-picker';
 import { droppedMessageKey } from '@/components/app/date-range/range-model';
 import { useDateRangeParams } from '@/components/app/date-range/use-date-range-params';
@@ -871,7 +872,11 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 }
               />
             ) : null}
-            <TopicsTable
+            <TopicsView
+              scope={scope}
+              range={range}
+              includeBranded={includeBranded}
+              country={country}
               summary={summary.data?.data}
               engines={shown}
               descendants={descendants}
