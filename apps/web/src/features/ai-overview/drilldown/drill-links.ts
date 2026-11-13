@@ -2,7 +2,7 @@ import type { Route } from 'next';
 
 import { MAX_RANGE_DAYS, writeRangeParams } from '@/components/app/date-range/range-model';
 import { cmpParam } from '@/lib/compare/compare-model';
-import { formatInspectTarget } from '@/lib/inspector/placement';
+import { formatInspectTarget, type InspectorTarget } from '@/lib/inspector/placement';
 import { NAVIGATION, type NavKey } from '@/lib/navigation/registry';
 import { projectPath, withQuery } from '@/lib/routes/paths';
 import { formatSort } from '@/lib/tables/table-state';
@@ -30,6 +30,8 @@ export type DrillKind =
   | 'topic'
   /** The topic drawer over the Prompts page: `inspect=topic:<term>`. */
   | 'topicDrawer'
+  /** The prompt inspector over the Prompts page: `inspect=prompt:<id>`, on whichever tab the page opens. */
+  | 'prompt'
   | 'citations'
   | 'competitors'
   | 'sources'
@@ -45,6 +47,8 @@ export interface DrillExtra {
   metric?: DrillMetric | undefined;
   /** The topic term to open (`topicDrawer`) or to filter to (`topic`), in place of the topic of the scope. */
   term?: string | undefined;
+  /** The prompt to open (`prompt`, required). */
+  promptId?: string | undefined;
   outcome?: string | undefined;
   opportunity?: string | undefined;
 }
@@ -64,6 +68,7 @@ export const DRILL_SUPPORT: DrillSupport = {
   prompts: { outcome: false, opportunity: false },
   topic: { outcome: false, opportunity: false },
   topicDrawer: { outcome: false, opportunity: false },
+  prompt: { outcome: false, opportunity: false },
   citations: { outcome: false, opportunity: false },
   competitors: { outcome: false, opportunity: false },
   sources: { outcome: false, opportunity: false },
@@ -89,12 +94,18 @@ const DESTINATIONS: Readonly<Record<DrillKind, Destination>> = {
   prompts: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE },
   topic: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE },
   topicDrawer: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE },
+  prompt: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE },
   citations: { nav: 'citations', scoped: true, country: false, branded: BRANDED_INCLUDE },
   competitors: { nav: 'competitors', scoped: true, country: true, branded: BRANDED_INCLUDE },
   sources: { nav: 'sources', scoped: true, country: true, branded: BRANDED_INCLUDE },
   // Runs reads a month, not a window: the scope means nothing there
   runs: { nav: 'runs', scoped: false, country: false, branded: BRANDED_INCLUDE },
 };
+
+const termTarget = (id: string | null | undefined): InspectorTarget | null =>
+  id === null || id === undefined ? null : { type: 'topic', id };
+const promptTarget = (id: string | undefined): InspectorTarget | null =>
+  id === undefined ? null : { type: 'prompt', id };
 
 /** The sort id of an engine's rate column on the Prompts tab (`engineSortId` of the Prompts page). */
 const engineRateSort = (engineCode: string): string => `${engineCode}_rate`;
@@ -125,8 +136,14 @@ export function drillHref(
 
   const branded = destination.branded[scope.branded];
   if (branded === undefined || (scope.country !== null && !destination.country)) return null;
-  const drawer = kind === 'topicDrawer' ? (extra.term ?? scope.topic) : null;
-  if (kind === 'topicDrawer' && drawer === null) return null;
+  // The object a drawer opens: a topic term (the scope's topic when none is given) or a prompt
+  const target: InspectorTarget | null =
+    kind === 'topicDrawer'
+      ? termTarget(extra.term ?? scope.topic)
+      : kind === 'prompt'
+        ? promptTarget(extra.promptId)
+        : null;
+  if ((kind === 'topicDrawer' || kind === 'prompt') && target === null) return null;
 
   const query = new URLSearchParams();
   const put = (key: string, value: string | null | undefined): void => {
@@ -140,14 +157,15 @@ export function drillHref(
   put('country', scope.country);
   const engines = extra.engine === undefined ? scope.engines : [extra.engine];
   put('engine', engines === null ? null : engines.join(','));
-  put('topic', kind === 'topicDrawer' ? scope.topic : (extra.term ?? scope.topic));
+  // A drawer's own term is not a filter: the scope's topic is
+  put('topic', kind === 'topicDrawer' || kind === 'prompt' ? scope.topic : (extra.term ?? scope.topic));
   put('branded', branded);
   if (kind === 'prompts') {
     put('tab', 'prompts');
     if (extra.engine !== undefined) put('sort', formatSort([{ id: engineRateSort(extra.engine), desc: true }]));
     if (extra.metric !== undefined && extra.metric !== 'mention') put('metric', extra.metric);
   }
-  if (drawer !== null) put('inspect', formatInspectTarget({ type: 'topic', id: drawer }));
+  if (target !== null) put('inspect', formatInspectTarget(target));
   if (support[kind].outcome) put('outcome', extra.outcome);
   if (support[kind].opportunity) put('opportunity', extra.opportunity);
   return withQuery(path, query.toString());

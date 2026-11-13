@@ -20,6 +20,7 @@ const NO_SUPPORT: DrillSupport = {
   prompts: { outcome: false, opportunity: false },
   topic: { outcome: false, opportunity: false },
   topicDrawer: { outcome: false, opportunity: false },
+  prompt: { outcome: false, opportunity: false },
   citations: { outcome: false, opportunity: false },
   competitors: { outcome: false, opportunity: false },
   sources: { outcome: false, opportunity: false },
@@ -220,6 +221,38 @@ describe('the topic drawer', () => {
       `topic:${TOPIC}`,
     );
     expect(drillHref('topicDrawer', scopeOf(), {}, PROJECT)).toBeNull();
+  });
+});
+
+describe('a prompt', () => {
+  const PROMPT = '7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f';
+
+  it('is inspect=prompt:<id> on the Prompts page with the scope carried like the topic drawer, and no tab', () => {
+    const href = drillHref('prompt', NARROWED, { promptId: PROMPT, term: OTHER_TOPIC }, PROJECT);
+    const query = queryOf(href);
+    expect(pathOf(href)).toBe('/acme/eventus/ai/prompts');
+    expect(parseInspectTarget(query.get('inspect'))).toEqual({ type: 'prompt', id: PROMPT });
+    expect(query.get('tab')).toBeNull();
+    expect(query.get('from')).toBe('2026-10-01');
+    expect(query.get('to')).toBe('2026-10-20');
+    expect(query.get('cmp')).toBe('off');
+    expect(query.get('country')).toBe('DE');
+    expect(query.get('engine')).toBe('chatgpt_web,gemini_web');
+    expect(query.get('topic')).toBe(TOPIC);
+    expect(query.get('branded')).toBe('include');
+    expect(parseCountry(query.get('country'))).toBe('DE');
+    expect(parseEnumList(query.get('engine'), new Set(ENGINES))).toEqual(['chatgpt_web', 'gemini_web']);
+  });
+
+  it('is null without a prompt id, for branded only, for a 92 day window and when Prompts is not live', () => {
+    expect(drillHref('prompt', scopeOf(), {}, PROJECT)).toBeNull();
+    expect(drillHref('prompt', scopeOf({ branded: 'only' }), { promptId: PROMPT }, PROJECT)).toBeNull();
+    const long = scopeOf({
+      rangeValue: { kind: 'custom', from: '2026-08-13', to: '2026-11-12' },
+      range: { from: '2026-08-13', to: '2026-11-12', days: 92 },
+    });
+    expect(drillHref('prompt', long, { promptId: PROMPT }, PROJECT)).toBeNull();
+    expect(isLive('prompts')).toBe(true);
   });
 });
 
