@@ -164,16 +164,18 @@ function AnswerInspectorBody({
   // reads as its first value, which is what `useQueryState` returns.
   const [cite, setCite] = useQueryState('cite', parseAsString);
   const cited = answer === null ? null : citedIndex(cite, answer.citations);
-  const shownCitation = activeCitation ?? cited;
+  // Taken once, while rendering, so the citation stays active after the key is spent below
+  const [arrivedAt, setArrivedAt] = useState<number | null>(null);
+  if (arrivedAt === null && cited !== null) setArrivedAt(cited);
+  const shownCitation = activeCitation ?? arrivedAt;
   const citeRevealed = useRef(false);
   useEffect(() => {
     if (citeRevealed.current || answer === null) return;
     citeRevealed.current = true;
     if (cited === null) return;
     reveal(document.getElementById(citationItemId(idPrefix, cited)));
-    // The key is spent: kept in the address it would point at a citation of the next answer opened. The citation
-    // stays active through the state, and a refresh does not come back to it.
-    setActiveCitation(cited);
+    // The key is spent: kept in the address it would point at a citation of the next answer opened. A refresh does
+    // not come back to it.
     void setCite(null);
   }, [answer, cited, idPrefix, setCite]);
 
