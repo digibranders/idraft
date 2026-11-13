@@ -453,6 +453,17 @@ EXPECTED: dict[tuple[str, str], str] = {
     # WP-12 summary-lane
     # WP-13 prompts-lane
     # WP-14 sources-lane
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/diversity"): (
+        "data:read"
+    ),
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains/"
+        "{registrable_domain}",
+    ): "data:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/prompts"): (
+        "data:read"
+    ),
     # WP-26 evidence-viewer
     # WP-30 runs-costs-health
     # WP-31 settings-engines
@@ -561,6 +572,9 @@ PATH_PARAMETERS = {
     # WP-12 summary-lane
     # WP-13 prompts-lane
     # WP-14 sources-lane
+    # A registrable domain (`g2.com`), a word and not an id, after `{project_id}`: the service
+    # reads its citations within that project.
+    "registrable_domain",
     # WP-26 evidence-viewer
     # WP-30 runs-costs-health
     # WP-31 settings-engines

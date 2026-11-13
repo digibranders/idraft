@@ -9,7 +9,7 @@ from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Path, Query
 
 from idraft.api.ai.sources import SourceQuery, SourceService
 from idraft.api.pagination import Commas, Cursor, Offset
@@ -17,11 +17,16 @@ from idraft.api.permissions import Permission
 from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai_sources import (
     CitationPage,
+    DiversityInclude,
     DomainRole,
+    FanoutInclude,
     FanoutQueryPage,
+    PromptOwnPagesPage,
     SourceChangeKind,
     SourceChangePage,
     SourceCompare,
+    SourceDiversity,
+    SourceDomainDetail,
     SourceDomainInclude,
     SourceDomainPage,
     SourcePageInclude,
@@ -120,6 +125,36 @@ MinSupport = Annotated[
     ),
 ]
 
+AnswerScope = Annotated[SourceQuery, Depends(answer_scope)]
+
+_UNRESOLVED = (
+    "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to "
+    "its target, such as Gemini's grounding links), which are left out by default (docs/14 "
+    "section 9). " + _NOT_BUILT
+)
+_INTERNAL = (
+    "Count the citations flagged `engine_internal` (links into the engine's own product), which "
+    "are left out by default (docs/14 section 9). " + _NOT_BUILT
+)
+
+
+def flag_toggles(
+    include_unresolved_redirects: Annotated[bool, Query(description=_UNRESOLVED)] = False,
+    include_engine_internal: Annotated[bool, Query(description=_INTERNAL)] = False,
+) -> tuple[str, ...]:
+    """The citation flags a read leaves out (docs/14 section 9)."""
+    return tuple(
+        flag
+        for flag, counted in (
+            ("engine_internal", include_engine_internal),
+            ("unresolved_redirect", include_unresolved_redirects),
+        )
+        if not counted
+    )
+
+
+Flags = Annotated[tuple[str, ...], Depends(flag_toggles)]
+
 
 @router.get(
     "/sources/domains",
@@ -137,6 +172,7 @@ async def source_domains(
     sources: Sources,
     scope: Scope,
     page: Offset,
+    flags: Flags,
     sort: SourceSort = "-citation_units",
     compare: SourceCompare = "none",
     include: Annotated[
@@ -155,6 +191,8 @@ async def source_domains(
             "include": bool(include),
             "min_support": min_support is not None,
             "filter[country_iso]": country_iso is not None,
+            "include_unresolved_redirects": "unresolved_redirect" not in flags,
+            "include_engine_internal": "engine_internal" not in flags,
         }
     )
     return await sources.domains(access, project_id, scope, sort=sort, compare=compare, page=page)
@@ -186,6 +224,7 @@ async def source_pages(
     sources: Sources,
     scope: Scope,
     page: Offset,
+    flags: Flags,
     registrable_domain: RegistrableDomain = None,
     sort: SourceSort = "-citation_units",
     compare: SourceCompare = "none",
@@ -202,6 +241,8 @@ async def source_pages(
             "include": bool(include),
             "min_support": min_support is not None,
             "filter[country_iso]": country_iso is not None,
+            "include_unresolved_redirects": "unresolved_redirect" not in flags,
+            "include_engine_internal": "engine_internal" not in flags,
         }
     )
     return await sources.pages(
@@ -230,10 +271,79 @@ async def source_changes(
     access: ReadData,
     scope: Scope,
     page: Offset,
+    flags: Flags,
     kind: SourceChangeKind = "new",
     min_support: Annotated[int, Query(ge=1, le=1000)] = 2,
     country_iso: CountryFilter = None,
 ) -> SourceChangePage:
+    raise not_built_yet()
+
+
+@router.get(
+    "/sources/diversity",
+    summary="Source diversity per engine",
+    description=SCOPE
+    + "Per engine: the valid answers, the answers that cite a source, the citation units, the "
+    "registrable domains cited (roles merged) and the effective number of sources (docs/16 C3: "
+    "1 over the sum of squared source shares, with its numerator and denominator visible). "
+    "Engines are never pooled: `meta.distinct_domains` is a count over every engine in scope "
+    "and `meta.effective_sources_engine_average` the equal-weight mean of the engines with "
+    "units. `include=series` adds a weekly point per engine and `include=ads` the answers that "
+    "showed an ad. " + _NOT_BUILT,
+)
+@not_built
+async def source_diversity(
+    project_id: UUID,
+    access: ReadData,
+    scope: AnswerScope,
+    flags: Flags,
+    include: Annotated[list[DiversityInclude] | None, Commas, Query(max_length=2)] = None,
+    country_iso: CountryFilter = None,
+) -> SourceDiversity:
+    raise not_built_yet()
+
+
+@router.get(
+    "/sources/domains/{registrable_domain}",
+    summary="One cited domain",
+    description=SCOPE
+    + "One registrable domain as the domain list names it: its rows (one per role and entity, "
+    "at most 10), its units per engine and week, its 10 most cited pages, the 20 prompts "
+    "whose answers cite it most and the 5 tracked entities named most in those answers. A "
+    "domain that is not cited in scope answers `200` with empty lists. " + _NOT_BUILT,
+)
+@not_built
+async def source_domain(
+    project_id: UUID,
+    registrable_domain: Annotated[str, Path(min_length=1, max_length=253)],
+    access: ReadData,
+    scope: AnswerScope,
+    flags: Flags,
+    country_iso: CountryFilter = None,
+) -> SourceDomainDetail:
+    raise not_built_yet()
+
+
+@router.get(
+    "/sources/prompts",
+    summary="Each prompt's own pages, per engine",
+    description=SCOPE
+    + "One row per prompt and engine with a counted answer: the valid answers, the answers "
+    "that cite an own page, the own citation units, the distinct own pages and the one with "
+    "the most units. `filter[own_cited]=false` keeps the prompts whose answers cite no own page. "
+    "Keyset pages `(prompt_id, engine_code)`; a cursor is bound to its filters (`400 "
+    "invalid_cursor` otherwise). " + _NOT_BUILT,
+)
+@not_built
+async def source_prompts(
+    project_id: UUID,
+    access: ReadData,
+    scope: AnswerScope,
+    page: Cursor,
+    flags: Flags,
+    own_cited: Annotated[bool | None, Query(alias="filter[own_cited]")] = None,
+    country_iso: CountryFilter = None,
+) -> PromptOwnPagesPage:
     raise not_built_yet()
 
 
@@ -267,9 +377,6 @@ async def citation_list(
     )
 
 
-AnswerScope = Annotated[SourceQuery, Depends(answer_scope)]
-
-
 @router.get(
     "/fanout-queries",
     summary="The queries ChatGPT issued while answering, by how many answers issued them",
@@ -294,7 +401,12 @@ async def fanout_queries(
     min_support: Annotated[
         int, Query(ge=1, le=1000, description="The fewest answers a query is listed for.")
     ] = 2,
+    include: Annotated[
+        list[FanoutInclude] | None,
+        Commas,
+        Query(max_length=1, description="Blocks to add: `topics`. " + _NOT_BUILT),
+    ] = None,
     country_iso: CountryFilter = None,
 ) -> FanoutQueryPage:
-    refuse_unbuilt({"filter[country_iso]": country_iso is not None})
+    refuse_unbuilt({"filter[country_iso]": country_iso is not None, "include": bool(include)})
     return await sources.fanout(access, project_id, scope, min_support=min_support, page=page)

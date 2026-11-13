@@ -41,6 +41,9 @@ COUNTRY = {"filter[country_iso]": "US"}
         ("sources/pages", COUNTRY),
         ("citations", COUNTRY),
         ("fanout-queries", COUNTRY),
+        ("sources/domains", {"include_unresolved_redirects": "true"}),
+        ("sources/pages", {"include_engine_internal": "true"}),
+        ("fanout-queries", {"include": "topics"}),
     ],
 )
 async def test_a_source_addition_answers_501(
@@ -77,6 +80,51 @@ async def test_source_changes_answers_501(
     assert problem(response) == NOT_BUILT
 
 
+NEW_ROUTES = ["sources/diversity", "sources/domains/g2.com", "sources/prompts"]
+
+
+@pytest.mark.parametrize("path", NEW_ROUTES)
+async def test_a_new_source_route_answers_501(
+    path: str, api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.get(project_url(workspace, project, "ai", path), headers=viewer.headers)
+
+    assert problem(response) == NOT_BUILT
+
+
+@pytest.mark.parametrize("path", NEW_ROUTES)
+async def test_a_new_source_route_checks_access_first(
+    path: str, api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    billing = await member(resources, migrated, workspace, "billing")
+    outsider = await member(resources, migrated, await make_workspace(migrated), "owner")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "ai", path)
+
+    assert problem(await api.get(url, headers=billing.headers)) == FORBIDDEN
+    assert problem(await api.get(url, headers=outsider.headers)) == NOT_FOUND
+
+
+async def test_a_registrable_domain_longer_than_253_is_refused(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.get(
+        project_url(workspace, project, "ai", "sources", "domains", "a" * 250 + ".com"),
+        headers=viewer.headers,
+    )
+
+    assert problem(response) == INVALID
+
+
 @pytest.mark.parametrize(
     ("path", "params"),
     [("sources/changes", {}), ("sources/domains", {"include": "series"})],
@@ -108,6 +156,11 @@ async def test_the_source_reads_check_access_first(
         ("sources/domains", {"filter[country_iso]": "us"}),
         ("sources/domains", {"include": "series,cited_with,by_role_by_engine,series"}),
         ("sources/pages", {"include": "series,series"}),
+        ("sources/diversity", {"include": "pages"}),
+        ("sources/diversity", {"include": "series,ads,series"}),
+        ("fanout-queries", {"include": "series"}),
+        ("sources/prompts", {"filter[own_cited]": "maybe"}),
+        ("sources/prompts", {"limit": "201"}),
     ],
 )
 async def test_an_addition_out_of_bounds_is_refused(
@@ -226,3 +279,70 @@ def test_the_api_document_has_the_source_additions() -> None:
         )
         # The house list parameters (`filter[engine_code_in]`) publish their bound as `maxLength`.
         assert include["schema"]["maxLength"] == bound, path
+
+
+def _parameter(operation: dict[str, Any], name: str) -> dict[str, Any]:
+    found: list[dict[str, Any]] = [
+        parameter for parameter in operation["parameters"] if parameter["name"] == name
+    ]
+    assert len(found) == 1, name
+    return found[0]
+
+
+def test_the_api_document_has_the_new_source_routes() -> None:
+    document = build_openapi()
+    paths = document["paths"]
+    schemas = document["components"]["schemas"]
+    prefix = "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai"
+
+    for path in ("sources/diversity", "sources/domains/{registrable_domain}", "sources/prompts"):
+        assert f"{prefix}/{path}" in paths, path
+    for name in (
+        "SourceDiversity",
+        "SourceDiversityEngine",
+        "SourceDiversityMeta",
+        "DiversityWeek",
+        "AdPresence",
+        "SourceDomainDetail",
+        "SourceDomainDetailData",
+        "DomainEngineSeries",
+        "DomainEngineWeek",
+        "DomainPrompt",
+        "PromptOwnPagesPage",
+        "PromptOwnPagesRow",
+        "PromptOwnPagesMeta",
+        "OwnPage",
+        "FanoutTopic",
+    ):
+        assert name in schemas, name
+
+    topics = schemas["FanoutQueryRow"]["properties"]["topics"]
+    assert "topics" not in schemas["FanoutQueryRow"].get("required", [])
+    assert _bound(topics, "maxItems") == 10
+    assert schemas["SourceDiversity"]["properties"]["data"]["maxItems"] == 3
+    for field, bound in (
+        ("rows", 10),
+        ("top_pages", 10),
+        ("prompts", 20),
+        ("cited_with", 5),
+        ("engines", 3),
+    ):
+        detail = schemas["SourceDomainDetailData"]["properties"][field]
+        assert detail["maxItems"] == bound, field
+
+    diversity = paths[f"{prefix}/sources/diversity"]["get"]
+    fanout = paths[f"{prefix}/fanout-queries"]["get"]
+    assert _parameter(diversity, "include")["schema"]["maxLength"] == 2
+    assert _parameter(fanout, "include")["schema"]["maxLength"] == 1
+    assert "filter[own_cited]" in _parameters(paths[f"{prefix}/sources/prompts"]["get"])
+    for path in (
+        "sources/domains",
+        "sources/pages",
+        "sources/changes",
+        "sources/diversity",
+        "sources/domains/{registrable_domain}",
+        "sources/prompts",
+    ):
+        operation = paths[f"{prefix}/{path}"]["get"]
+        for name in ("include_unresolved_redirects", "include_engine_internal"):
+            assert _parameter(operation, name)["schema"]["default"] is False, (path, name)

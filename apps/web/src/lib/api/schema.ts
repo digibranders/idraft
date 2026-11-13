@@ -1220,6 +1220,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/diversity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Source diversity per engine
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). Per engine: the valid answers, the answers that cite a source, the citation units, the registrable domains cited (roles merged) and the effective number of sources (docs/16 C3: 1 over the sum of squared source shares, with its numerator and denominator visible). Engines are never pooled: `meta.distinct_domains` is a count over every engine in scope and `meta.effective_sources_engine_average` the equal-weight mean of the engines with units. `include=series` adds a weekly point per engine and `include=ads` the answers that showed an ad. Not built yet: `501 not_implemented`.
+         */
+        get: operations["source_diversity_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_diversity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains": {
         parameters: {
             query?: never;
@@ -1240,6 +1260,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains/{registrable_domain}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One cited domain
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One registrable domain as the domain list names it: its rows (one per role and entity, at most 10), its units per engine and week, its 10 most cited pages, the 20 prompts whose answers cite it most and the 5 tracked entities named most in those answers. A domain that is not cited in scope answers `200` with empty lists. Not built yet: `501 not_implemented`.
+         */
+        get: operations["source_domain_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_domains__registrable_domain__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages": {
         parameters: {
             query?: never;
@@ -1252,6 +1292,26 @@ export interface paths {
          * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per canonical page and role: as the domain rows, plus the URL, host, registrable domain and a title an answer gave it. `filter[registrable_domain]` keeps one domain's pages, whose units add up to its row's. Offset pages; the same sorts as the domains. `compare=previous_period` (default `none`) adds `previous` to each row, its units and citing answers over as many days just before the window (0 when not cited there: docs/16 C5), with `meta.compare_window` and `meta.previous_answers`.
          */
         get: operations["source_pages_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_pages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/prompts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Each prompt's own pages, per engine
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per prompt and engine with a counted answer: the valid answers, the answers that cite an own page, the own citation units, the distinct own pages and the one with the most units. `filter[own_cited]=false` keeps the prompts whose answers cite no own page. Keyset pages `(prompt_id, engine_code)`; a cursor is bound to its filters (`400 invalid_cursor` otherwise). Not built yet: `501 not_implemented`.
+         */
+        get: operations["source_prompts_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_prompts_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2596,6 +2656,16 @@ export interface components {
             /** Label */
             label: string;
         };
+        /** AdPresence */
+        AdPresence: {
+            /**
+             * Ads
+             * @description Ads stored with those answers.
+             */
+            ads: number;
+            /** @description Answers that showed at least one ad, of the valid answers on the engine. Ads are kept out of answers and citations (docs/07 section 5.4); extras the 16 KB bound emptied count as no ad. */
+            answers_with_ads: components["schemas"]["MetricCell"];
+        };
         /** AiCoverage */
         AiCoverage: {
             /** By Engine */
@@ -3577,6 +3647,23 @@ export interface components {
             /** Mobile */
             mobile: number;
         };
+        /** DiversityWeek */
+        DiversityWeek: {
+            /** Citation Units */
+            citation_units: number;
+            /** Distinct Domains */
+            distinct_domains: number;
+            /**
+             * Effective Sources
+             * @description Null when the week has no unit.
+             */
+            effective_sources: number | null;
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
+        };
         /** DomainCategory */
         DomainCategory: {
             /** Code */
@@ -3590,6 +3677,31 @@ export interface components {
         DomainCategoryList: {
             /** Data */
             data: components["schemas"]["DomainCategory"][];
+        };
+        /** DomainEngineSeries */
+        DomainEngineSeries: {
+            engine_code: components["schemas"]["EngineCode"];
+            /** Series */
+            series: components["schemas"]["DomainEngineWeek"][];
+        };
+        /** DomainEngineWeek */
+        DomainEngineWeek: {
+            /**
+             * All Citation Units
+             * @description Every unit of the engine that week: the share's denominator.
+             */
+            all_citation_units: number;
+            /** Answers */
+            answers: number;
+            /** Citation Units */
+            citation_units: number;
+            /** Observations */
+            observations: number;
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
         };
         /** DomainInput */
         DomainInput: {
@@ -3606,6 +3718,18 @@ export interface components {
              * @description Given exactly when `match_scope` is `path_prefix`.
              */
             path_prefix?: string | null;
+        };
+        /** DomainPrompt */
+        DomainPrompt: {
+            /** Citation Units */
+            citation_units: number;
+            /** Observations */
+            observations: number;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
         };
         /** DomainRef */
         DomainRef: {
@@ -4086,6 +4210,24 @@ export interface components {
              * @description Its most common spelling in the answers. Provider text (untrusted: show it as text, never as markup); cut to 300 characters with a trailing `...`.
              */
             query_text: string;
+            /**
+             * Topics
+             * @description With `include=topics`: the topic terms tagged on the prompts whose answers issued it, the most answers first, at most 10. Not returned yet: absent from every response until it is built.
+             */
+            topics?: components["schemas"]["FanoutTopic"][] | null;
+        };
+        /** FanoutTopic */
+        FanoutTopic: {
+            /**
+             * Observations
+             * @description Answers of the term's prompts that issued the query.
+             */
+            observations: number;
+            /**
+             * Term Id
+             * Format: uuid
+             */
+            term_id: string;
         };
         /** FeatureCheck */
         FeatureCheck: {
@@ -5803,6 +5945,13 @@ export interface components {
              */
             domains?: string[];
         };
+        /** OwnPage */
+        OwnPage: {
+            /** Url */
+            url: string;
+            /** Url Id */
+            url_id: number;
+        };
         /** PasswordChangeRequest */
         PasswordChangeRequest: {
             /** Current Password */
@@ -6541,6 +6690,46 @@ export interface components {
             /** @description Not returned yet: absent from every response until it is built. */
             estimate?: components["schemas"]["LintEstimate"] | null;
             quota: components["schemas"]["PromptQuota"];
+        };
+        /** PromptOwnPagesMeta */
+        PromptOwnPagesMeta: {
+            /** Engine Codes */
+            engine_codes: components["schemas"]["EngineCode"][];
+            /** Include Branded */
+            include_branded: boolean;
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** PromptOwnPagesPage */
+        PromptOwnPagesPage: {
+            /** Data */
+            data: components["schemas"]["PromptOwnPagesRow"][];
+            meta: components["schemas"]["PromptOwnPagesMeta"];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** PromptOwnPagesRow */
+        PromptOwnPagesRow: {
+            /**
+             * Answers
+             * @description Valid answers of the prompt on the engine in scope.
+             */
+            answers: number;
+            /** Answers Citing Own */
+            answers_citing_own: number;
+            engine_code: components["schemas"]["EngineCode"];
+            /** Own Citation Units */
+            own_citation_units: number;
+            /**
+             * Own Pages
+             * @description Distinct own pages cited.
+             */
+            own_pages: number;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /** @description The own page with the most units; null if none. */
+            top_own_page: components["schemas"]["OwnPage"] | null;
         };
         /** PromptPage */
         PromptPage: {
@@ -7957,6 +8146,74 @@ export interface components {
             /** Min Support */
             min_support: number;
             window: components["schemas"]["MetricWindow"];
+        };
+        /** SourceDiversity */
+        SourceDiversity: {
+            /** Data */
+            data: components["schemas"]["SourceDiversityEngine"][];
+            meta: components["schemas"]["SourceDiversityMeta"];
+        };
+        /** SourceDiversityEngine */
+        SourceDiversityEngine: {
+            /** @description With `include=ads`. Not returned yet: absent from every response until it is built. */
+            ads?: components["schemas"]["AdPresence"] | null;
+            /** Answers */
+            answers: number;
+            /** Answers Citing */
+            answers_citing: number;
+            /** Citation Units */
+            citation_units: number;
+            /**
+             * Distinct Domains
+             * @description Registrable domains cited, roles merged (C3).
+             */
+            distinct_domains: number;
+            /** @description Effective number of sources (docs/16 C3): 1 / sum of squared source shares, as (sum of units)^2 over the sum of squared units per domain. */
+            effective_sources: components["schemas"]["MetricCell"];
+            engine_code: components["schemas"]["EngineCode"];
+            /**
+             * Series
+             * @description With `include=series`. Not returned yet: absent from every response until it is built.
+             */
+            series?: components["schemas"]["DiversityWeek"][] | null;
+        };
+        /** SourceDiversityMeta */
+        SourceDiversityMeta: {
+            /**
+             * Distinct Domains
+             * @description Over every engine in scope (a count).
+             */
+            distinct_domains: number;
+            /**
+             * Effective Sources Engine Average
+             * @description The equal-weight mean of the engines' effective sources, engines with units only (docs/16 rule 2: never pooled).
+             */
+            effective_sources_engine_average: number | null;
+            /** Engine Codes */
+            engine_codes: components["schemas"]["EngineCode"][];
+            /** Include Branded */
+            include_branded: boolean;
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** SourceDomainDetail */
+        SourceDomainDetail: {
+            data: components["schemas"]["SourceDomainDetailData"];
+            meta: components["schemas"]["SourcesMeta"];
+        };
+        /** SourceDomainDetailData */
+        SourceDomainDetailData: {
+            /** Cited With */
+            cited_with: components["schemas"]["CitedWith"][];
+            /** Engines */
+            engines: components["schemas"]["DomainEngineSeries"][];
+            /** Prompts */
+            prompts: components["schemas"]["DomainPrompt"][];
+            /** Registrable Domain */
+            registrable_domain: string;
+            /** Rows */
+            rows: components["schemas"]["SourceDomainRow"][];
+            /** Top Pages */
+            top_pages: components["schemas"]["SourcePageRow"][];
         };
         /** SourceDomainPage */
         SourceDomainPage: {
@@ -11698,6 +11955,8 @@ export interface operations {
             query?: {
                 /** @description The fewest answers a query is listed for. */
                 min_support?: number;
+                /** @description Blocks to add: `topics`. Not built yet: `501 not_implemented`. */
+                include?: "topics"[] | null;
                 /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`. */
                 "filter[country_iso]"?: string | null;
                 from?: string | null;
@@ -11996,6 +12255,10 @@ export interface operations {
                 include_branded?: boolean;
                 offset?: number;
                 limit?: number;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                include_engine_internal?: boolean;
             };
             header?: never;
             path: {
@@ -12013,6 +12276,54 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourceChangePage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    source_diversity_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_diversity_get: {
+        parameters: {
+            query?: {
+                include?: ("series" | "ads")[] | null;
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`. */
+                "filter[country_iso]"?: string | null;
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description One prompt's answers, whether it is active, archived or branded. */
+                "filter[prompt_id]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                include_engine_internal?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceDiversity"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -12048,6 +12359,10 @@ export interface operations {
                 include_branded?: boolean;
                 offset?: number;
                 limit?: number;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                include_engine_internal?: boolean;
             };
             header?: never;
             path: {
@@ -12065,6 +12380,54 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourceDomainPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    source_domain_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_domains__registrable_domain__get: {
+        parameters: {
+            query?: {
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`. */
+                "filter[country_iso]"?: string | null;
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description One prompt's answers, whether it is active, archived or branded. */
+                "filter[prompt_id]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                include_engine_internal?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                registrable_domain: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceDomainDetail"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -12102,6 +12465,10 @@ export interface operations {
                 include_branded?: boolean;
                 offset?: number;
                 limit?: number;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                include_engine_internal?: boolean;
             };
             header?: never;
             path: {
@@ -12119,6 +12486,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourcePagePage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    source_prompts_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_prompts_get: {
+        parameters: {
+            query?: {
+                "filter[own_cited]"?: boolean | null;
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`. */
+                "filter[country_iso]"?: string | null;
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description One prompt's answers, whether it is active, archived or branded. */
+                "filter[prompt_id]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`. */
+                include_engine_internal?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptOwnPagesPage"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -15261,6 +15679,7 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryG
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryFilterOutcomeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["filter[outcome]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesChangesGetParametersQueryKindValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/changes"]["get"]["parameters"]["query"]["kind"]> = ["new", "lost"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesChangesGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/changes"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDiversityGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/diversity"]["get"]["parameters"]["query"]["include"]> = ["series", "ads"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDomainsGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains"]["get"]["parameters"]["query"]["sort"]> = ["-citation_units", "-observations", "-prompts"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDomainsGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDomainsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains"]["get"]["parameters"]["query"]["include"]> = ["series", "cited_with", "by_role_by_engine"];

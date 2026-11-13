@@ -2,7 +2,9 @@
 
 ## Status
 
-Published by WP-03 on 2026-11-13. Owner package: [WP-14 sources-lane](../work-packages/WP-14-sources-lane.md)
+Published by WP-03 on 2026-11-13. WP-14 published three more routes and parameters on 2026-11-13
+(first push of its package, contract first). Owner package:
+[WP-14 sources-lane](../work-packages/WP-14-sources-lane.md)
 (rows CF-07 to CF-10, OV-N6, OV-N7, BE-SOURCES-05, BE-SOURCES-06; the source models in
 `schemas/ai_sources.py` and the routes in `api/ai/source_routes.py`, extended additively by WP-03 under
 plan decision D4).
@@ -10,11 +12,15 @@ plan decision D4).
 | Item | Kind | Answers today |
 |---|---|---|
 | `GET {P}/ai/sources/changes` | new route (stub) | `501` after the access checks and query validation |
+| `GET {P}/ai/sources/diversity` | new route (stub, WP-14) | same |
+| `GET {P}/ai/sources/domains/{registrable_domain}` | new route (stub, WP-14) | same |
+| `GET {P}/ai/sources/prompts` | new route (stub, WP-14) | same |
 | `sources/domains`: `include`, `min_support`, `filter[country_iso]` | optional additions to a built route | `501` when used |
 | `sources/pages`: `include=series`, `min_support`, `filter[country_iso]` | optional additions | `501` when used |
 | `citations`: `filter[country_iso]` | optional addition | `501` when used |
-| `fanout-queries`: `filter[country_iso]` | optional addition | `501` when used |
-| Response fields on domain rows, page rows and `meta` | new optional fields | absent from every response (not returned yet) |
+| `fanout-queries`: `filter[country_iso]`, `include=topics` | optional additions | `501` when used |
+| `include_unresolved_redirects`, `include_engine_internal` (default false) on domains, pages, changes, diversity, domain detail, prompts | optional additions | `501` when set on a built route; accepted by the stubs |
+| Response fields on domain rows, page rows, fan-out rows and `meta` | new optional fields | absent from every response (not returned yet) |
 
 A request that leaves the additions out answers exactly as before (no `series` or `by_role_by_engine`
 in `meta`).
@@ -30,6 +36,9 @@ All paths start with `{P}`. All need `data:read`.
 | GET | `{P}/ai/citations` | `200 CitationPage` (built) |
 | GET | `{P}/ai/fanout-queries` | `200 FanoutQueryPage` (built) |
 | GET | `{P}/ai/sources/changes` | `200 SourceChangePage` (new) |
+| GET | `{P}/ai/sources/diversity` | `200 SourceDiversity` (new, WP-14) |
+| GET | `{P}/ai/sources/domains/{registrable_domain}` | `200 SourceDomainDetail` (new, WP-14) |
+| GET | `{P}/ai/sources/prompts` | `200 PromptOwnPagesPage` (new, WP-14) |
 
 The shared scope of the built reads is unchanged: `from`, `to` (project-local days, default the 28 days
 ending today, at most 92), `filter[engine_code_in]` (at most 3 values), `filter[prompt_id]`,
@@ -47,6 +56,17 @@ ending today, at most 92), `filter[engine_code_in]` (at most 3 values), `filter[
 | `filter[country_iso]` | domains, pages, citations, fan-out, changes | string | `^[A-Z]{2}$` | The answers of the prompts of one market, ISO 3166-1 alpha-2. `501` when used. |
 | `kind` | `sources/changes` | `new` or `lost` | default `new` | `new`: domains with at least `min_support` citation units in the window and none in as many days before. `lost`: at least `min_support` units before and none in the window. |
 | `min_support` | `sources/changes` | integer | 1 to 1,000, default 2 | The citation units a domain needs on the side where it was cited. |
+| `include_unresolved_redirects` | domains, pages, changes, diversity, domain detail, prompts | boolean | default `false` | Count citations flagged `unresolved_redirect`, left out by default (docs/14 section 9). `501` on domains and pages when set. |
+| `include_engine_internal` | same six routes | boolean | default `false` | Count citations flagged `engine_internal`, left out by default. `501` on domains and pages when set. |
+| `include` | `fanout-queries` | comma list of `topics` | at most 1 value | Adds `topics` to each row. `501` when used. |
+| `include` | `sources/diversity` | comma list of `series`, `ads` | at most 2 values | Weekly series and ad presence per engine. |
+| `filter[own_cited]` | `sources/prompts` | boolean | | `false` keeps the prompt and engine pairs whose answers cite no own page. |
+| `filter[country_iso]` | diversity, domain detail, prompts | string | `^[A-Z]{2}$` | As above. |
+
+`sources/diversity` and `sources/domains/{registrable_domain}` take the shared scope. The path value
+is a registrable domain (1 to 253 characters), a word and not an id. `sources/prompts` takes the
+shared scope and a keyset `cursor` and `limit` (1 to 200). The three routes answer `501` after the
+access checks and query validation until WP-14 builds them.
 
 `sources/changes` takes the shared scope and offset paging above, and no `compare`, `sort` or
 `filter[registrable_domain]`. The fan-out route keeps its own `min_support`, which counts answers.
@@ -62,6 +82,7 @@ ending today, at most 92), `filter[engine_code_in]` (at most 3 values), `filter[
 | `SourcePageRow` | `series` | `SourceWeekUnits[]` | at most 14 | With `include=series`. |
 | `SourcesMeta` | `series` | `SourcesWeek[]` | at most 14 | With `include=series`: per week `week_start`, `answers`, `citation_units`, `distinct_domains`. |
 | `SourcesMeta` | `by_role_by_engine` | `EngineRoleUnits[]` | at most 3 | With `include=by_role_by_engine` on domains: per engine, `own`, `competitor` and `third_party` each as `{ citation_units, answers_citing }`. |
+| `FanoutQueryRow` | `topics` | `FanoutTopic[]` `{ term_id, observations }` | at most 10 | With `include=topics`: the topic terms tagged on the prompts whose answers issued it, the most answers first. |
 
 `SourceWeekUnits`: `week_start` (the Monday the week starts on, in the project's zone), `citation_units`,
 `observations`.
@@ -80,6 +101,38 @@ ending today, at most 92), `filter[engine_code_in]` (at most 3 values), `filter[
 | `page` | `{ offset, limit, total }` | Offset page. |
 | `meta` | `{ window, compare_window, include_branded, engine_codes (at most 3), kind, min_support }` | The windows and settings answered. |
 
+### GET {P}/ai/sources/diversity: response
+
+| Field | Type | Meaning |
+|---|---|---|
+| `data[]` | `SourceDiversityEngine`, at most 3 | One entry per engine in scope. |
+| `data[].engine_code`, `answers`, `answers_citing`, `citation_units` | | The valid answers, those citing a source, and the citation units. |
+| `data[].distinct_domains` | integer | Registrable domains cited, roles merged. |
+| `data[].effective_sources` | `MetricCell` | Docs/16 C3: `(sum of units)^2` over the sum of squared units per domain, both visible. |
+| `data[].series` | `DiversityWeek[]`, at most 14 | With `include=series`: `week_start`, `citation_units`, `distinct_domains`, `effective_sources` (null without a unit). |
+| `data[].ads` | `AdPresence` `{ answers_with_ads: MetricCell, ads }` | With `include=ads`. |
+| `meta` | `{ window, include_branded, engine_codes, distinct_domains, effective_sources_engine_average }` | The count over every engine, and the equal-weight mean of the engines with units (never pooled). |
+
+### GET {P}/ai/sources/domains/{registrable_domain}: response
+
+| Field | Type | Meaning |
+|---|---|---|
+| `data.registrable_domain` | string, up to 253 | As asked. |
+| `data.rows` | `SourceDomainRow[]`, at most 10 | One per role and entity. |
+| `data.engines` | `DomainEngineSeries[]`, at most 3 | Per engine, a weekly series (at most 14) of `citation_units`, `observations`, `all_citation_units` and `answers`. |
+| `data.top_pages` | `SourcePageRow[]`, at most 10 | Its most cited pages. |
+| `data.prompts` | `DomainPrompt[]`, at most 20 | `prompt_id`, `citation_units`, `observations`. |
+| `data.cited_with` | `CitedWith[]`, at most 5 | The tracked entities named most in answers citing it. |
+| `meta` | `SourcesMeta` | The scope's totals. A domain not cited in scope answers `200` with empty lists. |
+
+### GET {P}/ai/sources/prompts: response
+
+| Field | Type | Meaning |
+|---|---|---|
+| `data[]` | `PromptOwnPagesRow` | One per prompt and engine with a counted answer: `prompt_id`, `engine_code`, `answers`, `answers_citing_own`, `own_citation_units`, `own_pages`, `top_own_page` (`{ url_id, url }` or null). |
+| `page` | `CursorPageInfo` | Keyset on `(prompt_id, engine_code)`. |
+| `meta` | `{ window, include_branded, engine_codes }` | |
+
 ## Error codes
 
 | Status | Code | When |
@@ -91,7 +144,7 @@ ending today, at most 92), `filter[engine_code_in]` (at most 3 values), `filter[
 | 422 | `validation_failed` | A value outside its bounds: `include=cited_with` on pages, `kind=gone`, `min_support=0`, `filter[country_iso]=us`; a parameter the route does not declare; `from` after `to` is field code `range_invalid` on the built reads. |
 | 422 | `window_too_large` | Over 92 days (built reads; `sources/changes` once built). |
 | 422 | `engine_has_no_fanout` | Fan-out only: an engine that does not show its queries is named in `filter[engine_code_in]` (built). |
-| 501 | `not_implemented` | `sources/changes`, or an addition that was used (`detail` names it: `include`, `min_support`, `filter[country_iso]`). |
+| 501 | `not_implemented` | `sources/changes`, `sources/diversity`, `sources/domains/{registrable_domain}`, `sources/prompts`, or an addition that was used on a built read (`detail` names it: `include`, `min_support`, `filter[country_iso]`, `include_unresolved_redirects`, `include_engine_internal`). |
 
 Order: 401, 404, 403, 422, then `501`. A built read with an addition used answers `501` before the
 service reads anything.
@@ -300,3 +353,5 @@ shapes hold for both; WP-14 states the rule it builds in the change log.
 Newest last; one line per change, in the form `date package: change`.
 
 2026-11-13 WP-03: contract published
+2026-11-13 WP-14: added `GET {P}/ai/sources/diversity`, `GET {P}/ai/sources/domains/{registrable_domain}` and `GET {P}/ai/sources/prompts` (stubs)
+2026-11-13 WP-14: added `include_unresolved_redirects` and `include_engine_internal` (default false) to domains, pages, changes and the new routes; fan-out `include=topics` and `FanoutQueryRow.topics`

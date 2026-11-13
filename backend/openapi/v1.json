@@ -71,6 +71,25 @@
         "title": "Actor",
         "type": "object"
       },
+      "AdPresence": {
+        "properties": {
+          "ads": {
+            "description": "Ads stored with those answers.",
+            "title": "Ads",
+            "type": "integer"
+          },
+          "answers_with_ads": {
+            "$ref": "#/components/schemas/MetricCell",
+            "description": "Answers that showed at least one ad, of the valid answers on the engine. Ads are kept out of answers and citations (docs/07 section 5.4); extras the 16 KB bound emptied count as no ad."
+          }
+        },
+        "required": [
+          "answers_with_ads",
+          "ads"
+        ],
+        "title": "AdPresence",
+        "type": "object"
+      },
       "AiCoverage": {
         "properties": {
           "by_engine": {
@@ -2527,6 +2546,43 @@
         "title": "DeviceCounts",
         "type": "object"
       },
+      "DiversityWeek": {
+        "properties": {
+          "citation_units": {
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "distinct_domains": {
+            "title": "Distinct Domains",
+            "type": "integer"
+          },
+          "effective_sources": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the week has no unit.",
+            "title": "Effective Sources"
+          },
+          "week_start": {
+            "format": "date",
+            "title": "Week Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week_start",
+          "citation_units",
+          "distinct_domains",
+          "effective_sources"
+        ],
+        "title": "DiversityWeek",
+        "type": "object"
+      },
       "DomainCategory": {
         "properties": {
           "code": {
@@ -2564,6 +2620,62 @@
           "data"
         ],
         "title": "DomainCategoryList",
+        "type": "object"
+      },
+      "DomainEngineSeries": {
+        "properties": {
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/DomainEngineWeek"
+            },
+            "maxItems": 14,
+            "title": "Series",
+            "type": "array"
+          }
+        },
+        "required": [
+          "engine_code",
+          "series"
+        ],
+        "title": "DomainEngineSeries",
+        "type": "object"
+      },
+      "DomainEngineWeek": {
+        "properties": {
+          "all_citation_units": {
+            "description": "Every unit of the engine that week: the share's denominator.",
+            "title": "All Citation Units",
+            "type": "integer"
+          },
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "citation_units": {
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "observations": {
+            "title": "Observations",
+            "type": "integer"
+          },
+          "week_start": {
+            "format": "date",
+            "title": "Week Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week_start",
+          "citation_units",
+          "observations",
+          "all_citation_units",
+          "answers"
+        ],
+        "title": "DomainEngineWeek",
         "type": "object"
       },
       "DomainInput": {
@@ -2604,6 +2716,30 @@
           "domain"
         ],
         "title": "DomainInput",
+        "type": "object"
+      },
+      "DomainPrompt": {
+        "properties": {
+          "citation_units": {
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "observations": {
+            "title": "Observations",
+            "type": "integer"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "citation_units",
+          "observations"
+        ],
+        "title": "DomainPrompt",
         "type": "object"
       },
       "DomainRef": {
@@ -3811,6 +3947,22 @@
             "description": "Its most common spelling in the answers. Provider text (untrusted: show it as text, never as markup); cut to 300 characters with a trailing `...`.",
             "title": "Query Text",
             "type": "string"
+          },
+          "topics": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FanoutTopic"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=topics`: the topic terms tagged on the prompts whose answers issued it, the most answers first, at most 10. Not returned yet: absent from every response until it is built.",
+            "title": "Topics"
           }
         },
         "required": [
@@ -3825,6 +3977,26 @@
           "cited_domains"
         ],
         "title": "FanoutQueryRow",
+        "type": "object"
+      },
+      "FanoutTopic": {
+        "properties": {
+          "observations": {
+            "description": "Answers of the term's prompts that issued the query.",
+            "title": "Observations",
+            "type": "integer"
+          },
+          "term_id": {
+            "format": "uuid",
+            "title": "Term Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "term_id",
+          "observations"
+        ],
+        "title": "FanoutTopic",
         "type": "object"
       },
       "FeatureCheck": {
@@ -8663,6 +8835,24 @@
         "title": "OwnEntityInput",
         "type": "object"
       },
+      "OwnPage": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "url_id",
+          "url"
+        ],
+        "title": "OwnPage",
+        "type": "object"
+      },
       "PasswordChangeRequest": {
         "additionalProperties": false,
         "properties": {
@@ -10555,6 +10745,108 @@
           "quota"
         ],
         "title": "PromptLintResponse",
+        "type": "object"
+      },
+      "PromptOwnPagesMeta": {
+        "properties": {
+          "engine_codes": {
+            "items": {
+              "$ref": "#/components/schemas/EngineCode"
+            },
+            "maxItems": 3,
+            "title": "Engine Codes",
+            "type": "array"
+          },
+          "include_branded": {
+            "title": "Include Branded",
+            "type": "boolean"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow"
+          }
+        },
+        "required": [
+          "window",
+          "include_branded",
+          "engine_codes"
+        ],
+        "title": "PromptOwnPagesMeta",
+        "type": "object"
+      },
+      "PromptOwnPagesPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PromptOwnPagesRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PromptOwnPagesMeta"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page",
+          "meta"
+        ],
+        "title": "PromptOwnPagesPage",
+        "type": "object"
+      },
+      "PromptOwnPagesRow": {
+        "properties": {
+          "answers": {
+            "description": "Valid answers of the prompt on the engine in scope.",
+            "title": "Answers",
+            "type": "integer"
+          },
+          "answers_citing_own": {
+            "title": "Answers Citing Own",
+            "type": "integer"
+          },
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "own_citation_units": {
+            "title": "Own Citation Units",
+            "type": "integer"
+          },
+          "own_pages": {
+            "description": "Distinct own pages cited.",
+            "title": "Own Pages",
+            "type": "integer"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "top_own_page": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnPage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The own page with the most units; null if none."
+          }
+        },
+        "required": [
+          "prompt_id",
+          "engine_code",
+          "answers",
+          "answers_citing_own",
+          "own_citation_units",
+          "own_pages",
+          "top_own_page"
+        ],
+        "title": "PromptOwnPagesRow",
         "type": "object"
       },
       "PromptPage": {
@@ -14544,6 +14836,212 @@
           "min_support"
         ],
         "title": "SourceChangesMeta",
+        "type": "object"
+      },
+      "SourceDiversity": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SourceDiversityEngine"
+            },
+            "maxItems": 3,
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/SourceDiversityMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "SourceDiversity",
+        "type": "object"
+      },
+      "SourceDiversityEngine": {
+        "properties": {
+          "ads": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdPresence"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=ads`. Not returned yet: absent from every response until it is built."
+          },
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "answers_citing": {
+            "title": "Answers Citing",
+            "type": "integer"
+          },
+          "citation_units": {
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "distinct_domains": {
+            "description": "Registrable domains cited, roles merged (C3).",
+            "title": "Distinct Domains",
+            "type": "integer"
+          },
+          "effective_sources": {
+            "$ref": "#/components/schemas/MetricCell",
+            "description": "Effective number of sources (docs/16 C3): 1 / sum of squared source shares, as (sum of units)^2 over the sum of squared units per domain."
+          },
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "series": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DiversityWeek"
+                },
+                "maxItems": 14,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=series`. Not returned yet: absent from every response until it is built.",
+            "title": "Series"
+          }
+        },
+        "required": [
+          "engine_code",
+          "answers",
+          "answers_citing",
+          "citation_units",
+          "distinct_domains",
+          "effective_sources"
+        ],
+        "title": "SourceDiversityEngine",
+        "type": "object"
+      },
+      "SourceDiversityMeta": {
+        "properties": {
+          "distinct_domains": {
+            "description": "Over every engine in scope (a count).",
+            "title": "Distinct Domains",
+            "type": "integer"
+          },
+          "effective_sources_engine_average": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The equal-weight mean of the engines' effective sources, engines with units only (docs/16 rule 2: never pooled).",
+            "title": "Effective Sources Engine Average"
+          },
+          "engine_codes": {
+            "items": {
+              "$ref": "#/components/schemas/EngineCode"
+            },
+            "maxItems": 3,
+            "title": "Engine Codes",
+            "type": "array"
+          },
+          "include_branded": {
+            "title": "Include Branded",
+            "type": "boolean"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow"
+          }
+        },
+        "required": [
+          "window",
+          "include_branded",
+          "engine_codes",
+          "distinct_domains",
+          "effective_sources_engine_average"
+        ],
+        "title": "SourceDiversityMeta",
+        "type": "object"
+      },
+      "SourceDomainDetail": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SourceDomainDetailData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/SourcesMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "SourceDomainDetail",
+        "type": "object"
+      },
+      "SourceDomainDetailData": {
+        "properties": {
+          "cited_with": {
+            "items": {
+              "$ref": "#/components/schemas/CitedWith"
+            },
+            "maxItems": 5,
+            "title": "Cited With",
+            "type": "array"
+          },
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/DomainEngineSeries"
+            },
+            "maxItems": 3,
+            "title": "Engines",
+            "type": "array"
+          },
+          "prompts": {
+            "items": {
+              "$ref": "#/components/schemas/DomainPrompt"
+            },
+            "maxItems": 20,
+            "title": "Prompts",
+            "type": "array"
+          },
+          "registrable_domain": {
+            "maxLength": 253,
+            "title": "Registrable Domain",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/SourceDomainRow"
+            },
+            "maxItems": 10,
+            "title": "Rows",
+            "type": "array"
+          },
+          "top_pages": {
+            "items": {
+              "$ref": "#/components/schemas/SourcePageRow"
+            },
+            "maxItems": 10,
+            "title": "Top Pages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "registrable_domain",
+          "rows",
+          "engines",
+          "top_pages",
+          "prompts",
+          "cited_with"
+        ],
+        "title": "SourceDomainDetailData",
         "type": "object"
       },
       "SourceDomainPage": {
@@ -22882,6 +23380,29 @@
             }
           },
           {
+            "description": "Blocks to add: `topics`. Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "const": "topics",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Blocks to add: `topics`. Not built yet: `501 not_implemented`.",
+              "maxLength": 1,
+              "title": "Include"
+            }
+          },
+          {
             "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
             "in": "query",
             "name": "filter[country_iso]",
@@ -24086,6 +24607,30 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "include_unresolved_redirects",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+              "title": "Include Unresolved Redirects",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "include_engine_internal",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+              "title": "Include Engine Internal",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -24111,6 +24656,229 @@
           }
         },
         "summary": "New and lost sources against the window before",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/diversity": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). Per engine: the valid answers, the answers that cite a source, the citation units, the registrable domains cited (roles merged) and the effective number of sources (docs/16 C3: 1 over the sum of squared source shares, with its numerator and denominator visible). Engines are never pooled: `meta.distinct_domains` is a count over every engine in scope and `meta.effective_sources_engine_average` the equal-weight mean of the engines with units. `include=series` adds a weekly point per engine and `include=ads` the answers that showed an ad. Not built yet: `501 not_implemented`.",
+        "operationId": "source_diversity_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_diversity_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "series",
+                      "ads"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 2,
+              "title": "Include"
+            }
+          },
+          {
+            "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "One prompt's answers, whether it is active, archived or branded.",
+            "in": "query",
+            "name": "filter[prompt_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One prompt's answers, whether it is active, archived or branded.",
+              "title": "Filter[Prompt Id]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "include_unresolved_redirects",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+              "title": "Include Unresolved Redirects",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "include_engine_internal",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+              "title": "Include Engine Internal",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceDiversity"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Source diversity per engine",
         "tags": [
           "ai"
         ]
@@ -24386,6 +25154,30 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "include_unresolved_redirects",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+              "title": "Include Unresolved Redirects",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "include_engine_internal",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+              "title": "Include Engine Internal",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -24411,6 +25203,216 @@
           }
         },
         "summary": "Cited sources by registrable domain, with their share of every citation",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains/{registrable_domain}": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One registrable domain as the domain list names it: its rows (one per role and entity, at most 10), its units per engine and week, its 10 most cited pages, the 20 prompts whose answers cite it most and the 5 tracked entities named most in those answers. A domain that is not cited in scope answers `200` with empty lists. Not built yet: `501 not_implemented`.",
+        "operationId": "source_domain_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_domains__registrable_domain__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "registrable_domain",
+            "required": true,
+            "schema": {
+              "maxLength": 253,
+              "minLength": 1,
+              "title": "Registrable Domain",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "One prompt's answers, whether it is active, archived or branded.",
+            "in": "query",
+            "name": "filter[prompt_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One prompt's answers, whether it is active, archived or branded.",
+              "title": "Filter[Prompt Id]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "include_unresolved_redirects",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+              "title": "Include Unresolved Redirects",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "include_engine_internal",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+              "title": "Include Engine Internal",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceDomainDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One cited domain",
         "tags": [
           "ai"
         ]
@@ -24702,6 +25704,30 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "include_unresolved_redirects",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+              "title": "Include Unresolved Redirects",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "include_engine_internal",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+              "title": "Include Engine Internal",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -24727,6 +25753,252 @@
           }
         },
         "summary": "Cited pages, with their share of every citation",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/prompts": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per prompt and engine with a counted answer: the valid answers, the answers that cite an own page, the own citation units, the distinct own pages and the one with the most units. `filter[own_cited]=false` keeps the prompts whose answers cite no own page. Keyset pages `(prompt_id, engine_code)`; a cursor is bound to its filters (`400 invalid_cursor` otherwise). Not built yet: `501 not_implemented`.",
+        "operationId": "source_prompts_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_prompts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[own_cited]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Own Cited]"
+            }
+          },
+          {
+            "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`.",
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "One prompt's answers, whether it is active, archived or branded.",
+            "in": "query",
+            "name": "filter[prompt_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One prompt's answers, whether it is active, archived or branded.",
+              "title": "Filter[Prompt Id]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "include_unresolved_redirects",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+              "title": "Include Unresolved Redirects",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+            "in": "query",
+            "name": "include_engine_internal",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out by default (docs/14 section 9). Not built yet: `501 not_implemented`.",
+              "title": "Include Engine Internal",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptOwnPagesPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Each prompt's own pages, per engine",
         "tags": [
           "ai"
         ]

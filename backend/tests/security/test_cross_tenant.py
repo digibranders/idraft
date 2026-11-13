@@ -87,7 +87,12 @@ def _names(path: str) -> list[str]:
 
 # A path parameter that is a word, not an id of the tenant: it must not count as one of its
 # secrets, since every response would then seem to hold it.
-WORDS = {"kind": "gsc", "engine_code": "chatgpt_web", "screen": "ai_overview"}
+WORDS = {
+    "kind": "gsc",
+    "engine_code": "chatgpt_web",
+    "screen": "ai_overview",
+    "registrable_domain": "example.com",
+}
 
 WORKSPACE_ROUTES = [(method, path) for method, path in ALL_ROUTES if "workspace_id" in _names(path)]
 # Routes that also name something inside the workspace: a project, a member, an invitation. A
@@ -307,6 +312,11 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     # WP-12 summary-lane
     # WP-13 prompts-lane
     # WP-14 sources-lane
+    ("GET", _W + "/projects/{project_id}/ai/sources/diversity"): {"filter[country_iso]": "US"},
+    ("GET", _W + "/projects/{project_id}/ai/sources/domains/{registrable_domain}"): {
+        "filter[country_iso]": "US"
+    },
+    ("GET", _W + "/projects/{project_id}/ai/sources/prompts"): {"filter[country_iso]": "US"},
     # WP-26 evidence-viewer
     # WP-30 runs-costs-health
     # WP-31 settings-engines
