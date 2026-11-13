@@ -21,7 +21,9 @@ import { CitationFilteredEmptyState, CitationTableNotes } from '../citation-tabl
 import type { CitationTabContext } from '../citation-tabs';
 import { useRegisterExport } from '../export-button';
 import { MinSupportSelect } from '../min-support-select';
+import { ChangeList, useCitationListLayout } from '../mobile-rows';
 import { DataTable } from '@/components/app/data-table/data-table';
+import { ListTableSwitch } from '@/components/app/data-table/data-table-list';
 import type { TableStatus } from '@/components/app/data-table/types';
 import { MetricInfo } from '@/components/app/metric/metric-info';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -129,6 +131,28 @@ export function NewLostTab({ context }: NewLostTabProps): ReactElement {
       ? t('sample', { answers: scopeMeta.answers, range: formatDateRange(range.from, range.to) })
       : undefined;
 
+  const errorState = <ChangeFailed kind={kind} errorId={read.errorId} onRetry={read.retry} retrying={read.retrying} />;
+  const emptyState = <ChangeEmpty kind={kind} minSupport={scope.minSupport} days={days} noPrevious={noPrevious} />;
+  const filteredEmptyState = (
+    <CitationFilteredEmptyState
+      filterBar={filterBar}
+      minSupport={scope.minSupport}
+      filtering={filtering}
+      onClear={clearFilters}
+    />
+  );
+  // Below 768 px each kind is a list; the person may ask for the table when the screen is not touch-primary
+  const layout = useCitationListLayout();
+  const toolbarEnd = (
+    <>
+      <MinSupportSelect
+        minSupport={scope.minSupport}
+        onMinSupportChange={(next) => setSearch({ min: next === null ? null : String(next) })}
+      />
+      {layout.canSwitch ? <ListTableSwitch mode={layout.mode} onModeChange={layout.onModeChange} /> : null}
+    </>
+  );
+
   // The tab scrolls as a whole when the strip above leaves the table under 20rem (a phone), so it is never squeezed away
   return (
     <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
@@ -173,53 +197,58 @@ export function NewLostTab({ context }: NewLostTabProps): ReactElement {
         ) : null}
       </CitationTableNotes>
       <div className="flex h-96 min-h-80 flex-col lg:h-auto lg:flex-1">
-        <DataTable<SourceChangeRow>
-          caption={t(`caption.${kind}`)}
-          itemNoun={{ one: t(`noun.${kind}.one`), other: t(`noun.${kind}.other`) }}
-          columns={columns}
-          getRowId={changeRowId}
-          rows={listed}
-          total={listed.length}
-          // The server orders the list by units, and the table lists it as given
-          sort={NO_SORT}
-          onSortChange={nothing}
-          defaultSort={NO_SORT}
-          compactToolbar
-          toolbarEnd={
-            <MinSupportSelect
-              minSupport={scope.minSupport}
-              onMinSupportChange={(next) => setSearch({ min: next === null ? null : String(next) })}
-            />
-          }
-          density={scope.density}
-          onDensityChange={(next: Density) => setSearch({ density: next === DEFAULT_DENSITY ? null : next })}
-          columnState={{
-            visible,
-            onChange: (next) => setSearch({ cols: next === null ? null : formatColumns(next) }),
-          }}
-          search={query}
-          onSearchChange={setQuery}
-          searchPlaceholder={tt('search')}
-          rowName={rowName}
-          onRowOpen={
-            inspect === undefined
-              ? undefined
-              : (row, intent) => inspect.open({ type: 'domain', id: row.registrable_domain }, intent)
-          }
-          activeRowId={activeRowId}
-          rowTone={ownRow}
-          status={status}
-          errorState={<ChangeFailed kind={kind} errorId={read.errorId} onRetry={read.retry} retrying={read.retrying} />}
-          emptyState={<ChangeEmpty kind={kind} minSupport={scope.minSupport} days={days} noPrevious={noPrevious} />}
-          filteredEmptyState={
-            <CitationFilteredEmptyState
-              filterBar={filterBar}
-              minSupport={scope.minSupport}
-              filtering={filtering}
-              onClear={clearFilters}
-            />
-          }
-        />
+        {layout.mode === 'list' ? (
+          <ChangeList
+            kind={kind}
+            sources={listed}
+            timeZone={timeZone}
+            status={status}
+            search={query}
+            onSearchChange={setQuery}
+            activeRowId={activeRowId}
+            toolbarEnd={toolbarEnd}
+            errorState={errorState}
+            emptyState={emptyState}
+            filteredEmptyState={filteredEmptyState}
+            onOpenDomain={(registrable) => inspect?.open({ type: 'domain', id: registrable }, 'inspector')}
+          />
+        ) : (
+          <DataTable<SourceChangeRow>
+            caption={t(`caption.${kind}`)}
+            itemNoun={{ one: t(`noun.${kind}.one`), other: t(`noun.${kind}.other`) }}
+            columns={columns}
+            getRowId={changeRowId}
+            rows={listed}
+            total={listed.length}
+            // The server orders the list by units, and the table lists it as given
+            sort={NO_SORT}
+            onSortChange={nothing}
+            defaultSort={NO_SORT}
+            compactToolbar
+            toolbarEnd={toolbarEnd}
+            density={scope.density}
+            onDensityChange={(next: Density) => setSearch({ density: next === DEFAULT_DENSITY ? null : next })}
+            columnState={{
+              visible,
+              onChange: (next) => setSearch({ cols: next === null ? null : formatColumns(next) }),
+            }}
+            search={query}
+            onSearchChange={setQuery}
+            searchPlaceholder={tt('search')}
+            rowName={rowName}
+            onRowOpen={
+              inspect === undefined
+                ? undefined
+                : (row, intent) => inspect.open({ type: 'domain', id: row.registrable_domain }, intent)
+            }
+            activeRowId={activeRowId}
+            rowTone={ownRow}
+            status={status}
+            errorState={errorState}
+            emptyState={emptyState}
+            filteredEmptyState={filteredEmptyState}
+          />
+        )}
       </div>
     </div>
   );

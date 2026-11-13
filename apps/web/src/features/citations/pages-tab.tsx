@@ -17,10 +17,12 @@ import type { CitationTabContext } from './citation-tabs';
 import type { ExportSource } from './citations-export';
 import { useRegisterExport } from './export-button';
 import { MinSupportSelect } from './min-support-select';
+import { PageList, useCitationListLayout } from './mobile-rows';
 import { NoOwnPage } from './no-own-page';
 import { pageRowId, usePageColumns } from './page-columns';
 import { SortSelect } from './sort-select';
 import { DataTable } from '@/components/app/data-table/data-table';
+import { ListTableSwitch } from '@/components/app/data-table/data-table-list';
 import { Banner } from '@/components/app/status/banner';
 import { Button } from '@/components/ui/button';
 import { useErrorId } from '@/lib/api/use-error-id';
@@ -185,6 +187,30 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
   );
   useRegisterExport(context.registerExport, exportSource);
 
+  const errorState = <LoadFailed errorId={errorId} onRetry={() => void read.refetch()} retrying={read.isFetching} />;
+  const emptyState = <CitationEmptyState meta={meta} workspaceSlug={workspaceSlug} projectSlug={projectSlug} />;
+  const filteredEmptyState = (
+    <CitationFilteredEmptyState
+      filterBar={filterBar}
+      minSupport={scope.minSupport}
+      filtering={filtering}
+      onClear={clearFilters}
+    />
+  );
+  // Below 768 px the rows are a list; the server's order and minimum stay where they are, and the person may ask for
+  // the table when the screen is not touch-primary
+  const layout = useCitationListLayout();
+  const toolbarEnd = (
+    <>
+      <SortSelect sort={scope.sort} onSortChange={(next) => setSearch({ sort: next === DEFAULT_SORT ? null : next })} />
+      <MinSupportSelect
+        minSupport={scope.minSupport}
+        onMinSupportChange={(next) => setSearch({ min: next === null ? null : String(next) })}
+      />
+      {layout.canSwitch ? <ListTableSwitch mode={layout.mode} onModeChange={layout.onModeChange} /> : null}
+    </>
+  );
+
   // The tab scrolls as a whole when the card above the table and the notes leave it under 20rem, so the table is never squeezed away
   return (
     <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
@@ -215,56 +241,54 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
         ) : null}
       </CitationTableNotes>
       <div className="flex h-96 min-h-80 flex-col lg:h-auto lg:flex-1">
-        <DataTable<SourcePageRow>
-          caption={tt('pagesCaption')}
-          itemNoun={{ one: tt('pageNoun.one'), other: tt('pageNoun.other') }}
-          columns={columns}
-          getRowId={pageRowId}
-          rows={listed}
-          total={listed.length}
-          // The server sorts (the select)
-          sort={NO_SORT}
-          onSortChange={nothing}
-          defaultSort={NO_SORT}
-          compactToolbar
-          columnGroups
-          toolbarEnd={
-            <>
-              <SortSelect
-                sort={scope.sort}
-                onSortChange={(next) => setSearch({ sort: next === DEFAULT_SORT ? null : next })}
-              />
-              <MinSupportSelect
-                minSupport={scope.minSupport}
-                onMinSupportChange={(next) => setSearch({ min: next === null ? null : String(next) })}
-              />
-            </>
-          }
-          density={scope.density}
-          onDensityChange={(next: Density) => setSearch({ density: next === DEFAULT_DENSITY ? null : next })}
-          columnState={{
-            visible,
-            onChange: (next) => setSearch({ cols: next === null ? null : formatColumns(next) }),
-          }}
-          search={query}
-          onSearchChange={setQuery}
-          searchPlaceholder={tt('searchPages')}
-          rowName={rowName}
-          rowTone={ownRow}
-          onRowOpen={openInInspector === undefined ? undefined : openRow}
-          activeRowId={activeRowId}
-          status={status}
-          errorState={<LoadFailed errorId={errorId} onRetry={() => void read.refetch()} retrying={read.isFetching} />}
-          emptyState={<CitationEmptyState meta={meta} workspaceSlug={workspaceSlug} projectSlug={projectSlug} />}
-          filteredEmptyState={
-            <CitationFilteredEmptyState
-              filterBar={filterBar}
-              minSupport={scope.minSupport}
-              filtering={filtering}
-              onClear={clearFilters}
-            />
-          }
-        />
+        {layout.mode === 'list' ? (
+          <PageList
+            pages={listed}
+            comparison={{ meta, previousMeta: previousMeta.data?.meta }}
+            status={status}
+            search={query}
+            onSearchChange={setQuery}
+            activeRowId={activeRowId}
+            toolbarEnd={toolbarEnd}
+            errorState={errorState}
+            emptyState={emptyState}
+            filteredEmptyState={filteredEmptyState}
+            onOpenPage={(urlId) => openInInspector?.({ type: 'source', id: String(urlId) }, 'inspector')}
+          />
+        ) : (
+          <DataTable<SourcePageRow>
+            caption={tt('pagesCaption')}
+            itemNoun={{ one: tt('pageNoun.one'), other: tt('pageNoun.other') }}
+            columns={columns}
+            getRowId={pageRowId}
+            rows={listed}
+            total={listed.length}
+            // The server sorts (the select)
+            sort={NO_SORT}
+            onSortChange={nothing}
+            defaultSort={NO_SORT}
+            compactToolbar
+            columnGroups
+            toolbarEnd={toolbarEnd}
+            density={scope.density}
+            onDensityChange={(next: Density) => setSearch({ density: next === DEFAULT_DENSITY ? null : next })}
+            columnState={{
+              visible,
+              onChange: (next) => setSearch({ cols: next === null ? null : formatColumns(next) }),
+            }}
+            search={query}
+            onSearchChange={setQuery}
+            searchPlaceholder={tt('searchPages')}
+            rowName={rowName}
+            rowTone={ownRow}
+            onRowOpen={openInInspector === undefined ? undefined : openRow}
+            activeRowId={activeRowId}
+            status={status}
+            errorState={errorState}
+            emptyState={emptyState}
+            filteredEmptyState={filteredEmptyState}
+          />
+        )}
       </div>
     </div>
   );
