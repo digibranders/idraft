@@ -1,11 +1,15 @@
 """The AI metric routes (contract C8, docs/ai-visibility/contracts/c8-metrics.md): the Overview,
-one metric per engine and a metric over the weeks.
+one metric per engine, a metric over the weeks and a metric broken down by a dimension of the
+prompts.
 
 Every number is a cell of the prompts summary, relabelled: `MetricsService` reads the summary once
 for the scope and maps its cells to `AiMetricValue`, so a figure is the same here, on the
 Topics & Prompts page and in a topic row (rule R12). The one number the summary does not hold is
 citation share, which is read from the sources lane (citation units by engine and role, flagged
-citations left out) so that it equals the Sources page. The mapping is pure and tested alone."""
+citations left out) so that it equals the Sources page. A breakdown by an attribute of the prompt
+(intent, funnel stage, type, language, market, persona) groups the summary's prompt rows by that
+attribute and reduces each group's per-prompt cells with `reduce_cells`, the rule a topic row
+is built by. The mapping is pure and tested alone."""
 
 from __future__ import annotations
 
@@ -35,12 +39,18 @@ from idraft.api.schemas.ai import (
     EntityPreviousCells,
     MetricCell,
     OutcomeCells,
+    Pooled,
     PromptsSummary,
+    SummaryRows,
     SummaryTotal,
     WeekCells,
     _NotAsked,
 )
 from idraft.api.schemas.ai_metrics import (
+    AiBreakdownMeta,
+    AiBreakdownResponse,
+    AiBreakdownRow,
+    AiDimension,
     AiEntityConfigChange,
     AiFilters,
     AiMetricMeta,
@@ -53,6 +63,7 @@ from idraft.api.schemas.ai_metrics import (
     AiOverviewResponse,
     AiSeriesResponse,
     AiUnit,
+    BreakdownDimension,
 )
 from idraft.api.schemas.metrics import MetricWindow
 from idraft.api.stubs import not_built_yet
@@ -224,6 +235,17 @@ DETAIL: Final = frozenset(
 # The keys that have weekly points, and the keys that can be asked for per entity.
 SERIES_KEYS: Final = ("ai.mention_rate", "ai.citation_rate", "ai.share_of_voice")
 ENTITY_KEYS: Final = ("ai.mention_rate", "ai.share_of_voice")
+# The keys a breakdown builds: those that are a cell of a prompt's row of the summary, so that a
+# group of prompts is reduced from them. The others are a count, a value withheld, or a read of
+# the sources lane that has no prompt row.
+BREAKDOWN: Final = frozenset(key for key, spec in METRICS.items() if spec.cell is not None)
+# The rows of a breakdown past which `meta.truncated` is true.
+BREAKDOWN_MAX: Final = 300
+TOPIC_NOTE: Final = (
+    "A prompt in two topics counts in each; topic values do not add up to the total."
+)
+# The keys a route that does not take them all builds.
+_ROUTE_KEYS: Final = {"series": frozenset(SERIES_KEYS), "breakdown": BREAKDOWN}
 # Registry keys of docs/16 section 2.1 that no route builds yet (doc 19 names the four sentiment
 # keys; the note says "its four `.x` keys").
 UNBUILT: Final = frozenset(
@@ -259,7 +281,7 @@ _ENTITY_METHOD: Final = {
     ),
 }
 
-Route = Literal["value", "series"]
+Route = Literal["value", "series", "breakdown"]
 
 
 class UnknownMetricError(ProblemError):
@@ -278,8 +300,9 @@ def resolve(key: str, route: Route, *, entities: bool = False) -> tuple[str, ...
         if key in UNBUILT:
             raise not_built_yet(f"Not built yet: {key}.")
         raise UnknownMetricError(f"`{key}` is not a metric of the AI answers.")
-    if route == "series" and not set(keys) <= set(SERIES_KEYS):
-        raise not_built_yet(f"Not built yet: {key} on series.")
+    built = _ROUTE_KEYS.get(route)
+    if built is not None and not set(keys) <= built:
+        raise not_built_yet(f"Not built yet: {key} on {route}.")
     if entities and key not in ENTITY_KEYS:
         raise RequestValidationError(
             [
@@ -687,6 +710,170 @@ def total_of(data: PromptsSummary) -> SummaryTotal:
     return data.total
 
 
+def reduce_cells(parts: Sequence[MetricCell], weighting: Aggregation) -> MetricCell:
+    """One cell from the cells of several prompts (each a count of answers over another): the rule
+    a topic row of the summary is built by, and the only reduce of a group of prompts here. Prompt
+    weighted: each prompt with a valid answer counts once, as its rate; the numerator is the sum of
+    those rates, the denominator their number and `pooled` the answers behind them. Observation
+    weighted: the sum of the numerators over the sum of the denominators. `n_observations` is every
+    answer of every prompt either way."""
+    n_observations = sum(part.n_observations for part in parts)
+    if weighting == _OBSERVATION:
+        numerator = sum(part.numerator for part in parts)
+        denominator = sum(part.denominator for part in parts)
+        return MetricCell(
+            value=None if denominator == 0 else numerator / denominator,
+            numerator=numerator,
+            denominator=denominator,
+            n_observations=n_observations,
+        )
+    rated = [part for part in parts if part.denominator > 0]
+    rates = sum(part.numerator / part.denominator for part in rated)
+    return MetricCell(
+        value=None if not rated else rates / len(rated),
+        numerator=rates,
+        denominator=len(rated),
+        n_observations=n_observations,
+        pooled=Pooled(
+            successes=round(sum(part.numerator for part in rated)),
+            trials=sum(part.denominator for part in rated),
+        ),
+    )
+
+
+def group_values(
+    keys: Sequence[str], prompts: Sequence[Sequence[EngineSummary]], frame: Frame
+) -> list[AiMetricValue]:
+    """The values of `keys` for a group of prompts, given the engine rows of each prompt: per
+    engine in the order the rows have them, then per key, each reduced over the prompts. An
+    engine with no value of a key (fan-out it does not expose) has none, and an engine is never
+    averaged with another."""
+    codes = dict.fromkeys(engine.engine_code for engines in prompts for engine in engines)
+    values: list[AiMetricValue] = []
+    for code in codes:
+        rows = [engine for engines in prompts for engine in engines if engine.engine_code == code]
+        for key in keys:
+            spec = METRICS[key]
+            if spec.cell is None or spec.aggregation is None:
+                raise ValueError(f"{key} is not a cell of a prompt's row.")
+            cells = [cell for row in rows if (cell := spec.cell(row)) is not None]
+            if cells:
+                values.append(cell_value(key, reduce_cells(cells, spec.aggregation), frame, code))
+    return values
+
+
+def _engine_values(
+    keys: Sequence[str], engines: Sequence[EngineSummary], frame: Frame
+) -> list[AiMetricValue]:
+    """The values of `keys` read from the rows of the summary that are built for a group already
+    (a topic row, the total row): no average, no citation units."""
+    return [
+        value
+        for engine in engines
+        for key in keys
+        if (value := engine_value(key, engine, frame, (0, 0))) is not None
+    ]
+
+
+def topic_rows(data: PromptsSummary, keys: Sequence[str], frame: Frame) -> list[AiBreakdownRow]:
+    """A row per topic row of the summary, the prompts with no topic included (id null)."""
+    return [
+        AiBreakdownRow(
+            dimension=AiDimension(
+                type="topic",
+                id=None if topic.term_id is None else str(topic.term_id),
+                label=topic.name,
+            ),
+            prompts=topic.prompt_count,
+            values=_engine_values(keys, topic.engines, frame),
+        )
+        for topic in data.topics
+    ]
+
+
+def engine_rows(data: PromptsSummary, keys: Sequence[str], frame: Frame) -> list[AiBreakdownRow]:
+    """A row per engine, each holding the prompts in scope and the one value of its engine; no row
+    when no prompt is in scope."""
+    total = total_of(data)
+    if total.prompt_count == 0:
+        return []
+    return [
+        AiBreakdownRow(
+            dimension=AiDimension(
+                type="engine",
+                id=engine.engine_code,
+                label=ENGINES[EngineCode(engine.engine_code)].label,
+            ),
+            prompts=total.prompt_count,
+            values=_engine_values(keys, [engine], frame),
+        )
+        for engine in total.engines
+    ]
+
+
+def _same(value: str | None) -> tuple[str | None, str | None]:
+    """The id and the label of a group that is named by its stored value."""
+    return value, value
+
+
+def _persona(attributes: repository.PromptAttributes) -> tuple[str | None, str | None]:
+    """The persona is a term: its id and its name. No persona is no value."""
+    term = attributes.persona_term_id
+    return (None if term is None else str(term)), attributes.persona_name
+
+
+# The (id, label) of the group a prompt is in, for each attribute dimension.
+_ATTRIBUTES: Final[
+    dict[str, Callable[[repository.PromptAttributes], tuple[str | None, str | None]]]
+] = {
+    "intent": lambda a: _same(a.intent),
+    "funnel_stage": lambda a: _same(a.funnel_stage),
+    "prompt_type": lambda a: _same(a.prompt_type),
+    "language": lambda a: _same(a.language_code),
+    "country": lambda a: _same(a.country_iso),
+    "persona": _persona,
+}
+
+
+def attribute_rows(
+    dimension: BreakdownDimension,
+    data: PromptsSummary,
+    attributes: Mapping[UUID, repository.PromptAttributes],
+    keys: Sequence[str],
+    frame: Frame,
+) -> list[AiBreakdownRow]:
+    """A row per value of the attribute among the prompt rows of the summary (the prompts in
+    scope, each in one group), the prompts with no value together (id null)."""
+    pick = _ATTRIBUTES[dimension]
+    groups: dict[tuple[str | None, str | None], list[Sequence[EngineSummary]]] = {}
+    for prompt in data.prompts:
+        found = attributes.get(prompt.prompt_id)
+        # Left out when the prompt was archived or deleted between the two reads.
+        if found is not None:
+            groups.setdefault(pick(found), []).append(prompt.engines)
+    return [
+        AiBreakdownRow(
+            dimension=AiDimension(type=dimension, id=group[0], label=group[1]),
+            prompts=len(members),
+            values=group_values(keys, members, frame),
+        )
+        for group, members in groups.items()
+    ]
+
+
+def ordered(rows: Sequence[AiBreakdownRow]) -> list[AiBreakdownRow]:
+    """Most prompts first, then by label, the group with no value last, then by id."""
+    return sorted(
+        rows,
+        key=lambda row: (
+            -row.prompts,
+            row.dimension.label is None,
+            row.dimension.label or "",
+            row.dimension.id or "",
+        ),
+    )
+
+
 class MetricsService:
     def __init__(
         self, *, sessions: async_sessionmaker[AsyncSession], summaries: SummaryService
@@ -845,6 +1032,82 @@ class MetricsService:
             series = [series_of(key, engine, frame, today) for engine in total.engines]
         starts = await self._starts(access, project_id, data)
         return AiSeriesResponse(data=series, meta=meta_of(data, entity_changes(data, starts)))
+
+    async def breakdown(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        query: SummaryQuery,
+        keys: Sequence[str],
+        dimension: BreakdownDimension,
+    ) -> AiBreakdownResponse:
+        """A metric by a dimension of the prompts: one summary read for the scope, the rows of
+        which depend on the dimension (the topic rows, the total row for the engines, the prompt
+        rows for an attribute of the prompt), then in a second transaction the attributes of the
+        prompts in scope and the days each entity configuration took effect. Rows by prompts, at
+        most `BREAKDOWN_MAX`."""
+        # The prompt rows are read for an attribute of the prompt only: they are what is grouped.
+        selector: SummaryRows | None = (
+            "topics" if dimension == "topic" else "none" if dimension == "engine" else None
+        )
+        data = await self._summaries.summary(
+            access,
+            project_id,
+            replace(
+                query,
+                include=frozenset({"total", *(("cells",) if DETAIL.intersection(keys) else ())}),
+                rows=selector,
+                group_by=None,
+                outcome=None,
+                opportunity=None,
+            ),
+        )
+        frame = frame_of(data, query)
+        attributes, starts = await self._breakdown_reads(access, project_id, data)
+        if dimension == "topic":
+            rows = topic_rows(data, keys, frame)
+        elif dimension == "engine":
+            rows = engine_rows(data, keys, frame)
+        else:
+            rows = attribute_rows(dimension, data, attributes, keys, frame)
+        rows = ordered(rows)
+        meta = meta_of(data, entity_changes(data, starts))
+        return AiBreakdownResponse(
+            data=rows[:BREAKDOWN_MAX],
+            meta=AiBreakdownMeta(
+                **{
+                    **dict(meta),
+                    "notes": [TOPIC_NOTE] if dimension == "topic" else [],
+                    "rows_total": len(rows),
+                    "truncated": len(rows) > BREAKDOWN_MAX,
+                }
+            ),
+        )
+
+    async def _breakdown_reads(
+        self, access: WorkspaceAccess, project_id: UUID, data: PromptsSummary
+    ) -> tuple[dict[UUID, repository.PromptAttributes], dict[int, datetime]]:
+        """What the summary does not hold, in one transaction: the attributes of the prompt rows
+        (only an attribute dimension has prompt rows) and the days the entity configurations took
+        effect (as `_starts`). Nothing is read when no prompt is in scope."""
+        ids = tuple(prompt.prompt_id for prompt in data.prompts)
+        versions = bool(data.engine_codes) and total_of(data).prompt_count > 0
+        if not ids and not versions:
+            return {}, {}
+        async with workspace_transaction(
+            self._sessions, access.workspace_id, user_id=access.user_id
+        ) as db:
+            attributes = await repository.prompt_attributes(
+                db, access.workspace_id, project_id, ids
+            )
+            starts = (
+                await repository.version_starts(
+                    db, access.workspace_id, project_id, data.entity_config_versions
+                )
+                if versions
+                else {}
+            )
+        return attributes, starts
 
     async def _starts(
         self, access: WorkspaceAccess, project_id: UUID, data: PromptsSummary

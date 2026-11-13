@@ -43,6 +43,7 @@ BUILT = {
     OVERVIEW_AI.name,
     METRIC.name,
     SERIES.name,
+    BREAKDOWN.name,
     COMPETITORS.name,
     "overview/competitors",
 }
@@ -237,7 +238,11 @@ DIMENSIONS = [
 async def test_the_breakdown_takes_each_of_the_eight_dimensions(
     world: World, dimension: str
 ) -> None:
-    assert problem(await world.read(BREAKDOWN, dimension=dimension)) == NOT_BUILT
+    # A project with no prompt: the rows are empty, never an error.
+    response = await world.read(BREAKDOWN, dimension=dimension)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["data"] == []
 
 
 async def test_the_breakdown_needs_a_dimension_of_the_eight(world: World) -> None:
@@ -270,18 +275,19 @@ def _routes_of(key: str) -> list[Route]:
 
 
 async def test_a_metric_key_of_the_right_form_reaches_the_route_body(world: World) -> None:
-    """The value and series routes answer for the key (a value, the 501 of a key that has no
-    weekly data, the 404 of a key that is none); the breakdown is a stub still."""
-    for key, value, series in (
-        ("ai.mention_rate", OK, OK),
-        ("ai.outcome_mix.neither", OK, NOT_BUILT),
-        ("a", UNKNOWN, UNKNOWN),
-        ("x" * 64, UNKNOWN, UNKNOWN),
+    """The value, series and breakdown routes answer for the key (a value, the 501 of a key that
+    has no weekly data or no breakdown, the 404 of a key that is none)."""
+    for key, value, series, breakdown in (
+        ("ai.mention_rate", OK, OK, OK),
+        ("ai.outcome_mix.neither", OK, NOT_BUILT, OK),
+        ("ai.citation_share", OK, NOT_BUILT, NOT_BUILT),
+        ("a", UNKNOWN, UNKNOWN, UNKNOWN),
+        ("x" * 64, UNKNOWN, UNKNOWN, UNKNOWN),
     ):
         on_value, on_series, on_breakdown = _routes_of(key)
         assert _answer(await world.read(on_value)) == value, key
         assert _answer(await world.read(on_series)) == series, key
-        assert problem(await world.read(on_breakdown)) == NOT_BUILT, key
+        assert _answer(await world.read(on_breakdown)) == breakdown, key
 
 
 async def test_entity_ids_are_at_most_twenty_uuids_on_the_value_series_and_competitors(

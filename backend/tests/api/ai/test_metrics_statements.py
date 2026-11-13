@@ -13,7 +13,14 @@ import httpx
 from idraft.api.resources import Resources
 from tests.api.ai import summary_support
 from tests.api.ai.metrics_support import OVERVIEW, OVERVIEW_AI, Route, get_metric, get_overview
-from tests.api.ai.summary_support import Summary, full_project, get_summary, statements
+from tests.api.ai.summary_support import (
+    Summary,
+    full_project,
+    get_summary,
+    new_topic,
+    statements,
+)
+from tests.api.auth.support import execute
 from tests.conftest import PostgresServer
 
 seeded = summary_support.seeded
@@ -202,3 +209,115 @@ async def test_an_overview_of_no_prompt_reads_nothing_of_its_own(
 ) -> None:
     """No prompt in scope: the cells are empty and there is no citation to count."""
     assert await _extra(seeded, api, resources, **{"filter[country_iso]": "FR"}) == 0
+
+
+# A breakdown reads, in a second transaction after its summary request, the scope of the
+# transaction and the day each entity configuration took effect (the meta names them, C-21); a
+# dimension that is an attribute of the prompt also reads the attributes of the prompts in scope
+# (`prompt_attributes`, which joins the persona's name, so the persona costs no more than the
+# rest). The summary request is the one the dimension needs: the topic rows, the total row, or the
+# prompt rows (`rows` left out).
+BREAKDOWN_EXTRA = 2
+ATTRIBUTE_EXTRA = 3
+BREAKDOWN_CASES = [
+    ("topic", {"rows": "topics", "include": "total"}, BREAKDOWN_EXTRA),
+    ("engine", {"rows": "none", "include": "total"}, BREAKDOWN_EXTRA),
+    ("intent", {"include": "total"}, ATTRIBUTE_EXTRA),
+    ("funnel_stage", {"include": "total"}, ATTRIBUTE_EXTRA),
+    ("prompt_type", {"include": "total"}, ATTRIBUTE_EXTRA),
+    ("language", {"include": "total"}, ATTRIBUTE_EXTRA),
+    ("country", {"include": "total"}, ATTRIBUTE_EXTRA),
+    ("persona", {"include": "total"}, ATTRIBUTE_EXTRA),
+]
+
+
+async def _breakdown(
+    world: Summary,
+    api: httpx.AsyncClient,
+    resources: Resources,
+    key: str,
+    dimension: str,
+    **params: Any,
+) -> int:
+    with statements(resources) as seen:
+        response = await get_metric(world, api, key, "breakdown", dimension=dimension, **params)
+    assert response.status_code == 200, response.text
+    return len(seen)
+
+
+async def _breakdown_extra(
+    world: Summary,
+    api: httpx.AsyncClient,
+    resources: Resources,
+    case: tuple[str, dict[str, str], int],
+    key: str = "ai.mention_rate",
+    **scope: Any,
+) -> int:
+    """The statements a breakdown adds to the summary request it makes, for the same scope."""
+    dimension, summary, _ = case
+    await get_metric(world, api, key, "breakdown", dimension=dimension, **scope)
+    both = await _breakdown(world, api, resources, key, dimension, **scope)
+    with statements(resources) as seen:
+        response = await get_summary(world, api, **summary, **scope)
+    assert response.status_code == 200, response.text
+    return both - len(seen)
+
+
+async def test_a_breakdown_adds_a_fixed_number_of_statements_to_its_summary_request(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, seeded: Summary
+) -> None:
+    """Over a small world (14 answers) and over the base plan (150 prompts, three engines, 3,600
+    answers) each dimension adds the same reads: whatever the number of prompts, answers, groups or
+    engines, and whichever scope or key."""
+    world = await full_project(resources, migrated)
+
+    for case in BREAKDOWN_CASES:
+        extra = case[-1]
+        for each in (seeded, world):
+            assert await _breakdown_extra(each, api, resources, case) == extra, case[0]
+            for scope in ({"include_branded": "true"}, {"filter[engine_code_in]": "chatgpt_web"}):
+                assert await _breakdown_extra(each, api, resources, case, **scope) == extra, (
+                    case[0],
+                    scope,
+                )
+    # The key does not change the reads, except for the small cells, which are columns of the
+    # same statement as the counts.
+    topic = BREAKDOWN_CASES[0]
+    assert (
+        await _breakdown_extra(seeded, api, resources, topic, "ai.outcome_mix") == BREAKDOWN_EXTRA
+    )
+    detail = ("topic", {"rows": "topics", "include": "total,cells"}, BREAKDOWN_EXTRA)
+    assert (
+        await _breakdown_extra(seeded, api, resources, detail, "ai.first_mention_rate")
+        == BREAKDOWN_EXTRA
+    )
+
+
+async def test_a_persona_breakdown_costs_the_same_whether_a_prompt_has_a_persona_or_not(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, seeded: Summary
+) -> None:
+    persona = BREAKDOWN_CASES[-1]
+    assert persona[0] == "persona"
+    without = await _breakdown_extra(seeded, api, resources, persona)
+    buyer = await new_topic(migrated, seeded.project, "Buyer", kind="persona")
+    await execute(
+        migrated,
+        "UPDATE ai.prompts SET persona_term_id = $2 WHERE id = $1",
+        seeded.prompts["providers"].id,
+        buyer,
+    )
+
+    assert without == ATTRIBUTE_EXTRA
+    assert await _breakdown_extra(seeded, api, resources, persona) == ATTRIBUTE_EXTRA
+
+
+async def test_a_breakdown_of_no_prompt_reads_nothing_of_its_own(
+    api: httpx.AsyncClient, resources: Resources, seeded: Summary
+) -> None:
+    """No prompt in scope: no group, no attribute and no configuration to read."""
+    for case in BREAKDOWN_CASES:
+        extra = await _breakdown_extra(
+            seeded, api, resources, case, **{"filter[country_iso]": "FR"}
+        )
+
+        assert extra == 0, case[0]

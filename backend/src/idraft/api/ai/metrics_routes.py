@@ -32,7 +32,6 @@ from idraft.api.schemas.ai_metrics import (
     AiSeriesResponse,
     BreakdownDimension,
 )
-from idraft.api.stubs import not_built, not_built_yet
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 from idraft.domain.ai_engines import EngineCode
@@ -288,12 +287,13 @@ async def metric_series(
     "topic values do not add up to the total (`meta.notes`). A breakdown has no compare "
     "parameters.",
 )
-@not_built
 async def metric_breakdown(
     project_id: UUID,
     access: ReadData,
     query: Scoped,
+    service: Metrics,
     metric: Metric,
     dimension: Annotated[BreakdownDimension, Query(description="What the rows are.")],
 ) -> AiBreakdownResponse:
-    raise not_built_yet()
+    keys = resolve(metric, "breakdown")
+    return await service.breakdown(access, project_id, query, keys, dimension)

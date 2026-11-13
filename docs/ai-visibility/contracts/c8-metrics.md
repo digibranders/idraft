@@ -266,6 +266,16 @@ counts in each; topic values do not add up to the total.". The attribute dimensi
 the summary counts and reduce each group's per-prompt cells with the summary's own rule, so a group of the prompts
 of a topic gives that topic's row exactly.
 
+As built (C-29 and C-30): `topic` maps the summary's topic rows; `engine` maps the summary's total row, one row per
+engine with the prompts in scope as `prompts` and the one value of that engine in `values` (none for a fan-out key
+on an engine that does not expose fan-out: the row is kept with `values` empty); `intent`, `funnel_stage`,
+`prompt_type`, `language`, `country` and `persona` group the summary's prompt rows by the attribute of the prompt
+(one statement, `prompt_attributes`) and reduce each group with `reduce_cells`. `country` is the prompt's own market,
+as the summary's `by_country` (the group of one market equals its `by_country` entry), and a prompt with no market
+is a row with `id` null. With no prompt in scope the rows are empty (`rows_total` 0). A key that is not a cell of a
+prompt's row (`ai.prompts_in_scope`, `ai.valid_answers`, `ai.citation_share`, the recommendation keys) answers
+`501` naming the key and `breakdown`.
+
 ## Registry matrix
 
 The keys are doc 16 section 2.1 (the D-17 keys `ai.prompts_in_scope` and `ai.valid_answers` are in its table).
@@ -323,9 +333,8 @@ Each metric route costs the statements of the summary request it makes plus a fi
 one second transaction (one scope statement, so extras are "reads + 1"). The tests assert the differences, never
 absolute counts, and that doubling the data changes nothing. `S(...)` is the summary request. `rows left out`
 means the `rows` parameter is not sent, which builds the prompt rows (and reads the topic rollup and names): it is
-how a route gets the ids of the prompts in scope. Routes 1 to 4 are measured (marked "measured" below; the test
-is the contract). The breakdown rows (route 5) are still design figures until its task measures them; the competitor
-rows are in [c5-competitors.md](c5-competitors.md). `compare` adds the summary's own read of the window compared
+how a route gets the ids of the prompts in scope. Routes 1 to 5 are measured (marked "measured" below; the test
+is the contract); the competitor rows are in [c5-competitors.md](c5-competitors.md). `compare` adds the summary's own read of the window compared
 with (+1), and one more with `entity_ids` (the entities' previous cells, +2 in all); a series has no compare.
 
 | Request | Summary request | Extra statements | Extra reads |
@@ -337,11 +346,9 @@ with (+1), and one more with `entity_ids` (the entities' previous cells, +2 in a
 | `{metric}` for `ai.prompts_in_scope` | `S(rows=none, include=total)` | +2 (measured) | transaction scope, `version_starts` |
 | `{metric}` for `ai.citation_share` | `S(rows left out, include=total)` | +3 (measured) | transaction scope, `role_engine_totals`, `version_starts` (the overview's own reads) |
 | series | `S(rows=none, include=total,series)` (`entity_ids`: plus `entities`) | +2 (measured) | transaction scope, `version_starts` |
-| breakdown `topic` | `S(rows=topics)` | 0 | none |
-| breakdown `country` | `S(rows=none, group_by=country)` | 0 | none |
-| breakdown `engine` | `S(rows=none, include=total)` | 0 | none |
-| breakdown `intent`, `funnel_stage`, `prompt_type`, `language` | `S(rows left out)` | +2 | `prompt_attributes`, transaction scope |
-| breakdown `persona` | same | +3 | adds `topic_names` |
+| breakdown `topic` | `S(rows=topics, include=total)` (`include=total,cells` for the small-cell keys) | +2 (measured) | transaction scope, `version_starts` |
+| breakdown `engine` | `S(rows=none, include=total)` | +2 (measured) | transaction scope, `version_starts` |
+| breakdown `intent`, `funnel_stage`, `prompt_type`, `language`, `country`, `persona` | `S(rows left out, include=total)` | +3 (measured) | transaction scope, `prompt_attributes` (the persona's name is joined), `version_starts` |
 
 The two transactions (the summary's and the extra reads) are not one snapshot: an answer ingested between them
 can make a citation share denominator differ by one answer from the valid answers beside it.
@@ -683,3 +690,5 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-14 WP-32: C-26 value and series built (routes 3 and 4): measured statements are the summary request plus 2 (transaction scope, `version_starts`: the meta names the days each entity configuration took effect on these routes too, C-21), `ai.citation_share` plus 3; none when no prompt is in scope; the same on 14 answers and on the full project. `compare` adds the summary's own read (+1, and +1 more with `entity_ids`, for the entities' previous cells). The table above had 0 for the value and series rows.
 2026-11-14 WP-32: C-27 reading of the contract where the note was silent: with `entity_ids` the values (and series) are per engine in code order and, within an engine, the entities in the summary's cell order (own first), in place of the engine's own cells, then one `engine_average` per entity in that order (value route only); the entity values say "the entity" in `method`; an empty `entity_ids` is no `entity_ids`. A series point is `is_partial` for a week cut by a window bound or holding today in the project's zone. The four `ai.sentiment` sub keys are `positive`, `neutral`, `negative` and `mixed` (doc 19 names them; this note said "four `.x` keys"). The detail of `501` for a key that is built but not for the series route is `Not built yet: <key> on series.`; a known key that is not built is `Not built yet: <key>.`. `entity_ids` on a key that does not take it is `422` at `entity_ids` with code `not_supported`.
 2026-11-14 WP-32: C-28 order of the key checks: `resolve()` runs in the route body, before any read, and raises `404 unknown_metric` for an unknown key, `501` naming the key for a known key not built (on the route), and `422` at `entity_ids` for a key that does not take it, in that order. So `501` for a known unbuilt key comes before the project `404 not_found` (a deleted project with `ai.sentiment` answers `501 not_implemented`; with `ai.nope`, `404 unknown_metric`); the service's `404 not_found` follows. An empty `entity_ids=` is no `entity_ids`: `200` with the engines' own values, also on a key that does not take `entity_ids`.
+2026-11-14 WP-32: C-29 breakdown built (route 5): measured statements are the summary request plus 2 for `topic` and `engine` (transaction scope, `version_starts`: the meta names the days each entity configuration took effect here too, C-21) and plus 3 for `intent`, `funnel_stage`, `prompt_type`, `language`, `country` and `persona` (transaction scope, `prompt_attributes`, `version_starts`); none when no prompt is in scope; the same on 14 answers and on the full project, with or without a persona. The table above had 0 for `topic`, `country` and `engine`, and 3 for `persona` (`topic_names`): the persona's name is now joined in `prompt_attributes`, so it costs what the other attributes cost. The summary request is `S(rows=topics, include=total)`, `S(rows=none, include=total)` or, for an attribute, `S(rows left out, include=total)`; `include=cells` is added for the small-cell keys.
+2026-11-14 WP-32: C-30 reading of the contract where the note was silent: the `country` rows are grouped from the summary's prompt rows by the prompt's market (one reduce for every attribute) rather than read from `by_country`, because the row needs its prompt count and a prompt with no market is a row with `id` null; the market group equals the `by_country` entry (tested). The `engine` row holds the prompts in scope as `prompts`, and is kept with `values` empty for a fan-out key on an engine that does not expose fan-out (not exposed is not 0). With no prompt in scope no row is returned, whatever the dimension. A key built for other routes (`ai.prompts_in_scope`, `ai.valid_answers`, `ai.citation_share`, the two recommendation keys) is `501`, `Not built yet: <key> on breakdown.`, and never `422`. A prompt archived or deleted between the summary read and the attribute read is left out of every group. `reduce_cells` takes the prompts' cells (counts of answers) and a weighting: prompt weighted is the sum of each prompt's rate over the prompts with a valid answer, over their number, `pooled` the answers behind them; observation weighted is the sum over the sum; `n_observations` is every answer of every prompt.

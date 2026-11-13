@@ -708,3 +708,169 @@ def test_an_entity_series_is_the_weeks_of_its_cells() -> None:
         "ai.share_of_voice", row, FRAME, date(2026, 12, 25), entity_id=theirs.entity_id
     )
     assert share.points[0].numerator == 0.5
+
+
+# The breakdown: the keys it builds, and the one rule that reduces per-prompt cells to a group's.
+
+
+def test_the_breakdown_builds_the_keys_that_are_a_cell_of_the_summary() -> None:
+    """The matrix of the note says yes to the breakdown for exactly the keys that read a cell."""
+    matrix = (
+        NOTE.read_text(encoding="utf-8").split("## Registry matrix")[1].split("## Card read")[0]
+    )
+    yes = {
+        key
+        for row in matrix.splitlines()
+        if row.startswith("| `ai.") and row.split("|")[7].strip().startswith("yes")
+        for key in re.findall(r"`(ai\.[a-z_.]+)`", row.split("|")[1])
+    }
+
+    assert yes
+    assert yes == (set(metrics.BREAKDOWN) - set(OUTCOMES)) | {"ai.outcome_mix"}
+    assert set(OUTCOMES) <= set(metrics.BREAKDOWN)
+    for key in ("ai.prompts_in_scope", "ai.valid_answers", "ai.citation_share"):
+        assert key not in metrics.BREAKDOWN
+    for key in metrics.SUPPRESSED:
+        assert key not in metrics.BREAKDOWN
+
+
+def test_a_key_resolves_for_the_breakdown_when_it_is_built_for_it() -> None:
+    for key in ("ai.mention_rate", "ai.share_of_voice", "ai.first_mention_rate", *FANOUT):
+        assert metrics.resolve(key, "breakdown") == (key,)
+    assert metrics.resolve("ai.outcome_mix", "breakdown") == OUTCOMES
+    assert metrics.resolve(OUTCOMES[1], "breakdown") == (OUTCOMES[1],)
+
+
+def test_a_key_built_for_other_routes_is_not_built_for_the_breakdown_and_names_the_route() -> None:
+    for key in (
+        "ai.prompts_in_scope",
+        "ai.valid_answers",
+        "ai.citation_share",
+        "ai.recommendation_rate",
+        "ai.recommended_given_mentioned",
+    ):
+        with pytest.raises(NotImplementedProblemError) as raised:
+            metrics.resolve(key, "breakdown")
+
+        assert raised.value.detail == f"Not built yet: {key} on breakdown."
+    with pytest.raises(NotImplementedProblemError) as raised:
+        metrics.resolve("ai.sentiment", "breakdown")
+    assert raised.value.detail == "Not built yet: ai.sentiment."
+    with pytest.raises(metrics.UnknownMetricError):
+        metrics.resolve("seo.top3_count", "breakdown")
+
+
+def test_reduce_prompt_weights_each_prompt_once() -> None:
+    """Two prompts: 1 of 2 valid answers (in 2) and 3 of 3 (in 4). Each counts once, as its rate:
+    0.5 + 1.0 = 1.5 over 2 prompts; the answers behind it are 4 of 5, in 6."""
+    reduced = metrics.reduce_cells([cell(1, 2, 2), cell(3, 3, 4)], "prompt_weighted")
+
+    assert reduced == cell(1.5, 2, 6, (4, 5))
+    assert reduced.value == pytest.approx(0.75)
+    # Not the sum over the sums, 4 / 5.
+    assert reduced.value != pytest.approx(0.8)
+
+
+def test_reduce_leaves_out_prompts_with_no_valid_answer() -> None:
+    """A prompt of 3 answers, none valid, is no prompt of the rate; its answers still count."""
+    reduced = metrics.reduce_cells([cell(1, 2, 2), cell(0, 0, 3)], "prompt_weighted")
+
+    assert reduced == cell(0.5, 1, 5, (1, 2))
+    none = metrics.reduce_cells([cell(0, 0, 3), cell(0, 0, 0)], "prompt_weighted")
+    assert none == cell(0, 0, 3, (0, 0))
+    assert none.value is None
+    assert metrics.reduce_cells([], "prompt_weighted") == cell(0, 0, 0, (0, 0))
+
+
+def test_reduce_sums_over_sums_for_share_of_voice() -> None:
+    """One answer one weight: 1.5 of 3 answers and 1 of 1 make 2.5 of 4, in 7, with no `pooled`."""
+    reduced = metrics.reduce_cells([cell(1.5, 3, 6), cell(1, 1, 1)], "observation_weighted")
+
+    assert reduced == cell(2.5, 4, 7)
+    assert reduced.pooled is None
+    assert reduced.value == pytest.approx(0.625)
+    empty = metrics.reduce_cells([cell(0, 0, 2)], "observation_weighted")
+    assert empty == cell(0, 0, 2)
+    assert empty.value is None
+
+
+def _prompt(code: str, mentioned: MetricCell, fanout: MetricCell | None = None) -> EngineSummary:
+    """The row of one prompt on an engine, with the cells a prompt row has (counts of answers)."""
+    row = engine(code, fanout=fanout is not None)
+    detail = row.detail
+    assert detail is not None
+    return row.model_copy(
+        update={
+            "mentioned": mentioned,
+            "detail": detail.model_copy(update={"fanout_presence": fanout, "fanout_mean": fanout}),
+        }
+    )
+
+
+def test_a_group_has_one_value_per_engine_and_key_with_no_average() -> None:
+    prompts = [
+        [_prompt(CHATGPT, cell(1, 2, 2)), _prompt(GEMINI, cell(1, 1, 1))],
+        [_prompt(CHATGPT, cell(3, 3, 4)), _prompt(GEMINI, cell(0, 0, 0))],
+    ]
+
+    values = metrics.group_values(["ai.mention_rate", "ai.share_of_voice"], prompts, FRAME)
+
+    assert [(v.metric, v.engine_code) for v in values] == [
+        ("ai.mention_rate", CHATGPT),
+        ("ai.share_of_voice", CHATGPT),
+        ("ai.mention_rate", GEMINI),
+        ("ai.share_of_voice", GEMINI),
+    ]
+    chatgpt, _, gemini, _ = values
+    assert (chatgpt.numerator, chatgpt.denominator, chatgpt.n_observations) == (1.5, 2, 6)
+    assert (chatgpt.n_prompts, chatgpt.pooled) == (2, Pooled(successes=4, trials=5))
+    # Gemini: the second prompt has no valid answer and is left out; the first counts once.
+    assert (gemini.numerator, gemini.denominator, gemini.n_observations) == (1, 1, 1)
+    assert chatgpt.observation_class == "consumer_ui"
+    assert (chatgpt.window, chatgpt.filters) == (FRAME.window, FRAME.filters)
+    # Both engines are summed over the answers: 2.5 of 4 for each prompt makes 5 of 8, no average.
+    share = values[1]
+    assert (share.numerator, share.denominator, share.pooled) == (5, 8, None)
+    assert "previous" not in chatgpt.model_dump(mode="json", exclude_none=True)
+
+
+def test_a_group_has_no_value_of_a_fanout_key_for_an_engine_without_fanout() -> None:
+    prompts = [
+        [_prompt(CHATGPT, cell(1, 2, 2), cell(1, 2, 2)), _prompt(GEMINI, cell(1, 1, 1))],
+        [_prompt(CHATGPT, cell(3, 3, 4), cell(2, 3, 4)), _prompt(GEMINI, cell(1, 1, 1))],
+    ]
+
+    values = metrics.group_values(["ai.fanout_presence_rate"], prompts, FRAME)
+
+    assert [v.engine_code for v in values] == [CHATGPT]
+    # Prompt weighted: 1/2 and 2/3.
+    assert values[0].numerator == pytest.approx(0.5 + 2 / 3)
+    assert values[0].denominator == 2
+
+
+def test_the_four_outcomes_of_a_group_add_up_to_the_whole() -> None:
+    """Prompt A (2 valid): 1/2, 1/2, 0, 0. Prompt B (3 valid): 0, 1/3, 1/3, 1/3. Over the two
+    prompts the numerators are 1/2, 5/6, 1/3 and 1/3: 2 in all, over 2 prompts."""
+
+    def outcomes(*numerators: int, valid: int, answers: int) -> OutcomeCells:
+        cells = [cell(n, valid, answers) for n in numerators]
+        return OutcomeCells(
+            mentioned_and_cited=cells[0],
+            mentioned_only=cells[1],
+            cited_only=cells[2],
+            neither=cells[3],
+        )
+
+    first = _prompt(CHATGPT, cell(1, 2, 2))
+    second = _prompt(CHATGPT, cell(1, 3, 4))
+    prompts = [
+        [first.model_copy(update={"outcomes": outcomes(1, 1, 0, 0, valid=2, answers=2)})],
+        [second.model_copy(update={"outcomes": outcomes(0, 1, 1, 1, valid=3, answers=4)})],
+    ]
+
+    values = metrics.group_values(list(OUTCOMES), prompts, FRAME)
+
+    assert [v.metric for v in values] == list(OUTCOMES)
+    assert [v.numerator for v in values] == pytest.approx([1 / 2, 5 / 6, 1 / 3, 1 / 3])
+    assert {v.denominator for v in values} == {2}
+    assert sum(v.value or 0 for v in values) == pytest.approx(1)
