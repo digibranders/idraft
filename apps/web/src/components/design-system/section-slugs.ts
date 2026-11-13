@@ -23,6 +23,7 @@ export const PREVIEW_SECTION_SLUGS = [
   'chart-grids',
   'domains-feeds',
   'controls',
+  'layouts',
 ] as const;
 
 export type PreviewSectionSlug = (typeof PREVIEW_SECTION_SLUGS)[number];

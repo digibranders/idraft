@@ -33,6 +33,7 @@ describe('the preview registry', () => {
       'chart-grids',
       'domains-feeds',
       'controls',
+      'layouts',
     ]);
     expect(new Set(PREVIEW_SECTIONS.map((section) => section.title)).size).toBe(PREVIEW_SECTIONS.length);
     // The end-to-end and visual tests visit the sections by this list
