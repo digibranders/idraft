@@ -16,6 +16,7 @@ import {
   type ObservationAnswer,
   type PromptScope,
 } from './prompt-queries';
+import { DomainChipList, type DomainChipProps } from '@/components/app/cells/domain-chip';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
@@ -25,12 +26,10 @@ import { Tooltip } from '@/components/ui/tooltip';
 import type { CitationOut, ProjectEngine } from '@/lib/api/types';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { formatDetailDateTime, formatRelative } from '@/lib/format';
+import { displayDomain } from '@/lib/format/url';
 
 /** The characters of an answer the card shows; the viewer has the rest. */
 const EXCERPT_LENGTH = 280;
-/** The sources a card names. */
-const TOP_SOURCES = 3;
-const SOURCE_ROLE_KEYS = { own: 'own', competitor: 'competitor', third_party: 'thirdParty' } as const;
 /** A time with its exact reading in a tooltip is a tab stop, so the keyboard reaches the tooltip (20 section 6.2 rule 6). */
 const TAB_STOP = { tabIndex: 0 } as const;
 
@@ -50,17 +49,12 @@ export interface InspectorLatestProps {
   children?: ReactNode;
 }
 
-/** The first sources of an answer, in the order it cites them, one for each host. */
-function topSources(citations: readonly CitationOut[]): CitationOut[] {
-  const hosts = new Set<string>();
-  const sources: CitationOut[] = [];
-  for (const citation of [...citations].sort((a, b) => a.citation_index - b.citation_index)) {
-    if (hosts.has(citation.host)) continue;
-    hosts.add(citation.host);
-    sources.push(citation);
-    if (sources.length === TOP_SOURCES) break;
-  }
-  return sources;
+/** The domains an answer cites, in the order it cites them, one for each domain as displayed (`www.` dropped). */
+function citedDomains(citations: readonly CitationOut[]): DomainChipProps[] {
+  const domains = [...citations]
+    .sort((a, b) => a.citation_index - b.citation_index)
+    .map((citation) => displayDomain(citation.host));
+  return [...new Set(domains)].map((domain) => ({ domain }));
 }
 
 type NewestRead = UseQueryResult<{ data: { observation_id: string; observed_at: string }[] }>;
@@ -130,14 +124,6 @@ function LatestCard({
     const hasText = shown.answer_text !== null && shown.answer_text !== '';
     const { segments, clipped } = clipSegments(answerSegments(shown.answer_text ?? '', shown.mentions), EXCERPT_LENGTH);
     const facts = shown.facts;
-    const sources = topSources(shown.citations).map((source) => ({
-      host: source.host,
-      own: source.domain_role === 'own',
-      text: latest('source', {
-        host: source.host,
-        role: answerWords(`sourceRoles.${SOURCE_ROLE_KEYS[source.domain_role]}`),
-      }),
-    }));
     const exact = formatDetailDateTime(shown.observed_at, timeZone);
     return (
       <div className="flex flex-col gap-3">
@@ -199,15 +185,7 @@ function LatestCard({
             </li>
           </ul>
         )}
-        {sources.length === 0 ? null : (
-          <ul aria-label={latest('sourcesLabel')} className="flex flex-wrap gap-1.5">
-            {sources.map((source) => (
-              <li key={source.host}>
-                {source.own ? <Badge tone="info">{source.text}</Badge> : <Badge variant="outline">{source.text}</Badge>}
-              </li>
-            ))}
-          </ul>
-        )}
+        <DomainChipList label={latest('sourcesLabel')} domains={citedDomains(shown.citations)} />
         {onOpenAnswer === undefined ? null : (
           <div>
             <Button

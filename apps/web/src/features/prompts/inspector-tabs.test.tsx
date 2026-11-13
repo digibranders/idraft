@@ -4,6 +4,7 @@ import { Suspense, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PromptsScreen } from './prompts-screen';
+import { promptTabs, type PromptInspectorTab, type PromptTabContext } from './seams/inspector-tabs';
 import type { ObservationDetail, ObservationSummary, Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
 import { MOCK_ENTITY_IDS } from '@/mocks/entity-fixtures';
@@ -215,6 +216,60 @@ const serveTwoAnswers = (): void =>
     ),
   );
 
+describe('the tab capacity of the prompt inspector', () => {
+  const context: PromptTabContext = {
+    scope: { workspaceId: 'w', projectId: 'p' },
+    promptId: 'prompt-1',
+    prompt: null,
+    exists: true,
+    range: { from: '2026-10-16', to: '2026-11-12' },
+    timeZone: 'Europe/Berlin',
+    engines: [],
+    labelOf: (code) => code,
+    counts: {
+      status: 'ready',
+      row: undefined,
+      entities: [],
+      brandedIncluded: false,
+      errorId: null,
+      retry: () => undefined,
+      retrying: false,
+    },
+    answers: { status: 'ready', rows: [], hasMore: false, errorId: null, retry: () => undefined, retrying: false },
+    noCountsReason: '',
+    onOpenAnswer: undefined,
+  };
+  const stub = (id: string, extra: Partial<PromptInspectorTab> = {}): PromptInspectorTab => ({
+    id,
+    label: () => id,
+    render: () => id,
+    ...extra,
+  });
+  const builtIns = ['latest', 'history', 'competitors', 'stats'].map((id) => stub(id));
+  const citations = stub('citations', { after: 'history' });
+  const fanout = (available: boolean): PromptInspectorTab =>
+    stub('fanout', { after: 'competitors', available: () => available });
+  const idsOf = (tabs: readonly PromptInspectorTab[]): string[] => tabs.map((entry) => entry.id);
+
+  it('holds six tabs in the D-02 order, and five while no engine exposes fan-out', () => {
+    expect(idsOf(promptTabs(builtIns, [citations, fanout(true)], context))).toEqual([
+      'latest',
+      'history',
+      'citations',
+      'competitors',
+      'fanout',
+      'stats',
+    ]);
+    expect(idsOf(promptTabs(builtIns, [citations, fanout(false)], context))).toEqual([
+      'latest',
+      'history',
+      'citations',
+      'competitors',
+      'stats',
+    ]);
+  });
+});
+
 describe('the tabs of the prompt inspector', () => {
   it('has Latest, History, Competitors and Stats in that order, with Latest chosen and left out of the address', async () => {
     renderOn('viewer', opened);
@@ -332,7 +387,7 @@ describe('the Latest tab', () => {
       within(sources)
         .getAllByRole('listitem')
         .map((item) => item.textContent),
-    ).toEqual(['fynix.example (Own)', 'reviews.example (Third party)']);
+    ).toEqual(['fynix.example', 'reviews.example']);
     // The time is relative, with the exact time as its name
     expect(within(chatgpt).getByText('10h ago').closest('time')).toHaveAttribute(
       'aria-label',
