@@ -410,7 +410,7 @@ async def test_group_by_language_is_422_and_says_it_is_not_built(
 
     assert problem(response) == (422, "validation_failed")
     [error] = response.json()["errors"]
-    assert (error["location"], error["path"]) == ("query", "group_by")
+    assert (error["location"], error["path"], error["code"]) == ("query", "group_by", "not_built")
     assert "language" in error["message"]
     assert "not built" in error["message"]
     assert "country" in error["message"]

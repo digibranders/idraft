@@ -260,6 +260,51 @@ async def test_another_projects_and_workspaces_answers_are_not_counted_with_ever
     assert own != before
 
 
+async def test_another_workspaces_rows_never_show_under_the_row_filters_or_rows_none(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The filters and `rows=none` change which rows a response carries, so they are the options
+    that would show a leak of prompts. Another workspace has two prompts and a topic, answered in W
+    naming nobody: they match `neither` and `nobody_named` as `a` of this one does. Nothing of
+    theirs (ids, text, topic, entities) is in any of the three responses, and `rows=none` counts
+    only this workspace's two prompts."""
+    world = await _project(resources, migrated, ["a", "b"])
+    await _write_named(migrated, world, [Named("a", _at(), ()), Named("b", _at(1), (world.own,))])
+    elsewhere = await _project(resources, migrated, ["hidden1", "hidden2"])
+    hidden_topic = await new_topic(migrated, elsewhere.project, "Hidden topic")
+    for name in ("hidden1", "hidden2"):
+        await assign_topic(migrated, elsewhere, name, hidden_topic)
+    await _write_named(
+        migrated, elsewhere, [Named("hidden1", _at(), ()), Named("hidden2", _at(1), ())]
+    )
+    secrets = [
+        *(str(prompt.id) for prompt in elsewhere.prompts.values()),
+        "hidden1",
+        "hidden2",
+        "Hidden topic",
+        str(hidden_topic),
+        str(elsewhere.own),
+        str(elsewhere.rival),
+        str(elsewhere.project.id),
+        str(elsewhere.workspace.id),
+    ]
+    filtered = [{"filter[outcome]": "neither"}, {"filter[opportunity]": "nobody_named"}]
+
+    for params in filtered:
+        response = await get_summary(world, api, **_every(**params))
+        assert response.status_code == 200, response.text
+        assert [row["prompt_id"] for row in response.json()["data"]["prompts"]] == [
+            str(world.prompts["a"].id)
+        ], params
+        for secret in secrets:
+            assert secret not in response.text, (params, secret)
+    response = await get_summary(world, api, **_every(rows="none"))
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["total"]["prompt_count"] == 2
+    for secret in secrets:
+        assert secret not in response.text, ("rows=none", secret)
+
+
 async def test_a_foreign_or_deleted_project_is_not_found_with_every_option(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

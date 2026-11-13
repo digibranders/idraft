@@ -306,9 +306,6 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
         "include": "series,entities,total,co_mentions,cells",
         "compare": "previous_period",
         "group_by": "country",
-        "rows": "none",
-        "filter[outcome]": "neither",
-        "filter[opportunity]": "nobody_named",
     },
     # A tenant's answer issued one query; the default needs two answers.
     ("GET", _W + "/projects/{project_id}/ai/fanout-queries"): {"min_support": "1"},
