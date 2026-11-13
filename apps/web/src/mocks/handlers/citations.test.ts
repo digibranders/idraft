@@ -276,6 +276,11 @@ describe('citation reads answer what the generated schema says', () => {
   it('pages answers SourcePagePage with host, title and previous', async () => {
     const page = await read(`${FYNIX}/sources/pages?compare=previous_period&include=series`, PAGE_PAGE);
     expect(page.data.length).toBeGreaterThan(0);
+    // Without include=series no row carries one, as on the domains route
+    const plain = await read(`${FYNIX}/sources/pages`, PAGE_PAGE);
+    expect(plain.data.length).toBeGreaterThan(0);
+    expect(plain.meta).not.toHaveProperty('series');
+    expect(plain.data.some((row) => 'series' in row)).toBe(false);
     for (const row of page.data) {
       expect(row.host).not.toBe('');
       expect(row.title).not.toBeNull();
@@ -432,6 +437,23 @@ describe('citation reads answer what the generated schema says', () => {
       full.data.reduce((sum, row) => sum + (row.series?.[place]?.citation_units ?? 0), 0),
     );
     expect(perWeek).toEqual((full.meta.series ?? []).map((week) => week.citation_units));
+  });
+
+  it('include_unresolved_redirects adds the flagged units to the aggregates and never to the citation list', async () => {
+    const byDefault = await read(`${FYNIX}/sources/domains`, DOMAIN_PAGE);
+    const asked = await read(`${FYNIX}/sources/domains?include_unresolved_redirects=true`, DOMAIN_PAGE);
+    expect(byDefault.meta.citation_units).toBe(569);
+    expect(asked.meta.citation_units).toBe(581);
+    // The list keeps every flagged citation: it has one row per listed source, whatever the aggregates leave out
+    const rows: Schemas['CitationRow'][] = [];
+    let cursor: string | null = null;
+    do {
+      const path: string = `${FYNIX}/citations?limit=200${cursor === null ? '' : `&cursor=${cursor}`}`;
+      const page = await read(path, CITATION_PAGE);
+      rows.push(...page.data);
+      cursor = page.page.next_cursor;
+    } while (cursor !== null);
+    expect(rows).toHaveLength(581);
   });
 
   it('the mock lists no more than 3 engines and keeps their order', async () => {
