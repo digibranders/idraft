@@ -8,10 +8,9 @@ import { CELL_OF_METRIC, countText, engineSortId, SORT_ID, type RateMetric } fro
 import { useRateWords } from './rate-view';
 import { col } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
-import { SENTENCE_BREAK } from '@/components/app/metric/delta';
 import { InsufficientPill } from '@/components/app/metric/insufficient-pill';
 import type { EngineSummary, ProjectEngine } from '@/lib/api/types';
-import { averageChangeOf, type RateChange } from '@/lib/compare/change-model';
+import { averageChangeOf, engineChangeOf, type RateChange } from '@/lib/compare/change-model';
 import { EMPTY_VALUE, formatDateRange, formatList } from '@/lib/format';
 import { averageRate, cellFigure, engineRatesOf, hasRate, topEngine, type AverageRate } from '@/lib/rates/rate-model';
 import type { RateReading } from '@/lib/rates/strip-model';
@@ -28,6 +27,12 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 /** "Google AI Mode mention" in capitals with its sort arrow needs about 176 px. */
 export const ENGINE_COLUMN_WIDTH = 176;
+
+/**
+ * The Mention rate cell is "87% avg of 3" and "+5.3 pts" on one line, about 144 to 152 px of content, which does not
+ * fit the 136 px content box of a 160 px column (12 px padding each side): the column takes its type's maximum.
+ */
+export const MENTION_COLUMN_WIDTH = 200;
 
 /** What a cell says in place of a rate, and what its tooltip says about why. */
 interface Gap {
@@ -61,6 +66,7 @@ export function useRateColumns<TRow>(
 ): RateColumns<TRow> {
   const t = useTranslations('prompts.columns');
   const rate = useTranslations('prompts.rate');
+  const tc = useTranslations('prompts.compare');
   const words = useRateWords();
   const changeWords = useChangeWords();
   const { compare } = useCompare();
@@ -104,6 +110,8 @@ export function useRateColumns<TRow>(
         headerTooltip: withNote(tip),
         priority: metric === 'mentioned' ? 1 : 2,
         sortable: true,
+        // The Mention cell holds the rate, "avg of N" and the change on one line, which needs the type's widest column
+        ...(metric === 'mentioned' ? { width: MENTION_COLUMN_WIDTH } : {}),
         // The cell is drawn below, for it has the insufficient state too
         known: () => null,
       });
@@ -114,7 +122,7 @@ export function useRateColumns<TRow>(
           if (average.state === 'insufficient') return <InsufficientPill answers={average.answers} tip={false} />;
           if (average.state === 'none') return <Missing label={gapOf(row, average).label} />;
           return (
-            <span className="inline-flex items-baseline gap-1.5">
+            <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
               <span className="num">{words.text(average)}</span>{' '}
               <span className="type-label text-foreground-tertiary">
                 {rate('avgLabel', { count: average.engines })}
@@ -146,18 +154,29 @@ export function useRateColumns<TRow>(
               : rate('avgTip', { engines: engineNames });
           // Every change shows what it rests on: the previous figure with its answers, the window and the test, or why none
           const change = metric === 'mentioned' && compare ? changeOf(row) : null;
+          // The one engine a change of several is of, so the tip names it. A row without a change says why only when the
+          // response was compared: the read held right after turning comparison on is not, and says nothing yet
+          const took = codes.filter((code) => engineChangeOf(cellsOf(row), code, 'mentioned') !== null);
+          const [only] = took;
           const changeText =
             metric !== 'mentioned' || !compare
               ? null
               : change === null
-                ? gapOfChange(row)
-                : changeWords.tip(change, { kind: 'average', range });
+                ? comparedWindow === null
+                  ? null
+                  : gapOfChange(row)
+                : changeWords.tip(change, {
+                    kind: 'average',
+                    range,
+                    shown: average.engines,
+                    ...(took.length === 1 && only !== undefined ? { engine: labelOf(only) } : {}),
+                  });
           return {
             content: formatList(
               counting.map(({ name, count }) => t('engineCount', { engine: name, count })),
               locale,
             ),
-            detail: changeText === null ? avgDetail : [avgDetail, changeText].join(SENTENCE_BREAK),
+            detail: changeText === null ? avgDetail : tc('cell.detail', { average: avgDetail, change: changeText }),
           };
         },
       };
@@ -197,7 +216,7 @@ export function useRateColumns<TRow>(
       citation: rateColumn(SORT_ID.citation, 'cited', t('citationRate'), t('citationRateTip')),
       topEngine: topColumn,
     };
-  }, [engines, cellsOf, note, t, rate, words, changeWords, compare, comparedWindow, locale]);
+  }, [engines, cellsOf, note, t, rate, tc, words, changeWords, compare, comparedWindow, locale]);
 }
 
 const HEADER_KEY = { mention: 'engineMention', citation: 'engineCitation', sov: 'engineShareOfVoice' } as const;

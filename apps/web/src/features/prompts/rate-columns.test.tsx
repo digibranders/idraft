@@ -2,8 +2,8 @@ import { screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { ComparedWindowProvider } from './compare/compared-window';
 import { DETECTABLE, WITHIN, cell, engineOf, projectEngine, topicCell } from './compare/change-test-data';
+import { ComparedWindowProvider, type ComparedWindow } from './compare/compared-window';
 import { useRateColumns } from './rate-columns';
 import type { EngineSummary, MetricCell, ProjectEngine } from '@/lib/api/types';
 import { axe } from '@/test/axe';
@@ -12,28 +12,43 @@ import { renderWithProviders, type ProvidedRender } from '@/test/render';
 interface Row {
   cells: readonly EngineSummary[] | undefined;
 }
-const cellsOf = (row: Row): readonly EngineSummary[] | undefined => row.cells;
+const rowCells = (row: Row): readonly EngineSummary[] | undefined => row.cells;
 
 const BOTH: ProjectEngine[] = [projectEngine('chatgpt_web'), projectEngine('gemini_web')];
 const CHAT_ONLY: ProjectEngine[] = [projectEngine('chatgpt_web')];
 const WINDOW = { from: '2026-09-18', to: '2026-10-15' };
 
-/** The Mention rate cell of a row and its tooltip, as the table draws them. */
-function Cell({ row, engines = BOTH }: { row: Row; engines?: ProjectEngine[] }): ReactElement {
-  const { mention } = useRateColumns<Row>(engines, cellsOf);
-  const tip = mention.cellTip?.(row);
+/** The Mention (or Citation) rate cell of a row and its tooltip, as the table draws them. */
+function Cell({
+  row,
+  engines = BOTH,
+  column = 'mention',
+}: {
+  row: Row;
+  engines?: ProjectEngine[];
+  column?: 'mention' | 'citation';
+}): ReactElement {
+  const columns = useRateColumns<Row>(engines, rowCells);
+  const shown = columns[column];
+  const tip = shown.cellTip?.(row);
   return (
     <>
-      <div data-testid="cell">{mention.cell(row)}</div>
+      <div data-testid="cell">{shown.cell(row)}</div>
       <p data-testid="tip">{tip === undefined ? '' : `${tip.content}. ${tip.detail ?? ''}`}</p>
     </>
   );
 }
 
-const render = (row: Row, searchParams = '', engines?: ProjectEngine[]): ProvidedRender =>
+const render = (
+  row: Row,
+  searchParams = '',
+  engines?: ProjectEngine[],
+  window: ComparedWindow = WINDOW,
+  column?: 'mention' | 'citation',
+): ProvidedRender =>
   renderWithProviders(
-    <ComparedWindowProvider value={WINDOW}>
-      <Cell row={row} {...(engines === undefined ? {} : { engines })} />
+    <ComparedWindowProvider value={window}>
+      <Cell row={row} {...(engines === undefined ? {} : { engines })} {...(column === undefined ? {} : { column })} />
     </ComparedWindowProvider>,
     { searchParams },
   );
@@ -50,10 +65,13 @@ describe('the Mention rate cell change', () => {
     expect(screen.getByText('+30.0 pts')).toHaveClass('text-positive-text');
   });
 
-  it('leaves an engine without a rate in the previous period out of both sides and says how many took part', () => {
+  it('names the one engine the change is of when the others have no rate in the previous period', () => {
     render({ cells: [chat(DETECTABLE), gemini(cell(20, 20), null)] });
     expect(screen.getByTestId('tip')).toHaveTextContent('Previous 20%, 12 of 60 answers');
-    // One engine took part, so it is that engine's own test and not an average
+    // One engine took part: the tip says which, so the points do not read as the average's change
+    expect(screen.getByTestId('tip')).toHaveTextContent(
+      'Change of ChatGPT only, the one engine with a rate in both periods',
+    );
     expect(screen.getByTestId('tip')).not.toHaveTextContent('Average of');
   });
 
@@ -65,6 +83,10 @@ describe('the Mention rate cell change', () => {
     );
     expect(screen.getByTestId('tip')).toHaveTextContent('Previous 20%, 20 of 100 answers');
     expect(screen.getByTestId('tip')).toHaveTextContent('Previous period: Sep 18 to Oct 15');
+    // The engine count comes before the previous figure, and the unpaired test is named once
+    const tip = screen.getByTestId('tip').textContent ?? '';
+    expect(tip.indexOf('Average of 2')).toBeLessThan(tip.indexOf('Previous 20%'));
+    expect(tip.match(/unpaired/g)).toHaveLength(1);
   });
 
   it('uses the engine own test when one engine is in scope', () => {
@@ -73,9 +95,10 @@ describe('the Mention rate cell change', () => {
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(screen.getByTestId('tip')).toHaveTextContent('Within normal variation');
     expect(screen.getByTestId('tip')).not.toHaveTextContent('Average of');
+    expect(screen.getByTestId('tip')).not.toHaveTextContent('Change of ChatGPT only');
   });
 
-  it('makes no claim when the weighted points and the pooled answers move apart, and stays neutral', () => {
+  it('makes no claim when the weighted points and the pooled answers move apart, says why, and stays neutral', () => {
     // The weighted rate rose by 5 points while the answers pooled fell by 30
     const topic = engineOf(
       'chatgpt_web',
@@ -87,6 +110,7 @@ describe('the Mention rate cell change', () => {
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(screen.getByTestId('cell').textContent).not.toMatch(/detectable|within normal variation/);
     expect(screen.getByTestId('tip').textContent).not.toMatch(/Detectable|Within normal variation|Interim/);
+    expect(screen.getByTestId('tip')).toHaveTextContent('No test is told for this change');
   });
 
   it('is unchanged with comparison off: the same text and tooltip, no change', () => {
@@ -99,6 +123,13 @@ describe('the Mention rate cell change', () => {
     render({ cells: [engineOf('chatgpt_web', cell(30, 60), null), gemini(cell(20, 40), null)] });
     expect(screen.getByTestId('cell').textContent).not.toMatch(/pts/);
     expect(screen.getByTestId('tip')).toHaveTextContent('No answers in the previous period');
+  });
+
+  it('does not claim the previous period has no answers while the held read was not compared', () => {
+    // Right after comparison is turned on the page still holds the read without `compare_window`
+    render({ cells: [engineOf('chatgpt_web', cell(30, 60), null), gemini(cell(20, 40), null)] }, '', undefined, null);
+    expect(screen.getByTestId('cell').textContent).not.toMatch(/pts/);
+    expect(screen.getByTestId('tip').textContent).not.toMatch(/previous period/i);
   });
 
   it('says there are too few answers when a previous period exists but gives no rate', () => {
@@ -117,8 +148,42 @@ describe('the Mention rate cell change', () => {
     expect(screen.getByTestId('cell').textContent).toBe(prompts);
   });
 
+  it('keeps the rate, the engine count and the change on one line', () => {
+    render({ cells: [chat(DETECTABLE), gemini(cell(20, 40), cell(8, 40))] });
+    expect(screen.getByTestId('cell').firstElementChild).toHaveClass('whitespace-nowrap');
+  });
+
+  it('is as wide as its type allows, so rate, count and change fit', () => {
+    function Width(): ReactElement {
+      const { mention, citation } = useRateColumns<Row>(BOTH, rowCells);
+      return (
+        <output data-testid="widths">
+          {mention.width}/{citation.width}
+        </output>
+      );
+    }
+    renderWithProviders(<Width />);
+    // The Citation rate column keeps the type's own width
+    expect(screen.getByTestId('widths')).toHaveTextContent(/^200\/(?!200)/);
+  });
+
   it('has no accessibility violation with a change', async () => {
     const { container } = render({ cells: [chat(DETECTABLE), gemini(cell(20, 40), cell(8, 40))] });
     expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('the Citation rate cell', () => {
+  it('has no change and no previous figure, whatever the cited cells did', () => {
+    // A detectable rise of the Cited counts: only the Mention rate has a change in this package
+    const base = engineOf('chatgpt_web', cell(30, 60), cell(30, 60));
+    const engine: EngineSummary = {
+      ...base,
+      cited: cell(30, 60),
+      previous: base.previous == null ? null : { ...base.previous, cited: cell(12, 60) },
+    };
+    render({ cells: [engine] }, '', CHAT_ONLY, WINDOW, 'citation');
+    expect(screen.getByTestId('cell').textContent).not.toMatch(/pts/);
+    expect(screen.getByTestId('tip').textContent).not.toMatch(/Previous/);
   });
 });

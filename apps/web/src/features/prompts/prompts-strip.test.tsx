@@ -66,13 +66,16 @@ describe('PromptsStrip change', () => {
     expect(chip).toHaveTextContent('within normal variation, interim test');
   });
 
-  it('makes no claim when the weighted points and the pooled answers move apart, and stays neutral', () => {
+  it('makes no claim when the weighted points and the pooled answers move apart, says why, and stays neutral', async () => {
     // The prompt weighted rate rose from 30% to 63% while the answers pooled fell from 57% to 36%
-    render(promptsOf([cell(2, 2), cell(0, 1)], [cell(3, 12), cell(12, 20)]));
+    const { user } = render(promptsOf([cell(2, 2), cell(0, 1)], [cell(3, 12), cell(12, 20)]));
     const chip = chipOf('ChatGPT');
     expect(within(chip).getByText('+32.5 pts')).toHaveClass('text-foreground-secondary');
     expect(chip).toHaveTextContent('up 32.5 pts');
     expect(chip.textContent).not.toMatch(/detectable|within normal variation|interim test/);
+    await user.hover(chip);
+    await waitFor(() => expect(tooltip()).toHaveTextContent('No test is told for this change'));
+    expect(tooltip()?.textContent).not.toMatch(/Detectable change|Within normal variation|Interim test/);
   });
 
   it('shows no change for a chip under 4 answers in either period', () => {

@@ -56,16 +56,54 @@ describe('useChangeWords', () => {
       engineOf('gemini_web', cell(20, 40), cell(8, 40)),
     ];
     const change = averageChangeOf(cells, ['chatgpt_web', 'gemini_web'], 'mentioned');
-    const { tip } = tipOf(change, { kind: 'average', range: RANGE });
-    expect(tip).toContain('Average of 2 engines that have a rate in both periods, tested on pooled answers');
+    const { tip } = tipOf(change, { kind: 'average', range: RANGE, shown: 2 });
+    // The engine count comes first, and the unpaired test is named once
+    expect(tip.startsWith('Average of 2 engines that have a rate in both periods, tested on pooled answers')).toBe(
+      true,
+    );
     expect(tip).toContain('Previous 20%, 20 of 100 answers');
+    expect(tip.match(/unpaired/g)).toHaveLength(1);
+    expect(tip).not.toContain('pooled counts');
   });
 
-  it('does not call one engine an average', () => {
+  it('says how many of the engines in the average took part when some did not', () => {
+    const cells = [
+      engineOf('chatgpt_web', cell(30, 60), cell(12, 60)),
+      engineOf('gemini_web', cell(20, 40), cell(8, 40)),
+    ];
+    const change = averageChangeOf(cells, ['chatgpt_web', 'gemini_web'], 'mentioned');
+    const { tip } = tipOf(change, { kind: 'average', range: RANGE, shown: 3 });
+    expect(tip).toContain('Average of 2 of 3 engines, the ones with a rate in both periods, tested on pooled answers');
+  });
+
+  it('names the one engine a change is of when the average has more engines', () => {
     const cells = [engineOf('chatgpt_web', cell(30, 60), cell(12, 60))];
-    const { tip } = tipOf(averageChangeOf(cells, ['chatgpt_web'], 'mentioned'), { kind: 'average', range: RANGE });
+    const change = averageChangeOf(cells, ['chatgpt_web'], 'mentioned');
+    const { tip } = tipOf(change, { kind: 'average', range: RANGE, shown: 2, engine: 'ChatGPT' });
+    expect(tip.startsWith('Change of ChatGPT only, the one engine with a rate in both periods')).toBe(true);
     expect(tip).not.toContain('Average of');
     expect(tip).not.toContain('pooled answers');
+  });
+
+  it('does not call one engine an average when it is the only engine in the average', () => {
+    const cells = [engineOf('chatgpt_web', cell(30, 60), cell(12, 60))];
+    const { tip } = tipOf(averageChangeOf(cells, ['chatgpt_web'], 'mentioned'), {
+      kind: 'average',
+      range: RANGE,
+      shown: 1,
+      engine: 'ChatGPT',
+    });
+    expect(tip).not.toContain('Average of');
+    expect(tip).not.toContain('Change of ChatGPT only');
+  });
+
+  it('says why a change that could not be tested is not coloured, and does not claim a test', () => {
+    const change = engine(DETECTABLE);
+    const { tip } = tipOf(change === null ? null : { ...change, detectable: null }, { kind: 'engine', range: RANGE });
+    expect(tip).toContain('No test is told for this change');
+    expect(tip).not.toContain('Detectable change');
+    expect(tip).not.toContain('Within normal variation');
+    expect(tip).not.toContain('Interim test');
   });
 
   it('says over how many prompts a topic rate and a chip figure of the period before are', () => {
@@ -89,7 +127,8 @@ describe('useChangeWords', () => {
     const cells = [engineOf('chatgpt_web', cell(30, 60), cell(12, 60), [cell(30, 60), cell(12, 60)])];
     const change = engineChangeOf(cells, 'chatgpt_web', 'share_of_voice');
     const { tip } = tipOf(change, { kind: 'engine', range: RANGE, metric: 'share_of_voice' });
-    expect(tip).toContain('No test exists for share of voice');
+    expect(tip).toContain('No test exists for share of voice, so its change is not coloured');
+    expect(tip.endsWith('.')).toBe(false);
     expect(tip).not.toContain('Detectable change');
     expect(tip).not.toContain('Within normal variation');
     expect(tip).not.toContain('Interim test');

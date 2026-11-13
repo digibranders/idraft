@@ -265,6 +265,48 @@ describe('Topics & Prompts: compare, the read and the address', () => {
     await waitFor(() => expect(trigger).toHaveAccessibleDescription('Previous period: Sep 18 to Oct 15, 2026'));
   });
 
+  it('names the previous window in the strip chip and in a Mention cell tooltip, and not while comparison is off', async () => {
+    serve();
+    const tooltip = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-slot="tooltip"]');
+    const chipOf = async (): Promise<HTMLElement> => {
+      const strip = await screen.findByRole('group', { name: 'Summary of the prompts in view' });
+      await waitFor(() => expect(strip).not.toHaveAttribute('aria-busy'));
+      const chip = within(strip).getByText('ChatGPT', { selector: 'dt' }).parentElement;
+      if (chip === null) throw new Error('The ChatGPT chip is missing');
+      return within(chip).getByRole('definition');
+    };
+    // The Topics tab, whose table builds its columns under the page's provider of the compared window
+    const mentionOf = async (): Promise<HTMLElement> => {
+      const table = await treegrid();
+      const row = (await within(table).findByText('Detectable topic')).closest('[role="row"]');
+      if (!(row instanceof HTMLElement)) throw new Error('The first row is missing');
+      const mention = within(row)
+        .getAllByRole('gridcell')
+        .find((node) => node.textContent?.includes('1 engine'));
+      if (mention === undefined) throw new Error('The Mention rate cell is missing');
+      return mention;
+    };
+
+    const on = render('');
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Compare with' })).toHaveAccessibleDescription(
+        'Previous period: Sep 18 to Oct 15, 2026',
+      ),
+    );
+    await on.user.hover(await chipOf());
+    await waitFor(() => expect(tooltip()).toHaveTextContent('Previous period, Sep 18 to Oct 15, 2026'));
+    await waitFor(async () =>
+      expect(await mentionOf()).toHaveAccessibleDescription(/Previous period: Sep 18 to Oct 15, 2026/),
+    );
+    on.unmount();
+
+    const off = render('?cmp=off');
+    await off.user.hover(await chipOf());
+    await waitFor(() => expect(tooltip()).toHaveTextContent('Mentioned'));
+    expect(tooltip()?.textContent).not.toMatch(/Previous period/);
+    expect(await mentionOf()).not.toHaveAccessibleDescription(/Previous period/);
+  });
+
   it('writes cmp=off for No comparison with history replace, and reads again without compare', async () => {
     const asked: URL[] = [];
     serve(asked);

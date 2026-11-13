@@ -21,6 +21,7 @@ import { Fragment, useCallback, useMemo, useRef, useState, type ReactNode } from
 import { AddPromptsDialog } from './add-prompts-dialog';
 import { AnswerInspector } from './answer-inspector';
 import {
+  ComparedWindowProvider,
   CompareSelect,
   comparedRowCount,
   DetectableEmpty,
@@ -1184,49 +1185,51 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     );
 
   return (
-    <InspectorLayout inspector={promptInspector ?? answerInspector ?? topicInspector}>
-      <TopBarPortal>
-        <DateRangePicker
-          value={picked.value}
-          onValueChange={picked.onValueChange}
-          today={today}
-          timeZone={project.timeZone}
-        />
-        <PromptsCountryControl
-          country={country}
-          isos={countryIsos}
-          nameOf={nameOfCountry}
-          onCountryChange={(iso) => void setView({ country: iso })}
-        />
-      </TopBarPortal>
-      <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
-        <PageHeader
-          title={t('title')}
-          titleHidden
-          toolbar={toolbar}
-          // Without the table (an empty state) only Add prompts is left of the header's right side, and the controls
-          // of the toolbar seam before it
-          actions={toolbar === undefined ? emptyActions : undefined}
-        />
-        {droppedWords === null ? null : <Banner tone="info" placement="region" message={droppedWords} />}
-        {content}
-      </div>
-      {actions.dialogs}
-      {canWrite ? (
-        <AddPromptsDialog
-          key={addTopic ?? 'no-topic'}
-          scope={scope}
-          open={addOpen}
-          onOpenChange={setAddOpen}
-          engines={enabled}
-          existing={list.rows}
-          defaults={{
-            languageCode: project.defaultLanguage,
-            countryIso: project.defaultCountryIso,
-            termId: addTopic,
-          }}
-        />
-      ) : null}
-    </InspectorLayout>
+    <ComparedWindowProvider value={comparedWindow(summaryData)}>
+      <InspectorLayout inspector={promptInspector ?? answerInspector ?? topicInspector}>
+        <TopBarPortal>
+          <DateRangePicker
+            value={picked.value}
+            onValueChange={picked.onValueChange}
+            today={today}
+            timeZone={project.timeZone}
+          />
+          <PromptsCountryControl
+            country={country}
+            isos={countryIsos}
+            nameOf={nameOfCountry}
+            onCountryChange={(iso) => void setView({ country: iso })}
+          />
+        </TopBarPortal>
+        <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
+          <PageHeader
+            title={t('title')}
+            titleHidden
+            toolbar={toolbar}
+            // Without the table (an empty state) only Add prompts is left of the header's right side, and the controls
+            // of the toolbar seam before it
+            actions={toolbar === undefined ? emptyActions : undefined}
+          />
+          {droppedWords === null ? null : <Banner tone="info" placement="region" message={droppedWords} />}
+          {content}
+        </div>
+        {actions.dialogs}
+        {canWrite ? (
+          <AddPromptsDialog
+            key={addTopic ?? 'no-topic'}
+            scope={scope}
+            open={addOpen}
+            onOpenChange={setAddOpen}
+            engines={enabled}
+            existing={list.rows}
+            defaults={{
+              languageCode: project.defaultLanguage,
+              countryIso: project.defaultCountryIso,
+              termId: addTopic,
+            }}
+          />
+        ) : null}
+      </InspectorLayout>
+    </ComparedWindowProvider>
   );
 }

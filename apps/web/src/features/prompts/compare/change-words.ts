@@ -19,6 +19,10 @@ export interface ChangeTipOptions {
   range: string | null;
   /** The metric the change is of; share of voice has no test, which the tip says. Default Mentioned. */
   metric?: CellMetric | undefined;
+  /** `average` only: the engines the average shown is over (with a rate now); defaults to the engines the change took. */
+  shown?: number | undefined;
+  /** `average` only: the label of the one engine a change of one of several is of, so the tip can name it. */
+  engine?: string | undefined;
 }
 
 export interface ChangeWords {
@@ -61,19 +65,39 @@ export function useChangeWords(): ChangeWords {
         ? t('tip.previous', { rate, basis })
         : t('tip.previousPrompts', { rate, basis, count: before.prompts });
     };
-    const tip = (change: RateChange | null, { kind, range, metric = 'mentioned' }: ChangeTipOptions): string => {
+    const tip = (
+      change: RateChange | null,
+      { kind, range, metric = 'mentioned', shown, engine }: ChangeTipOptions,
+    ): string => {
       if (change === null) return '';
-      const pooled = kind === 'average' && change.engines > 1;
-      const sentences = [label(change)];
-      if (pooled) sentences.push(t('tip.averageTest', { count: change.engines }));
-      if (range !== null)
+      const sentences: string[] = [];
+      // First what the figures are of: an average of engines, or the one engine that took part, so the points are never
+      // read as the average's change
+      if (kind === 'average' && change.engines > 1) {
+        const inAverage = shown ?? change.engines;
+        sentences.push(
+          t('tip.averageTest', {
+            count: change.engines,
+            shown: inAverage,
+            partial: inAverage > change.engines ? 'true' : 'false',
+          }),
+        );
+      } else if (kind === 'average' && engine !== undefined && (shown ?? 1) > 1) {
+        sentences.push(t('tip.onlyEngine', { engine }));
+      }
+      sentences.push(label(change));
+      if (range !== null) {
         sentences.push(kind === 'strip' ? t('strip.previousLabel', { range }) : t('windowTip', { range }));
+      }
       if (metric === 'share_of_voice') {
         sentences.push(t('change.shareNoTest'));
       } else if (change.detectable === true) {
-        sentences.push(delta('detectableTip', { hasMethod: 'true', method: t('tip.method') }));
+        // The interim label below says unpaired once
+        sentences.push(delta('detectableTip', { hasMethod: 'false', method: '' }));
       } else if (change.detectable === false) {
         sentences.push(delta('withinTip', { hasInterval: 'false', interval: '' }));
+      } else {
+        sentences.push(t('change.untested'));
       }
       if (metric !== 'share_of_voice' && change.detectable !== null) sentences.push(delta('interimTip'));
       return sentences.join(SENTENCE_BREAK);

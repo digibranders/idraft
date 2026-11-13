@@ -2189,9 +2189,8 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     expect(within(third).getAllByText('2 answers')[0]).toHaveClass('bg-insufficient');
     // An equal weight percent gets the count of each engine, not a pooled count that would read as another rate
     const [, , , mention] = within(rowOf(table, 'Question number 1?')).getAllByRole('gridcell');
-    // This read has no previous period, so with comparison on the tip says why there is no change
     expect(mention).toHaveAccessibleDescription(
-      'ChatGPT 6 of 8 and Gemini 2 of 8 Equal weight average of ChatGPT and Gemini, each engine counting once. No answers in the previous period',
+      'ChatGPT 6 of 8 and Gemini 2 of 8 Equal weight average of ChatGPT and Gemini, each engine counting once',
     );
     expect(order(table)).toEqual(['Question number 2?', 'Question number 1?', 'Question number 3?']);
     expect(within(table).getByRole('columnheader', { name: /^Mention rate/ })).toHaveAttribute(

@@ -4367,18 +4367,19 @@
         "off": "Comparison is off",
         "noPrevious": "No answers in the previous period",
         "tooFew": "Too few answers in one of the periods for a rate",
-        "shareNoTest": "No test exists for share of voice, so its change is not coloured.",
+        "shareNoTest": "No test exists for share of voice, so its change is not coloured",
+        "untested": "No test is told for this change: the weighted rates and the pooled answers do not agree, so it is not coloured",
         "noEngineInBoth": "No engine has a rate in both periods"
       },
       "tip": {
         "previous": "Previous {rate}, {basis}",
-        "previousAnswers": "Previous {rate}, {answers, plural, one {# answer} other {# answers}}",
         "previousPrompts": "Previous {rate}, {basis}, over {count, plural, one {# prompt} other {# prompts}}",
         "average": "Average of {count, plural, one {# engine} other {# engines}} that have a rate in both periods",
-        "averageTest": "Average of {count, plural, one {# engine} other {# engines}} that have a rate in both periods, tested on pooled answers",
-        "pooled": "test on the answers of those engines together",
-        "prompts": "over {count, plural, one {# prompt} other {# prompts}}",
-        "method": "unpaired, pooled counts"
+        "averageTest": "{partial, select, true {Average of {count} of {shown} engines, the ones with a rate in both periods, tested on pooled answers} other {Average of {count} engines that have a rate in both periods, tested on pooled answers}}",
+        "onlyEngine": "Change of {engine} only, the one engine with a rate in both periods"
+      },
+      "cell": {
+        "detail": "{average}. {change}"
       },
       "strip": {
         "previousLabel": "Previous period, {range}",
