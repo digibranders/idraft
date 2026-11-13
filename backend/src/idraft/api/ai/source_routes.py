@@ -115,7 +115,8 @@ CountryFilter = Annotated[
     Query(
         alias="filter[country_iso]",
         pattern=r"^[A-Z]{2}$",
-        description="The answers of the prompts of one market, ISO 3166-1 alpha-2. " + _NOT_BUILT,
+        description="The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; "
+        "prompts with no market are left out. Also narrows `meta` and every share.",
     ),
 ]
 MinSupport = Annotated[
@@ -192,13 +193,18 @@ async def source_domains(
         {
             "include": bool(set(include or ()) - {"series"}),
             "min_support": min_support is not None,
-            "filter[country_iso]": country_iso is not None,
             "include_unresolved_redirects": "unresolved_redirect" not in flags,
             "include_engine_internal": "engine_internal" not in flags,
         }
     )
     return await sources.domains(
-        access, project_id, scope, sort=sort, compare=compare, include=include or (), page=page
+        access,
+        project_id,
+        replace(scope, country_iso=country_iso),
+        sort=sort,
+        compare=compare,
+        include=include or (),
+        page=page,
     )
 
 
@@ -247,7 +253,6 @@ async def source_pages(
     refuse_unbuilt(
         {
             "min_support": min_support is not None,
-            "filter[country_iso]": country_iso is not None,
             "include_unresolved_redirects": "unresolved_redirect" not in flags,
             "include_engine_internal": "engine_internal" not in flags,
         }
@@ -255,7 +260,7 @@ async def source_pages(
     return await sources.pages(
         access,
         project_id,
-        scope,
+        replace(scope, country_iso=country_iso),
         registrable_domain=registrable_domain,
         sort=sort,
         compare=compare,
@@ -389,11 +394,10 @@ async def citation_list(
     url_id: Annotated[int | None, Query(alias="filter[url_id]", ge=1, le=2**63 - 1)] = None,
     country_iso: CountryFilter = None,
 ) -> CitationPage:
-    refuse_unbuilt({"filter[country_iso]": country_iso is not None})
     return await sources.citations(
         access,
         project_id,
-        scope,
+        replace(scope, country_iso=country_iso),
         registrable_domain=registrable_domain,
         url_id=url_id,
         page=page,
@@ -431,5 +435,11 @@ async def fanout_queries(
     ] = None,
     country_iso: CountryFilter = None,
 ) -> FanoutQueryPage:
-    refuse_unbuilt({"filter[country_iso]": country_iso is not None, "include": bool(include)})
-    return await sources.fanout(access, project_id, scope, min_support=min_support, page=page)
+    refuse_unbuilt({"include": bool(include)})
+    return await sources.fanout(
+        access,
+        project_id,
+        replace(scope, country_iso=country_iso),
+        min_support=min_support,
+        page=page,
+    )

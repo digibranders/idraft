@@ -308,7 +308,10 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
         "group_by": "country",
     },
     # A tenant's answer issued one query; the default needs two answers.
-    ("GET", _W + "/projects/{project_id}/ai/fanout-queries"): {"min_support": "1"},
+    ("GET", _W + "/projects/{project_id}/ai/fanout-queries"): {
+        "min_support": "1",
+        "filter[country_iso]": "US",
+    },
     # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
     # your entries under your own line, nowhere else in this table.
     # WP-03 contract-pack
@@ -320,11 +323,14 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     ("GET", _W + "/projects/{project_id}/ai/sources/domains"): {
         "include": "series",
         "compare": "previous_period",
+        "filter[country_iso]": "US",
     },
     ("GET", _W + "/projects/{project_id}/ai/sources/pages"): {
         "include": "series",
         "compare": "previous_period",
+        "filter[country_iso]": "US",
     },
+    ("GET", _W + "/projects/{project_id}/ai/citations"): {"filter[country_iso]": "US"},
     ("GET", _W + "/projects/{project_id}/ai/sources/diversity"): {"filter[country_iso]": "US"},
     ("GET", _W + "/projects/{project_id}/ai/sources/domains/{registrable_domain}"): {
         "filter[country_iso]": "US"

@@ -121,10 +121,12 @@ async def scope_prompts(
     include_branded: bool,
     prompt_id: UUID | None,
     term_id: UUID | None,
+    country_iso: str | None,
 ) -> tuple[UUID, ...]:
     """The ids of the prompts whose answers count: with `prompt_id` that prompt alone, archived
     or branded (the inspector shows any prompt's sources); else the active prompts, the branded
-    ones only with `include_branded`. `term_id` keeps those given the term or a term under it."""
+    ones only with `include_branded`. `term_id` keeps those given the term or a term under it,
+    and `country_iso` those of that market (also the one prompt, as the prompts summary does)."""
     p = ai_prompts.c
     statement = select(p.id).where(
         p.workspace_id == workspace_id, p.project_id == project_id, p.deleted_at.is_(None)
@@ -143,6 +145,8 @@ async def scope_prompts(
             ),
         )
         statement = statement.where(p.id.in_(tagged))
+    if country_iso is not None:
+        statement = statement.where(p.country_iso == country_iso)
     return tuple((await db.execute(statement)).scalars())
 
 

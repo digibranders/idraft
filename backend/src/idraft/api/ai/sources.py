@@ -77,6 +77,7 @@ class SourceQuery:
     prompt_id: UUID | None = None
     term_id: UUID | None = None
     roles: Sequence[DomainRole] | None = None
+    country_iso: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +130,7 @@ async def scoped(
         include_branded=query.include_branded,
         prompt_id=query.prompt_id,
         term_id=query.term_id,
+        country_iso=query.country_iso,
     )
     return Scoped(
         scope=SourceScope(
@@ -278,8 +280,9 @@ def _cursor_scope(
     registrable_domain: str | None,
     url_id: int | None,
 ) -> dict[str, object]:
-    """What a citation cursor is bound to: the project and every filter."""
-    return {
+    """What a citation cursor is bound to: the project and every filter. The country is added
+    only when it is set, so a cursor made without it keeps the hash it had before the filter."""
+    bound: dict[str, object] = {
         "project_id": str(project_id),
         "from": query.start,
         "to": query.end,
@@ -291,6 +294,9 @@ def _cursor_scope(
         "domain": registrable_domain,
         "url": url_id,
     }
+    if query.country_iso is not None:
+        bound["country"] = query.country_iso
+    return bound
 
 
 _SMALLINT_MAX = 2**15 - 1

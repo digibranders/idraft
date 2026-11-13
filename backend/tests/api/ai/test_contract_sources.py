@@ -25,8 +25,6 @@ FORBIDDEN = (403, "forbidden")
 NOT_FOUND = (404, "not_found")
 INVALID = (422, "validation_failed")
 
-COUNTRY = {"filter[country_iso]": "US"}
-
 
 @pytest.mark.parametrize(
     ("path", "params"),
@@ -36,10 +34,6 @@ COUNTRY = {"filter[country_iso]": "US"}
         ("sources/domains", {"include": "series,cited_with"}),
         ("sources/domains", {"min_support": "2"}),
         ("sources/pages", {"min_support": "2"}),
-        ("sources/domains", COUNTRY),
-        ("sources/pages", COUNTRY),
-        ("citations", COUNTRY),
-        ("fanout-queries", COUNTRY),
         ("sources/domains", {"include_unresolved_redirects": "true"}),
         ("sources/pages", {"include_engine_internal": "true"}),
         ("fanout-queries", {"include": "topics"}),
