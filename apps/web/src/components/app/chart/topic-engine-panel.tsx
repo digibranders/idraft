@@ -37,6 +37,8 @@ export interface EnginePanelRow {
   href?: Route | undefined;
   /** The link replaces the history entry (the panel sits in a drawer that is already open). */
   replace?: boolean | undefined;
+  /** Runs on a plain click in place of following `href`, which stays for a new tab. */
+  onSelect?: (() => void) | undefined;
   /** The change since the compared window, coloured only when it is detectable. */
   delta?: ComparisonRow['delta'];
 }
@@ -77,6 +79,7 @@ function barProps({ rows, density, ...words }: TopicEnginePanelProps): BarListPr
       icon: <EngineLogo engine={row.code} name="" />,
       href: row.href,
       replace: row.replace,
+      onSelect: row.onSelect,
       delta: row.delta,
     })),
     // A rate fills its bar as far as the rate goes: 25% is a quarter of the track, on every row

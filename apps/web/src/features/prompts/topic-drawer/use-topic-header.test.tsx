@@ -147,6 +147,14 @@ describe('useTopicHeader', () => {
     expect(screen.queryByRole('button', { name: 'Run now' })).not.toBeInTheDocument();
   });
 
+  it('keeps both labels for screen readers and shows them from 640 px, so the badges have room on a phone', () => {
+    renderDrawerPart(<Probe />, { extras: { onAddPrompt: vi.fn(), run: { onRun: vi.fn(), blockedReason: null } } });
+    for (const label of ['Add prompt', 'Run now']) {
+      const text = within(screen.getByRole('button', { name: label })).getByText(label);
+      expect(text).toHaveClass('sr-only', 'sm:not-sr-only');
+    }
+  });
+
   it('Run now is disabled with its reason while another action runs', async () => {
     const onRun = vi.fn();
     const { user } = renderDrawerPart(<Probe />, {

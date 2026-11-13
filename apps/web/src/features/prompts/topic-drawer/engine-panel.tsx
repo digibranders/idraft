@@ -14,6 +14,7 @@ import { InlineError } from '@/components/app/status/inline-error';
 import { CELL_OF_METRIC, topicSummaryRow } from '@/features/prompts/prompt-model';
 import { useRateWords } from '@/features/prompts/rate-view';
 import { drillHref } from '@/features/prompts/topics-by-engine/drill';
+import { useDrill } from '@/features/prompts/topics-by-engine/use-drill';
 import { engineChange, engineValue } from '@/features/prompts/topics-by-engine/engine-values';
 import { MetricSelect } from '@/features/prompts/topics-by-engine/metric-select';
 import { isStale } from '@/features/prompts/topics-by-engine/series-model';
@@ -37,6 +38,7 @@ export function EnginePanel(): ReactElement {
   const pathname = usePathname();
   const search = useSearchParams().toString();
   const { metric, setMetric } = useDrawerMetric();
+  const drill = useDrill();
   const key = CELL_OF_METRIC[metric];
   const row = topicSummaryRow(summary, topicKey);
   const metricLabel = prompts(`metric.${metric}`);
@@ -86,6 +88,9 @@ export function EnginePanel(): ReactElement {
       href,
       // The drawer is already open: its rows move it on, so Close still takes it away in one step
       replace: true,
+      // The tab and the engine are the address's keys the drawer reads through the inspector: a plain click writes them
+      // there (the router's own navigation changed the address and left the drawer on Overview), the href serves a new tab
+      onSelect: href === undefined ? undefined : () => drill(topicKey, code),
       delta: input === null ? undefined : { input, test: 'interim', text: formatMetricDelta(input).text },
     };
   });

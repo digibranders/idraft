@@ -311,9 +311,15 @@ export function TopicsTable({
         }),
       ),
       blankOnMore(rateColumns.mention),
-      blankOnMore(rateColumns.citation),
-      blankOnMore(rateColumns.topEngine),
-      blankOnMore(trendColumn),
+      // The By engine view is about its engine columns: Citation rate, Top engine and Trend wait in the chooser there, or at
+      // 1280 px the second engine and the gap were past the edge of the table and at 1024 px the first engine was cut
+      blankOnMore(
+        viewColumns === undefined ? rateColumns.citation : { ...rateColumns.citation, defaultVisible: false },
+      ),
+      blankOnMore(
+        viewColumns === undefined ? rateColumns.topEngine : { ...rateColumns.topEngine, defaultVisible: false },
+      ),
+      blankOnMore(viewColumns === undefined ? trendColumn : { ...trendColumn, defaultVisible: false }),
       ...(viewColumns ?? engineColumns).map(blankOnMore),
     ];
   }, [t, rowName, openTopic, rateColumns, trendColumn, engineColumns, viewColumns]);

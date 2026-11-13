@@ -114,7 +114,9 @@ export function useTopicHeader({
       <div className="flex flex-wrap items-center justify-end gap-2">
         {showAdd ? (
           <Button variant="secondary" size="sm" icon={Plus} onClick={() => onAddPrompt(topicKey)}>
-            {t('header.addPrompt')}
+            {/* Icon only on a phone: the shared header keeps its frequent action at full width beside the badges, and the
+                scope badge ran under the two labelled buttons at 390 px */}
+            <span className="sr-only sm:not-sr-only">{t('header.addPrompt')}</span>
           </Button>
         ) : null}
         {run === null ? null : (
@@ -127,7 +129,7 @@ export function useTopicHeader({
               focusableWhenDisabled
               onClick={() => run.onRun((prompts ?? []).map((prompt) => prompt.prompt_id))}
             >
-              {t('header.runNow')}
+              <span className="sr-only sm:not-sr-only">{t('header.runNow')}</span>
             </Button>
           </Tooltip>
         )}

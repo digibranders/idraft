@@ -1,6 +1,6 @@
 import { screen, within } from '@testing-library/react';
 import type { Route } from 'next';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   BarList,
@@ -384,6 +384,33 @@ describe('BarList links and keyboard', () => {
     const tip = await screen.findByText('33%, 466 of 1,412 answers', { selector: '[data-slot="tooltip"] span' });
     expect(tip).toBeInTheDocument();
     expect(screen.getByText('HubSpot', { selector: '[data-slot="tooltip"] span' })).toBeInTheDocument();
+  });
+
+  it('runs onSelect on a plain click instead of following the link, and leaves a click for a new tab to the browser', async () => {
+    const onSelect = vi.fn();
+    const rows = [
+      comparisonRow('hubspot', 'HubSpot', value(0.33, '33%', '466 of 1,412 answers'), {
+        href: '#row' as Route,
+        onSelect,
+      }),
+    ];
+    const { user } = renderWithProviders(<BarList {...comparison(rows)} />);
+    const link = screen.getByRole('link', { name: /HubSpot/ });
+    let prevented = false;
+    link.addEventListener('click', (event) => {
+      // Read after the row's own handler (React's root listener runs after this one, so the flag is read a tick later)
+      queueMicrotask(() => {
+        prevented = event.defaultPrevented;
+      });
+    });
+    await user.click(link);
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(prevented).toBe(true);
+
+    await user.keyboard('{Control>}');
+    await user.click(link);
+    await user.keyboard('{/Control}');
+    expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
   it('puts no focusable element inside the hidden visual part', () => {

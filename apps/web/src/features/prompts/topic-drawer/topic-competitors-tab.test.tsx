@@ -108,10 +108,16 @@ describe('CompetitorsTab: the tracked entities by engine', () => {
     const [, beta, gamma] = rowsOf();
     // Beta leads ChatGPT with 50 percent, Gamma leads Gemini with 38 percent; the own brand never leads
     const share = (rate: string, answers: number): string => `${rate}, ${String(answers)} answers that name a brand`;
-    expect(within(beta ?? document.body).getByText(share('50%', 10))).toHaveClass('type-body-strong');
-    expect(within(gamma ?? document.body).getByText(share('38%', 8))).toHaveClass('type-body-strong');
+    // The counts wrap under the rate, so the table fits a narrow drawer instead of scrolling the names away
+    expect(
+      within(beta ?? document.body)
+        .getByText(share('50%', 10))
+        .closest('td'),
+    ).not.toHaveClass('whitespace-nowrap');
+    expect(within(beta ?? document.body).getByText(share('50%', 10))).toHaveClass('type-table-strong');
+    expect(within(gamma ?? document.body).getByText(share('38%', 8))).toHaveClass('type-table-strong');
     // A value that does not lead keeps the plain weight
-    expect(within(beta ?? document.body).getByText(share('13%', 8))).not.toHaveClass('type-body-strong');
+    expect(within(beta ?? document.body).getByText(share('13%', 8))).not.toHaveClass('type-table-strong');
     expect(within(beta ?? document.body).getByText('leads on ChatGPT')).toHaveClass('sr-only');
     expect(within(beta ?? document.body).queryByText('leads on Gemini')).toBeNull();
     expect(within(gamma ?? document.body).getByText('leads on Gemini')).toBeInTheDocument();

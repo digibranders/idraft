@@ -131,6 +131,21 @@ describe('the Topics tab: the views', () => {
     expect(screen.getByRole('radio', { name: 'By engine' })).toBeChecked();
   });
 
+  it('keeps Citation rate, Top engine and Trend in the chooser of By engine, and shows them in the List', async () => {
+    const engines = renderOn('?view=engines');
+    const table = await treegrid();
+    await waitFor(() => expect(headers(table)).toContain('ChatGPT mention'));
+    expect(headers(table)).toContain('Mention rate');
+    for (const header of ['Citation rate', 'Top engine', 'Trend']) expect(headers(table)).not.toContain(header);
+    engines.unmount();
+
+    renderOn('');
+    const list = await treegrid();
+    await waitFor(() => expect(headers(list)).toContain('ChatGPT mentioned'));
+    for (const header of ['Mention rate', 'Citation rate', 'Top engine', 'Trend'])
+      expect(headers(list)).toContain(header);
+  });
+
   it('reads ?metric= for the engine columns', async () => {
     renderOn('?view=engines&metric=citation');
     const table = await treegrid();

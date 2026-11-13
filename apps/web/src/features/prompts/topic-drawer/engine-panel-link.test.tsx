@@ -34,4 +34,35 @@ describe('EnginePanel: the engine rows move the open drawer', () => {
     expect(links).toHaveLength(2);
     for (const link of links) expect(link).toHaveAttribute('data-replace', 'true');
   });
+
+  it('writes the Prompts tab and the engine through the inspector on a plain click', async () => {
+    const summary = summaryOf([
+      topicRow(DRAWER_TOPIC_ID, 'Technical SEO', 4, [
+        engine('chatgpt_web', { mentioned: { ...cell(3, 8), pooled: { successes: 3, trials: 8 } } }),
+        engine('gemini_web', { mentioned: { ...cell(4, 8), pooled: { successes: 4, trials: 8 } } }),
+      ]),
+    ]);
+    const writes: URLSearchParams[] = [];
+    const { user } = renderDrawerPart(<EnginePanel />, {
+      summary,
+      searchParams: `?inspect=topic%3A${DRAWER_TOPIC_ID}`,
+      onUrlUpdate: ({ searchParams }) => writes.push(new URLSearchParams(searchParams)),
+    });
+    const [chatgpt] = screen.getAllByRole('link');
+    if (chatgpt === undefined) throw new Error('No engine row');
+    // The router's own navigation changed the address and left the open drawer on Overview: the click does not use it
+    // Read on the document, which the click reaches after the row's own handler has run
+    let followed = true;
+    const watch = (event: Event): void => {
+      followed = !event.defaultPrevented;
+    };
+    document.addEventListener('click', watch);
+    await user.click(chatgpt);
+    document.removeEventListener('click', watch);
+    expect(followed).toBe(false);
+    const last = writes.at(-1);
+    expect(last?.get('itab')).toBe('prompts');
+    expect(last?.get('eng')).toBe('chatgpt_web');
+    expect(last?.get('inspect')).toBe(`topic:${DRAWER_TOPIC_ID}`);
+  });
 });

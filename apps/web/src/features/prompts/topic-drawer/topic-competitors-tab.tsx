@@ -72,7 +72,8 @@ export function CompetitorsTab(): ReactElement {
     });
     return cell.leads ? (
       <span className="inline-flex flex-col">
-        <span className="type-body-strong">{text}</span>
+        {/* The table's own size at a heavier weight: the body size made the leader's row taller than the rest */}
+        <span className="type-table-strong">{text}</span>
         <span className="sr-only">{t('leads', { engine: label })}</span>
       </span>
     ) : (
@@ -85,7 +86,7 @@ export function CompetitorsTab(): ReactElement {
       header: t('entity'),
       cell: (row) => (
         <span className="inline-flex min-w-0 items-center gap-2">
-          <Truncate text={row.name} className={row.role === 'own' ? 'type-body-strong' : undefined} />
+          <Truncate text={row.name} className={row.role === 'own' ? 'type-table-strong' : undefined} />
           {row.role === 'own' ? <Badge tone="info">{t('own')}</Badge> : null}
         </span>
       ),
@@ -93,6 +94,8 @@ export function CompetitorsTab(): ReactElement {
     ...shown.map(({ code, label }): PlainColumn<EntityTableRow> => ({
       id: code,
       header: label,
+      // The counts wrap under the rate: in a narrow drawer a one line cell made the table 700 px wide and the names scrolled away
+      wrap: true,
       cell: (row) => {
         const cell = row.cells.find((candidate) => candidate.engineCode === code);
         return cell === undefined ? <span>{panel('noAnswers')}</span> : cellOf(cell, label);
@@ -109,21 +112,6 @@ export function CompetitorsTab(): ReactElement {
       title={t('title')}
       icon={Users}
       status={status}
-      action={
-        status === 'ready' ? (
-          <SegmentedControl<EntityMetric>
-            semantics="view"
-            size="sm"
-            label={t('metricLabel')}
-            value={metric}
-            onValueChange={setMetric}
-            items={[
-              { value: 'share_of_voice', label: t('metricShare') },
-              { value: 'mentioned', label: t('metricMentioned') },
-            ]}
-          />
-        ) : undefined
-      }
       error={
         <InlineError
           title={t('failedTitle')}
@@ -151,6 +139,19 @@ export function CompetitorsTab(): ReactElement {
       }
     >
       <div className="flex flex-col gap-3">
+        {/* In the body and not in the section's action slot: beside the title it cut "Competitors by engine" short in a narrow drawer */}
+        <SegmentedControl<EntityMetric>
+          semantics="view"
+          size="sm"
+          label={t('metricLabel')}
+          value={metric}
+          onValueChange={setMetric}
+          className="self-start"
+          items={[
+            { value: 'share_of_voice', label: t('metricShare') },
+            { value: 'mentioned', label: t('metricMentioned') },
+          ]}
+        />
         <PlainTable<EntityTableRow>
           caption={t('title')}
           columns={columns}

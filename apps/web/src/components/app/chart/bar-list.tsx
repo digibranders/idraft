@@ -3,7 +3,7 @@
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import type { ReactElement, ReactNode } from 'react';
+import type { MouseEvent, ReactElement, ReactNode } from 'react';
 
 import { SmallSampleMarker } from './small-sample-marker';
 import { Delta, type DeltaTest } from '@/components/app/metric/delta';
@@ -51,6 +51,12 @@ interface BarListRowBase {
   href?: Route | undefined;
   /** The link replaces the history entry instead of adding one: a link that moves a drawer that is already open. */
   replace?: boolean | undefined;
+  /**
+   * Runs on a plain click instead of the router following `href`, which stays for a new tab or window. For a link that
+   * moves state the page keeps in the address itself (a drawer's tab): the router's own navigation did not reach that state
+   * once the drawer had been opened by it, so the URL changed and the drawer did not.
+   */
+  onSelect?: (() => void) | undefined;
 }
 
 export interface ComparisonRow extends BarListRowBase {
@@ -153,6 +159,14 @@ interface BarRowProps {
   trailing: boolean;
 }
 
+/** A plain left click runs `onSelect` and keeps the router from following the link; a click for a new tab or window follows it. */
+function selectOnPlainClick(event: MouseEvent<HTMLAnchorElement>, onSelect: (() => void) | undefined): void {
+  if (onSelect === undefined || event.defaultPrevented || event.button !== 0) return;
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  onSelect();
+}
+
 const hasTrailingContent = (row: BarListRowBase): boolean =>
   (row.value.kind === 'value' && row.value.contextText !== null) || row.badge !== undefined || row.delta !== undefined;
 
@@ -245,6 +259,7 @@ function BarRow({ item, max, density, trailing }: BarRowProps): ReactElement {
       <Link
         href={row.href}
         {...(row.replace === true ? { replace: true } : {})}
+        {...(row.onSelect === undefined ? {} : { onClick: (event) => selectOnPlainClick(event, row.onSelect) })}
         className={cn(box, 'rounded-sm outline-none hover:bg-surface-hover focus-visible:focus-ring')}
       >
         {content}
