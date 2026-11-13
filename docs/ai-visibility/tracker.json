@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T11:18:20+05:30",
+ "updated": "2026-11-13T11:48:46+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -4013,6 +4013,27 @@
    "granted": "2026-11-13T06:49:17+05:30",
    "scope": "tests for the _bounded fix",
    "until": "WP-14 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/handlers/prompts.ts",
+   "wp": "WP-13",
+   "granted": "2026-11-13T11:48:46+05:30",
+   "scope": "additive: prompt_type_source 'rule' and is_branded_source 'computed' on the Prompt object (~line 206) and suggested_prompt_type on the lint response (~line 694); no behaviour change",
+   "until": "WP-13 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompts.test.tsx",
+   "wp": "WP-13",
+   "granted": "2026-11-13T11:48:46+05:30",
+   "scope": "additive: the two source fields on the Prompt fixture (~line 228)",
+   "until": "WP-13 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/topic-drawer.test.tsx",
+   "wp": "WP-13",
+   "granted": "2026-11-13T11:48:46+05:30",
+   "scope": "additive: the two source fields on the Prompt fixture (~line 134)",
+   "until": "WP-13 merged"
   }
  ],
  "followups": [
