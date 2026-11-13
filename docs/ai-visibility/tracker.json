@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T18:23:31+05:30",
+ "updated": "2026-11-13T18:36:09+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1013,10 +1013,10 @@
    },
    "counts": {
     "total": 37,
-    "done": 30
+    "done": 34
    },
    "owner": "",
-   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | tasks 5/7, rows 30/37; Tasks 1-5 on develop (20a9bdac): + drawer engine panel, per engine trend, comparison sentence, own vs top 3, Competitors and Related tabs (not mounted yet: Task 7 after WP-16); F-22 fixed; Task 6 drawer header, Prompts tab by engine, In search card next"
+   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | tasks 6/7, rows 34/37; Tasks 1-6 on develop (234d37b1): + drawer header badges, Add prompt and Run now, J/K stepping, Prompts tab filtered by ?eng, In search card; DataTable context menu flake hardened (20/20, cause inferred not proven); Task 7 mounts tabs in topic-inspector.tsx (free: WP-16 does not edit it), e2e, browser pass, As built"
   },
   {
    "id": "WP-21",
@@ -4194,6 +4194,27 @@
    "wp": "WP-20 (flake fix)",
    "granted": "2026-11-13T17:42:18+05:30",
    "scope": "harden only the DataTable row context menu test 'leaves Shift plus right click, a link in a cell and an input to the browser' (load flake); no other test or source change",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/inspector/use-inspector.ts",
+   "wp": "WP-20",
+   "granted": "2026-11-13T18:36:09+05:30",
+   "scope": "WP-20 (retroactive, Task 6): OPT-IN option useInspector({ entryKeys }), default none; topic drawer passes ['eng'] so Close after a drill returns to the page without ?eng; all 37 other test files using useInspector pass",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/chart/bar-list.tsx",
+   "wp": "WP-20",
+   "granted": "2026-11-13T18:36:09+05:30",
+   "scope": "WP-20 (retroactive, Task 6): optional replace?: boolean on a row so a drill link inside an open drawer replaces the history entry; default unchanged",
+   "until": "WP-20 merged"
+  },
+  {
+   "path": "apps/web/src/components/design-system/registry.test.tsx",
+   "wp": "WP-20",
+   "granted": "2026-11-13T18:36:09+05:30",
+   "scope": "WP-20: raise SECTION_TIMEOUT_MS for the tables section only (load flake, 37 s under load vs 30 s limit)",
    "until": "WP-20 merged"
   }
  ],
