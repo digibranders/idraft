@@ -633,8 +633,8 @@ describe('the Stats tab', () => {
     expect(
       within(mention as HTMLElement).getByRole('img', { name: /^95% interval \d+% to \d+%$/ }),
     ).toBeInTheDocument();
-    expect(mention).toHaveTextContent('3 of 6 valid answers');
-    expect(citation).toHaveTextContent('4 of 6 valid answers');
+    expect(mention).toHaveTextContent('3 of 6 answers');
+    expect(citation).toHaveTextContent('4 of 6 answers');
     expect(
       within(inspector).getByText(
         'The interval is the 95 percent Wilson interval over the valid answers of this window.',
@@ -651,6 +651,6 @@ describe('the Stats tab', () => {
     if (chatgpt === null) throw new Error('The ChatGPT card is missing');
     expect((await within(chatgpt).findAllByText('Too few answers for a reliable rate')).length).toBe(2);
     expect(within(chatgpt).queryByRole('img', { name: /^95% interval/ })).toBeNull();
-    expect(within(chatgpt).getAllByText(/^\d+ of 2 valid answers$/).length).toBe(2);
+    expect(within(chatgpt).getAllByText(/^\d+ of 2 answers$/).length).toBe(2);
   });
 });

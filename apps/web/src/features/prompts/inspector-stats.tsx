@@ -7,6 +7,7 @@ import type { ReactElement } from 'react';
 import type { PromptCounts } from './inspector-reads';
 import { statsRow, type StatsRow } from './stats-model';
 import { ConfidenceIndicator } from '@/components/app/metric/confidence-indicator';
+import { SampleCount } from '@/components/app/metric/sample-count';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
@@ -120,16 +121,18 @@ export function InspectorStats({ engines, counts, noCountsReason }: InspectorSta
                   </span>
                   <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                     {/* The valid answers the rate is a share of, then its interval */}
-                    <span className="num type-meta">
-                      {line.stats.state === 'none'
-                        ? EMPTY_VALUE
-                        : words('sample', { k: line.stats.k, n: line.stats.n })}
-                    </span>
+                    {line.stats.state === 'none' ? (
+                      <SampleCount k={null} n={null} noun="answers" />
+                    ) : (
+                      <SampleCount k={line.stats.k} n={line.stats.n} noun="answers" />
+                    )}
                     {intervalOf(line.stats)}
                   </span>
                 </li>
               ))}
             </ul>
+            {/* Engines are never pooled: each section says what its own rates count */}
+            <p className="mt-2 type-meta">{words('aggregation', { engine: engine.engine.label })}</p>
           </InspectorSection>
         );
       })}

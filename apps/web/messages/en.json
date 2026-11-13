@@ -3927,7 +3927,7 @@
         "caption": "Rates of {engine} with their 95% intervals",
         "mention": "Mention",
         "citation": "Citation",
-        "sample": "{k, number} of {n, plural, one {# valid answer} other {# valid answers}}",
+        "aggregation": "{engine} only: rates count valid answers, each of this prompt counted once",
         "intervalLabel": "95% interval {range}",
         "tooFew": "Too few answers for a reliable rate",
         "none": "No valid answers",
