@@ -92,6 +92,7 @@ WORDS = {
     "engine_code": "chatgpt_web",
     "screen": "ai_overview",
     "registrable_domain": "acme.example",
+    "metric": "ai.mention_rate",
 }
 
 WORKSPACE_ROUTES = [(method, path) for method, path in ALL_ROUTES if "workspace_id" in _names(path)]
@@ -370,6 +371,15 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     # WP-30 runs-costs-health
     # WP-31 settings-engines
     # WP-32 overview-aggregates
+    ("GET", _W + "/projects/{project_id}/ai/metrics/overview"): {"compare": "previous_period"},
+    ("GET", _W + "/projects/{project_id}/overview/ai"): {"compare": "previous_period"},
+    ("GET", _W + "/projects/{project_id}/ai/metrics/{metric}"): {"compare": "previous_period"},
+    ("GET", _W + "/projects/{project_id}/ai/metrics/{metric}/series"): {
+        "filter[country_iso]": "US"
+    },
+    ("GET", _W + "/projects/{project_id}/ai/metrics/{metric}/breakdown"): {"dimension": "topic"},
+    ("GET", _W + "/projects/{project_id}/ai/competitors"): {"compare": "previous_period"},
+    ("GET", _W + "/projects/{project_id}/overview/competitors"): {"compare": "previous_period"},
     # WP-38 notes-annotations
     # WP-41 versions
     # WP-42 panels-api

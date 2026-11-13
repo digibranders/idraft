@@ -90,6 +90,299 @@
         "title": "AdPresence",
         "type": "object"
       },
+      "AiBreakdownMeta": {
+        "properties": {
+          "branded_only": {
+            "description": "Only branded prompts are counted.",
+            "title": "Branded Only",
+            "type": "boolean"
+          },
+          "compare_window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With a compare window: the days compared with. Left out otherwise."
+          },
+          "engine_codes": {
+            "description": "The engines shown, sorted: enabled or answering, after the filter.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Engine Codes",
+            "type": "array"
+          },
+          "entities": {
+            "description": "The tracked entity set share of voice is computed over now, as the prompts summary lists it (competitors by name, then the own entities); watched entities are not in it. Read `role`: do not assume the own brand is first.",
+            "items": {
+              "$ref": "#/components/schemas/SummaryEntity"
+            },
+            "title": "Entities",
+            "type": "array"
+          },
+          "entity_config_versions": {
+            "description": "More than one means the entity set changed inside the window and older answers keep their set.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Entity Config Versions",
+            "type": "array"
+          },
+          "include_branded": {
+            "description": "Branded prompts are counted.",
+            "title": "Include Branded",
+            "type": "boolean"
+          },
+          "notes": {
+            "description": "What a route has to say about its numbers; [] if nothing.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "previous_answers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With a compare window: the valid answers in scope there, on the engines shown; 0 means it has no data. Left out otherwise.",
+            "title": "Previous Answers"
+          },
+          "rows_total": {
+            "description": "The rows before the cap of 300.",
+            "title": "Rows Total",
+            "type": "integer"
+          },
+          "truncated": {
+            "description": "True when `rows_total` is over 300.",
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow",
+            "description": "The window; project-local days both included."
+          }
+        },
+        "required": [
+          "window",
+          "include_branded",
+          "branded_only",
+          "engine_codes",
+          "entities",
+          "entity_config_versions",
+          "notes",
+          "rows_total",
+          "truncated"
+        ],
+        "title": "AiBreakdownMeta",
+        "type": "object"
+      },
+      "AiBreakdownResponse": {
+        "properties": {
+          "data": {
+            "description": "Sorted by prompts, most first, then label; at most 300.",
+            "items": {
+              "$ref": "#/components/schemas/AiBreakdownRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/AiBreakdownMeta",
+            "description": "The scope the numbers were computed over."
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "AiBreakdownResponse",
+        "type": "object"
+      },
+      "AiBreakdownRow": {
+        "properties": {
+          "dimension": {
+            "$ref": "#/components/schemas/AiDimension",
+            "description": "The group this row is of."
+          },
+          "prompts": {
+            "description": "The prompts of the group.",
+            "title": "Prompts",
+            "type": "integer"
+          },
+          "values": {
+            "description": "One value per engine, no averages; four per engine for `ai.outcome_mix`. With `dimension=engine` the row is one engine.",
+            "items": {
+              "$ref": "#/components/schemas/AiMetricValue"
+            },
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "dimension",
+          "prompts",
+          "values"
+        ],
+        "title": "AiBreakdownRow",
+        "type": "object"
+      },
+      "AiCi": {
+        "description": "A confidence interval. Declared and never returned in this package: the interval stays on\nthe client (Wilson, rule R8) until the statistics package adds it.",
+        "properties": {
+          "level": {
+            "description": "The confidence level, for example 0.95.",
+            "title": "Level",
+            "type": "number"
+          },
+          "lower": {
+            "description": "The lower bound, in the unit of the value.",
+            "title": "Lower",
+            "type": "number"
+          },
+          "method": {
+            "description": "How the interval was computed, for example `wilson`.",
+            "title": "Method",
+            "type": "string"
+          },
+          "upper": {
+            "description": "The upper bound, in the unit of the value.",
+            "title": "Upper",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lower",
+          "upper",
+          "level",
+          "method"
+        ],
+        "title": "AiCi",
+        "type": "object"
+      },
+      "AiCompetitor": {
+        "properties": {
+          "by_engine": {
+            "description": "One entry per engine shown, sorted by engine code.",
+            "items": {
+              "$ref": "#/components/schemas/AiCompetitorEngine"
+            },
+            "title": "By Engine",
+            "type": "array"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityRef",
+            "description": "The tracked entity of the row."
+          },
+          "top_sources": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CompetitorSource"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=top_sources`: the domains cited most with the entity, over all engines. Left out otherwise.",
+            "title": "Top Sources"
+          }
+        },
+        "required": [
+          "entity",
+          "by_engine"
+        ],
+        "title": "AiCompetitor",
+        "type": "object"
+      },
+      "AiCompetitorEngine": {
+        "properties": {
+          "citation_share": {
+            "$ref": "#/components/schemas/AiMetricValue",
+            "description": "`ai.citation_share`: the entity's citation units over all those of the engine."
+          },
+          "engine_code": {
+            "description": "The engine.",
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "is_top_competitor": {
+            "description": "True for exactly the competitor with the most share of voice on the engine; false for every row when no competitor was named.",
+            "title": "Is Top Competitor",
+            "type": "boolean"
+          },
+          "lost_prompts": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/LostPrompt"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=lost_prompts`, on a competitor: the prompts where it is named and the own brand is not; [] when none. Left out otherwise.",
+            "title": "Lost Prompts"
+          },
+          "mention_rate": {
+            "$ref": "#/components/schemas/AiMetricValue",
+            "description": "`ai.mention_rate` of the entity."
+          },
+          "recommendation_rate": {
+            "$ref": "#/components/schemas/AiMetricValue",
+            "description": "`ai.recommendation_rate` of the entity: suppressed, `not_classified`."
+          },
+          "share_of_voice": {
+            "$ref": "#/components/schemas/AiMetricValue",
+            "description": "`ai.share_of_voice` of the entity."
+          }
+        },
+        "required": [
+          "engine_code",
+          "mention_rate",
+          "recommendation_rate",
+          "citation_share",
+          "share_of_voice",
+          "is_top_competitor"
+        ],
+        "title": "AiCompetitorEngine",
+        "type": "object"
+      },
+      "AiCompetitorsResponse": {
+        "properties": {
+          "data": {
+            "description": "The tracked set: the own entities, then the competitors by name; at most 20.",
+            "items": {
+              "$ref": "#/components/schemas/AiCompetitor"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/AiMetricMeta",
+            "description": "The scope the numbers were computed over."
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "AiCompetitorsResponse",
+        "type": "object"
+      },
       "AiCoverage": {
         "properties": {
           "by_engine": {
@@ -218,6 +511,104 @@
         "title": "AiCoverageResponse",
         "type": "object"
       },
+      "AiDimension": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The id of the group; null for the prompts with no value.",
+            "title": "Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The name of the group; null for the prompts with no value.",
+            "title": "Label"
+          },
+          "type": {
+            "description": "The dimension the rows are of.",
+            "enum": [
+              "topic",
+              "intent",
+              "funnel_stage",
+              "engine",
+              "country",
+              "language",
+              "persona",
+              "prompt_type"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "label"
+        ],
+        "title": "AiDimension",
+        "type": "object"
+      },
+      "AiFilters": {
+        "description": "The scope a value was counted over, resolved: what the request left out is null.",
+        "properties": {
+          "branded_only": {
+            "description": "Only branded prompts are counted.",
+            "title": "Branded Only",
+            "type": "boolean"
+          },
+          "country_iso": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The market the prompts were limited to, or null.",
+            "title": "Country Iso"
+          },
+          "include_branded": {
+            "description": "Branded prompts are counted.",
+            "title": "Include Branded",
+            "type": "boolean"
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The term whose prompts (and those of the terms below it) were counted, or null.",
+            "title": "Term Id"
+          }
+        },
+        "required": [
+          "include_branded",
+          "branded_only",
+          "country_iso",
+          "term_id"
+        ],
+        "title": "AiFilters",
+        "type": "object"
+      },
       "AiLimits": {
         "description": "What the page header and the confirm dialogs show before a click (CF-11, prompt-dialogs\nN06): the same numbers the writes check.",
         "properties": {
@@ -251,6 +642,666 @@
           "data"
         ],
         "title": "AiLimitsResponse",
+        "type": "object"
+      },
+      "AiMetricMeta": {
+        "description": "What every body says about the scope it was computed over.",
+        "properties": {
+          "branded_only": {
+            "description": "Only branded prompts are counted.",
+            "title": "Branded Only",
+            "type": "boolean"
+          },
+          "compare_window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With a compare window: the days compared with. Left out otherwise."
+          },
+          "engine_codes": {
+            "description": "The engines shown, sorted: enabled or answering, after the filter.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Engine Codes",
+            "type": "array"
+          },
+          "entities": {
+            "description": "The tracked entity set share of voice is computed over now, as the prompts summary lists it (competitors by name, then the own entities); watched entities are not in it. Read `role`: do not assume the own brand is first.",
+            "items": {
+              "$ref": "#/components/schemas/SummaryEntity"
+            },
+            "title": "Entities",
+            "type": "array"
+          },
+          "entity_config_versions": {
+            "description": "More than one means the entity set changed inside the window and older answers keep their set.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Entity Config Versions",
+            "type": "array"
+          },
+          "include_branded": {
+            "description": "Branded prompts are counted.",
+            "title": "Include Branded",
+            "type": "boolean"
+          },
+          "notes": {
+            "description": "What a route has to say about its numbers; [] if nothing.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "previous_answers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With a compare window: the valid answers in scope there, on the engines shown; 0 means it has no data. Left out otherwise.",
+            "title": "Previous Answers"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow",
+            "description": "The window; project-local days both included."
+          }
+        },
+        "required": [
+          "window",
+          "include_branded",
+          "branded_only",
+          "engine_codes",
+          "entities",
+          "entity_config_versions",
+          "notes"
+        ],
+        "title": "AiMetricMeta",
+        "type": "object"
+      },
+      "AiMetricPoint": {
+        "properties": {
+          "denominator": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "As in `AiMetricValue`.",
+            "title": "Denominator"
+          },
+          "is_partial": {
+            "description": "The week is cut by a window bound (`t` before `window.from`, or the Sunday after `window.to`), or holds today.",
+            "title": "Is Partial",
+            "type": "boolean"
+          },
+          "is_pooled": {
+            "description": "The cells hold the trailing weeks, inside the window, and not the week alone.",
+            "title": "Is Pooled",
+            "type": "boolean"
+          },
+          "n_observations": {
+            "description": "Every answer behind the point, valid or not.",
+            "title": "N Observations",
+            "type": "integer"
+          },
+          "n_prompts": {
+            "description": "The prompts with a valid answer in that week alone, whether the point is pooled or not.",
+            "title": "N Prompts",
+            "type": "integer"
+          },
+          "numerator": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "As in `AiMetricValue`.",
+            "title": "Numerator"
+          },
+          "pool": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PointPool"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present exactly when `is_pooled`: the weeks and days the cells hold, and why."
+          },
+          "pooled": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Pooled"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The answers behind a prompt weighted point. Left out on share of voice."
+          },
+          "t": {
+            "description": "The Monday the week starts on, in the project's zone.",
+            "format": "date",
+            "title": "T",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "numerator / denominator; null when it is 0.",
+            "title": "Value"
+          }
+        },
+        "required": [
+          "t",
+          "value",
+          "numerator",
+          "denominator",
+          "n_observations",
+          "n_prompts",
+          "is_partial",
+          "is_pooled"
+        ],
+        "title": "AiMetricPoint",
+        "type": "object"
+      },
+      "AiMetricResponse": {
+        "properties": {
+          "data": {
+            "description": "One value per engine sorted by engine code (per listed entity and engine with `entity_ids`, the own entities first), then the engine averages. An outcome key gives four values per engine.",
+            "items": {
+              "$ref": "#/components/schemas/AiMetricValue"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/AiMetricMeta",
+            "description": "The scope the numbers were computed over."
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "AiMetricResponse",
+        "type": "object"
+      },
+      "AiMetricSeries": {
+        "properties": {
+          "aggregation": {
+            "description": "How the points are weighted.",
+            "enum": [
+              "observation_weighted",
+              "prompt_weighted"
+            ],
+            "title": "Aggregation",
+            "type": "string"
+          },
+          "engine_code": {
+            "description": "The engine of the series.",
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set on the series of one tracked entity. Left out otherwise.",
+            "title": "Entity Id"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/AiFilters",
+            "description": "The scope the points were counted over."
+          },
+          "granularity": {
+            "const": "week",
+            "description": "`week`: the only granularity.",
+            "title": "Granularity",
+            "type": "string"
+          },
+          "is_estimate": {
+            "description": "Always false for AI answers.",
+            "title": "Is Estimate",
+            "type": "boolean"
+          },
+          "method": {
+            "description": "A short human description of the computation.",
+            "title": "Method",
+            "type": "string"
+          },
+          "method_version": {
+            "description": "As in `AiMetricValue`.",
+            "title": "Method Version",
+            "type": "integer"
+          },
+          "metric": {
+            "description": "The registry key of docs/16 section 2.1.",
+            "title": "Metric",
+            "type": "string"
+          },
+          "points": {
+            "description": "A point for each week the window touches, oldest first, at most 14; a week without answers has counts of 0 and no value.",
+            "items": {
+              "$ref": "#/components/schemas/AiMetricPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "unit": {
+            "description": "`ratio` for every key a series has.",
+            "enum": [
+              "ratio",
+              "count"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow",
+            "description": "The window the points cover."
+          }
+        },
+        "required": [
+          "metric",
+          "unit",
+          "aggregation",
+          "engine_code",
+          "window",
+          "filters",
+          "is_estimate",
+          "method",
+          "method_version",
+          "granularity",
+          "points"
+        ],
+        "title": "AiMetricSeries",
+        "type": "object"
+      },
+      "AiMetricValue": {
+        "description": "One metric over one scope and one engine (or one entity), with what it was computed from.",
+        "properties": {
+          "aggregation": {
+            "anyOf": [
+              {
+                "enum": [
+                  "observation_weighted",
+                  "prompt_weighted"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How the value is weighted. Left out on counts and on averages of engines.",
+            "title": "Aggregation"
+          },
+          "ci": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AiCi"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Not returned yet: left out of every response until it is built."
+          },
+          "denominator": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Answers, or the prompts with a valid answer for a prompt weighted rate. Null for a count and when suppressed; otherwise value = numerator / denominator.",
+            "title": "Denominator"
+          },
+          "engine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the value is for exactly one engine. Left out otherwise.",
+            "title": "Engine Code"
+          },
+          "engines": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On an engine average only: the engines averaged.",
+            "title": "Engines"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the value is about one tracked entity. Left out otherwise.",
+            "title": "Entity Id"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/AiFilters",
+            "description": "The scope the value was counted over."
+          },
+          "is_estimate": {
+            "description": "Always false for AI answers.",
+            "title": "Is Estimate",
+            "type": "boolean"
+          },
+          "method": {
+            "description": "A short human description of the computation.",
+            "title": "Method",
+            "type": "string"
+          },
+          "method_version": {
+            "description": "1 for every key now; a change of the formula raises it (docs/16 rule 7).",
+            "title": "Method Version",
+            "type": "integer"
+          },
+          "metric": {
+            "description": "The registry key of docs/16 section 2.1; `<key>.engine_average` for an average of engines.",
+            "title": "Metric",
+            "type": "string"
+          },
+          "n_observations": {
+            "description": "Every answer behind the value, valid or not.",
+            "title": "N Observations",
+            "type": "integer"
+          },
+          "n_prompts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Prompt weighted values only: the prompts with a valid answer (the denominator). Left out otherwise.",
+            "title": "N Prompts"
+          },
+          "numerator": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A count of answers, or the sum of the prompts' rates for a prompt weighted rate. Null when suppressed.",
+            "title": "Numerator"
+          },
+          "observation_class": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservationClass"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How the engine's answers were observed. Left out on an average of engines and on the prompts in scope."
+          },
+          "pooled": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Pooled"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The answers behind a prompt weighted rate: 4 of 8 answers. Left out on share of voice, shares of units and counts."
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricCell"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With a compare window, on the keys that compare: the same value over `meta.compare_window`. Null when the engine had no answer of the scope there (no data is not a rate of 0); a cell with a denominator of 0 when it had answers and none valid. Left out when no compare window was asked for and on the keys that do not compare.",
+            "title": "Previous"
+          },
+          "suppressed_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "insufficient_data",
+                  "no_surface",
+                  "not_classified",
+                  "below_min_impressions"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the value is withheld; `not_classified` for the recommendation keys, which nothing classifies yet. Left out when the value is shown.",
+            "title": "Suppressed Reason"
+          },
+          "unit": {
+            "description": "`ratio` (0 to 1) for rates and shares; `count` for valid answers, prompts in scope and fan-out queries per answer.",
+            "enum": [
+              "ratio",
+              "count"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "numerator / denominator; null when the denominator is 0 or the metric is suppressed. Never 0 for an empty denominator.",
+            "title": "Value"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow",
+            "description": "The window the value covers: project-local days."
+          }
+        },
+        "required": [
+          "metric",
+          "value",
+          "numerator",
+          "denominator",
+          "unit",
+          "n_observations",
+          "window",
+          "filters",
+          "is_estimate",
+          "method",
+          "method_version"
+        ],
+        "title": "AiMetricValue",
+        "type": "object"
+      },
+      "AiOverview": {
+        "properties": {
+          "engine_average": {
+            "description": "The equal-weight average of the engines' values for Mentioned, Cited, named and cited, share of voice and citation share, in that order; [] under two engines with a value.",
+            "items": {
+              "$ref": "#/components/schemas/AiMetricValue"
+            },
+            "title": "Engine Average",
+            "type": "array"
+          },
+          "engines": {
+            "description": "One entry per engine shown, sorted by engine code.",
+            "items": {
+              "$ref": "#/components/schemas/AiOverviewEngine"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "last_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest counted answer of any status; null when there is none.",
+            "title": "Last Observed At"
+          },
+          "last_valid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest valid answer; null when there is none.",
+            "title": "Last Valid At"
+          },
+          "prompts_in_scope": {
+            "$ref": "#/components/schemas/AiMetricValue",
+            "description": "The prompts counted once, whether they have a valid answer or not."
+          }
+        },
+        "required": [
+          "engines",
+          "engine_average",
+          "prompts_in_scope",
+          "last_observed_at",
+          "last_valid_at"
+        ],
+        "title": "AiOverview",
+        "type": "object"
+      },
+      "AiOverviewEngine": {
+        "properties": {
+          "engine_code": {
+            "description": "The engine.",
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "observation_class": {
+            "$ref": "#/components/schemas/ObservationClass",
+            "description": "How the engine's answers are observed."
+          },
+          "tiles": {
+            "description": "The tiles of the engine, in the order of the contract: valid answers, Mentioned, Cited, named and cited, the four outcomes, recommendation (suppressed), share of voice, citation share, Cited given citations, first mention and, on an engine that exposes fan-out, its presence and mean. An engine that does not has no such tile.",
+            "items": {
+              "$ref": "#/components/schemas/AiMetricValue"
+            },
+            "title": "Tiles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "engine_code",
+          "observation_class",
+          "tiles"
+        ],
+        "title": "AiOverviewEngine",
+        "type": "object"
+      },
+      "AiOverviewResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AiOverview",
+            "description": "The Overview numbers, per engine."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/AiMetricMeta",
+            "description": "The scope the numbers were computed over."
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "AiOverviewResponse",
+        "type": "object"
+      },
+      "AiSeriesResponse": {
+        "properties": {
+          "data": {
+            "description": "One series per engine, and with `entity_ids` one per listed entity and engine.",
+            "items": {
+              "$ref": "#/components/schemas/AiMetricSeries"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/AiMetricMeta",
+            "description": "The scope the numbers were computed over."
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "AiSeriesResponse",
         "type": "object"
       },
       "AioCitations": {
@@ -2304,6 +3355,32 @@
           "data"
         ],
         "title": "CompetitorSetResponse",
+        "type": "object"
+      },
+      "CompetitorSource": {
+        "properties": {
+          "answers": {
+            "description": "The answers that cite it for the entity.",
+            "title": "Answers",
+            "type": "integer"
+          },
+          "citation_units": {
+            "description": "Its citation units: distinct canonical URLs per answer.",
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "registrable_domain": {
+            "description": "A domain cited with the entity as its role.",
+            "title": "Registrable Domain",
+            "type": "string"
+          }
+        },
+        "required": [
+          "registrable_domain",
+          "citation_units",
+          "answers"
+        ],
+        "title": "CompetitorSource",
         "type": "object"
       },
       "ConfigHistory": {
@@ -7257,6 +8334,38 @@
         "title": "LocationRef",
         "type": "object"
       },
+      "LostPrompt": {
+        "properties": {
+          "importance": {
+            "description": "The prompt's importance, 1 to 5.",
+            "title": "Importance",
+            "type": "integer"
+          },
+          "lost": {
+            "$ref": "#/components/schemas/MetricCell",
+            "description": "`numerator`: the answers on the engine that name the competitor and not the own brand; `denominator`: the prompt's valid answers on the engine; `n_observations`: all its answers; `value` null when the denominator is 0."
+          },
+          "prompt_id": {
+            "description": "The prompt.",
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "text": {
+            "description": "The prompt's current text.",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "text",
+          "importance",
+          "lost"
+        ],
+        "title": "LostPrompt",
+        "type": "object"
+      },
       "ManualRuns": {
         "properties": {
           "limit": {
@@ -9115,6 +10224,128 @@
           "project_id"
         ],
         "title": "OverlapWarning",
+        "type": "object"
+      },
+      "OverviewCompetitorEngine": {
+        "properties": {
+          "engine_code": {
+            "description": "The engine.",
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "mention_rate": {
+            "$ref": "#/components/schemas/AiMetricValue",
+            "description": "`ai.mention_rate` of the entity."
+          },
+          "share_of_voice": {
+            "$ref": "#/components/schemas/AiMetricValue",
+            "description": "`ai.share_of_voice` of the entity."
+          }
+        },
+        "required": [
+          "engine_code",
+          "share_of_voice",
+          "mention_rate"
+        ],
+        "title": "OverviewCompetitorEngine",
+        "type": "object"
+      },
+      "OverviewCompetitorRow": {
+        "properties": {
+          "ai": {
+            "description": "One entry per engine shown, sorted by engine code.",
+            "items": {
+              "$ref": "#/components/schemas/OverviewCompetitorEngine"
+            },
+            "title": "Ai",
+            "type": "array"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityRef",
+            "description": "The tracked entity of the row."
+          },
+          "seo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewSeoCells"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Not returned yet: left out of every response until it is built."
+          }
+        },
+        "required": [
+          "entity",
+          "ai"
+        ],
+        "title": "OverviewCompetitorRow",
+        "type": "object"
+      },
+      "OverviewCompetitors": {
+        "properties": {
+          "rows": {
+            "description": "The tracked set: the own entities, then the competitors by name; at most 20.",
+            "items": {
+              "$ref": "#/components/schemas/OverviewCompetitorRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "seo_other_domains": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricValue"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Not returned yet: the SEO share of the domains that are not tracked."
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "title": "OverviewCompetitors",
+        "type": "object"
+      },
+      "OverviewCompetitorsResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OverviewCompetitors",
+            "description": "The AI half of the Overview competitor table."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/AiMetricMeta",
+            "description": "The scope the numbers were computed over."
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "OverviewCompetitorsResponse",
+        "type": "object"
+      },
+      "OverviewSeoCells": {
+        "description": "Declared and never returned in this package: SEO share of voice is built nowhere yet.",
+        "properties": {
+          "share_of_voice": {
+            "$ref": "#/components/schemas/MetricValue",
+            "description": "The entity's SEO share of voice."
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/MetricValue",
+            "description": "The entity's SEO visibility."
+          }
+        },
+        "required": [
+          "share_of_voice",
+          "visibility"
+        ],
+        "title": "OverviewSeoCells",
         "type": "object"
       },
       "OwnEntityInput": {
@@ -23773,6 +25004,313 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/competitors": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One row per tracked entity (the own entities, then the competitors by name, those tracked in AI answers, at most 20; `entity_ids` narrows them), each with one entry per engine shown: Mentioned and Share of voice from the prompts summary's entity cells, citation share (the entity's citation units over all those of the engine, as the Sources page counts them) and recommendation (suppressed: `not_classified`). `is_top_competitor` is true on exactly the competitor with the most share of voice on that engine, and false for every row when no competitor was named. `include=lost_prompts` adds, per competitor and engine, the prompts where it is named and the own brand is not (the `lost_to` opportunity of the summary), by importance, at most `lost_limit`; `include=top_sources` adds the domains cited most with the entity, at most `sources_limit`, over all engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.",
+        "operationId": "competitors_api_v1_workspaces__workspace_id__projects__project_id__ai_competitors_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "One value per listed tracked entity (the own brand or a competitor tracked in AI answers) and engine, in place of the engine's own cells; only for `ai.mention_rate` and `ai.share_of_voice`. An id that is not a tracked entity of the project is left out, never a `404`.",
+            "in": "query",
+            "name": "entity_ids",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One value per listed tracked entity (the own brand or a competitor tracked in AI answers) and engine, in place of the engine's own cells; only for `ai.mention_rate` and `ai.share_of_voice`. An id that is not a tracked entity of the project is left out, never a `404`.",
+              "maxLength": 20,
+              "title": "Entity Ids"
+            }
+          },
+          {
+            "description": "Blocks to add: `lost_prompts`, `top_sources`. Left out otherwise.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "lost_prompts",
+                      "top_sources"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Blocks to add: `lost_prompts`, `top_sources`. Left out otherwise.",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Rows of `lost_prompts` per entity and engine.",
+            "in": "query",
+            "name": "lost_limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "description": "Rows of `lost_prompts` per entity and engine.",
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Lost Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Rows of `top_sources` per entity.",
+            "in": "query",
+            "name": "sources_limit",
+            "required": false,
+            "schema": {
+              "default": 3,
+              "description": "Rows of `top_sources` per entity.",
+              "maximum": 5,
+              "minimum": 1,
+              "title": "Sources Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier.",
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "default": "none",
+              "description": "`previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier.",
+              "enum": [
+                "none",
+                "previous_period",
+                "previous_year"
+              ],
+              "title": "Compare",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`.",
+            "in": "query",
+            "name": "compare_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`.",
+              "title": "Compare From"
+            }
+          },
+          {
+            "description": "Last day of the window to compare with, included; at most 92 days from `compare_from`.",
+            "in": "query",
+            "name": "compare_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day of the window to compare with, included; at most 92 days from `compare_from`.",
+              "title": "Compare To"
+            }
+          },
+          {
+            "description": "First day of the window, project-local.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day of the window, project-local.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last day of the window, included; at most 92 days.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day of the window, included; at most 92 days.",
+              "title": "To"
+            }
+          },
+          {
+            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "Count the branded prompts too.",
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the branded prompts too.",
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only the branded prompts; wins over `include_branded`.",
+            "in": "query",
+            "name": "branded_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only the branded prompts; wins over `include_branded`.",
+              "title": "Branded Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiCompetitorsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Each tracked entity's mention rate, share of voice and citation share, per engine",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/fanout-queries": {
       "get": {
         "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). Read from the lists ingest stored with each answer (engines that show them: ChatGPT; `filter[engine_code_in]` naming another is `422 engine_has_no_fanout`, and `meta.engines_without_fanout` lists them so they read as not exposed, never zero). One row per normalized text (lower case, trimmed, inner whitespace as one space) and engine, the most issued first: the most common spelling, the answers and prompts that issued it, when it was first and last seen, and the 5 registrable domains with the most citation units in those answers (an association: which query found which source is not stored). A query issued by fewer than `min_support` answers (default 2) is left out. `meta.answers` is the denominator; `meta.answers_truncated` counts the answers whose stored list is shorter than the queries they issued (the 16 KB bound keeps the first ones). `include=topics` adds the topic terms (of a `topic` vocabulary of the project or of the workspace) tagged on the prompts that issued each query, the most answers first, at most 10. Offset pages.",
@@ -24058,6 +25596,936 @@
           }
         },
         "summary": "Active prompts, monthly AI answers and manual runs: used and limit",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/overview": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. Per engine shown: the valid answers, Mentioned, Cited, named and cited, the four outcomes, recommendation (suppressed: `not_classified`), share of voice, citation share (own citation units over all those of the engine, as the Sources page counts them), Cited given citations, first mention and, on an engine that exposes fan-out, its presence and mean. `engine_average` holds the equal-weight average of the engines for five of them when two engines have a value. `prompts_in_scope`, `last_observed_at` and `last_valid_at` sit beside the engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value. `overview/ai` answers the same body.",
+        "operationId": "metrics_overview_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics_overview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier.",
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "default": "none",
+              "description": "`previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier.",
+              "enum": [
+                "none",
+                "previous_period",
+                "previous_year"
+              ],
+              "title": "Compare",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`.",
+            "in": "query",
+            "name": "compare_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`.",
+              "title": "Compare From"
+            }
+          },
+          {
+            "description": "Last day of the window to compare with, included; at most 92 days from `compare_from`.",
+            "in": "query",
+            "name": "compare_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day of the window to compare with, included; at most 92 days from `compare_from`.",
+              "title": "Compare To"
+            }
+          },
+          {
+            "description": "First day of the window, project-local.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day of the window, project-local.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last day of the window, included; at most 92 days.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day of the window, included; at most 92 days.",
+              "title": "To"
+            }
+          },
+          {
+            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "Count the branded prompts too.",
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the branded prompts too.",
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only the branded prompts; wins over `include_branded`.",
+            "in": "query",
+            "name": "branded_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only the branded prompts; wins over `include_branded`.",
+              "title": "Branded Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiOverviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The Overview numbers of the AI answers, per engine",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. A registry key of docs/16 section 2.1: `ai.prompts_in_scope`, `ai.valid_answers`, `ai.mention_rate`, `ai.citation_rate`, `ai.mention_and_citation_rate`, `ai.outcome_mix` (and its four `.x` keys), `ai.share_of_voice`, `ai.citation_rate_given_citations`, `ai.first_mention_rate`, `ai.fanout_presence_rate`, `ai.fanout_mean_queries`, `ai.citation_share`, `ai.recommendation_rate` and `ai.recommended_given_mentioned` (suppressed: nothing classifies a recommendation yet). Any other AI key of that table answers `not_implemented`, naming the key; any other key `404 unknown_metric`. One value per engine, sorted by engine code, then the engine averages for the keys that have them; `ai.outcome_mix` gives four values per engine that add up to the whole. `entity_ids` gives one value per listed entity and engine instead. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.",
+        "operationId": "metric_value_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A registry key of docs/16 section 2.1, for example `ai.mention_rate`.",
+            "in": "path",
+            "name": "metric",
+            "required": true,
+            "schema": {
+              "description": "A registry key of docs/16 section 2.1, for example `ai.mention_rate`.",
+              "pattern": "^[a-z][a-z0-9_.]{0,63}$",
+              "title": "Metric",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "One value per listed tracked entity (the own brand or a competitor tracked in AI answers) and engine, in place of the engine's own cells; only for `ai.mention_rate` and `ai.share_of_voice`. An id that is not a tracked entity of the project is left out, never a `404`.",
+            "in": "query",
+            "name": "entity_ids",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One value per listed tracked entity (the own brand or a competitor tracked in AI answers) and engine, in place of the engine's own cells; only for `ai.mention_rate` and `ai.share_of_voice`. An id that is not a tracked entity of the project is left out, never a `404`.",
+              "maxLength": 20,
+              "title": "Entity Ids"
+            }
+          },
+          {
+            "description": "`previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier.",
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "default": "none",
+              "description": "`previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier.",
+              "enum": [
+                "none",
+                "previous_period",
+                "previous_year"
+              ],
+              "title": "Compare",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`.",
+            "in": "query",
+            "name": "compare_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`.",
+              "title": "Compare From"
+            }
+          },
+          {
+            "description": "Last day of the window to compare with, included; at most 92 days from `compare_from`.",
+            "in": "query",
+            "name": "compare_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day of the window to compare with, included; at most 92 days from `compare_from`.",
+              "title": "Compare To"
+            }
+          },
+          {
+            "description": "First day of the window, project-local.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day of the window, project-local.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last day of the window, included; at most 92 days.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day of the window, included; at most 92 days.",
+              "title": "To"
+            }
+          },
+          {
+            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "Count the branded prompts too.",
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the branded prompts too.",
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only the branded prompts; wins over `include_branded`.",
+            "in": "query",
+            "name": "branded_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only the branded prompts; wins over `include_branded`.",
+              "title": "Branded Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiMetricResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One AI metric, per engine",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/breakdown": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One row per group of `dimension`, each with its prompts and one value per engine (four per engine for `ai.outcome_mix`), sorted by prompts, most first, then label, at most 300 (`meta.rows_total`, `meta.truncated`). Prompts with no value of the dimension (for example no persona) form one row with `dimension.id` null. A prompt in two topics counts in each, so topic values do not add up to the total (`meta.notes`). A breakdown has no compare parameters.",
+        "operationId": "metric_breakdown_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__breakdown_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A registry key of docs/16 section 2.1, for example `ai.mention_rate`.",
+            "in": "path",
+            "name": "metric",
+            "required": true,
+            "schema": {
+              "description": "A registry key of docs/16 section 2.1, for example `ai.mention_rate`.",
+              "pattern": "^[a-z][a-z0-9_.]{0,63}$",
+              "title": "Metric",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "What the rows are.",
+            "in": "query",
+            "name": "dimension",
+            "required": true,
+            "schema": {
+              "description": "What the rows are.",
+              "enum": [
+                "topic",
+                "intent",
+                "funnel_stage",
+                "engine",
+                "country",
+                "language",
+                "persona",
+                "prompt_type"
+              ],
+              "title": "Dimension",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First day of the window, project-local.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day of the window, project-local.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last day of the window, included; at most 92 days.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day of the window, included; at most 92 days.",
+              "title": "To"
+            }
+          },
+          {
+            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "Count the branded prompts too.",
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the branded prompts too.",
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only the branded prompts; wins over `include_branded`.",
+            "in": "query",
+            "name": "branded_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only the branded prompts; wins over `include_branded`.",
+              "title": "Branded Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiBreakdownResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One AI metric broken down by a dimension of the prompts",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/series": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One series per engine (and per listed entity with `entity_ids`) for `ai.mention_rate`, `ai.citation_rate` and `ai.share_of_voice`: a point for each week the window touches (weeks start on Monday in the project's timezone), oldest first, at most 14. A point holds the week's own answers, or the trailing four weeks inside the window when fewer than 10 prompts answered that week (`is_pooled`, `pool`); the first and last weeks may be partial (`is_partial`). They are the weekly points of the prompts summary's `total` row. `day` and `month` granularities are refused (`422`, code `not_built`). A series has no compare parameters.",
+        "operationId": "metric_series_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__series_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A registry key of docs/16 section 2.1, for example `ai.mention_rate`.",
+            "in": "path",
+            "name": "metric",
+            "required": true,
+            "schema": {
+              "description": "A registry key of docs/16 section 2.1, for example `ai.mention_rate`.",
+              "pattern": "^[a-z][a-z0-9_.]{0,63}$",
+              "title": "Metric",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "One value per listed tracked entity (the own brand or a competitor tracked in AI answers) and engine, in place of the engine's own cells; only for `ai.mention_rate` and `ai.share_of_voice`. An id that is not a tracked entity of the project is left out, never a `404`.",
+            "in": "query",
+            "name": "entity_ids",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One value per listed tracked entity (the own brand or a competitor tracked in AI answers) and engine, in place of the engine's own cells; only for `ai.mention_rate` and `ai.share_of_voice`. An id that is not a tracked entity of the project is left out, never a `404`.",
+              "maxLength": 20,
+              "title": "Entity Ids"
+            }
+          },
+          {
+            "description": "`week`: the only granularity.",
+            "in": "query",
+            "name": "granularity",
+            "required": false,
+            "schema": {
+              "const": "week",
+              "default": "week",
+              "description": "`week`: the only granularity.",
+              "title": "Granularity",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First day of the window, project-local.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day of the window, project-local.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last day of the window, included; at most 92 days.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day of the window, included; at most 92 days.",
+              "title": "To"
+            }
+          },
+          {
+            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "Count the branded prompts too.",
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the branded prompts too.",
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only the branded prompts; wins over `include_branded`.",
+            "in": "query",
+            "name": "branded_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only the branded prompts; wins over `include_branded`.",
+              "title": "Branded Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiSeriesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One AI metric over the weeks of the window, per engine",
         "tags": [
           "ai"
         ]
@@ -28787,6 +31255,468 @@
         "summary": "Delete a chart note",
         "tags": [
           "notes"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/overview/ai": {
+      "get": {
+        "description": "The same body, parameters and errors as `GET .../ai/metrics/overview`, under the path the Overview report reads. Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.",
+        "operationId": "overview_ai_api_v1_workspaces__workspace_id__projects__project_id__overview_ai_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier.",
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "default": "none",
+              "description": "`previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier.",
+              "enum": [
+                "none",
+                "previous_period",
+                "previous_year"
+              ],
+              "title": "Compare",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`.",
+            "in": "query",
+            "name": "compare_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`.",
+              "title": "Compare From"
+            }
+          },
+          {
+            "description": "Last day of the window to compare with, included; at most 92 days from `compare_from`.",
+            "in": "query",
+            "name": "compare_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day of the window to compare with, included; at most 92 days from `compare_from`.",
+              "title": "Compare To"
+            }
+          },
+          {
+            "description": "First day of the window, project-local.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day of the window, project-local.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last day of the window, included; at most 92 days.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day of the window, included; at most 92 days.",
+              "title": "To"
+            }
+          },
+          {
+            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "Count the branded prompts too.",
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the branded prompts too.",
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only the branded prompts; wins over `include_branded`.",
+            "in": "query",
+            "name": "branded_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only the branded prompts; wins over `include_branded`.",
+              "title": "Branded Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiOverviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The Overview numbers of the AI answers, per engine (Overview alias)",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/overview/competitors": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One row per tracked entity, in the order of `ai/competitors`, each with its share of voice and its mention rate per engine shown (no citation share, lost prompts or sources). The SEO share of voice and visibility are declared and left out until they are built. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.",
+        "operationId": "overview_competitors_api_v1_workspaces__workspace_id__projects__project_id__overview_competitors_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier.",
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "default": "none",
+              "description": "`previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier.",
+              "enum": [
+                "none",
+                "previous_period",
+                "previous_year"
+              ],
+              "title": "Compare",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`.",
+            "in": "query",
+            "name": "compare_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`.",
+              "title": "Compare From"
+            }
+          },
+          {
+            "description": "Last day of the window to compare with, included; at most 92 days from `compare_from`.",
+            "in": "query",
+            "name": "compare_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day of the window to compare with, included; at most 92 days from `compare_from`.",
+              "title": "Compare To"
+            }
+          },
+          {
+            "description": "First day of the window, project-local.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day of the window, project-local.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last day of the window, included; at most 92 days.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day of the window, included; at most 92 days.",
+              "title": "To"
+            }
+          },
+          {
+            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "Count the branded prompts too.",
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the branded prompts too.",
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only the branded prompts; wins over `include_branded`.",
+            "in": "query",
+            "name": "branded_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only the branded prompts; wins over `include_branded`.",
+              "title": "Branded Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts of one market, ISO 3166-1 alpha-2.",
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverviewCompetitorsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The AI half of the Overview competitor table",
+        "tags": [
+          "ai"
         ]
       }
     },

@@ -473,6 +473,27 @@ EXPECTED: dict[tuple[str, str], str] = {
     # WP-30 runs-costs-health
     # WP-31 settings-engines
     # WP-32 overview-aggregates
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/overview"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/overview/ai"): "data:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}"): (
+        "data:read"
+    ),
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/series",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/breakdown",
+    ): "data:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/competitors"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/overview/competitors"): (
+        "data:read"
+    ),
     # WP-38 notes-annotations
     # WP-41 versions
     # WP-42 panels-api
@@ -584,6 +605,8 @@ PATH_PARAMETERS = {
     # WP-30 runs-costs-health
     # WP-31 settings-engines
     # WP-32 overview-aggregates
+    # A registry key (`ai.mention_rate`), a word and not an id, after `{project_id}`.
+    "metric",
     # WP-38 notes-annotations
     # WP-41 versions
     # WP-42 panels-api

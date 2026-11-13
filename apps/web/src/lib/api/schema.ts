@@ -1060,6 +1060,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/competitors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Each tracked entity's mention rate, share of voice and citation share, per engine
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One row per tracked entity (the own entities, then the competitors by name, those tracked in AI answers, at most 20; `entity_ids` narrows them), each with one entry per engine shown: Mentioned and Share of voice from the prompts summary's entity cells, citation share (the entity's citation units over all those of the engine, as the Sources page counts them) and recommendation (suppressed: `not_classified`). `is_top_competitor` is true on exactly the competitor with the most share of voice on that engine, and false for every row when no competitor was named. `include=lost_prompts` adds, per competitor and engine, the prompts where it is named and the own brand is not (the `lost_to` opportunity of the summary), by importance, at most `lost_limit`; `include=top_sources` adds the domains cited most with the entity, at most `sources_limit`, over all engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.
+         */
+        get: operations["competitors_api_v1_workspaces__workspace_id__projects__project_id__ai_competitors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/fanout-queries": {
         parameters: {
             query?: never;
@@ -1092,6 +1112,86 @@ export interface paths {
          * @description The workspace's active prompts and AI answers this UTC month, and the project's manual runs today (UTC), each with its limit, as the writes count them. Reading changes nothing.
          */
         get: operations["ai_limits_api_v1_workspaces__workspace_id__projects__project_id__ai_limits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Overview numbers of the AI answers, per engine
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. Per engine shown: the valid answers, Mentioned, Cited, named and cited, the four outcomes, recommendation (suppressed: `not_classified`), share of voice, citation share (own citation units over all those of the engine, as the Sources page counts them), Cited given citations, first mention and, on an engine that exposes fan-out, its presence and mean. `engine_average` holds the equal-weight average of the engines for five of them when two engines have a value. `prompts_in_scope`, `last_observed_at` and `last_valid_at` sit beside the engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value. `overview/ai` answers the same body.
+         */
+        get: operations["metrics_overview_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One AI metric, per engine
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. A registry key of docs/16 section 2.1: `ai.prompts_in_scope`, `ai.valid_answers`, `ai.mention_rate`, `ai.citation_rate`, `ai.mention_and_citation_rate`, `ai.outcome_mix` (and its four `.x` keys), `ai.share_of_voice`, `ai.citation_rate_given_citations`, `ai.first_mention_rate`, `ai.fanout_presence_rate`, `ai.fanout_mean_queries`, `ai.citation_share`, `ai.recommendation_rate` and `ai.recommended_given_mentioned` (suppressed: nothing classifies a recommendation yet). Any other AI key of that table answers `not_implemented`, naming the key; any other key `404 unknown_metric`. One value per engine, sorted by engine code, then the engine averages for the keys that have them; `ai.outcome_mix` gives four values per engine that add up to the whole. `entity_ids` gives one value per listed entity and engine instead. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.
+         */
+        get: operations["metric_value_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/breakdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One AI metric broken down by a dimension of the prompts
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One row per group of `dimension`, each with its prompts and one value per engine (four per engine for `ai.outcome_mix`), sorted by prompts, most first, then label, at most 300 (`meta.rows_total`, `meta.truncated`). Prompts with no value of the dimension (for example no persona) form one row with `dimension.id` null. A prompt in two topics counts in each, so topic values do not add up to the total (`meta.notes`). A breakdown has no compare parameters.
+         */
+        get: operations["metric_breakdown_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__breakdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One AI metric over the weeks of the window, per engine
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One series per engine (and per listed entity with `entity_ids`) for `ai.mention_rate`, `ai.citation_rate` and `ai.share_of_voice`: a point for each week the window touches (weeks start on Monday in the project's timezone), oldest first, at most 14. A point holds the week's own answers, or the trailing four weeks inside the window when fewer than 10 prompts answered that week (`is_pooled`, `pool`); the first and last weeks may be partial (`is_partial`). They are the weekly points of the prompts summary's `total` row. `day` and `month` granularities are refused (`422`, code `not_built`). A series has no compare parameters.
+         */
+        get: operations["metric_series_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__series_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1801,6 +1901,46 @@ export interface paths {
          * @description Not built yet: `501 not_implemented`.
          */
         delete: operations["delete_note_api_v1_workspaces__workspace_id__projects__project_id__notes__note_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/overview/ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Overview numbers of the AI answers, per engine (Overview alias)
+         * @description The same body, parameters and errors as `GET .../ai/metrics/overview`, under the path the Overview report reads. Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.
+         */
+        get: operations["overview_ai_api_v1_workspaces__workspace_id__projects__project_id__overview_ai_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/overview/competitors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The AI half of the Overview competitor table
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One row per tracked entity, in the order of `ai/competitors`, each with its share of voice and its mention rate per engine shown (no citation share, lost prompts or sources). The SEO share of voice and visibility are declared and left out until they are built. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.
+         */
+        get: operations["overview_competitors_api_v1_workspaces__workspace_id__projects__project_id__overview_competitors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2689,6 +2829,161 @@ export interface components {
             /** @description Answers that showed at least one ad, of the valid answers on the engine. Ads are kept out of answers and citations (docs/07 section 5.4); extras the 16 KB bound emptied count as no ad. */
             answers_with_ads: components["schemas"]["MetricCell"];
         };
+        /** AiBreakdownMeta */
+        AiBreakdownMeta: {
+            /**
+             * Branded Only
+             * @description Only branded prompts are counted.
+             */
+            branded_only: boolean;
+            /** @description With a compare window: the days compared with. Left out otherwise. */
+            compare_window?: components["schemas"]["MetricWindow"] | null;
+            /**
+             * Engine Codes
+             * @description The engines shown, sorted: enabled or answering, after the filter.
+             */
+            engine_codes: string[];
+            /**
+             * Entities
+             * @description The tracked entity set share of voice is computed over now, as the prompts summary lists it (competitors by name, then the own entities); watched entities are not in it. Read `role`: do not assume the own brand is first.
+             */
+            entities: components["schemas"]["SummaryEntity"][];
+            /**
+             * Entity Config Versions
+             * @description More than one means the entity set changed inside the window and older answers keep their set.
+             */
+            entity_config_versions: number[];
+            /**
+             * Include Branded
+             * @description Branded prompts are counted.
+             */
+            include_branded: boolean;
+            /**
+             * Notes
+             * @description What a route has to say about its numbers; [] if nothing.
+             */
+            notes: string[];
+            /**
+             * Previous Answers
+             * @description With a compare window: the valid answers in scope there, on the engines shown; 0 means it has no data. Left out otherwise.
+             */
+            previous_answers?: number | null;
+            /**
+             * Rows Total
+             * @description The rows before the cap of 300.
+             */
+            rows_total: number;
+            /**
+             * Truncated
+             * @description True when `rows_total` is over 300.
+             */
+            truncated: boolean;
+            /** @description The window; project-local days both included. */
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** AiBreakdownResponse */
+        AiBreakdownResponse: {
+            /**
+             * Data
+             * @description Sorted by prompts, most first, then label; at most 300.
+             */
+            data: components["schemas"]["AiBreakdownRow"][];
+            /** @description The scope the numbers were computed over. */
+            meta: components["schemas"]["AiBreakdownMeta"];
+        };
+        /** AiBreakdownRow */
+        AiBreakdownRow: {
+            /** @description The group this row is of. */
+            dimension: components["schemas"]["AiDimension"];
+            /**
+             * Prompts
+             * @description The prompts of the group.
+             */
+            prompts: number;
+            /**
+             * Values
+             * @description One value per engine, no averages; four per engine for `ai.outcome_mix`. With `dimension=engine` the row is one engine.
+             */
+            values: components["schemas"]["AiMetricValue"][];
+        };
+        /**
+         * AiCi
+         * @description A confidence interval. Declared and never returned in this package: the interval stays on
+         *     the client (Wilson, rule R8) until the statistics package adds it.
+         */
+        AiCi: {
+            /**
+             * Level
+             * @description The confidence level, for example 0.95.
+             */
+            level: number;
+            /**
+             * Lower
+             * @description The lower bound, in the unit of the value.
+             */
+            lower: number;
+            /**
+             * Method
+             * @description How the interval was computed, for example `wilson`.
+             */
+            method: string;
+            /**
+             * Upper
+             * @description The upper bound, in the unit of the value.
+             */
+            upper: number;
+        };
+        /** AiCompetitor */
+        AiCompetitor: {
+            /**
+             * By Engine
+             * @description One entry per engine shown, sorted by engine code.
+             */
+            by_engine: components["schemas"]["AiCompetitorEngine"][];
+            /** @description The tracked entity of the row. */
+            entity: components["schemas"]["EntityRef"];
+            /**
+             * Top Sources
+             * @description With `include=top_sources`: the domains cited most with the entity, over all engines. Left out otherwise.
+             */
+            top_sources?: components["schemas"]["CompetitorSource"][] | null;
+        };
+        /** AiCompetitorEngine */
+        AiCompetitorEngine: {
+            /** @description `ai.citation_share`: the entity's citation units over all those of the engine. */
+            citation_share: components["schemas"]["AiMetricValue"];
+            /**
+             * Engine Code
+             * @description The engine.
+             */
+            engine_code: string;
+            /**
+             * Is Top Competitor
+             * @description True for exactly the competitor with the most share of voice on the engine; false for every row when no competitor was named.
+             */
+            is_top_competitor: boolean;
+            /**
+             * Lost Prompts
+             * @description With `include=lost_prompts`, on a competitor: the prompts where it is named and the own brand is not; [] when none. Left out otherwise.
+             */
+            lost_prompts?: components["schemas"]["LostPrompt"][] | null;
+            /** @description `ai.mention_rate` of the entity. */
+            mention_rate: components["schemas"]["AiMetricValue"];
+            /** @description `ai.recommendation_rate` of the entity: suppressed, `not_classified`. */
+            recommendation_rate: components["schemas"]["AiMetricValue"];
+            /** @description `ai.share_of_voice` of the entity. */
+            share_of_voice: components["schemas"]["AiMetricValue"];
+        };
+        /** AiCompetitorsResponse */
+        AiCompetitorsResponse: {
+            /**
+             * Data
+             * @description The tracked set: the own entities, then the competitors by name; at most 20.
+             */
+            data: components["schemas"]["AiCompetitor"][];
+            /** @description The scope the numbers were computed over. */
+            meta: components["schemas"]["AiMetricMeta"];
+        };
         /** AiCoverage */
         AiCoverage: {
             /** By Engine */
@@ -2740,6 +3035,51 @@ export interface components {
         AiCoverageResponse: {
             data: components["schemas"]["AiCoverage"];
         };
+        /** AiDimension */
+        AiDimension: {
+            /**
+             * Id
+             * @description The id of the group; null for the prompts with no value.
+             */
+            id: string | null;
+            /**
+             * Label
+             * @description The name of the group; null for the prompts with no value.
+             */
+            label: string | null;
+            /**
+             * Type
+             * @description The dimension the rows are of.
+             * @enum {string}
+             */
+            type: "topic" | "intent" | "funnel_stage" | "engine" | "country" | "language" | "persona" | "prompt_type";
+        };
+        /**
+         * AiFilters
+         * @description The scope a value was counted over, resolved: what the request left out is null.
+         */
+        AiFilters: {
+            /**
+             * Branded Only
+             * @description Only branded prompts are counted.
+             */
+            branded_only: boolean;
+            /**
+             * Country Iso
+             * @description The market the prompts were limited to, or null.
+             */
+            country_iso: string | null;
+            /**
+             * Include Branded
+             * @description Branded prompts are counted.
+             */
+            include_branded: boolean;
+            /**
+             * Term Id
+             * @description The term whose prompts (and those of the terms below it) were counted, or null.
+             */
+            term_id: string | null;
+        };
         /**
          * AiLimits
          * @description What the page header and the confirm dialogs show before a click (CF-11, prompt-dialogs
@@ -2755,6 +3095,323 @@ export interface components {
         /** AiLimitsResponse */
         AiLimitsResponse: {
             data: components["schemas"]["AiLimits"];
+        };
+        /**
+         * AiMetricMeta
+         * @description What every body says about the scope it was computed over.
+         */
+        AiMetricMeta: {
+            /**
+             * Branded Only
+             * @description Only branded prompts are counted.
+             */
+            branded_only: boolean;
+            /** @description With a compare window: the days compared with. Left out otherwise. */
+            compare_window?: components["schemas"]["MetricWindow"] | null;
+            /**
+             * Engine Codes
+             * @description The engines shown, sorted: enabled or answering, after the filter.
+             */
+            engine_codes: string[];
+            /**
+             * Entities
+             * @description The tracked entity set share of voice is computed over now, as the prompts summary lists it (competitors by name, then the own entities); watched entities are not in it. Read `role`: do not assume the own brand is first.
+             */
+            entities: components["schemas"]["SummaryEntity"][];
+            /**
+             * Entity Config Versions
+             * @description More than one means the entity set changed inside the window and older answers keep their set.
+             */
+            entity_config_versions: number[];
+            /**
+             * Include Branded
+             * @description Branded prompts are counted.
+             */
+            include_branded: boolean;
+            /**
+             * Notes
+             * @description What a route has to say about its numbers; [] if nothing.
+             */
+            notes: string[];
+            /**
+             * Previous Answers
+             * @description With a compare window: the valid answers in scope there, on the engines shown; 0 means it has no data. Left out otherwise.
+             */
+            previous_answers?: number | null;
+            /** @description The window; project-local days both included. */
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** AiMetricPoint */
+        AiMetricPoint: {
+            /**
+             * Denominator
+             * @description As in `AiMetricValue`.
+             */
+            denominator: number | null;
+            /**
+             * Is Partial
+             * @description The week is cut by a window bound (`t` before `window.from`, or the Sunday after `window.to`), or holds today.
+             */
+            is_partial: boolean;
+            /**
+             * Is Pooled
+             * @description The cells hold the trailing weeks, inside the window, and not the week alone.
+             */
+            is_pooled: boolean;
+            /**
+             * N Observations
+             * @description Every answer behind the point, valid or not.
+             */
+            n_observations: number;
+            /**
+             * N Prompts
+             * @description The prompts with a valid answer in that week alone, whether the point is pooled or not.
+             */
+            n_prompts: number;
+            /**
+             * Numerator
+             * @description As in `AiMetricValue`.
+             */
+            numerator: number | null;
+            /** @description Present exactly when `is_pooled`: the weeks and days the cells hold, and why. */
+            pool?: components["schemas"]["PointPool"] | null;
+            /** @description The answers behind a prompt weighted point. Left out on share of voice. */
+            pooled?: components["schemas"]["Pooled"] | null;
+            /**
+             * T
+             * Format: date
+             * @description The Monday the week starts on, in the project's zone.
+             */
+            t: string;
+            /**
+             * Value
+             * @description numerator / denominator; null when it is 0.
+             */
+            value: number | null;
+        };
+        /** AiMetricResponse */
+        AiMetricResponse: {
+            /**
+             * Data
+             * @description One value per engine sorted by engine code (per listed entity and engine with `entity_ids`, the own entities first), then the engine averages. An outcome key gives four values per engine.
+             */
+            data: components["schemas"]["AiMetricValue"][];
+            /** @description The scope the numbers were computed over. */
+            meta: components["schemas"]["AiMetricMeta"];
+        };
+        /** AiMetricSeries */
+        AiMetricSeries: {
+            /**
+             * Aggregation
+             * @description How the points are weighted.
+             * @enum {string}
+             */
+            aggregation: "observation_weighted" | "prompt_weighted";
+            /**
+             * Engine Code
+             * @description The engine of the series.
+             */
+            engine_code: string;
+            /**
+             * Entity Id
+             * @description Set on the series of one tracked entity. Left out otherwise.
+             */
+            entity_id?: string | null;
+            /** @description The scope the points were counted over. */
+            filters: components["schemas"]["AiFilters"];
+            /**
+             * Granularity
+             * @description `week`: the only granularity.
+             * @constant
+             */
+            granularity: "week";
+            /**
+             * Is Estimate
+             * @description Always false for AI answers.
+             */
+            is_estimate: boolean;
+            /**
+             * Method
+             * @description A short human description of the computation.
+             */
+            method: string;
+            /**
+             * Method Version
+             * @description As in `AiMetricValue`.
+             */
+            method_version: number;
+            /**
+             * Metric
+             * @description The registry key of docs/16 section 2.1.
+             */
+            metric: string;
+            /**
+             * Points
+             * @description A point for each week the window touches, oldest first, at most 14; a week without answers has counts of 0 and no value.
+             */
+            points: components["schemas"]["AiMetricPoint"][];
+            /**
+             * Unit
+             * @description `ratio` for every key a series has.
+             * @enum {string}
+             */
+            unit: "ratio" | "count";
+            /** @description The window the points cover. */
+            window: components["schemas"]["MetricWindow"];
+        };
+        /**
+         * AiMetricValue
+         * @description One metric over one scope and one engine (or one entity), with what it was computed from.
+         */
+        AiMetricValue: {
+            /**
+             * Aggregation
+             * @description How the value is weighted. Left out on counts and on averages of engines.
+             */
+            aggregation?: ("observation_weighted" | "prompt_weighted") | null;
+            /** @description Not returned yet: left out of every response until it is built. */
+            ci?: components["schemas"]["AiCi"] | null;
+            /**
+             * Denominator
+             * @description Answers, or the prompts with a valid answer for a prompt weighted rate. Null for a count and when suppressed; otherwise value = numerator / denominator.
+             */
+            denominator: number | null;
+            /**
+             * Engine Code
+             * @description Set when the value is for exactly one engine. Left out otherwise.
+             */
+            engine_code?: string | null;
+            /**
+             * Engines
+             * @description On an engine average only: the engines averaged.
+             */
+            engines?: string[] | null;
+            /**
+             * Entity Id
+             * @description Set when the value is about one tracked entity. Left out otherwise.
+             */
+            entity_id?: string | null;
+            /** @description The scope the value was counted over. */
+            filters: components["schemas"]["AiFilters"];
+            /**
+             * Is Estimate
+             * @description Always false for AI answers.
+             */
+            is_estimate: boolean;
+            /**
+             * Method
+             * @description A short human description of the computation.
+             */
+            method: string;
+            /**
+             * Method Version
+             * @description 1 for every key now; a change of the formula raises it (docs/16 rule 7).
+             */
+            method_version: number;
+            /**
+             * Metric
+             * @description The registry key of docs/16 section 2.1; `<key>.engine_average` for an average of engines.
+             */
+            metric: string;
+            /**
+             * N Observations
+             * @description Every answer behind the value, valid or not.
+             */
+            n_observations: number;
+            /**
+             * N Prompts
+             * @description Prompt weighted values only: the prompts with a valid answer (the denominator). Left out otherwise.
+             */
+            n_prompts?: number | null;
+            /**
+             * Numerator
+             * @description A count of answers, or the sum of the prompts' rates for a prompt weighted rate. Null when suppressed.
+             */
+            numerator: number | null;
+            /** @description How the engine's answers were observed. Left out on an average of engines and on the prompts in scope. */
+            observation_class?: components["schemas"]["ObservationClass"] | null;
+            /** @description The answers behind a prompt weighted rate: 4 of 8 answers. Left out on share of voice, shares of units and counts. */
+            pooled?: components["schemas"]["Pooled"] | null;
+            /**
+             * Previous
+             * @description With a compare window, on the keys that compare: the same value over `meta.compare_window`. Null when the engine had no answer of the scope there (no data is not a rate of 0); a cell with a denominator of 0 when it had answers and none valid. Left out when no compare window was asked for and on the keys that do not compare.
+             */
+            previous?: components["schemas"]["MetricCell"] | null;
+            /**
+             * Suppressed Reason
+             * @description Why the value is withheld; `not_classified` for the recommendation keys, which nothing classifies yet. Left out when the value is shown.
+             */
+            suppressed_reason?: ("insufficient_data" | "no_surface" | "not_classified" | "below_min_impressions") | null;
+            /**
+             * Unit
+             * @description `ratio` (0 to 1) for rates and shares; `count` for valid answers, prompts in scope and fan-out queries per answer.
+             * @enum {string}
+             */
+            unit: "ratio" | "count";
+            /**
+             * Value
+             * @description numerator / denominator; null when the denominator is 0 or the metric is suppressed. Never 0 for an empty denominator.
+             */
+            value: number | null;
+            /** @description The window the value covers: project-local days. */
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** AiOverview */
+        AiOverview: {
+            /**
+             * Engine Average
+             * @description The equal-weight average of the engines' values for Mentioned, Cited, named and cited, share of voice and citation share, in that order; [] under two engines with a value.
+             */
+            engine_average: components["schemas"]["AiMetricValue"][];
+            /**
+             * Engines
+             * @description One entry per engine shown, sorted by engine code.
+             */
+            engines: components["schemas"]["AiOverviewEngine"][];
+            /**
+             * Last Observed At
+             * @description The newest counted answer of any status; null when there is none.
+             */
+            last_observed_at: string | null;
+            /**
+             * Last Valid At
+             * @description The newest valid answer; null when there is none.
+             */
+            last_valid_at: string | null;
+            /** @description The prompts counted once, whether they have a valid answer or not. */
+            prompts_in_scope: components["schemas"]["AiMetricValue"];
+        };
+        /** AiOverviewEngine */
+        AiOverviewEngine: {
+            /**
+             * Engine Code
+             * @description The engine.
+             */
+            engine_code: string;
+            /** @description How the engine's answers are observed. */
+            observation_class: components["schemas"]["ObservationClass"];
+            /**
+             * Tiles
+             * @description The tiles of the engine, in the order of the contract: valid answers, Mentioned, Cited, named and cited, the four outcomes, recommendation (suppressed), share of voice, citation share, Cited given citations, first mention and, on an engine that exposes fan-out, its presence and mean. An engine that does not has no such tile.
+             */
+            tiles: components["schemas"]["AiMetricValue"][];
+        };
+        /** AiOverviewResponse */
+        AiOverviewResponse: {
+            /** @description The Overview numbers, per engine. */
+            data: components["schemas"]["AiOverview"];
+            /** @description The scope the numbers were computed over. */
+            meta: components["schemas"]["AiMetricMeta"];
+        };
+        /** AiSeriesResponse */
+        AiSeriesResponse: {
+            /**
+             * Data
+             * @description One series per engine, and with `entity_ids` one per listed entity and engine.
+             */
+            data: components["schemas"]["AiMetricSeries"][];
+            /** @description The scope the numbers were computed over. */
+            meta: components["schemas"]["AiMetricMeta"];
         };
         /** AioCitations */
         AioCitations: {
@@ -3607,6 +4264,24 @@ export interface components {
         /** CompetitorSetResponse */
         CompetitorSetResponse: {
             data: components["schemas"]["CompetitorSet"];
+        };
+        /** CompetitorSource */
+        CompetitorSource: {
+            /**
+             * Answers
+             * @description The answers that cite it for the entity.
+             */
+            answers: number;
+            /**
+             * Citation Units
+             * @description Its citation units: distinct canonical URLs per answer.
+             */
+            citation_units: number;
+            /**
+             * Registrable Domain
+             * @description A domain cited with the entity as its role.
+             */
+            registrable_domain: string;
         };
         /** ConfigHistory */
         ConfigHistory: {
@@ -5453,6 +6128,27 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** LostPrompt */
+        LostPrompt: {
+            /**
+             * Importance
+             * @description The prompt's importance, 1 to 5.
+             */
+            importance: number;
+            /** @description `numerator`: the answers on the engine that name the competitor and not the own brand; `denominator`: the prompt's valid answers on the engine; `n_observations`: all its answers; `value` null when the denominator is 0. */
+            lost: components["schemas"]["MetricCell"];
+            /**
+             * Prompt Id
+             * Format: uuid
+             * @description The prompt.
+             */
+            prompt_id: string;
+            /**
+             * Text
+             * @description The prompt's current text.
+             */
+            text: string;
+        };
         /** ManualRuns */
         ManualRuns: {
             /** Limit */
@@ -6122,6 +6818,57 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+        };
+        /** OverviewCompetitorEngine */
+        OverviewCompetitorEngine: {
+            /**
+             * Engine Code
+             * @description The engine.
+             */
+            engine_code: string;
+            /** @description `ai.mention_rate` of the entity. */
+            mention_rate: components["schemas"]["AiMetricValue"];
+            /** @description `ai.share_of_voice` of the entity. */
+            share_of_voice: components["schemas"]["AiMetricValue"];
+        };
+        /** OverviewCompetitorRow */
+        OverviewCompetitorRow: {
+            /**
+             * Ai
+             * @description One entry per engine shown, sorted by engine code.
+             */
+            ai: components["schemas"]["OverviewCompetitorEngine"][];
+            /** @description The tracked entity of the row. */
+            entity: components["schemas"]["EntityRef"];
+            /** @description Not returned yet: left out of every response until it is built. */
+            seo?: components["schemas"]["OverviewSeoCells"] | null;
+        };
+        /** OverviewCompetitors */
+        OverviewCompetitors: {
+            /**
+             * Rows
+             * @description The tracked set: the own entities, then the competitors by name; at most 20.
+             */
+            rows: components["schemas"]["OverviewCompetitorRow"][];
+            /** @description Not returned yet: the SEO share of the domains that are not tracked. */
+            seo_other_domains?: components["schemas"]["MetricValue"] | null;
+        };
+        /** OverviewCompetitorsResponse */
+        OverviewCompetitorsResponse: {
+            /** @description The AI half of the Overview competitor table. */
+            data: components["schemas"]["OverviewCompetitors"];
+            /** @description The scope the numbers were computed over. */
+            meta: components["schemas"]["AiMetricMeta"];
+        };
+        /**
+         * OverviewSeoCells
+         * @description Declared and never returned in this package: SEO share of voice is built nowhere yet.
+         */
+        OverviewSeoCells: {
+            /** @description The entity's SEO share of voice. */
+            share_of_voice: components["schemas"]["MetricValue"];
+            /** @description The entity's SEO visibility. */
+            visibility: components["schemas"]["MetricValue"];
         };
         /** OwnEntityInput */
         OwnEntityInput: {
@@ -12210,6 +12957,67 @@ export interface operations {
             };
         };
     };
+    competitors_api_v1_workspaces__workspace_id__projects__project_id__ai_competitors_get: {
+        parameters: {
+            query?: {
+                /** @description One value per listed tracked entity (the own brand or a competitor tracked in AI answers) and engine, in place of the engine's own cells; only for `ai.mention_rate` and `ai.share_of_voice`. An id that is not a tracked entity of the project is left out, never a `404`. */
+                entity_ids?: string[] | null;
+                /** @description Blocks to add: `lost_prompts`, `top_sources`. Left out otherwise. */
+                include?: ("lost_prompts" | "top_sources")[] | null;
+                /** @description Rows of `lost_prompts` per entity and engine. */
+                lost_limit?: number;
+                /** @description Rows of `top_sources` per entity. */
+                sources_limit?: number;
+                /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. */
+                compare?: "none" | "previous_period" | "previous_year";
+                /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
+                compare_from?: string | null;
+                /** @description Last day of the window to compare with, included; at most 92 days from `compare_from`. */
+                compare_to?: string | null;
+                /** @description First day of the window, project-local. */
+                from?: string | null;
+                /** @description Last day of the window, included; at most 92 days. */
+                to?: string | null;
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. */
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description Count the branded prompts too. */
+                include_branded?: boolean;
+                /** @description Only the branded prompts; wins over `include_branded`. */
+                branded_only?: boolean;
+                /** @description The prompts of one market, ISO 3166-1 alpha-2. */
+                "filter[country_iso]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiCompetitorsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     fanout_queries_api_v1_workspaces__workspace_id__projects__project_id__ai_fanout_queries_get: {
         parameters: {
             query?: {
@@ -12278,6 +13086,220 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AiLimitsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    metrics_overview_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics_overview_get: {
+        parameters: {
+            query?: {
+                /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. */
+                compare?: "none" | "previous_period" | "previous_year";
+                /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
+                compare_from?: string | null;
+                /** @description Last day of the window to compare with, included; at most 92 days from `compare_from`. */
+                compare_to?: string | null;
+                /** @description First day of the window, project-local. */
+                from?: string | null;
+                /** @description Last day of the window, included; at most 92 days. */
+                to?: string | null;
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. */
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description Count the branded prompts too. */
+                include_branded?: boolean;
+                /** @description Only the branded prompts; wins over `include_branded`. */
+                branded_only?: boolean;
+                /** @description The prompts of one market, ISO 3166-1 alpha-2. */
+                "filter[country_iso]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiOverviewResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    metric_value_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__get: {
+        parameters: {
+            query?: {
+                /** @description One value per listed tracked entity (the own brand or a competitor tracked in AI answers) and engine, in place of the engine's own cells; only for `ai.mention_rate` and `ai.share_of_voice`. An id that is not a tracked entity of the project is left out, never a `404`. */
+                entity_ids?: string[] | null;
+                /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. */
+                compare?: "none" | "previous_period" | "previous_year";
+                /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
+                compare_from?: string | null;
+                /** @description Last day of the window to compare with, included; at most 92 days from `compare_from`. */
+                compare_to?: string | null;
+                /** @description First day of the window, project-local. */
+                from?: string | null;
+                /** @description Last day of the window, included; at most 92 days. */
+                to?: string | null;
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. */
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description Count the branded prompts too. */
+                include_branded?: boolean;
+                /** @description Only the branded prompts; wins over `include_branded`. */
+                branded_only?: boolean;
+                /** @description The prompts of one market, ISO 3166-1 alpha-2. */
+                "filter[country_iso]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                /** @description A registry key of docs/16 section 2.1, for example `ai.mention_rate`. */
+                metric: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiMetricResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    metric_breakdown_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__breakdown_get: {
+        parameters: {
+            query: {
+                /** @description What the rows are. */
+                dimension: "topic" | "intent" | "funnel_stage" | "engine" | "country" | "language" | "persona" | "prompt_type";
+                /** @description First day of the window, project-local. */
+                from?: string | null;
+                /** @description Last day of the window, included; at most 92 days. */
+                to?: string | null;
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. */
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description Count the branded prompts too. */
+                include_branded?: boolean;
+                /** @description Only the branded prompts; wins over `include_branded`. */
+                branded_only?: boolean;
+                /** @description The prompts of one market, ISO 3166-1 alpha-2. */
+                "filter[country_iso]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                /** @description A registry key of docs/16 section 2.1, for example `ai.mention_rate`. */
+                metric: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiBreakdownResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    metric_series_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__series_get: {
+        parameters: {
+            query?: {
+                /** @description One value per listed tracked entity (the own brand or a competitor tracked in AI answers) and engine, in place of the engine's own cells; only for `ai.mention_rate` and `ai.share_of_voice`. An id that is not a tracked entity of the project is left out, never a `404`. */
+                entity_ids?: string[] | null;
+                /** @description `week`: the only granularity. */
+                granularity?: "week";
+                /** @description First day of the window, project-local. */
+                from?: string | null;
+                /** @description Last day of the window, included; at most 92 days. */
+                to?: string | null;
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. */
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description Count the branded prompts too. */
+                include_branded?: boolean;
+                /** @description Only the branded prompts; wins over `include_branded`. */
+                branded_only?: boolean;
+                /** @description The prompts of one market, ISO 3166-1 alpha-2. */
+                "filter[country_iso]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                /** @description A registry key of docs/16 section 2.1, for example `ai.mention_rate`. */
+                metric: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiSeriesResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -13955,6 +14977,112 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    overview_ai_api_v1_workspaces__workspace_id__projects__project_id__overview_ai_get: {
+        parameters: {
+            query?: {
+                /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. */
+                compare?: "none" | "previous_period" | "previous_year";
+                /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
+                compare_from?: string | null;
+                /** @description Last day of the window to compare with, included; at most 92 days from `compare_from`. */
+                compare_to?: string | null;
+                /** @description First day of the window, project-local. */
+                from?: string | null;
+                /** @description Last day of the window, included; at most 92 days. */
+                to?: string | null;
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. */
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description Count the branded prompts too. */
+                include_branded?: boolean;
+                /** @description Only the branded prompts; wins over `include_branded`. */
+                branded_only?: boolean;
+                /** @description The prompts of one market, ISO 3166-1 alpha-2. */
+                "filter[country_iso]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiOverviewResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    overview_competitors_api_v1_workspaces__workspace_id__projects__project_id__overview_competitors_get: {
+        parameters: {
+            query?: {
+                /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. */
+                compare?: "none" | "previous_period" | "previous_year";
+                /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
+                compare_from?: string | null;
+                /** @description Last day of the window to compare with, included; at most 92 days from `compare_from`. */
+                compare_to?: string | null;
+                /** @description First day of the window, project-local. */
+                from?: string | null;
+                /** @description Last day of the window, included; at most 92 days. */
+                to?: string | null;
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. */
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description Count the branded prompts too. */
+                include_branded?: boolean;
+                /** @description Only the branded prompts; wins over `include_branded`. */
+                branded_only?: boolean;
+                /** @description The prompts of one market, ISO 3166-1 alpha-2. */
+                "filter[country_iso]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverviewCompetitorsResponse"];
+                };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
             default: {
@@ -15972,6 +17100,11 @@ export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterEnt
 export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idKeywordsKeyword_idMetricsHistoryGetParametersQuerySourceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}/metrics-history"]["get"]["parameters"]["query"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCitationsGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCompetitorsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/competitors"]["get"]["parameters"]["query"]["include"]> = ["lost_prompts", "top_sources"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCompetitorsGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/competitors"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiMetricsOverviewGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/overview"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiMetricsMetricGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiMetricsMetricBreakdownGetParametersQueryDimensionValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/breakdown"]["get"]["parameters"]["query"]["dimension"]> = ["topic", "intent", "funnel_stage", "engine", "country", "language", "persona", "prompt_type"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["complete", "partial", "empty", "refused", "error"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["include"]> = ["series", "entities", "total", "co_mentions", "cells"];
@@ -15994,6 +17127,8 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordGroupsGetP
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports"]["get"]["parameters"]["query"]["filter[status]"]> = ["uploaded", "parsing", "needs_mapping", "preview_ready", "writing", "completed", "completed_with_errors", "failed", "cancelled", "expired"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsImport_idRowsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["new", "duplicate", "variant", "conflict", "invalid"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsImport_idRowsGetParametersQueryFilterActionAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows"]["get"]["parameters"]["query"]["filter[action]"]> = ["create", "skip", "merge", "force_separate"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idOverviewAiGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/overview/ai"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idOverviewCompetitorsGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/overview/competitors"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idPromptsGetParametersQueryFilterIntent_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"]["get"]["parameters"]["query"]["filter[intent_in]"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idPromptsGetParametersQueryFilterPrompt_type_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"]["get"]["parameters"]["query"]["filter[prompt_type_in]"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idPromptsGetParametersQueryFilterFunnel_stage_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"]["get"]["parameters"]["query"]["filter[funnel_stage_in]"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
@@ -16017,6 +17152,12 @@ export const pathsApiV1WorkspacesWorkspace_idVocabulariesGetParametersQueryFilte
 export const pathsApiV1WorkspacesWorkspace_idVocabulariesVocabulary_idTermsGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}/terms"]["get"]["parameters"]["query"]["format"]> = ["tree", "flat"];
 export const actorActor_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Actor"]["actor_type"]> = ["user", "api_key", "system"];
 export const aiCoverageMissingTask_statusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiCoverageMissing"]["task_status"]> = ["pending", "submit_unknown", "submitted", "ready", "fetched", "ingested", "failed", "dead", "cancelled", "skipped_cached"];
+export const aiDimensionTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiDimension"]["type"]> = ["topic", "intent", "funnel_stage", "engine", "country", "language", "persona", "prompt_type"];
+export const aiMetricSeriesAggregationValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiMetricSeries"]["aggregation"]> = ["observation_weighted", "prompt_weighted"];
+export const aiMetricSeriesUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiMetricSeries"]["unit"]> = ["ratio", "count"];
+export const aiMetricValueAggregationAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiMetricValue"]["aggregation"]> = ["observation_weighted", "prompt_weighted"];
+export const aiMetricValueSuppressed_reasonAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiMetricValue"]["suppressed_reason"]> = ["insufficient_data", "no_surface", "not_classified", "below_min_impressions"];
+export const aiMetricValueUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiMetricValue"]["unit"]> = ["ratio", "count"];
 export const aioCitationsStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioCitations"]["state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
 export const aioHistoryItemAi_overview_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioHistoryItem"]["ai_overview_state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
 export const aioStateInfoStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioStateInfo"]["state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];

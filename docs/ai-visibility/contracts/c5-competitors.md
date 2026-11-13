@@ -12,8 +12,8 @@ note reuses its value model (`AiMetricValue`), its `AiMetricMeta`, its scope and
 rules (engine values never pooled, `previous`, absent optional members), and does not repeat them. Until WP-32
 builds them both routes answer `501 not_implemented` after their access checks (the stub mechanism of the
 [README](README.md)), and a field the model declares but this package does not return is absent from every
-response. The Example section was written by hand when this note was published; the schemas task replaces each
-block with an instance printed from the Pydantic model. The rows closed are BE-COMPETITORS-03,
+response. Every block of the Example section is a body the Pydantic models write back unchanged
+(`tests/api/ai/test_metrics_contract.py` validates and re-writes each one). The rows closed are BE-COMPETITORS-03,
 BE-COMPETITORS-05 and BE-REPORTS-03, and the two built rows BE-COMPETITORS-01 and 02 are confirmed by tests.
 
 Every number comes from the prompts summary ([c2-summary.md](c2-summary.md)) with `include=entities`: the entity
