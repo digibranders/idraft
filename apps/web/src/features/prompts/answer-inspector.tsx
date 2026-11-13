@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ClipboardList, ExternalLink, Link2, MessageSquareText, Quote, Users } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { parseAsString, useQueryState } from 'nuqs';
 import { useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import { answerCompareQuery } from './answer-compare-query';
@@ -71,6 +72,16 @@ function reveal(target: HTMLElement | null): void {
       typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     target.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
   }
+}
+
+/**
+ * The citation the `cite` address key names, or `null` for anything but a plain positive whole number that one of the
+ * answer's citations carries (negative, zero, decimal, text, empty and out of range values are all ignored).
+ */
+function citedIndex(raw: string | null, citations: ObservationAnswer['citations']): number | null {
+  if (raw === null || !/^[1-9]\d*$/.test(raw)) return null;
+  const index = Number(raw);
+  return citations.some((citation) => citation.citation_index === index) ? index : null;
 }
 
 export interface AnswerInspectorProps {
@@ -147,6 +158,19 @@ function AnswerInspectorBody({
     staleTime: Infinity,
   });
   const rawErrorId = useErrorId(raw.error);
+
+  // The source inspector's "Open evidence" link names the citation to come to: it is the active one until the reader
+  // uses another, and is scrolled to and focused once, when the answer is first drawn. A repeated key (`cite=1&cite=2`)
+  // reads as its first value, which is what `useQueryState` returns.
+  const [cite] = useQueryState('cite', parseAsString);
+  const cited = answer === null ? null : citedIndex(cite, answer.citations);
+  const shownCitation = activeCitation ?? cited;
+  const citeRevealed = useRef(false);
+  useEffect(() => {
+    if (citeRevealed.current || answer === null) return;
+    citeRevealed.current = true;
+    if (cited !== null) reveal(document.getElementById(citationItemId(idPrefix, cited)));
+  }, [answer, cited, idPrefix]);
 
   useEffect(() => {
     const index = pendingMarker.current;
@@ -299,7 +323,7 @@ function AnswerInspectorBody({
                 hidden={hidden}
                 markers={markerAnchors(shown.answer_text, shown.citations)}
                 citationLabel={(index) => evidence('citationMarker.label', { index, host: hosts.get(index) ?? '' })}
-                activeCitation={activeCitation}
+                activeCitation={shownCitation}
                 onCitation={showCitation}
               />
             </div>
@@ -534,7 +558,7 @@ function AnswerInspectorBody({
                 <CitationList
                   items={citationItems(answer)}
                   idPrefix={idPrefix}
-                  activeIndex={activeCitation}
+                  activeIndex={shownCitation}
                   lang={answer.language_code ?? undefined}
                   onShowInAnswer={showInAnswer}
                 />

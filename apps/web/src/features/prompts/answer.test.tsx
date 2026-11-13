@@ -905,6 +905,87 @@ describe('the answer viewer: the evidence view, markers and entity toggles', () 
     await user.click(await within(panel).findByRole('button', { name: 'Citation 1: a1.example' }));
     expect(await axe(container)).toHaveNoViolations();
   });
+
+  describe('the cite address key, from the Open evidence link of the source inspector', () => {
+    const withCite = (cite: string): string => `${opened('2000001')}&cite=${cite}`;
+    const itemOf = (title: string): HTMLElement =>
+      within(sources()).getByRole('link', { name: title }).closest('li') as HTMLElement;
+    // The viewer takes focus to its own title when it opens: that is the focus an ignored cite leaves alone
+    const expectFocusLeftAlone = (): void => {
+      const focused = document.activeElement as HTMLElement;
+      expect(sources().contains(focused) || focused.hasAttribute('data-citation-marker')).toBe(false);
+    };
+    const expectNoActiveCitation = async (): Promise<void> => {
+      const panel = await viewer();
+      const marker = await within(panel).findByRole('button', { name: 'Citation 1: a1.example' });
+      expect(sources().querySelector('[aria-current]')).toBeNull();
+      expect(marker).not.toHaveAttribute('data-active');
+      expectFocusLeftAlone();
+    };
+
+    it('makes the named citation active, scrolls to it and gives its list item focus', async () => {
+      serve(cited1());
+      const scrolled = vi.fn();
+      window.HTMLElement.prototype.scrollIntoView = scrolled;
+      try {
+        renderOn('viewer', withCite('1'));
+        const marker = await within(await viewer()).findByRole('button', { name: 'Citation 1: a1.example' });
+        await waitFor(() => {
+          expect(itemOf('Source 1')).toHaveFocus();
+        });
+        expect(itemOf('Source 1')).toHaveAttribute('aria-current', 'true');
+        expect(marker).toHaveAttribute('data-active');
+        expect(scrolled).toHaveBeenCalled();
+        expect(itemOf('Listed only')).not.toHaveAttribute('aria-current');
+      } finally {
+        Reflect.deleteProperty(window.HTMLElement.prototype, 'scrollIntoView');
+      }
+    });
+
+    it('takes a citation the text has no marker for', async () => {
+      serve(cited1());
+      renderOn('viewer', withCite('2'));
+      await viewer();
+      await waitFor(() => {
+        expect(itemOf('Listed only')).toHaveFocus();
+      });
+      expect(itemOf('Listed only')).toHaveAttribute('aria-current', 'true');
+    });
+
+    it('takes the first of a repeated key', async () => {
+      serve(cited1());
+      renderOn('viewer', withCite('2&cite=1'));
+      await viewer();
+      await waitFor(() => {
+        expect(itemOf('Listed only')).toHaveFocus();
+      });
+      expect(itemOf('Source 1')).not.toHaveAttribute('aria-current');
+    });
+
+    it('leaves an answer opened without cite as it was: nothing active, focus where it was', async () => {
+      serve(cited1());
+      renderOn('viewer', opened('2000001'));
+      await expectNoActiveCitation();
+    });
+
+    it.each(['-1', '0', '1.5', '1e0', '+1', '01', ' 1', 'abc', '', '3', '99999999999999999999', '1%202', '%00'])(
+      'ignores cite=%j without an error or a change',
+      async (hostile) => {
+        serve(cited1());
+        renderOn('viewer', withCite(hostile));
+        await expectNoActiveCitation();
+      },
+    );
+
+    it('ignores a number past the last citation of an answer that has fewer', async () => {
+      serve(detail({ answer_text: TEXT, citation_count: 1, citations: [citationOf(1)] }));
+      renderOn('viewer', withCite('2'));
+      await viewer();
+      await screen.findByText(/Fynix and Rankforge lead/);
+      expect(sources().querySelector('[aria-current]')).toBeNull();
+      expectFocusLeftAlone();
+    });
+  });
 });
 
 describe('the answer viewer: the Formatted view', () => {
