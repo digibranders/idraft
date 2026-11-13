@@ -5,6 +5,7 @@ import { useEffect, useMemo } from 'react';
 
 import { useRead, type Read } from '../data/read-state';
 import type { ProjectRef } from '../data/overview-queries';
+import type { ReadOptions } from '../data/use-overview-reads';
 import { api, unwrap } from '@/lib/api/client';
 import { projectKey } from '@/lib/api/keys';
 
@@ -27,9 +28,19 @@ export type PromptCountries = Read<readonly string[]> & {
   complete: boolean;
 };
 
-/** Two capital letters each, sorted, once: the countries of the prompts and the one chosen (a link may name any). */
-export function usePromptCountries(project: ProjectRef, chosen: string | null): PromptCountries {
+/**
+ * Two capital letters each, sorted, once: the countries of the prompts and the one chosen (a link may name any).
+ * With `subscribed: false` (a card passes the `subscribed` of its `CardProps`; see `ReadOptions`) nothing is
+ * asked, not even the next page: the read keeps the countries it has, or is `idle` with none, and never fails.
+ * The read is shared with the scope bar's country control, which does not pause it.
+ */
+export function usePromptCountries(
+  project: ProjectRef,
+  chosen: string | null,
+  { subscribed = true }: ReadOptions = {},
+): PromptCountries {
   const { data, hasNextPage, isFetching, isError, error, fetchNextPage, refetch } = useInfiniteQuery({
+    enabled: subscribed,
     // Under the project's `prompts` prefix, so a change of the prompts reads the countries again
     queryKey: [...projectKey(project.workspaceId, project.projectId), 'prompts', 'overview-countries'],
     queryFn: ({ pageParam, signal }) =>
@@ -47,8 +58,8 @@ export function usePromptCountries(project: ProjectRef, chosen: string | null): 
   });
   const prompts = useMemo(() => (data?.pages ?? []).reduce((count, page) => count + page.data.length, 0), [data]);
   useEffect(() => {
-    if (hasNextPage && !isFetching && !isError && prompts < MAX_COUNTRY_PROMPTS) void fetchNextPage();
-  }, [hasNextPage, isFetching, isError, prompts, fetchNextPage]);
+    if (subscribed && hasNextPage && !isFetching && !isError && prompts < MAX_COUNTRY_PROMPTS) void fetchNextPage();
+  }, [subscribed, hasNextPage, isFetching, isError, prompts, fetchNextPage]);
   const countries = useMemo((): readonly string[] | undefined => {
     if (data === undefined) return undefined;
     const found = new Set<string>(chosen === null ? [] : [chosen]);
@@ -57,7 +68,7 @@ export function usePromptCountries(project: ProjectRef, chosen: string | null): 
     }
     return [...found].sort();
   }, [data, chosen]);
-  const read = useRead({ data: countries, error, isError, isFetching, refetch });
+  const read = useRead({ data: countries, error, isError, isFetching, refetch }, subscribed ? 'run' : 'paused');
   return useMemo(
     () => ({ ...read, complete: data !== undefined && (!hasNextPage || prompts >= MAX_COUNTRY_PROMPTS) }),
     [read, data, hasNextPage, prompts],

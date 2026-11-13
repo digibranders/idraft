@@ -1,5 +1,5 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -122,6 +122,21 @@ describe('usePromptCountries', () => {
     expect(result.current.data).toEqual(['DE']);
   });
 
+  it('is subscribed when the option is left out or undefined, as before', async () => {
+    let asked = 0;
+    server.use(
+      http.get(PROMPTS, () => {
+        asked += 1;
+        return HttpResponse.json({ data: [promptRow('DE')], page: { has_more: false, next_cursor: null, limit: 200 } });
+      }),
+    );
+    const { result } = renderHook(() => usePromptCountries(PROJECT, null, { subscribed: undefined }), { wrapper });
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready');
+    });
+    expect(asked).toBe(1);
+  });
+
   it('reports a failed first page as an error with Retry, and no countries', async () => {
     server.use(
       http.get(PROMPTS, () =>
@@ -143,5 +158,104 @@ describe('usePromptCountries', () => {
     });
     expect(result.current.data).toBeUndefined();
     expect(result.current.errorId).toBe('req-countries');
+  });
+});
+
+/** Lets a request that would have been sent on a render reach the server, so "none" is a fact and not a race. */
+const settle = (): Promise<void> =>
+  act(async () => {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 30);
+    });
+  });
+
+describe('the subscribed option of usePromptCountries', () => {
+  const onePage = (country: string, counter: { asked: number }): void => {
+    server.use(
+      http.get(PROMPTS, () => {
+        counter.asked += 1;
+        return HttpResponse.json({
+          data: [promptRow(country)],
+          page: { has_more: false, next_cursor: null, limit: 200 },
+        });
+      }),
+    );
+  };
+
+  it('makes no request while paused, and is idle with no countries, never loading or error', async () => {
+    const counter = { asked: 0 };
+    onePage('DE', counter);
+    const { result } = renderHook(() => usePromptCountries(PROJECT, 'FR', { subscribed: false }), { wrapper });
+    await settle();
+    expect(counter.asked).toBe(0);
+    expect(result.current.status).toBe('idle');
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.errorId).toBeNull();
+    expect(result.current.complete).toBe(false);
+  });
+
+  it('reads the first page once when it subscribes', async () => {
+    const counter = { asked: 0 };
+    onePage('DE', counter);
+    const { result, rerender } = renderHook(
+      (props: { subscribed: boolean }) => usePromptCountries(PROJECT, null, { subscribed: props.subscribed }),
+      { wrapper, initialProps: { subscribed: false } },
+    );
+    await settle();
+    rerender({ subscribed: true });
+    await waitFor(() => {
+      expect(result.current.complete).toBe(true);
+    });
+    await settle();
+    expect(counter.asked).toBe(1);
+    expect(result.current.data).toEqual(['DE']);
+  });
+
+  it('keeps the countries it has when paused and asks for nothing more', async () => {
+    const counter = { asked: 0 };
+    onePage('DE', counter);
+    const { result, rerender } = renderHook(
+      (props: { subscribed: boolean }) => usePromptCountries(PROJECT, null, { subscribed: props.subscribed }),
+      { wrapper, initialProps: { subscribed: true } },
+    );
+    await waitFor(() => {
+      expect(result.current.complete).toBe(true);
+    });
+    const before = result.current.data;
+    rerender({ subscribed: false });
+    await settle();
+    expect(result.current.status).toBe('ready');
+    expect(result.current.data).toBe(before);
+    expect(result.current.complete).toBe(true);
+    expect(counter.asked).toBe(1);
+  });
+
+  it('never turns a paused read into an error: a failing API is not asked, and is reported once it is', async () => {
+    server.use(
+      http.get(PROMPTS, () =>
+        HttpResponse.json(
+          {
+            type: 'about:blank',
+            title: 'Internal error',
+            status: 500,
+            code: 'internal_error',
+            request_id: 'req-paused',
+          },
+          { status: 500, headers: { 'content-type': 'application/problem+json' } },
+        ),
+      ),
+    );
+    const { result, rerender } = renderHook(
+      (props: { subscribed: boolean }) => usePromptCountries(PROJECT, null, { subscribed: props.subscribed }),
+      { wrapper, initialProps: { subscribed: false } },
+    );
+    await settle();
+    expect(result.current.status).toBe('idle');
+    expect(result.current.errorId).toBeNull();
+    rerender({ subscribed: true });
+    await waitFor(() => {
+      expect(result.current.status).toBe('error');
+    });
+    expect(result.current.errorId).toBe('req-paused');
   });
 });
