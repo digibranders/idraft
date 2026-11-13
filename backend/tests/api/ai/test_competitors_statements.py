@@ -14,7 +14,7 @@ import httpx
 from idraft.api.resources import Resources
 from tests.api.ai import summary_support
 from tests.api.ai.competitors_support import get_competitors
-from tests.api.ai.metrics_support import OVERVIEW_COMPETITORS, get_overview
+from tests.api.ai.metrics_support import COMPETITORS, OVERVIEW_COMPETITORS, Route, get_overview
 from tests.api.ai.summary_support import Summary, full_project, get_summary, statements
 from tests.collectors.rank_support import _entity
 from tests.conftest import PostgresServer
@@ -22,9 +22,13 @@ from tests.conftest import PostgresServer
 seeded = summary_support.seeded
 
 # The reads after the summary request, in a second transaction: the scope of the transaction, the
-# entity references of the rows, the citation units by entity and the day each entity
-# configuration took effect.
-COMPETITORS_EXTRA = 4
+# planner setting that keeps the citation joins from nesting loops (`SET LOCAL enable_nestloop`,
+# as the sources service does), the entity references of the rows, the citation units by entity and
+# the day each entity configuration took effect.
+COMPETITORS_EXTRA = 5
+# With no prompt in scope no citation is read, so the planner setting is not issued either: the
+# scope of the transaction, the entity references and the day each configuration took effect.
+NO_PROMPT_EXTRA = COMPETITORS_EXTRA - 2
 # `include=lost_prompts` adds the one grouped read of the lost answers of every competitor and
 # engine (with the prompts' importance); the valid answers and the texts are in the summary's
 # prompt rows. `include=top_sources` adds the one ranked read of the domains of every entity.
@@ -179,7 +183,49 @@ async def test_a_read_of_no_prompt_reads_no_citation_units(
     effect are all that is read."""
     scope = {"filter[country_iso]": "FR"}
 
-    assert await _extra(seeded, api, resources, **scope) == COMPETITORS_EXTRA - 1
+    assert await _extra(seeded, api, resources, **scope) == NO_PROMPT_EXTRA
     assert await _extra(seeded, api, resources, include="lost_prompts,top_sources", **scope) == (
-        COMPETITORS_EXTRA - 1
+        NO_PROMPT_EXTRA
     )
+
+
+async def _log(
+    world: Summary, api: httpx.AsyncClient, resources: Resources, route: Route, **params: Any
+) -> list[str]:
+    """The statements of one request, warm."""
+    await get_overview(world, api, route, **params)
+    with statements(resources) as seen:
+        response = await get_overview(world, api, route, **params)
+    assert response.status_code == 200, response.text
+    return list(seen)
+
+
+def _nestloop(log: list[str]) -> list[int]:
+    return [at for at, sql in enumerate(log) if "enable_nestloop" in sql]
+
+
+async def test_the_citation_reads_run_with_nested_loops_off_before_they_start(
+    api: httpx.AsyncClient, resources: Resources, seeded: Summary
+) -> None:
+    """Without table statistics (a new month's partition, a backfill) the planner nests loops over
+    the citation join and the read is 30 to 100 times slower: the setting is local to the second
+    transaction and comes before its first citation read, the units, the lost answers and the top
+    domains alike."""
+    for params in ({}, {"include": "lost_prompts,top_sources"}, {"include": "top_sources"}):
+        log = await _log(seeded, api, resources, COMPETITORS, **params)
+
+        (at,) = _nestloop(log)
+        assert log[at].strip().upper() == "SET LOCAL ENABLE_NESTLOOP = OFF", params
+        reads = [
+            number
+            for number, sql in enumerate(log)
+            if "ai.citations" in sql or "unnest(" in sql.lower() or "ai_citations" in sql
+        ]
+        assert reads, params
+        assert at < min(reads), params
+    # No prompt in scope reads no citation, and the Overview table reads none either: no setting.
+    assert (
+        _nestloop(await _log(seeded, api, resources, COMPETITORS, **{"filter[country_iso]": "FR"}))
+        == []
+    )
+    assert _nestloop(await _log(seeded, api, resources, OVERVIEW_COMPETITORS)) == []

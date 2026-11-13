@@ -23,6 +23,7 @@ import httpx
 import pytest
 
 from idraft.api.ai import competitor_repository
+from idraft.api.ai.competitors import Lost, lost_prompt
 from idraft.api.ai.source_repository import SourceScope
 from idraft.api.resources import Resources
 from idraft.collectors.ai_prompt_ingest import ingest
@@ -88,6 +89,18 @@ async def _importance(migrated: PostgresServer, world: Summary, **by_name: int) 
             world.prompts[name].id,
             value,
         )
+
+
+def test_lost_answers_never_exceed_the_valid_answers_beside_them() -> None:
+    """The lost read and the summary (the valid answers) are two transactions: an answer ingested
+    between them can make the lost count one larger than the valid one. The cell stays a share."""
+    prompt = uuid.uuid4()
+
+    raced = lost_prompt(Lost(prompt, "A?", 3, lost=3, valid=2, answers=3)).lost
+    plain = lost_prompt(Lost(prompt, "A?", 3, lost=1, valid=5, answers=6)).lost
+
+    assert (raced.numerator, raced.denominator, raced.value) == (2, 2, 1.0)
+    assert (plain.numerator, plain.denominator, plain.value) == (1, 5, 0.2)
 
 
 def _rival_only(prompt: str, count: int, first_day: int = 1) -> list[Answer]:

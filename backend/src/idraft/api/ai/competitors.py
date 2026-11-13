@@ -17,6 +17,7 @@ from datetime import date, datetime
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.ai import competitor_repository as repository
@@ -158,14 +159,18 @@ def rank_lost(found: Sequence[Lost], limit: int) -> list[Lost]:
 
 def lost_prompt(found: Lost) -> LostPrompt:
     """The prompt as the response lists it: `lost` is lost answers of the valid ones, with every
-    answer of the prompt on the engine counted; it is a count of one prompt, so it is not pooled."""
+    answer of the prompt on the engine counted; it is a count of one prompt, so it is not pooled.
+    The lost answers come from a read of their own and the valid ones from the summary's, two
+    transactions: an answer ingested between them could make the first the larger, so it is held
+    to the valid answers and the cell stays a share."""
+    lost = min(found.lost, found.valid)
     return LostPrompt(
         prompt_id=found.prompt_id,
         text=found.text,
         importance=found.importance,
         lost=MetricCell(
-            value=None if found.valid == 0 else found.lost / found.valid,
-            numerator=found.lost,
+            value=None if found.valid == 0 else lost / found.valid,
+            numerator=lost,
             denominator=found.valid,
             n_observations=found.answers,
         ),
@@ -543,6 +548,13 @@ class CompetitorService:
         async with workspace_transaction(
             self._sessions, access.workspace_id, user_id=access.user_id
         ) as db:
+            if scope and (
+                blocks.units or blocks.lost_limit is not None or blocks.sources_limit is not None
+            ):
+                # The citation reads join answers to citations on a key; a planner without table
+                # statistics (a new month's partition, a backfill) nests loops there and is 30 to
+                # 100 times slower. Local to this transaction, as in the sources service.
+                await db.execute(text("SET LOCAL enable_nestloop = off"))
             refs = await repository.entity_refs(db, access.workspace_id, project_id, shown)
             units = await repository.entity_units(db, scope) if scope and blocks.units else {}
             lost = (

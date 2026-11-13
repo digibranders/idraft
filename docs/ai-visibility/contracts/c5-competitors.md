@@ -9,10 +9,10 @@ WP-32). Plan: [docs/superpowers/plans/2026-11-13-ai-wp-32-overview-aggregates.md
 This note is the contract the Competitors page and the Overview competitor card ([WP-35](../work-packages/WP-35-overview-cards-competitors.md))
 mock against. The metric routes (overview, value, series, breakdown) are in [c8-metrics.md](c8-metrics.md); this
 note reuses its value model (`AiMetricValue`), its `AiMetricMeta`, its scope and compare parameters and its
-rules (engine values never pooled, `previous`, absent optional members), and does not repeat them. Until WP-32
-builds them both routes answer `501 not_implemented` after their access checks (the stub mechanism of the
-[README](README.md)), and a field the model declares but this package does not return is absent from every
-response. Every block of the Example section is a body the Pydantic models write back unchanged
+rules (engine values never pooled, `previous`, absent optional members), and does not repeat them. Both routes
+are built (they were `501 not_implemented` stubs after their access checks until WP-32 built them, the stub
+mechanism of the [README](README.md)), and a field the model declares but this package does not return (`seo`,
+`seo_other_domains`) is absent from every response. Every block of the Example section is a body the Pydantic models write back unchanged
 (`tests/api/ai/test_metrics_contract.py` validates and re-writes each one). The rows closed are BE-COMPETITORS-03,
 BE-COMPETITORS-05 and BE-REPORTS-03, and the two built rows BE-COMPETITORS-01 and 02 are confirmed by tests.
 
@@ -152,7 +152,7 @@ Design figures until measured, then the test.
 
 | Request | Summary request | Extra statements | Extra reads |
 |---|---|---|---|
-| `ai/competitors` | `S(rows left out, include=total,entities)` | +4 (measured) | transaction scope, `entity_refs`, `entity_units`, `version_starts` |
+| `ai/competitors` | `S(rows left out, include=total,entities)` | +5 (measured) | transaction scope, `SET LOCAL enable_nestloop = off`, `entity_refs`, `entity_units`, `version_starts` |
 | with `include=lost_prompts` | | +1 more (measured) | `lost_counts`: one grouped statement over every competitor and engine, with the prompts' importance |
 | with `include=top_sources` | | +1 more (measured) | `top_sources`: one ranked statement over every entity |
 | with both | | +2 more (measured) | the two above |
@@ -163,7 +163,8 @@ sources and lost reads, and the valid answers, all answers and text of each prom
 summary's prompt rows hold them, so no read of its own is needed). `compare` adds 2 on both routes (the
 summary's own with `include=entities`: the counts of the window compared with and the entity counts there). The
 counts are the same on a 14 answer world and on the full project, with 4 entities more, and with `entity_ids`.
-With no prompt in scope the citation, lost and source reads are not run.
+With no prompt in scope the citation, lost and source reads are not run, and neither is the planner setting: the
+read is then the summary plus 3. `overview/competitors` reads no citation and issues no planner setting.
 
 ## Error codes
 
@@ -331,10 +332,11 @@ Each row can be tightened by WP-32 through the change log. The rows Q1 to Q7 are
    blocks printed from the models, `backend/openapi/v1.json`, then `pnpm gen:api` in `apps/web`. First push.
 2. Task 6 (competitors): `api/ai/competitor_repository.py` (`entity_refs`, `entity_units`),
    `api/ai/competitors.py` (`CompetitorService.competitors`, the top competitor rule as a pure function);
-   route 6 drops `@not_built`. Until task 7 an `include` value answers `501` naming it, so a client cannot mistake
-   an unbuilt block for an empty one.
+   route 6 drops `@not_built`. Until task 7 an `include` value answered `501` naming it, so that a client could not
+   mistake an unbuilt block for an empty one (built in task 7, see change log C-16).
 3. Task 7 (lost prompts, top sources, overview competitors): `lost_counts`, `prompt_cards`, `top_sources`,
-   `CompetitorService.overview`; the `include` refusal is removed; route 7 drops `@not_built`; the cross-tenant
+   `CompetitorService.overview` (as built: one `lost_counts` read, the prompt text, valid and all answers from the
+   summary's prompt rows instead of `prompt_cards`); the `include` refusal is removed; route 7 drops `@not_built`; the cross-tenant
    entry of route 6 gains `include=lost_prompts,top_sources`.
 4. Task 8: the scope guards on both routes, the measured statement counts, this note's status "built by WP-32",
    and the As built paragraphs of docs 19 and 29.
@@ -366,4 +368,6 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-14 WP-32: C-18 top sources are the domains cited with the entity as the role of the domain (`role_entity_id`), over all the engines shown, one list on the row (the model has no list per engine); `answers` is the distinct answers that cite the domain for the entity; ties on units go to the domain name; the flag default is the Sources page's. A list of the domains cited in the answers that name an entity is not built: the model holds one list a row.
 2026-11-14 WP-32: C-19 measured: `include=lost_prompts` adds 1 statement (`lost_counts`, one grouped read over every competitor and engine, with the prompts' importance), `include=top_sources` adds 1, both add 2; `overview/competitors` is `S(rows=none, include=total,entities)` plus 3 (transaction scope, `entity_refs`, `version_starts`, kept so that `meta.entity_config_changes` is the same as in `ai/competitors`); `compare` adds the summary's own 2 on both routes. The design figures (+3, +1, +2) are replaced; counts are the same on a 14 answer world, on the full project and with more entities.
 2026-11-14 WP-32: C-20 overview competitors: the AI half only; `seo` and `seo_other_domains` are never returned (not null, not empty): SEO share of voice is built nowhere (D13, remainder of BE-REPORTS-03). The values are those of `ai/competitors` value for value, `meta` equal.
-2026-11-14 WP-32: C-21 performance (measured on the full project, 150 prompts, three engines, 3,600 answers, warm, one local run, whole request): `ai/competitors` plain 43 ms, `include=lost_prompts` (`lost_limit=10`) 47 ms, `include=top_sources` (`sources_limit=5`) 120 ms, both 50 ms, `overview/competitors` 34 ms; bodies 7.7 kB and 4.1 kB. None is near the 300 ms line.
+2026-11-14 WP-32: C-21 performance (single warm local runs on the full project, 150 prompts, three engines, 3,600 answers, whole request, one measurement each, so the order of the figures is noise and not a rule: `top_sources` at 120 ms against both blocks at 50 ms says nothing about either): `ai/competitors` plain 43 ms, `include=lost_prompts` (`lost_limit=10`) 47 ms, `include=top_sources` (`sources_limit=5`) 120 ms, both 50 ms, `overview/competitors` 34 ms; bodies 7.7 kB and 4.1 kB. Measured with table statistics present; see C-22 for the planner setting that keeps it so without them.
+2026-11-14 WP-32: C-22 planner setting: the second transaction of `ai/competitors` starts with `SET LOCAL enable_nestloop = off` (the setting the sources service uses) before its citation reads, because without table statistics (a new month's partition, a backfill) the planner nests loops over the citation join and `lost_counts` and `top_sources` ran 30 to 100 times slower (0.5 s against 6 to 25 ms). It adds 1 statement: `ai/competitors` is the summary plus 5, with `lost_prompts` plus 1, with `top_sources` plus 1 (statement table above). It is issued only when a citation, lost or source read runs: with no prompt in scope the read stays the summary plus 3, and `overview/competitors` (no citation read) stays the summary plus 3 without it. No isolation level change.
+2026-11-14 WP-32: C-23 lost numerator: the lost answers and the valid answers are read in two transactions, so `lost.numerator` is held to `lost.denominator` (an answer ingested between the reads cannot make a lost count exceed the valid ones).
