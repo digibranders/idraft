@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T17:48:30+05:30",
+ "updated": "2026-11-13T18:07:32+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -693,10 +693,10 @@
    },
    "counts": {
     "total": 24,
-    "done": 15
+    "done": 19
    },
    "owner": "",
-   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 11/15, rows 15/24; T9 presets and T10 drawer customizer parts reviewed (local, pushing with T11); T11 phones and reduced motion next, then e2e T12-T13 and As built T14; real-drawer wiring (WB-LAY-42) deferred to follow-up F-23 by decision"
+   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 12/15, rows 19/24; T0-T11 on develop (4cfcd08c): presets and Start from menu, drawer customizer parts, phones and reduced motion; e2e T12 and T13 next, As built T14; real drawer wiring deferred to F-23"
   },
   {
    "id": "WP-17",
@@ -1078,7 +1078,7 @@
     "done": 14
    },
    "owner": "",
-   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | P1 PUSHED (3c33fce1): prompt Citations tab (5 tabs, 4 plus More at 390), mocks, shared reads, banner, F-19 included; full vitest 7343 passed + 1 flake; rows 14/31; T3 page shell next"
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | steps 3/8, rows 14/31; P1 pushed (3c33fce1); T3 Citations page shell (T3a page model and strip) in progress"
   },
   {
    "id": "WP-22",
