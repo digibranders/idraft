@@ -4816,6 +4816,7 @@
         "trendTitle": "Share of citations by engine",
         "trendMeta": "Weekly, {range}",
         "trendSummary": "Weekly share of the citation units on each engine that cite {domain}, {weeks, plural, one {# week} other {# weeks}}, one line for each of {engines, plural, one {# engine} other {# engines}}.",
+        "trendWeek": "Week of",
         "trendCell": "{units, number} of {total, number} units",
         "trendCellShare": "{share}, {units, number} of {total, number} units",
         "trendGapNote": "A gap is a week with no citation on that engine.",
