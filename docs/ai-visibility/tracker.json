@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T21:30:33+05:30",
+ "updated": "2026-11-13T21:55:23+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -914,13 +914,13 @@
    "title": "Compare with the previous period and deltas everywhere (W3)",
    "wave": "W2",
    "kind": "web",
-   "status": "not_started",
+   "status": "building",
    "dependsOn": [
     "WP-07",
     "WP-12"
    ],
-   "session": null,
-   "branch": null,
+   "session": "wp-01-be-scaffold",
+   "branch": "ai/wp-19-compare",
    "rows": {
     "BE": [],
     "WB": [
@@ -1023,7 +1023,7 @@
    "title": "Citations tab in the prompt inspector and the Citations page (Domains, Pages)",
    "wave": "W2",
    "kind": "web",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-08",
     "WP-05",
@@ -1078,7 +1078,7 @@
     "done": 31
    },
    "owner": "",
-   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | P2 PUSHED (3c2e196d): Citations page live in the sidebar (Domains tab, Pages tab, Prompts with no own page, CSV, strip); 31/31 rows built, e2e (T6), As built (T7) and final heavy run + P3 pending; steps 7/8; browser pass 390/768/1024/1280 light and dark: axe clean; not seen in a browser: New/Lost badges (mock has none), filtered-empty and error states, 390 sidebar drawer, real API"
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | merged 46558677; 31/31 rows; full vitest 7963 passed, lint, typecheck, format, build 0; e2e 78 passed 2 failed (shell.spec.ts:126 Keywords 87 px wide at 375 = F-06; :156 expects /seo/keywords to 404); final reviewer PASS; session stopped"
   },
   {
    "id": "WP-22",
@@ -3952,132 +3952,6 @@
    "until": "WP-16 merged"
   },
   {
-   "path": "apps/web/messages/en.json",
-   "wp": "WP-21 (T1a first)",
-   "granted": "2026-11-13T15:31:00+05:30",
-   "scope": "additive, ONLY prompts.citationsTab and citations namespaces",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "apps/web/src/features/prompts/seams/inspector-tabs.ts",
-   "wp": "WP-21 (T2c)",
-   "granted": "2026-11-13T15:31:00+05:30",
-   "scope": "the Citations tab entry",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "apps/web/src/features/prompts/inspector-tabs.test.tsx",
-   "wp": "WP-21 (T2c)",
-   "granted": "2026-11-13T15:31:00+05:30",
-   "scope": "tab list test",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "apps/web/e2e/flows/ai-prompt-inspector.spec.ts",
-   "wp": "WP-21 (T2c)",
-   "granted": "2026-11-13T15:31:00+05:30",
-   "scope": "the phone test hard-codes 4 tabs and no More button: update",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "apps/web/src/lib/navigation/registry.ts",
-   "wp": "WP-21 (T5c)",
-   "granted": "2026-11-13T15:31:00+05:30",
-   "scope": "flip /ai/citations to live",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "apps/web/src/lib/navigation/registry.test.ts",
-   "wp": "WP-21 (T5c)",
-   "granted": "2026-11-13T15:31:00+05:30",
-   "scope": "nav tests",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "apps/web/src/features/shell/project-shell.test.tsx",
-   "wp": "WP-21 (T5c)",
-   "granted": "2026-11-13T15:31:00+05:30",
-   "scope": "4 tests hard-code nav lists",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "apps/web/e2e/flows/shell.spec.ts",
-   "wp": "WP-21 (T5c)",
-   "granted": "2026-11-13T15:31:00+05:30",
-   "scope": "nav list in e2e",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "docs/design-system/24-page-templates.md",
-   "wp": "WP-21 (T7)",
-   "granted": "2026-11-13T15:31:00+05:30",
-   "scope": "append-only As built note for 9.7",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "apps/web/src/components/ui/popover.tsx",
-   "wp": "WP-21 (z-order fix)",
-   "granted": "2026-11-13T16:41:15+05:30",
-   "scope": "smallest fix so popups (popover, select, menus) open ABOVE the prompt inspector drawer; wherever the smallest fix is: popup z token or portal layer; dialogs must stay above everything; run every consumer's tests and axe",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "apps/web/src/components/ui/select.tsx",
-   "wp": "WP-21 (z-order fix, only if the fix needs it)",
-   "granted": "2026-11-13T16:41:15+05:30",
-   "scope": "same",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "apps/web/src/styles/tokens.css",
-   "wp": "WP-21 (z-order fix, only if the fix needs it)",
-   "granted": "2026-11-13T16:41:15+05:30",
-   "scope": "z tokens only (popup above drawer)",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "apps/web/src/styles/globals.css",
-   "wp": "WP-21 (z-order fix, only if the fix needs it)",
-   "granted": "2026-11-13T16:41:15+05:30",
-   "scope": "z utility only",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "apps/web/e2e/flows/ai-prompts.spec.ts",
-   "wp": "WP-21 (T6)",
-   "granted": "2026-11-13T16:41:15+05:30",
-   "scope": "the width test (~231) that clicks the Stats tab at every width (Stats is under More tabs at 390 px) and lines 137-139 (Competitors, Stats at 1280); WP-17 owns the file in wave 2 and rebases",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "apps/web/src/components/design-system/token-groups.ts",
-   "wp": "WP-21 (F-19, done)",
-   "granted": "2026-11-13T17:15:31+05:30",
-   "scope": "Z_LAYERS order (done)",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "apps/web/src/components/design-system/token-groups.test.ts",
-   "wp": "WP-21 (F-19, done)",
-   "granted": "2026-11-13T17:15:31+05:30",
-   "scope": "z order test (done)",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "docs/design-system/01-foundations.md",
-   "wp": "WP-21 (F-19, done)",
-   "granted": "2026-11-13T17:15:31+05:30",
-   "scope": "z table (done)",
-   "until": "WP-21 merged"
-  },
-  {
-   "path": "docs/design-system/16-drawers-dialogs-popovers.md",
-   "wp": "WP-21 (F-19, done)",
-   "granted": "2026-11-13T17:15:31+05:30",
-   "scope": "line 187 correction (done)",
-   "until": "WP-21 merged"
-  },
-  {
    "path": "apps/web/eslint.config.mjs",
    "wp": "WP-33 (L1, T5)",
    "granted": "2026-11-13T21:07:25+05:30",
@@ -4153,13 +4027,6 @@
    "granted": "2026-11-13T21:07:25+05:30",
    "scope": "five empty registry slot files for the WP-34 to 37 card folders; card packages fill them in",
    "until": "WP-33 merged"
-  },
-  {
-   "path": "apps/web/src/app/[workspace]/[project]/planned-routes.test.ts",
-   "wp": "WP-21 (retroactive)",
-   "granted": "2026-11-13T21:19:43+05:30",
-   "scope": "removed the /ai/citations line (planned routes must 404; the route is live now); WP-33 does the same for the Overview",
-   "until": "WP-21 merged"
   },
   {
    "path": "docs/16-metrics-methodology.md",
@@ -4442,6 +4309,16 @@
    "detail": "The seo members of overview/competitors are declared optional and never returned; BE-REPORTS-03 closes with that remainder named. Day and month granularity are not built (weeks only). previous sits beside the value instead of doc 19's MetricComparison (no delta/ci/version_boundaries yet; WP-58 and WP-38 add them additively).",
    "owner": "owner decision (does the Overview/Competitors page need SEO share of voice) and later backend package",
    "severity": "scope gap",
+   "status": "open"
+  },
+  {
+   "id": "F-27",
+   "found": "2026-11-13T21:55:23+05:30",
+   "by": "WP-21",
+   "title": "WP-21 limits and backend asks",
+   "detail": "METHODOLOGY_HREF dead link until F-24; New badge and Lost state never seen in a browser (mocks have none); filtered-empty and error states only in component tests; not checked against the dev API or the 390 sidebar drawer; view menu reads 'Default (edited)' on the Pages tab (tab, density, cols are view keys per D14: consider dropping them from CITATION_VIEW_KEYS). Backend asks: meta.previous_citation_units (F-18), meta.last_observed_at (Q4), page level cited_with (Q6), top domains on sources/prompts rows (Q16). Sidebar drawer at 390 not checked.",
+   "owner": "WP-22 and a later backend push",
+   "severity": "low to medium",
    "status": "open"
   }
  ],
