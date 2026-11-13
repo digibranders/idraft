@@ -5575,8 +5575,42 @@
         "noChangeTitle": "No prompt can be compared",
         "noChangeReason": "A prompt needs a rate on the same engine in both windows, and to be in both windows, to show a change."
       },
-      "promptWeek": {},
-      "scatter": {}
+      "promptWeek": {
+        "title": "Prompt by week",
+        "meta": "{topic}, {prompts, plural, one {# prompt} other {# prompts}}, {engine}, {window}",
+        "summary": "{metric} of the prompts of {topic} on {engine}, one column per week with the newest on the right. Each cell links to its prompt.",
+        "rowHeader": "Prompt",
+        "topicLabel": "Topic",
+        "engineLabel": "Engine",
+        "pooledTitle": "{weeks, plural, one {# week} other {# weeks}} to {date}",
+        "weekTitle": "Week of {date}",
+        "cellSubject": "{prompt}, {title}: {value}",
+        "footnoteColumns": "Columns are weeks, oldest first, each named by its Monday. Cell colour by rate: {bins}. A week without a valid answer is n/a."
+      },
+      "scatter": {
+        "title": "Citation against mention by topic on {engine}",
+        "summary": "Citation rate against mention rate on {engine}: {count, plural, one {# topic} other {# topics}}, one point each, sized by prompts. A point on the dashed diagonal is cited as often as it is named.",
+        "summaryLeaders": "Named most often without being cited: {topics}.",
+        "series": "Topics",
+        "reference": "Cited as often as named",
+        "points": "{points, plural, one {# point} other {# points}}",
+        "tableCaption": "Mention rate and citation rate of each topic on {engine}",
+        "table": {
+          "topic": "Topic",
+          "mention": "Mention rate",
+          "citation": "Citation rate",
+          "prompts": "Prompts",
+          "gap": "Gap"
+        },
+        "scope": "The dashed line marks topics cited as often as they are named: above it a topic is cited more often than named, below it named more often than cited. Both axes run from 0 to {ceiling}, and the gap is mention minus citation in points. Only the most specific topics are shown, and a point is sized by its prompts.",
+        "excluded": "{count, plural, one {# topic has} other {# topics have}} too few answers on mention or citation and {count, plural, one {is} other {are}} not plotted. The Table form lists {count, plural, one {it} other {them}} with the answers.",
+        "noPointsTitle": "No topic has a rate on both yet",
+        "noPointsReason": "A point needs {min, number} valid answers on both mention and citation, and no topic has them yet. Rates appear after the next runs.",
+        "engineOutTitle": "{engine} is not part of this view",
+        "engineOutFiltered": "The engine filter leaves out {engine}.",
+        "engineOutOff": "{engine} is not on in this project.",
+        "engineOutAdmin": "{engine} is not on in this project. Ask a workspace admin to turn it on."
+      }
     },
     "activity": {
       "common": {
