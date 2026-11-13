@@ -17,6 +17,8 @@ Brief: [WP-03](../work-packages/WP-03-contract-pack.md).
 | [annotations-notes.md](annotations-notes.md) | N9 annotations and N13 notes | `GET {P}/ai/annotations`, `GET` and `POST {P}/notes`, `DELETE {P}/notes/{note_id}` | [WP-38](../work-packages/WP-38-notes-annotations.md) |
 | [evidence.md](evidence.md) | Evidence: answer hashes, citation quote, answer compare | `GET {P}/ai/observations/{observation_id}/compare`, 3 optional fields of the answer detail | [WP-26](../work-packages/WP-26-evidence-viewer.md) |
 | [c12a-layouts.md](c12a-layouts.md) | C12a: team and personal page layouts | `GET {W}/layouts/{screen}`, `PUT` and `DELETE {W}/me/layouts/{screen}`, `PUT` and `DELETE {W}/layouts/{screen}/default` | [WP-11](../work-packages/WP-11-layouts-api.md) |
+| [c8-metrics.md](c8-metrics.md) | C8 metric part: overview, one metric, series, breakdown | `GET {P}/ai/metrics/overview`, `GET {P}/overview/ai`, `GET {P}/ai/metrics/{metric}`, `.../{metric}/series`, `.../{metric}/breakdown` | [WP-32](../work-packages/WP-32-overview-aggregates.md) |
+| [c5-competitors.md](c5-competitors.md) | C5 competitor part: competitors read and Overview competitor table | `GET {P}/ai/competitors`, `GET {P}/overview/competitors` | [WP-32](../work-packages/WP-32-overview-aggregates.md) |
 
 14 new routes (all answered `501 not_implemented` after their access checks when published) and 11 built
 operations with optional additions (answer `501` when an addition is used). Update 2026-11-13: the five
@@ -28,6 +30,11 @@ only additively (plan decision D4).
 Update 2026-11-13 (WP-14): the sources note ([sources-additions.md](sources-additions.md)) is built by WP-14. Its
 additions and `GET {P}/ai/sources/changes` no longer answer `501`, and WP-14 added three routes (`sources/diversity`,
 `sources/domains/{registrable_domain}`, `sources/prompts`); only `category` and `category_source` stay unreturned (WP-60).
+
+Update 2026-11-13 (WP-32): two notes are added, [c8-metrics.md](c8-metrics.md) and [c5-competitors.md](c5-competitors.md),
+for seven new routes (`ai/metrics/overview`, `overview/ai`, `ai/metrics/{metric}`, `ai/metrics/{metric}/series`,
+`ai/metrics/{metric}/breakdown`, `ai/competitors`, `overview/competitors`). They answer `501 not_implemented` after
+their access checks until WP-32 builds them, and they are not in the count above.
 
 ## Conventions
 
