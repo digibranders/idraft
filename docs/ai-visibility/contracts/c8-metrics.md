@@ -46,7 +46,7 @@ The scope is the summary's, with its meaning and errors.
 | Parameter | Type | Bounds | Meaning |
 |---|---|---|---|
 | `from`, `to` | date | project-local days both included; default the 28 days ending today; at most 92 days | The window. More than 92 days is `422 window_too_large` (carries `limit_days`); `from` after `to` is `422 range_invalid` at `from`; a date outside the calendar is `422 out_of_range`. |
-| `filter[engine_code_in]` | list of engine code | `chatgpt_web`, `gemini_web`, `google_ai_mode`; at most 3; comma list or repeated | The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three is `422`. |
+| `filter[engine_code_in]` | list of engine code | `chatgpt_web`, `gemini_web`, `google_ai_mode`; at most 3; comma list or repeated | The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three is `422` (these routes are stricter than the summary here: `EngineCode`, as the sources routes). A listed engine that is neither enabled nor answering is left out of `engines` and of `meta.engine_codes`: no data is not an error. |
 | `include_branded` | boolean | default `false` | Counts the branded prompts too. |
 | `branded_only` | boolean | default `false` | Counts the branded prompts alone; wins over `include_branded`. |
 | `filter[country_iso]` | text | `^[A-Z]{2}$` | The prompts of one market (the prompt's, not the answer's location). |
@@ -60,7 +60,8 @@ The scope is the summary's, with its meaning and errors.
 | `compare_from`, `compare_to` | date | both or neither (one alone is `422` at the missing one); at most 92 days; any position | A compare window of the caller's own. Wins over `compare`. |
 
 The rules are C2 change log C-1 and C-2 unchanged. Routes 4 and 5 have no compare: a series is the time axis,
-and a movers view is two reads or WP-58. Sending `compare`, `compare_from` or `compare_to` to them is
+and a movers view is two reads or WP-58. A previous window drawn over a series (the dashed line of CH-01) is a
+second read of the same route with `from` and `to` shifted. Sending `compare`, `compare_from` or `compare_to` to them is
 `422 extra_forbidden`.
 
 ### Route specific parameters
@@ -91,9 +92,9 @@ it is not set; the other members are always written, as `null` when they have no
 | `metric` | text | The registry key; `<key>.engine_average` for an average of engines. |
 | `value` | number or null | `numerator / denominator`; null when the denominator is 0 or the metric is suppressed. Never 0 for an empty denominator, never `NaN`. |
 | `numerator` | number or null | A count of answers, or the sum of the prompts' rates for a prompt weighted rate. |
-| `denominator` | number or null | Answers, or prompts with a valid answer for a prompt weighted rate. Null for a count. `value = numerator / denominator` holds exactly otherwise. |
+| `denominator` | number or null | Answers, or prompts with a valid answer for a prompt weighted rate; for `ai.fanout_mean_queries`, the valid answers that have fan-out queries. Null on `ai.valid_answers` and `ai.prompts_in_scope` (plain counts) and when suppressed. `value = numerator / denominator` holds exactly otherwise. |
 | `unit` | `ratio` or `count` | Rates and shares are ratios in 0 to 1. `ai.valid_answers`, `ai.prompts_in_scope` and `ai.fanout_mean_queries` are counts. |
-| `n_observations` | integer | Every answer behind the value, valid or not. |
+| `n_observations` | integer | Every answer behind the value, valid or not. Two keys carry the engine's valid answers instead: `ai.citation_share` and `ai.recommendation_rate`, so their tiles read lower than the others (8 beside 10 in the overview example). |
 | `n_prompts` | integer, optional | Prompt weighted values only: the prompts with a valid answer (equal to `denominator`). |
 | `aggregation` | `prompt_weighted` or `observation_weighted`, optional | Absent on counts and on averages of engines. |
 | `window` | `{from, to, timezone}` | The response's window. |
@@ -106,9 +107,9 @@ it is not set; the other members are always written, as `null` when they have no
 | `method` | text | A short human description. |
 | `method_version` | integer | 1 for every key now; a formula change raises it (doc 16 rule 7). |
 | `suppressed_reason` | optional | `insufficient_data`, `no_surface`, `not_classified` or `below_min_impressions`. This package returns `not_classified` alone (the recommendation keys). The other three are declared by doc 16 section 2 and never returned here: a rate over a small denominator comes back as its value with its counts, and the web applies the 4 answer floor (R2). |
-| `pooled` | `{successes, trials}`, optional | The answers behind a prompt weighted rate: "4 of 8 answers". Absent on share of voice, shares of units and counts. |
+| `pooled` | `{successes, trials}`, optional | The answers behind a prompt weighted rate: "4 of 8 answers". Absent on share of voice, shares of units and counts. The headline `value` is never `successes / trials` when `pooled` is set: it is the prompt weighted mean (see the breakdown example, 1.4 of 3 prompts beside 3 of 7 answers), so a client shows `value` and uses `pooled` only for the sample size and the interval. |
 | `previous` | cell or null, optional | The same value over `meta.compare_window`. See below. |
-| `ci` | optional | Declared and never returned here: the interval stays on the client (Wilson, R8) until WP-58. |
+| `ci` | `{low, high, level, method}`, optional | Declared and never returned here: the interval stays on the client (Wilson, R8) until WP-58. `level` is 0.95; `method` is `wilson`, `bootstrap_cluster` or `normal_fixed_panel` (docs/16 section 2, docs/19 section 2.6). |
 
 Not declared at all, and added later as optional members: `version_boundaries` (WP-38), `MetricComparison` and
 `delta` (doc 19 2.6; WP-58; the web computes the detectable change from the counts, R5).
@@ -164,6 +165,7 @@ one average entry per listed entity (`entity_id` set).
 | `engine_codes` | list of engine code | The engines shown, sorted: enabled or answering, after the filter. |
 | `entities` | list of `{entity_id, name, role}` | The tracked set share of voice is computed over now (the own brand and the competitors tracked in AI answers; watched entities are not in it) (R9). All of them, as the summary lists them: competitors by name, then the own entities, so read `role` and do not assume the own brand is first. |
 | `entity_config_versions` | list of integer | More than one means the entity set changed inside the window and older answers keep their set. |
+| `entity_config_changes` | list of `{version, from}`, optional | When more than one version is listed: the day each took effect (`from`, project-local; it can precede the window), oldest first, so a chart can mark where share of voice changes basis. Left out when the window holds one version. |
 | `notes` | list of text | `[]` unless a route has something to say. |
 
 ### Overview (routes 1 and 2)
@@ -177,6 +179,7 @@ one average entry per listed entity (`entity_id` set).
 | | `prompts_in_scope` | One `AiMetricValue` (`ai.prompts_in_scope`). |
 | | `last_observed_at` | The newest counted answer, any status (the header "AI updated"); null when none. |
 | | `last_valid_at` | The newest valid answer; null when none. |
+| | `topics_in_scope` | Optional: the topics that have a prompt in scope (the topic rows of the prompts summary without the row of prompts that have no topic): the "in 13 topics" context of the numbers strip. Left out when not known. |
 | `AiOverviewEngine` | `engine_code`, `observation_class` | The engine. |
 | | `tiles` | `AiMetricValue[]` in the order below. |
 
@@ -228,7 +231,7 @@ leaves out an engine that does not expose fan-out; `ai.prompts_in_scope` is one 
 | | `granularity` | `week`. |
 | | `points` | `AiMetricPoint[]`, oldest first, at most 14 (92 days touch at most 14 weeks); a week without answers has counts of 0 and `value` null. |
 | `AiMetricPoint` | `t` | The Monday the week starts on, project zone. |
-| | `value`, `numerator`, `denominator`, `n_observations` | As the value model. |
+| | `value`, `numerator`, `denominator`, `n_observations` | As the value model; `value` is null when the denominator is 0. |
 | | `n_prompts` | The prompts with a valid answer in that week itself, whether the point is pooled or not. |
 | | `is_partial` | The week is cut by a window bound (`t` before `window.from`, or the Sunday after `window.to`), or holds today. |
 | | `is_pooled` | The cells hold the trailing weeks (C2 C-11), not the week alone. |
@@ -354,11 +357,17 @@ can make a citation share denominator differ by one answer from the valid answer
 | 422 | `window_too_large` | `from` to `to`, or `compare_from` to `compare_to`, over 92 days (carries `limit_days`). |
 | 503 | `query_timeout` | The house statement timeout. |
 
-Order: 401, 404 `not_found`, 403, 422 (values), then in the route body `404 unknown_metric`, then the service
+Order, as built: for an authenticated caller `422 extra_forbidden` (an unknown query parameter) comes first of
+all, because it is raised in the session dependency (`api/auth/dependencies.py`) before the membership and
+permission checks, and says nothing to an anonymous caller. Then 401 (no session), 404 `not_found`, 403, then
+the 422 of a value outside its bounds, of a lone `compare_from` or `compare_to`, and of an explicit window
+(`from` with `to`, `compare_from` with `compare_to`): `range_invalid` and `window_too_large` are checked with
+the other values, so they come before `404 unknown_metric`, which is raised in the route body. Then the service
 (`404 not_found` for a deleted or unknown project, `501` for a known key not built on the route,
-`422 window_too_large`, `503`). Not used: `422 engine_not_enabled` (the summary's engine filter semantics apply:
-an engine nobody answered on has no data, not an error) and `422 observation_classes_not_poolable` (no pooling
-option exists).
+`422 window_too_large` of a window with `from` or `to` left out, `503`). Not used: `422 engine_not_enabled`
+(a listed engine that is neither enabled nor answering is left out of the engines shown: no data is not an
+error; a code outside the three engines is `422`, as on the sources routes) and
+`422 observation_classes_not_poolable` (no pooling option exists).
 
 ## Example
 
@@ -432,7 +441,8 @@ Model: `AiOverviewResponse`.
     ],
     "prompts_in_scope": {"metric": "ai.prompts_in_scope", "value": 4.0, "numerator": 4.0, "denominator": null, "unit": "count", "n_observations": 15, "window": {"from": "2026-10-17", "to": "2026-11-13", "timezone": "Europe/Berlin"}, "filters": {"include_branded": false, "branded_only": false, "country_iso": null, "term_id": null}, "is_estimate": false, "method": "Prompts counted once, with a valid answer or not.", "method_version": 1},
     "last_observed_at": "2026-11-12T09:12:44Z",
-    "last_valid_at": "2026-11-12T09:12:44Z"
+    "last_valid_at": "2026-11-12T09:12:44Z",
+    "topics_in_scope": 3
   },
   "meta": {
     "window": {"from": "2026-10-17", "to": "2026-11-13", "timezone": "Europe/Berlin"},
@@ -445,7 +455,11 @@ Model: `AiOverviewResponse`.
       {"entity_id": "0000004b-7c1e-4a52-9b3d-00000000004b", "name": "Globex", "role": "competitor"},
       {"entity_id": "0000004a-7c1e-4a52-9b3d-00000000004a", "name": "Acme", "role": "own"}
     ],
-    "entity_config_versions": [3],
+    "entity_config_versions": [2, 3],
+    "entity_config_changes": [
+      {"version": 2, "from": "2026-09-20"},
+      {"version": 3, "from": "2026-10-28"}
+    ],
     "notes": []
   }
 }
@@ -545,7 +559,8 @@ GET {P}/ai/metrics/ai.mention_rate/breakdown?dimension=topic&from=2026-10-17&to=
 ```
 
 Rows by `prompts` descending. The last row is the prompts with no topic (`id` and `label` null). The prompt counts add
-up to more than the prompts in scope when a prompt has two topics.
+up to more than the prompts in scope when a prompt has two topics. The first row shows the two weightings
+apart: `value` is 1.4 of 3 prompts (the mean of the prompts' rates), while `pooled` says 3 of 7 answers.
 
 Model: `AiBreakdownResponse`.
 
@@ -556,7 +571,7 @@ Model: `AiBreakdownResponse`.
       "dimension": {"type": "topic", "id": "0000005a-7c1e-4a52-9b3d-00000000005a", "label": "CRM software"},
       "prompts": 3,
       "values": [
-        {"metric": "ai.mention_rate", "value": 0.5, "numerator": 1.5, "denominator": 3.0, "unit": "ratio", "n_observations": 7, "n_prompts": 3, "aggregation": "prompt_weighted", "window": {"from": "2026-10-17", "to": "2026-11-13", "timezone": "Europe/Berlin"}, "filters": {"include_branded": false, "branded_only": false, "country_iso": null, "term_id": null}, "observation_class": "consumer_ui", "engine_code": "chatgpt_web", "is_estimate": false, "method": "Valid answers that name the own brand, prompt weighted.", "method_version": 1, "pooled": {"successes": 3, "trials": 6}}
+        {"metric": "ai.mention_rate", "value": 0.4666666666666667, "numerator": 1.4, "denominator": 3.0, "unit": "ratio", "n_observations": 8, "n_prompts": 3, "aggregation": "prompt_weighted", "window": {"from": "2026-10-17", "to": "2026-11-13", "timezone": "Europe/Berlin"}, "filters": {"include_branded": false, "branded_only": false, "country_iso": null, "term_id": null}, "observation_class": "consumer_ui", "engine_code": "chatgpt_web", "is_estimate": false, "method": "Valid answers that name the own brand, prompt weighted.", "method_version": 1, "pooled": {"successes": 3, "trials": 7}}
       ]
     },
     {
@@ -641,10 +656,17 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-32: C-8 series: weekly points of the summary's `total` row with C2 C-10 and C-11 unchanged (pooling in the API); `is_partial` marks a week cut by a window bound or holding today; `entity_ids` gives a series per listed tracked entity; `granularity=day` and `month` are `422` with field code `not_built`.
 2026-11-13 WP-32: C-9 breakdown: eight dimensions; rows sorted by `prompts` descending then label, at most 300 (`rows_total`, `truncated`); prompts with no value form a row with `dimension.id` null; topic values do not add up to the total (`meta.notes`); values per engine, no averages.
 2026-11-13 WP-32: C-10 citation share: `numerator` own citation units, `denominator` all citation units of the engine, from the sources read with the sources flag default (`engine_internal` and `unresolved_redirect` left out), so it equals `sources/domains` `meta.by_role` (R12). `n_observations` is the engine's valid answers. It is read in a second transaction after the summary, so it is not one snapshot with the valid answers beside it (a difference of one answer is possible if an answer is ingested between the two).
-2026-11-13 WP-32: C-11 not returned: `ci`, `delta`, `MetricComparison`, `version_boundaries`, `granularity` day and month, `vocabulary_id`, `depth`, topic count; each with its owner (WP-58 for `ci`, `delta` and `MetricComparison`; WP-38 for `version_boundaries`; none yet for the rest: they are not in any card read).
-2026-11-13 WP-32: C-12 errors and order: the error table above (401, 404 `not_found`, 403, 422, `404 unknown_metric` in the route body, then the service).
+2026-11-13 WP-32: C-11 not returned: `ci`, `delta`, `MetricComparison`, `version_boundaries`, `granularity` day and month, `vocabulary_id`, `depth`; the topic count is returned as `AiOverview.topics_in_scope` (C-20); each with its owner (WP-58 for `ci`, `delta` and `MetricComparison`; WP-38 for `version_boundaries`; none yet for the rest: they are not in any card read).
+2026-11-13 WP-32: C-12 errors and order: the error table above (401, 404 `not_found`, 403, 422, `404 unknown_metric` in the route body, then the service); as built, `extra_forbidden` comes first for an authenticated caller and explicit-window errors come before `unknown_metric` (C-17).
 2026-11-13 WP-32: C-13 statement counts: the statement table above (design figures until measured, then the test).
 2026-11-13 WP-32: C-14 card reads: the card read map above (BE-METRICS-24). Remainders named: categories on source rows (WP-60) and `activity.key_changes` (WP-58).
 2026-11-13 WP-32: C-15 differences from the specs, written once: doc 19 3.7.9 and 2.6 `MetricComparison` with `delta` and `ci` is replaced by `previous` beside the value (Q2); `granularity` is `week` only against doc 19's day, week and month (Q3); the overview takes `filter[engine_code_in]` against doc 19's `engine_codes` and doc 20 5.2's `engines=` (Q5); the scope has no `window`, `panel_id`, `subject`, `prompt_ids`, attribute filters, `aggregation` or `entity_id`, and no `vocabulary_id` or `depth` (Q5); the cap is 92 days against doc 19 2.5's 400 days and 25 months (Q6); the overview tiles A9 and A11 of doc 19 are not returned (S2, WP-54); `422 engine_not_enabled` and `422 observation_classes_not_poolable` are not used; doc 16 A5 counts a not mentioned answer as not recommended, but nothing classifies a recommendation yet, so the recommendation keys are suppressed `not_classified` rather than a rate that would read 0.
 2026-11-13 WP-32: C-16 reading of the contract where the plan was silent: `engine_average` exists only for the five overview keys, on routes 1, 2 and 3, and with `entity_ids` one entry per listed entity; `meta.entities` lists the whole tracked set in the summary's order (competitors by name, then the own entities) while the values and rows follow the cell order (own first); `ai.fanout_mean_queries` has `unit` `count`; the labels of `intent`, `funnel_stage` and `prompt_type` rows equal their ids; `is_partial` is true for a week cut by a window bound and for the week that holds today (the plan's mapping formula names the window bound alone; the field text of the contract wins).
-2026-11-13 WP-32: C-17 reading of the contract at the first push: `unit` is `ratio` or `count` (this note wins over the plan's `MetricUnit`, which also lists rank, score, usd and clicks); `ci` is `{lower, upper, level, method}`, declared and never returned; a window of two explicit dates (`from` with `to`, `compare_from` with `compare_to`) and a lone `compare_from` or `compare_to` are checked with the other values, before `404 unknown_metric`, so `422 window_too_large` and `range_invalid` of an explicit window come first (a window with `from` or `to` left out is checked by the service, as C-12 says).
+2026-11-13 WP-32: C-17 reading of the contract at the first push: `unit` is the literal `ratio` or `count` (this note wins over the plan's `MetricUnit`, which also lists rank, score, usd and clicks; the S2 keys `ai.structured_rank` and `ai.prominence` will need the type widened, which is one more regeneration of the API document and the web client); `ci` is `{low, high, level, method}` as docs/16 section 2 and docs/19 section 2.6 write it (`level` 0.95; `method` `wilson`, `bootstrap_cluster` or `normal_fixed_panel`), declared and never returned; a window of two explicit dates (`from` with `to`, `compare_from` with `compare_to`) and a lone `compare_from` or `compare_to` are checked with the other values, before `404 unknown_metric`, so `422 window_too_large` and `range_invalid` of an explicit window come first (a window with `from` or `to` left out is checked by the service); for an authenticated caller `422 extra_forbidden` comes before 404 and 403 (it is raised in the session dependency); the Error codes order paragraph says it as built.
+2026-11-13 WP-32: C-18 value text: `denominator` is null on `ai.valid_answers`, `ai.prompts_in_scope` and when suppressed, and is the valid answers that have fan-out queries for `ai.fanout_mean_queries`; `n_observations` is the engine's valid answers (not every answer) on `ai.citation_share` and `ai.recommendation_rate`; the point `value` is null when its denominator is 0.
+2026-11-13 WP-32: C-19 pooled and value: the headline `value` of a prompt weighted rate is never `pooled.successes / pooled.trials`; it is the mean of the prompts' rates. The breakdown example shows 1.4 of 3 prompts beside 3 of 7 answers.
+2026-11-13 WP-32: C-20 `AiOverview.topics_in_scope` (optional integer, absent when not known): the topics that have a prompt in scope, for the "in 13 topics" context of the numbers strip. It replaces "topic count in no card read" of C-11.
+2026-11-13 WP-32: C-21 `meta.entity_config_changes` (optional list of `{version, from}`, absent when the window holds one version): the day each entity configuration version took effect, so share of voice and series can mark where the basis changes (WB-CMP-10, WP-35). `entity_config_versions` is unchanged.
+2026-11-13 WP-32: C-22 series compare overlay: a previous window drawn over a series (CH-01, dashed) is a second read of the series route with `from` and `to` shifted; the series routes take no compare parameters.
+2026-11-13 WP-32: C-23 engine filter: these routes are stricter than the summary: a code outside `chatgpt_web`, `gemini_web` and `google_ai_mode` is `422` (`EngineCode`, as the sources routes); a listed engine that is neither enabled nor answering is left out of `engines` and `meta.engine_codes`.
+2026-11-13 WP-32: C-24 recorded, not built: strip deltas for `ai.citation_share`, `ai.fanout_presence_rate` and the valid answers per engine, and a `previous` on `engine_average`: WP-58, additive later.

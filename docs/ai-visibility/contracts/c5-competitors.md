@@ -68,7 +68,7 @@ client reads `role`. `entity` of a row is the existing `EntityRef` (`entity_id`,
 |---|---|---|
 | `AiCompetitor` | `entity` | `EntityRef` of the row. |
 | | `by_engine` | `AiCompetitorEngine[]`, one per engine shown, sorted by `engine_code`. |
-| | `top_sources` | Optional: with `include=top_sources`, `CompetitorSource[]`; absent otherwise. |
+| | `top_sources` | Optional: with `include=top_sources`, `CompetitorSource[]` (`[]` when the entity has none); absent otherwise. |
 | `AiCompetitorEngine` | `engine_code` | The engine. |
 | | `mention_rate` | `AiMetricValue` (`ai.mention_rate`) with `entity_id` set. |
 | | `recommendation_rate` | `AiMetricValue` (`ai.recommendation_rate`), suppressed `not_classified`. |
@@ -76,6 +76,8 @@ client reads `role`. `entity` of a row is the existing `EntityRef` (`entity_id`,
 | | `share_of_voice` | `AiMetricValue` (`ai.share_of_voice`) with `entity_id` set. |
 | | `is_top_competitor` | True on exactly one competitor of the engine (rule below). |
 | | `lost_prompts` | Optional: with `include=lost_prompts`, `LostPrompt[]` for a competitor row; absent on an own row and when not asked. `[]` when nothing was lost. |
+| | `lost_prompts_total` | Optional, present and absent exactly as `lost_prompts`: every prompt lost to the competitor on the engine, before the `lost_limit` cap. |
+| | `lost_prompts_with_min_answers` | Optional, present and absent exactly as `lost_prompts`: the prompts in scope with at least 4 answers on the engine, the "of N prompts" beside `lost_prompts_total`. |
 | `LostPrompt` | `prompt_id`, `text`, `importance` | The prompt, its current text and its importance (1 to 5). |
 | | `lost` | A summary cell: `numerator` the answers on that engine that name the competitor and not the own brand, `denominator` the prompt's valid answers on the engine, `n_observations` all its answers, `value` null when the denominator is 0. |
 | `CompetitorSource` | `registrable_domain` | A domain cited for the entity. |
@@ -111,7 +113,9 @@ With `include=lost_prompts`, a competitor row's engine entry lists the prompts w
 the own brand is not (the rule of C2 C-6, `lost_to`), counted over the valid, current answers on that engine. They
 are sorted by `importance` descending, then lost answers descending, then text, then id, at most `lost_limit`
 per entity and engine. They are the same prompts `filter[opportunity]=lost_to:<id>` keeps on the summary for the
-same scope and engine. A refusal or an invalid answer is not a lost answer.
+same scope and engine. A refusal or an invalid answer is not a lost answer. `lost_prompts_total` counts every
+such prompt, before the cap, and `lost_prompts_with_min_answers` the prompts in scope with at least 4 answers on
+the engine, so the card can say "3 of 12 prompts".
 
 ### Top sources
 
@@ -164,7 +168,11 @@ sources and lost reads. `compare` adds 1 (the summary's own).
 | 422 | `window_too_large` | `from` to `to`, or `compare_from` to `compare_to`, over 92 days (carries `limit_days`). |
 | 503 | `query_timeout` | The house statement timeout. |
 
-Order: 401, 404, 403, 422 (values), then the service. There is no `501` once the routes are built (while a route
+Order, as built: for an authenticated caller `422 extra_forbidden` (an unknown query parameter) comes first, because
+the session dependency raises it before the membership and permission checks; then 401, 404, 403, the 422 of a value
+outside its bounds, of a lone `compare_from` or `compare_to` and of an explicit window (`range_invalid`,
+`window_too_large`), then the service. A code outside the three engines is `422` (stricter than the summary, as c8
+C-23). There is no `501` once the routes are built (while a route
 is a stub every request that passes the access checks and the 422 checks answers `501`).
 
 ## Example
@@ -173,7 +181,8 @@ Made-up world, the same as the overview example of [c8-metrics.md](c8-metrics.md
 4 prompts; Acme (own) and Globex (competitor) are the tracked set; the window is 2026-10-17 to 2026-11-13 and the
 project's timezone is `Europe/Berlin`. Over the answers that name a tracked entity the shares of Acme and Globex
 add up to the whole (3.0 and 3.0 of 6). Globex is the top competitor and the only prompt it wins is "best CRM for
-small agencies" (2 of its 2 valid answers, 3 answers in all).
+small agencies" (2 of its 2 valid answers, 3 answers in all). The 4 prompts have 4, 3, 2 and 1 answers on the
+engine, so one prompt has the 4 answers `lost_prompts_with_min_answers` asks for.
 
 ### Competitors with lost prompts and top sources (route 6)
 
@@ -215,7 +224,9 @@ Model: `AiCompetitorsResponse`.
           "is_top_competitor": true,
           "lost_prompts": [
             {"prompt_id": "0191a7c2-7c1e-4a52-9b3d-0000000000c4", "text": "best CRM for small agencies", "importance": 4, "lost": {"value": 1.0, "numerator": 2.0, "denominator": 2, "n_observations": 3, "pooled": null}}
-          ]
+          ],
+          "lost_prompts_total": 1,
+          "lost_prompts_with_min_answers": 1
         }
       ],
       "top_sources": [
@@ -337,3 +348,5 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-32: C-8 errors: the error table above (401, 404, 403, 422, then the service).
 2026-11-13 WP-32: C-9 differences from the specs, written once: doc 19 3.7.9 lists `top_sources: DomainRef[]` and `MetricValue` members only; this contract returns `CompetitorSource` (domain, citation units, answers) and adds `is_top_competitor` and the opt-in `lost_prompts`; doc 20 5.2 puts SEO share of voice and visibility in the competitor overview, and they are not built (Q10); doc 19's `entity_ids` is the same name here and its `entity_id` is not accepted; `previous` replaces `MetricComparison` as in c8 (Q2); recommendation is suppressed `not_classified` against doc 16 A5 (see c8 C-15).
 2026-11-13 WP-32: C-10 reading of the contract where the plan was silent: with `include=top_sources` the own rows list their domains as well; `lost` of a `LostPrompt` has `pooled` null (it is a count of answers of one prompt); an engine entry whose engine has no answer has null values and zero counts and no top competitor; `meta.entities` lists the whole tracked set in the summary's order (competitors by name, then the own entities).
+2026-11-13 WP-32: C-11 lost prompt context: `lost_prompts_total` (every prompt lost to the competitor on the engine, before the `lost_limit` cap) and `lost_prompts_with_min_answers` (prompts in scope with at least 4 answers on the engine, the "of N prompts" context) are optional integers on `AiCompetitorEngine`, present exactly when `lost_prompts` is, absent otherwise.
+2026-11-13 WP-32: C-12 `top_sources` is `[]` for an entity with no cited domain, absent without `include=top_sources`. The `meta` of every body gains the optional `entity_config_changes` and the shared text of c8 C-17 to C-23 (value text, engine filter, order as built) applies.

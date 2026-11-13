@@ -1069,7 +1069,7 @@ export interface paths {
         };
         /**
          * Each tracked entity's mention rate, share of voice and citation share, per engine
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One row per tracked entity (the own entities, then the competitors by name, those tracked in AI answers, at most 20; `entity_ids` narrows them), each with one entry per engine shown: Mentioned and Share of voice from the prompts summary's entity cells, citation share (the entity's citation units over all those of the engine, as the Sources page counts them) and recommendation (suppressed: `not_classified`). `is_top_competitor` is true on exactly the competitor with the most share of voice on that engine, and false for every row when no competitor was named. `include=lost_prompts` adds, per competitor and engine, the prompts where it is named and the own brand is not (the `lost_to` opportunity of the summary), by importance, at most `lost_limit`; `include=top_sources` adds the domains cited most with the entity, at most `sources_limit`, over all engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One row per tracked entity (the own entities, then the competitors by name, those tracked in AI answers, at most 20; `entity_ids` narrows them), each with one entry per engine shown: Mentioned and Share of voice from the prompts summary's entity cells, citation share (the entity's citation units over all those of the engine, as the Sources page counts them) and recommendation (suppressed: `not_classified`). `is_top_competitor` is true on exactly the competitor with the most share of voice on that engine, and false for every row when no competitor was named. `include=lost_prompts` adds, per competitor and engine, the prompts where it is named and the own brand is not (the `lost_to` opportunity of the summary), by importance, at most `lost_limit`, with `lost_prompts_total` (before the cap) and `lost_prompts_with_min_answers`; `include=top_sources` adds the domains cited most with the entity, at most `sources_limit`, over all engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.
          */
         get: operations["competitors_api_v1_workspaces__workspace_id__projects__project_id__ai_competitors_get"];
         put?: never;
@@ -1129,7 +1129,7 @@ export interface paths {
         };
         /**
          * The Overview numbers of the AI answers, per engine
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. Per engine shown: the valid answers, Mentioned, Cited, named and cited, the four outcomes, recommendation (suppressed: `not_classified`), share of voice, citation share (own citation units over all those of the engine, as the Sources page counts them), Cited given citations, first mention and, on an engine that exposes fan-out, its presence and mean. `engine_average` holds the equal-weight average of the engines for five of them when two engines have a value. `prompts_in_scope`, `last_observed_at` and `last_valid_at` sit beside the engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value. `overview/ai` answers the same body.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. Per engine shown: the valid answers, Mentioned, Cited, named and cited, the four outcomes, recommendation (suppressed: `not_classified`), share of voice, citation share (own citation units over all those of the engine, as the Sources page counts them), Cited given citations, first mention and, on an engine that exposes fan-out, its presence and mean. `engine_average` holds the equal-weight average of the engines for five of them when two engines have a value. `prompts_in_scope`, `topics_in_scope`, `last_observed_at` and `last_valid_at` sit beside the engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value. `overview/ai` answers the same body.
          */
         get: operations["metrics_overview_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics_overview_get"];
         put?: never;
@@ -1189,7 +1189,7 @@ export interface paths {
         };
         /**
          * One AI metric over the weeks of the window, per engine
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One series per engine (and per listed entity with `entity_ids`) for `ai.mention_rate`, `ai.citation_rate` and `ai.share_of_voice`: a point for each week the window touches (weeks start on Monday in the project's timezone), oldest first, at most 14. A point holds the week's own answers, or the trailing four weeks inside the window when fewer than 10 prompts answered that week (`is_pooled`, `pool`); the first and last weeks may be partial (`is_partial`). They are the weekly points of the prompts summary's `total` row. `day` and `month` granularities are refused (`422`, code `not_built`). A series has no compare parameters.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One series per engine (and per listed entity with `entity_ids`) for `ai.mention_rate`, `ai.citation_rate` and `ai.share_of_voice`: a point for each week the window touches (weeks start on Monday in the project's timezone), oldest first, at most 14. A point holds the week's own answers, or the trailing four weeks inside the window when fewer than 10 prompts answered that week (`is_pooled`, `pool`); the first and last weeks may be partial (`is_partial`). They are the weekly points of the prompts summary's `total` row. `day` and `month` granularities are refused (`422`, code `not_built`). A series has no compare parameters: a previous window drawn over it is a second read with `from` and `to` shifted.
          */
         get: operations["metric_series_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__series_get"];
         put?: never;
@@ -2849,6 +2849,11 @@ export interface components {
              */
             entities: components["schemas"]["SummaryEntity"][];
             /**
+             * Entity Config Changes
+             * @description When more than one version is listed in `entity_config_versions`: the day each took effect, oldest first, so a chart can mark where share of voice changes basis. Left out when the window holds one version.
+             */
+            entity_config_changes?: components["schemas"]["AiEntityConfigChange"][] | null;
+            /**
              * Entity Config Versions
              * @description More than one means the entity set changed inside the window and older answers keep their set.
              */
@@ -2908,30 +2913,32 @@ export interface components {
         };
         /**
          * AiCi
-         * @description A confidence interval. Declared and never returned in this package: the interval stays on
-         *     the client (Wilson, rule R8) until the statistics package adds it.
+         * @description A confidence interval, as docs/16 section 2 and docs/19 section 2.6 write it. Declared and
+         *     never returned in this package: the interval stays on the client (Wilson, rule R8) until the
+         *     statistics package adds it.
          */
         AiCi: {
             /**
+             * High
+             * @description The upper bound, in the unit of the value.
+             */
+            high: number;
+            /**
              * Level
-             * @description The confidence level, for example 0.95.
+             * @description The confidence level: always 0.95.
              */
             level: number;
             /**
-             * Lower
+             * Low
              * @description The lower bound, in the unit of the value.
              */
-            lower: number;
+            low: number;
             /**
              * Method
-             * @description How the interval was computed, for example `wilson`.
+             * @description How the interval was computed.
+             * @enum {string}
              */
-            method: string;
-            /**
-             * Upper
-             * @description The upper bound, in the unit of the value.
-             */
-            upper: number;
+            method: "wilson" | "bootstrap_cluster" | "normal_fixed_panel";
         };
         /** AiCompetitor */
         AiCompetitor: {
@@ -2944,7 +2951,7 @@ export interface components {
             entity: components["schemas"]["EntityRef"];
             /**
              * Top Sources
-             * @description With `include=top_sources`: the domains cited most with the entity, over all engines. Left out otherwise.
+             * @description With `include=top_sources`: the domains cited most with the entity, over all engines; [] when it has none. Left out otherwise.
              */
             top_sources?: components["schemas"]["CompetitorSource"][] | null;
         };
@@ -2967,6 +2974,16 @@ export interface components {
              * @description With `include=lost_prompts`, on a competitor: the prompts where it is named and the own brand is not; [] when none. Left out otherwise.
              */
             lost_prompts?: components["schemas"]["LostPrompt"][] | null;
+            /**
+             * Lost Prompts Total
+             * @description With `include=lost_prompts`, on a competitor: every prompt lost to it on the engine, before the `lost_limit` cap of `lost_prompts`. Left out otherwise.
+             */
+            lost_prompts_total?: number | null;
+            /**
+             * Lost Prompts With Min Answers
+             * @description With `include=lost_prompts`, on a competitor: the prompts in scope with at least 4 answers on the engine, the 'of N prompts' beside `lost_prompts_total`. Left out otherwise.
+             */
+            lost_prompts_with_min_answers?: number | null;
             /** @description `ai.mention_rate` of the entity. */
             mention_rate: components["schemas"]["AiMetricValue"];
             /** @description `ai.recommendation_rate` of the entity: suppressed, `not_classified`. */
@@ -3055,6 +3072,23 @@ export interface components {
             type: "topic" | "intent" | "funnel_stage" | "engine" | "country" | "language" | "persona" | "prompt_type";
         };
         /**
+         * AiEntityConfigChange
+         * @description The day an entity configuration version took effect.
+         */
+        AiEntityConfigChange: {
+            /**
+             * From
+             * Format: date
+             * @description The first project-local day answers were counted with this version; it can precede the window.
+             */
+            from: string;
+            /**
+             * Version
+             * @description The entity configuration version.
+             */
+            version: number;
+        };
+        /**
          * AiFilters
          * @description The scope a value was counted over, resolved: what the request left out is null.
          */
@@ -3118,6 +3152,11 @@ export interface components {
              * @description The tracked entity set share of voice is computed over now, as the prompts summary lists it (competitors by name, then the own entities); watched entities are not in it. Read `role`: do not assume the own brand is first.
              */
             entities: components["schemas"]["SummaryEntity"][];
+            /**
+             * Entity Config Changes
+             * @description When more than one version is listed in `entity_config_versions`: the day each took effect, oldest first, so a chart can mark where share of voice changes basis. Left out when the window holds one version.
+             */
+            entity_config_changes?: components["schemas"]["AiEntityConfigChange"][] | null;
             /**
              * Entity Config Versions
              * @description More than one means the entity set changed inside the window and older answers keep their set.
@@ -3185,7 +3224,7 @@ export interface components {
             t: string;
             /**
              * Value
-             * @description numerator / denominator; null when it is 0.
+             * @description numerator / denominator; null when the denominator is 0.
              */
             value: number | null;
         };
@@ -3273,7 +3312,7 @@ export interface components {
             ci?: components["schemas"]["AiCi"] | null;
             /**
              * Denominator
-             * @description Answers, or the prompts with a valid answer for a prompt weighted rate. Null for a count and when suppressed; otherwise value = numerator / denominator.
+             * @description Answers, or the prompts with a valid answer for a prompt weighted rate; for `ai.fanout_mean_queries`, the valid answers that have fan-out queries. Null on `ai.valid_answers` and `ai.prompts_in_scope` (plain counts) and when suppressed; otherwise value = numerator / denominator.
              */
             denominator: number | null;
             /**
@@ -3315,7 +3354,7 @@ export interface components {
             metric: string;
             /**
              * N Observations
-             * @description Every answer behind the value, valid or not.
+             * @description Every answer behind the value, valid or not. Two keys carry the engine's valid answers instead, so their tiles read lower than the others (8 beside 10): `ai.citation_share` and `ai.recommendation_rate`.
              */
             n_observations: number;
             /**
@@ -3330,7 +3369,7 @@ export interface components {
             numerator: number | null;
             /** @description How the engine's answers were observed. Left out on an average of engines and on the prompts in scope. */
             observation_class?: components["schemas"]["ObservationClass"] | null;
-            /** @description The answers behind a prompt weighted rate: 4 of 8 answers. Left out on share of voice, shares of units and counts. */
+            /** @description The answers behind a prompt weighted rate: 4 of 8 answers. The headline `value` is never successes / trials when this is set: it is the mean of the prompts' rates. Left out on share of voice, shares of units and counts. */
             pooled?: components["schemas"]["Pooled"] | null;
             /**
              * Previous
@@ -3380,6 +3419,11 @@ export interface components {
             last_valid_at: string | null;
             /** @description The prompts counted once, whether they have a valid answer or not. */
             prompts_in_scope: components["schemas"]["AiMetricValue"];
+            /**
+             * Topics In Scope
+             * @description The topics that have a prompt in scope (a prompt in two topics counts in both topics, so the number is the topic rows of the prompts summary, without the row of prompts that have no topic). Left out when it is not known.
+             */
+            topics_in_scope?: number | null;
         };
         /** AiOverviewEngine */
         AiOverviewEngine: {
@@ -12978,7 +13022,7 @@ export interface operations {
                 from?: string | null;
                 /** @description Last day of the window, included; at most 92 days. */
                 to?: string | null;
-                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. */
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown. */
                 "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
                 /** @description Count the branded prompts too. */
                 include_branded?: boolean;
@@ -13112,7 +13156,7 @@ export interface operations {
                 from?: string | null;
                 /** @description Last day of the window, included; at most 92 days. */
                 to?: string | null;
-                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. */
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown. */
                 "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
                 /** @description Count the branded prompts too. */
                 include_branded?: boolean;
@@ -13167,7 +13211,7 @@ export interface operations {
                 from?: string | null;
                 /** @description Last day of the window, included; at most 92 days. */
                 to?: string | null;
-                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. */
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown. */
                 "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
                 /** @description Count the branded prompts too. */
                 include_branded?: boolean;
@@ -13218,7 +13262,7 @@ export interface operations {
                 from?: string | null;
                 /** @description Last day of the window, included; at most 92 days. */
                 to?: string | null;
-                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. */
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown. */
                 "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
                 /** @description Count the branded prompts too. */
                 include_branded?: boolean;
@@ -13271,7 +13315,7 @@ export interface operations {
                 from?: string | null;
                 /** @description Last day of the window, included; at most 92 days. */
                 to?: string | null;
-                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. */
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown. */
                 "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
                 /** @description Count the branded prompts too. */
                 include_branded?: boolean;
@@ -15002,7 +15046,7 @@ export interface operations {
                 from?: string | null;
                 /** @description Last day of the window, included; at most 92 days. */
                 to?: string | null;
-                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. */
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown. */
                 "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
                 /** @description Count the branded prompts too. */
                 include_branded?: boolean;
@@ -15055,7 +15099,7 @@ export interface operations {
                 from?: string | null;
                 /** @description Last day of the window, included; at most 92 days. */
                 to?: string | null;
-                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. */
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown. */
                 "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
                 /** @description Count the branded prompts too. */
                 include_branded?: boolean;
@@ -17151,6 +17195,7 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsTr
 export const pathsApiV1WorkspacesWorkspace_idVocabulariesGetParametersQueryFilterKindAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/vocabularies"]["get"]["parameters"]["query"]["filter[kind]"]> = ["topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"];
 export const pathsApiV1WorkspacesWorkspace_idVocabulariesVocabulary_idTermsGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}/terms"]["get"]["parameters"]["query"]["format"]> = ["tree", "flat"];
 export const actorActor_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Actor"]["actor_type"]> = ["user", "api_key", "system"];
+export const aiCiMethodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiCi"]["method"]> = ["wilson", "bootstrap_cluster", "normal_fixed_panel"];
 export const aiCoverageMissingTask_statusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiCoverageMissing"]["task_status"]> = ["pending", "submit_unknown", "submitted", "ready", "fetched", "ingested", "failed", "dead", "cancelled", "skipped_cached"];
 export const aiDimensionTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiDimension"]["type"]> = ["topic", "intent", "funnel_stage", "engine", "country", "language", "persona", "prompt_type"];
 export const aiMetricSeriesAggregationValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiMetricSeries"]["aggregation"]> = ["observation_weighted", "prompt_weighted"];

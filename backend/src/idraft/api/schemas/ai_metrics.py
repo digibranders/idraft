@@ -56,13 +56,17 @@ class AiFilters(BaseModel):
 
 
 class AiCi(BaseModel):
-    """A confidence interval. Declared and never returned in this package: the interval stays on
-    the client (Wilson, rule R8) until the statistics package adds it."""
+    """A confidence interval, as docs/16 section 2 and docs/19 section 2.6 write it. Declared and
+    never returned in this package: the interval stays on the client (Wilson, rule R8) until the
+    statistics package adds it."""
 
-    lower: float = Field(description="The lower bound, in the unit of the value.")
-    upper: float = Field(description="The upper bound, in the unit of the value.")
-    level: float = Field(description="The confidence level, for example 0.95.")
-    method: str = Field(description="How the interval was computed, for example `wilson`.")
+    low: float = Field(description="The lower bound, in the unit of the value.")
+    high: float = Field(description="The upper bound, in the unit of the value.")
+    # A float literal is not a type, so the one level is a range of one value.
+    level: float = Field(ge=0.95, le=0.95, description="The confidence level: always 0.95.")
+    method: Literal["wilson", "bootstrap_cluster", "normal_fixed_panel"] = Field(
+        description="How the interval was computed."
+    )
 
 
 class AiMetricValue(BaseModel):
@@ -81,14 +85,20 @@ class AiMetricValue(BaseModel):
         "rate. Null when suppressed."
     )
     denominator: float | None = Field(
-        description="Answers, or the prompts with a valid answer for a prompt weighted rate. Null "
-        "for a count and when suppressed; otherwise value = numerator / denominator."
+        description="Answers, or the prompts with a valid answer for a prompt weighted rate; for "
+        "`ai.fanout_mean_queries`, the valid answers that have fan-out queries. Null on "
+        "`ai.valid_answers` and `ai.prompts_in_scope` (plain counts) and when suppressed; "
+        "otherwise value = numerator / denominator."
     )
     unit: AiUnit = Field(
         description="`ratio` (0 to 1) for rates and shares; `count` for valid answers, prompts in "
         "scope and fan-out queries per answer."
     )
-    n_observations: int = Field(description="Every answer behind the value, valid or not.")
+    n_observations: int = Field(
+        description="Every answer behind the value, valid or not. Two keys carry the engine's "
+        "valid answers instead, so their tiles read lower than the others (8 beside 10): "
+        "`ai.citation_share` and `ai.recommendation_rate`."
+    )
     n_prompts: int | None = Field(
         default=None,
         exclude_if=_absent,
@@ -137,8 +147,9 @@ class AiMetricValue(BaseModel):
     pooled: Pooled | None = Field(
         default=None,
         exclude_if=_absent,
-        description="The answers behind a prompt weighted rate: 4 of 8 answers. Left out on share "
-        "of voice, shares of units and counts.",
+        description="The answers behind a prompt weighted rate: 4 of 8 answers. The headline "
+        "`value` is never successes / trials when this is set: it is the mean of the prompts' "
+        "rates. Left out on share of voice, shares of units and counts.",
     )
     previous: MetricCell | SkipJsonSchema[_NotAsked] | None = Field(
         default=NOT_ASKED,
@@ -154,6 +165,20 @@ class AiMetricValue(BaseModel):
         exclude_if=_absent,
         description="Not returned yet: left out of every response until it is built.",
     )
+
+
+class AiEntityConfigChange(BaseModel):
+    """The day an entity configuration version took effect."""
+
+    version: int = Field(description="The entity configuration version.")
+    from_: date = Field(
+        alias="from",
+        serialization_alias="from",
+        description="The first project-local day answers were counted with this version; it can "
+        "precede the window.",
+    )
+
+    model_config = {"populate_by_name": True}
 
 
 class AiMetricMeta(BaseModel):
@@ -184,6 +209,13 @@ class AiMetricMeta(BaseModel):
     entity_config_versions: list[int] = Field(
         description="More than one means the entity set changed inside the window and older "
         "answers keep their set."
+    )
+    entity_config_changes: list[AiEntityConfigChange] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="When more than one version is listed in `entity_config_versions`: the day "
+        "each took effect, oldest first, so a chart can mark where share of voice changes basis. "
+        "Left out when the window holds one version.",
     )
     notes: list[str] = Field(
         description="What a route has to say about its numbers; [] if nothing."
@@ -224,6 +256,13 @@ class AiOverview(BaseModel):
     last_valid_at: datetime | None = Field(
         description="The newest valid answer; null when there is none."
     )
+    topics_in_scope: int | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="The topics that have a prompt in scope (a prompt in two topics counts in "
+        "both topics, so the number is the topic rows of the prompts summary, without the row of "
+        "prompts that have no topic). Left out when it is not known.",
+    )
 
 
 class AiOverviewResponse(BaseModel):
@@ -248,7 +287,9 @@ class AiMetricResponse(BaseModel):
 
 class AiMetricPoint(BaseModel):
     t: date = Field(description="The Monday the week starts on, in the project's zone.")
-    value: float | None = Field(description="numerator / denominator; null when it is 0.")
+    value: float | None = Field(
+        description="numerator / denominator; null when the denominator is 0."
+    )
     numerator: float | None = Field(description="As in `AiMetricValue`.")
     denominator: float | None = Field(description="As in `AiMetricValue`.")
     n_observations: int = Field(description="Every answer behind the point, valid or not.")
@@ -378,6 +419,19 @@ class AiCompetitorEngine(BaseModel):
         description="With `include=lost_prompts`, on a competitor: the prompts where it is named "
         "and the own brand is not; [] when none. Left out otherwise.",
     )
+    lost_prompts_total: int | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=lost_prompts`, on a competitor: every prompt lost to it on the "
+        "engine, before the `lost_limit` cap of `lost_prompts`. Left out otherwise.",
+    )
+    lost_prompts_with_min_answers: int | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=lost_prompts`, on a competitor: the prompts in scope with at "
+        "least 4 answers on the engine, the 'of N prompts' beside `lost_prompts_total`. Left out "
+        "otherwise.",
+    )
 
 
 class AiCompetitor(BaseModel):
@@ -389,7 +443,7 @@ class AiCompetitor(BaseModel):
         default=None,
         exclude_if=_absent,
         description="With `include=top_sources`: the domains cited most with the entity, over all "
-        "engines. Left out otherwise.",
+        "engines; [] when it has none. Left out otherwise.",
     )
 
 

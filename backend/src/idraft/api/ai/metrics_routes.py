@@ -98,7 +98,9 @@ def metric_scope(
             alias="filter[engine_code_in]",
             max_length=3,
             description="The engines shown. Default: every engine of the project that is "
-            "enabled or has an answer in the window.",
+            "enabled or has an answer in the window. A code outside the three engines is a "
+            "`422`; a listed engine that is neither enabled nor answering is left out of the "
+            "engines shown.",
         ),
     ] = None,
     include_branded: Annotated[bool, Query(description="Count the branded prompts too.")] = False,
@@ -195,8 +197,8 @@ EntityIds = Annotated[
     "(own citation units over all those of the engine, as the Sources page counts them), Cited "
     "given citations, first mention and, on an engine that exposes fan-out, its presence and "
     "mean. `engine_average` holds the equal-weight average of the engines for five of them when "
-    "two engines have a value. `prompts_in_scope`, `last_observed_at` and `last_valid_at` sit "
-    "beside the engines. " + COMPARE + "`overview/ai` answers the same body.",
+    "two engines have a value. `prompts_in_scope`, `topics_in_scope`, `last_observed_at` and "
+    "`last_valid_at` sit beside the engines. " + COMPARE + "`overview/ai` answers the same body.",
 )
 @not_built
 async def metrics_overview(
@@ -247,7 +249,7 @@ async def metric_value(
     "prompts answered that week (`is_pooled`, `pool`); the first and last weeks may be partial "
     "(`is_partial`). They are the weekly points of the prompts summary's `total` row. `day` and "
     "`month` granularities are refused (`422`, code `not_built`). A series has no compare "
-    "parameters.",
+    "parameters: a previous window drawn over it is a second read with `from` and `to` shifted.",
 )
 @not_built
 async def metric_series(

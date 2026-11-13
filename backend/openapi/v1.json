@@ -124,6 +124,21 @@
             "title": "Entities",
             "type": "array"
           },
+          "entity_config_changes": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AiEntityConfigChange"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When more than one version is listed in `entity_config_versions`: the day each took effect, oldest first, so a chart can mark where share of voice changes basis. Left out when the window holds one version.",
+            "title": "Entity Config Changes"
+          },
           "entity_config_versions": {
             "description": "More than one means the entity set changed inside the window and older answers keep their set.",
             "items": {
@@ -237,32 +252,39 @@
         "type": "object"
       },
       "AiCi": {
-        "description": "A confidence interval. Declared and never returned in this package: the interval stays on\nthe client (Wilson, rule R8) until the statistics package adds it.",
+        "description": "A confidence interval, as docs/16 section 2 and docs/19 section 2.6 write it. Declared and\nnever returned in this package: the interval stays on the client (Wilson, rule R8) until the\nstatistics package adds it.",
         "properties": {
+          "high": {
+            "description": "The upper bound, in the unit of the value.",
+            "title": "High",
+            "type": "number"
+          },
           "level": {
-            "description": "The confidence level, for example 0.95.",
+            "description": "The confidence level: always 0.95.",
+            "maximum": 0.95,
+            "minimum": 0.95,
             "title": "Level",
             "type": "number"
           },
-          "lower": {
+          "low": {
             "description": "The lower bound, in the unit of the value.",
-            "title": "Lower",
+            "title": "Low",
             "type": "number"
           },
           "method": {
-            "description": "How the interval was computed, for example `wilson`.",
+            "description": "How the interval was computed.",
+            "enum": [
+              "wilson",
+              "bootstrap_cluster",
+              "normal_fixed_panel"
+            ],
             "title": "Method",
             "type": "string"
-          },
-          "upper": {
-            "description": "The upper bound, in the unit of the value.",
-            "title": "Upper",
-            "type": "number"
           }
         },
         "required": [
-          "lower",
-          "upper",
+          "low",
+          "high",
           "level",
           "method"
         ],
@@ -295,7 +317,7 @@
                 "type": "null"
               }
             ],
-            "description": "With `include=top_sources`: the domains cited most with the entity, over all engines. Left out otherwise.",
+            "description": "With `include=top_sources`: the domains cited most with the entity, over all engines; [] when it has none. Left out otherwise.",
             "title": "Top Sources"
           }
         },
@@ -336,6 +358,30 @@
             ],
             "description": "With `include=lost_prompts`, on a competitor: the prompts where it is named and the own brand is not; [] when none. Left out otherwise.",
             "title": "Lost Prompts"
+          },
+          "lost_prompts_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=lost_prompts`, on a competitor: every prompt lost to it on the engine, before the `lost_limit` cap of `lost_prompts`. Left out otherwise.",
+            "title": "Lost Prompts Total"
+          },
+          "lost_prompts_with_min_answers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=lost_prompts`, on a competitor: the prompts in scope with at least 4 answers on the engine, the 'of N prompts' beside `lost_prompts_total`. Left out otherwise.",
+            "title": "Lost Prompts With Min Answers"
           },
           "mention_rate": {
             "$ref": "#/components/schemas/AiMetricValue",
@@ -561,6 +607,28 @@
         "title": "AiDimension",
         "type": "object"
       },
+      "AiEntityConfigChange": {
+        "description": "The day an entity configuration version took effect.",
+        "properties": {
+          "from": {
+            "description": "The first project-local day answers were counted with this version; it can precede the window.",
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "version": {
+            "description": "The entity configuration version.",
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "from"
+        ],
+        "title": "AiEntityConfigChange",
+        "type": "object"
+      },
       "AiFilters": {
         "description": "The scope a value was counted over, resolved: what the request left out is null.",
         "properties": {
@@ -678,6 +746,21 @@
             },
             "title": "Entities",
             "type": "array"
+          },
+          "entity_config_changes": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AiEntityConfigChange"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When more than one version is listed in `entity_config_versions`: the day each took effect, oldest first, so a chart can mark where share of voice changes basis. Left out when the window holds one version.",
+            "title": "Entity Config Changes"
           },
           "entity_config_versions": {
             "description": "More than one means the entity set changed inside the window and older answers keep their set.",
@@ -812,7 +895,7 @@
                 "type": "null"
               }
             ],
-            "description": "numerator / denominator; null when it is 0.",
+            "description": "numerator / denominator; null when the denominator is 0.",
             "title": "Value"
           }
         },
@@ -987,7 +1070,7 @@
                 "type": "null"
               }
             ],
-            "description": "Answers, or the prompts with a valid answer for a prompt weighted rate. Null for a count and when suppressed; otherwise value = numerator / denominator.",
+            "description": "Answers, or the prompts with a valid answer for a prompt weighted rate; for `ai.fanout_mean_queries`, the valid answers that have fan-out queries. Null on `ai.valid_answers` and `ai.prompts_in_scope` (plain counts) and when suppressed; otherwise value = numerator / denominator.",
             "title": "Denominator"
           },
           "engine_code": {
@@ -1055,7 +1138,7 @@
             "type": "string"
           },
           "n_observations": {
-            "description": "Every answer behind the value, valid or not.",
+            "description": "Every answer behind the value, valid or not. Two keys carry the engine's valid answers instead, so their tiles read lower than the others (8 beside 10): `ai.citation_share` and `ai.recommendation_rate`.",
             "title": "N Observations",
             "type": "integer"
           },
@@ -1103,7 +1186,7 @@
                 "type": "null"
               }
             ],
-            "description": "The answers behind a prompt weighted rate: 4 of 8 answers. Left out on share of voice, shares of units and counts."
+            "description": "The answers behind a prompt weighted rate: 4 of 8 answers. The headline `value` is never successes / trials when this is set: it is the mean of the prompts' rates. Left out on share of voice, shares of units and counts."
           },
           "previous": {
             "anyOf": [
@@ -1224,6 +1307,18 @@
           "prompts_in_scope": {
             "$ref": "#/components/schemas/AiMetricValue",
             "description": "The prompts counted once, whether they have a valid answer or not."
+          },
+          "topics_in_scope": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The topics that have a prompt in scope (a prompt in two topics counts in both topics, so the number is the topic rows of the prompts summary, without the row of prompts that have no topic). Left out when it is not known.",
+            "title": "Topics In Scope"
           }
         },
         "required": [
@@ -25006,7 +25101,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/competitors": {
       "get": {
-        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One row per tracked entity (the own entities, then the competitors by name, those tracked in AI answers, at most 20; `entity_ids` narrows them), each with one entry per engine shown: Mentioned and Share of voice from the prompts summary's entity cells, citation share (the entity's citation units over all those of the engine, as the Sources page counts them) and recommendation (suppressed: `not_classified`). `is_top_competitor` is true on exactly the competitor with the most share of voice on that engine, and false for every row when no competitor was named. `include=lost_prompts` adds, per competitor and engine, the prompts where it is named and the own brand is not (the `lost_to` opportunity of the summary), by importance, at most `lost_limit`; `include=top_sources` adds the domains cited most with the entity, at most `sources_limit`, over all engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.",
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One row per tracked entity (the own entities, then the competitors by name, those tracked in AI answers, at most 20; `entity_ids` narrows them), each with one entry per engine shown: Mentioned and Share of voice from the prompts summary's entity cells, citation share (the entity's citation units over all those of the engine, as the Sources page counts them) and recommendation (suppressed: `not_classified`). `is_top_competitor` is true on exactly the competitor with the most share of voice on that engine, and false for every row when no competitor was named. `include=lost_prompts` adds, per competitor and engine, the prompts where it is named and the own brand is not (the `lost_to` opportunity of the summary), by importance, at most `lost_limit`, with `lost_prompts_total` (before the cap) and `lost_prompts_with_min_answers`; `include=top_sources` adds the domains cited most with the entity, at most `sources_limit`, over all engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.",
         "operationId": "competitors_api_v1_workspaces__workspace_id__projects__project_id__ai_competitors_get",
         "parameters": [
           {
@@ -25199,7 +25294,7 @@
             }
           },
           {
-            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
             "in": "query",
             "name": "filter[engine_code_in]",
             "required": false,
@@ -25215,7 +25310,7 @@
                   "type": "null"
                 }
               ],
-              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
               "maxLength": 3,
               "title": "Filter[Engine Code In]"
             }
@@ -25603,7 +25698,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/overview": {
       "get": {
-        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. Per engine shown: the valid answers, Mentioned, Cited, named and cited, the four outcomes, recommendation (suppressed: `not_classified`), share of voice, citation share (own citation units over all those of the engine, as the Sources page counts them), Cited given citations, first mention and, on an engine that exposes fan-out, its presence and mean. `engine_average` holds the equal-weight average of the engines for five of them when two engines have a value. `prompts_in_scope`, `last_observed_at` and `last_valid_at` sit beside the engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value. `overview/ai` answers the same body.",
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. Per engine shown: the valid answers, Mentioned, Cited, named and cited, the four outcomes, recommendation (suppressed: `not_classified`), share of voice, citation share (own citation units over all those of the engine, as the Sources page counts them), Cited given citations, first mention and, on an engine that exposes fan-out, its presence and mean. `engine_average` holds the equal-weight average of the engines for five of them when two engines have a value. `prompts_in_scope`, `topics_in_scope`, `last_observed_at` and `last_valid_at` sit beside the engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value. `overview/ai` answers the same body.",
         "operationId": "metrics_overview_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics_overview_get",
         "parameters": [
           {
@@ -25720,7 +25815,7 @@
             }
           },
           {
-            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
             "in": "query",
             "name": "filter[engine_code_in]",
             "required": false,
@@ -25736,7 +25831,7 @@
                   "type": "null"
                 }
               ],
-              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
               "maxLength": 3,
               "title": "Filter[Engine Code In]"
             }
@@ -25986,7 +26081,7 @@
             }
           },
           {
-            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
             "in": "query",
             "name": "filter[engine_code_in]",
             "required": false,
@@ -26002,7 +26097,7 @@
                   "type": "null"
                 }
               ],
-              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
               "maxLength": 3,
               "title": "Filter[Engine Code In]"
             }
@@ -26195,7 +26290,7 @@
             }
           },
           {
-            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
             "in": "query",
             "name": "filter[engine_code_in]",
             "required": false,
@@ -26211,7 +26306,7 @@
                   "type": "null"
                 }
               ],
-              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
               "maxLength": 3,
               "title": "Filter[Engine Code In]"
             }
@@ -26309,7 +26404,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/series": {
       "get": {
-        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One series per engine (and per listed entity with `entity_ids`) for `ai.mention_rate`, `ai.citation_rate` and `ai.share_of_voice`: a point for each week the window touches (weeks start on Monday in the project's timezone), oldest first, at most 14. A point holds the week's own answers, or the trailing four weeks inside the window when fewer than 10 prompts answered that week (`is_pooled`, `pool`); the first and last weeks may be partial (`is_partial`). They are the weekly points of the prompts summary's `total` row. `day` and `month` granularities are refused (`422`, code `not_built`). A series has no compare parameters.",
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Every number is read from that summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One series per engine (and per listed entity with `entity_ids`) for `ai.mention_rate`, `ai.citation_rate` and `ai.share_of_voice`: a point for each week the window touches (weeks start on Monday in the project's timezone), oldest first, at most 14. A point holds the week's own answers, or the trailing four weeks inside the window when fewer than 10 prompts answered that week (`is_pooled`, `pool`); the first and last weeks may be partial (`is_partial`). They are the weekly points of the prompts summary's `total` row. `day` and `month` granularities are refused (`422`, code `not_built`). A series has no compare parameters: a previous window drawn over it is a second read with `from` and `to` shifted.",
         "operationId": "metric_series_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__series_get",
         "parameters": [
           {
@@ -26419,7 +26514,7 @@
             }
           },
           {
-            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
             "in": "query",
             "name": "filter[engine_code_in]",
             "required": false,
@@ -26435,7 +26530,7 @@
                   "type": "null"
                 }
               ],
-              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
               "maxLength": 3,
               "title": "Filter[Engine Code In]"
             }
@@ -31377,7 +31472,7 @@
             }
           },
           {
-            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
             "in": "query",
             "name": "filter[engine_code_in]",
             "required": false,
@@ -31393,7 +31488,7 @@
                   "type": "null"
                 }
               ],
-              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
               "maxLength": 3,
               "title": "Filter[Engine Code In]"
             }
@@ -31608,7 +31703,7 @@
             }
           },
           {
-            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+            "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
             "in": "query",
             "name": "filter[engine_code_in]",
             "required": false,
@@ -31624,7 +31719,7 @@
                   "type": "null"
                 }
               ],
-              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window.",
+              "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
               "maxLength": 3,
               "title": "Filter[Engine Code In]"
             }

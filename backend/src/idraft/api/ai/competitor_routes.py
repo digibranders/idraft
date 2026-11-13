@@ -37,7 +37,8 @@ CompetitorInclude = Literal["lost_prompts", "top_sources"]
     "competitor with the most share of voice on that engine, and false for every row when no "
     "competitor was named. `include=lost_prompts` adds, per competitor and engine, the prompts "
     "where it is named and the own brand is not (the `lost_to` opportunity of the summary), by "
-    "importance, at most `lost_limit`; `include=top_sources` adds the domains cited most with the "
+    "importance, at most `lost_limit`, with `lost_prompts_total` (before the cap) and "
+    "`lost_prompts_with_min_answers`; `include=top_sources` adds the domains cited most with the "
     "entity, at most `sources_limit`, over all engines. " + COMPARE,
 )
 @not_built

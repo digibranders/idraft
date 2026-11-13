@@ -62,7 +62,7 @@ async def test_every_route_checks_access_in_order(world: World) -> None:
     value, and 501 for a good one."""
     for route in ROUTES:
         bad = {"compare": "previous_decade"} if route.compares else {"include_branded": "maybe"}
-        for params, answer in ((bad, INVALID), ({}, NOT_BUILT)):
+        for params, answer in ((bad, INVALID), (TOO_LONG, TOO_LARGE), ({}, NOT_BUILT)):
             asked = {**route.needs, **params}
             url = world.url(route)
 
@@ -364,6 +364,10 @@ def test_the_api_document_has_the_seven_routes() -> None:
         ("OverviewCompetitors", "seo_other_domains"),
         ("AiMetricMeta", "compare_window"),
         ("AiMetricMeta", "previous_answers"),
+        ("AiMetricMeta", "entity_config_changes"),
+        ("AiOverview", "topics_in_scope"),
+        ("AiCompetitorEngine", "lost_prompts_total"),
+        ("AiCompetitorEngine", "lost_prompts_with_min_answers"),
     ):
         assert member in schemas[name]["properties"], (name, member)
         assert member not in required[name], (name, member)
@@ -376,6 +380,20 @@ def test_the_api_document_has_the_seven_routes() -> None:
         "OverviewCompetitorsResponse",
     ):
         assert name in schemas, name
+
+
+def test_ci_is_the_interval_of_doc_16_and_doc_19() -> None:
+    """`{low, high, level: 0.95, method}`, as docs/16 section 2 and docs/19 section 2.6 write it."""
+    ci = build_openapi()["components"]["schemas"]["AiCi"]
+
+    assert set(ci["properties"]) == {"low", "high", "level", "method"}
+    level = ci["properties"]["level"]
+    assert (level["minimum"], level["maximum"]) == (0.95, 0.95)
+    assert _enums(ci["properties"]["method"]) == {
+        "wilson",
+        "bootstrap_cluster",
+        "normal_fixed_panel",
+    }
 
 
 def test_the_documented_routes_describe_what_they_will_do() -> None:
@@ -436,6 +454,67 @@ def test_the_examples_in_the_notes_validate_against_the_models(note: str) -> Non
         written = model.model_validate(example).model_dump(mode="json", by_alias=True)
 
         assert written == example, name
+
+
+def _example(note: str, name: str) -> dict[str, Any]:
+    block = dict(EXAMPLE.findall((NOTES / note).read_text()))[name]
+    example: dict[str, Any] = json.loads(block)
+    return example
+
+
+def _written(name: str, body: dict[str, Any]) -> dict[str, Any]:
+    written: dict[str, Any] = (
+        getattr(ai_metrics, name).model_validate(body).model_dump(mode="json", by_alias=True)
+    )
+    return written
+
+
+def test_the_optional_context_members_are_absent_unless_set() -> None:
+    """`topics_in_scope` and `entity_config_changes` are left out of the body when they are not
+    set, and the three lost prompt members come and go together (they need
+    `include=lost_prompts`, and a competitor row)."""
+    overview = _example("c8-metrics.md", "AiOverviewResponse")
+    assert "topics_in_scope" in overview["data"]
+    assert "entity_config_changes" in overview["meta"]
+    del overview["data"]["topics_in_scope"]
+    del overview["meta"]["entity_config_changes"]
+    bare = _written("AiOverviewResponse", overview)
+    assert "topics_in_scope" not in bare["data"]
+    assert "entity_config_changes" not in bare["meta"]
+
+    lost = ("lost_prompts", "lost_prompts_total", "lost_prompts_with_min_answers")
+    competitors = _example("c5-competitors.md", "AiCompetitorsResponse")
+    entries = [entry for row in competitors["data"] for entry in row["by_engine"]]
+    assert {tuple(key in entry for key in lost) for entry in entries} == {
+        (True, True, True),
+        (False, False, False),
+    }
+    for entry in entries:
+        for key in lost:
+            entry.pop(key, None)
+    for entry in [
+        e
+        for row in _written("AiCompetitorsResponse", competitors)["data"]
+        for e in row["by_engine"]
+    ]:
+        assert not set(lost) & set(entry)
+
+
+def test_an_example_shows_that_value_is_not_successes_over_trials() -> None:
+    """The headline of a prompt weighted rate is the mean of the prompts' rates (1.4 of 3 prompts),
+    not the answers behind it (3 of 7): a client must not divide `pooled` itself."""
+    body = _example("c8-metrics.md", "AiBreakdownResponse")
+    cells = [value for row in body["data"] for value in row["values"]]
+
+    assert any(
+        cell["pooled"]["successes"] / cell["pooled"]["trials"] != cell["value"] for cell in cells
+    )
+    cell = cells[0]
+    assert (cell["numerator"], cell["denominator"], cell["pooled"]) == (
+        1.4,
+        3.0,
+        {"successes": 3, "trials": 7},
+    )
 
 
 def test_the_overview_route_is_declared_before_the_metric_route() -> None:
