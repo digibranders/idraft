@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T22:23:24+05:30",
+ "updated": "2026-11-13T22:26:05+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1691,7 +1691,7 @@
     "done": 22
    },
    "owner": "",
-   "notes": "file work-packages/WP-30-runs-costs-health.md; estimate 8 tasks; decisions D-26"
+   "notes": "file work-packages/WP-30-runs-costs-health.md; estimate 8 tasks; decisions D-26 | plan on develop (T0 contract push then tasks 1-8, no migration); budgets CRUD, forecast, unit costs stubs; amends published C3 (valid = complete + partial)"
   },
   {
    "id": "WP-31",
@@ -4349,6 +4349,62 @@
    "granted": "2026-11-13T22:23:24+05:30",
    "scope": "settings.items plus own namespaces, additive",
    "until": "WP-31 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompts-screen.tsx",
+   "wp": "SHARED WP-30 (Task 5) with WP-19 (five hunks held) and later WP-17",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "swap the two Updated spans for UpdatedRunLink and add one AiCollectionStatus above the content; rebase before pushing, keep both sides",
+   "until": "WP-30 merged"
+  },
+  {
+   "path": "apps/web/src/features/shell/project-shell.tsx",
+   "wp": "WP-30",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "one prop for the sidebar collection line (only caller of SidebarNav)",
+   "until": "WP-30 merged"
+  },
+  {
+   "path": "apps/web/src/features/settings/settings-frame.tsx",
+   "wp": "SHARED WP-30 with WP-31",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "add 'budgets' to the WORKSPACE array; keep both sides",
+   "until": "WP-30 merged"
+  },
+  {
+   "path": "apps/web/src/features/settings/settings-frame.test.tsx",
+   "wp": "SHARED WP-30 with WP-31",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "its test",
+   "until": "WP-30 merged"
+  },
+  {
+   "path": "apps/web/src/lib/routes/paths.ts",
+   "wp": "WP-30",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "add 'budgets' to WorkspaceSettingsSection",
+   "until": "WP-30 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/handlers/operations-rules.ts",
+   "wp": "WP-30",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "one line: budgets/status reads a mutable mock budget list",
+   "until": "WP-30 merged"
+  },
+  {
+   "path": "apps/web/messages/en.json",
+   "wp": "SHARED WP-30",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "keys under runs and costs plus a new top-level budgets namespace plus settings.items.budgets; additive",
+   "until": "WP-30 merged"
+  },
+  {
+   "path": "backend/src/idraft/api/schemas/ai.py",
+   "wp": "SHARED WP-30 with WP-26, WP-31, WP-32",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "additive only if needed (new budget schemas go in the new schemas/budgets.py)",
+   "until": "WP-30 merged"
   }
  ],
  "followups": [
@@ -4686,6 +4742,13 @@
    "date": "2026-11-13T22:22:48+05:30",
    "title": "No markdown dependency (in-house subset renderer); D1 compare baseline newest earlier valid answer naming the own brand (404 when none); D4 Raw view fetches provider raw JSON on open with raw:read; D6 answer compare is a gained/lost/kept summary (2-column text view is WP-52); D8 WB-SRC-04 closes as a reusable QuotedPassage plus its use in the viewer (cited-URL inspector mounting is WP-22)",
    "status": "accepted by coordinator, owner to confirm"
+  },
+  {
+   "id": "WP-30-valid",
+   "by": "coordinator",
+   "date": "2026-11-13T22:26:05+05:30",
+   "title": "AI coverage 'valid' = complete + partial (matches is_valid and every Overview rate); the published C3 is amended in T0 (partial moves out of invalid_by_status into its own field), change-logged",
+   "status": "accepted by coordinator"
   }
  ],
  "policy": {
