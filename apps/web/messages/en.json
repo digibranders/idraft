@@ -4397,6 +4397,10 @@
       "citedWithNone": "None named",
       "citedWithOutside": "Outside the 200 most cited domains",
       "citedWithUnknown": "The name of this entity is not loaded yet.",
+      "citedWithPageTip": "The entity named most often beside the domain of this page. It is a figure of the domain, not of the page.",
+      "citedWithPageCell": "{name}, named in {count, plural, one {# answer} other {# answers}} that cite this domain, not only this page",
+      "citedWithLoading": "Cited with is still loading.",
+      "citedWithFailed": "Cited with could not be loaded. The other columns are complete.",
       "urlLabel": "cited page",
       "status": "Status",
       "new": "New",
@@ -4408,6 +4412,7 @@
       "lastSeen": "Last seen",
       "engines": "Engines",
       "search": "Search listed domains",
+      "searchPages": "Search listed pages",
       "expand": "Expand pages of {domain}",
       "collapse": "Collapse pages of {domain}",
       "viewAll": "View all {count, number} pages",
@@ -4423,6 +4428,7 @@
         "other": "pages"
       },
       "truncated": "The {shown, number} most cited domains are listed of {total, number}. Raise the minimum or narrow the filters.",
+      "truncatedPages": "The {shown, number} most cited pages are listed of {total, number}. Raise the minimum or narrow the filters.",
       "noPrevious": "The previous period has no answers, so nothing is marked New.",
       "emptyMinimum": "Lower the fewest citation units to see more rows.",
       "refreshFailed": "The list could not be refreshed. The rows shown are from the last read."

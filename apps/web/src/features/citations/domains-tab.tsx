@@ -1,14 +1,18 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { MessageSquare } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import type { Route } from 'next';
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
 
 import { DEFAULT_MIN_SUPPORT, DEFAULT_SORT } from './citation-scope';
+import {
+  CitationEmptyState,
+  CitationFilteredEmptyState,
+  CitationTableNotes,
+  resolveTableStatus,
+} from './citation-table-states';
 import type { CitationTabContext } from './citation-tabs';
 import { rowNameOf, useDomainColumns } from './domain-columns';
 import { buildRows, domainRowId, type CitationTableRow } from './domain-rows';
@@ -16,13 +20,8 @@ import { MinSupportSelect } from './min-support-select';
 import { SortSelect } from './sort-select';
 import { useExpandedPages } from './use-expanded-pages';
 import { DataTable } from '@/components/app/data-table/data-table';
-import type { RowTree, TableStatus } from '@/components/app/data-table/types';
-import { ReadOnlyFilterChips } from '@/components/app/filters/read-only-chips';
-import { Banner } from '@/components/app/status/banner';
-import { EmptyState } from '@/components/app/status/empty-state';
+import type { RowTree } from '@/components/app/data-table/types';
 import { InlineError } from '@/components/app/status/inline-error';
-import { Button } from '@/components/ui/button';
-import { TextLink } from '@/components/ui/text-link';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { entitiesQuery } from '@/lib/citations/entities-query';
 import { sourceDomainsQuery, type DomainInclude } from '@/lib/citations/source-queries';
@@ -160,68 +159,27 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
   }, []);
 
   const filtering = Object.keys(filterBar.values).length > 0 || query !== '';
-  // A minimum above the default can be what left no row: Clear filters puts it back
-  const minimumRaised = scope.minSupport > DEFAULT_MIN_SUPPORT;
+  // A minimum other than the default can be what left no row: Clear filters puts it back
   const clearFilters = (): void => {
     filterBar.onClear();
     setQuery('');
     if (scope.minSupport !== DEFAULT_MIN_SUPPORT) setSearch({ min: null });
   };
 
-  let status: TableStatus = 'ready';
-  if (read.isError && read.data === undefined) status = 'error';
-  else if (read.isPending) status = 'loading';
-  else if (read.isFetching) status = 'refetching';
-  // Nothing to list: no answer or answers that name no source, only when no filter (engine, topic, branded, a search)
-  // changed what was read; otherwise a filter, a search or the minimum left none
-  const settled = status === 'ready' || status === 'refetching';
-  if (settled && listed.length === 0) {
-    const noSource = !filtering && meta !== undefined && meta.citation_units === 0;
-    status = noSource ? 'empty' : 'filtered-empty';
-  }
+  const status = resolveTableStatus({
+    read: {
+      isError: read.isError,
+      isPending: read.isPending,
+      isFetching: read.isFetching,
+      hasData: read.data !== undefined,
+    },
+    listed: listed.length,
+    filtering,
+    meta,
+  });
   // A refresh that failed leaves the rows of the last read on screen: say so, with a way to ask again
   const refreshFailed = read.isError && read.data !== undefined;
 
-  const emptyState =
-    meta !== undefined && meta.answers === 0 ? (
-      <EmptyState
-        icon={MessageSquare}
-        title={t('empty.noAnswersTitle')}
-        reason={t('empty.noAnswersReason')}
-        headingLevel={2}
-        secondaryAction={
-          <TextLink render={<Link href={projectPath(workspaceSlug, projectSlug, '/ai/prompts')} />}>
-            {t('empty.toPrompts')}
-          </TextLink>
-        }
-      />
-    ) : (
-      <EmptyState
-        title={t('empty.noCitingTitle')}
-        reason={t('empty.noCitingReason', { answers: meta?.answers ?? 0 })}
-        headingLevel={2}
-      />
-    );
-  const filteredEmptyState = (
-    <EmptyState
-      title={t('filters.empty')}
-      reason={t('filters.emptyReason')}
-      headingLevel={2}
-      details={
-        <>
-          <ReadOnlyFilterChips fields={filterBar.fields} values={filterBar.values} />
-          {minimumRaised ? <p className="type-meta">{tt('emptyMinimum')}</p> : null}
-        </>
-      }
-      primaryAction={
-        filtering || scope.minSupport !== DEFAULT_MIN_SUPPORT ? (
-          <Button variant="secondary" onClick={clearFilters}>
-            {t('filters.clear')}
-          </Button>
-        ) : undefined
-      }
-    />
-  );
   const errorState = (
     <InlineError
       title={t('empty.failedTitle')}
@@ -236,28 +194,16 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
 
   return (
     <>
-      {meta === undefined ? null : (
-        <p className="type-meta">{tt('shareScope', { units: meta.citation_units, answers: meta.answers })}</p>
-      )}
-      {refreshFailed ? (
-        <Banner
-          tone="warning"
-          placement="region"
-          live
-          message={tt('refreshFailed')}
-          actions={
-            <Button variant="secondary" size="sm" loading={read.isFetching} onClick={() => void read.refetch()}>
-              {common('retry')}
-            </Button>
-          }
-        />
-      ) : null}
-      {read.data !== undefined && total > domains.length ? (
-        <Banner tone="warning" placement="region" live message={tt('truncated', { shown: domains.length, total })} />
-      ) : null}
-      {scope.compare && meta?.previous_answers === 0 ? (
-        <Banner tone="info" placement="region" live message={tt('noPrevious')} />
-      ) : null}
+      <CitationTableNotes
+        meta={meta}
+        compare={scope.compare}
+        refreshFailed={refreshFailed}
+        refetching={read.isFetching}
+        onRetry={() => void read.refetch()}
+        truncated={
+          read.data !== undefined && total > domains.length ? tt('truncated', { shown: domains.length, total }) : null
+        }
+      />
       <DataTable<CitationTableRow>
         caption={tt('domainsCaption')}
         itemNoun={{ one: tt('noun.one'), other: tt('noun.other') }}
@@ -298,8 +244,15 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
         rowTone={ownRow}
         status={status}
         errorState={errorState}
-        emptyState={emptyState}
-        filteredEmptyState={filteredEmptyState}
+        emptyState={<CitationEmptyState meta={meta} workspaceSlug={workspaceSlug} projectSlug={projectSlug} />}
+        filteredEmptyState={
+          <CitationFilteredEmptyState
+            filterBar={filterBar}
+            minSupport={scope.minSupport}
+            filtering={filtering}
+            onClear={clearFilters}
+          />
+        }
       />
     </>
   );

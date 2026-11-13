@@ -19,10 +19,14 @@ describe('defineCitationTabs', () => {
     );
   });
 
-  it('lists Domains now, with its label; T5a adds Pages', () => {
-    expect(CITATION_TABS.map((tab) => tab.id)).toEqual(['domains']);
-    const [domains] = CITATION_TABS;
-    expect(domains?.label(createTranslator({ locale: 'en', messages, namespace: 'citations' }))).toBe('Domains');
+  it('lists Domains then Pages, with their labels', () => {
+    expect(CITATION_TABS.map((tab) => tab.id)).toEqual(['domains', 'pages']);
+    const words = createTranslator({ locale: 'en', messages, namespace: 'citations' });
+    expect(CITATION_TABS.map((tab) => tab.label(words))).toEqual(['Domains', 'Pages']);
+  });
+
+  it('chooses Pages when the address names it', () => {
+    expect(activeCitationTab(CITATION_TABS, 'pages')?.id).toBe('pages');
   });
 });
 

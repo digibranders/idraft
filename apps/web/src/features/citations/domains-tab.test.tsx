@@ -575,6 +575,20 @@ describe('DomainsTab', () => {
     expect((await loaded()).querySelectorAll('[role="rowheader"]').length).toBeGreaterThan(0);
   });
 
+  it('the default minimum that hides every cited domain says to lower it', async () => {
+    // Every domain cited has 1 unit and the default minimum, 2, leaves them all out
+    serveDomains([domainOf({ citation_units: 1, source_share: share(1) })], {
+      meta: {
+        ...META,
+        citation_units: 1,
+        by_role: [{ domain_role: 'third_party', citation_units: 1, observations: 1 }],
+      },
+    });
+    renderTab();
+    expect(await screen.findByRole('heading', { name: 'No domain or page matches these filters' })).toBeInTheDocument();
+    expect(screen.getByText('Lower the fewest citation units to see more rows.')).toBeInTheDocument();
+  });
+
   it('says nothing of the minimum when the default leaves no row because nothing was cited', async () => {
     serveDomains([], { meta: { ...META, answers: 12, answers_citing: 0, citation_units: 0, by_role: [] } });
     renderTab();
