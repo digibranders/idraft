@@ -20,6 +20,7 @@ from idraft.api.schemas import ai_metrics
 from tests.api.ai.metrics_support import (
     BREAKDOWN,
     COMPETITOR_ROUTES,
+    COMPETITORS,
     LONGEST,
     METRIC,
     METRIC_ROUTES,
@@ -37,7 +38,7 @@ from tests.conftest import PostgresServer
 NOT_BUILT = (501, "not_implemented")
 OK = (200, "ok")
 # The routes WP-32 has built: a good request answers 200 and no longer 501.
-BUILT = {OVERVIEW.name, OVERVIEW_AI.name}
+BUILT = {OVERVIEW.name, OVERVIEW_AI.name, COMPETITORS.name}
 FORBIDDEN = (403, "forbidden")
 NOT_FOUND = (404, "not_found")
 INVALID = (422, "validation_failed")
@@ -271,7 +272,12 @@ async def test_entity_ids_are_at_most_twenty_uuids_on_the_value_series_and_compe
 ) -> None:
     ids = [f"{n:08x}-7c1e-4a52-9b3d-{n:012x}" for n in range(21)]
     for route in (METRIC, SERIES, *COMPETITOR_ROUTES[:1]):
-        assert problem(await world.read(route, entity_ids=",".join(ids[:20]))) == NOT_BUILT
+        at_most = await world.read(route, entity_ids=",".join(ids[:20]))
+        # The competitors read is built: twenty ids that name no entity answer 200
+        if route.name in BUILT:
+            assert at_most.status_code == 200, route.name
+        else:
+            assert problem(at_most) == NOT_BUILT, route.name
         assert problem(await world.read(route, entity_ids=",".join(ids))) == INVALID, route.name
         assert problem(await world.read(route, entity_ids="nope")) == INVALID, route.name
     for route in (OVERVIEW, BREAKDOWN, COMPETITOR_ROUTES[1]):
