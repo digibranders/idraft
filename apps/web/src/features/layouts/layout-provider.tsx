@@ -342,7 +342,8 @@ function ScreenProvider({ screen, workspaceId, capabilities, registry, children 
         const { draft } = live.current;
         if (draft === null) return false;
         const next = draftSetCardOption(draft, id, key, value);
-        if (!edit(next, { id, part: 'options' })) return false;
+        // No focus request: the options popover is open and keeps focus in its radio group while a choice is made
+        if (!edit(next)) return false;
         const card = cardsOf(next).find((candidate) => candidate.id === id);
         const option = card === undefined ? undefined : cardType(card.type)?.options[key];
         if (card !== undefined) {

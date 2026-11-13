@@ -532,7 +532,8 @@ describe('editing cards', () => {
     mount();
     await customizing();
     expect(run(() => current().actions.setCardOption('key-changes', 'rows', '5'))).toBe(true);
-    expect(current().focus).toEqual({ id: 'key-changes', part: 'options' });
+    // The open options popover keeps focus in its radio group: no focus request that would pull it to the button
+    expect(current().focus).toBeNull();
     await waitFor(() => {
       expect(polite()).toBe('Key changes: Rows 5 rows');
     });
