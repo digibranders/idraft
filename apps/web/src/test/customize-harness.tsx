@@ -34,10 +34,14 @@ export interface ServeOptions {
   read?: 'ok' | 'error';
   /** A save that waits for this promise before it answers. */
   holdSave?: Promise<void>;
+  /** What a save answers: 200 by default, 500 (a failure) or 412 (the layout changed somewhere else). */
+  putStatus?: 200 | 412 | 500;
+  /** Fields of the layout a read answers, over the built-in layout: a personal layout, a team default. */
+  layout?: Record<string, unknown>;
 }
 
 /** The layout routes: every screen reads as the built-in layout, and a save is accepted. */
-export function serveLayouts({ read = 'ok', holdSave }: ServeOptions = {}): void {
+export function serveLayouts({ read = 'ok', holdSave, putStatus = 200, layout = {} }: ServeOptions = {}): void {
   server.use(
     http.get(mswPath(LAYOUTS), ({ params }) => {
       if (read === 'error') {
@@ -56,6 +60,7 @@ export function serveLayouts({ read = 'ok', holdSave }: ServeOptions = {}): void
             team_document: null,
             updated_at: null,
             updated_by: null,
+            ...layout,
           },
         },
         { headers: { etag: '"e1"' } },
@@ -63,6 +68,17 @@ export function serveLayouts({ read = 'ok', holdSave }: ServeOptions = {}): void
     }),
     http.put(mswPath(PERSONAL), async ({ params }) => {
       if (holdSave !== undefined) await holdSave;
+      if (putStatus !== 200) {
+        return HttpResponse.json(
+          {
+            type: 'about:blank',
+            title: putStatus === 412 ? 'Precondition failed' : 'Internal',
+            status: putStatus,
+            code: putStatus === 412 ? 'precondition_failed' : 'internal',
+          },
+          { status: putStatus },
+        );
+      }
       return HttpResponse.json(
         {
           data: {
@@ -190,6 +206,8 @@ export interface UnderTestProps {
   capabilities?: Capabilities;
   /** The grid of a page: its Add card slot opens the catalog. Without it the grid has no slot. */
   addSlot?: boolean;
+  /** `none`: a screen whose save bar is somewhere else (the drawer). */
+  saveBar?: ComponentProps<typeof CustomizableScreen>['saveBar'];
 }
 
 /** One customizable screen: its header with the button and the badge, the test's controls, and the cards. */
@@ -201,6 +219,7 @@ export function ScreenUnderTest({
   extra,
   capabilities = BOTH_CHANNELS,
   addSlot = false,
+  saveBar,
 }: UnderTestProps): ReactElement {
   return (
     <PermissionProvider membership={membershipFactory('admin')}>
@@ -211,6 +230,7 @@ export function ScreenUnderTest({
           workspaceName="Acme"
           capabilities={capabilities}
           registry={defineCards({})}
+          {...(saveBar === undefined ? {} : { saveBar })}
         >
           <header>
             <CustomizingBadge />

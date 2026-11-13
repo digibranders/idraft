@@ -4,6 +4,7 @@ import type { ReactElement, ReactNode } from 'react';
 
 import { LayoutGrid, type LayoutGridProps } from '../layout-grid';
 import { LayoutProvider, type LayoutProviderProps } from '../layout-provider';
+import { LayoutSaveBar } from '../save-bar/layout-save-bar';
 import { CustomizeButton } from './customize-button';
 import { CustomizeController, useCustomize } from './customize-controller';
 import { useUndoKeys } from './use-undo-keys';
@@ -11,10 +12,12 @@ import { useUndoKeys } from './use-undo-keys';
 export interface CustomizableScreenProps extends LayoutProviderProps {
   /** Named in the dialogs of the team default. */
   workspaceName: string;
+  /** `end`: the save bar closes the screen. `none`: it is somewhere else (the footer of a drawer). */
+  saveBar?: 'end' | 'none';
 }
 
 /** The box the keys and the focus rules work inside: header, numbers, cards and the save bar. */
-function ScreenRoot({ children }: { children: ReactNode }): ReactElement {
+function ScreenRoot({ saveBar, children }: { saveBar: 'end' | 'none'; children: ReactNode }): ReactElement {
   const { rootRef } = useCustomize();
   const onKeyDown = useUndoKeys();
   return (
@@ -27,6 +30,7 @@ function ScreenRoot({ children }: { children: ReactNode }): ReactElement {
       className="flex min-w-0 flex-col gap-3"
     >
       {children}
+      {saveBar === 'end' ? <LayoutSaveBar /> : null}
     </div>
   );
 }
@@ -46,11 +50,16 @@ export function CustomizableGrid({ label, columns }: Pick<LayoutGridProps, 'labe
  * and the root the undo keys listen on. A page puts its whole body inside, header included, because the Customize
  * button and the badge read this screen's state.
  */
-export function CustomizableScreen({ workspaceName, children, ...provider }: CustomizableScreenProps): ReactElement {
+export function CustomizableScreen({
+  workspaceName,
+  saveBar = 'end',
+  children,
+  ...provider
+}: CustomizableScreenProps): ReactElement {
   return (
     <LayoutProvider {...provider}>
       <CustomizeController workspaceName={workspaceName}>
-        <ScreenRoot>{children}</ScreenRoot>
+        <ScreenRoot saveBar={saveBar}>{children}</ScreenRoot>
       </CustomizeController>
     </LayoutProvider>
   );

@@ -4249,7 +4249,19 @@
         "numberAdded": "{number} added",
         "numberRemoved": "{number} removed",
         "numberMoved": "{number}, position {position, number} of {total, number}",
-        "duplicated": "{card} duplicated, position {position, number} of {total, number}"
+        "duplicated": "{card} duplicated, position {position, number} of {total, number}",
+        "reset": "Layout reset to the default. Save to keep it."
+      },
+      "saveBar": {
+        "changes": "{count, plural, =0 {No changes} one {# change} other {# changes}}",
+        "scope": "Applies to your view, in every project",
+        "differs": "Your layout differs from the team default. It applies to your view, in every project",
+        "undo": "Undo",
+        "redo": "Redo",
+        "reset": "Reset to default",
+        "cancel": "Cancel",
+        "save": "Save layout",
+        "failed": "Could not save. Try again."
       }
     },
     "core": {

@@ -29,7 +29,7 @@ const COPY = {
   note: 'WP-16. The real customize UI on the mock API: the Customize button and badge in the page header, Escape, the question before changes are lost, Undo and Redo with Ctrl or Cmd Z. A saved layout is kept in a cookie of the mock, so a reload keeps it.',
   project: 'Project',
   pageTitle: 'Overview',
-  grid: 'Overview cards',
+  grid: 'Customizable overview cards',
   numbers: 'Overview numbers',
   checking: 'Checking who is signed in.',
   signedOut: 'Sign in to try customize mode. While you are signed out this page asks for no layout.',

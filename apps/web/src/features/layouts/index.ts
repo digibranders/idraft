@@ -18,6 +18,10 @@ export { CustomizeButton, useCustomizeMenuItem } from './customize/customize-but
 export type { CustomizeButtonProps, CustomizeLabel } from './customize/customize-button';
 export { CustomizingBadge } from './customize/customizing-badge';
 
+// The bar of customize mode: changes, Undo and Redo, Reset, Cancel and Save
+export { LayoutSaveBar } from './save-bar/layout-save-bar';
+export type { LayoutSaveBarProps } from './save-bar/layout-save-bar';
+
 // The card catalog, opened by the Add card slot of the customizable grid
 export { CardCatalogDialog } from './catalog/card-catalog-dialog';
 export type { CardCatalogDialogProps } from './catalog/card-catalog-dialog';
