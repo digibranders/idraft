@@ -241,6 +241,61 @@ def test_the_api_document_no_longer_says_total_rows_and_co_mentions_are_not_buil
     assert "`include=co_mentions` adds `co_mentions`" in route
 
 
+CELLS_OPTIONS = [
+    {"include": "cells"},
+    {"include": "total,cells", "rows": "none"},
+    {
+        "include": "series,entities,total,co_mentions,cells",
+        "compare": "previous_period",
+        "group_by": "country",
+    },
+]
+
+
+@pytest.mark.parametrize("params", CELLS_OPTIONS, ids=str)
+async def test_the_cells_option_is_built(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    params: dict[str, str],
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    billing = await member(resources, migrated, workspace, "billing")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "ai", "prompts-summary")
+
+    response = await api.get(url, params=params, headers=viewer.headers)
+    refused = await api.get(url, params=params, headers=billing.headers)
+
+    assert response.status_code == 200, response.text
+    # Said once, even when the project has no engine to carry a cell.
+    assert set(response.json()["data"]["metric_context"]["detail"]) == {
+        "cited_given_citations",
+        "citation_share",
+        "first_mention",
+        "fanout_presence",
+        "fanout_mean",
+    }
+    assert problem(refused) == FORBIDDEN
+
+
+def test_the_api_document_says_what_cells_adds() -> None:
+    document = build_openapi()
+    schemas = document["components"]["schemas"]
+    operation = document["paths"][SUMMARY_PATH]["get"]
+    parameters = {item["name"]: item for item in operation["parameters"]}
+
+    assert "`cells`" in parameters["include"]["description"]
+    assert "`include=cells` adds `detail`" in operation["description"]
+    for name in ("EngineSummary", "SummaryMetricContext"):
+        description = schemas[name]["properties"]["detail"]["description"]
+        assert "include=cells" in description
+        assert "Not returned yet" not in description
+    fanout = schemas["EngineDetailCells"]["properties"]["fanout_presence"]
+    assert {"type": "null"} in fanout["anyOf"]
+
+
 FILTER_OPTIONS = [
     {"filter[outcome]": "neither"},
     {"filter[opportunity]": "named_not_cited"},
@@ -359,6 +414,7 @@ async def test_the_defaults_and_the_built_options_answer_as_before(
     data = response.json()["data"]
     for absent in ("compare_window", "previous_answers", "total", "co_mentions", "by_country"):
         assert absent not in data
+    assert "detail" not in data["metric_context"]
 
 
 @pytest.mark.parametrize("params", [{}, {"include": "series"}, {"include": "entities"}], ids=str)
@@ -373,6 +429,7 @@ async def test_a_summary_leaves_out_the_blocks_it_was_not_asked_for(
     assert engines
     for engine in engines:
         assert "previous" not in engine
+        assert "detail" not in engine
         # The cells per entity of a week need both `series` and `entities`.
         for point in engine.get("series", []):
             assert "entities" not in point
@@ -483,10 +540,13 @@ def test_the_api_document_has_the_summary_additions() -> None:
         "entities",
         "total",
         "co_mentions",
+        "cells",
     }
 
     for name in (
         "EngineCells",
+        "EngineDetailCells",
+        "SummaryDetailContext",
         "EntityPreviousCells",
         "SummaryTotal",
         "CoMentionPair",
@@ -504,8 +564,18 @@ def test_the_api_document_has_the_summary_additions() -> None:
     assert "Not returned yet" not in week_entities
     assert "include=series,entities" in week_entities
 
+    # The small cells are all there when the block is; the fan-out two are null, not absent.
+    assert set(schemas["EngineDetailCells"]["required"]) == {
+        "cited_given_citations",
+        "citation_share",
+        "first_mention",
+        "fanout_presence",
+        "fanout_mean",
+    }
+
     optional = {
-        "EngineSummary": {"previous"},
+        "EngineSummary": {"previous", "detail"},
+        "SummaryMetricContext": {"detail"},
         "EntityCells": {"previous"},
         "WeekCells": {"entities", "pool"},
         "PromptsSummary": {

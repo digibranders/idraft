@@ -58,6 +58,17 @@ class Counts:
     # Valid answers that name a given competitor and not the own brand; read only when asked
     # for (`counts_by_prompt(lost_to=...)`), 0 otherwise.
     lost_to: int = 0
+    # The small cells' counts (C-9), read only with `counts_by_prompt(detail=True)`, 0 otherwise:
+    # valid answers with a citation, and of them those that cite the own domain; the own and all
+    # citation units of the valid answers; valid answers that name the own brand first; valid
+    # answers with fan-out queries and those queries.
+    n_citing: int = 0
+    citing_own: int = 0
+    own_units: int = 0
+    all_units: int = 0
+    first_mentions: int = 0
+    fanout_answers: int = 0
+    fanout_queries: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,8 +132,16 @@ def _counts_columns(c: Any = _F) -> list[Any]:
 
 
 def _counts(row: Any) -> Counts:
+    asked = row._mapping  # the columns only some reads add
     return Counts(
-        lost_to=row._mapping.get("lost_to", 0),
+        lost_to=asked.get("lost_to", 0),
+        n_citing=asked.get("n_citing", 0),
+        citing_own=asked.get("citing_own", 0),
+        own_units=asked.get("own_units", 0),
+        all_units=asked.get("all_units", 0),
+        first_mentions=asked.get("first_mentions", 0),
+        fanout_answers=asked.get("fanout_answers", 0),
+        fanout_queries=asked.get("fanout_queries", 0),
         n_observations=row.n_observations,
         n_valid=row.n_valid,
         mentioned=row.mentioned,
@@ -313,10 +332,13 @@ async def counts_by_prompt(
     until: datetime,
     engine_codes: Sequence[str] | None,
     lost_to: UUID | None = None,
+    detail: bool = False,
 ) -> dict[tuple[UUID, str], Counts]:
     """The counts by prompt and engine. With `lost_to` (a competitor of the project) each also
     holds `Counts.lost_to`: the valid answers that name that competitor and not the own brand,
-    one more column of the same statement."""
+    one more column of the same statement. With `detail` it holds the small cells' counts too
+    (C-9): more columns of the same statement, and the answers' own table joined for the fan-out
+    count, so a read without `detail` neither reads the columns nor makes the join."""
     if not prompt_ids:
         return {}
     extra = (
@@ -334,12 +356,52 @@ async def counts_by_prompt(
             .label("lost_to")
         ]
     )
-    rows = await db.execute(
-        select(_F.prompt_id, _F.engine_code, *_counts_columns(), *extra)
-        .where(*_window(workspace_id, project_id, prompt_ids, since, until, engine_codes))
-        .group_by(_F.prompt_id, _F.engine_code)
+    statement = select(_F.prompt_id, _F.engine_code, *_counts_columns(), *extra).where(
+        *_window(workspace_id, project_id, prompt_ids, since, until, engine_codes)
     )
+    if detail:
+        # An alias, so that the window's subquery of superseded answers is not correlated to it.
+        answers = ai_observations.alias("answers")
+        a = answers.c
+        statement = (
+            statement.add_columns(*_detail_columns(a))
+            .select_from(
+                ai_observation_facts.join(
+                    answers,
+                    and_(
+                        a.id == _F.observation_id,
+                        a.observed_at == _F.observed_at,
+                        a.workspace_id == _F.workspace_id,
+                    ),
+                )
+            )
+            .where(a.project_id == project_id, a.observed_at >= since, a.observed_at < until)
+        )
+    rows = await db.execute(statement.group_by(_F.prompt_id, _F.engine_code))
     return {(row.prompt_id, row.engine_code): _counts(row) for row in rows}
+
+
+def _detail_columns(answers: Any) -> list[Any]:
+    """The small cells' counts of the valid facts (C-9), with the fan-out count of `answers`, the
+    answers' own columns."""
+    valid = _F.is_valid
+
+    def units(column: Any) -> Any:
+        return func.coalesce(func.sum(column).filter(valid), 0)
+
+    return [
+        func.count().filter(and_(valid, _F.total_citation_count > 0)).label("n_citing"),
+        func.count()
+        .filter(and_(valid, _F.own_domain_cited, _F.total_citation_count > 0))
+        .label("citing_own"),
+        units(_F.own_citation_count).label("own_units"),
+        units(_F.total_citation_count).label("all_units"),
+        func.count()
+        .filter(and_(valid, _F.own_mentioned, _F.own_mention_order == 1))
+        .label("first_mentions"),
+        func.count().filter(and_(valid, answers.fanout_count > 0)).label("fanout_answers"),
+        units(answers.fanout_count).label("fanout_queries"),
+    ]
 
 
 def _weekly_facts(

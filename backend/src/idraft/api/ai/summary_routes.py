@@ -77,7 +77,12 @@ Summaries = Annotated[SummaryService, Depends(get_summary_service)]
     "row lists; `total` does not depend on `rows`. `include=co_mentions` adds `co_mentions`: "
     "per engine shown, the valid answers in scope and, for each pair of the tracked entities "
     "(the own ones first, at most 20) named in the same valid answer, how many answers name "
-    "both; it does not depend on `rows`. Blocks not asked for are left out. "
+    "both; it does not depend on `rows`. `include=cells` adds `detail` to every engine of the "
+    "rows, `total` and `by_country`: Cited among the answers with citations, the own share of "
+    "the citation units, First mention (the own brand named before any other tracked entity, "
+    "of the answers that name it) and the fan-out presence and mean (null on an engine that "
+    "does not expose fan-out), over the window alone, with `metric_context.detail`. Blocks not "
+    "asked for are left out. "
     "`filter[outcome]=O` keeps a prompt row when at least one of its valid answers in the window, "
     "on the engines shown, had outcome O; `filter[opportunity]` keeps it by the same rule: "
     "`named_not_cited` is outcome `mentioned_only`, `cited_not_named` is `cited_only`, "
@@ -118,7 +123,7 @@ async def prompts_summary(
     include: Annotated[
         list[SummaryInclude] | None,
         Commas,
-        Query(description="Blocks to add: `series`, `entities`, `total`, `co_mentions`."),
+        Query(description="Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`."),
     ] = None,
     compare: Annotated[
         SummaryCompare,

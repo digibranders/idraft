@@ -26,6 +26,7 @@ from idraft.api.schemas.ai import (
     CountrySummary,
     EngineCells,
     EngineCoMentions,
+    EngineDetailCells,
     EngineSummary,
     EntityCells,
     EntityPreviousCells,
@@ -38,6 +39,7 @@ from idraft.api.schemas.ai import (
     PromptsSummary,
     PromptSummaryRow,
     SummaryCompare,
+    SummaryDetailContext,
     SummaryEntity,
     SummaryGroupBy,
     SummaryInclude,
@@ -51,6 +53,7 @@ from idraft.api.schemas.ai import (
 from idraft.api.schemas.metrics import MetricWindow
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
+from idraft.domain.ai_engines import ENGINES
 from idraft.domain.ai_metrics import POOL_BELOW_PROMPTS, pool_window, pools
 
 # The default window, and the longest one, in project-local days.
@@ -66,6 +69,10 @@ _OPPORTUNITY_OUTCOME: Final[Mapping[str, Outcome]] = {
 }
 # Entity cells are given for at most this many tracked entities, the own ones first.
 ENTITY_CELLS_MAX: Final = 20
+# The engines that expose fan-out queries: the fan-out cells of any other are null (C-9).
+_FANOUT_ENGINES: Final = frozenset(
+    str(code) for code, engine in ENGINES.items() if engine.exposes_fanout
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -270,6 +277,40 @@ def _topic_engine(members: Sequence[Counts]) -> EngineCells:
     )
 
 
+def _detail(code: str, members: Sequence[Counts], *, topic: bool) -> EngineDetailCells:
+    """The small cells of an engine from the counts of the row's prompts (`members` holds the
+    prompt alone, or the topic's, the total's or the country's prompts; C-9). Counts of answers in
+    a prompt row; in the others the three rates are prompt weighted as Mentioned is, and the
+    share and the mean stay sums over sums. A cell with a denominator of 0 has no value (a rate
+    of 0 is a real one), and the fan-out cells of an engine without fan-out are null."""
+    n_observations = sum(counts.n_observations for counts in members)
+
+    def ratio(successes: Callable[[Counts], int], trials: Callable[[Counts], int]) -> MetricCell:
+        return _cell(
+            sum(successes(counts) for counts in members),
+            sum(trials(counts) for counts in members),
+            n_observations,
+        )
+
+    def rate(successes: Callable[[Counts], int], trials: Callable[[Counts], int]) -> MetricCell:
+        if not topic:
+            return ratio(successes, trials)
+        return _prompt_weighted(
+            [(successes(counts), trials(counts)) for counts in members], n_observations
+        )
+
+    fanout = code in _FANOUT_ENGINES
+    return EngineDetailCells(
+        cited_given_citations=rate(lambda c: c.citing_own, lambda c: c.n_citing),
+        citation_share=ratio(lambda c: c.own_units, lambda c: c.all_units),
+        first_mention=rate(lambda c: c.first_mentions, lambda c: c.mentioned),
+        fanout_presence=rate(lambda c: c.fanout_answers, lambda c: c.n_valid) if fanout else None,
+        fanout_mean=ratio(lambda c: c.fanout_queries, lambda c: c.fanout_answers)
+        if fanout
+        else None,
+    )
+
+
 def sum_counts(parts: Sequence[Counts]) -> Counts:
     """The counts of one prompt and engine over several weeks, added up: each count is the sum,
     each last time the newest."""
@@ -289,6 +330,13 @@ def sum_counts(parts: Sequence[Counts]) -> Counts:
         last_observed_at=max(observed, default=None),
         last_valid_at=max(valid, default=None),
         lost_to=sum(part.lost_to for part in parts),
+        n_citing=sum(part.n_citing for part in parts),
+        citing_own=sum(part.citing_own for part in parts),
+        own_units=sum(part.own_units for part in parts),
+        all_units=sum(part.all_units for part in parts),
+        first_mentions=sum(part.first_mentions for part in parts),
+        fanout_answers=sum(part.fanout_answers for part in parts),
+        fanout_queries=sum(part.fanout_queries for part in parts),
     )
 
 
@@ -440,6 +488,8 @@ class _Read:
     timezone: str = "UTC"
     previous: Mapping[tuple[UUID, str], Counts] | None = None
     previous_named: Mapping[tuple[UUID, str, UUID], EntityCounts] = field(default_factory=dict)
+    # Whether `counts` holds the small cells' counts (`include=cells`): the rows then carry them.
+    detail: bool = False
 
 
 def _entity_cells(
@@ -534,7 +584,8 @@ def _engine_row(
             return _topic_engine(members)
         return _engine(members[0] if members else _NONE)
 
-    row = cells(found(read.counts))
+    current = found(read.counts)
+    row = cells(current)
     previous: EngineCells | _NotAsked | None = NOT_ASKED
     if read.previous is not None:
         # No answer of the row's prompts in the window before is null, so that no data is never
@@ -608,6 +659,7 @@ def _engine_row(
         previous=previous,
         series=None if read.weeks is None else [point(week) for week in read.weeks],
         entities=None if read.entity_ids is None else [entity(e) for e in read.entity_ids],
+        detail=_detail(code, current, topic=topic) if read.detail else None,
     )
 
 
@@ -681,7 +733,58 @@ def _countries(
     ]
 
 
-def _context() -> SummaryMetricContext:
+def _detail_context() -> SummaryDetailContext:
+    """How the cells of `EngineSummary.detail` are weighted, said once (C-9)."""
+    per_prompt = "Counts of valid answers to one prompt, so each answer weighs the same."
+    rates = (
+        "Prompt weighted in a topic, total or country row: the mean over the prompts of each "
+        "prompt's share (prompts with nothing to rate are left out); `pooled` holds the answers."
+    )
+    sums = "In a topic, total or country row, sums over sums: every answer weighs the same."
+
+    def rate(metric: str, method: str) -> MetricContext:
+        return MetricContext(
+            metric=metric,
+            prompt_rows="observation_weighted",
+            topic_rows="prompt_weighted",
+            method=f"{method} {per_prompt} {rates}",
+        )
+
+    def total(metric: str, method: str) -> MetricContext:
+        return MetricContext(
+            metric=metric,
+            prompt_rows="observation_weighted",
+            topic_rows="observation_weighted",
+            method=f"{method} {per_prompt} {sums}",
+        )
+
+    return SummaryDetailContext(
+        cited_given_citations=rate(
+            "ai.citation_rate_given_citations",
+            "Valid answers that cite the own domain, of the valid answers with a citation.",
+        ),
+        citation_share=total(
+            "ai.citation_share",
+            "The own domain's citation units of all the units of the valid answers (a unit is a "
+            "distinct canonical URL of an answer).",
+        ),
+        first_mention=rate(
+            "ai.first_mention_rate",
+            "Valid answers that name the own brand before any other tracked entity, of the "
+            "valid answers that name it.",
+        ),
+        fanout_presence=rate(
+            "ai.fanout_presence_rate",
+            "Valid answers with at least one fan-out query. Null on an engine without fan-out.",
+        ),
+        fanout_mean=total(
+            "ai.fanout_mean_queries",
+            "Fan-out queries per valid answer that has some. Null on an engine without fan-out.",
+        ),
+    )
+
+
+def _context(*, detail: bool) -> SummaryMetricContext:
     per_prompt = "Counts of valid answers to one prompt, so each answer weighs the same."
     topic = (
         "Prompt weighted: the mean over the topic's prompts of each prompt's share of valid "
@@ -715,6 +818,7 @@ def _context() -> SummaryMetricContext:
             "entities it names (docs/16 section 5), summed over those answers; also in a topic "
             "row, where every answer weighs the same.",
         ),
+        detail=_detail_context() if detail else None,
     )
 
 
@@ -770,6 +874,8 @@ class SummaryService:
                 ids,
                 **window,
                 lost_to=lost_to_competitor(query.opportunity, tracked),
+                # The small cells' counts are columns of this same statement (C-9).
+                detail="cells" in query.include,
             )
             # The window compared with is read over the same prompts, so the branded exclusion,
             # the term subtree and the country scope hold for it as they do for the window.
@@ -847,6 +953,7 @@ class SummaryService:
             timezone=zone_row.timezone,
             previous=previous,
             previous_named=previous_named,
+            detail="cells" in query.include,
         )
         # The filters choose prompt rows and nothing else: every other block reads every prompt
         # in scope (C-5, C-6).
@@ -902,7 +1009,7 @@ class SummaryService:
             include_branded=query.include_branded or query.branded_only,
             branded_only=query.branded_only,
             engine_codes=shown,
-            metric_context=_context(),
+            metric_context=_context(detail="cells" in query.include),
             entities=[
                 SummaryEntity(
                     entity_id=entity.id,

@@ -615,7 +615,7 @@ class MetricCell(BaseModel):
     )
 
 
-SummaryInclude = Literal["series", "entities", "total", "co_mentions"]
+SummaryInclude = Literal["series", "entities", "total", "co_mentions", "cells"]
 SummaryCompare = Literal["none", "previous_period", "previous_year"]
 SummaryRows = Literal["topics", "none"]
 
@@ -708,6 +708,34 @@ class EntityCells(BaseModel):
     )
 
 
+class EngineDetailCells(BaseModel):
+    """The small cells of one engine over the window (contract C2, change log C-9): each is a
+    count of answers over another, with `value` null when the denominator is 0. In a topic, total
+    or country row the three rates are prompt weighted (`pooled` holds the answers) and the
+    share and the mean are sums over sums."""
+
+    cited_given_citations: MetricCell = Field(
+        description="Valid answers that cite the own domain over valid answers with at least "
+        "one citation (docs/16 A2 variant)."
+    )
+    citation_share: MetricCell = Field(
+        description="The own domain's citation units over all the citation units of the valid "
+        "answers (docs/16 A8): a unit is a distinct canonical URL of an answer."
+    )
+    first_mention: MetricCell = Field(
+        description="Valid answers that name the own brand before any other tracked entity over "
+        "valid answers that name it (docs/16 A12)."
+    )
+    fanout_presence: MetricCell | None = Field(
+        description="Valid answers with at least one fan-out query over valid answers (docs/16 "
+        "F1). Null on an engine that does not expose fan-out, never a rate of 0."
+    )
+    fanout_mean: MetricCell | None = Field(
+        description="Fan-out queries over the valid answers that have some (docs/16 F2). Null on "
+        "an engine that does not expose fan-out, never 0."
+    )
+
+
 class PointPool(BaseModel):
     """What a pooled point holds: the answers of its own week and of the weeks before it, inside
     the window (contract C2, change log C-11)."""
@@ -795,6 +823,12 @@ class EngineSummary(BaseModel):
         description="With `include=entities`: a cell for each tracked entity of `entities`, "
         "the own ones first, then competitors by name, at most 20. Left out otherwise.",
     )
+    detail: EngineDetailCells | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=cells`: the small cells of the engine over the window, "
+        "weighted as the row's cells are. Never in `previous` or in a week. Left out otherwise.",
+    )
 
 
 _LAST_OBSERVED = (
@@ -868,11 +902,27 @@ class MetricContext(BaseModel):
     method: str
 
 
+class SummaryDetailContext(BaseModel):
+    """What is true of every cell of `EngineSummary.detail` in the response."""
+
+    cited_given_citations: MetricContext
+    citation_share: MetricContext
+    first_mention: MetricContext
+    fanout_presence: MetricContext
+    fanout_mean: MetricContext
+
+
 class SummaryMetricContext(BaseModel):
     mentioned: MetricContext
     cited: MetricContext
     outcomes: MetricContext
     share_of_voice: MetricContext
+    detail: SummaryDetailContext | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=cells`: how the cells of `detail` are weighted. Left out "
+        "otherwise.",
+    )
 
 
 class PromptsSummary(BaseModel):
