@@ -1140,6 +1140,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What an AI answer gained, lost and kept against the earlier answer
+         * @description The tracked entities and the cited domains of this answer against the newest earlier valid answer of the same prompt and engine in which the own brand was mentioned. Problems: `404 not_found` (no such answer in the project), `404 no_baseline` (no earlier answer to compare with), `403` (no `data:read`), `422` (an id that is not a 64-bit integer). Not built yet: `501 not_implemented`.
+         */
+        get: operations["compare_observation_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__compare_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}/raw": {
         parameters: {
             query?: never;
@@ -3059,6 +3079,25 @@ export interface components {
              */
             data: components["schemas"]["Annotation"][];
         };
+        /** AnswerCompare */
+        AnswerCompare: {
+            /** @description The newest earlier valid answer of the same prompt and engine that mentioned the own brand. */
+            baseline: components["schemas"]["CompareSide"];
+            engine_code: components["schemas"]["EngineCode"];
+            entities: components["schemas"]["CompareEntities"];
+            /** @description The answer of the path. */
+            latest: components["schemas"]["CompareSide"];
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            sources: components["schemas"]["CompareSources"];
+        };
+        /** AnswerCompareResponse */
+        AnswerCompareResponse: {
+            data: components["schemas"]["AnswerCompare"];
+        };
         /** AnswerStatusCounts */
         AnswerStatusCounts: {
             /** Complete */
@@ -3279,6 +3318,11 @@ export interface components {
             host: string;
             /** Occurrences */
             occurrences: number;
+            /**
+             * Quote
+             * @description The passage the provider quoted from the source, whitespace collapsed, at most 1,000 characters. Null when the provider gave none or the answer was stored before quotes were kept.
+             */
+            quote?: string | null;
             /** Raw Url */
             raw_url: string;
             /** Referral Tag */
@@ -3432,6 +3476,100 @@ export interface components {
             scheduled: number | null;
             /** Valid */
             valid: number;
+        };
+        /** CompareEntities */
+        CompareEntities: {
+            /**
+             * Gained
+             * @description Named now, not in the baseline.
+             */
+            gained: components["schemas"]["CompareEntity"][];
+            /**
+             * Kept
+             * @description Named in both.
+             */
+            kept: components["schemas"]["CompareEntity"][];
+            /**
+             * Lost
+             * @description Named in the baseline, not now.
+             */
+            lost: components["schemas"]["CompareEntity"][];
+        };
+        /**
+         * CompareEntity
+         * @description A tracked entity the answer names.
+         */
+        CompareEntity: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "own" | "competitor" | "watch";
+        };
+        /**
+         * CompareSide
+         * @description One of the two answers compared.
+         */
+        CompareSide: {
+            /** Observation Id */
+            observation_id: string;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /** Own Domain Cited */
+            own_domain_cited: boolean;
+            /** Own Mentioned */
+            own_mentioned: boolean;
+        };
+        /**
+         * CompareSource
+         * @description A cited source, by registrable domain.
+         */
+        CompareSource: {
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /**
+             * Host
+             * @description The host of the first citation of the domain.
+             */
+            host: string;
+            /** Registrable Domain */
+            registrable_domain: string;
+            /**
+             * Title
+             * @description The title of the first citation of the domain.
+             */
+            title: string | null;
+        };
+        /** CompareSources */
+        CompareSources: {
+            /**
+             * Gained
+             * @description Cited now, not in the baseline.
+             */
+            gained: components["schemas"]["CompareSource"][];
+            /**
+             * Kept Count
+             * @description Registrable domains cited in both.
+             */
+            kept_count: number;
+            /**
+             * Lost
+             * @description Cited in the baseline, not now.
+             */
+            lost: components["schemas"]["CompareSource"][];
         };
         /** CompetitorOverride */
         CompetitorOverride: {
@@ -5760,6 +5898,11 @@ export interface components {
         ObservationDetail: {
             /** Answer Char Count */
             answer_char_count: number | null;
+            /**
+             * Answer Sha256
+             * @description SHA-256 of the answer text as UTF-8, lowercase hex, 64 characters. Null when the answer has no text.
+             */
+            answer_sha256?: string | null;
             /** Answer Text */
             answer_text: string | null;
             /** Check Url */
@@ -5806,6 +5949,11 @@ export interface components {
             offsets_unit: "utf16";
             /** Query Text */
             query_text: string;
+            /**
+             * Raw Sha256
+             * @description SHA-256 of the provider's body as received, lowercase hex, 64 characters. Null when the payload row is gone.
+             */
+            raw_sha256?: string | null;
             /** Replicate Index */
             replicate_index: number;
             /** Run Id */
@@ -12222,6 +12370,39 @@ export interface operations {
             };
         };
     };
+    compare_observation_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__compare_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                observation_id: number;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnswerCompareResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     observation_raw_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__raw_get: {
         parameters: {
             query?: {
@@ -15853,6 +16034,8 @@ export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<compon
 export const cardItemWidthAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CardItem"]["width"]> = ["third", "half", "two_thirds", "full"];
 export const citationOutDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationOut"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const citationRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationRow"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const compareEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompareEntity"]["role"]> = ["own", "competitor", "watch"];
+export const compareSourceDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompareSource"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
 export const configVersionDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ConfigVersion"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const connectionAuth_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["auth_method"]> = ["oauth", "api_key", "api_token", "service_account"];

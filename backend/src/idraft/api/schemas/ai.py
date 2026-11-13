@@ -583,6 +583,12 @@ class CitationOut(BaseModel):
     answer_block_index: int | None
     referral_tag: str | None
     flags: list[str]
+    quote: str | None = Field(
+        default=None,
+        description="The passage the provider quoted from the source, whitespace collapsed, at "
+        "most 1,000 characters. Null when the provider gave none or the answer was stored "
+        "before quotes were kept.",
+    )
 
 
 class MentionOut(BaseModel):
@@ -609,6 +615,16 @@ class ObservationDetail(ObservationSummary):
     offsets_unit: Literal["utf16"]
     citations: list[CitationOut]
     mentions: list[MentionOut]
+    answer_sha256: str | None = Field(
+        default=None,
+        description="SHA-256 of the answer text as UTF-8, lowercase hex, 64 characters. Null "
+        "when the answer has no text.",
+    )
+    raw_sha256: str | None = Field(
+        default=None,
+        description="SHA-256 of the provider's body as received, lowercase hex, 64 characters. "
+        "Null when the payload row is gone.",
+    )
 
 
 class ObservationResponse(BaseModel):

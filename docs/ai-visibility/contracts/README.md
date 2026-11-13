@@ -15,6 +15,7 @@ Brief: [WP-03](../work-packages/WP-03-contract-pack.md).
 | [c3-collection.md](c3-collection.md) | C3 and N5: run coverage, daily collection | `GET {P}/runs/{run_id}/ai-coverage`, `GET {P}/ai/collection/daily` | [WP-30](../work-packages/WP-30-runs-costs-health.md) |
 | [sources-additions.md](sources-additions.md) | Sources: series, cited with, role per engine, country, min support, changes | 4 built reads extended, `GET {P}/ai/sources/changes` | [WP-14](../work-packages/WP-14-sources-lane.md) |
 | [annotations-notes.md](annotations-notes.md) | N9 annotations and N13 notes | `GET {P}/ai/annotations`, `GET` and `POST {P}/notes`, `DELETE {P}/notes/{note_id}` | [WP-38](../work-packages/WP-38-notes-annotations.md) |
+| [evidence.md](evidence.md) | Evidence: answer hashes, citation quote, answer compare | `GET {P}/ai/observations/{observation_id}/compare`, 3 optional fields of the answer detail | [WP-26](../work-packages/WP-26-evidence-viewer.md) |
 | [c12a-layouts.md](c12a-layouts.md) | C12a: team and personal page layouts | `GET {W}/layouts/{screen}`, `PUT` and `DELETE {W}/me/layouts/{screen}`, `PUT` and `DELETE {W}/layouts/{screen}/default` | [WP-11](../work-packages/WP-11-layouts-api.md) |
 
 14 new routes (all answered `501 not_implemented` after their access checks when published) and 11 built

@@ -465,6 +465,11 @@ EXPECTED: dict[tuple[str, str], str] = {
         "data:read"
     ),
     # WP-26 evidence-viewer
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/"
+        "{observation_id}/compare",
+    ): "data:read",
     # WP-30 runs-costs-health
     # WP-31 settings-engines
     # WP-32 overview-aggregates

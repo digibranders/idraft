@@ -1056,6 +1056,54 @@
         "title": "AnnotationList",
         "type": "object"
       },
+      "AnswerCompare": {
+        "properties": {
+          "baseline": {
+            "$ref": "#/components/schemas/CompareSide",
+            "description": "The newest earlier valid answer of the same prompt and engine that mentioned the own brand."
+          },
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "entities": {
+            "$ref": "#/components/schemas/CompareEntities"
+          },
+          "latest": {
+            "$ref": "#/components/schemas/CompareSide",
+            "description": "The answer of the path."
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "sources": {
+            "$ref": "#/components/schemas/CompareSources"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "engine_code",
+          "latest",
+          "baseline",
+          "entities",
+          "sources"
+        ],
+        "title": "AnswerCompare",
+        "type": "object"
+      },
+      "AnswerCompareResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AnswerCompare"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AnswerCompareResponse",
+        "type": "object"
+      },
       "AnswerStatusCounts": {
         "properties": {
           "complete": {
@@ -1617,6 +1665,18 @@
             "title": "Occurrences",
             "type": "integer"
           },
+          "quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The passage the provider quoted from the source, whitespace collapsed, at most 1,000 characters. Null when the provider gave none or the answer was stored before quotes were kept.",
+            "title": "Quote"
+          },
           "raw_url": {
             "title": "Raw Url",
             "type": "string"
@@ -1971,6 +2031,176 @@
           "runs"
         ],
         "title": "CollectionDay",
+        "type": "object"
+      },
+      "CompareEntities": {
+        "properties": {
+          "gained": {
+            "description": "Named now, not in the baseline.",
+            "items": {
+              "$ref": "#/components/schemas/CompareEntity"
+            },
+            "title": "Gained",
+            "type": "array"
+          },
+          "kept": {
+            "description": "Named in both.",
+            "items": {
+              "$ref": "#/components/schemas/CompareEntity"
+            },
+            "title": "Kept",
+            "type": "array"
+          },
+          "lost": {
+            "description": "Named in the baseline, not now.",
+            "items": {
+              "$ref": "#/components/schemas/CompareEntity"
+            },
+            "title": "Lost",
+            "type": "array"
+          }
+        },
+        "required": [
+          "gained",
+          "lost",
+          "kept"
+        ],
+        "title": "CompareEntities",
+        "type": "object"
+      },
+      "CompareEntity": {
+        "description": "A tracked entity the answer names.",
+        "properties": {
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "own",
+              "competitor",
+              "watch"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "name",
+          "role"
+        ],
+        "title": "CompareEntity",
+        "type": "object"
+      },
+      "CompareSide": {
+        "description": "One of the two answers compared.",
+        "properties": {
+          "observation_id": {
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "own_domain_cited": {
+            "title": "Own Domain Cited",
+            "type": "boolean"
+          },
+          "own_mentioned": {
+            "title": "Own Mentioned",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "observation_id",
+          "observed_at",
+          "own_mentioned",
+          "own_domain_cited"
+        ],
+        "title": "CompareSide",
+        "type": "object"
+      },
+      "CompareSource": {
+        "description": "A cited source, by registrable domain.",
+        "properties": {
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "host": {
+            "description": "The host of the first citation of the domain.",
+            "title": "Host",
+            "type": "string"
+          },
+          "registrable_domain": {
+            "title": "Registrable Domain",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The title of the first citation of the domain.",
+            "title": "Title"
+          }
+        },
+        "required": [
+          "registrable_domain",
+          "host",
+          "domain_role",
+          "title"
+        ],
+        "title": "CompareSource",
+        "type": "object"
+      },
+      "CompareSources": {
+        "properties": {
+          "gained": {
+            "description": "Cited now, not in the baseline.",
+            "items": {
+              "$ref": "#/components/schemas/CompareSource"
+            },
+            "title": "Gained",
+            "type": "array"
+          },
+          "kept_count": {
+            "description": "Registrable domains cited in both.",
+            "title": "Kept Count",
+            "type": "integer"
+          },
+          "lost": {
+            "description": "Cited in the baseline, not now.",
+            "items": {
+              "$ref": "#/components/schemas/CompareSource"
+            },
+            "title": "Lost",
+            "type": "array"
+          }
+        },
+        "required": [
+          "gained",
+          "lost",
+          "kept_count"
+        ],
+        "title": "CompareSources",
         "type": "object"
       },
       "CompetitorOverride": {
@@ -8160,6 +8390,18 @@
             ],
             "title": "Answer Char Count"
           },
+          "answer_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SHA-256 of the answer text as UTF-8, lowercase hex, 64 characters. Null when the answer has no text.",
+            "title": "Answer Sha256"
+          },
           "answer_text": {
             "anyOf": [
               {
@@ -8299,6 +8541,18 @@
           "query_text": {
             "title": "Query Text",
             "type": "string"
+          },
+          "raw_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SHA-256 of the provider's body as received, lowercase hex, 64 characters. Null when the payload row is gone.",
+            "title": "Raw Sha256"
           },
           "replicate_index": {
             "title": "Replicate Index",
@@ -24121,6 +24375,71 @@
           }
         },
         "summary": "One AI answer with its citations and mentions",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}/compare": {
+      "get": {
+        "description": "The tracked entities and the cited domains of this answer against the newest earlier valid answer of the same prompt and engine in which the own brand was mentioned. Problems: `404 not_found` (no such answer in the project), `404 no_baseline` (no earlier answer to compare with), `403` (no `data:read`), `422` (an id that is not a 64-bit integer). Not built yet: `501 not_implemented`.",
+        "operationId": "compare_observation_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__compare_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "observation_id",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Observation Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnswerCompareResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "What an AI answer gained, lost and kept against the earlier answer",
         "tags": [
           "ai"
         ]
