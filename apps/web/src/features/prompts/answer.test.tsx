@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnswerInspector } from './answer-inspector';
 import { PromptsScreen } from './prompts-screen';
 import type { EngineCode, ObservationDetail, Role } from '@/lib/api/types';
+import { formatDetailDateTime } from '@/lib/format';
 import { PermissionProvider } from '@/lib/permissions';
 import { MOCK_ENTITY_IDS } from '@/mocks/entity-fixtures';
 import { membershipFactory } from '@/mocks/factories/identity';
@@ -1393,5 +1394,59 @@ describe('the answer viewer: quoted passages', () => {
     expect(within(panel).getByText(`“${hostile}”`)).toBeInTheDocument();
     expect(panel.querySelectorAll('blockquote')).toHaveLength(1);
     expect(Reflect.get(window, '__wp26_xss')).toBeUndefined();
+  });
+});
+
+// WB-ANS-04, 05 and 07: the rows the other tests of this file only touch in passing
+describe('the answer viewer: sources, the ads note and the details, row by row', () => {
+  it('lists each source with its host and its role in words (WB-ANS-04)', async () => {
+    serve(
+      detail({
+        citation_count: 3,
+        citations: [
+          citationOf(1, { domain_role: 'own' }),
+          citationOf(2, { domain_role: 'competitor' }),
+          citationOf(3, { domain_role: 'third_party' }),
+        ],
+      }),
+    );
+    renderOn('viewer', opened('2000001'));
+    const list = await screen.findByRole('list', { name: 'Sources cited in this answer' });
+    const items = within(list).getAllByRole('listitem');
+    expect(items).toHaveLength(3);
+    const roles = ['Own', 'Competitor', 'Third party'];
+    items.forEach((item, at) => {
+      expect(within(item).getByText(`a${String(at + 1)}.example`)).toBeInTheDocument();
+      expect(within(item).getByText(roles[at] ?? '')).toBeInTheDocument();
+    });
+  });
+
+  it('says ads are left out in the Evidence and Formatted views, and not for an answer with no text (WB-ANS-05)', async () => {
+    const note = 'Ads in the answer are left out of the mentions and the sources.';
+    serve(detail({}));
+    const view = renderOn('viewer', opened('2000001'));
+    await screen.findByText(note);
+    await view.user.click(screen.getByRole('radio', { name: 'Formatted' }));
+    expect(screen.getByText(note)).toBeInTheDocument();
+    view.unmount();
+    serve(detail({ status: 'empty', answer_text: null }));
+    renderOn('viewer', opened('2000001'));
+    await screen.findByText('The engine gave no answer');
+    expect(screen.queryByText(note)).toBeNull();
+  });
+
+  it('lists the engine, the time of the answer in the time zone of the project, the model and the outcome (WB-ANS-07)', async () => {
+    serve(detail({ observed_at: '2026-11-12T02:00:00Z', model_reported: 'gpt-6' }));
+    renderOn('viewer', opened('2000001'));
+    const panel = await viewer();
+    const details = within(panel).getByRole('heading', { name: 'Details' }).closest('section') as HTMLElement;
+    const valueOf = async (label: string): Promise<string | null> =>
+      (await within(details).findByText(label, { selector: 'dt' })).nextElementSibling?.textContent ?? null;
+    expect(await valueOf('Engine')).toBe('ChatGPT');
+    expect(await valueOf('Answered')).toBe(formatDetailDateTime('2026-11-12T02:00:00Z', 'Europe/Berlin'));
+    expect(await valueOf('Model')).toBe('gpt-6');
+    expect(await valueOf('Outcome')).toMatch(/\S/);
+    // No provider link when the API gave none: the row is left out, not shown empty
+    expect(within(details).queryByText('At the provider')).toBeNull();
   });
 });
