@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T12:40:48+05:30",
+ "updated": "2026-11-13T12:42:47+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -696,7 +696,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | from WP-15: after a 412 the conflict dialog must route through saveAnyway, loadRemote or discard (a plain save() would overwrite the remote change); all four writes share one in-flight guard so disable controls on saving | from WP-15: build on @/features/layouts only; useLayoutScreen() gives mode, dirty, canUndo/canRedo, defaultDocument (never null), canManage, saving, actions; after a 412 use saveAnyway/loadRemote/discard, never plain save(); disable controls on saving; numbers announce via useLayoutAnnouncer().say; Escape capture listener while a card is held; keyboard pick-up ignores keys within a few ms of the announcement"
+   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | tasks 0/15; plan on develop (parity table sec 2, WP-33 contract sec 5); customize button from 768 px like the preview"
   },
   {
    "id": "WP-17",
@@ -802,7 +802,7 @@
     "done": 53
    },
    "owner": "",
-   "notes": "file work-packages/WP-17-tp-header-filters.md; estimate 8 tasks; decisions D-03, D-35"
+   "notes": "file work-packages/WP-17-tp-header-filters.md; estimate 8 tasks; decisions D-03, D-35 | from WP-16: adopt NumberStrip inside CustomizableScreen yourself and add Customize numbers to the page More menu (plan docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5); WP-16 does not edit your strip files"
   },
   {
    "id": "WP-18",
@@ -1078,7 +1078,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | from WP-25: add tabs through features/prompts seams/inspector-tabs.ts (More tabs absorbs overflow); the e2e phone test hard-codes 4 tabs and no More button: update it when your tab lands; domain chips take href once the domain inspector route exists"
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | from WP-25: add tabs through features/prompts seams/inspector-tabs.ts (More tabs absorbs overflow); the e2e phone test hard-codes 4 tabs and no More button: update it when your tab lands; domain chips take href once the domain inspector route exists | from WP-16: adopt NumberStrip inside CustomizableScreen yourself and add Customize numbers to the page More menu (plan docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5); WP-16 does not edit your strip files"
   },
   {
    "id": "WP-22",
@@ -3957,6 +3957,34 @@
    "granted": "2026-11-13T06:49:17+05:30",
    "scope": "tests for the _bounded fix",
    "until": "WP-14 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/metric/metric-strip.tsx",
+   "wp": "WP-16 (T3)",
+   "granted": "2026-11-13T12:42:47+05:30",
+   "scope": "additive optional href on a metric item (numbers link in view mode)",
+   "until": "WP-16 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompt-inspector.tsx",
+   "wp": "WP-16 (T10)",
+   "granted": "2026-11-13T12:42:47+05:30",
+   "scope": "wrap the Overview tab in DrawerCustomizer, add Customize cards to More, route onClose through the leave guard, save bar in the footer; WP-25 is merged so no conflict",
+   "until": "WP-16 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/topic-inspector.tsx",
+   "wp": "WP-16 (T10)",
+   "granted": "2026-11-13T12:42:47+05:30",
+   "scope": "the same edit for the topic drawer; WP-20 (not started) rebases onto it",
+   "until": "WP-16 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/shell/page-header.tsx",
+   "wp": "WP-16 (optional)",
+   "granted": "2026-11-13T12:42:47+05:30",
+   "scope": "additive titleAddon slot for the Customizing badge",
+   "until": "WP-16 merged"
   }
  ],
  "followups": [
@@ -4108,6 +4136,16 @@
    "detail": "total_citation_count is the number of distinct canonical URLs only because the DataForSEO parser dedups before ingest. A future adapter that does not dedup would inflate citation_share and cited_given_citations: ai.citations has no unique key on the URL hash per answer.",
    "owner": "extraction owner (with WP-57)",
    "severity": "latent",
+   "status": "open"
+  },
+  {
+   "id": "F-16",
+   "found": "2026-11-13T12:42:47+05:30",
+   "by": "WP-16",
+   "title": "WB-LAY-48 audit entries visible in layouts has no home",
+   "detail": "No audit read route in the contract and no audit page in the web. Belongs with whoever builds the workspace audit log (settings or ops). Also: DS 3.34 ConflictDialog (720 px side by side) does not exist; WP-16 builds a 400 px alert conflict dialog instead.",
+   "owner": "settings or ops owner, owner decision",
+   "severity": "low",
    "status": "open"
   }
  ],
