@@ -5083,7 +5083,46 @@
       "notAvailable": {}
     },
     "topics": {
-      "common": {},
+      "common": {
+        "windowMeta": "{window}, {days, plural, one {# day} other {# days}}",
+        "noTopic": "Prompts without a topic",
+        "overlap": "Topics overlap: a prompt in two topics counts in both, so the rows do not add up to the total.",
+        "overlapCount": "{count, plural, one {# prompt is} other {# prompts are}} in more than one topic.",
+        "smallSample": "A rate under {min, number} valid answers shows its answer count and no percent.",
+        "weighting": {
+          "prompt": "Prompt weighted: each prompt counts once.",
+          "answer": "Answer weighted: each valid answer counts once."
+        },
+        "pooled": "A topic weekly point with fewer than {below, number} prompts answering that week shows the last 4 weeks together (clipped to the window); a prompt point always shows 4 weeks.",
+        "compareTest": "unpaired, pooled counts",
+        "compareTestNote": "A change is coloured only when it is larger than normal variation (unpaired test on pooled counts).",
+        "staleNotice": "These are the last figures read",
+        "partialNotice": "Partial data: {engines} {count, plural, one {has} other {have}} no valid answer in this window",
+        "errorTitle": "{title} could not be read",
+        "errorReason": "The server did not answer. Your filters are unchanged.",
+        "emptyNoEngineTitle": "No engine is part of this view",
+        "emptyNoEngineFiltered": "The engine filter leaves out every engine that is on.",
+        "emptyNoEngineOff": "No AI engine is on in this project.",
+        "emptyNoEngineAdmin": "No AI engine is on in this project. Ask a workspace admin to turn one on.",
+        "useAllEngines": "Use all engines",
+        "turnOnEngines": "Turn on engines",
+        "emptyNoTopicsTitle": "No topics yet",
+        "emptyNoTopicsReason": "Group prompts into topics to see where you are strong.",
+        "emptyNoTopicsFilteredReason": "Nothing in the chosen topic matches the current filters.",
+        "clearTopic": "Clear topic",
+        "openTopics": "Open Topics and prompts",
+        "emptyNoAnswersTitle": "No valid answers in these {days, plural, one {# day} other {# days}} on {engines}",
+        "emptyNoAnswersReason": "Prompts are asked on a schedule, so figures appear after the next run.",
+        "avg": "avg of {count, number}",
+        "answerCount": "{count, plural, one {# answer} other {# answers}}",
+        "promptCount": "{count, plural, one {# prompt} other {# prompts}}",
+        "tipShare": "{value}, {count, plural, one {# valid answer names} other {# valid answers name}} a tracked brand",
+        "metric": {
+          "mention": "Mention rate",
+          "citation": "Citation rate",
+          "shareOfVoice": "Share of voice"
+        }
+      },
       "heatmap": {},
       "extremes": {},
       "gap": {},
