@@ -878,6 +878,15 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     )
     more_ids["run_id"] = str(ai_run["id"])
     more_ids["blocked_run_id"] = str(blocked_run["id"])
+    # A live AI schedule, so the cost forecast has a row of the project's own to show.
+    await execute(
+        pg,
+        "INSERT INTO ops.schedules (workspace_id, project_id, workload, name, cadence, timezone, "
+        "next_run_at, selector) VALUES ($1, $2, 'ai_prompt', 'AI answers', 'daily', 'UTC', "
+        "now() + interval '1 day', '{}')",
+        workspace.id,
+        project_id,
+    )
 
     # WP-31 settings-engines
 

@@ -509,13 +509,13 @@ export interface paths {
         };
         /**
          * The workspace's budgets
-         * @description Oldest first, in pages. A member limited to some projects sees those projects' budgets only, not the workspace's. Not built yet: `501 not_implemented`.
+         * @description Oldest first, in pages. A member limited to some projects sees those projects' budgets only, not the workspace's; `404` for a `filter[project_id]` outside them.
          */
         get: operations["list_budgets_api_v1_workspaces__workspace_id__budgets_get"];
         put?: never;
         /**
          * Add a budget
-         * @description One per project (or the workspace), group and month. `limit_usd` is from 0 to 99999999999.99 with two places; a limit of 0 blocks every run of the group. `soft_limit_pct` is 1 to 100 (80 when left out) and `action_on_hard` `pause` when left out. `409 duplicate` when the budget exists; `422 validation_failed` with field code `project_unknown` at `project_id` for a project the workspace does not have. Not built yet: `501 not_implemented`.
+         * @description One per project (or the workspace), group and month. `limit_usd` is from 0 to 99999999999.99 with two places; a limit of 0 blocks every run of the group. `soft_limit_pct` is 1 to 100 (80 when left out) and `action_on_hard` `pause` when left out. Only stores a limit; it starts no run and spends nothing. `409 duplicate` when the budget exists; `422 validation_failed` with field code `project_unknown` at `project_id` for a project the workspace does not have. A member limited to some projects can add budgets for those projects only (`404` otherwise).
          */
         post: operations["create_budget_api_v1_workspaces__workspace_id__budgets_post"];
         delete?: never;
@@ -556,14 +556,14 @@ export interface paths {
         post?: never;
         /**
          * Delete a budget
-         * @description Runs it blocked stay blocked; nothing else changes. Not built yet: `501 not_implemented`.
+         * @description Runs it blocked stay blocked; nothing else changes. `404` for a budget that is not the workspace's, or not in the member's projects.
          */
         delete: operations["delete_budget_api_v1_workspaces__workspace_id__budgets__budget_id__delete"];
         options?: never;
         head?: never;
         /**
          * Change a budget's limit
-         * @description The limit, its soft share and the action at the hard limit. The scope and the group cannot change: delete the budget and add another. Not built yet: `501 not_implemented`.
+         * @description The limit, its soft share and the action at the hard limit. The scope and the group cannot change: delete the budget and add another. `404` for a budget that is not the workspace's, or not in the member's projects.
          */
         patch: operations["update_budget_api_v1_workspaces__workspace_id__budgets__budget_id__patch"];
         trace?: never;
@@ -674,7 +674,7 @@ export interface paths {
         };
         /**
          * What the live schedules are expected to cost in a month
-         * @description `month` is `YYYY-MM` (UTC; this month when left out). A row per visible project with live AI schedules: the windows its schedules open in the month times the price book's price of one full run. An estimate, never what is charged. Not built yet: `501 not_implemented`.
+         * @description `month` is `YYYY-MM` (UTC; this month when left out). A row per visible project with live AI schedules: the windows its schedules open in the month times the price book's price of one full run. An estimate, never what is charged; nothing is planned or started. A project whose run has no price is left out. `404` for a `filter[project_id]` the caller does not reach.
          */
         get: operations["cost_forecast_api_v1_workspaces__workspace_id__costs_forecast_get"];
         put?: never;
@@ -694,7 +694,7 @@ export interface paths {
         };
         /**
          * What one unit of work cost in a month
-         * @description `month` is `YYYY-MM` (UTC; this month when left out). A row per visible project: the cost of a tracked keyword, a provider request, an active prompt and an AI answer, the last by engine with the answers counted. A figure with nothing to divide by is `null`, never 0. Not built yet: `501 not_implemented`.
+         * @description `month` is `YYYY-MM` (UTC; this month when left out). A row per visible project: the cost of a tracked keyword, a provider request, an active prompt and an AI answer, the last by engine with the answers counted. A figure with nothing to divide by is `null`, never 0. `404` for a `filter[project_id]` the caller does not reach.
          */
         get: operations["unit_costs_api_v1_workspaces__workspace_id__costs_unit_costs_get"];
         put?: never;

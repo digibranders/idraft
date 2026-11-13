@@ -1,7 +1,7 @@
 """The contract of budgets, the forecast and unit costs (WP-30 task 0; doc 19 section 3.11.2,
-docs/ai-visibility/contracts/budgets-costs.md): the access checks answer first, the path, query
-and body are validated next, then `501 not_implemented` until WP-30 builds the bodies. The owner
-deletes this file when it writes the real tests."""
+docs/ai-visibility/contracts/budgets-costs.md): the access checks answer first, then the path,
+query and body are validated, then the route does its work. The behaviour is in test_budgets.py,
+test_budgets_tenant.py, test_cost_forecast.py and test_unit_costs.py."""
 
 from __future__ import annotations
 
@@ -17,7 +17,6 @@ from tests.api.auth.support import Workspace, make_workspace
 from tests.api.entities.support import member, problem
 from tests.conftest import PostgresServer
 
-NOT_BUILT = (501, "not_implemented")
 FORBIDDEN = (403, "forbidden")
 NOT_FOUND = (404, "not_found")
 UNAUTHENTICATED = (401, "unauthenticated")
@@ -32,7 +31,6 @@ UPDATE = {"limit_usd": "300.00", "soft_limit_pct": 90, "action_on_hard": "alert_
 # Method, path after the workspace, and the body the route takes.
 READS: list[tuple[str, str, dict[str, Any] | None]] = [
     ("GET", "budgets", None),
-    ("GET", f"budgets?filter[project_id]={PROJECT}", None),
     ("GET", "costs/forecast?month=2026-11", None),
     ("GET", "costs/unit-costs?month=2026-11", None),
 ]
@@ -70,7 +68,12 @@ async def test_each_new_route_checks_access_first_for_a_read(
     assert problem(anonymous) == UNAUTHENTICATED
     assert problem(unseen) == NOT_FOUND
     assert problem(refused) == FORBIDDEN
-    assert problem(allowed) == NOT_BUILT
+    assert allowed.status_code == 200, allowed.text
+
+
+# What a caller who may use the route gets for the ids above, which name nothing: the project
+# is unknown, the budget is not found.
+WRITE_OUTCOMES = {"POST": INVALID, "PATCH": NOT_FOUND, "DELETE": NOT_FOUND}
 
 
 @pytest.mark.parametrize(("method", "path", "body"), WRITES, ids=[row[0] for row in WRITES])
@@ -97,7 +100,7 @@ async def test_each_new_route_checks_access_first_for_a_write(
     assert problem(anonymous) == UNAUTHENTICATED
     assert problem(unseen) == NOT_FOUND
     assert problem(refused) == FORBIDDEN
-    assert problem(allowed) == NOT_BUILT
+    assert problem(allowed) == WRITE_OUTCOMES[method]
 
 
 BAD_REQUESTS: list[tuple[str, str, dict[str, Any] | None]] = [
@@ -147,7 +150,7 @@ async def test_a_bad_month_or_budget_id_is_422(
     assert problem(response) == INVALID
 
 
-async def test_a_good_month_and_body_reach_the_stub(
+async def test_the_edges_of_a_month_and_a_body_are_accepted(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
     """The limits are inclusive: 0 blocks every run, and the group `all` is a group."""
@@ -155,20 +158,22 @@ async def test_a_good_month_and_body_reach_the_stub(
     owner = await member(resources, migrated, workspace, "owner")
     edge = {"workload": "all", "limit_usd": "0.00", "soft_limit_pct": 100}
 
-    for month in ("2000-01", "2100-12"):
-        response = await api.get(
-            _url(workspace, f"costs/forecast?month={month}"), headers=owner.headers
-        )
-        assert problem(response) == NOT_BUILT
+    for route in ("costs/forecast", "costs/unit-costs"):
+        for month in ("2000-01", "2100-12"):
+            response = await api.get(
+                _url(workspace, f"{route}?month={month}"), headers=owner.headers
+            )
+            assert response.status_code == 200, (route, month, response.text)
     created = await api.post(_url(workspace, "budgets"), json=edge, headers=owner.headers)
+    budget_id = created.json()["data"]["budget_id"]
     updated = await api.patch(
-        _url(workspace, f"budgets/{BUDGET}"),
+        _url(workspace, f"budgets/{budget_id}"),
         json={"soft_limit_pct": 1},
         headers=owner.headers,
     )
 
-    assert problem(created) == NOT_BUILT
-    assert problem(updated) == NOT_BUILT
+    assert created.status_code == 201
+    assert (updated.status_code, updated.json()["data"]["soft_limit_pct"]) == (200, 1)
 
 
 def test_the_api_document_has_the_budget_and_cost_routes() -> None:

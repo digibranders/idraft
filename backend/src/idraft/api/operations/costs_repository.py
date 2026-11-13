@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any, Final
 from uuid import UUID
@@ -16,12 +16,16 @@ from sqlalchemy import ColumnElement, Text, case, cast, exists, func, literal, s
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.db.tables import (
+    ai_observations,
+    ai_prompts,
     budgets,
     collection_runs,
     cost_daily,
     projects,
     provider_cost_events,
     provider_price_book,
+    schedules,
+    tracked_keywords,
 )
 from idraft.domain.workloads import CostWorkload, cost_channel
 
@@ -274,3 +278,202 @@ async def list_prices(
         for row in rows
     ]
     return found, total
+
+
+async def visible_projects(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_ids: frozenset[UUID] | None,
+    *,
+    only: UUID | None,
+) -> list[UUID]:
+    """The workspace's projects that are not deleted and the caller reaches (`only` narrows to
+    one), oldest first."""
+    p = projects.c
+    statement = select(p.id).where(p.workspace_id == workspace_id, p.deleted_at.is_(None))
+    if project_ids is not None:
+        statement = statement.where(p.id.in_(sorted(project_ids)))
+    if only is not None:
+        statement = statement.where(p.id == only)
+    return list((await db.execute(statement.order_by(p.created_at, p.id))).scalars())
+
+
+@dataclass(frozen=True, slots=True)
+class AnswerCost:
+    """The current answers of a project and engine that have a cost: their summed cost and how
+    many they are."""
+
+    project_id: UUID
+    engine_code: str
+    total_usd: Decimal
+    answers: int
+
+
+async def answer_costs(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_ids: Collection[UUID],
+    *,
+    since: datetime,
+    until: datetime,
+) -> list[AnswerCost]:
+    """One grouped read of the current answers observed from `since` up to `until` that have a
+    cost. A superseded answer is a history row, and an answer with no cost is not averaged in."""
+    o = ai_observations.c
+    rows = await db.execute(
+        select(
+            o.project_id,
+            o.engine_code,
+            func.sum(o.cost_usd).label("total_usd"),
+            func.count().label("answers"),
+        )
+        .where(
+            o.workspace_id == workspace_id,
+            o.project_id.in_(sorted(project_ids)),
+            o.observed_at >= since,
+            o.observed_at < until,
+            o.superseded_by.is_(None),
+            o.cost_usd.is_not(None),
+        )
+        .group_by(o.project_id, o.engine_code)
+    )
+    return [
+        AnswerCost(row.project_id, row.engine_code, Decimal(row.total_usd), int(row.answers))
+        for row in rows
+    ]
+
+
+@dataclass(frozen=True, slots=True)
+class Spend:
+    total_usd: Decimal
+    requests: int
+
+
+async def spend_by_workload(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_ids: Collection[UUID],
+    *,
+    first: date,
+    last: date,
+    workloads: Collection[str],
+) -> dict[tuple[UUID, str], Spend]:
+    """The rollup's spend and provider requests from `first` to `last` (both included), by
+    project and workload. A project and workload with no row is not in the answer: nothing was
+    recorded for it."""
+    c = cost_daily.c
+    rows = await db.execute(
+        select(
+            c.project_id,
+            c.workload,
+            func.sum(c.cost_usd).label("total_usd"),
+            func.sum(c.request_count).label("requests"),
+        )
+        .where(
+            c.workspace_id == workspace_id,
+            c.project_id.in_(sorted(project_ids)),
+            c.cost_date >= first,
+            c.cost_date <= last,
+            c.workload.in_(sorted(workloads)),
+        )
+        .group_by(c.project_id, c.workload)
+    )
+    return {
+        (row.project_id, row.workload): Spend(Decimal(row.total_usd), int(row.requests))
+        for row in rows
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class ActiveCounts:
+    """Active prompts and active tracked keywords by project, those not deleted."""
+
+    prompts: dict[UUID, int]
+    keywords: dict[UUID, int]
+
+
+async def active_counts(
+    db: AsyncSession, workspace_id: UUID, project_ids: Collection[UUID]
+) -> ActiveCounts:
+    """Both counts in one statement."""
+    p, k = ai_prompts.c, tracked_keywords.c
+    prompts = (
+        select(literal("prompts").label("kind"), p.project_id, func.count().label("n"))
+        .where(
+            p.workspace_id == workspace_id,
+            p.project_id.in_(sorted(project_ids)),
+            p.is_active,
+            p.deleted_at.is_(None),
+        )
+        .group_by(p.project_id)
+    )
+    keywords = (
+        select(literal("keywords").label("kind"), k.project_id, func.count().label("n"))
+        .where(
+            k.workspace_id == workspace_id,
+            k.project_id.in_(sorted(project_ids)),
+            k.is_active,
+            k.deleted_at.is_(None),
+        )
+        .group_by(k.project_id)
+    )
+    found = ActiveCounts({}, {})
+    for row in await db.execute(prompts.union_all(keywords)):
+        (found.prompts if row.kind == "prompts" else found.keywords)[row.project_id] = int(row.n)
+    return found
+
+
+@dataclass(frozen=True, slots=True)
+class LiveSchedule:
+    project_id: UUID
+    cadence: str
+    timezone: str
+    window_start_local: time
+    weekday: int | None
+    month_day: int | None
+    provider_mode: str
+    schedule_id: UUID
+
+
+async def live_ai_schedules(
+    db: AsyncSession, workspace_id: UUID, project_ids: Collection[UUID]
+) -> list[LiveSchedule]:
+    """The active `ai_prompt` schedules of the projects that are not deleted, oldest first. A
+    paused or deleted schedule opens no window, and a cron schedule is not forecast."""
+    s = schedules.c
+    rows = await db.execute(
+        select(
+            s.id,
+            s.project_id,
+            s.cadence,
+            s.timezone,
+            s.window_start_local,
+            s.weekday,
+            s.month_day,
+            s.provider_mode,
+        )
+        .where(
+            s.workspace_id == workspace_id,
+            s.project_id.in_(sorted(project_ids)),
+            s.workload == "ai_prompt",
+            s.is_active,
+            s.deleted_at.is_(None),
+            # shortcut: a cron rule has no occurrence in the planner's rule model, so it is left
+            # out of the forecast; build its occurrences here when a cron AI schedule exists.
+            s.cadence != "cron",
+        )
+        .order_by(s.created_at, s.id)
+    )
+    return [
+        LiveSchedule(
+            project_id=row.project_id,
+            cadence=row.cadence,
+            timezone=row.timezone,
+            window_start_local=row.window_start_local,
+            weekday=row.weekday,
+            month_day=row.month_day,
+            provider_mode=row.provider_mode,
+            schedule_id=row.id,
+        )
+        for row in rows
+    ]
