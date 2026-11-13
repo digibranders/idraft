@@ -4,12 +4,15 @@ import {
   coverageRows,
   DEGRADED_BELOW,
   DEGRADED_MIN_PLANNED,
+  degradedEngines,
   lineOf,
   MISSING_SHOWN,
   missingShown,
+  progressOf,
   type CoverageEngine,
   type CoverageMissing,
   type LineRun,
+  type ProgressRun,
 } from './ai-health-model';
 
 /** Saturday 14 November 2026, 10:00 UTC: 11:00 in Berlin. */
@@ -193,5 +196,85 @@ describe('the degraded thresholds', () => {
   it('are 90 percent of at least 10 planned tasks (decision D12)', () => {
     expect(DEGRADED_BELOW).toBe(0.9);
     expect(DEGRADED_MIN_PLANNED).toBe(10);
+  });
+});
+
+describe('degradedEngines', () => {
+  const counted = (code: CoverageEngine['engine_code'], planned: number, valid: number): CoverageEngine =>
+    engine({ engine_code: code, planned, valid, partial: 0 });
+
+  it('an engine at 89.9 percent with 150 planned is degraded', () => {
+    // 134 of 150 is the largest count under 90 percent with 150 planned (89.3); 899 of 1,000 is 89.9 exactly
+    expect(degradedEngines([counted('gemini_web', 150, 134)])).toEqual([
+      { engine: 'gemini_web', planned: 150, valid: 134, rate: 134 / 150 },
+    ]);
+    expect(degradedEngines([counted('gemini_web', 1000, 899)])).toHaveLength(1);
+  });
+
+  it('exactly 90 percent is not degraded', () => {
+    expect(degradedEngines([counted('gemini_web', 150, 135)])).toEqual([]);
+    expect(degradedEngines([counted('gemini_web', 100, 90)])).toEqual([]);
+  });
+
+  it('under 10 planned is never degraded', () => {
+    expect(degradedEngines([counted('gemini_web', 9, 0)])).toEqual([]);
+    expect(degradedEngines([counted('gemini_web', 1, 0)])).toEqual([]);
+    // Exactly 10 planned is judged
+    expect(degradedEngines([counted('gemini_web', 10, 8)])).toHaveLength(1);
+  });
+
+  it('an engine with nothing planned is never degraded', () => {
+    expect(degradedEngines([counted('gemini_web', 0, 0)])).toEqual([]);
+  });
+
+  it('each engine is judged alone, a pooled 93 percent hides nothing', () => {
+    // 147 + 132 + 150 = 429 of 450 valid is 95 percent pooled, and 132 of 150 is 88 percent alone
+    const engines = [
+      counted('chatgpt_web', 150, 147),
+      counted('gemini_web', 150, 132),
+      counted('google_ai_mode', 150, 150),
+    ];
+    expect(degradedEngines(engines).map((row) => row.engine)).toEqual(['gemini_web']);
+    // Two of three engines under the line are both named, in the order given
+    expect(
+      degradedEngines([
+        counted('chatgpt_web', 150, 100),
+        counted('gemini_web', 150, 147),
+        counted('google_ai_mode', 20, 10),
+      ]).map((row) => row.engine),
+    ).toEqual(['chatgpt_web', 'google_ai_mode']);
+  });
+
+  it('degradedEngines agrees with coverageRows', () => {
+    const engines = [counted('chatgpt_web', 100, 90), counted('gemini_web', 150, 132), counted('google_ai_mode', 9, 1)];
+    const fromRows = coverageRows(engines)
+      .filter((row) => row.degraded)
+      .map((row) => row.engine);
+    expect(degradedEngines(engines).map((row) => row.engine)).toEqual(fromRows);
+  });
+});
+
+describe('progressOf', () => {
+  const open = (over: Partial<ProgressRun> = {}): ProgressRun => ({
+    tasks_total: 1000,
+    tasks_succeeded: 409,
+    tasks_failed: 3,
+    ...over,
+  });
+
+  it('counts the tasks that ended, failed ones included, of the tasks planned', () => {
+    expect(progressOf(open())).toEqual({ processed: 412, failed: 3, total: 1000 });
+  });
+
+  it('never counts more tasks than were planned', () => {
+    expect(progressOf(open({ tasks_total: 10, tasks_succeeded: 9, tasks_failed: 3 }))).toEqual({
+      processed: 10,
+      failed: 3,
+      total: 10,
+    });
+  });
+
+  it('is null while no task is planned yet: a count of 0 of 0 would be a claim', () => {
+    expect(progressOf(open({ tasks_total: 0, tasks_succeeded: 0, tasks_failed: 0 }))).toBeNull();
   });
 });

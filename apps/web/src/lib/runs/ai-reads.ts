@@ -8,6 +8,7 @@ import { projectKey } from '@/lib/api/keys';
 import { apiQuery } from '@/lib/api/query';
 import type { paths } from '@/lib/api/schema';
 import type { Run } from '@/lib/api/types';
+import { isOpenRun } from '@/lib/runs/run-status';
 
 /**
  * What the shell and the AI pages read of a project's collection (WP-30), shared like the taxonomy reads: a
@@ -72,6 +73,36 @@ export function useLatestFinishedAiRun(scope: AiRunsScope, enabled: boolean): Ru
   // The request's filters are the answer's reason; the check here keeps a link from pointing at a run the
   // answers did not come from, whatever the server sent
   return data?.data.find((run) => run.workload === 'ai_prompt' && ANSWERED.includes(run.status)) ?? null;
+}
+
+/** The statuses of a run that has not ended. */
+const OPEN: readonly StatusFilter[] = ['planned', 'running'];
+
+/** How often an open AI run is read again, as long as one is open (D15): the run's own poll (`FOLLOW_MS` of Runs). */
+export const OPEN_RUN_MS = 10_000;
+
+/** The open AI run in a runs answer; the request's filters are the reason, the check keeps a stray run out. */
+const openAiRunOf = (answer: { data: readonly Run[] } | undefined): Run | null =>
+  answer?.data.find((run) => run.workload === 'ai_prompt' && isOpenRun(run)) ?? null;
+
+/**
+ * The open (planned or running) AI run of the project, or `null` while it is read, when there is none, and
+ * when the read failed (a poll that fails after a good read keeps the run). Read again every 10 seconds
+ * while one is open and not at all otherwise: a run started from the page invalidates the project's runs,
+ * which is how the next one is noticed. `enabled` is false for a member who cannot read the data.
+ */
+export function useOpenAiRun(scope: AiRunsScope, enabled: boolean): Run | null {
+  const { data } = useQuery({
+    ...apiQuery(RUNS, {
+      params: {
+        path: pathOf(scope),
+        query: { 'filter[workload_in]': ['ai_prompt'], 'filter[status_in]': [...OPEN], limit: 1 },
+      },
+    }),
+    enabled,
+    refetchInterval: (query) => (openAiRunOf(query.state.data) === null ? false : OPEN_RUN_MS),
+  });
+  return openAiRunOf(data);
 }
 
 /** How often an open run's coverage is read again: the run's own poll (`FOLLOW_MS` of Runs). */
@@ -149,9 +180,10 @@ export function usePromptTexts(scope: AiRunsScope): ReadonlyMap<string, string> 
 /**
  * The names of the engines of the project from `GET {P}/engines`, as a function of the engine's code. An
  * engine that is not in the answer, or an answer that is not here yet, is shown as its code: never blank.
+ * `enabled` is false for a member who cannot read the data: nothing is asked and every name is its code.
  */
-export function useEngineNames(scope: AiRunsScope): (code: string) => string {
-  const { data } = useQuery(apiQuery(ENGINES, { params: { path: pathOf(scope) } }));
+export function useEngineNames(scope: AiRunsScope, enabled: boolean = true): (code: string) => string {
+  const { data } = useQuery({ ...apiQuery(ENGINES, { params: { path: pathOf(scope) } }), enabled });
   const names = useMemo(
     () => new Map<string, string>((data?.data ?? []).map((row) => [row.engine.engine_code, row.engine.label])),
     [data],

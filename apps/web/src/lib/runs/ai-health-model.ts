@@ -69,6 +69,41 @@ export function coverageRows(engines: readonly CoverageEngine[]): CoverageRow[] 
   });
 }
 
+/** An engine of a run that is degraded: the counts the notice names and the rate they make. */
+export interface DegradedEngine {
+  engine: string;
+  planned: number;
+  valid: number;
+  rate: number;
+}
+
+/**
+ * The engines of a run the degraded notice names (D12), one by one, in the order given. It is `coverageRows`
+ * filtered, so the notice and the run inspector can never disagree on which engines are degraded: the same
+ * exact rate against `DEGRADED_BELOW`, at least `DEGRADED_MIN_PLANNED` planned, each engine alone.
+ */
+export function degradedEngines(engines: readonly CoverageEngine[]): DegradedEngine[] {
+  return coverageRows(engines).flatMap(({ engine, planned, valid, rate, degraded }) =>
+    degraded && rate !== null ? [{ engine, planned, valid, rate }] : [],
+  );
+}
+
+/** The fields of a run the progress line reads. */
+export type ProgressRun = Pick<Run, 'tasks_total' | 'tasks_succeeded' | 'tasks_failed'>;
+
+/**
+ * How far an open run is: the tasks that ended (the failed ones too) of the tasks planned, and how many of
+ * them failed. `null` while the run has planned no task, as "0 of 0" would be a claim.
+ */
+export function progressOf(run: ProgressRun): { processed: number; failed: number; total: number } | null {
+  if (run.tasks_total <= 0) return null;
+  return {
+    processed: Math.min(run.tasks_succeeded + run.tasks_failed, run.tasks_total),
+    failed: run.tasks_failed,
+    total: run.tasks_total,
+  };
+}
+
 /** The missing answers to draw, and how many the cap leaves out. */
 export function missingShown(
   missing: readonly CoverageMissing[],

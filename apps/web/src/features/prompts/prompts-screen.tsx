@@ -20,6 +20,7 @@ import { parseAsString, useQueryStates } from 'nuqs';
 import { Fragment, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { AddPromptsDialog } from './add-prompts-dialog';
+import { AiCollectionStatus } from './ai-collection-status';
 import { AnswerInspector } from './answer-inspector';
 import {
   ComparedWindowProvider,
@@ -1236,6 +1237,12 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
             actions={toolbar === undefined ? emptyActions : undefined}
           />
           {droppedWords === null ? null : <Banner tone="info" placement="region" message={droppedWords} />}
+          <AiCollectionStatus
+            scope={scope}
+            workspaceSlug={workspaceSlug}
+            projectSlug={project.slug}
+            onFinished={() => void summary.refetch()}
+          />
           {content}
         </div>
         {actions.dialogs}

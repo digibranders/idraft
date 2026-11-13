@@ -80,3 +80,33 @@ export function serveRuns(answer: (query: URLSearchParams) => readonly Run[] | n
   );
   return { queries };
 }
+
+const ENGINES = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines';
+
+/** Answers the project's engines read with these labels, by engine code: what `useEngineNames` shows. */
+export function serveEngineNames(labels: Readonly<Record<string, string>>): void {
+  server.use(
+    http.get(mswPath(ENGINES), () =>
+      HttpResponse.json({
+        data: Object.entries(labels).map(([code, label]) => ({
+          active_prompts: 3,
+          engine: {
+            engine_code: code,
+            exposes_citations: true,
+            exposes_fanout: false,
+            label,
+            max_prompt_chars: 2000,
+            observation_class: 'consumer_ui',
+            vendor: 'Vendor',
+          },
+          estimated_monthly_cost_usd: null,
+          is_configured: true,
+          is_enabled: true,
+          location_ids: [],
+          provider_code: 'dataforseo',
+          replicates: 1,
+        })),
+      }),
+    ),
+  );
+}
