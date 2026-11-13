@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T21:55:23+05:30",
+ "updated": "2026-11-13T22:07:33+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -946,7 +946,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-19-compare-deltas.md; estimate 6 tasks; decisions D-03 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11"
+   "notes": "file work-packages/WP-19-compare-deltas.md; estimate 6 tasks; decisions D-03 | planning: branch ai/wp-19-compare cut from develop (bdb180b8); a Sonnet planner writes the plan; shares one compare helper with WP-33"
   },
   {
    "id": "WP-20",
@@ -1781,7 +1781,7 @@
     "done": 2
    },
    "owner": "",
-   "notes": "file work-packages/WP-32-overview-aggregates.md; estimate 8 tasks; decisions D-17 | plan committed (8 tasks); Task 1 contract notes (c8-metrics.md, c5-competitors.md) then Task 2 models + 7 stub routes + ONE regeneration = FIRST PUSH for WP-33 to 37; routes: ai/metrics/overview, overview/ai, ai/metrics/{metric}, .../series, .../breakdown, ai/competitors, overview/competitors; weekly only; SEO share of voice not built (F-26)"
+   "notes": "file work-packages/WP-32-overview-aggregates.md; estimate 8 tasks; decisions D-17 | plan committed (8 tasks); Task 1 contract notes and registry rows committed, Task 2 models + 7 stub routes (501) + one regeneration committed (51cdda0c) and in review: FIRST PUSH (contract for WP-33 to 37) right after the review fixes"
   },
   {
    "id": "WP-33",
@@ -1818,7 +1818,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20 | plan committed (13 tasks), leases granted incl. the eslint features/layouts boundary entry; T1 scope model and URL state running; milestone M1 at T6 | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor)"
+   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20 | tasks 4/13: T1 scope model, T2 ai_overview catalog (38 card types, reviewed vs inventory: 47 rows, no mismatch), T3 read hooks and fan-out mock handler, T4 aggregates model (60 tests) in review; T5 route, header, customize wiring and registry next; milestone M1 at T6; backed up on origin/ai/wp-33-overview-shell"
   },
   {
    "id": "WP-34",
