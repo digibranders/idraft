@@ -37,6 +37,10 @@ INVALID = (422, "validation_failed")
         ("sources/changes", {"include_unresolved_redirects": "true"}),
         ("sources/changes", {"kind": "lost", "include_engine_internal": "true"}),
         ("fanout-queries", {"include": "topics"}),
+        ("sources/diversity", {"include_unresolved_redirects": "true"}),
+        ("sources/diversity", {"include": "series", "include_engine_internal": "true"}),
+        ("sources/domains/g2.com", {"include_unresolved_redirects": "true"}),
+        ("sources/domains/g2.com", {"include_engine_internal": "true"}),
     ],
 )
 async def test_a_source_addition_answers_501(
@@ -58,9 +62,10 @@ async def test_a_source_addition_answers_501(
 
 
 NEW_ROUTES = ["sources/diversity", "sources/domains/g2.com", "sources/prompts"]
+BUILT_ROUTES = ["sources/diversity", "sources/domains/g2.com"]
 
 
-@pytest.mark.parametrize("path", NEW_ROUTES)
+@pytest.mark.parametrize("path", [path for path in NEW_ROUTES if path not in BUILT_ROUTES])
 async def test_a_new_source_route_answers_501(
     path: str, api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -71,6 +76,25 @@ async def test_a_new_source_route_answers_501(
     response = await api.get(project_url(workspace, project, "ai", path), headers=viewer.headers)
 
     assert problem(response) == NOT_BUILT
+
+
+@pytest.mark.parametrize("path", BUILT_ROUTES)
+async def test_a_built_new_source_route_answers_a_viewer(
+    path: str, api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The routes T5 builds answer `200` for a reader, empty when the project has no answer."""
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.get(project_url(workspace, project, "ai", path), headers=viewer.headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["meta"]["engine_codes"] == [
+        "chatgpt_web",
+        "gemini_web",
+        "google_ai_mode",
+    ]
 
 
 @pytest.mark.parametrize("path", NEW_ROUTES)

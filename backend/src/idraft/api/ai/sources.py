@@ -17,7 +17,15 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.ai import source_repository as repository
-from idraft.api.ai.source_repository import CitationFilter, Counted, SourceScope, Totals
+from idraft.api.ai.source_repository import (
+    CitationFilter,
+    Counted,
+    DiversityCount,
+    DomainCount,
+    PageCount,
+    SourceScope,
+    Totals,
+)
 from idraft.api.ai.summary import summary_dates, summary_weeks
 from idraft.api.pagination import (
     CursorPageInfo,
@@ -34,8 +42,18 @@ from idraft.api.ranks.repository import project_zone
 from idraft.api.ranks.service import instants
 from idraft.api.schemas.ai import MetricCell
 from idraft.api.schemas.ai_sources import (
+    CITED_WITH_MAX,
+    DETAIL_PAGES_MAX,
+    DETAIL_PROMPTS_MAX,
+    DETAIL_ROWS_MAX,
+    AdPresence,
     CitationPage,
     CitationRow,
+    CitedWith,
+    DiversityWeek,
+    DomainEngineSeries,
+    DomainEngineWeek,
+    DomainPrompt,
     DomainRole,
     EngineUnits,
     FanoutCitedDomain,
@@ -49,6 +67,11 @@ from idraft.api.schemas.ai_sources import (
     SourceChangeRow,
     SourceChangesMeta,
     SourceCompare,
+    SourceDiversity,
+    SourceDiversityEngine,
+    SourceDiversityMeta,
+    SourceDomainDetail,
+    SourceDomainDetailData,
     SourceDomainPage,
     SourceDomainRow,
     SourcePagePage,
@@ -169,6 +192,143 @@ def share(units: int, totals: Totals) -> MetricCell:
         numerator=units,
         denominator=whole,
         n_observations=totals.answers,
+    )
+
+
+NO_DIVERSITY: Final = DiversityCount(
+    answers=0, answers_citing=0, citation_units=0, distinct_domains=0, squares=0
+)
+
+
+def effective_sources(units: int, squares: int) -> float | None:
+    """The effective number of sources (docs/16 C3): 1 over the sum of squared shares
+    `u / units`, which is `units^2` over the sum of the squared units; null without a unit."""
+    return units * units / squares if units else None
+
+
+def diversity_series(
+    engine: str, weeks: Sequence[date], counted: dict[tuple[str, date], tuple[int, int, int]]
+) -> list[DiversityWeek]:
+    """An engine's point for every week; a week without a citation has no value."""
+    points = []
+    for week in weeks:
+        units, domains, squares = counted.get((engine, week), (0, 0, 0))
+        points.append(
+            DiversityWeek(
+                week_start=week,
+                citation_units=units,
+                distinct_domains=domains,
+                effective_sources=effective_sources(units, squares),
+            )
+        )
+    return points
+
+
+def ad_presence(counted: tuple[int, int, int]) -> AdPresence:
+    answers, with_ads, ads = counted
+    return AdPresence(
+        answers_with_ads=MetricCell(
+            value=None if answers == 0 else with_ads / answers,
+            numerator=with_ads,
+            denominator=answers,
+            n_observations=answers,
+        ),
+        ads=ads,
+    )
+
+
+def diversity_engine(
+    engine: str,
+    counted: DiversityCount,
+    series: list[DiversityWeek] | None,
+    ads: AdPresence | None,
+) -> SourceDiversityEngine:
+    units = counted.citation_units
+    return SourceDiversityEngine(
+        engine_code=EngineCode(engine),
+        answers=counted.answers,
+        answers_citing=counted.answers_citing,
+        citation_units=units,
+        distinct_domains=counted.distinct_domains,
+        effective_sources=MetricCell(
+            value=effective_sources(units, counted.squares),
+            numerator=units * units,
+            denominator=counted.squares,
+            n_observations=counted.answers,
+        ),
+        series=series,
+        ads=ads,
+    )
+
+
+def domain_engine_series(
+    engine: str, weeks: Sequence[date], counted: dict[tuple[str, date], tuple[int, int, int, int]]
+) -> DomainEngineSeries:
+    """A domain's weekly units on one engine, with the engine's units and answers of the week."""
+    points = []
+    for week in weeks:
+        units, seen, all_units, answers = counted.get((engine, week), (0, 0, 0, 0))
+        points.append(
+            DomainEngineWeek(
+                week_start=week,
+                citation_units=units,
+                observations=seen,
+                all_citation_units=all_units,
+                answers=answers,
+            )
+        )
+    return DomainEngineSeries(engine_code=EngineCode(engine), series=points)
+
+
+def domain_row(
+    row: DomainCount,
+    engines: Sequence[str],
+    whole: Totals,
+    *,
+    previous: PreviousUnits | None = None,
+    series: list[SourceWeekUnits] | None = None,
+) -> SourceDomainRow:
+    return SourceDomainRow(
+        registrable_domain=row.registrable_domain,
+        domain_role=cast(DomainRole, row.domain_role),
+        role_entity_id=row.role_entity_id,
+        citation_units=row.counted.citation_units,
+        observations=row.counted.observations,
+        prompts=row.counted.prompts,
+        engines=engine_units(row.counted, engines),
+        source_share=share(row.counted.citation_units, whole),
+        first_seen_at=row.counted.first_seen_at,
+        last_seen_at=row.counted.last_seen_at,
+        previous=previous,
+        series=series,
+    )
+
+
+def page_row(
+    row: PageCount,
+    engines: Sequence[str],
+    whole: Totals,
+    *,
+    previous: PreviousUnits | None = None,
+    series: list[SourceWeekUnits] | None = None,
+) -> SourcePageRow:
+    return SourcePageRow(
+        url_id=row.url_id,
+        url=row.url,
+        host=row.host,
+        registrable_domain=row.registrable_domain,
+        title=row.title,
+        domain_role=cast(DomainRole, row.domain_role),
+        role_entity_id=row.role_entity_id,
+        citation_units=row.counted.citation_units,
+        observations=row.counted.observations,
+        prompts=row.counted.prompts,
+        engines=engine_units(row.counted, engines),
+        source_share=share(row.counted.citation_units, whole),
+        first_seen_at=row.counted.first_seen_at,
+        last_seen_at=row.counted.last_seen_at,
+        previous=previous,
+        series=series,
     )
 
 
@@ -386,17 +546,10 @@ class SourceService:
                 prior_answers = await repository.answer_count(db, prior.scope)
         return SourceDomainPage(
             data=[
-                SourceDomainRow(
-                    registrable_domain=row.registrable_domain,
-                    domain_role=cast(DomainRole, row.domain_role),
-                    role_entity_id=row.role_entity_id,
-                    citation_units=row.counted.citation_units,
-                    observations=row.counted.observations,
-                    prompts=row.counted.prompts,
-                    engines=engine_units(row.counted, engines),
-                    source_share=share(row.counted.citation_units, whole),
-                    first_seen_at=row.counted.first_seen_at,
-                    last_seen_at=row.counted.last_seen_at,
+                domain_row(
+                    row,
+                    engines,
+                    whole,
                     previous=None
                     if prior is None
                     else previous_units(
@@ -455,21 +608,10 @@ class SourceService:
                 prior_answers = await repository.answer_count(db, prior.scope)
         return SourcePagePage(
             data=[
-                SourcePageRow(
-                    url_id=row.url_id,
-                    url=row.url,
-                    host=row.host,
-                    registrable_domain=row.registrable_domain,
-                    title=row.title,
-                    domain_role=cast(DomainRole, row.domain_role),
-                    role_entity_id=row.role_entity_id,
-                    citation_units=row.counted.citation_units,
-                    observations=row.counted.observations,
-                    prompts=row.counted.prompts,
-                    engines=engine_units(row.counted, engines),
-                    source_share=share(row.counted.citation_units, whole),
-                    first_seen_at=row.counted.first_seen_at,
-                    last_seen_at=row.counted.last_seen_at,
+                page_row(
+                    row,
+                    engines,
+                    whole,
                     previous=None
                     if prior is None
                     else previous_units(
@@ -549,6 +691,110 @@ class SourceService:
                 kind=kind,
                 min_support=min_support,
             ),
+        )
+
+    async def diversity(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        query: SourceQuery,
+        *,
+        include: Collection[str] = (),
+    ) -> SourceDiversity:
+        """The effective number of sources per engine (docs/16 C3), engines never pooled."""
+        engines = shown_engines(query.engine_codes)
+        weekly_counts: dict[tuple[str, date], tuple[int, int, int]] | None = None
+        ads: dict[str, tuple[int, int, int]] | None = None
+        async with self._transaction(access) as db:
+            now = await scoped(db, access, project_id, query, engines)
+            counts, pooled = await repository.diversity(db, now.scope)
+            if "series" in include:
+                weekly_counts = await repository.diversity_weeks(db, now.scope, now.window.timezone)
+            if "ads" in include:
+                ads = await repository.ads_presence(db, now.scope)
+        weeks = summary_weeks(now.first, now.last)
+        entries = [
+            diversity_engine(
+                code,
+                counts.get(code, NO_DIVERSITY),
+                None if weekly_counts is None else diversity_series(code, weeks, weekly_counts),
+                None if ads is None else ad_presence(ads.get(code, (0, 0, 0))),
+            )
+            for code in engines
+        ]
+        values = [
+            entry.effective_sources.value
+            for entry in entries
+            if entry.effective_sources.value is not None
+        ]
+        return SourceDiversity(
+            data=entries,
+            meta=SourceDiversityMeta(
+                window=now.window,
+                include_branded=query.include_branded,
+                engine_codes=[EngineCode(code) for code in engines],
+                distinct_domains=pooled,
+                effective_sources_engine_average=sum(values) / len(values) if values else None,
+            ),
+        )
+
+    async def domain(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        query: SourceQuery,
+        registrable_domain: str,
+    ) -> SourceDomainDetail:
+        """One registrable domain: its rows, pages, prompts, weekly units per engine and the
+        entities named with it, each list bounded; empty lists when it is not cited in scope.
+        The project is looked up first: an unknown or deleted one is `404`."""
+        name = registrable_domain.lower()
+        engines = shown_engines(query.engine_codes)
+        async with self._transaction(access) as db:
+            now = await scoped(db, access, project_id, query, engines)
+            rows, _ = await repository.domain_counts(
+                db,
+                now.scope,
+                roles=None,
+                registrable_domain=name,
+                sort="-citation_units",
+                offset=0,
+                limit=DETAIL_ROWS_MAX,
+            )
+            whole = await repository.totals(db, now.scope)
+            pages, _ = await repository.page_counts(
+                db,
+                now.scope,
+                roles=None,
+                registrable_domain=name,
+                sort="-citation_units",
+                offset=0,
+                limit=DETAIL_PAGES_MAX,
+            )
+            prompts = await repository.domain_prompts(db, now.scope, name, top=DETAIL_PROMPTS_MAX)
+            weekly_counts = await repository.domain_engine_weeks(
+                db, now.scope, name, now.window.timezone
+            )
+            named = await repository.cited_with(db, now.scope, [name], top=CITED_WITH_MAX)
+        weeks = summary_weeks(now.first, now.last)
+        return SourceDomainDetail(
+            data=SourceDomainDetailData(
+                registrable_domain=name,
+                rows=[domain_row(row, engines, whole) for row in rows],
+                engines=[domain_engine_series(code, weeks, weekly_counts) for code in engines]
+                if rows
+                else [],
+                top_pages=[page_row(row, engines, whole) for row in pages],
+                prompts=[
+                    DomainPrompt(prompt_id=prompt_id, citation_units=units, observations=seen)
+                    for prompt_id, units, seen in prompts
+                ],
+                cited_with=[
+                    CitedWith(entity_id=entity_id, observations=seen)
+                    for entity_id, seen in named.get(name, [])
+                ],
+            ),
+            meta=sources_meta(now, query, engines, whole),
         )
 
     async def citations(

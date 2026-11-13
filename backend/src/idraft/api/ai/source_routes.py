@@ -326,12 +326,12 @@ async def source_changes(
     "Engines are never pooled: `meta.distinct_domains` is a count over every engine in scope "
     "and `meta.effective_sources_engine_average` the equal-weight mean of the engines with "
     "units. `include=series` adds a weekly point per engine and `include=ads` the answers that "
-    "showed an ad. " + _NOT_BUILT,
+    "showed an ad.",
 )
-@not_built
 async def source_diversity(
     project_id: UUID,
     access: ReadData,
+    sources: Sources,
     scope: AnswerScope,
     flags: Flags,
     include: Annotated[
@@ -340,12 +340,20 @@ async def source_diversity(
         Query(
             max_length=2,
             description="Blocks to add to each engine: `series` (a weekly point) and `ads` (the "
-            "answers that showed an ad). Default none. " + _NOT_BUILT,
+            "answers that showed an ad). Default none.",
         ),
     ] = None,
     country_iso: CountryFilter = None,
 ) -> SourceDiversity:
-    raise not_built_yet()
+    refuse_unbuilt(
+        {
+            "include_unresolved_redirects": "unresolved_redirect" not in flags,
+            "include_engine_internal": "engine_internal" not in flags,
+        }
+    )
+    return await sources.diversity(
+        access, project_id, replace(scope, country_iso=country_iso), include=include or ()
+    )
 
 
 @router.get(
@@ -355,18 +363,27 @@ async def source_diversity(
     + "One registrable domain as the domain list names it: its rows (one per role and entity, "
     "at most 10), its units per engine and week, its 10 most cited pages, the 20 prompts "
     "whose answers cite it most and the 5 tracked entities named most in those answers. A "
-    "domain that is not cited in scope answers `200` with empty lists. " + _NOT_BUILT,
+    "domain that is not cited in scope answers `200` with empty lists; the name is read in "
+    "lower case.",
 )
-@not_built
 async def source_domain(
     project_id: UUID,
     registrable_domain: Annotated[str, Path(min_length=1, max_length=253)],
     access: ReadData,
+    sources: Sources,
     scope: AnswerScope,
     flags: Flags,
     country_iso: CountryFilter = None,
 ) -> SourceDomainDetail:
-    raise not_built_yet()
+    refuse_unbuilt(
+        {
+            "include_unresolved_redirects": "unresolved_redirect" not in flags,
+            "include_engine_internal": "engine_internal" not in flags,
+        }
+    )
+    return await sources.domain(
+        access, project_id, replace(scope, country_iso=country_iso), registrable_domain
+    )
 
 
 @router.get(

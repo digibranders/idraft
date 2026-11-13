@@ -91,7 +91,7 @@ WORDS = {
     "kind": "gsc",
     "engine_code": "chatgpt_web",
     "screen": "ai_overview",
-    "registrable_domain": "example.com",
+    "registrable_domain": "acme.example",
 }
 
 WORKSPACE_ROUTES = [(method, path) for method, path in ALL_ROUTES if "workspace_id" in _names(path)]
@@ -339,7 +339,12 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
         "filter[country_iso]": "US",
     },
     ("GET", _W + "/projects/{project_id}/ai/citations"): {"filter[country_iso]": "US"},
-    ("GET", _W + "/projects/{project_id}/ai/sources/diversity"): {"filter[country_iso]": "US"},
+    # Every block of the diversity read; the tenant's answer cites its own page once.
+    ("GET", _W + "/projects/{project_id}/ai/sources/diversity"): {
+        "include": "series,ads",
+        "filter[country_iso]": "US",
+    },
+    # The domain of the tenant's seeded citation (`WORDS`), so the detail has rows to show.
     ("GET", _W + "/projects/{project_id}/ai/sources/domains/{registrable_domain}"): {
         "filter[country_iso]": "US"
     },

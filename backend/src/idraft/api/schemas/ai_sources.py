@@ -310,10 +310,13 @@ class SourceDiversityEngine(BaseModel):
         default=None,
         exclude_if=_absent,
         max_length=SERIES_MAX,
-        description="With `include=series`. " + _NOT_RETURNED,
+        description="With `include=series`: a point per week of the window, oldest first, at "
+        "most 14, zero filled.",
     )
     ads: AdPresence | None = Field(
-        default=None, exclude_if=_absent, description="With `include=ads`. " + _NOT_RETURNED
+        default=None,
+        exclude_if=_absent,
+        description="With `include=ads`: the answers of the engine that showed an ad.",
     )
 
 
