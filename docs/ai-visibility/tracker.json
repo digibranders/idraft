@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T07:59:37+05:30",
+ "updated": "2026-11-13T08:06:25+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -4040,6 +4040,13 @@
    "wp": "WP-15",
    "granted": "2026-11-13T07:59:37+05:30",
    "scope": "append-only As built note at the end of section 10",
+   "until": "WP-15 merged"
+  },
+  {
+   "path": "backend/tests/api/layouts/test_catalog.py",
+   "wp": "WP-15",
+   "granted": "2026-11-13T08:06:25+05:30",
+   "scope": "one test only (test_a_screen_the_catalog_does_not_list_takes_only_an_empty_document): use 'citations' (listed, cards:false) instead of 'ai_overview'; backend/tests/api/layouts is also edited by the F-10 session (other files)",
    "until": "WP-15 merged"
   }
  ],
