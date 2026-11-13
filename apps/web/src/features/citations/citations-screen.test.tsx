@@ -857,9 +857,11 @@ describe('Citations page: the country scope', () => {
 
   it('the note names the country while one is chosen, and is absent for all countries', async () => {
     const chosen = render('?country=DE');
-    expect(
-      await screen.findByText('Only the prompts set in Germany are read. Prompts with no country are left out.'),
-    ).toBeInTheDocument();
+    const note = await screen.findByText(
+      'Only the prompts set in Germany are read. Prompts with no country are left out.',
+    );
+    // One message, not two joined in the markup: one text node
+    expect(note.childNodes).toHaveLength(1);
     chosen.unmount();
     render();
     await countryControl();

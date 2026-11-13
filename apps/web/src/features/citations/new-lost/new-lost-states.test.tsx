@@ -5,9 +5,11 @@ import { ChangeEmpty, ChangeFailed, CountFailed } from './new-lost-states';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
+const noop = (): void => undefined;
+
 describe('ChangeEmpty', () => {
   it('New names the minimum and the days before it', () => {
-    renderWithProviders(<ChangeEmpty kind="new" minSupport={5} days={28} noPrevious={false} />);
+    renderWithProviders(<ChangeEmpty kind="new" minSupport={5} days={28} noPrevious={false} onResetMinimum={noop} />);
     expect(screen.getByRole('heading', { name: 'No new source' })).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -17,7 +19,7 @@ describe('ChangeEmpty', () => {
   });
 
   it('Lost names the days of answers it needs behind the window', () => {
-    renderWithProviders(<ChangeEmpty kind="lost" minSupport={2} days={276} noPrevious={false} />);
+    renderWithProviders(<ChangeEmpty kind="lost" minSupport={2} days={276} noPrevious={false} onResetMinimum={noop} />);
     expect(screen.getByRole('heading', { name: 'No lost source' })).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -27,16 +29,44 @@ describe('ChangeEmpty', () => {
   });
 
   it('says that the previous period has no answers, and not that a minimum was too high', () => {
-    const { unmount } = renderWithProviders(<ChangeEmpty kind="new" minSupport={2} days={28} noPrevious />);
+    const { unmount } = renderWithProviders(
+      <ChangeEmpty kind="new" minSupport={2} days={28} noPrevious onResetMinimum={noop} />,
+    );
     expect(screen.getByText('The previous period has no answers, so nothing is new.')).toBeInTheDocument();
     expect(screen.queryByText(/Lower the minimum/)).toBeNull();
     unmount();
-    renderWithProviders(<ChangeEmpty kind="lost" minSupport={2} days={84} noPrevious />);
+    renderWithProviders(<ChangeEmpty kind="lost" minSupport={2} days={84} noPrevious onResetMinimum={noop} />);
     expect(screen.getByText('The earlier periods have no answers, so nothing can be lost.')).toBeInTheDocument();
   });
 
+  it('offers to reset a raised minimum to the default, which is what left no row', async () => {
+    const onResetMinimum = vi.fn();
+    const { user } = renderWithProviders(
+      <ChangeEmpty kind="new" minSupport={5} days={28} noPrevious={false} onResetMinimum={onResetMinimum} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Reset the minimum to 2' }));
+    expect(onResetMinimum).toHaveBeenCalledOnce();
+  });
+
+  it('offers no action at the default minimum, and keeps the reason', () => {
+    renderWithProviders(
+      <ChangeEmpty kind="new" minSupport={2} days={28} noPrevious={false} onResetMinimum={() => undefined} />,
+    );
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.getByText(/Lower the minimum or choose another window\./)).toBeInTheDocument();
+  });
+
+  it('offers no action when the previous period has no answers, whatever the minimum', () => {
+    renderWithProviders(
+      <ChangeEmpty kind="new" minSupport={5} days={28} noPrevious onResetMinimum={() => undefined} />,
+    );
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
   it('is axe clean', async () => {
-    const { container } = renderWithProviders(<ChangeEmpty kind="new" minSupport={2} days={28} noPrevious={false} />);
+    const { container } = renderWithProviders(
+      <ChangeEmpty kind="new" minSupport={5} days={28} noPrevious={false} onResetMinimum={() => undefined} />,
+    );
     expect(await axe(container)).toHaveNoViolations();
   });
 });

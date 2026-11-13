@@ -6256,6 +6256,7 @@
       "noPreviousLost": "The earlier periods have no answers, so nothing can be lost.",
       "emptyNewTitle": "No new source",
       "emptyNewReason": "No source reached {min, number} units in this window without being cited in the {days, number} days before it. Lower the minimum or choose another window.",
+      "resetMinimum": "Reset the minimum to {min, number}",
       "emptyLostTitle": "No lost source",
       "emptyLostReason": "A source is lost after it was cited in one window and not at all in the 2 windows after it, so a lost source needs {days, number} days of answers behind this window.",
       "failed": "{kind, select, new {The new sources} other {The lost sources}} could not be loaded.",
@@ -6284,8 +6285,7 @@
       "countryEmpty": "No country matches {query}",
       "clear": "Clear",
       "open": "Show countries",
-      "note": "Only the prompts set in {country} are read.",
-      "noteUnset": "Prompts with no country are left out."
+      "note": "Only the prompts set in {country} are read. Prompts with no country are left out."
     },
     "mobile": {
       "domainsCaption": "Cited domains",

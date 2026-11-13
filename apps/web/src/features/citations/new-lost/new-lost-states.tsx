@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
-import type { ChangeKind } from '../citation-scope';
+import { DEFAULT_MIN_SUPPORT, type ChangeKind } from '../citation-scope';
 import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
@@ -75,10 +75,15 @@ export interface ChangeEmptyProps {
   days: number;
   /** The previous period has no answers, which is the whole reason nothing is listed. */
   noPrevious: boolean;
+  /** Puts the default minimum back; offered only while the minimum is above it. */
+  onResetMinimum: () => void;
 }
 
-/** No source is new, or none is lost: the reason names the minimum and the days it stands on, or the missing period. */
-export function ChangeEmpty({ kind, minSupport, days, noPrevious }: ChangeEmptyProps): ReactElement {
+/**
+ * No source is new, or none is lost: the reason names the minimum and the days it stands on, or the missing period.
+ * A raised minimum can be what left no row, so it comes with the one button that puts it back.
+ */
+export function ChangeEmpty({ kind, minSupport, days, noPrevious, onResetMinimum }: ChangeEmptyProps): ReactElement {
   const t = useTranslations('citations.newLost');
   const title = kind === 'new' ? t('emptyNewTitle') : t('emptyLostTitle');
   if (noPrevious) {
@@ -90,6 +95,13 @@ export function ChangeEmpty({ kind, minSupport, days, noPrevious }: ChangeEmptyP
     <EmptyState
       title={title}
       reason={kind === 'new' ? t('emptyNewReason', { min: minSupport, days }) : t('emptyLostReason', { days })}
+      primaryAction={
+        minSupport > DEFAULT_MIN_SUPPORT ? (
+          <Button variant="secondary" onClick={onResetMinimum}>
+            {t('resetMinimum', { min: DEFAULT_MIN_SUPPORT })}
+          </Button>
+        ) : undefined
+      }
       headingLevel={2}
     />
   );

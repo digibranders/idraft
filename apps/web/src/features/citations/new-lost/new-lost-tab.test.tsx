@@ -12,7 +12,7 @@ import type { CitationTabContext } from '../citation-tabs';
 import { citationFilterFields } from '../citations-filters';
 import messages from '../../../../messages/en.json';
 import type { FilterValues } from '@/components/app/filters/types';
-import type { EngineCode, SourceDomainPage } from '@/lib/citations/types';
+import type { EngineCode, SourceChangePage, SourceDomainPage } from '@/lib/citations/types';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { handlers } from '@/mocks/handlers';
 import { mswPath, problem } from '@/mocks/respond';
@@ -322,6 +322,60 @@ describe('NewLostTab', () => {
       screen.getByText(
         'No source reached 1,000 units in this window without being cited in the 28 days before it. Lower the minimum or choose another window.',
       ),
+    ).toBeInTheDocument();
+  });
+
+  it('empty New offers to reset a raised minimum, and the reset puts the default back', async () => {
+    const writes: string[] = [];
+    const { user } = renderTab('min=1000', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
+    await screen.findByRole('heading', { name: 'No new source' });
+    await user.click(screen.getByRole('button', { name: 'Reset the minimum to 2' }));
+    await waitFor(() => expect(writes.at(-1)).toBeDefined());
+    expect(writes.at(-1)).not.toContain('min=');
+    expect(names(await loaded())).toEqual([expect.stringContaining(NEWCOMER)]);
+  });
+
+  it('empty New at the default minimum offers no action and keeps the reason', async () => {
+    server.use(
+      http.get(CHANGES, async ({ request }) => {
+        const real = await getResponse([...handlers], request);
+        const body = (await real?.json()) as SourceChangePage;
+        return HttpResponse.json({ ...body, data: [], page: { ...body.page, total: 0 } });
+      }),
+    );
+    renderTab();
+    expect(await screen.findByRole('heading', { name: 'No new source' })).toBeInTheDocument();
+    expect(screen.getByText(/Lower the minimum or choose another window\./)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Reset the minimum/ })).toBeNull();
+  });
+
+  it('the rule and the empty reason count the days of the previous period, not of the asked window', async () => {
+    // A previous period of 14 days against an asked window of 28
+    server.use(
+      http.get(CHANGES, async ({ request }) => {
+        const real = await getResponse([...handlers], request);
+        const body = (await real?.json()) as SourceChangePage;
+        const to = Date.parse(body.meta.compare_window.to);
+        const from = new Date(to - 13 * 86_400_000).toISOString().slice(0, 10);
+        return HttpResponse.json({
+          ...body,
+          data: [],
+          page: { ...body.page, total: 0 },
+          meta: { ...body.meta, compare_window: { ...body.meta.compare_window, from } },
+        });
+      }),
+    );
+    const { user } = renderTab('min=3');
+    expect(
+      await screen.findByText(
+        'No source reached 3 units in this window without being cited in the 14 days before it. Lower the minimum or choose another window.',
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'About New and lost sources' }));
+    expect(
+      await screen.findByText('New: at least 3 citation units in this window and none in the 14 days before it.', {
+        exact: false,
+      }),
     ).toBeInTheDocument();
   });
 

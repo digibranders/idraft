@@ -393,9 +393,7 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
           </div>
         </div>
         {scope.country === null ? null : (
-          <p className="type-meta">
-            {scopeWords('note', { country: countries.nameOf(scope.country) })} {scopeWords('noteUnset')}
-          </p>
+          <p className="type-meta">{scopeWords('note', { country: countries.nameOf(scope.country) })}</p>
         )}
         {scopeFailed || tab === null ? null : (
           <TabsPanel value={tab.id} className="flex flex-col gap-3 lg:min-h-0 lg:flex-1">

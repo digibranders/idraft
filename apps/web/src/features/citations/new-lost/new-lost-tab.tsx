@@ -9,6 +9,7 @@ import {
   lostDays,
   lostWindowDays,
   noPreviousAnswers,
+  previousDays,
   rowsOf,
   totalOf,
   truncatedOf,
@@ -79,8 +80,10 @@ export function NewLostTab({ context }: NewLostTabProps): ReactElement {
 
   const windowDays = daysIn(range);
   const meta = read.data?.meta;
-  // The days a source must have been absent (New) or the days of answers a lost read needs (Lost)
-  const days = kind === 'lost' ? (meta === undefined ? 3 * windowDays : lostDays(meta)) : windowDays;
+  // The days a source must have been absent (New: the real length of the previous period, which is not always the
+  // asked window's) or the days of answers a lost read needs (Lost)
+  const newDays = meta === undefined ? windowDays : previousDays(meta);
+  const days = kind === 'lost' ? (meta === undefined ? 3 * windowDays : lostDays(meta)) : newDays;
   const supportFrom = meta?.compare_window.from;
   const supportTo = meta?.compare_window.to;
   const supportWindow = useMemo(
@@ -132,7 +135,15 @@ export function NewLostTab({ context }: NewLostTabProps): ReactElement {
       : undefined;
 
   const errorState = <ChangeFailed kind={kind} errorId={read.errorId} onRetry={read.retry} retrying={read.retrying} />;
-  const emptyState = <ChangeEmpty kind={kind} minSupport={scope.minSupport} days={days} noPrevious={noPrevious} />;
+  const emptyState = (
+    <ChangeEmpty
+      kind={kind}
+      minSupport={scope.minSupport}
+      days={days}
+      noPrevious={noPrevious}
+      onResetMinimum={() => setSearch({ min: null })}
+    />
+  );
   const filteredEmptyState = (
     <CitationFilteredEmptyState
       filterBar={filterBar}
@@ -173,7 +184,7 @@ export function NewLostTab({ context }: NewLostTabProps): ReactElement {
           definition={t('ruleDefinition')}
           formula={
             kind === 'new'
-              ? t('ruleNew', { min: scope.minSupport, days: windowDays })
+              ? t('ruleNew', { min: scope.minSupport, days: newDays })
               : t('ruleLost', { min: scope.minSupport })
           }
           denominatorText={sample}
