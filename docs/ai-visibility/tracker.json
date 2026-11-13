@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T10:23:17+05:30",
+ "updated": "2026-11-13T10:28:45+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -4251,5 +4251,12 @@
    "effect": "changes numbers of existing source reads; its own commit T7; flipping back is one line; owner to confirm in the morning",
    "status": "approved by coordinator, owner to confirm"
   }
- ]
+ ],
+ "policy": {
+  "set": "2026-11-13T10:28:45+05:30",
+  "by": "owner",
+  "working_sessions_max": 2,
+  "subagents_per_session_max": 1,
+  "rule": "Owner needs the Mac for other projects. The five sessions running now (WP-12, WP-13, WP-14, WP-15, WP-25) finish their current package; after each merges it reports and STOPS. New packages are dispatched only while fewer than 2 sessions are working, one subagent at a time, full suites only through infra/dev/heavy when the health level is OK."
+ }
 }
