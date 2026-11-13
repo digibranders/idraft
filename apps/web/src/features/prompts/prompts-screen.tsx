@@ -27,7 +27,6 @@ import {
   collectTopicTerms,
   countryChoices,
   DEFAULT_PROMPT_SORT,
-  DEFAULT_WINDOW,
   hasAnswers,
   lastObservedAt,
   matchesTopics,
@@ -35,7 +34,6 @@ import {
   parseCountry,
   parseMetric,
   parseTab,
-  parseWindow,
   PROMPTS_TABS,
   RATE_METRICS,
   topicChoices,
@@ -46,14 +44,14 @@ import {
   topicsSpanned,
   topicSummaryRow,
   topicTermsOf,
-  windowRange,
+  type DateRange,
   type PromptsTab,
   type RateMetric,
   type TopicOrigin,
   type TopicTab,
 } from './prompt-model';
 import { enginesQuery, observationQuery, summaryQuery, usePromptList, type PromptScope } from './prompt-queries';
-import { PromptsCountryControl, PromptsWindowControl } from './prompts-scope';
+import { PromptsCountryControl } from './prompts-scope';
 import { PromptsStrip } from './prompts-strip';
 import { PROMPT_ACTION_ENTRIES, withActionEntries } from './seams/actions';
 import { PROMPTS_TOOLBAR_ENTRIES, promptsToolbarItems } from './seams/toolbar';
@@ -61,6 +59,9 @@ import { usePromptActions } from './use-prompt-actions';
 import { TopicInspector } from './topic-inspector';
 import { selectionKeyOf } from './selection-model';
 import { TopicsTable, type TopicMenuTarget } from './topics-table';
+import { DateRangePicker } from '@/components/app/date-range/date-range-picker';
+import { droppedMessageKey } from '@/components/app/date-range/range-model';
+import { useDateRangeParams } from '@/components/app/date-range/use-date-range-params';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { TableStatus } from '@/components/app/data-table/types';
 import { FilterBar } from '@/components/app/filters/filter-bar';
@@ -88,7 +89,7 @@ import { useErrorId } from '@/lib/api/use-error-id';
 import { copyText } from '@/lib/dom/clipboard';
 import { useUtcDay } from '@/lib/dom/use-utc-day';
 import { enumValuesOf } from '@/lib/filters/filter-values';
-import { formatBusinessDate, formatInteger, formatList, formatRelative } from '@/lib/format';
+import { formatBusinessDate, formatInteger, formatIsoDate, formatList, formatRelative } from '@/lib/format';
 import { formatInspectTarget } from '@/lib/inspector/placement';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { useCountries } from '@/lib/locations/countries';
@@ -125,13 +126,13 @@ export interface PromptsScreenProps {
 }
 
 /**
- * The URL's keys besides the filters': the tab (Topics has none), the window, the country of the top bar and the
- * tables' state. They all stay when the tab changes. Each table reads the sort ids it has and ignores the others
- * (`SORT_ID` in prompt-model.ts); the columns and the metric of the engine columns are the Prompts table's.
+ * The URL's keys besides the filters': the tab (Topics has none), the country of the top bar and the tables'
+ * state. They all stay when the tab changes, and so do the date range's own keys (`useDateRangeParams`). Each table
+ * reads the sort ids it has and ignores the others (`SORT_ID` in prompt-model.ts); the columns and the metric of
+ * the engine columns are the Prompts table's.
  */
 const VIEW_STATE = {
   tab: parseAsString,
-  window: parseAsString,
   country: parseAsString,
   q: parseAsString.withDefault(''),
   sort: parseAsString,
@@ -184,12 +185,15 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const scope = useMemo((): PromptScope => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
   const tab = parseTab(view.tab);
-  const windowDays = parseWindow(view.window);
   // The market of the top bar: every country unless the address names one
   const country = parseCountry(view.country);
   // The same date all UTC day; a new day is read at midnight UTC
   const now = useUtcDay();
-  const range = useMemo(() => windowRange(windowDays, now, project.timeZone), [windowDays, now, project.timeZone]);
+  // The range of every query of the page, from the picker's keys (`win`, `from`, `to`; `window` of older links).
+  // `today` is a day of the project's zone, the one place the clock is read
+  const today = formatIsoDate(now, project.timeZone);
+  const picked = useDateRangeParams({ today, legacyWindowKey: 'window' });
+  const range = useMemo((): DateRange => ({ from: picked.range.from, to: picked.range.to }), [picked.range]);
 
   const engines = useQuery(enginesQuery(scope));
   const enginesErrorId = useErrorId(engines.error);
@@ -686,6 +690,15 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     from: formatBusinessDate(range.from, { withYear: false }),
     to: formatBusinessDate(range.to),
   });
+  // A link whose range was not used says why, for as long as the address keeps it (13 section 5)
+  const { dropped } = picked;
+  const droppedWords =
+    dropped === null
+      ? null
+      : common(`dateRange.${droppedMessageKey(dropped.code)}`, {
+          max: dropped.code === 'too_long' ? dropped.max : 0,
+          date: dropped.code === 'before_start' ? formatBusinessDate(dropped.earliest) : '',
+        });
   const copyLink = (): void => {
     void copyText(window.location.href).then((copied) =>
       toast(copied ? { type: 'success', title: t('linkCopied') } : { type: 'error', title: common('copy.failed') }),
@@ -1091,10 +1104,11 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   return (
     <InspectorLayout inspector={promptInspector ?? answerInspector ?? topicInspector}>
       <TopBarPortal>
-        <PromptsWindowControl
-          days={windowDays}
-          onDaysChange={(days) => void setView({ window: days === DEFAULT_WINDOW ? null : String(days) })}
-          caption={windowCaption}
+        <DateRangePicker
+          value={picked.value}
+          onValueChange={picked.onValueChange}
+          today={today}
+          timeZone={project.timeZone}
         />
         <PromptsCountryControl
           country={country}
@@ -1112,6 +1126,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           // of the toolbar seam before it
           actions={toolbar === undefined ? emptyActions : undefined}
         />
+        {droppedWords === null ? null : <Banner tone="info" placement="region" message={droppedWords} />}
         {content}
       </div>
       {actions.dialogs}

@@ -20,7 +20,6 @@ import {
   parseCountry,
   parseMetric,
   parseTab,
-  parseWindow,
   PROMPT_TEXT_MAX,
   promptKeyOf,
   readPromptLines,
@@ -37,7 +36,6 @@ import {
   topicTermsOf,
   trailingRange,
   WIDEST_WINDOW,
-  WINDOW_DAYS,
   windowRange,
 } from './prompt-model';
 import type {
@@ -97,12 +95,6 @@ const engine = (code: ProjectEngine['engine']['engine_code'], max: number, locat
 });
 
 describe('the window', () => {
-  it('reads 7, 28 and 90 days from the URL and falls back to 28', () => {
-    expect([parseWindow('7'), parseWindow('90'), parseWindow('28'), parseWindow('5'), parseWindow(null)]).toEqual([
-      7, 90, 28, 28, 28,
-    ]);
-  });
-
   it('is the last days in the time zone of the project, today included', () => {
     // 23:30 UTC on 1 November is already 2 November in Kolkata
     const late = new Date('2026-11-01T23:30:00Z');
@@ -113,7 +105,7 @@ describe('the window', () => {
   it('never asks for more days than the API takes, the 90 days across a clock change included', () => {
     const MAX_DAYS = 92;
     const DAY = 86_400_000;
-    for (const days of WINDOW_DAYS) {
+    for (const days of [7, 28, 90]) {
       const { from, to } = windowRange(days, new Date('2026-11-12T12:00:00Z'), 'America/New_York');
       expect((Date.parse(to) - Date.parse(from)) / DAY + 1).toBe(days);
       expect(days).toBeLessThanOrEqual(MAX_DAYS);

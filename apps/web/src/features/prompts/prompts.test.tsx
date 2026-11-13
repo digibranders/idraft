@@ -272,6 +272,10 @@ const withTopBar = (ui: ReactElement): ReactElement => (
   </TopBarSlotProvider>
 );
 
+/** The date range picker of the top bar: a button whose name starts with this. */
+const RANGE_NAME = 'Date range:';
+const rangeTrigger = (): Promise<HTMLElement> => screen.findByRole('button', { name: /^Date range: / });
+
 describe('Topics & Prompts: what the list and the counts do while they load or fail', () => {
   it('leaves a branded prompt out of the table', async () => {
     renderOnPrompts(promptsAs('viewer'));
@@ -342,15 +346,168 @@ describe('Topics & Prompts: what the list and the counts do while they load or f
         return HttpResponse.json(EMPTY_SUMMARY);
       }),
     );
+    // The legacy key of the address: a link made before the date range picker keeps its 7 days
     renderOnPrompts(withTopBar(promptsAs('viewer')), { searchParams: '?window=7' });
-    expect(await screen.findByRole('combobox', { name: 'Window' })).toHaveAccessibleDescription(
-      'Answers from Nov 6 to Nov 12, 2026',
-    );
+    expect(await rangeTrigger()).toHaveAccessibleName(`${RANGE_NAME} Last 7 days (7d), Nov 6 to Nov 12, 2026`);
     await grid();
     expect(asked.map((url) => [url.searchParams.get('from'), url.searchParams.get('to')])).toContainEqual([
       '2026-11-06',
       '2026-11-12',
     ]);
+  });
+
+  it('shows the date range picker first in the top bar, on the 28 days of a page opened without a range', async () => {
+    const asked: URL[] = [];
+    server.use(
+      http.get(SUMMARY_PATH, ({ request }) => {
+        asked.push(new URL(request.url));
+        return HttpResponse.json(EMPTY_SUMMARY);
+      }),
+    );
+    renderOnPrompts(withTopBar(promptsAs('viewer')));
+    const trigger = await rangeTrigger();
+    expect(trigger).toHaveAccessibleName(`${RANGE_NAME} Last 28 days (28d), Oct 16 to Nov 12, 2026`);
+    const country = await screen.findByRole('combobox', { name: /^Country:/ });
+    expect(trigger.compareDocumentPosition(country) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await grid();
+    expect(asked.map((url) => [url.searchParams.get('from'), url.searchParams.get('to')])).toContainEqual([
+      '2026-10-16',
+      '2026-11-12',
+    ]);
+  });
+
+  it('writes win to the address when a preset is chosen, and asks the summary for its days', async () => {
+    const asked: URL[] = [];
+    server.use(
+      http.get(SUMMARY_PATH, ({ request }) => {
+        asked.push(new URL(request.url));
+        return HttpResponse.json(EMPTY_SUMMARY);
+      }),
+    );
+    const writes: string[] = [];
+    const { user } = renderOnPrompts(withTopBar(promptsAs('viewer')), {
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    await grid();
+    await user.click(await rangeTrigger());
+    await user.click(await screen.findByRole('button', { name: 'Last 90 days' }));
+    await vi.waitFor(() => expect(new URLSearchParams(writes.at(-1)).get('win')).toBe('90d'));
+    await vi.waitFor(() =>
+      expect(asked.map((url) => [url.searchParams.get('from'), url.searchParams.get('to')])).toContainEqual([
+        '2026-08-15',
+        '2026-11-12',
+      ]),
+    );
+  });
+
+  it('writes from and to, and drops the legacy window, when a custom range is applied', async () => {
+    const asked: URL[] = [];
+    server.use(
+      http.get(SUMMARY_PATH, ({ request }) => {
+        asked.push(new URL(request.url));
+        return HttpResponse.json(EMPTY_SUMMARY);
+      }),
+    );
+    const writes: string[] = [];
+    const { user } = renderOnPrompts(withTopBar(promptsAs('viewer')), {
+      searchParams: '?window=7',
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    await grid();
+    await user.click(await rangeTrigger());
+    await user.click(await screen.findByRole('button', { name: 'Custom range' }));
+    const start = await screen.findByRole('textbox', { name: 'Start date' });
+    await user.clear(start);
+    await user.type(start, '2026-09-01');
+    const end = screen.getByRole('textbox', { name: 'End date' });
+    await user.clear(end);
+    await user.type(end, '2026-10-31');
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    await vi.waitFor(() => {
+      const written = new URLSearchParams(writes.at(-1));
+      expect([written.get('from'), written.get('to'), written.has('window'), written.has('win')]).toEqual([
+        '2026-09-01',
+        '2026-10-31',
+        false,
+        false,
+      ]);
+    });
+    await vi.waitFor(() =>
+      expect(asked.map((url) => [url.searchParams.get('from'), url.searchParams.get('to')])).toContainEqual([
+        '2026-09-01',
+        '2026-10-31',
+      ]),
+    );
+    expect(await rangeTrigger()).toHaveAccessibleName(`${RANGE_NAME} Sep 1 to Oct 31, 2026 (61d)`);
+  });
+
+  it('reads a custom range of the address, and asks the summary for those dates', async () => {
+    const asked: URL[] = [];
+    server.use(
+      http.get(SUMMARY_PATH, ({ request }) => {
+        asked.push(new URL(request.url));
+        return HttpResponse.json(EMPTY_SUMMARY);
+      }),
+    );
+    renderOnPrompts(withTopBar(promptsAs('viewer')), { searchParams: '?from=2026-09-01&to=2026-10-31' });
+    expect(await rangeTrigger()).toHaveAccessibleName(`${RANGE_NAME} Sep 1 to Oct 31, 2026 (61d)`);
+    await grid();
+    expect(asked.map((url) => [url.searchParams.get('from'), url.searchParams.get('to')])).toContainEqual([
+      '2026-09-01',
+      '2026-10-31',
+    ]);
+    expect(screen.queryByText(/^The link asked for/)).toBeNull();
+  });
+
+  it('shows the 28 days and says why when the link asks for a range that is too long', async () => {
+    const asked: URL[] = [];
+    server.use(
+      http.get(SUMMARY_PATH, ({ request }) => {
+        asked.push(new URL(request.url));
+        return HttpResponse.json(EMPTY_SUMMARY);
+      }),
+    );
+    renderOnPrompts(withTopBar(promptsAs('viewer')), { searchParams: '?from=2026-06-01&to=2026-10-31' });
+    expect(
+      await screen.findByText('The link asked for more than 91 days, so the last 28 days are shown.'),
+    ).toBeInTheDocument();
+    expect(await rangeTrigger()).toHaveAccessibleName(`${RANGE_NAME} Last 28 days (28d), Oct 16 to Nov 12, 2026`);
+    await grid();
+    expect(asked.map((url) => [url.searchParams.get('from'), url.searchParams.get('to')])).toContainEqual([
+      '2026-10-16',
+      '2026-11-12',
+    ]);
+  });
+
+  it('says why when the link has dates that cannot be read, or in the future, and not when it has none', async () => {
+    const first = renderOnPrompts(withTopBar(promptsAs('viewer')), { searchParams: '?from=abc&to=2026-10-31' });
+    expect(
+      await screen.findByText('The dates in the link could not be read, so the last 28 days are shown.'),
+    ).toBeInTheDocument();
+    first.unmount();
+    const second = renderOnPrompts(withTopBar(promptsAs('viewer')), { searchParams: '?from=2026-11-01&to=2026-11-30' });
+    expect(
+      await screen.findByText('The link asked for dates after today, so the last 28 days are shown.'),
+    ).toBeInTheDocument();
+    second.unmount();
+    renderOnPrompts(withTopBar(promptsAs('viewer')));
+    await rangeTrigger();
+    expect(screen.queryByText(/^The link /)).toBeNull();
+  });
+
+  it('refuses a custom range of more than 91 days in the picker: the answers route takes no more', async () => {
+    const { user } = renderOnPrompts(withTopBar(promptsAs('viewer')));
+    await grid();
+    await user.click(await rangeTrigger());
+    await user.click(await screen.findByRole('button', { name: 'Custom range' }));
+    const start = await screen.findByRole('textbox', { name: 'Start date' });
+    await user.clear(start);
+    await user.type(start, '2026-08-01');
+    const end = screen.getByRole('textbox', { name: 'End date' });
+    await user.clear(end);
+    await user.type(end, '2026-11-12');
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
+    expect(screen.getAllByText(/is longer than the 91 day limit/).length).toBeGreaterThan(0);
   });
 
   it('keeps the table on screen while a new window is read', async () => {
@@ -366,11 +523,11 @@ describe('Topics & Prompts: what the list and the counts do while they load or f
     const { user } = renderOnPrompts(withTopBar(promptsAs('viewer')));
     const table = await grid();
     await within(table).findByText('Which SEO agency is best for a SaaS startup in Germany?');
-    await user.click(await screen.findByRole('combobox', { name: 'Window' }));
-    await user.click(await screen.findByRole('option', { name: 'Last 7 days' }));
+    await user.click(await rangeTrigger());
+    await user.click(await screen.findByRole('button', { name: 'Last 7 days' }));
     await vi.waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Window' })).toHaveAccessibleDescription(
-        'Answers from Nov 6 to Nov 12, 2026',
+      expect(screen.getByRole('button', { name: /^Date range: / })).toHaveAccessibleName(
+        `${RANGE_NAME} Last 7 days (7d), Nov 6 to Nov 12, 2026`,
       ),
     );
     await settle();
@@ -1288,11 +1445,11 @@ describe('Topics & Prompts: the Topics tab', () => {
     );
     const { user } = renderWithProviders(withTopBar(promptsAs('viewer')));
     await within(await treegrid()).findByText('No topic');
-    await user.click(await screen.findByRole('combobox', { name: 'Window' }));
-    await user.click(await screen.findByRole('option', { name: 'Last 7 days' }));
+    await user.click(await rangeTrigger());
+    await user.click(await screen.findByRole('button', { name: 'Last 7 days' }));
     await vi.waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Window' })).toHaveAccessibleDescription(
-        'Answers from Nov 6 to Nov 12, 2026',
+      expect(screen.getByRole('button', { name: /^Date range: / })).toHaveAccessibleName(
+        `${RANGE_NAME} Last 7 days (7d), Nov 6 to Nov 12, 2026`,
       ),
     );
     await settle();
@@ -2242,12 +2399,12 @@ describe('Topics & Prompts: the compact header and the country in the top bar', 
       ),
     );
 
-  it('puts the country in the top bar beside the window, with all countries and the countries of the prompts', async () => {
+  it('puts the country in the top bar beside the date range, with all countries and the countries of the prompts', async () => {
     const { user } = renderWithProviders(withTopBar(promptsAs('viewer')));
     await treegrid();
     expect(await countryControl()).toBeInTheDocument();
     expect(screen.getAllByRole('combobox', { name: /^Country:/ })).toHaveLength(1);
-    expect(screen.getByRole('combobox', { name: 'Window' })).toBeInTheDocument();
+    expect(await rangeTrigger()).toBeInTheDocument();
     await user.click(await countryControl());
     expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
       'All countries',
@@ -2387,7 +2544,7 @@ describe('Topics & Prompts: the compact header and the country in the top bar', 
     expect(more.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('shows the window of the top bar as 28d below 640 px, with its dates in the description', async () => {
+  it('shows the date range of the top bar as 28d below 640 px, with its dates in the name', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({
       matches: false,
       media: query,
@@ -2395,9 +2552,9 @@ describe('Topics & Prompts: the compact header and the country in the top bar', 
       removeEventListener: vi.fn(),
     }));
     renderWithProviders(withTopBar(promptsAs('viewer')));
-    const select = await screen.findByRole('combobox', { name: 'Window' });
-    expect(select).toHaveTextContent('28d');
-    expect(select).toHaveAccessibleDescription('Answers from Oct 16 to Nov 12, 2026');
+    const trigger = await rangeTrigger();
+    expect(trigger).toHaveTextContent('28d');
+    expect(trigger).toHaveAccessibleName(`${RANGE_NAME} Last 28 days (28d), Oct 16 to Nov 12, 2026`);
   });
 
   it('ends a long topic badge in an ellipsis inside its cell, with the whole name in the cell tooltip and no native title', async () => {

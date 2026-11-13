@@ -2,63 +2,17 @@
 
 import { ChevronDown, MapPin } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useId, useMemo, type ReactElement } from 'react';
+import { useMemo, type ReactElement } from 'react';
 
-import { DEFAULT_WINDOW, WINDOW_DAYS, type WindowDays } from './prompt-model';
 import { buttonVariants } from '@/components/ui/button-variants';
 import { Combobox } from '@/components/ui/combobox';
 import { Icon } from '@/components/ui/icon';
-import { Select } from '@/components/ui/select';
-import { Tooltip } from '@/components/ui/tooltip';
-import { MEDIA, useMediaQuery } from '@/lib/dom/use-media-query';
 import { cn } from '@/lib/utils';
 
 /**
- * The scope of the page, drawn in the top bar beside the theme switch (11-navigation.md section 4): the window
- * of days and the country. Like the Keywords page's country, they are never cleared with the filters.
+ * The country of the page, drawn in the top bar after the date range picker (11-navigation.md section 4). Like the
+ * Keywords page's country, it is never cleared with the filters.
  */
-
-export interface PromptsWindowControlProps {
-  days: WindowDays;
-  onDaysChange: (days: WindowDays) => void;
-  /** "Answers from Oct 16 to Nov 12, 2026": the window in dates, in a tooltip and as the select's description. */
-  caption: string;
-}
-
-/**
- * The window select. Below 640 px the top bar has no room for "Last 28 days", so it reads "28d" and the dates of
- * the window stay in the tooltip and the select's description.
- */
-export function PromptsWindowControl({ days, onDaysChange, caption }: PromptsWindowControlProps): ReactElement {
-  const t = useTranslations('prompts');
-  const roomy = useMediaQuery(MEDIA.sm);
-  const captionId = useId();
-  return (
-    <>
-      <span id={captionId} className="sr-only">
-        {caption}
-      </span>
-      <Tooltip content={caption} purpose="label" side="bottom">
-        <span className={cn('inline-flex', roomy ? 'w-40' : 'w-18')}>
-          <Select<string>
-            aria-label={t('window')}
-            aria-describedby={captionId}
-            size="sm"
-            value={String(days)}
-            onValueChange={(next) =>
-              onDaysChange(WINDOW_DAYS.find((value) => String(value) === next) ?? DEFAULT_WINDOW)
-            }
-            placeholder={t('window')}
-            options={WINDOW_DAYS.map((value) => ({
-              value: String(value),
-              label: roomy ? t('windowOption', { days: value }) : t('windowOptionShort', { days: value }),
-            }))}
-          />
-        </span>
-      </Tooltip>
-    </>
-  );
-}
 
 /** A choice of the country control: a market, or every one (`iso` is `null`). */
 interface CountryChoice {

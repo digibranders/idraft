@@ -18,14 +18,6 @@ import type { SortKey } from '@/lib/tables/table-state';
  * list of prompts and the countries a prompt may stand for. The screens put words to it.
  */
 
-/** The windows offered; the API takes at most 92 days. */
-export const WINDOW_DAYS = [7, 28, 90] as const;
-export type WindowDays = (typeof WINDOW_DAYS)[number];
-export const DEFAULT_WINDOW: WindowDays = 28;
-
-export const parseWindow = (value: string | null): WindowDays =>
-  WINDOW_DAYS.find((days) => String(days) === value) ?? DEFAULT_WINDOW;
-
 /** Project dates, `to` included, as the API's `from` and `to` take them. */
 export interface DateRange {
   from: string;
@@ -45,8 +37,8 @@ export function trailingRange(to: string, days: number): DateRange {
   return { from: from.toISOString().slice(0, 10), to };
 }
 
-/** The last `days` days in the project's time zone, today included. */
-export function windowRange(days: WindowDays, now: Date, timeZone: string): DateRange {
+/** The last `days` days in the project's time zone, today included. The page's own range comes from the date range picker. */
+export function windowRange(days: number, now: Date, timeZone: string): DateRange {
   return trailingRange(formatIsoDate(now, timeZone), days);
 }
 
