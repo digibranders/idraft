@@ -355,6 +355,33 @@ describe('useDomainColumns', () => {
     expect(screen.getByRole('img')).toHaveAttribute('data-tone', 'own');
   });
 
+  it('names the page on the trend of a page row, so ten pages of one domain are told apart', () => {
+    const series = [{ week_start: '2026-10-19', citation_units: 100, observations: 40 }];
+    renderCell('trend', {
+      kind: 'page',
+      id: 'p1',
+      parentId: 'd',
+      page: pageOf({ url: 'https://g2.com/products/one', series }),
+    });
+    renderCell('trend', {
+      kind: 'page',
+      id: 'p2',
+      parentId: 'd',
+      page: pageOf({ url: 'https://g2.com/products/two', series }),
+    });
+    expect(screen.getByRole('img', { name: 'Weekly share of https://g2.com/products/one' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Weekly share of https://g2.com/products/two' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Weekly share of g2.com' })).toBeNull();
+  });
+
+  it('gives an engine column no tooltip that only repeats its header', () => {
+    for (const engine of ENGINES) {
+      const column = columnOf(`engine-${engine.code}`);
+      expect(column.header).toBe(engine.label);
+      expect(column.headerTooltip).toBeUndefined();
+    }
+  });
+
   it('draws no trend for a row without a series', () => {
     const { container } = renderCell('trend', domainRow(domainOf({ series: null })));
     expect(container.querySelector('[role="img"]')).toBeNull();

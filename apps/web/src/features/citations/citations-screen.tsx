@@ -287,6 +287,7 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
       meta: scopeMeta,
       previousMeta,
       setSearch,
+      filterBar: { fields, values, onClear: () => setValues({}) },
     };
     // The scope read failing leaves nothing to show a panel against; any other read fails alone, and the strip says so.
     // A refetch that failed keeps its data and has an error id, so the read is failed whenever it has one

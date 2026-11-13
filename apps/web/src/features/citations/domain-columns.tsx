@@ -307,7 +307,6 @@ export function useDomainColumns({
             onFigures({
               ...col.count<CitationTableRow>(`engine-${engine.code}`, () => null, {
                 header: engine.label,
-                headerTooltip: engine.label,
                 priority: 3,
                 width: 112,
                 sortable: false,
@@ -398,7 +397,12 @@ export function useDomainColumns({
             <TrendCell
               figures={figures}
               metaSeries={meta?.series}
-              label={t('trendLabel', { domain: figures.registrable_domain })}
+              // The ten pages of a domain are told apart by their address, not by the domain they share
+              label={
+                row.kind === 'page'
+                  ? t('trendLabelPage', { url: row.page.url })
+                  : t('trendLabel', { domain: figures.registrable_domain })
+              }
               density={density}
             />
           );

@@ -1,8 +1,10 @@
 import type { useTranslations } from 'next-intl';
-import type { ReactNode } from 'react';
+import { createElement, type ReactNode } from 'react';
 
 import type { CitationRead } from './citation-reads';
 import type { CitationScope, CitationScopeState, CitationTab, DateWindow } from './citation-scope';
+import { DomainsTab } from './domains-tab';
+import type { FilterField, FilterValues } from '@/components/app/filters/types';
 import type { SourceFilters } from '@/lib/citations/source-queries';
 import type { EngineCode, SourceDomainPage, SourceScope } from '@/lib/citations/types';
 
@@ -32,6 +34,12 @@ export interface CitationTabContext {
   meta: CitationRead<SourceDomainPage>;
   previousMeta: CitationRead<SourceDomainPage>;
   setSearch: CitationScopeState['setSearch'];
+  /** The filter bar's fields and values, so a tab that finds nothing can name the filters and clear them. */
+  filterBar: {
+    fields: readonly FilterField[];
+    values: FilterValues;
+    onClear: () => void;
+  };
 }
 
 export interface CitationTabEntry {
@@ -53,8 +61,10 @@ export function defineCitationTabs(entries: readonly CitationTabEntry[]): readon
   return [...entries].sort((a, b) => ORDER[a.id] - ORDER[b.id]);
 }
 
-/** Empty until T4b adds Domains and T5a adds Pages. */
-export const CITATION_TABS: readonly CitationTabEntry[] = defineCitationTabs([]);
+/** Domains; T5a adds Pages with one entry, and WP-22 the New and lost tab. */
+export const CITATION_TABS: readonly CitationTabEntry[] = defineCitationTabs([
+  { id: 'domains', label: (t) => t('tabs.domains'), render: (context) => createElement(DomainsTab, { context }) },
+]);
 
 /** The tab asked for, or Domains when it is not listed (a link to Pages before that tab exists). */
 export function activeCitationTab(tabs: readonly CitationTabEntry[], wanted: CitationTab): CitationTabEntry | null {

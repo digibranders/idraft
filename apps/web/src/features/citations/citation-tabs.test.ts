@@ -1,5 +1,7 @@
+import { createTranslator } from 'next-intl';
 import { describe, expect, it } from 'vitest';
 
+import messages from '../../../messages/en.json';
 import { activeCitationTab, CITATION_TABS, defineCitationTabs, type CitationTabEntry } from './citation-tabs';
 import type { CitationTab } from './citation-scope';
 
@@ -17,8 +19,10 @@ describe('defineCitationTabs', () => {
     );
   });
 
-  it('starts empty: T4b and T5a add their entries', () => {
-    expect(CITATION_TABS).toEqual([]);
+  it('lists Domains now, with its label; T5a adds Pages', () => {
+    expect(CITATION_TABS.map((tab) => tab.id)).toEqual(['domains']);
+    const [domains] = CITATION_TABS;
+    expect(domains?.label(createTranslator({ locale: 'en', messages, namespace: 'citations' }))).toBe('Domains');
   });
 });
 
