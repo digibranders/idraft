@@ -42,9 +42,12 @@ import {
   type StoredEngine,
   type StoredPrompt,
 } from '../prompt-fixtures';
+import { keywordWorld, readKeywordChanges } from '../keywords-state';
 import { activePromptCount, mintPromptNumber, promptsOf } from '../prompts-state';
+import { checkText, estimateCost, matchItems, namedOf, suggestPromptType } from '../prompt-lint-rules';
 import { operationIdMinter, withSchedule, type OperationChanges, type StoredSchedule } from '../operations-state';
 import { invalid, mock, noContent, problem } from '../respond';
+import { onMockReset } from '../state';
 import { projectList } from '../workspace-state';
 import type { EngineCode, ProjectEngine, Prompt, PromptLint, ValidationItem } from '@/lib/api/types';
 import { textLength } from '@/lib/text/length';
@@ -75,7 +78,21 @@ const PROMPT_FIELDS = [
   'prompt_type',
   'importance',
   'term_ids',
+  'is_branded',
+  'source',
+  'creation_method',
+  'generated_from',
 ] as const;
+/** What a create may say about where a prompt came from (the server alone sets the other values). */
+const SOURCES_IN = [
+  'manual',
+  'csv_import',
+  'seo_keyword',
+  'paa',
+  'gsc_query',
+] as const satisfies readonly Prompt['source'][];
+const CREATION_METHODS_IN = ['human', 'template', 'imported'] as const satisfies readonly Prompt['creation_method'][];
+const GENERATED_TEMPLATES = ['recommendation', 'comparison', 'how_to', 'procurement'] as const;
 const INTENTS = [
   'informational',
   'navigational',
@@ -202,6 +219,30 @@ function ownMentions(world: EntityWorld, projectId: string, text: string): OwnMe
   });
 }
 
+interface Provenance {
+  prompt_type_source: Prompt['prompt_type_source'];
+  is_branded_source: Prompt['is_branded_source'];
+  source: Prompt['source'];
+  creation_method: Prompt['creation_method'];
+}
+
+const COMPUTED: Provenance = {
+  prompt_type_source: 'rule',
+  is_branded_source: 'computed',
+  source: 'manual',
+  creation_method: 'human',
+};
+/**
+ * Who set a prompt's type and branded flag and where it came from, for the prompts made or changed here; the
+ * fixtures' prompts read `COMPUTED`. Kept beside the stored rows, which the fixtures own.
+ */
+const PROVENANCE = new Map<string, Provenance>();
+const provenanceOf = (promptId: string): Provenance => PROVENANCE.get(promptId) ?? COMPUTED;
+const markProvenance = (promptId: string, change: Partial<Provenance>): void => {
+  PROVENANCE.set(promptId, { ...provenanceOf(promptId), ...change });
+};
+onMockReset(() => PROVENANCE.clear());
+
 /** A stored prompt as the API lists it (exported for tests that serve their own list). */
 export function promptView(stored: StoredPrompt): Prompt {
   return {
@@ -219,12 +260,9 @@ export function promptView(stored: StoredPrompt): Prompt {
     intent: stored.intent,
     funnel_stage: stored.funnel_stage,
     prompt_type: stored.prompt_type,
-    prompt_type_source: 'rule',
     importance: stored.importance,
     is_branded: stored.is_branded,
-    is_branded_source: 'computed',
-    source: 'manual',
-    creation_method: 'human',
+    ...provenanceOf(stored.prompt_id),
     is_active: stored.is_active,
     terms: stored.term_ids.flatMap((id) => termOf(id) ?? []),
     created_by: stored.created_by,
@@ -276,9 +314,32 @@ interface PromptItem {
   country_iso: string;
   intent: Prompt['intent'];
   funnel_stage: Prompt['funnel_stage'];
-  prompt_type: Prompt['prompt_type'];
+  /** `null`: left out, so the wording rule sets it. */
+  prompt_type: Prompt['prompt_type'] | null;
   importance: number;
   term_ids: string[];
+  /** `null`: left out, so the own aliases give it. */
+  is_branded: boolean | null;
+  source: Prompt['source'];
+  /** `null`: left out, so `human`, or `template` with `generated_from`. */
+  creation_method: Prompt['creation_method'] | null;
+  generated_from: { tracked_keyword_id: string; template: (typeof GENERATED_TEMPLATES)[number] } | null;
+}
+
+/** The errors of a `generated_from` member, or none for one left out or null. */
+function generatedFromErrors(value: unknown, path: string): ValidationItem[] {
+  if (value === undefined || value === null) return [];
+  if (!isRecord(value)) return [notAnObject(path)];
+  const id = value.tracked_keyword_id;
+  return [
+    ...extraMembers(value, ['tracked_keyword_id', 'template'], path),
+    ...(id === undefined
+      ? [bodyError(`${path}.tracked_keyword_id`, 'missing', 'Field required')]
+      : uuidError(id, `${path}.tracked_keyword_id`)),
+    ...(value.template === undefined
+      ? [bodyError(`${path}.template`, 'missing', 'Field required')]
+      : enumError(value.template, `${path}.template`, GENERATED_TEMPLATES)),
+  ];
 }
 
 /**
@@ -326,12 +387,14 @@ function itemOf(value: unknown, prefix: string): PromptItem | ValidationItem[] {
   if (!isRecord(value)) return [notAnObject(prefix)];
   const errors: ValidationItem[] = [...extraMembers(value, PROMPT_FIELDS, prefix)];
   const { language_code: language, country_iso: country, importance, term_ids: terms } = value;
+  // The members C1 added are optional and nullable: null reads as left out
+  const given = (name: string): unknown => (value[name] === null ? undefined : value[name]);
   const text = textOf(value.text, path('text'), 'prompt');
   if (typeof text !== 'string') errors.push(text);
   errors.push(
     ...enumError(value.intent, path('intent'), INTENTS),
     ...enumError(value.funnel_stage, path('funnel_stage'), FUNNEL_STAGES),
-    ...enumError(value.prompt_type, path('prompt_type'), PROMPT_TYPES),
+    ...enumError(given('prompt_type'), path('prompt_type'), PROMPT_TYPES),
   );
   if (typeof language !== 'string' || !LANGUAGE.test(language))
     errors.push(
@@ -347,41 +410,135 @@ function itemOf(value: unknown, prefix: string): PromptItem | ValidationItem[] {
     );
   if (importance !== undefined) errors.push(...intError(importance, path('importance'), 1, 5));
   if (terms !== undefined) errors.push(...termIdErrors(terms, path('term_ids')));
+  errors.push(
+    ...booleanError(given('is_branded'), path('is_branded')),
+    ...enumError(given('source'), path('source'), SOURCES_IN),
+    ...enumError(given('creation_method'), path('creation_method'), CREATION_METHODS_IN),
+    ...generatedFromErrors(given('generated_from'), path('generated_from')),
+  );
   if (errors.length > 0 || typeof text !== 'string' || typeof language !== 'string' || typeof country !== 'string') {
     return errors;
   }
+  const [type, branded, source, method, generated] = [
+    given('prompt_type'),
+    given('is_branded'),
+    given('source'),
+    given('creation_method'),
+    given('generated_from'),
+  ];
   return {
     text,
     language_code: language,
     country_iso: country,
     intent: isOneOf(value.intent, INTENTS) ? value.intent : 'unknown',
     funnel_stage: isOneOf(value.funnel_stage, FUNNEL_STAGES) ? value.funnel_stage : 'unknown',
-    prompt_type: isOneOf(value.prompt_type, PROMPT_TYPES) ? value.prompt_type : 'question',
+    prompt_type: isOneOf(type, PROMPT_TYPES) ? type : null,
     importance: typeof importance === 'number' ? importance : 3,
     term_ids: Array.isArray(terms) ? terms.filter((term): term is string => typeof term === 'string') : [],
+    is_branded: typeof branded === 'boolean' ? branded : null,
+    source: isOneOf(source, SOURCES_IN) ? source : 'manual',
+    creation_method: isOneOf(method, CREATION_METHODS_IN) ? method : null,
+    generated_from:
+      isRecord(generated) &&
+      typeof generated.tracked_keyword_id === 'string' &&
+      isOneOf(generated.template, GENERATED_TEMPLATES)
+        ? { tracked_keyword_id: generated.tracked_keyword_id, template: generated.template }
+        : null,
   };
 }
 
-/** Why the project cannot save this prompt: a term it cannot use, or a country an enabled engine does not run in. */
-function saveError(projectId: string, item: PromptItem): { code: string; path: string; message: string } | null {
+/** One text to lint; an `items` body gives its language and country, a `texts` body none of the two. */
+interface LintEntry {
+  text: string;
+  language: string | null;
+  country: string | null;
+}
+
+/** One entry of a lint body (a text, or an item with its market), or its field errors under `path`. */
+function lintEntryOf(raw: unknown, path: string, withItems: boolean): LintEntry | ValidationItem[] {
+  if (!withItems) {
+    const text = textOf(raw, path, 'lint');
+    return typeof text === 'string' ? { text, language: null, country: null } : [text];
+  }
+  if (!isRecord(raw)) return [notAnObject(path)];
+  const errors = extraMembers(raw, ['text', 'language_code', 'country_iso'], path);
+  const text = textOf(raw.text, `${path}.text`, 'lint');
+  if (typeof text !== 'string') errors.push(text);
+  const { language_code: language, country_iso: country } = raw;
+  if (typeof language !== 'string' || !LANGUAGE.test(language)) {
+    errors.push(
+      bodyError(
+        `${path}.language_code`,
+        language === undefined ? 'missing' : 'string_pattern_mismatch',
+        'Two lowercase letters.',
+      ),
+    );
+  }
+  if (typeof country !== 'string' || !COUNTRY.test(country)) {
+    errors.push(
+      bodyError(
+        `${path}.country_iso`,
+        country === undefined ? 'missing' : 'string_pattern_mismatch',
+        'Two capital letters.',
+      ),
+    );
+  }
+  return errors.length > 0 || typeof text !== 'string' || typeof language !== 'string' || typeof country !== 'string'
+    ? errors
+    : { text, language, country };
+}
+
+/** The ids of the project's tracked keywords that are not deleted: what `generated_from` may name. */
+function liveKeywordIds(cookies: Readonly<Record<string, string>>, projectId: string): ReadonlySet<string> {
+  return new Set(
+    keywordWorld(readKeywordChanges(cookies)).tracked.flatMap((row) =>
+      row.project_id === projectId && row.deleted_at === null ? [row.tracked_keyword_id] : [],
+    ),
+  );
+}
+
+/**
+ * Why the project cannot save this prompt: a term it cannot use, a country an enabled engine does not run in, or a
+ * tracked keyword it does not have.
+ */
+function saveError(
+  projectId: string,
+  item: PromptItem,
+  keywords: ReadonlySet<string>,
+): { code: string; path: string; message: string } | null {
   if (item.term_ids.some((term) => termOf(term) === null)) {
     return { code: 'term_unknown', path: 'term_ids', message: 'A term the project cannot use.' };
   }
   const missing = enabledEngines(projectId).find((engine) => !countriesOf(engine).has(item.country_iso));
-  return missing === undefined
+  if (missing !== undefined) {
+    return {
+      code: 'location_not_supported',
+      path: 'country_iso',
+      message: `${ENGINE_FACTS[missing.engine_code].label} runs in no location of this country. Add one in the project's engine settings, or turn the engine off.`,
+    };
+  }
+  return item.generated_from === null || keywords.has(item.generated_from.tracked_keyword_id)
     ? null
     : {
-        code: 'location_not_supported',
-        path: 'country_iso',
-        message: `${ENGINE_FACTS[missing.engine_code].label} runs in no location of this country. Add one in the project's engine settings, or turn the engine off.`,
+        code: 'tracked_keyword_unknown',
+        path: 'generated_from.tracked_keyword_id',
+        message: 'A tracked keyword of the project that is not deleted.',
       };
 }
 
 function newPrompt(caller: ProjectCaller, item: PromptItem, now: number): StoredPrompt {
   const n = mintPromptNumber();
   const user = caller.session.user;
+  const id = promptId(n);
+  // A type left out takes the wording rule and a branded flag left out the own aliases; sent, a person set them
+  PROVENANCE.set(id, {
+    prompt_type_source: item.prompt_type === null ? 'rule' : 'person',
+    is_branded_source: item.is_branded === null ? 'computed' : 'override',
+    source: item.source,
+    creation_method: item.creation_method ?? (item.generated_from === null ? 'human' : 'template'),
+  });
   return {
-    prompt_id: promptId(n),
+    prompt_id: id,
     version_id: versionId(n),
     project_id: caller.project.project_id,
     index: null,
@@ -391,9 +548,9 @@ function newPrompt(caller: ProjectCaller, item: PromptItem, now: number): Stored
     term_ids: item.term_ids,
     intent: item.intent,
     funnel_stage: item.funnel_stage,
-    prompt_type: item.prompt_type,
+    prompt_type: item.prompt_type ?? suggestPromptType(item.text),
     importance: item.importance,
-    is_branded: ownMentions(caller.world, caller.project.project_id, item.text).length > 0,
+    is_branded: item.is_branded ?? ownMentions(caller.world, caller.project.project_id, item.text).length > 0,
     is_active: true,
     created_at: isoOf(now),
     updated_at: isoOf(now),
@@ -587,7 +744,7 @@ export const promptHandlers: HttpHandler[] = [
     if (caller instanceof Response) return caller;
     const item = itemOf(await request.json(), '');
     if (Array.isArray(item)) return invalid(request, item);
-    const refused = saveError(caller.project.project_id, item);
+    const refused = saveError(caller.project.project_id, item, liveKeywordIds(cookies, caller.project.project_id));
     if (refused !== null) return invalid(request, [bodyError(refused.path, refused.code, refused.message)]);
     const state = promptsOf(caller.project.project_id);
     const key = keyOf(item.text, item.language_code, item.country_iso);
@@ -621,6 +778,7 @@ export const promptHandlers: HttpHandler[] = [
     errors.push(...read.flatMap((entry) => (Array.isArray(entry) ? entry : [])));
     if (errors.length > 0 || parsed.length !== read.length) return invalid(request, errors);
     const state = promptsOf(caller.project.project_id);
+    const keywords = liveKeywordIds(cookies, caller.project.project_id);
     const tracked = new Map(
       state.prompts.map((prompt) => [keyOf(prompt.text, prompt.language_code, prompt.country_iso), prompt.prompt_id]),
     );
@@ -631,7 +789,7 @@ export const promptHandlers: HttpHandler[] = [
     const rejected: { index: number; code: string; message: string }[] = [];
     parsed.forEach((item, index) => {
       const key = keyOf(item.text, item.language_code, item.country_iso);
-      const refused = saveError(caller.project.project_id, item);
+      const refused = saveError(caller.project.project_id, item, keywords);
       const existing = tracked.get(key);
       const earlier = first.get(key);
       if (refused !== null) rejected.push({ index, code: refused.code, message: refused.message });
@@ -700,37 +858,76 @@ export const promptHandlers: HttpHandler[] = [
     if (caller instanceof Response) return caller;
     const body: unknown = await request.json();
     if (!isRecord(body)) return invalid(request, [notAnObject()]);
-    const errors = extraMembers(body, ['texts', 'engine_codes']);
-    const texts = body.texts;
-    const saved: string[] = [];
-    if (!Array.isArray(texts))
-      errors.push(bodyError('texts', texts === undefined ? 'missing' : 'list_type', 'A list of texts.'));
-    else if (texts.length === 0) errors.push(bodyError('texts', 'too_short', 'At least one text.'));
-    else if (texts.length > LINT_MAX) errors.push(bodyError('texts', 'too_long', `At most ${String(LINT_MAX)}.`));
+    // The body is one of two shapes, and `items` present means the second (C1)
+    const withItems = body.items !== undefined;
+    const errors = extraMembers(
+      body,
+      withItems ? ['items', 'engine_codes'] : ['texts', 'engine_codes', 'language_code'],
+    );
+    const entries: LintEntry[] = [];
+    const listed = withItems ? body.items : body.texts;
+    const listName = withItems ? 'items' : 'texts';
+    if (!Array.isArray(listed))
+      errors.push(bodyError(listName, listed === undefined ? 'missing' : 'list_type', 'A list.'));
+    else if (listed.length === 0) errors.push(bodyError(listName, 'too_short', 'At least one.'));
+    else if (listed.length > LINT_MAX) errors.push(bodyError(listName, 'too_long', `At most ${String(LINT_MAX)}.`));
     else
-      texts.forEach((raw: unknown, index) => {
-        const text = textOf(raw, `texts.${String(index)}`, 'lint');
-        if (typeof text === 'string') saved.push(text);
-        else errors.push(text);
+      listed.forEach((raw: unknown, index) => {
+        const entry = lintEntryOf(raw, `${listName}.${String(index)}`, withItems);
+        if (Array.isArray(entry)) errors.push(...entry);
+        else entries.push(entry);
       });
+    // The one language a `texts` body checks every text against; left out, `language_mismatch` is not checked
+    const bodyLanguage = withItems ? null : (body.language_code ?? null);
+    if (!withItems && bodyLanguage !== null && (typeof bodyLanguage !== 'string' || !LANGUAGE.test(bodyLanguage))) {
+      errors.push(bodyError('language_code', 'string_pattern_mismatch', 'Two lowercase letters.'));
+    }
     const codes = body.engine_codes ?? ENGINE_CODES;
     if (!Array.isArray(codes) || codes.length === 0 || codes.some((code) => !isOneOf(code, ENGINE_CODES))) {
       errors.push(bodyError('engine_codes', 'enum', `Allowed: ${ENGINE_CODES.join(', ')}.`));
     }
-    if (errors.length > 0 || !Array.isArray(texts) || !Array.isArray(codes)) return invalid(request, errors);
+    if (errors.length > 0 || !Array.isArray(codes)) return invalid(request, errors);
     const engines = codes.filter((code): code is EngineCode => isOneOf(code, ENGINE_CODES));
+    // The rules that read the text run for the `items` shape and for a `texts` body that names a language; a body
+    // that sends neither is the one the first dialog sent, and it keeps its two rules
+    const textsLanguage = typeof bodyLanguage === 'string' ? bodyLanguage : null;
+    const rules = withItems || textsLanguage !== null;
+    const projectId = caller.project.project_id;
+    const state = promptsOf(projectId);
+    const matches = withItems
+      ? matchItems(
+          entries.map((entry) => ({
+            text: entry.text,
+            language_code: entry.language ?? '',
+            country_iso: entry.country ?? '',
+          })),
+          state.prompts.map((prompt) => ({
+            id: prompt.prompt_id,
+            text: prompt.text,
+            language_code: prompt.language_code,
+            country_iso: prompt.country_iso,
+            is_active: prompt.is_active,
+          })),
+        )
+      : null;
     let data: PromptLint[];
     try {
-      data = saved.map((text): PromptLint => {
-        const found = ownMentions(caller.world, caller.project.project_id, text);
+      data = entries.map(({ text, language }, position): PromptLint => {
+        const found = ownMentions(caller.world, projectId, text);
         const length = textLength(text);
+        const checked = rules
+          ? checkText(text, namedOf(caller.world, projectId, text), withItems ? language : textsLanguage)
+          : [];
         return {
           text,
           is_branded: found.length > 0,
-          // The mock's own simple rule: a question mark or a leading question word is a question, the rest is other
-          suggested_prompt_type: /\?\s*$|^(what|which|who|where|when|why|how|is|are|can|does|do)\b/i.test(text)
-            ? 'question'
-            : 'other',
+          suggested_prompt_type: suggestPromptType(text),
+          ...(matches === null
+            ? {}
+            : {
+                tracked: matches.tracked[position] ?? null,
+                near_duplicate_of: matches.near_duplicate_of[position] ?? null,
+              }),
           // Each text the aliases matched, once per brand: the alias is what the text says, not the brand's name
           matched_aliases: found.flatMap(({ entity, role, mention }) =>
             [
@@ -752,6 +949,7 @@ export const promptHandlers: HttpHandler[] = [
                 span: place === undefined ? null : { start: place.start, end: place.end },
               };
             }),
+            ...checked.map((finding) => ({ ...finding, engine_code: null })),
             ...engines
               .filter((code) => length > ENGINE_FACTS[code].max_prompt_chars)
               .map((code) => ({
@@ -770,9 +968,19 @@ export const promptHandlers: HttpHandler[] = [
       if (error instanceof TooManyMatchesError) return problem(request, 'too_many_matches', { detail: error.message });
       throw error;
     }
+    const quota = { limit: PROMPT_QUOTA, used: activePromptCount(workspaceProjects(caller)) };
+    if (matches === null) return HttpResponse.json({ data, quota });
+    // What the prompts that would be created cost: on the engines asked for, else those the project has on
+    const asked = new Set(
+      body.engine_codes === undefined ? enabledEngines(projectId).map((e) => e.engine_code) : engines,
+    );
     return HttpResponse.json({
       data,
-      quota: { limit: PROMPT_QUOTA, used: activePromptCount(workspaceProjects(caller)) },
+      quota: { ...quota, would_create: matches.creates.filter(Boolean).length },
+      estimate: estimateCost(
+        entries.flatMap((entry, position) => (matches.creates[position] === true ? [entry.text] : [])),
+        ENGINE_CODES.filter((code) => asked.has(code)),
+      ),
     });
   }),
 
@@ -828,9 +1036,15 @@ export const promptHandlers: HttpHandler[] = [
     if (columns.length > 0) found.updated_at = isoOf(Date.now());
     if (isOneOf(body.intent, INTENTS)) found.intent = body.intent;
     if (isOneOf(body.funnel_stage, FUNNEL_STAGES)) found.funnel_stage = body.funnel_stage;
-    if (isOneOf(body.prompt_type, PROMPT_TYPES)) found.prompt_type = body.prompt_type;
+    if (isOneOf(body.prompt_type, PROMPT_TYPES)) {
+      found.prompt_type = body.prompt_type;
+      markProvenance(found.prompt_id, { prompt_type_source: 'person' });
+    }
     if (typeof body.importance === 'number') found.importance = body.importance;
-    if (typeof body.is_branded === 'boolean') found.is_branded = body.is_branded;
+    if (typeof body.is_branded === 'boolean') {
+      found.is_branded = body.is_branded;
+      markProvenance(found.prompt_id, { is_branded_source: 'override' });
+    }
     if (typeof body.is_active === 'boolean') found.is_active = body.is_active;
     return HttpResponse.json({ data: promptView(found) });
   }),
